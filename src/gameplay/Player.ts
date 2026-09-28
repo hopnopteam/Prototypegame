@@ -5,16 +5,22 @@ import { FLOOR_Y } from '../world/CarriageView';
 import { CharacterView, CONDUCTOR_LOOK } from '../world/CharacterView';
 import type { Actor } from './Actor';
 import { CarryStack } from './CarryStack';
+import { OUTFITS, type OutfitDef } from '../config/wardrobe';
+import { ConductorGear } from '../world/ConductorGear';
 import type { Input } from './Input';
 import { PathFollower } from './PathPlanner';
 import type { World } from './World';
+
+const PLAYER_SCALE = 1.1;
 
 /** The conductor: one finger to walk, everything else happens by walking over things. */
 export class Player implements Actor {
   readonly isPlayer = true;
   readonly workMultiplier = 1;
   readonly pos: Vec2;
-  readonly view = new CharacterView(CONDUCTOR_LOOK);
+  /** A touch taller than everyone else, so the eye finds the conductor first. */
+  readonly view = new CharacterView(CONDUCTOR_LOOK, PLAYER_SCALE);
+  private readonly gear: ConductorGear;
   readonly stack: CarryStack;
   private vx = 0;
   private vz = 0;
@@ -29,7 +35,16 @@ export class Player implements Actor {
     this.pos = { x: spawn.x, z: spawn.z };
     this.stack = new CarryStack(this.view.stackAnchor, w.scene, w.tweens, this.capacity());
     this.travel = new PathFollower(w);
+    this.gear = new ConductorGear(this.view, CONDUCTOR_LOOK);
     w.scene.add(this.view.root);
+  }
+
+  /** The outfit being worn (falls back to the classic navy if the saved one is not available). */
+  outfit(): OutfitDef {
+    const w = this.w;
+    const chosen = OUTFITS.find((o) => o.id === w.data.cosmetics.outfit);
+    const available = (o: OutfitDef): boolean => (o.minLevel !== undefined ? w.progression.level >= o.minLevel : w.data.cosmetics.outfits.includes(o.id));
+    return chosen && available(chosen) ? chosen : OUTFITS[0];
   }
 
   travelTo(target: Vec2): void {
@@ -92,6 +107,16 @@ export class Player implements Actor {
     this.view.setFacing(this.facing);
     this.view.setCarrying(!this.stack.isEmpty);
     this.view.update(dt, this.speedNow);
+    const m = w.data.monetization;
+    this.gear.update(dt, {
+      outfit: this.outfit(),
+      speedLevel: w.data.conductor.speed,
+      capacityLevel: w.data.conductor.capacity,
+      charmLevel: w.data.conductor.fareBonus,
+      skating: this.boosted,
+      scooter: w.iap.isOwned('conductor_scooter'),
+      doubled: m.doubleFaresStop !== null && m.doubleFaresStop >= w.journey.stopSerial && m.doubleFaresStop <= w.journey.stopSerial + 1,
+    });
     this.stack.update(dt, moving, w.time);
 
     if (this.boosted && moving && Math.random() < dt * 12) {

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { AudioEngine } from '../audio/AudioEngine';
 import { Haptics } from '../audio/Haptics';
 import { CARRIAGE_CATALOGUE, PRODUCTS } from '../config/content';
+import { OUTFITS } from '../config/wardrobe';
 import { ECONOMY, type Economy } from '../config/economy';
 import { EventBus } from '../core/EventBus';
 import { log } from '../core/log';
@@ -449,6 +450,8 @@ export class Game implements World {
         this.ui.toast(`New livery earned: ${earned.name} (Paint Shop)`, 'paint');
       }
     }
+    const outfit = OUTFITS.find((o) => o.minLevel === level);
+    if (outfit && level > 1) this.ui.toast(`New outfit: ${outfit.name} · Conductor`, 'conductor');
     const reward = this.progression.rewardFor(level);
     this.analytics.log(EVENTS.routeLevelUp, { level, time: Math.round(this.lifetimeSeconds()) });
     this.events.emit('level.up', { level });

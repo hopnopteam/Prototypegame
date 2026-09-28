@@ -4,6 +4,7 @@ import type { DoubleChoice } from '../gameplay/GameUi';
 import { CEREMONIES, INTERVIEWS, NOMINATION_LEVEL, RIVALS } from '../config/press';
 import { conductorCost } from '../sim/meta';
 import { CARRIAGE_THEMES, LIVERIES, liveryFor } from '../world/palette';
+import { OUTFITS, type OutfitDef } from '../config/wardrobe';
 import type { CarriageChoiceView } from '../gameplay/UiApi';
 import type { CarriageType } from '../core/types';
 import { h, icon } from './dom';
@@ -420,10 +421,45 @@ export class Screens {
         }, cost === null ? 'Max' : h('span', {}, icon('miles', 20), ` ${cost}`)),
       );
     });
-    close = this.sheet('Conductor', 'miles', [
-      h('p', { text: 'Rail Miles follow you on every route. Spend them on yourself.' }),
+    close = this.sheet('Conductor', 'conductor', [
+      h('div.miles-line', {}, icon('miles', 22), h('b', { text: formatNumber(g.wallet.get('railMiles')) }), h('span', { text: 'Rail Miles follow you on every route. You can see every upgrade on the conductor.' })),
       ...rows,
+      h('div.section-title', { text: 'Wardrobe' }),
+      this.wardrobe(() => { close(); this.upgrades(); }),
     ]);
+  }
+
+  /** Outfits: earned by route level or bought with gems. Cosmetic only. */
+  private wardrobe(refresh: () => void): HTMLElement {
+    const g = this.game;
+    const worn = g.player.outfit();
+    const cards = OUTFITS.map((o) => {
+      const earned = o.minLevel !== undefined ? g.progression.level >= o.minLevel : g.data.cosmetics.outfits.includes(o.id);
+      const portrait = h('canvas', { width: 120, height: 120 });
+      drawConductorPortrait(portrait, o);
+      let action: HTMLElement;
+      if (worn.id === o.id) action = h('button.buy', { disabled: true }, 'Wearing');
+      else if (earned) action = h('button.buy', { onclick: () => { g.data.cosmetics.outfit = o.id; g.save.markDirty(); g.audio.play('sparkle'); g.player.view.bounce(1); refresh(); } }, 'Wear');
+      else if (o.minLevel !== undefined) action = h('button.buy', { disabled: true }, `Level ${o.minLevel}`);
+      else {
+        const cost = o.gems ?? 0;
+        action = h('button.buy.gem', {
+          disabled: g.wallet.get('gems') < cost,
+          onclick: () => {
+            if (!g.wallet.trySpend('gems', cost, `outfit:${o.id}`)) return;
+            g.data.cosmetics.outfits.push(o.id);
+            g.data.cosmetics.outfit = o.id;
+            g.save.markDirty();
+            g.audio.play('unlock');
+            g.analytics.log('iap_offer_purchased', { product: `outfit:${o.id}`, currency: 'gems', amount: cost });
+            g.player.view.bounce(1);
+            refresh();
+          },
+        }, icon('gem', 16), String(cost));
+      }
+      return h(`div.livery${worn.id === o.id ? '.on' : ''}` as 'div', {}, portrait, h('b', { text: o.name }), action);
+    });
+    return h('div.liveries.outfits', {}, ...cards);
   }
 
   // ─── Album ──────────────────────────────────────────────────────────────────
@@ -684,9 +720,81 @@ export function levelPerks(level: number): string[] {
   if (features[level]) perks.push(features[level]);
   const livery = LIVERIES.find((l) => l.minLevel === level);
   if (livery && level > 1) perks.push(`New livery: ${livery.name}`);
+  const outfit = OUTFITS.find((o) => o.minLevel === level);
+  if (outfit && level > 1) perks.push(`New outfit: ${outfit.name}`);
   if (INTERVIEWS.some((i) => i.level === level)) perks.push('A Rails Tonight interview');
   if (level === NOMINATION_LEVEL) perks.push('A Golden Whistle nomination');
   const ceremony = CEREMONIES.find((c) => c.level === level);
   if (ceremony) perks.push(ceremony.title);
   return perks;
+}
+
+/** The wardrobe card: a head-and-shoulders portrait of the conductor in the outfit. */
+function drawConductorPortrait(canvas: HTMLCanvasElement, o: OutfitDef): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const w = canvas.width;
+  ctx.fillStyle = '#F4ECDB';
+  ctx.fillRect(0, 0, w, w);
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#2A2433';
+  // Coat.
+  ctx.fillStyle = o.body;
+  ctx.beginPath();
+  ctx.moveTo(18, 120);
+  ctx.quadraticCurveTo(22, 78, 60, 76);
+  ctx.quadraticCurveTo(98, 78, 102, 120);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = o.accent;
+  for (const y of [92, 106]) {
+    ctx.beginPath();
+    ctx.arc(60, y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Head, moustache.
+  ctx.fillStyle = '#F1C7A5';
+  ctx.beginPath();
+  ctx.arc(60, 56, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#2A2433';
+  for (const x of [52, 68]) {
+    ctx.beginPath();
+    ctx.arc(x, 55, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#4A3426';
+  ctx.beginPath();
+  ctx.ellipse(55, 65, 6, 2.6, 0.2, 0, Math.PI * 2);
+  ctx.ellipse(65, 65, 6, 2.6, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  // Hat.
+  if (o.hat === 'boater') {
+    ctx.fillStyle = o.hatColor;
+    ctx.beginPath();
+    ctx.ellipse(60, 38, 34, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillRect(42, 22, 36, 16);
+    ctx.strokeRect(42, 22, 36, 16);
+    ctx.fillStyle = o.bandColor;
+    ctx.fillRect(42, 31, 36, 6);
+  } else {
+    ctx.fillStyle = o.hatColor;
+    ctx.beginPath();
+    ctx.moveTo(34, 40);
+    ctx.quadraticCurveTo(36, 18, 60, 17);
+    ctx.quadraticCurveTo(84, 18, 86, 40);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = o.bandColor;
+    ctx.fillRect(34, 36, 52, 7);
+    ctx.fillStyle = '#E2B653';
+    ctx.beginPath();
+    ctx.arc(60, 28, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }

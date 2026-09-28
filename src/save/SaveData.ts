@@ -102,7 +102,7 @@ export interface SaveData {
     perks: { tipBonus: number; fareBonus: number; speedBonus: number };
   };
   /** Paint Shop: the chosen livery (null follows reputation) and premium liveries bought with gems. */
-  cosmetics: { livery: string | null; owned: string[] };
+  cosmetics: { livery: string | null; owned: string[]; outfit: string; outfits: string[] };
   /** The world noticing your train: its name, the Rail Gazette, interviews, awards. */
   press: {
     trainName: string | null;
@@ -154,7 +154,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
       stories: {},
       perks: { tipBonus: 0, fareBonus: 0, speedBonus: 0 },
     },
-    cosmetics: { livery: null, owned: [] },
+    cosmetics: { livery: null, owned: [], outfit: 'classic', outfits: [] },
     press: {
       trainName: null,
       items: [],

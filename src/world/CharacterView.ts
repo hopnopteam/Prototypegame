@@ -5,7 +5,7 @@ import { MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, type BubbleStyle } from './sprites';
 
-export type HatKind = 'conductor' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'none';
+export type HatKind = 'conductor' | 'boater' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'none';
 export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'none';
 
 export interface CharacterLook {
@@ -20,6 +20,11 @@ export interface CharacterLook {
   arms?: boolean;
   /** A little moustache (the conductor). */
   moustache?: boolean;
+  /** Conductor's cap (or boater) colours; default navy with a red band. */
+  hatColor?: string;
+  bandColor?: string;
+  /** Shoe colour (the conductor's shoes change with speed upgrades). */
+  shoe?: string;
 }
 
 const HIP_Y = 0.36;
@@ -55,15 +60,23 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
   if (look.moustache) {
     for (const side of [-1, 1]) b.add(new THREE.SphereGeometry(0.05, 10, 6).scale(1.3, 0.5, 0.6), look.hair, side * 0.045, HEAD_Y - 0.075, 0.232, 0, 0, side * -0.25, { shade: 1 });
   }
-  const hatted = look.hat === 'conductor' || look.hat === 'cap' || look.hat === 'beanie' || look.hat === 'pillbox';
+  const hatted = look.hat === 'conductor' || look.hat === 'boater' || look.hat === 'cap' || look.hat === 'beanie' || look.hat === 'pillbox';
   b.sphere(0, HEAD_Y + (hatted ? 0.03 : 0.07), -0.05, 0.255, look.hair, 2, 0.95, { shade: 0.85 });
 
   switch (look.hat) {
-    case 'conductor':
-      b.cylinder(0, HEAD_Y + 0.25, -0.01, 0.28, 0.25, 0.15, PALETTE.navy, 18, 'y', { shade: 0.85 });
-      b.cylinder(0, HEAD_Y + 0.2, -0.01, 0.255, 0.255, 0.05, PALETTE.locoRed, 18, 'y', { shade: 1 });
-      b.add(new THREE.CylinderGeometry(0.2, 0.2, 0.025, 16, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 0.75), PALETTE.navyDark, 0, HEAD_Y + 0.17, 0.12, 0.25, 0, 0, { shade: 1 });
+    case 'conductor': {
+      const crown = look.hatColor ?? PALETTE.navy;
+      b.cylinder(0, HEAD_Y + 0.25, -0.01, 0.28, 0.25, 0.15, crown, 18, 'y', { shade: 0.85 });
+      b.cylinder(0, HEAD_Y + 0.2, -0.01, 0.255, 0.255, 0.05, look.bandColor ?? PALETTE.locoRed, 18, 'y', { shade: 1 });
+      b.add(new THREE.CylinderGeometry(0.2, 0.2, 0.025, 16, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 0.75), shadeOf(crown), 0, HEAD_Y + 0.17, 0.12, 0.25, 0, 0, { shade: 1 });
       b.sphere(0, HEAD_Y + 0.27, 0.26, 0.04, PALETTE.gold, 1, 1, { shade: 1 });
+      break;
+    }
+    case 'boater':
+      // A summer straw boater: flat brim, low crown, a ribbon band.
+      b.cylinder(0, HEAD_Y + 0.2, -0.01, 0.4, 0.4, 0.03, look.hatColor ?? '#E8D29A', 20, 'y', { shade: 0.95 });
+      b.cylinder(0, HEAD_Y + 0.29, -0.01, 0.22, 0.23, 0.16, look.hatColor ?? '#E8D29A', 18, 'y', { shade: 0.9 });
+      b.cylinder(0, HEAD_Y + 0.25, -0.01, 0.235, 0.235, 0.06, look.bandColor ?? PALETTE.raspberry, 18, 'y', { shade: 1 });
       break;
     case 'pillbox':
       b.cylinder(0, HEAD_Y + 0.27, 0, 0.16, 0.16, 0.14, look.accent, 16, 'y', { shade: 0.9 });
@@ -112,13 +125,13 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
   return geometry;
 }
 
-function legGeometry(color: string): THREE.BufferGeometry {
-  const key = `leg:${color}`;
+function legGeometry(color: string, shoe = SHOE): THREE.BufferGeometry {
+  const key = `leg:${color}:${shoe}`;
   let g = limbCache.get(key);
   if (!g) {
     g = new GeoBuilder()
       .cylinder(0, -0.16, 0, 0.065, 0.06, 0.32, color, 10, 'y', { shade: 0.85 })
-      .add(new THREE.SphereGeometry(0.075, 10, 6).scale(1, 0.6, 1.5), SHOE, 0, -0.33, 0.04, 0, 0, 0, { shade: 1 })
+      .add(new THREE.SphereGeometry(0.075, 10, 6).scale(1, 0.6, 1.5), shoe, 0, -0.33, 0.04, 0, 0, 0, { shade: 1 })
       .build();
     limbCache.set(key, g);
   }
@@ -202,27 +215,35 @@ export class CharacterView {
   private blanket: THREE.Mesh | null = null;
   private eyelids: THREE.Mesh | null = null;
 
-  constructor(readonly look: CharacterLook, scale = 1) {
+  private readonly bodyMesh: THREE.Mesh;
+  private readonly legMeshes: THREE.Mesh[] = [];
+  private readonly armMeshes: THREE.Mesh[] = [];
+
+  constructor(public look: CharacterLook, scale = 1) {
     this.root.add(this.body);
     const pants = look.pants ?? '#3A3440';
     for (const side of [-1, 1] as const) {
       const pivot = new THREE.Object3D();
       pivot.position.set(side * 0.095, HIP_Y, 0);
-      pivot.add(castsShadow(new THREE.Mesh(legGeometry(pants), MATERIALS.character)));
+      const leg = castsShadow(new THREE.Mesh(legGeometry(pants, look.shoe), MATERIALS.character));
+      pivot.add(leg);
       this.body.add(pivot);
       this.legs.push(pivot);
+      this.legMeshes.push(leg);
     }
-    const bodyMesh = castsShadow(new THREE.Mesh(bodyGeometry(look), MATERIALS.character));
-    this.body.add(bodyMesh);
+    this.bodyMesh = castsShadow(new THREE.Mesh(bodyGeometry(look), MATERIALS.character));
+    this.body.add(this.bodyMesh);
 
     const carried = look.accessory;
     for (const side of [-1, 1] as const) {
       const pivot = new THREE.Object3D();
       pivot.position.set(side * 0.25, SHOULDER_Y, 0);
-      pivot.add(castsShadow(new THREE.Mesh(armGeometry(look.body, look.skin, carried, side), MATERIALS.character)));
+      const arm = castsShadow(new THREE.Mesh(armGeometry(look.body, look.skin, carried, side), MATERIALS.character));
+      pivot.add(arm);
       pivot.rotation.z = side * 0.1;
       this.body.add(pivot);
       this.arms.push(pivot);
+      this.armMeshes.push(arm);
     }
 
     this.stackAnchor.position.set(0, STACK_BASE_Y, 0.34);
@@ -233,6 +254,22 @@ export class CharacterView {
     this.root.add(this.shadow);
     this.root.scale.setScalar(scale);
   }
+
+  /** Changes outfit in place (geometry is cached per look, so this is cheap after the first time). */
+  setLook(look: CharacterLook): void {
+    this.look = look;
+    this.bodyMesh.geometry = bodyGeometry(look);
+    this.legMeshes.forEach((m) => (m.geometry = legGeometry(look.pants ?? '#3A3440', look.shoe)));
+    this.armMeshes.forEach((m, i) => (m.geometry = armGeometry(look.body, look.skin, look.accessory, i === 0 ? -1 : 1)));
+  }
+
+  /** Leg pivots (for footwear attachments) and the body group (for chest and shoulder gear). */
+  get legPivots(): readonly THREE.Object3D[] {
+    return this.legs;
+  }
+
+  /** Hide the walk cycle (riding a scooter): legs straight, no bob. */
+  riding = false;
 
   setPosition(x: number, y: number, z: number): void {
     this.root.position.set(x, y, z);
@@ -335,7 +372,7 @@ export class CharacterView {
       return;
     }
 
-    const moving = speed > 0.2;
+    const moving = speed > 0.2 && !this.riding;
     this.phase += dt * (moving ? 3 + speed * 2.2 : 1.6);
     const swing = moving ? Math.min(0.75, 0.25 + speed * 0.12) : 0;
     const s = Math.sin(this.phase);
