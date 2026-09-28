@@ -12,6 +12,8 @@ export interface PointerState {
   visible: boolean;
 }
 
+/** Screen-edge pointer insets in CSS pixels (top clears the HUD bars, right clears the side buttons). */
+const POINTER_INSET = { top: 124, right: 84, side: 36 };
 /** Until this much lifetime play the arrow always shows; after that only when the player seems stuck. */
 const FTUE_SECONDS = 150;
 const IDLE_BEFORE_HINT = 3;
@@ -68,10 +70,14 @@ export class Guidance {
     if (!target) return;
     const onScreen = this.w.stage.project(this.tmp.set(target.x, FLOOR_Y + 1, target.z), this.screen);
     const { width, height } = this.w.stage.size;
-    const margin = 36;
-    if (onScreen && this.screen.x > margin && this.screen.x < width - margin && this.screen.y > margin + 60 && this.screen.y < height - margin) return;
+    // The pointer lives inside the play area: below the HUD bars, left of the side buttons.
+    const left = POINTER_INSET.side;
+    const right = width - POINTER_INSET.right;
+    const top = POINTER_INSET.top;
+    const bottom = height - POINTER_INSET.side;
+    if (onScreen && this.screen.x > left && this.screen.x < right && this.screen.y > top && this.screen.y < bottom) return;
     const cx = width / 2;
-    const cy = height / 2;
+    const cy = (top + bottom) / 2;
     let dx = this.screen.x - cx;
     let dy = this.screen.y - cy;
     if (!onScreen) {
@@ -79,11 +85,13 @@ export class Guidance {
       dy = -dy;
     }
     const angle = Math.atan2(dy, dx);
-    const sx = (cx - margin) / Math.max(1e-3, Math.abs(Math.cos(angle)));
-    const sy = (cy - margin - 40) / Math.max(1e-3, Math.abs(Math.sin(angle)));
-    const r = Math.min(sx, sy);
-    pointer.x = cx + Math.cos(angle) * r;
-    pointer.y = cy + Math.sin(angle) * r;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const rx = cos > 0 ? (right - cx) / cos : cos < 0 ? (left - cx) / cos : Infinity;
+    const ry = sin > 0 ? (bottom - cy) / sin : sin < 0 ? (top - cy) / sin : Infinity;
+    const r = Math.min(rx, ry);
+    pointer.x = cx + cos * r;
+    pointer.y = cy + sin * r;
     pointer.angle = angle;
     pointer.visible = true;
   }

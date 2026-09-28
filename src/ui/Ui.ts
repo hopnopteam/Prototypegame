@@ -21,6 +21,9 @@ interface Floating {
 const FLOAT_LIFE = 1.15;
 const TOAST_SECONDS = 2.8;
 const RESULT_SECONDS = 5.5;
+/** Seconds a queued announcement may wait (behind another one or an open sheet) before it is dropped. */
+const BANNER_MAX_DELAY = 5;
+const CELEBRATE_MAX_DELAY = 60;
 
 /**
  * The DOM layer: HUD, world-anchored feedback (floating numbers, speech), toasts, banners, the station
@@ -50,8 +53,12 @@ export class Ui implements GameUi {
   private readonly tmp = new THREE.Vector3();
   private readonly screen = { x: 0, y: 0 };
   private hidden = false;
-  /** Big centre-screen moments play one at a time so they never pile on top of each other. */
-  private readonly announcements: (() => number)[] = [];
+  /**
+   * Big centre-screen moments play one at a time so they never pile on top of each other. Each has a
+   * deadline in game time (which stops while a sheet is open): a station banner is only worth showing
+   * while the train is actually at that station.
+   */
+  private readonly announcements: { play: () => number; expires: number }[] = [];
   private announcementTimer = 0;
 
   constructor(root: HTMLElement) {
@@ -133,7 +140,9 @@ export class Ui implements GameUi {
       if (this.resultTimer <= 0) this.dismissResult();
     }
     this.announcementTimer -= dt;
-    if (this.announcementTimer <= 0 && this.announcements.length > 0) this.announcementTimer = this.announcements.shift()!();
+    // Never play a banner over a sheet: it would hide the sheet's buttons and the player would miss it.
+    while (this.announcements.length > 0 && this.announcements[0].expires < g.time) this.announcements.shift();
+    if (this.announcementTimer <= 0 && this.announcements.length > 0 && !this.screens.isOpen) this.announcementTimer = this.announcements.shift()!.play();
   }
 
   private updateHud(dt: number): void {
@@ -262,7 +271,7 @@ export class Ui implements GameUi {
   }
 
   stationBanner(title: string, subtitle: string): void {
-    this.announcements.push(() => {
+    this.announce(BANNER_MAX_DELAY, () => {
       const el = h('div.banner', {}, h('div.sign', { text: title }), h('div.sub', { text: subtitle }));
       this.root.appendChild(el);
       window.setTimeout(() => el.remove(), 2700);
@@ -271,12 +280,16 @@ export class Ui implements GameUi {
   }
 
   celebrate(title: string, subtitle: string, iconName: IconName): void {
-    this.announcements.push(() => {
+    this.announce(CELEBRATE_MAX_DELAY, () => {
       const el = h('div.celebrate', {}, icon(iconName, 64), h('div.big', { text: title }), h('div.small', { text: subtitle }));
       this.root.appendChild(el);
       window.setTimeout(() => el.remove(), 2900);
       return 2.4;
     });
+  }
+
+  private announce(maxDelay: number, play: () => number): void {
+    this.announcements.push({ play, expires: (this.game?.time ?? 0) + maxDelay });
   }
 
   showResult(result: StationResult): void {
@@ -299,6 +312,7 @@ export class Ui implements GameUi {
       body,
     );
     this.root.appendChild(el);
+    this.root.classList.add('has-ticket');
     this.resultEl = el;
     this.resultTimer = RESULT_SECONDS;
   }
@@ -307,6 +321,7 @@ export class Ui implements GameUi {
     const el = this.resultEl;
     if (!el) return;
     this.resultEl = null;
+    this.root.classList.remove('has-ticket');
     el.classList.add('out');
     window.setTimeout(() => el.remove(), 400);
   }

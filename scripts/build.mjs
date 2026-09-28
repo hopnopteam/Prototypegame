@@ -32,7 +32,9 @@ function emit(result) {
     '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Baloo+2:wght@500;600;700;800&display=swap">';
   const head = `<title>Night Express</title>\n${fonts}\n<style>\n${css}\n</style>\n`;
   const script = `<script>\n${js}\n</script>\n`;
-  const fragment = `${head}${body}\n${script}`;
+  // The Artifact skeleton already pads :root by the safe-area insets, so the fragment must not add them again.
+  const artifactFit = '<style>:root { --safe-top: 0px; --safe-bottom: 0px; } html { box-sizing: border-box; }</style>\n';
+  const fragment = `${head}${artifactFit}${body}\n${script}`;
   const page =
     '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n' +
     '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">\n' +

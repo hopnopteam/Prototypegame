@@ -1,66 +1,63 @@
 # Night Express
 
 Hybrid-casual arcade idle game: run a luxury sleeper train that grows carriage by carriage as it crosses the world.
-Unity 6 LTS · URP · C# · Android first · portrait. Design and working rules live in [`CLAUDE.md`](CLAUDE.md).
+TypeScript + Three.js, built into one self-contained HTML file that plays in the Claude app and in any phone
+browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLAUDE.md).
 
-## First-time setup (M0)
+## Play
 
-The repo holds our code and tools; Unity's own project files come from the official URP template so the
-render pipeline and package versions always match your Unity version exactly.
+- **In the Claude app:** open the published artifact (link in the latest session notes).
+- **Locally:** `npm install && npm run build`, then open `dist/index.html` in a browser. It works offline from
+  disk; for a phone, serve the folder (`npx serve dist`) and open it on the same Wi-Fi, or copy the file over.
+- **Controls:** touch and drag anywhere for the floating joystick (mouse drag, or WASD / arrow keys on desktop).
+  Everything else is walk-over: stand in a zone and it acts.
 
-1. **Install** Unity Hub and the latest **Unity 6 LTS**, with the **Android Build Support** module
-   (tick **OpenJDK** and **Android SDK & NDK Tools**).
-2. **Clone** the repo and switch to the working branch:
-   ```bash
-   git clone https://github.com/hopnopteam/Prototypegame.git NightExpress
-   cd NightExpress
-   git checkout claude/new-session-zlmzpt
-   ```
-3. **Make a template project.** Unity Hub → **New project** → Unity 6 LTS → **Universal 3D** template →
-   save it somewhere temporary (e.g. `Desktop/NightExpressTemplate`) → **Create**. When the Editor has finished
-   opening, **close it**.
-4. **Copy** the template's `Assets`, `Packages` and `ProjectSettings` folders into the cloned `NightExpress`
-   folder, merging `Assets` (nothing in `Assets/_Project` gets replaced). Then, inside `NightExpress/Assets`,
-   delete `TutorialInfo/`, `Readme.asset` and `Scenes/` (with their `.meta` files) if present.
-   **Keep `Assets/Settings/`**: it holds the URP pipeline assets. Delete the temporary template project.
-5. **Open** it: Unity Hub → **Add** → **Add project from disk** → select the `NightExpress` folder → open.
-   The Console must show no red errors after the first import.
-6. **Run setup:** menu **Night Express → Setup → Run All Setup Steps**. The validation dialog should list
-   every check as `OK` (the "Active platform is not Android" warning is fine until step 9).
-7. **Run the tests:** **Window → General → Test Runner → EditMode → Run All**. All tests should be green.
-8. **Play in the Editor:** open `Assets/_Project/Scenes/Game.unity` and press **Play**. Switch the Game view
-   to **Simulator** and pick a phone to see portrait framing and the safe area.
-9. **Build to your phone:** **Night Express → Setup → Switch Platform to Android**. Then
-   **File → Build Profiles → Android**, tick **Development Build**, connect the phone (USB debugging on) and
-   **Build And Run**.
-10. **Commit** everything Unity generated (`Assets` including every `.meta` file, `Packages`, `ProjectSettings`):
-    ```bash
-    git add -A
-    git commit -m "M0: Unity project files from the Universal 3D template"
-    git push
-    ```
+## Develop
 
-## Developer panel
+| Command | What it does |
+|---|---|
+| `npm run build` | Bundles `src/` into `dist/index.html` (full page) and `dist/night-express.html` (artifact fragment) |
+| `npm run dev` | Same, rebuilding on every save |
+| `npm run typecheck` | Strict TypeScript check |
+| `npm test` | Unit tests (vitest): journey phases, ad policy, economy, save/migrations, walkable map |
+| `npm run smoke` | Headless browser run: the autopilot plays the first 13 minutes and checks the §14 beats, the ad rules, save/reload and console errors |
+| `npm run check` | Typecheck + tests + build |
 
-In the Editor and Development Builds, a **fps** button sits top-left. Tap it for session and save state,
-**Save now / Reset progress**, mock **Rewarded / Interstitial** ads (with *No fill* and *Skip* switches), a mock
-**First Class Ticket** purchase, and the latest analytics events. It never appears in release builds.
+Tools in `scripts/` (need Chromium via Playwright, pre-installed in the cloud sessions):
+`pacing.mjs [seconds] [shotDir]` prints the first-session timeline for tuning; `ui-shots.mjs <dir>` screenshots
+every screen; `shot.mjs` and `play.mjs` are quick visual checks.
+
+## Developer tools
+
+Settings (gear) → **Developer tools** on → **Open developer tools**: skip to the next station, set the time of
+day, fund the next tile, **Creative Mode** (hides the UI and grants cash for recording ad footage), camera zoom,
+mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest analytics events.
+`window.nightExpress` exposes the game object in the browser console.
 
 ## Where to tune things
 
-| What | Asset |
+| What | File |
 |---|---|
-| Frame rate, screen-on, session timeout, save timing, dev panel | `Assets/_Project/Resources/GameConfig.asset` |
-| Mock ad/IAP timings and failure switches, analytics logging, remote-config overrides | `Assets/_Project/Data/Config/MockServicesConfig.asset` |
-| In-app products | `Assets/_Project/Data/Config/IAPCatalog.asset` |
+| Every number: journey timers, speeds, capacities, fares, tips, star thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
+| Content: stations, guest archetypes, carriages and their order, unlock tiles (price, stars, requirements), stories, quests, products | `src/config/content.ts` |
+| Carriage floor plans | `src/world/layout.ts` |
+| Remote-config overrides (mock) | `src/services/remoteConfig.ts` |
 
 ## Layout
 
 ```
-Assets/_Project/
-  Scripts/        NightExpress.Runtime: Core (bootstrap, events, save, session), Services (ads, IAP,
-                  analytics, remote config), UI, and Gameplay/AI/Economy from M1 onwards
-  Editor/         NightExpress.EditorTools: the "Night Express" menu (setup, validation, save tools)
-  Tests/EditMode/ NightExpress.Tests.EditMode
-  Data/ Resources/ Prefabs/ Art/ Audio/ Scenes/
+src/
+  core/       event bus, tweens, rng, math, logging
+  config/     economy.ts and content.ts: all tunables and content packs
+  sim/        pure logic, unit tested: Journey, AdPolicy, UnlockChain, Wallet, Progression, Walkable, NavGraph, TrainMap, meta
+  save/       versioned JSON save (localStorage + backup + migrations)
+  services/   ads, IAP, analytics, remote config: interfaces + mocks
+  world/      Three.js: stage, camera, lighting, scenery, platform, carriages, characters, particles, cash
+  gameplay/   Game (composition root), player, zones, tiles, guests, staff, station, train, guidance, meta, monetization, autopilot
+  audio/      WebAudio synth sfx + music, haptics
+  ui/         DOM HUD, sheets, icons, styles
+tests/        vitest unit tests
+scripts/      build, smoke, pacing, screenshots
 ```
+
+The Unity M0 skeleton this project started from is in commit `864b131` if we move to a native engine later.

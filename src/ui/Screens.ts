@@ -23,6 +23,11 @@ export class Screens {
     return this.ui.game;
   }
 
+  /** True while any sheet is up; centre-screen announcements wait for it to close. */
+  get isOpen(): boolean {
+    return this.open > 0;
+  }
+
   sheet(title: string, iconName: IconName | null, content: (Node | null | false)[], options: SheetOptions = {}): () => void {
     const closable = options.closable ?? true;
     let closed = false;

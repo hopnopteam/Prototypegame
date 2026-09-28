@@ -192,8 +192,9 @@ Mirror MPH's proven pacing, then improve on it. Tune numbers until playtests mat
 <technical_spec>
 
 ## Engine and platform
-- **Unity 6 LTS**, **URP**, C#. Android first (then iOS). Portrait only.
-- Target device: a 3 GB RAM mid-range Android. **60 fps** with a full 10-carriage train and ~30 characters. Cold start under 5 s. Install size under 150 MB (later routes via Addressables).
+- **Web build (current, since session 2):** TypeScript (strict) + **Three.js**, bundled by esbuild into **one self-contained HTML file** that plays in the Claude app (as an Artifact) and in any phone browser. Portrait only. No runtime dependencies beyond Three.js; audio is synthesised with WebAudio, icons are drawn on canvas.
+- The original plan was **Unity 6 LTS / URP / C#** (Android first, then iOS); that M0 skeleton is kept in commit `864b131`. The architecture below (pure sim layer, service interfaces, data-driven config) ports cleanly if a publisher wants native.
+- Target device: a 3 GB RAM mid-range Android. **60 fps** with a full 10-carriage train and ~30 characters. Cold start under 5 s. Single-file size under ~1.5 MB for the prototype.
 - Fully playable **offline**.
 
 ## Architecture principles
@@ -230,7 +231,7 @@ Mirror MPH's proven pacing, then improve on it. Tune numbers until playtests mat
 `session_start`, `session_end`, `ftue_step` (each beat in §14 with elapsed time), `unlock_completed` (id, price, time), `staff_hired`, `carriage_coupled`, `station_result` (boarded, missed, bonus), `route_level_up`, `rewarded_offer_shown` / `_accepted` / `_completed` (placement), `interstitial_shown` (placement, session minute), `iap_offer_shown` / `_purchased`, `currency_earned` / `_spent` (source/sink). These are what a publisher will ask for to judge retention and the first-session funnel.
 
 ## Code standards
-- C# naming conventions; one class per file; clear folder structure (`Scripts/Core`, `Scripts/Gameplay`, `Scripts/AI`, `Scripts/Economy`, `Scripts/Services`, `Scripts/UI`, `Data/`, `Prefabs/`, `Art/`, `Audio/`).
+- TypeScript naming conventions (PascalCase types, camelCase members); one main class per file; folders `src/core`, `src/config`, `src/sim`, `src/save`, `src/services`, `src/world`, `src/gameplay`, `src/audio`, `src/ui` (see the Codebase map). Where this spec says ScriptableObject or Inspector, read `src/config/*.ts`; where it says `[Tooltip]`, read a short doc comment on the config field.
 - Short, purposeful comments explaining *why*, not *what*.
 - Serialized fields with `[Tooltip]` so tuning in the Inspector is self-explanatory.
 - No magic numbers in gameplay code.
@@ -294,26 +295,30 @@ Multiplayer, chat, gacha/loot boxes, energy timers, fail states, long dialogue, 
 ---
 
 ## Project Context (edit before the first session)
-- **Engine:** Unity 6 LTS (URP), created from Unity Hub's "Universal 3D" template. _Exact version: TODO (e.g. 6000.x.y) — fill in once installed._
-- **Repository:** `hopnopteam/Prototypegame`. The repo root is the Unity project root.
-- **Identity:** Company "Hopnop", product "Night Express", app id `com.hopnop.nightexpress` (change in `Assets/_Project/Editor/SetupConstants.cs`, then re-run setup).
-- **My experience level:** _TODO — e.g. "new to Unity, some programming" / "comfortable with C#"_
-- **Test device:** _TODO — phone model and RAM_
-- **Development machine:** _TODO — Windows / macOS (iOS builds need a Mac)_
-- **Art approach for now:** gray-box primitives → later _asset store low-poly kit / commissioned / AI-assisted_
-- **Time available per week:** _TODO — hours_
+- **Engine:** web build: TypeScript 5.9 + Three.js 0.186, esbuild, vitest (see `package.json`). Pivoted from Unity 6 LTS in session 2 at the owner's request ("I want the whole system here, not in Unity"); Unity M0 is recoverable from commit `864b131`.
+- **Repository:** `hopnopteam/Prototypegame`, working branch `claude/new-session-zlmzpt`. The repo root is the web project root.
+- **Play link:** published Artifact "Night Express": https://claude.ai/artifact/GhHh8BAw6pm5eFQJ5iV8bt (private until shared from its Share menu). Republish `dist/night-express.html` to the same artifact to update it.
+- **Identity:** Company "Hopnop", product "Night Express" (app id `com.hopnop.nightexpress` reserved for a native build).
+- **My experience level:** _TODO_
+- **Test device:** _TODO: phone model and RAM_
+- **Development machine:** _TODO_ (the web build needs only Node 20+ and a browser)
+- **Art approach for now:** gray-box, flat-shaded low-poly built from code (vertex colours, one material) → later _asset kit / commissioned / AI-assisted_ as glTF.
+- **Time available per week:** _TODO_
 
 ## Codebase map (for Claude — keep current)
-- `Assets/_Project/Scripts/` → assembly `NightExpress.Runtime`. `Core/` (EventBus, ServiceLocator, GameLog, SystemsHost, GameBootstrap, GameConfig, `Save/`, `Session/`), `Services/` (Ads, IAP, Analytics, RemoteConfig: interfaces + mocks, `MockServicesConfig`), `UI/DevTools/DebugOverlay`. `Gameplay/`, `AI/`, `Economy/` are empty until M1+.
-- `Assets/_Project/Editor/` → `NightExpress.EditorTools`: menu **Night Express > Setup** (player settings, config assets, placeholder scene, validator), **Night Express > Save** tools.
-- `Assets/_Project/Tests/EditMode/` → `NightExpress.Tests.EditMode` (Unity Test Runner, EditMode).
-- Config assets (created by setup): `Resources/GameConfig.asset` (root, loaded by the bootstrap), `Data/Config/MockServicesConfig.asset`, `Data/Config/IAPCatalog.asset`.
-- **Conventions:** `GameBootstrap` (`RuntimeInitializeOnLoadMethod`, BeforeSceneLoad) builds every service, so any scene is playable directly. Gameplay resolves services via `ServiceLocator` in Awake/Start and caches them; plain C# systems implement `ITickable` and are ticked by `SystemsHost` instead of having their own `Update`. Events are `readonly struct : IGameEvent`. Save schema: add fields freely; renames/removals bump `SaveData.CurrentVersion` + add an `ISaveMigration` to `SaveMigrations.All`. JSON via `JsonUtility` (no extra packages). Info logs via `GameLog.Info` are stripped from release builds.
-- **Decisions pending (ask before adding):** input package for the M1 joystick, tween library (DOTween vs. small custom helper), Git LFS before real art/audio.
+- **Build:** `npm run check` (typecheck + tests + build), `npm run smoke` (headless autopilot: §14 beats, ad rules, save/reload, errors). `scripts/pacing.mjs` prints the first-session timeline for tuning; `scripts/ui-shots.mjs` screenshots every screen. Playwright's Chromium at `/opt/node22/lib/node_modules/playwright` with SwiftShader.
+- `src/config/economy.ts` (every tunable number) and `src/config/content.ts` (stations, archetypes, carriages, unlock chain, stories, quests, products). Remote-config overrides are applied to a clone of `ECONOMY`.
+- `src/sim/` pure, unit-tested logic: `Journey` (phase machine; platform distance so it stops at the doors), `AdPolicy` (every §12 rule, returns a verdict), `UnlockChain`, `Wallet`, `Progression`, `Walkable` (collision as a union of rects), `NavGraph` (A*), `TrainMap` (per-carriage layout to walkable + nav), `meta` (daily login, quests, offline earnings, conductor costs).
+- `src/save/` versioned JSON in localStorage with a backup key and memory fallback; `mergeDefaults` fills new fields, `SAVE_VERSION` + migrations for renames/removals.
+- `src/services/` ads, IAP, analytics, remote config: interfaces + mocks (mock ads and store are presented by the UI).
+- `src/world/` Three.js: `Stage`, `CameraRig`, `Lighting` (day→dusk→night), `Scenery` (instanced, scrolls; the train is stationary), `PlatformView`, `CarriageView` (from `layout.ts` floor plans), `LocomotiveView`, `CharacterView`, `Particles` (one Points draw), `CashView` (instanced bills), `ZoneViews`, `sprites` (canvas textures).
+- `src/gameplay/` `Game` is the composition root and implements the `World` interface every system receives. `Player`, `Input` (floating joystick), `CarryStack`, `Zones` (walk-over zones shared by player and staff), `CashPiles`, `Tiles` (unlock tiles), `TrainState` (carriages, cabins, bathrooms, coupling), `Guests`, `Staff`, `Station`, `Guidance` (arrow + edge pointer; also drives `Autopilot`), `Meta` (stories, postcards, quests), `Monetization` (offers, rewarded, interstitial at Departing, First Class Ticket timing).
+- `src/ui/` DOM layer: `Ui` (HUD, floats, toasts, queued banners/celebrations, station ticket), `Screens` (sheets; opening one pauses the game), `icons`, `styles.css`, `body.html`.
+- **Conventions:** events are typed on `EventBus` (`gameplay/events.ts`). No per-frame allocation in hot paths (reuse vectors, instanced meshes, fixed particle pool). `Game.simulate(seconds)` runs the sim without rendering for tests and tuning. Guest/staff/autopilot movement always goes through `NavGraph` + `Walkable`; add nav nodes in `layout.ts` when adding furniture. `tests/trainmap.test.ts` flood-fills every layout, so run it after any floor-plan change.
+- **Decisions pending (ask before adding):** Git LFS before real art/audio; real SDKs only after a publisher signs; wrapping the web build (Capacitor) vs. porting to Unity for store builds.
 
 ## Progress Log (update at the end of every session)
 - _Session 1 — 2026-09-28:_ M0 code delivered: folder structure + asmdefs, event bus, service locator, `SystemsHost`, versioned JSON save (atomic write + backup + migrations + time-away), session tracking, mock Ads/IAP/Analytics/RemoteConfig behind interfaces, IMGUI dev panel, one-click editor setup (portrait, IL2CPP/ARM64, config assets, gray-box scene, validator), 55 EditMode tests. **Next:** owner creates the Unity project per README, runs setup, runs tests, builds to an Android device; then fill in Project Context and start M1.
-
----
+- _Session 2 — 2026-09-28:_ Pivoted to a web build at the owner's request and built the whole publisher prototype (M1–M9 scope, gray-box) as one HTML file: core loop, guests with requests and bathrooms, attendant/runner/porter automation, journey rhythm with stations, luggage, result ticket and hold-the-train, the growing train (5 carriage types with a coupling celebration), stars/levels/Rail Miles/conductor upgrades, offline earnings, AdPolicy + rewarded placements + mock store + First Class Ticket, stories, postcards, daily login/quests, juice (synth audio, particles, haptics, day/night), Creative Mode and dev panel. 70 unit tests + headless smoke run pass; autopilot hits every §14 beat within tolerance. Only tested headless (SwiftShader), **not yet on a real phone.** **Next:** owner plays on a phone and reports feel/frame rate; then tune from real playtests and do the art pass.
 
 **Start of each session:** read the Progress Log and Codebase map, confirm in a few lines where we are, then continue with the next step (one milestone or sub-step at a time).

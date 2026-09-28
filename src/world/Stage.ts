@@ -21,6 +21,7 @@ export class Stage {
   private particles: Particles | null = null;
   private width = 1;
   private height = 1;
+  private readonly projected = new THREE.Vector3();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: false });
@@ -51,7 +52,7 @@ export class Stage {
 
   /** Projects a world point to CSS pixels in the canvas, or null when behind the camera. */
   project(point: THREE.Vector3, out: { x: number; y: number }): boolean {
-    const v = point.clone().project(this.rig.camera);
+    const v = this.projected.copy(point).project(this.rig.camera);
     if (v.z > 1) return false;
     out.x = (v.x * 0.5 + 0.5) * this.width;
     out.y = (-v.y * 0.5 + 0.5) * this.height;
