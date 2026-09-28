@@ -1,0 +1,224 @@
+import * as THREE from 'three';
+import type { UnlockDef } from '../config/content';
+import type { Vec2 } from '../core/types';
+import { EVENTS } from '../services/analytics';
+import type { IconName } from '../ui/icons';
+import { FLOOR_Y } from '../world/CarriageView';
+import { TileView } from '../world/ZoneViews';
+import type { World } from './World';
+import { Zone } from './Zones';
+
+const DWELL_SECONDS = 0.3;
+const BILL_INTERVAL = 0.07;
+
+interface TileEntry {
+  def: UnlockDef;
+  view: TileView;
+  zone: Zone;
+  pos: Vec2;
+  acc: number;
+  billTimer: number;
+  stand: number;
+  paidThisVisit: number;
+}
+
+const ICON_BY_KIND: Record<UnlockDef['kind'], IconName> = {
+  cabin: 'bed',
+  hire: 'person',
+  couple: 'carriage',
+  bathroom: 'bath',
+  bedding: 'pillow',
+  staffUpgrade: 'plus',
+};
+
+/**
+ * Unlock tiles on the floor (§4 "Unlock"): stand on one and cash streams from the conductor into it; when it
+ * fills, the thing it unlocks pops into existence. The chain reveals the next tiles as each completes.
+ */
+export class Tiles {
+  private readonly entries = new Map<string, TileEntry>();
+  private readonly from = new THREE.Vector3();
+  private readonly to = new THREE.Vector3();
+  /** Seconds the player has stood on a tile without enough cash (drives the cash-stash offer). */
+  shortOfCash = 0;
+  shortTileRemaining = 0;
+
+  constructor(private readonly w: World) {
+    // Tile faces are painted on canvas; repaint once the display fonts arrive.
+    document.fonts?.ready.then(() => {
+      for (const entry of this.entries.values()) entry.view.face.invalidate();
+    }).catch(() => undefined);
+  }
+
+  refresh(): void {
+    const w = this.w;
+    const available = new Set(w.unlocks.available().map((d) => d.id));
+    for (const [id, entry] of this.entries) {
+      if (!available.has(id)) this.removeEntry(id, entry);
+    }
+    for (const def of w.unlocks.available()) {
+      if (this.entries.has(def.id)) continue;
+      if (def.kind === 'couple' && (w.train.coupling || def.carriage !== w.train.count)) continue;
+      if (def.carriage >= w.train.count && def.kind !== 'couple') continue;
+      const pos = this.positionFor(def);
+      if (!pos) continue;
+      this.addEntry(def, pos);
+    }
+  }
+
+  get list(): TileEntry[] {
+    return [...this.entries.values()];
+  }
+
+  update(dt: number): void {
+    const cash = this.w.wallet.get('cash');
+    let anyShort = false;
+    for (const entry of this.entries.values()) {
+      const remaining = this.w.unlocks.remaining(entry.def.id);
+      const progress = 1 - remaining / entry.def.price;
+      const affordable = cash >= remaining;
+      const active = entry.zone.playerInside;
+      if (active && remaining > 0 && cash <= 0 && entry.stand > DWELL_SECONDS) {
+        anyShort = true;
+        this.shortTileRemaining = remaining;
+      }
+      entry.view.face.draw(ICON_BY_KIND[entry.def.kind], remaining, progress, affordable, active);
+      entry.view.update(dt, affordable, active);
+      if (!active) {
+        entry.stand = 0;
+        entry.paidThisVisit = 0;
+      }
+    }
+    this.shortOfCash = anyShort ? this.shortOfCash + dt : 0;
+  }
+
+  /** The cheapest visible tile, for guidance and cash offers. */
+  cheapest(): TileEntry | null {
+    let best: TileEntry | null = null;
+    for (const entry of this.entries.values()) {
+      if (!best || this.w.unlocks.remaining(entry.def.id) < this.w.unlocks.remaining(best.def.id)) best = entry;
+    }
+    return best;
+  }
+
+  private addEntry(def: UnlockDef, pos: Vec2): void {
+    const w = this.w;
+    const view = new TileView(def.kind === 'couple' ? 1.6 : 1.3);
+    view.setPosition(pos.x, pos.z);
+    w.scene.add(view.group);
+    const entry: TileEntry = { def, view, pos, acc: 0, billTimer: 0, stand: 0, paidThisVisit: 0, zone: null as unknown as Zone };
+    entry.zone = w.zones.add(new Zone({
+      id: `tile:${def.id}`,
+      x: pos.x,
+      z: pos.z,
+      radius: def.kind === 'couple' ? 0.8 : 0.66,
+      staff: false,
+      ring: false,
+      priority: 1,
+      active: () => w.unlocks.isAvailable(def.id),
+      stay: (_zone, _actor, dt) => this.drain(entry, dt),
+    }));
+    this.entries.set(def.id, entry);
+    if (w.time > 1) w.audio.play('pop', { pitch: 0.8, volume: 0.6 });
+  }
+
+  private removeEntry(id: string, entry: TileEntry): void {
+    this.w.zones.remove(entry.zone);
+    this.w.scene.remove(entry.view.group);
+    entry.view.dispose();
+    this.entries.delete(id);
+  }
+
+  private drain(entry: TileEntry, dt: number): boolean {
+    const w = this.w;
+    const id = entry.def.id;
+    entry.stand += dt;
+    // A short dwell, so walking across a tile never spends money by accident.
+    if (entry.stand < DWELL_SECONDS) return false;
+    const remaining = w.unlocks.remaining(id);
+    if (remaining <= 0) {
+      this.complete(entry);
+      return true;
+    }
+    const cash = w.wallet.get('cash');
+    if (cash <= 0) return false;
+    const rate = Math.max(w.econ.zones.tileMinDrainPerSecond, entry.def.price / w.econ.zones.tileFillSeconds);
+    entry.acc += rate * dt;
+    const amount = Math.min(Math.floor(entry.acc), remaining, Math.floor(cash));
+    if (amount > 0) {
+      entry.acc -= amount;
+      w.wallet.take('cash', amount, `unlock:${id}`);
+      w.unlocks.pay(id, amount);
+      entry.paidThisVisit += amount;
+      w.save.markDirty();
+    }
+    entry.billTimer -= dt;
+    if (entry.billTimer <= 0) {
+      entry.billTimer = BILL_INTERVAL;
+      const player = w.player;
+      w.cashView.stream(
+        () => this.from.set(player.pos.x, FLOOR_Y + 0.9, player.pos.z),
+        () => this.to.set(entry.pos.x, FLOOR_Y + 0.1, entry.pos.z),
+        1,
+        0,
+      );
+      w.audio.play('coin', { pitch: 0.9 + (1 - remaining / entry.def.price) * 0.6 });
+      w.events.emit('tile.draining', { x: entry.pos.x, z: entry.pos.z });
+    }
+    if (w.unlocks.remaining(id) <= 0) this.complete(entry);
+    return true;
+  }
+
+  private complete(entry: TileEntry): void {
+    const w = this.w;
+    const def = entry.def;
+    if (!w.unlocks.complete(def.id)) return;
+    w.save.markDirty();
+    this.removeEntry(def.id, entry);
+    w.audio.play('unlock');
+    w.haptics.success();
+    w.particles.emit('sparkle', entry.pos.x, FLOOR_Y + 0.4, entry.pos.z, 24, 0.6);
+    w.particles.emit('star', entry.pos.x, FLOOR_Y + 0.6, entry.pos.z, 10, 0.4);
+    w.stage.rig.shake(0.12, 0.2);
+    w.addStars(def.stars, 'unlock', entry.pos);
+    w.analytics.log(EVENTS.unlockCompleted, { id: def.id, price: def.price, time: Math.round(w.lifetimeSeconds()) });
+    w.analytics.log(EVENTS.currencySpent, { currency: 'cash', amount: def.price, sink: `unlock:${def.kind}` });
+    w.events.emit('unlock.completed', { id: def.id, price: def.price, x: entry.pos.x, z: entry.pos.z });
+
+    if (def.kind === 'hire' && def.role) {
+      w.staff.hire(def.role, def.carriage);
+      w.addStars(w.econ.stars.staffHired, 'hire', entry.pos);
+      w.analytics.log(EVENTS.staffHired, { role: def.role, carriage: def.carriage });
+    } else if (def.kind === 'staffUpgrade' && def.role) {
+      w.staff.upgrade(def.role, def.carriage);
+    } else if (def.kind === 'couple') {
+      w.train.coupleNext(() => this.refresh());
+    } else {
+      w.train.applyUnlock(def, true);
+    }
+    this.refresh();
+  }
+
+  private positionFor(def: UnlockDef): Vec2 | null {
+    const w = this.w;
+    const map = w.map;
+    switch (def.kind) {
+      case 'cabin': {
+        const cabin = w.train.cabins.find((c) => c.carriage === def.carriage && c.index === def.cabin);
+        return cabin ? { ...cabin.center } : null;
+      }
+      case 'bathroom': {
+        const bath = w.train.bathrooms.find((b) => b.carriage === def.carriage && b.layout.index === def.bathroom);
+        return bath ? { ...bath.restock } : null;
+      }
+      case 'hire':
+        return map.hasAnchor(def.carriage, `home_${def.role}`) ? map.anchor(def.carriage, `home_${def.role}`) : null;
+      case 'staffUpgrade':
+        return map.hasAnchor(def.carriage, `tile_up_${def.role}`) ? map.anchor(def.carriage, `tile_up_${def.role}`) : null;
+      case 'bedding':
+        return map.hasAnchor(def.carriage, 'tile_bedding') ? map.anchor(def.carriage, 'tile_bedding') : null;
+      case 'couple':
+        return map.rearDeck().tile;
+    }
+  }
+}
