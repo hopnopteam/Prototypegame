@@ -1,0 +1,28 @@
+# Normalise line endings for text; keep Unity YAML diffable.
+* text=auto
+
+*.cs        text diff=csharp
+*.asmdef    text
+*.json      text
+*.md        text
+*.shader    text
+*.hlsl      text
+*.unity     text eol=lf
+*.prefab    text eol=lf
+*.asset     text eol=lf
+*.mat       text eol=lf
+*.anim      text eol=lf
+*.controller text eol=lf
+*.meta      text eol=lf
+
+# Binary assets (move these to Git LFS before importing real art/audio).
+*.png   binary
+*.jpg   binary
+*.psd   binary
+*.tga   binary
+*.fbx   binary
+*.wav   binary
+*.mp3   binary
+*.ogg   binary
+*.ttf   binary
+*.otf   binary
