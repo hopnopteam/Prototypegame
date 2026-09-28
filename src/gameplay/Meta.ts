@@ -29,13 +29,14 @@ export class Meta {
 
   // ─── Postcards ──────────────────────────────────────────────────────────────
 
-  onStationVisited(id: string, name: string): void {
+  /** Collects the station's postcard on the first visit. Returns true if it was new (the arrival card says so). */
+  onStationVisited(id: string, name: string): boolean {
     const cards = this.w.data.meta.postcards;
-    if (cards.includes(id)) return;
+    if (cards.includes(id)) return false;
     cards.push(id);
     this.w.save.markDirty();
     this.w.events.emit('postcard.collected', { id, name });
-    this.w.ui.toast(`New postcard: ${name}`, 'album');
+    return true;
   }
 
   postcardCount(): { have: number; total: number } {

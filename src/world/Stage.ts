@@ -27,7 +27,10 @@ export class Stage {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: false });
     this.pixelRatio = Math.min(window.devicePixelRatio || 1, ECONOMY.performance.maxPixelRatio);
     this.renderer.setPixelRatio(this.pixelRatio);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.lighting = new Lighting(this.scene);
+    this.lighting.setShadows(true, this.pixelRatio > 1.5 ? 2048 : 1024);
     this.scene.add(this.rig.camera);
     this.resize();
   }
@@ -61,6 +64,7 @@ export class Stage {
 
   render(dt: number): void {
     this.trackFps(dt);
+    this.lighting.follow(this.rig.focusPoint);
     this.renderer.render(this.scene, this.rig.camera);
   }
 
@@ -73,6 +77,8 @@ export class Stage {
     this.lowQuality = low;
     this.pixelRatio = low ? Math.min(this.pixelRatio, ECONOMY.performance.lowPixelRatio) : Math.min(window.devicePixelRatio || 1, ECONOMY.performance.maxPixelRatio);
     this.renderer.setPixelRatio(this.pixelRatio);
+    // Shadows are the first thing a struggling phone gives up (a smaller map rather than none at all).
+    this.lighting.setShadows(true, low ? 512 : this.pixelRatio > 1.5 ? 2048 : 1024);
     this.resize();
   }
 

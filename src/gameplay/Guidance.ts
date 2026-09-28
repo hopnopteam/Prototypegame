@@ -113,13 +113,18 @@ export class Guidance {
     if (w.journey.doorsOpen) {
       const boarding = w.guests.platformGuests().length > 0 && w.staff.count('porter') === 0;
       if (boarding && stack.isEmpty) return w.station.boardingPoint();
-      if (w.station.luggagePile > 0 && !stack.isFull && w.train.luggageStored < w.train.luggageCapacity && !stack.has('luggage')) return w.station.luggagePoint();
+      if (!stack.isFull && w.demand.playerWants('luggage') > 0 && !stack.has('luggage')) return w.station.luggagePoint();
     }
 
     if (!stack.isEmpty) {
       const need = this.whereNeeded(stack.items);
       if (need) return need;
-      if (map.hasAnchor(0, 'bin')) return map.anchor(0, 'bin');
+      // Only surplus in hand: point at the shelf it goes back to.
+      const surplus = w.demand.firstSurplus(player);
+      if (surplus) {
+        const back = this.returnPoint(surplus);
+        if (back) return back;
+      }
     }
 
     const pile = w.cash.nearestWithCash(player.pos);
@@ -143,10 +148,10 @@ export class Guidance {
       return dirty.spots[i];
     }
 
-    const lowBath = w.train.bathrooms.find((b) => b.unlocked && (b.towels === 0 || b.rolls === 0));
     const supply = w.train.indexOfType('supply');
-    if (lowBath && supply !== null && w.staff.count('runner') === 0) {
-      return map.anchor(supply, lowBath.towels === 0 ? 'shelf_towel' : 'shelf_roll');
+    if (supply !== null && !stack.isFull) {
+      if (w.demand.playerWants('towel') > 0 && w.data.facilities.supplyTowel > 0) return map.anchor(supply, 'shelf_towel');
+      if (w.demand.playerWants('roll') > 0 && w.data.facilities.supplyRoll > 0) return map.anchor(supply, 'shelf_roll');
     }
 
     if (tile && (forBot || w.player.idleSeconds > IDLE_BEFORE_HINT * 2)) return tile.pos;
@@ -173,6 +178,25 @@ export class Guidance {
       if (bath) return bath.restock;
     }
     return null;
+  }
+
+  private returnPoint(item: ItemKind): Vec2 | null {
+    const w = this.w;
+    const map = w.map;
+    const supply = w.train.indexOfType('supply');
+    if (item === 'towel' || item === 'roll') return supply !== null ? map.anchor(supply, item === 'towel' ? 'shelf_towel' : 'shelf_roll') : null;
+    if (item === 'tea' || item === 'blanket' || item === 'pillow') {
+      const name = item === 'tea' ? 'urn' : item;
+      let best: Vec2 | null = null;
+      for (let i = 0; i < map.count; i++) {
+        if (!map.hasAnchor(i, name)) continue;
+        const a = map.anchor(i, name);
+        if (!best || Math.abs(a.z - w.player.pos.z) < Math.abs(best.z - w.player.pos.z)) best = a;
+      }
+      return best;
+    }
+    if (item === 'crate' && supply !== null) return map.anchor(supply, 'crateDrop');
+    return map.hasAnchor(0, 'bin') ? map.anchor(0, 'bin') : null;
   }
 
   private sourceFor(item: ItemKind, carriage: number): Vec2 | null {

@@ -35,6 +35,14 @@ check(await page.evaluate(() => !!window.nightExpress && !document.querySelector
 await page.evaluate(() => {
   const g = window.nightExpress;
   window.__interstitials = [];
+  // Smart carrying: every item the player picks up must be something the train needs.
+  window.__picks = { total: 0, unneeded: 0, returned: 0 };
+  g.events.on('item.picked', ({ item, byPlayer }) => {
+    if (!byPlayer) return;
+    window.__picks.total++;
+    if (g.player.stack.countOf(item) > g.demand.playerNeed(item)) window.__picks.unneeded++;
+  });
+  g.events.on('item.returned', ({ byPlayer }) => { if (byPlayer) window.__picks.returned++; });
   const log = g.analytics.log.bind(g.analytics);
   g.analytics.log = (event, params) => {
     if (event === 'interstitial_shown') window.__interstitials.push({ phase: g.journey.phase, life: g.lifetimeSeconds(), stop: g.journey.stopSerial });
@@ -75,6 +83,9 @@ for (const [beat, deadline] of Object.entries(DEADLINES)) {
 }
 check(snap.carriages >= 3, `${snap.carriages} carriages after ${fmt(snap.life)} (want 3+)`);
 check(snap.staff >= 2, `${snap.staff} staff after ${fmt(snap.life)} (want 2+)`);
+
+const picks = await page.evaluate(() => window.__picks);
+check(picks.total > 10 && picks.unneeded === 0, `every pickup was needed (${picks.total} picked, ${picks.unneeded} unneeded, ${picks.returned} returned)`);
 
 const ads = await page.evaluate(() => window.__interstitials);
 const minLife = 600;

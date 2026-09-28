@@ -10,12 +10,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "smoke": "node scripts/smoke.mjs",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run typecheck && npm test && npm run build",
+    "audit:ui": "node scripts/ui-audit.mjs"
   },
   "dependencies": {
     "three": "0.186.1"
   },
   "devDependencies": {
+    "@fontsource-variable/jost": "^5.3.0",
     "@types/three": "0.186.0",
     "esbuild": "0.28.2",
     "typescript": "5.9.3",

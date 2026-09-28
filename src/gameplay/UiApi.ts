@@ -11,4 +11,6 @@ export interface UiApi {
   showResult(result: StationResult): void;
   speechLine(text: string, x: number, y: number, z: number): void;
   celebrate(title: string, subtitle: string, icon: IconName): void;
+  /** The player scooped cash: count it up over their head, then send it to the counter. */
+  cashCollected(amount: number): void;
 }

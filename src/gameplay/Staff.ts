@@ -259,7 +259,6 @@ export class StaffManager {
   }
 
   private findTask(m: StaffMember): Task | null {
-    // Anything left in hand that nobody needs goes in the bin first.
     switch (m.role) {
       case 'attendant':
         return this.attendantTask(m);
@@ -310,7 +309,7 @@ export class StaffManager {
       });
       return { label: 'clean', icon: 'broom', steps, release: () => { if (cabin.cleaner === m) cabin.cleaner = null; } };
     }
-    return this.binTask(m);
+    return this.returnTask(m);
   }
 
   private porterTask(m: StaffMember): Task | null {
@@ -372,7 +371,7 @@ export class StaffManager {
         release: () => undefined,
       };
     }
-    return this.binTask(m);
+    return this.returnTask(m);
   }
 
   private runnerTask(m: StaffMember): Task | null {
@@ -419,7 +418,7 @@ export class StaffManager {
       steps.push({ kind: 'do', fn: () => this.binLeftovers(m) });
       return { label: 'restock', icon: 'towel', steps, release: () => { if (bath.restocker === m) bath.restocker = null; m.wantItems = {}; } };
     }
-    return this.binTask(m);
+    return this.returnTask(m);
   }
 
   private canRestock(m: StaffMember, bath: Bathroom): boolean {
@@ -427,18 +426,39 @@ export class StaffManager {
     return (m.stack.has('towel') && bath.towels < max.bathroomTowelMax) || (m.stack.has('roll') && bath.rolls < max.bathroomRollMax);
   }
 
-  private binTask(m: StaffMember): Task | null {
-    if (m.stack.isEmpty) return null;
-    const bin = this.nearestBin(m.pos);
-    if (!bin) return null;
+  /** Anything left in hand that nobody needs goes back where it came from (the bin is the last resort). */
+  private returnTask(m: StaffMember): Task | null {
+    const kind = this.w.demand.firstSurplus(m);
+    if (!kind) return null;
+    const target = this.returnPoint(kind, m) ?? this.nearestBin(m.pos);
+    if (!target) return null;
     return {
-      label: 'bin', icon: 'box',
+      label: 'return', icon: kind,
       steps: [
-        { kind: 'goto', target: bin },
-        { kind: 'stand', until: () => m.stack.isEmpty, timeout: 3 },
+        { kind: 'goto', target },
+        { kind: 'stand', until: () => this.w.demand.surplus(m, kind) === 0, timeout: 3 },
       ],
       release: () => undefined,
     };
+  }
+
+  private returnPoint(kind: ItemKind, m: StaffMember): Vec2 | null {
+    const map = this.w.map;
+    const supply = this.w.train.indexOfType('supply');
+    switch (kind) {
+      case 'tea':
+      case 'blanket':
+      case 'pillow':
+        return this.nearestSource(kind, m.carriage);
+      case 'towel':
+        return supply !== null ? map.anchor(supply, 'shelf_towel') : null;
+      case 'roll':
+        return supply !== null ? map.anchor(supply, 'shelf_roll') : null;
+      case 'crate':
+        return supply !== null ? map.anchor(supply, 'crateDrop') : null;
+      case 'luggage':
+        return this.nearestRack(m.pos).pos;
+    }
   }
 
   private binLeftovers(m: StaffMember): void {

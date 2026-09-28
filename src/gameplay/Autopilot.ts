@@ -54,8 +54,12 @@ export class Autopilot {
     this.stuck = moved < 0.002 ? this.stuck + dt : 0;
     if (this.stuck > 0.8) {
       this.stuck = 0;
-      this.repath = 0;
-      this.path = [];
+      // Someone is standing on the waypoint: if it is close, treat it as reached and carry on.
+      if (this.path.length > 1 && d < 0.8) this.path.shift();
+      else {
+        this.repath = 0;
+        this.path = [];
+      }
     }
   }
 

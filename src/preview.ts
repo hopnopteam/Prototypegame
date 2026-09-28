@@ -66,6 +66,7 @@ cash.createPile('desk', -1.62, FLOOR_Y, 3.95); cash.setPileCount('desk', 9);
 const particles = new Particles(); stage.scene.add(particles.points); stage.attachParticles(particles);
 particles.emit('smoke', loco.chimneyTop.x, loco.chimneyTop.y, loco.chimneyTop.z, 6);
 stage.rig.snapTo(camX, camZ);
+stage.rig.setZoom(Number(params.get('zoom') ?? '1'));
 let last = performance.now();
 function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;

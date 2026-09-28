@@ -130,12 +130,17 @@ export class AudioEngine {
         this.tone(t, 540 * p, 360 * p, 0.09, 'triangle', 0.22 * v);
         break;
       case 'cash':
-        this.tone(t, 1320 * p, 1320 * p, 0.06, 'triangle', 0.16 * v);
-        this.tone(t + 0.045, 1760 * p, 1760 * p, 0.12, 'triangle', 0.14 * v);
-        this.noise(t, 0.03, 'highpass', 6000, 0.08 * v);
+        // Register "ka-ching": a drawer thunk, a bright noise flick, then two ringing bells.
+        this.tone(t, 180, 120, 0.06, 'triangle', 0.12 * v);
+        this.noise(t, 0.04, 'highpass', 5000, 0.1 * v);
+        this.tone(t + 0.05, 2093 * p, 2093 * p, 0.42, 'sine', 0.13 * v, 0.002);
+        this.tone(t + 0.05, 5776 * p, 5776 * p, 0.12, 'sine', 0.03 * v, 0.002);
+        this.tone(t + 0.1, 2637 * p, 2637 * p, 0.5, 'sine', 0.11 * v, 0.002);
         break;
       case 'coin':
-        this.tone(t, 1500 * p, 1650 * p, 0.035, 'square', 0.05 * v);
+        // A small bell "ting": fundamental plus an inharmonic partial, like a struck coin.
+        this.tone(t, 1568 * p, 1568 * p, 0.16, 'sine', 0.1 * v, 0.002);
+        this.tone(t, 4327 * p, 4327 * p, 0.07, 'sine', 0.035 * v, 0.002);
         break;
       case 'bell':
         this.tone(t, 1760 * p, 1760 * p, 0.9, 'sine', 0.18 * v, 0.002);

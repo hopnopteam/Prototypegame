@@ -19,11 +19,11 @@ interface KindSpec {
 const SPECS: Record<ParticleKind, KindSpec> = {
   dust: { colors: ['#E3D3B0', '#CDB88E', '#F2E6C9'], size: [0.5, 0.9], life: [0.6, 1.0], speed: [1.5, 3.5], up: [0.5, 1.5], gravity: -0.5, drag: 3, grow: 0.8, shape: 0, alpha: 0.8 },
   sparkle: { colors: ['#FFE08A', '#FFFFFF', '#FFD35C'], size: [0.22, 0.4], life: [0.5, 0.8], speed: [0.6, 1.6], up: [1.2, 2.4], gravity: 1.5, drag: 1.5, grow: -0.2, shape: 1, alpha: 1 },
-  confetti: { colors: ['#E26D8C', '#FFD35C', '#58C4E8', '#7BC26B', '#9B7FBD', '#FFFFFF'], size: [0.14, 0.22], life: [1.2, 1.9], speed: [1.5, 4], up: [3, 6], gravity: 7, drag: 1.2, grow: 0, shape: 2, alpha: 1 },
+  confetti: { colors: ['#F4B8C0', '#F2B233', '#8CC4D6', '#BFE5D3', '#C0485C', '#FBF6EC', '#2C4A6E'], size: [0.08, 0.13], life: [1.1, 1.7], speed: [1.5, 3.6], up: [3, 5.5], gravity: 7, drag: 1.4, grow: 0, shape: 2, alpha: 1 },
   smoke: { colors: ['#EDEAE4', '#D8D4CC', '#FFFFFF'], size: [0.55, 0.85], life: [1.6, 2.2], speed: [0.1, 0.3], up: [1.0, 1.5], gravity: -0.2, drag: 0.6, grow: 1.2, shape: 0, alpha: 0.42 },
   steam: { colors: ['#FFFFFF', '#F0F0F0'], size: [0.4, 0.7], life: [1.0, 1.6], speed: [0.2, 0.6], up: [0.8, 1.4], gravity: -0.3, drag: 1, grow: 0.9, shape: 0, alpha: 0.5 },
   star: { colors: ['#FFD35C', '#FFE9A8'], size: [0.35, 0.6], life: [0.8, 1.2], speed: [2, 4], up: [2, 4], gravity: 4, drag: 1.4, grow: -0.1, shape: 1, alpha: 1 },
-  cash: { colors: ['#6FBE5E', '#8FD17E'], size: [0.16, 0.24], life: [0.6, 0.9], speed: [1.5, 3], up: [2, 3.5], gravity: 8, drag: 0.8, grow: 0, shape: 2, alpha: 1 },
+  cash: { colors: ['#7CC47F', '#A6DDB0'], size: [0.12, 0.18], life: [0.6, 0.9], speed: [1.5, 3], up: [2, 3.5], gravity: 8, drag: 0.8, grow: 0, shape: 2, alpha: 1 },
   heart: { colors: ['#E8577A', '#F28CA5'], size: [0.3, 0.45], life: [0.9, 1.3], speed: [0.2, 0.6], up: [1.0, 1.6], gravity: -0.4, drag: 1, grow: 0.1, shape: 0, alpha: 1 },
 };
 

@@ -12,6 +12,7 @@ export interface GameEvents {
   'spot.cleaned': { x: number; z: number; byPlayer: boolean };
   'item.picked': { item: ItemKind; byPlayer: boolean };
   'item.dropped': { item: ItemKind; byPlayer: boolean };
+  'item.returned': { item: ItemKind; byPlayer: boolean };
   'luggage.loaded': { byPlayer: boolean };
   'unlock.completed': { id: string; price: number; x: number; z: number };
   'tile.draining': { x: number; z: number };

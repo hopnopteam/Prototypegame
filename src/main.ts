@@ -20,17 +20,24 @@ function boot(): void {
   game.start();
 
   // Title card on a fresh page: sets the mood and turns sound on with the first tap.
-  const splash = h('div.splash', { role: 'button', 'aria-label': 'Tap to play' },
-    h('div.title', { html: 'Night<br>Express' }),
-    h('div.tag', { text: 'Run a sleeper train that grows carriage by carriage.' }),
-    h('div.tap', { text: 'Tap to play' }),
+  const splash = h('div.splash', { role: 'button', 'aria-label': 'Tap to board' },
+    h('div.plate', {},
+      h('div.kicker', { text: 'The Countryside Local' }),
+      h('div.title', { html: 'Night<br>Express' }),
+      h('div.rule'),
+      h('div.tag', { text: 'Run a sleeper train that grows carriage by carriage.' }),
+    ),
+    h('div.tap', { text: 'Tap to board' }),
   );
   game.paused = true;
+  overlay.classList.add('title-screen');
   const start = (): void => {
     game.audio.unlock();
     game.applySettings();
     splash.remove();
+    overlay.classList.remove('title-screen');
     game.paused = false;
+    game.playOpening();
   };
   splash.addEventListener('pointerdown', start, { once: true });
   overlay.appendChild(splash);

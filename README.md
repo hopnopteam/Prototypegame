@@ -20,12 +20,15 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 | `npm run dev` | Same, rebuilding on every save |
 | `npm run typecheck` | Strict TypeScript check |
 | `npm test` | Unit tests (vitest): journey phases, ad policy, economy, save/migrations, walkable map |
-| `npm run smoke` | Headless browser run: the autopilot plays the first 13 minutes and checks the §14 beats, the ad rules, save/reload and console errors |
+| `npm run smoke` | Headless browser run: the autopilot plays the first 13 minutes and checks the §14 beats, that every pickup was needed, the ad rules, save/reload and console errors |
+| `npm run audit:ui` | Stages the busiest HUD moments and every menu at five phone sizes and fails on any overlap, clipped text or off-screen element |
 | `npm run check` | Typecheck + tests + build |
 
 Tools in `scripts/` (need Chromium via Playwright, pre-installed in the cloud sessions):
 `pacing.mjs [seconds] [shotDir]` prints the first-session timeline for tuning; `ui-shots.mjs <dir>` screenshots
-every screen; `shot.mjs` and `play.mjs` are quick visual checks.
+every screen; `shot.mjs` and `play.mjs` are quick visual checks. For art work,
+`ENTRY=src/preview.ts OUT=preview.html node scripts/build.mjs` builds `dist/preview.html`, a static diorama of every
+carriage, character and prop (`?t=0.82` time of day, `&z=` camera position, `&zoom=`, `&platform=1`).
 
 ## Developer tools
 
@@ -38,9 +41,11 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 
 | What | File |
 |---|---|
-| Every number: journey timers, speeds, capacities, fares, tips, star thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
+| Every number: journey timers, speeds, capacities, fares, tips, fast-service bonus, pickup dwell, cash magnet reach, star thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
 | Content: stations, guest archetypes, carriages and their order, unlock tiles (price, stars, requirements), stories, quests, products | `src/config/content.ts` |
 | Carriage floor plans | `src/world/layout.ts` |
+| Colours: livery, each carriage's wallpaper, wainscot, floor pattern, bedding and curtains; countryside | `src/world/palette.ts` (pattern ids in `src/world/materials.ts`) |
+| UI colours and type | `src/ui/styles.css` (tokens at the top; Jost is embedded from `@fontsource-variable/jost`) |
 | Remote-config overrides (mock) | `src/services/remoteConfig.ts` |
 
 ## Layout

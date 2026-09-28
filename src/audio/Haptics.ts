@@ -11,6 +11,11 @@ export class Haptics {
     }
   }
 
+  /** The faintest tap, for rhythmic feedback (bills streaming in). */
+  tick(): void {
+    this.buzz(4);
+  }
+
   light(): void {
     this.buzz(8);
   }

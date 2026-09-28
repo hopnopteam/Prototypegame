@@ -5,8 +5,8 @@
  */
 export const ECONOMY = {
   journey: {
-    /** First leg is short so the first station lands at ~1:00 (§14). */
-    firstLegMoveSeconds: 54,
+    /** First leg is short so the first station lands at ~1:00 (§14), counting the opening departure. */
+    firstLegMoveSeconds: 48,
     moveSeconds: 150,
     arrivingSeconds: 6,
     stationSeconds: 40,
@@ -29,6 +29,11 @@ export const ECONOMY = {
 
   zones: {
     checkInSeconds: 0.9,
+    /** Stand this long at a shelf before the first item comes off it, so walking past never grabs anything. */
+    pickupDwellSeconds: 0.3,
+    staffPickupDwellSeconds: 0.12,
+    /** The bin only takes surplus, and only after a deliberate pause. */
+    binDwellSeconds: 0.45,
     pickupIntervalSeconds: 0.2,
     dropIntervalSeconds: 0.16,
     cleanSpotSeconds: 1.5,
@@ -55,6 +60,16 @@ export const ECONOMY = {
     maxBoarders: 7,
     luggageChance: 0.7,
     initialGuests: 2,
+    /** Until this many stops are done every guest rides exactly one leg: the opening is scripted, never luck. */
+    earlyStopsOneLeg: 3,
+  },
+
+  service: {
+    /** Deliver a request this fast for a bigger tip. Slower is never worse than the base tip. */
+    speedySeconds: 8,
+    quickSeconds: 16,
+    speedyTipMultiplier: 1.6,
+    quickTipMultiplier: 1.25,
   },
 
   money: {
@@ -71,6 +86,8 @@ export const ECONOMY = {
     startingCash: 0,
     /** Loose cash on the floor at the very start: the first reward happens within seconds. */
     startingFloorCash: 6,
+    /** Walk this close to a cash pile and it streams into your pockets. */
+    magnetRadius: 1.1,
   },
 
   stars: {

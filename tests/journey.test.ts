@@ -4,7 +4,7 @@ import type { JourneyPhase } from '../src/core/types';
 import { Journey, type JourneyConfig } from '../src/sim/Journey';
 
 const config: JourneyConfig = {
-  firstLegMoveSeconds: 54,
+  firstLegMoveSeconds: 48,
   moveSeconds: 150,
   arrivingSeconds: 6,
   stationSeconds: 40,
@@ -31,6 +31,18 @@ describe('Journey', () => {
     run(journey, config.firstLegMoveSeconds + config.arrivingSeconds + 0.1);
     expect(phases).toEqual(['arriving', 'stationStop']);
     expect(journey.stopSerial).toBe(1);
+  });
+
+  it('opens pulling out of the first station, then keeps the first leg short', () => {
+    const phases: JourneyPhase[] = [];
+    const journey = new Journey(config, { onPhase: (p) => phases.push(p), onLastCall: () => undefined }, 0, 0, 0, undefined, 'departing');
+    expect(journey.phase).toBe('departing');
+    expect(journey.distanceSinceDeparture).toBe(0);
+    run(journey, config.departingSeconds + 0.05);
+    expect(journey.phase).toBe('onTheMove');
+    expect(journey.distanceSinceDeparture).toBeGreaterThan(0);
+    run(journey, config.firstLegMoveSeconds + config.arrivingSeconds);
+    expect(phases).toEqual(['onTheMove', 'arriving', 'stationStop']);
   });
 
   it('loops through every phase in order', () => {
@@ -61,7 +73,7 @@ describe('Journey', () => {
 
   it('holds the train once per stop and re-arms the last call', () => {
     const { journey, lastCalls } = makeJourney();
-    run(journey, 60.1);
+    run(journey, config.firstLegMoveSeconds + config.arrivingSeconds + 0.1);
     expect(journey.phase).toBe('stationStop');
     run(journey, 30);
     expect(lastCalls.length).toBe(1);
@@ -85,7 +97,8 @@ describe('Journey', () => {
   });
 
   it('uses the tuned economy values', () => {
-    expect(ECONOMY.journey.firstLegMoveSeconds + ECONOMY.journey.arrivingSeconds).toBeLessThanOrEqual(65);
+    // Opening departure + first leg + arrival: the first station lands at about one minute.
+    expect(ECONOMY.journey.departingSeconds + ECONOMY.journey.firstLegMoveSeconds + ECONOMY.journey.arrivingSeconds).toBeLessThanOrEqual(65);
     expect(ECONOMY.journey.stationSeconds).toBe(40);
   });
 });

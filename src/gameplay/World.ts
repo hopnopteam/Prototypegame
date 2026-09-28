@@ -22,6 +22,7 @@ import type { Particles } from '../world/Particles';
 import type { Scenery } from '../world/Scenery';
 import type { Stage } from '../world/Stage';
 import type { CashPiles } from './CashPiles';
+import type { Demand } from './Demand';
 import type { GameEvents } from './events';
 import type { Guests } from './Guests';
 import type { Guidance } from './Guidance';
@@ -72,6 +73,7 @@ export interface World {
   readonly player: Player;
   readonly guidance: Guidance;
   readonly meta: Meta;
+  readonly demand: Demand;
   readonly ui: UiApi;
   /** Game seconds since the page loaded (scaled by dev time scale). */
   readonly time: number;

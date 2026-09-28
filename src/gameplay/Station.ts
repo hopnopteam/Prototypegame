@@ -7,6 +7,7 @@ import { createItemMesh } from '../world/ItemMeshes';
 import { PLATFORM_X0 } from '../world/layout';
 import { PlatformView } from '../world/PlatformView';
 import type { StationResult } from './events';
+import { sourceActive, sourceStay, type SourceSpec } from './Pickup';
 import type { World } from './World';
 import { Zone } from './Zones';
 
@@ -48,6 +49,8 @@ export class Station {
     this.createZones();
     this.onTrainChanged();
     this.view.setStationName(this.currentStation().name);
+    // The sign is painted on canvas: repaint once the embedded display font is ready.
+    document.fonts?.ready.then(() => this.view.setStationName(this.currentStation().name)).catch(() => undefined);
   }
 
   currentStation(): (typeof STATIONS)[number] {
@@ -101,10 +104,10 @@ export class Station {
       this.starsAtArrival = w.progression.stars;
       w.guests.onStationStop(w.journey.stopSerial);
       const station = this.currentStation();
-      w.ui.stationBanner(station.name, 'All aboard!');
+      const newPostcard = w.meta.onStationVisited(station.id, station.name);
+      w.ui.stationBanner(station.name, newPostcard ? 'All aboard · New postcard' : 'All aboard');
       w.audio.play('whistle');
       w.audio.setStationAmbience(true);
-      w.meta.onStationVisited(station.id, station.name);
       w.ftue('first_station');
     } else if (phase === 'departing' && previous === 'stationStop') {
       this.closeDoors();
@@ -215,7 +218,9 @@ export class Station {
       w.cash.add('bonus', bonusCash, this.tmp.set(door.inside.x + 0.5, FLOOR_Y + 1.5, door.inside.z));
       w.addStars(w.econ.stars.cleanStationStop, 'cleanStop', door.inside);
       w.particles.emit('star', door.inside.x, FLOOR_Y + 1.2, door.inside.z, 16, 0.5);
+      w.particles.emit('confetti', door.inside.x, FLOOR_Y + 2.2, door.inside.z, 40, 0.8);
       w.audio.play('chest');
+      w.haptics.success();
       w.meta.onCleanStop();
     }
     const result: StationResult = {
@@ -283,52 +288,60 @@ export class Station {
     }));
 
     const pile = PlatformView.luggagePilePosition(w.train.indexOfType('luggage'));
+    const luggagePoint = new THREE.Vector3();
+    const luggageSpec: SourceSpec = {
+      kind: 'luggage',
+      point: () => luggagePoint.set(this.luggageZone.x, FLOOR_Y + 0.4, this.luggageZone.z + 0.8),
+      stock: () => (w.journey.doorsOpen ? this.luggagePile : 0),
+      take: () => {
+        this.luggagePile--;
+        this.layoutPlatformItems();
+      },
+      giveBack: () => {
+        this.luggagePile++;
+        this.layoutPlatformItems();
+      },
+      interval: w.econ.zones.pickupIntervalSeconds * 1.5,
+    };
     this.luggageZone = w.zones.add(new Zone({
       id: 'luggagePile',
       x: pile.x,
       z: pile.z,
       radius: 0.62,
       icon: 'luggage',
-      active: () => w.journey.doorsOpen && this.luggagePile > 0 && w.train.luggageStored < w.train.luggageCapacity,
+      active: () => w.journey.doorsOpen && sourceActive(w, luggageSpec),
+      highlight: () => w.demand.playerWants('luggage') > 0,
       hideWhenInactive: true,
-      stay: (zone, actor, dt) => {
-        if (actor.stack.isFull || this.luggagePile <= 0) return false;
-        if (!actor.isPlayer && !(actor as { wants?: (k: 'luggage') => boolean }).wants?.('luggage')) return false;
-        zone.timer += dt * actor.workMultiplier;
-        if (zone.timer < w.econ.zones.pickupIntervalSeconds * 1.5) return true;
-        zone.timer = 0;
-        this.luggagePile--;
-        actor.stack.add('luggage', this.tmp.set(zone.x, FLOOR_Y + 0.4, zone.z));
-        w.audio.play('pickup', { pitch: 0.8 });
-        actor.view.bounce(0.5);
-        this.layoutPlatformItems();
-        w.events.emit('item.picked', { item: 'luggage', byPlayer: actor.isPlayer });
-        return true;
-      },
+      stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, luggageSpec),
     }));
 
     const supply = w.train.indexOfType('supply') ?? 2;
     const vendor = PlatformView.vendorPosition(supply);
+    const vendorPoint = new THREE.Vector3();
+    const vendorSpec: SourceSpec = {
+      kind: 'crate',
+      point: () => vendorPoint.set(this.vendorZone.x + 1, FLOOR_Y + 1, this.vendorZone.z),
+      stock: () => (w.journey.doorsOpen ? this.vendorCrates : 0),
+      take: () => {
+        this.vendorCrates--;
+        this.layoutPlatformItems();
+      },
+      giveBack: () => {
+        this.vendorCrates++;
+        this.layoutPlatformItems();
+      },
+      interval: 0.35,
+    };
     this.vendorZone = w.zones.add(new Zone({
       id: 'vendor',
       x: vendor.x,
       z: vendor.z,
       radius: 0.6,
       icon: 'crate',
-      active: () => w.journey.doorsOpen && this.vendorCrates > 0,
+      active: () => w.journey.doorsOpen && sourceActive(w, vendorSpec),
+      highlight: () => w.demand.playerWants('crate') > 0,
       hideWhenInactive: true,
-      stay: (zone, actor, dt) => {
-        if (actor.stack.isFull || this.vendorCrates <= 0) return false;
-        if (!actor.isPlayer && !(actor as { wants?: (k: 'crate') => boolean }).wants?.('crate')) return false;
-        zone.timer += dt * actor.workMultiplier;
-        if (zone.timer < 0.35) return true;
-        zone.timer = 0;
-        this.vendorCrates--;
-        actor.stack.add('crate', this.tmp.set(zone.x + 1, FLOOR_Y + 1, zone.z));
-        w.audio.play('pickup', { pitch: 0.7 });
-        this.layoutPlatformItems();
-        return true;
-      },
+      stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, vendorSpec),
     }));
   }
 

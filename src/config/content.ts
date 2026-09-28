@@ -37,38 +37,40 @@ export interface ArchetypeDef {
   minCarriages: number;
   colors: { body: string; accent: string; skin: string; hair: string };
   accessory: 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'child' | 'furcoat';
+  /** What they tend to ask for: personality you can learn and plan around. */
+  requests: Partial<Record<'tea' | 'blanket' | 'pillow', number>>;
   lines: string[];
 }
 
 export const ARCHETYPES: ArchetypeDef[] = [
   {
     id: 'businessman', label: 'Businessman', weight: 3, fareMultiplier: 1, tipMultiplier: 1, speedMultiplier: 1.08, minCarriages: 1,
-    colors: { body: '#56606E', accent: '#E8E3D8', skin: '#F1C7A5', hair: '#3A2E28' }, accessory: 'briefcase',
+    colors: { body: '#5B6C85', accent: '#C0485C', skin: '#F1C7A5', hair: '#3A2E28' }, accessory: 'briefcase', requests: { tea: 4, pillow: 1, blanket: 1 },
     lines: ['Tea. Urgently.', 'Is the Wi-Fi steam powered?', 'Wake me at the meeting.'],
   },
   {
     id: 'backpacker', label: 'Backpacker', weight: 3, fareMultiplier: 0.9, tipMultiplier: 0.8, speedMultiplier: 1.12, minCarriages: 1,
-    colors: { body: '#5E8C3E', accent: '#E48A3A', skin: '#D9A07A', hair: '#8C5A32' }, accessory: 'backpack',
+    colors: { body: '#6FA36B', accent: '#EE8F4A', skin: '#D9A07A', hair: '#8C5A32' }, accessory: 'backpack', requests: { pillow: 4, tea: 1, blanket: 1 },
     lines: ['Best hostel ever!', 'Do you have a spare pillow? Asking for me.', 'I packed light. Mostly snacks.'],
   },
   {
     id: 'grandma', label: 'Grandma', weight: 2, fareMultiplier: 1, tipMultiplier: 1.25, speedMultiplier: 0.82, minCarriages: 1,
-    colors: { body: '#9B7FBD', accent: '#F4EEF7', skin: '#F2CFB3', hair: '#EDEDED' }, accessory: 'handbag',
+    colors: { body: '#B39BD1', accent: '#FBF6EC', skin: '#F2CFB3', hair: '#EFEFEF' }, accessory: 'handbag', requests: { blanket: 4, tea: 2, pillow: 1 },
     lines: ['Lovely train, dear.', 'A blanket would be heaven.', 'In my day trains had fewer buttons.'],
   },
   {
     id: 'newlyweds', label: 'Newlyweds', weight: 1.2, fareMultiplier: 1.1, tipMultiplier: 1.35, speedMultiplier: 1, minCarriages: 1,
-    colors: { body: '#F3EDE4', accent: '#E26D8C', skin: '#EDBE9A', hair: '#5A3B2A' }, accessory: 'flower',
+    colors: { body: '#FBF3E4', accent: '#E8849A', skin: '#EDBE9A', hair: '#5A3B2A' }, accessory: 'flower', requests: { tea: 3, pillow: 2, blanket: 1 },
     lines: ['Just married!', 'Two teas, one straw.', 'Our first trip together!'],
   },
   {
     id: 'family', label: 'Family', weight: 1.5, fareMultiplier: 1.2, tipMultiplier: 1.1, speedMultiplier: 0.95, minCarriages: 2,
-    colors: { body: '#3F7FB8', accent: '#F2C94C', skin: '#E3AE87', hair: '#2F2520' }, accessory: 'child',
+    colors: { body: '#4F86B8', accent: '#F2C94C', skin: '#E3AE87', hair: '#2F2520' }, accessory: 'child', requests: { blanket: 2, pillow: 2, tea: 1 },
     lines: ['Are we there yet?', 'She wants the top bunk.', 'Snacks for the small one?'],
   },
   {
     id: 'vip', label: 'VIP', weight: 0.6, fareMultiplier: 1.6, tipMultiplier: 2.4, speedMultiplier: 0.9, minCarriages: 3,
-    colors: { body: '#C7A27C', accent: '#D9A441', skin: '#F0C6A2', hair: '#1E1A18' }, accessory: 'furcoat',
+    colors: { body: '#C8A27A', accent: '#E3B352', skin: '#F0C6A2', hair: '#1E1A18' }, accessory: 'furcoat', requests: { tea: 2, pillow: 2, blanket: 2 },
     lines: ['Darling, is this first class?', 'I tip in the currency of joy. And cash.', 'The fur is faux. The tips are real.'],
   },
 ];
@@ -113,10 +115,10 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'cabin_0_1', kind: 'cabin', label: 'Cabin 2', price: 20, stars: 2, carriage: 0, cabin: 1, requires: [] },
   { id: 'cabin_0_2', kind: 'cabin', label: 'Cabin 3', price: 35, stars: 2, carriage: 0, cabin: 2, requires: ['cabin_0_1'] },
   { id: 'hire_attendant_0', kind: 'hire', label: 'Attendant', price: 45, stars: 3, carriage: 0, role: 'attendant', requires: ['cabin_0_2'], flags: ['firstCabinCleaned'] },
-  { id: 'couple_1', kind: 'couple', label: 'Bathroom Car', price: 90, stars: 6, carriage: 1, requires: ['hire_attendant_0'] },
+  { id: 'couple_1', kind: 'couple', label: 'Bathroom Car', price: 130, stars: 6, carriage: 1, requires: ['hire_attendant_0'] },
   { id: 'bedding_0', kind: 'bedding', label: 'Plush Bedding', price: 40, stars: 2, carriage: 0, requires: ['hire_attendant_0'] },
   { id: 'bath_1_1', kind: 'bathroom', label: 'Bathroom 2', price: 50, stars: 2, carriage: 1, bathroom: 1, requires: ['couple_2'] },
-  { id: 'couple_2', kind: 'couple', label: 'Supply Car', price: 105, stars: 6, carriage: 2, requires: ['couple_1'] },
+  { id: 'couple_2', kind: 'couple', label: 'Supply Car', price: 95, stars: 6, carriage: 2, requires: ['couple_1'] },
   { id: 'hire_runner_2', kind: 'hire', label: 'Supply Runner', price: 80, stars: 3, carriage: 2, role: 'runner', requires: ['couple_2'] },
   { id: 'bedding2_0', kind: 'bedding', label: 'Silk Pillows', price: 75, stars: 2, carriage: 0, requires: ['couple_2', 'bedding_0'] },
   { id: 'hire_porter_0', kind: 'hire', label: 'Porter', price: 130, stars: 3, carriage: 0, role: 'porter', requires: ['hire_runner_2'] },

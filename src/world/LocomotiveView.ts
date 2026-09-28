@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { FLOOR_Y } from './CarriageView';
 import { GeoBuilder } from './geo';
 import { GANGWAY_LENGTH, LOCOMOTIVE_LENGTH } from './layout';
-import { MATERIALS } from './materials';
+import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
 
-/** Steam locomotive at the head of the train (top of the screen). Faces -z. */
+/** Steam locomotive at the head of the train (top of the screen). Faces -z. Navy, gold and signal red. */
 export class LocomotiveView {
   readonly group = new THREE.Group();
   /** World position the smoke puffs come out of. */
@@ -16,58 +16,78 @@ export class LocomotiveView {
     const back = -GANGWAY_LENGTH;
     const front = back - LOCOMOTIVE_LENGTH;
     const b = new GeoBuilder();
-    const g = PALETTE.locoGreen;
+    const body = PALETTE.locoBody;
+    const mid = (front + back) / 2;
 
-    b.box(0, 0.42, (front + back) / 2, 2.9, 0.3, LOCOMOTIVE_LENGTH - 0.3, PALETTE.locoBlack);
-    b.box(0, FLOOR_Y + 0.02, (front + back) / 2, 3.1, 0.08, LOCOMOTIVE_LENGTH - 0.5, PALETTE.locoRed);
+    // Frame and running board: red valance with a gold line, black chassis.
+    b.box(0, 0.42, mid, 2.9, 0.3, LOCOMOTIVE_LENGTH - 0.3, PALETTE.locoBlack);
+    b.box(0, FLOOR_Y + 0.02, mid, 3.1, 0.08, LOCOMOTIVE_LENGTH - 0.5, PALETTE.locoRed, 0, { shade: 1 });
+    b.box(0, FLOOR_Y + 0.065, mid, 3.12, 0.012, LOCOMOTIVE_LENGTH - 0.52, PALETTE.gold, 0, { shade: 1 });
 
-    // Boiler with brass bands and a dark smokebox.
+    // Boiler with gold bands and a dark smokebox.
     const boilerFront = front + 0.8;
     const boilerBack = back - 3.4;
     const boilerLength = boilerBack - boilerFront;
-    b.cylinder(0, 1.55, (boilerFront + boilerBack) / 2, 0.95, 0.95, boilerLength, g, 14, 'z');
-    b.cylinder(0, 1.55, boilerFront - 0.05, 0.98, 0.98, 0.5, PALETTE.locoBlack, 14, 'z');
-    for (let i = 1; i <= 3; i++) b.cylinder(0, 1.55, boilerFront + (boilerLength * i) / 4, 0.99, 0.99, 0.08, PALETTE.brass, 14, 'z');
+    b.cylinder(0, 1.55, (boilerFront + boilerBack) / 2, 0.95, 0.95, boilerLength, body, 24, 'z', { shade: 0.75 });
+    b.cylinder(0, 1.55, boilerFront - 0.05, 0.98, 0.98, 0.5, PALETTE.smokebox, 24, 'z', { shade: 0.75 });
+    b.cylinder(0, 1.55, boilerFront - 0.32, 0.5, 0.5, 0.06, PALETTE.locoBlack, 20, 'z', { shade: 1 });
+    for (let i = 1; i <= 3; i++) b.cylinder(0, 1.55, boilerFront + (boilerLength * i) / 4, 0.985, 0.985, 0.07, PALETTE.gold, 24, 'z', { shade: 0.85 });
 
     // Chimney, dome and whistle.
     const chimneyZ = boilerFront + 0.7;
-    b.cylinder(0, 2.75, chimneyZ, 0.26, 0.32, 0.9, PALETTE.locoBlack, 10);
-    b.cylinder(0, 3.24, chimneyZ, 0.36, 0.28, 0.16, PALETTE.brass, 10);
-    b.sphere(0, 2.45, boilerFront + boilerLength * 0.55, 0.38, PALETTE.brass, 1);
-    b.cylinder(0.25, 2.55, boilerBack - 0.4, 0.06, 0.06, 0.35, PALETTE.brass, 6);
+    b.cylinder(0, 2.75, chimneyZ, 0.26, 0.32, 0.9, PALETTE.locoBlack, 14, 'y', { shade: 0.8 });
+    b.cylinder(0, 3.24, chimneyZ, 0.36, 0.28, 0.16, PALETTE.gold, 14, 'y', { shade: 1 });
+    b.sphere(0, 2.45, boilerFront + boilerLength * 0.55, 0.38, PALETTE.gold, 2, 0.9);
+    b.cylinder(0.25, 2.55, boilerBack - 0.4, 0.06, 0.06, 0.35, PALETTE.gold, 8);
 
-    // Cab.
+    // Cab: navy with a cream window band and a dark roof.
     const cabFront = boilerBack;
     const cabBack = back - 0.6;
-    b.box(0, 1.65, (cabFront + cabBack) / 2, 3.0, 2.2, cabBack - cabFront, g);
-    b.box(0, 2.85, (cabFront + cabBack) / 2, 3.3, 0.14, cabBack - cabFront + 0.4, PALETTE.locoBlack);
-    b.box(0, 0.95, (cabFront + cabBack) / 2, 3.04, 0.12, cabBack - cabFront, PALETTE.brass);
-    // Coal bunker.
-    b.box(0, 1.2, back - 0.3, 2.6, 1.2, 0.6, PALETTE.locoBlack);
-    b.box(0, 1.85, back - 0.3, 2.3, 0.2, 0.5, '#2A2A2A');
+    const cabMid = (cabFront + cabBack) / 2;
+    b.box(0, 1.65, cabMid, 3.0, 2.2, cabBack - cabFront, body, 0, { shade: 0.75 });
+    b.box(0, 2.0, cabMid, 3.03, 0.7, cabBack - cabFront - 0.2, PALETTE.creamBand, 0, { shade: 1 });
+    b.box(0, 2.88, cabMid, 3.3, 0.14, cabBack - cabFront + 0.4, PALETTE.navyDark, 0, { shade: 1 });
+    b.box(0, 0.95, cabMid, 3.04, 0.12, cabBack - cabFront, PALETTE.gold, 0, { shade: 1 });
+    b.box(1.53, 1.3, cabMid, 0.02, 0.26, 0.7, PALETTE.gold, 0, { shade: 1 });
+    // Tender end facing the train: navy panel with gold lining, a round window, coal heaped on top.
+    b.box(0, 1.2, back - 0.3, 2.7, 1.3, 0.6, body, 0, { shade: 0.7 });
+    b.box(0, 1.2, back - 0.005, 2.5, 1.1, 0.02, PALETTE.navyDark, 0, { shade: 1 });
+    b.box(0, 1.2, back + 0.006, 2.4, 1.0, 0.012, body, 0, { shade: 0.95 });
+    b.cylinder(0, 1.35, back + 0.012, 0.22, 0.22, 0.02, PALETTE.gold, 18, 'z', { shade: 1 });
+    b.cylinder(0, 1.35, back + 0.02, 0.18, 0.18, 0.02, PALETTE.windowDay, 18, 'z', { shade: 1 });
+    b.box(0, 1.87, back - 0.3, 2.5, 0.06, 0.55, PALETTE.gold, 0, { shade: 1 });
+    b.box(0, 1.95, back - 0.3, 2.2, 0.14, 0.45, '#3A3840', 0, { pattern: PATTERN.dots, color2: '#26252B', scale: 0.07, shade: 1 });
 
-    // Cowcatcher and buffer beam.
-    b.box(0, 0.62, front + 0.2, 3.0, 0.3, 0.3, PALETTE.locoRed);
+    // Buffer beam, cowcatcher, buffers.
+    b.box(0, 0.62, front + 0.2, 3.0, 0.3, 0.3, PALETTE.locoRed, 0, { shade: 0.9 });
     b.prism(0, 0.2, front - 0.1, 2.6, 0.4, 0.5, PALETTE.locoBlack);
-    for (const x of [-1.2, 1.2]) b.cylinder(x, 0.62, front, 0.12, 0.12, 0.3, PALETTE.chrome, 8, 'z');
+    for (const x of [-1.2, 1.2]) b.cylinder(x, 0.62, front, 0.12, 0.12, 0.3, PALETTE.chrome, 10, 'z');
 
-    this.group.add(new THREE.Mesh(b.build(), MATERIALS.solid));
+    const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    this.group.add(mesh);
 
     // Cab windows and the headlamp glow at night.
     const windows = new GeoBuilder();
-    for (const x of [-1.51, 1.51]) windows.box(x, 2.0, (cabFront + cabBack) / 2, 0.02, 0.6, 0.9, PALETTE.windowDay);
-    windows.box(0, 2.1, cabFront - 0.01, 1.8, 0.5, 0.02, PALETTE.windowDay);
+    for (const x of [-1.52, 1.52]) windows.box(x, 2.0, cabMid, 0.02, 0.5, 0.8, PALETTE.windowDay);
+    windows.box(0, 2.1, cabFront - 0.01, 1.8, 0.45, 0.02, PALETTE.windowDay);
     this.group.add(new THREE.Mesh(windows.build(), MATERIALS.windows));
-    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.25, 10).rotateX(Math.PI / 2), MATERIALS.lamp);
+    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.25, 14).rotateX(Math.PI / 2), MATERIALS.lamp);
     lamp.position.set(0, 1.55, front + 0.5);
     this.group.add(lamp);
 
-    // Driving wheels spin with train speed.
-    const wheelGeo = new GeoBuilder().cylinder(0, 0, 0, 0.55, 0.55, 0.14, PALETTE.locoRed, 12, 'x').box(0, 0, 0, 0.16, 0.9, 0.08, PALETTE.brass).build();
+    // Driving wheels spin with train speed: red with gold hubs.
+    const wheelGeo = new GeoBuilder()
+      .cylinder(0, 0, 0, 0.55, 0.55, 0.14, PALETTE.locoRed, 20, 'x', { shade: 0.85 })
+      .cylinder(0.02, 0, 0, 0.14, 0.14, 0.16, PALETTE.gold, 12, 'x', { shade: 1 })
+      .box(0.05, 0, 0, 0.04, 0.9, 0.08, PALETTE.gold, 0, { shade: 1 })
+      .build();
     for (const x of [-1.42, 1.42]) {
       for (let i = 0; i < 3; i++) {
         const wheel = new THREE.Mesh(wheelGeo, MATERIALS.solid);
         wheel.position.set(x, 0.55, boilerFront + 1.4 + i * 1.25);
+        if (x < 0) wheel.rotation.y = Math.PI;
         this.group.add(wheel);
         this.wheels.push(wheel);
       }

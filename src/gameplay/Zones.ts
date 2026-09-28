@@ -18,6 +18,8 @@ export interface ZoneOptions {
   active?: () => boolean;
   /** Hide the ring completely while inactive (instead of dimming it). */
   hideWhenInactive?: boolean;
+  /** Draw attention: the player is needed here right now (a shelf with something someone asked for). */
+  highlight?: () => boolean;
   /** Called every frame for each actor standing inside. Return true while real work happens. */
   stay: (zone: Zone, actor: Actor, dt: number) => boolean;
   enter?: (zone: Zone, actor: Actor) => void;
@@ -36,8 +38,10 @@ export class Zone {
   readonly ring: ZoneRing | null;
   readonly priority: number;
   progress = 0;
-  /** Seconds accumulated toward the next repeat action. */
+  /** Seconds accumulated since an actor settled in (dwell before the first action). */
   timer = 0;
+  /** Countdown to the next repeated action (one item per interval). */
+  repeat = 0;
   /** Set by the zone system: an actor stood here this frame. */
   occupied = false;
   playerInside = false;
@@ -90,6 +94,7 @@ export class Zone {
     const active = this.isActive();
     this.ring.visible = this.enabled && (active || !this.opts.hideWhenInactive);
     this.ring.dimmed = !active;
+    this.ring.highlight = active && !!this.opts.highlight?.();
     this.ring.progress = this.progress;
     this.ring.pulse = this.playerInside && active ? 1 : 0;
     this.ring.update(dt);
@@ -173,7 +178,10 @@ export class ZoneSystem {
     for (const zone of this.zones) {
       // Unattended timed zones slowly lose progress instead of snapping back.
       if (!zone.occupied && zone.progress > 0) zone.progress = Math.max(0, zone.progress - dt * 0.8);
-      if (!zone.occupied) zone.timer = 0;
+      if (!zone.occupied) {
+        zone.timer = 0;
+        zone.repeat = 0;
+      }
       zone.updateVisual(dt);
     }
   }

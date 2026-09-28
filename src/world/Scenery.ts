@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import { Rng } from '../core/Rng';
 import { GeoBuilder } from './geo';
-import { MATERIALS } from './materials';
+import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
 
 const TEXTURE_METRES = 40;
 const TRACK_CLEAR_X = 3.4;
+/** An avenue of identical trees either side of the line: the storybook symmetry. */
+const AVENUE_X = 7.6;
+const CAST_SCENERY_SHADOWS = false;
 
 interface PropKind {
   mesh: THREE.InstancedMesh;
@@ -23,7 +26,7 @@ type Placer = PropKind['place'];
 const dummy = new THREE.Object3D();
 
 /** Random position on either side of the track. */
-const scatter = (minX: number, maxX: number, scaleVariance = 0.35): Placer => (kind, i, rng, span) => {
+const scatter = (minX: number, maxX: number, scaleVariance = 0.3): Placer => (kind, i, rng, span) => {
   const side = rng.chance(0.5) ? -1 : 1;
   kind.x[i] = side * Math.max(TRACK_CLEAR_X, rng.range(minX, maxX));
   kind.z[i] = rng.range(span.zMin, span.zMax);
@@ -31,19 +34,20 @@ const scatter = (minX: number, maxX: number, scaleVariance = 0.35): Placer => (k
   kind.scale[i] = 1 + rng.range(-scaleVariance, scaleVariance);
 };
 
-/** Evenly spaced along one or more lines (poles, fence posts). */
-const lines = (xs: number[], spacing: number): Placer => (kind, i, _rng, span) => {
+/** Evenly spaced along one or more lines (poles, fence posts, avenues). */
+const lines = (xs: number[], spacing: number, rotation = 0): Placer => (kind, i, _rng, span) => {
   const k = Math.floor(i / xs.length);
   kind.x[i] = xs[i % xs.length];
   kind.z[i] = span.zMin + k * spacing;
-  kind.rot[i] = 0;
+  kind.rot[i] = rotation;
   kind.scale[i] = 1;
 };
 
 /**
- * Countryside that scrolls past the (stationary) train: ground texture, sleepers, and instanced props that
- * wrap around when they leave the view. Everything moves by one speed value, so the platform and the
- * scenery can never drift apart.
+ * Countryside that scrolls past the (stationary) train: a patchwork of fields with hedgerows, an avenue of
+ * lollipop trees either side of the line, pastel cottages, bales and sheep, all instanced and wrapped
+ * around as they leave the view. Everything moves by one speed value, so the platform and the scenery can
+ * never drift apart.
  */
 export class Scenery {
   readonly group = new THREE.Group();
@@ -59,38 +63,46 @@ export class Scenery {
 
   constructor() {
     this.groundTexture = makeGroundTexture();
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(120, 260).rotateX(-Math.PI / 2),
-      new THREE.MeshLambertMaterial({ map: this.groundTexture }),
-    );
+    MATERIALS.ground.map = this.groundTexture;
+    MATERIALS.ground.needsUpdate = true;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 260).rotateX(-Math.PI / 2), MATERIALS.ground);
     ground.position.set(0, -0.01, 0);
+    ground.receiveShadow = true;
     this.groundTexture.repeat.set(120 / TEXTURE_METRES, 260 / TEXTURE_METRES);
     this.group.add(ground);
 
     // Track bed and rails. Rails are uniform along z, so they can stay put while the sleepers scroll.
     const bed = new GeoBuilder();
-    bed.box(0, 0.04, 0, 3.8, 0.08, 260, PALETTE.ballast);
-    for (const x of [-0.72, 0.72]) bed.box(x, 0.22, 0, 0.1, 0.12, 260, PALETTE.rail);
+    bed.box(0, 0.05, 0, 3.9, 0.1, 260, PALETTE.ballast, 0, { pattern: PATTERN.dots, color2: PALETTE.ballastDark, scale: 0.12, shade: 1 });
+    for (const x of [-0.72, 0.72]) {
+      bed.box(x, 0.22, 0, 0.1, 0.12, 260, PALETTE.rail, 0, { shade: 0.8 });
+      bed.box(x, 0.285, 0, 0.07, 0.012, 260, PALETTE.railTop, 0, { shade: 1 });
+    }
     // Telegraph wires along the left, also uniform.
-    for (const y of [4.1, 4.35]) bed.box(-5.2, y, 0, 0.02, 0.02, 260, '#3A3A3A');
-    // Fence rails on both sides.
-    for (const x of [-7.5, 15]) for (const y of [0.35, 0.65]) bed.box(x, y, 0, 0.05, 0.06, 260, '#E8DCC6');
-    this.group.add(new THREE.Mesh(bed.build(), MATERIALS.solid));
+    for (const y of [4.1, 4.35]) bed.box(-5.2, y, 0, 0.02, 0.02, 260, '#4A4452', 0, { shade: 1 });
+    // White fence rails either side.
+    for (const x of [-6.3, 6.3]) for (const y of [0.35, 0.62]) bed.box(x, y, 0, 0.05, 0.05, 260, PALETTE.stationTrim, 0, { shade: 1 });
+    const bedMesh = new THREE.Mesh(bed.build(), MATERIALS.scenery);
+    bedMesh.receiveShadow = true;
+    this.group.add(bedMesh);
 
-    const sleeperGeo = new GeoBuilder().box(0, 0.12, 0, 2.2, 0.08, 0.26, PALETTE.sleeper).build();
-    this.sleepers = new THREE.InstancedMesh(sleeperGeo, MATERIALS.solid, 380);
+    const sleeperGeo = new GeoBuilder().box(0, 0.12, 0, 2.2, 0.08, 0.26, PALETTE.sleeper, 0, { shade: 0.8 }).build();
+    this.sleepers = new THREE.InstancedMesh(sleeperGeo, MATERIALS.scenery, 380);
     this.sleepers.frustumCulled = false;
+    this.sleepers.receiveShadow = true;
     this.group.add(this.sleepers);
 
-    this.addKind(treeGeometry(), 90, scatter(6, 40));
-    this.addKind(roundTreeGeometry(), 70, scatter(6, 40));
-    this.addKind(bushGeometry(), 90, scatter(4.2, 22));
+    this.addKind(lollipopGeometry(PALETTE.treeGreen, PALETTE.treeLight), 52, lines([-AVENUE_X, AVENUE_X], 5.5), true);
+    this.addKind(lollipopGeometry(PALETTE.blossom, '#F7CAD3'), 40, scatter(11, 40), true);
+    this.addKind(lollipopGeometry(PALETTE.treeGreen, PALETTE.treeLight), 60, scatter(11, 40), true);
+    this.addKind(cypressGeometry(), 50, scatter(10, 38, 0.25), true);
+    this.addKind(hedgeBushGeometry(), 70, scatter(4.4, 5.8, 0.3));
     this.addKind(poleGeometry(), 11, lines([-5.2], 26));
-    this.addKind(fencePostGeometry(), 124, lines([-7.5, 15], 3.8));
-    this.addKind(cottageGeometry(), 8, scatter(16, 34, 0.1));
-    this.addKind(haystackGeometry(), 26, scatter(9, 30));
-    this.addKind(sheepGeometry(), 22, scatter(8, 16));
-    this.addKind(flowerGeometry(), 80, scatter(3.6, 12, 0.3));
+    this.addKind(fencePostGeometry(), 150, lines([-6.3, 6.3], 2.0));
+    PALETTE.cottageWalls.slice(0, 3).forEach((wall, i) => this.addKind(cottageGeometry(wall, PALETTE.cottageRoofs[i]), 3, scatter(15, 32, 0.08), true));
+    this.addKind(baleGeometry(), 26, scatter(9, 30, 0.15), true);
+    this.addKind(sheepGeometry(), 22, scatter(8.5, 18, 0.15), true);
+    this.addKind(flowerGeometry(), 60, scatter(3.8, 12, 0.3));
 
     this.river = buildRiver();
     this.group.add(this.river);
@@ -151,9 +163,11 @@ export class Scenery {
     return Math.abs(z - this.riverZ) < 5.5 && Math.abs(x) < 60;
   }
 
-  private addKind(geometry: THREE.BufferGeometry, count: number, place: Placer): void {
-    const mesh = new THREE.InstancedMesh(geometry, MATERIALS.solid, count);
+  private addKind(geometry: THREE.BufferGeometry, count: number, place: Placer, castShadow = false): void {
+    const mesh = new THREE.InstancedMesh(geometry, MATERIALS.scenery, count);
     mesh.frustumCulled = false;
+    // Instanced scenery is never culled, so casting would redraw every tree into the shadow map.
+    mesh.castShadow = castShadow && CAST_SCENERY_SHADOWS;
     this.kinds.push({
       mesh,
       x: new Float32Array(count),
@@ -191,122 +205,167 @@ export class Scenery {
   }
 }
 
+/**
+ * The patchwork: fields of sage, mustard, lavender and clover in neat plots with crop rows and dark
+ * hedgerows between them, a sandy verge beside the line. Tiles seamlessly in both directions.
+ */
 function makeGroundTexture(): THREE.CanvasTexture {
-  const size = 512;
+  const size = 1024;
+  const perMetre = size / TEXTURE_METRES;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
   const ctx = c.getContext('2d')!;
-  ctx.fillStyle = PALETTE.grass;
+  ctx.fillStyle = PALETTE.meadow;
   ctx.fillRect(0, 0, size, size);
-  // Mowing stripes.
-  ctx.fillStyle = PALETTE.grassDark;
-  for (let y = 0; y < size; y += 64) ctx.fillRect(0, y, size, 32);
-  // Field patches.
   const rng = new Rng(7);
-  const colors = [PALETTE.wheat, PALETTE.fieldGreen, '#C9B25A', '#9DBD5C'];
-  for (let i = 0; i < 7; i++) {
-    const w = rng.range(90, 200);
-    const h = rng.range(80, 190);
-    const x = rng.pick([rng.range(0, 150), rng.range(330, 470)]);
-    const y = rng.range(0, size - h);
-    ctx.fillStyle = rng.pick(colors);
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
-    ctx.lineWidth = 3;
-    for (let k = 10; k < w; k += 14) {
-      ctx.beginPath();
-      ctx.moveTo(x + k, y);
-      ctx.lineTo(x + k, y + h);
-      ctx.stroke();
+  const fields = [PALETTE.meadow, PALETTE.wheat, PALETTE.mintField, PALETTE.lavender, PALETTE.mustardField, PALETTE.clover, PALETTE.meadowDark, PALETTE.ploughed];
+  const track = size / 2;
+  const clear = TRACK_CLEAR_X * perMetre;
+  // Two columns of plots on each side of the line; each column is a stack of plots that sums to the tile.
+  const columns: [number, number][] = [[0, track - clear - 150], [track - clear - 150, track - clear], [track + clear, track + clear + 150], [track + clear + 150, size]];
+  for (const [x0, x1] of columns) {
+    let y = 0;
+    while (y < size) {
+      const h = Math.min(size - y, size - y < 260 ? size - y : rng.range(150, 330));
+      const color = rng.pick(fields);
+      ctx.fillStyle = color;
+      ctx.fillRect(x0, y, x1 - x0, h);
+      // Crop rows, alternating direction plot by plot.
+      ctx.strokeStyle = 'rgba(60, 50, 30, 0.1)';
+      ctx.lineWidth = 3;
+      const vertical = rng.chance(0.5);
+      for (let k = 10; k < (vertical ? x1 - x0 : h); k += 13) {
+        ctx.beginPath();
+        if (vertical) {
+          ctx.moveTo(x0 + k, y + 4);
+          ctx.lineTo(x0 + k, y + h - 4);
+        } else {
+          ctx.moveTo(x0 + 4, y + k);
+          ctx.lineTo(x1 - 4, y + k);
+        }
+        ctx.stroke();
+      }
+      // Hedgerow along the plot's top edge.
+      ctx.fillStyle = PALETTE.hedge;
+      ctx.fillRect(x0, y, x1 - x0, 7);
+      ctx.fillStyle = PALETTE.hedgeDark;
+      ctx.fillRect(x0, y + 5, x1 - x0, 2);
+      y += h;
     }
+    ctx.fillStyle = PALETTE.hedge;
+    ctx.fillRect(x1 - 4, 0, 7, size);
   }
-  // Soft verge beside the track, in the middle of the texture across x.
-  ctx.fillStyle = 'rgba(214, 196, 150, 0.55)';
-  ctx.fillRect(size / 2 - 38, 0, 76, size);
+  // The verge beside the track: sandy, with a mown grass edge.
+  ctx.fillStyle = PALETTE.verge;
+  ctx.fillRect(track - clear, 0, clear * 2, size);
+  ctx.fillStyle = PALETTE.meadowDark;
+  ctx.fillRect(track - clear, 0, 16, size);
+  ctx.fillRect(track + clear - 16, 0, 16, size);
   const texture = new THREE.CanvasTexture(c);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.anisotropy = 4;
+  texture.anisotropy = 8;
   return texture;
 }
 
-function treeGeometry(): THREE.BufferGeometry {
+function lollipopGeometry(crown: string, highlight: string): THREE.BufferGeometry {
   return new GeoBuilder()
-    .cylinder(0, 0.5, 0, 0.14, 0.18, 1.0, PALETTE.wood, 6)
-    .cone(0, 1.6, 0, 1.0, 1.6, '#4E7F3A', 7)
-    .cone(0, 2.5, 0, 0.72, 1.3, '#5E9243', 7)
+    .cylinder(0, 0.75, 0, 0.11, 0.15, 1.5, PALETTE.trunk, 8)
+    .sphere(0, 2.15, 0, 1.0, crown, 1, 0.95, { shade: 0.72 })
+    .sphere(-0.3, 2.45, 0.35, 0.42, highlight, 1, 1, { shade: 1 })
     .build();
 }
 
-function roundTreeGeometry(): THREE.BufferGeometry {
+function cypressGeometry(): THREE.BufferGeometry {
   return new GeoBuilder()
-    .cylinder(0, 0.6, 0, 0.14, 0.2, 1.2, PALETTE.wood, 6)
-    .sphere(0, 1.9, 0, 1.05, '#6FA24A', 0)
-    .sphere(0.45, 2.3, 0.2, 0.6, '#7DB050', 0)
+    .cylinder(0, 0.3, 0, 0.1, 0.12, 0.6, PALETTE.trunk, 6)
+    .sphere(0, 2.0, 0, 0.62, PALETTE.cypress, 1, 2.6, { shade: 0.7 })
     .build();
 }
 
-function bushGeometry(): THREE.BufferGeometry {
-  return new GeoBuilder().sphere(0, 0.35, 0, 0.5, '#5E9243', 0).sphere(0.35, 0.3, 0.1, 0.35, '#6FA24A', 0).build();
+function hedgeBushGeometry(): THREE.BufferGeometry {
+  return new GeoBuilder()
+    .sphere(0, 0.36, 0, 0.5, PALETTE.hedge, 0, 0.85, { shade: 0.75 })
+    .sphere(0.38, 0.3, 0.12, 0.34, PALETTE.treeGreen, 0, 0.9, { shade: 0.8 })
+    .build();
 }
 
 function poleGeometry(): THREE.BufferGeometry {
   return new GeoBuilder()
-    .cylinder(0, 2.2, 0, 0.09, 0.12, 4.4, '#6B4E36', 6)
-    .box(0, 4.2, 0, 0.9, 0.08, 0.1, '#6B4E36')
+    .cylinder(0, 2.2, 0, 0.08, 0.11, 4.4, '#6B4E36', 8)
+    .box(0, 4.2, 0, 0.9, 0.07, 0.09, '#6B4E36', 0, { shade: 1 })
     .build();
 }
 
 function fencePostGeometry(): THREE.BufferGeometry {
-  return new GeoBuilder().box(0, 0.4, 0, 0.1, 0.8, 0.1, '#E8DCC6').build();
+  return new GeoBuilder().box(0, 0.38, 0, 0.08, 0.76, 0.08, PALETTE.stationTrim, 0, { shade: 0.85 }).cone(0, 0.8, 0, 0.06, 0.1, PALETTE.stationTrim, 4).build();
 }
 
-function cottageGeometry(): THREE.BufferGeometry {
+function cottageGeometry(walls: string, roof: string): THREE.BufferGeometry {
   return new GeoBuilder()
-    .box(0, 1.1, 0, 3.4, 2.2, 4.2, PALETTE.cream)
-    .prism(0, 2.2, 0, 3.8, 1.6, 4.6, PALETTE.roofSlate)
-    .box(1.71, 1.2, -0.8, 0.04, 0.8, 0.7, '#6A7D8C')
-    .box(1.71, 1.2, 0.9, 0.04, 0.8, 0.7, '#6A7D8C')
-    .box(1.0, 3.3, 1.2, 0.4, 0.9, 0.4, PALETTE.brick)
+    .box(0, 1.1, 0, 3.4, 2.2, 4.2, walls, 0, { shade: 0.8 })
+    .prism(0, 2.2, 0, 3.9, 1.7, 4.7, roof, { pattern: PATTERN.stripesZ, color2: shadeHex(roof, -20), scale: 0.3, shade: 1 })
+    .box(1.71, 1.2, -0.9, 0.04, 0.8, 0.7, PALETTE.stationTrim, 0, { shade: 1 })
+    .box(1.73, 1.2, -0.9, 0.03, 0.66, 0.56, PALETTE.windowDay, 0, { shade: 1 })
+    .box(1.71, 1.2, 0.9, 0.04, 0.8, 0.7, PALETTE.stationTrim, 0, { shade: 1 })
+    .box(1.73, 1.2, 0.9, 0.03, 0.66, 0.56, PALETTE.windowDay, 0, { shade: 1 })
+    .box(1.72, 0.6, 0, 0.04, 1.2, 0.8, shadeHex(roof, -10), 0, { shade: 1 })
+    .box(1.0, 3.4, 1.2, 0.4, 0.9, 0.4, PALETTE.stationTrim, 0, { shade: 0.85 })
     .build();
 }
 
-function haystackGeometry(): THREE.BufferGeometry {
-  return new GeoBuilder().cylinder(0, 0.5, 0, 0.6, 0.6, 1.0, PALETTE.wheat, 10, 'x').build();
+function baleGeometry(): THREE.BufferGeometry {
+  return new GeoBuilder()
+    .cylinder(0, 0.5, 0, 0.55, 0.55, 1.0, PALETTE.wheat, 16, 'x', { shade: 0.8 })
+    .cylinder(0.505, 0.5, 0, 0.46, 0.46, 0.02, '#D9B454', 16, 'x', { shade: 1 })
+    .build();
 }
 
 function sheepGeometry(): THREE.BufferGeometry {
-  return new GeoBuilder()
-    .sphere(0, 0.45, 0, 0.38, '#F4F1EA', 0)
-    .sphere(0, 0.5, 0.38, 0.17, '#3A3230', 0)
-    .box(-0.15, 0.15, 0.12, 0.08, 0.3, 0.08, '#3A3230')
-    .box(0.15, 0.15, -0.12, 0.08, 0.3, 0.08, '#3A3230')
-    .build();
+  const b = new GeoBuilder();
+  b.sphere(0, 0.46, 0, 0.36, PALETTE.sheep, 0, 0.85, { shade: 0.8 });
+  for (const [x, z] of [[0.2, 0.15], [-0.2, 0.12], [0.15, -0.2], [-0.18, -0.18]]) b.sphere(x, 0.58, z, 0.18, PALETTE.sheep, 0, 1, { shade: 0.9 });
+  b.sphere(0, 0.5, 0.36, 0.15, PALETTE.sheepFace, 0, 1.1);
+  for (const [x, z] of [[-0.14, 0.14], [0.14, 0.14], [-0.14, -0.14], [0.14, -0.14]]) b.box(x, 0.13, z, 0.07, 0.26, 0.07, PALETTE.sheepFace, 0, { shade: 0.9 });
+  return b.build();
 }
 
 function flowerGeometry(): THREE.BufferGeometry {
   return new GeoBuilder()
-    .box(0, 0.12, 0, 0.04, 0.24, 0.04, '#4E7F3A')
-    .sphere(0, 0.27, 0, 0.09, '#F2C94C', 0)
-    .sphere(0.25, 0.2, 0.15, 0.08, '#E26D8C', 0)
-    .sphere(-0.2, 0.22, -0.1, 0.08, '#FFFFFF', 0)
+    .sphere(0, 0.16, 0, 0.2, PALETTE.hedge, 0, 0.7, { shade: 0.8 })
+    .sphere(0, 0.3, 0, 0.07, PALETTE.mustard, 0)
+    .sphere(0.16, 0.26, 0.1, 0.06, PALETTE.blossom, 0)
+    .sphere(-0.14, 0.27, -0.08, 0.06, PALETTE.linen, 0)
+    .sphere(0.05, 0.28, -0.15, 0.06, PALETTE.lavender, 0)
     .build();
 }
 
 function buildRiver(): THREE.Group {
   const group = new THREE.Group();
   const b = new GeoBuilder();
-  b.box(0, 0.005, 0, 120, 0.02, 8, '#6FB4D8');
-  b.box(0, 0.012, -2.2, 120, 0.02, 0.6, '#9ED1EA');
-  b.box(0, 0.012, 1.6, 120, 0.02, 0.4, '#9ED1EA');
-  // Bridge girders either side of the track.
+  b.box(0, 0.005, 0, 120, 0.02, 8, PALETTE.water, 0, { pattern: PATTERN.stripesZ, color2: '#9DCFE3', scale: 0.8, shade: 1 });
+  b.box(0, 0.012, -3.9, 120, 0.02, 0.5, PALETTE.waterLight, 0, { shade: 1 });
+  b.box(0, 0.012, 3.9, 120, 0.02, 0.5, PALETTE.waterLight, 0, { shade: 1 });
+  // A little iron bridge painted navy, with a brass rail.
   for (const x of [-2.1, 2.1]) {
-    b.box(x, 0.6, 0, 0.2, 0.2, 10, '#5A5560');
-    for (let k = -4; k <= 4; k += 2) b.box(x, 0.35, k, 0.16, 0.7, 0.16, '#5A5560');
+    b.box(x, 0.62, 0, 0.18, 0.18, 10, PALETTE.navy, 0, { shade: 1 });
+    b.box(x, 0.73, 0, 0.2, 0.03, 10, PALETTE.gold, 0, { shade: 1 });
+    for (let k = -4; k <= 4; k += 1) b.box(x, 0.35, k, 0.12, 0.7, 0.12, PALETTE.navy, 0, { shade: 0.85 });
   }
-  b.box(0, 0.08, 0, 3.8, 0.12, 10, PALETTE.ballast);
-  group.add(new THREE.Mesh(b.build(), MATERIALS.solid));
+  b.box(0, 0.08, 0, 3.9, 0.12, 10, PALETTE.ballast, 0, { shade: 1 });
+  const mesh = new THREE.Mesh(b.build(), MATERIALS.scenery);
+  mesh.receiveShadow = true;
+  group.add(mesh);
   return group;
+}
+
+function shadeHex(hex: string, amount: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = (v: number): number => Math.max(0, Math.min(255, v + amount));
+  const r = c((n >> 16) & 255);
+  const g = c((n >> 8) & 255);
+  const b = c(n & 255);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }

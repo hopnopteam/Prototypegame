@@ -74,10 +74,9 @@ const ICONS: Record<IconName, Draw> = {
   },
   blanket: (c) => {
     rr(c, 14, 28, 72, 50, 10);
-    fillStroke(c, '#9C3346');
-    c.fillStyle = '#E8B04B';
-    c.fillRect(18, 44, 64, 6);
-    c.fillRect(18, 58, 64, 6);
+    fillStroke(c, '#E9B949');
+    c.fillStyle = '#C0485C';
+    for (const x of [26, 42, 58, 74]) c.fillRect(x - 3, 30, 6, 46);
     rr(c, 14, 28, 72, 50, 10);
     c.lineWidth = 6;
     c.strokeStyle = INK;
@@ -100,9 +99,9 @@ const ICONS: Record<IconName, Draw> = {
   },
   towel: (c) => {
     rr(c, 18, 26, 64, 50, 8);
-    fillStroke(c, '#3FA7A0');
+    fillStroke(c, '#F29CA8');
     c.fillStyle = '#FFFFFF';
-    c.fillRect(22, 60, 56, 6);
+    c.fillRect(22, 58, 56, 7);
     rr(c, 18, 26, 64, 50, 8);
     c.lineWidth = 6;
     c.strokeStyle = INK;
@@ -124,8 +123,8 @@ const ICONS: Record<IconName, Draw> = {
     c.strokeStyle = INK;
     c.stroke();
     rr(c, 16, 26, 68, 58, 10);
-    fillStroke(c, '#B5673A');
-    c.fillStyle = '#E8B04B';
+    fillStroke(c, '#C9764A');
+    c.fillStyle = '#F6ECD6';
     c.fillRect(32, 28, 8, 54);
     c.fillRect(60, 28, 8, 54);
     rr(c, 16, 26, 68, 58, 10);

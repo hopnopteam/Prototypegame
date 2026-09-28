@@ -491,10 +491,14 @@ function drawPostcard(canvas: HTMLCanvasElement, [skyTop, skyBottom, hills]: [st
     ctx.lineTo(w, hgt);
     ctx.fill();
   }
-  ctx.fillStyle = '#7A2233';
+  // The Night Express crossing a viaduct: powder-blue carriages, a navy engine with a red valance.
+  ctx.fillStyle = '#8CC4D6';
   for (let i = 0; i < 4; i++) ctx.fillRect(40 + i * 34, hgt * 0.64, 30, 14);
-  ctx.fillStyle = '#24483A';
+  ctx.fillStyle = '#2C4A6E';
+  for (let i = 0; i < 4; i++) ctx.fillRect(40 + i * 34, hgt * 0.64 + 10, 30, 4);
   ctx.fillRect(176, hgt * 0.62, 34, 18);
+  ctx.fillStyle = '#D1495B';
+  ctx.fillRect(174, hgt * 0.62 + 16, 38, 3);
   ctx.fillStyle = '#FFFFFFAA';
   ctx.beginPath();
   ctx.arc(196, hgt * 0.55, 8, 0, Math.PI * 2);

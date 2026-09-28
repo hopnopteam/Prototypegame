@@ -28,6 +28,8 @@ import { Particles } from '../world/Particles';
 import { Scenery } from '../world/Scenery';
 import { Stage } from '../world/Stage';
 import { CashPiles } from './CashPiles';
+import { Crowd } from './Crowd';
+import { Demand } from './Demand';
 import type { GameEvents } from './events';
 import type { DoubleChoice, GameUi } from './GameUi';
 import { Guests } from './Guests';
@@ -83,9 +85,11 @@ export class Game implements World {
   readonly player: Player;
   readonly guidance: Guidance;
   readonly meta: Meta;
+  readonly demand: Demand;
   readonly monetization: Monetization;
   readonly input: Input;
   readonly autopilot: Autopilot;
+  private readonly crowd: Crowd;
   time = 0;
   timeScale = 1;
   paused = false;
@@ -139,9 +143,12 @@ export class Game implements World {
         this.station.onLastCall();
         this.events.emit('journey.lastCall', {});
       },
-    }, route.stationIndex, route.legsCompleted, route.stopsCompleted, route.stopsCompleted > 0 ? 70 : undefined);
+    }, route.stationIndex, route.legsCompleted, route.stopsCompleted, route.stopsCompleted > 0 ? 70 : undefined,
+    // A brand-new game opens pulling out of Millbrook: the journey is on screen from the first second.
+    route.stopsCompleted === 0 && route.legsCompleted === 0 ? 'departing' : 'onTheMove');
 
     this.map = new TrainMap(this.econ.player.radius);
+    this.demand = new Demand(this);
     this.zones = new ZoneSystem(this.scene);
     this.cash = new CashPiles(this);
     this.train = new TrainState(this);
@@ -164,6 +171,7 @@ export class Game implements World {
     });
 
     this.autopilot = new Autopilot(this, (x, y) => (this.input.override = { x, y }));
+    this.crowd = new Crowd(this);
     this.staff.init();
     this.station.init();
     const door = this.map.doors()[0];
@@ -280,8 +288,10 @@ export class Game implements World {
     this.zones.update(dt, [this.player, ...this.staff.members]);
     this.guests.update(dt);
     this.staff.update(dt);
+    this.crowd.update(dt);
     this.train.update(dt);
     this.tiles.update(dt);
+    this.cash.update(dt);
     this.cashView.update(dt);
     this.particles.update(dt);
     this.tweens.update(dt);
@@ -424,6 +434,17 @@ export class Game implements World {
     this.audio.setEnabled(s.sound, s.music);
     this.haptics.enabled = s.haptics;
     log.setVerbose(s.devTools);
+  }
+
+  /**
+   * First tap on a brand-new game: the camera starts wide on the train pulling out of Millbrook, whistle
+   * blowing, then glides down to the conductor. This is also the first second of every ad creative.
+   */
+  playOpening(): void {
+    const brandNew = this.data.route.stopsCompleted === 0 && this.lifetimeSeconds() < 2;
+    if (!brandNew) return;
+    this.stage.rig.focusOn(new THREE.Vector3(1.6, 0, 3.5), 1.6, 1.75);
+    this.audio.play('whistle');
   }
 
   // ─── Dev tools ──────────────────────────────────────────────────────────────

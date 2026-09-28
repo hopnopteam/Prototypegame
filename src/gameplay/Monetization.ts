@@ -6,6 +6,8 @@ import type { World } from './World';
 
 export type OfferId = 'cashStash' | 'holdTheTrain' | 'speedBoost' | 'doubleFares' | 'tempPorter' | 'supplyDelivery';
 
+const OFFER_PRIORITY: OfferId[] = ['holdTheTrain', 'cashStash', 'tempPorter', 'supplyDelivery', 'doubleFares', 'speedBoost'];
+
 export interface OfferView {
   id: OfferId;
   icon: IconName;
@@ -62,13 +64,14 @@ export class Monetization {
     if (this.offerCheckTimer > 0) return;
     this.offerCheckTimer = 0.3;
     const next = this.computeOffers();
-    for (const offer of next) {
+    // Only the first offer is on screen (one bottom slot), so only it counts as shown.
+    for (const offer of next.slice(0, 1)) {
       if (!this.shown.has(offer.id)) {
         this.shown.add(offer.id);
         this.w.analytics.log(EVENTS.rewardedOfferShown, { placement: offer.id });
       }
     }
-    for (const id of [...this.shown]) if (!next.some((o) => o.id === id)) this.shown.delete(id);
+    for (const id of [...this.shown]) if (next[0]?.id !== id) this.shown.delete(id);
     this.offers = next;
   }
 
@@ -101,6 +104,8 @@ export class Monetization {
     if (w.train.hasSupplyCar() && w.data.facilities.supplyTowel <= 0 && w.data.facilities.supplyRoll <= 0 && w.train.bathrooms.some((b) => b.unlocked && !b.stocked)) {
       out.push({ id: 'supplyDelivery', icon: 'crate', label: 'Refill', detail: 'Supply delivery', gemCost: r.supplyDelivery.gemCost });
     }
+    // One bottom slot: the most time-critical, most relevant offer first.
+    out.sort((a, b) => OFFER_PRIORITY.indexOf(a.id) - OFFER_PRIORITY.indexOf(b.id));
     return out;
   }
 

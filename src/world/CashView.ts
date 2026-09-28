@@ -7,13 +7,27 @@ import { PALETTE } from './palette';
 const CAPACITY = 900;
 const BILLS_PER_LAYER = 6;
 const LAYER_HEIGHT = 0.052;
-export const MAX_BILLS_PER_PILE = 36;
+export const MAX_BILLS_PER_PILE = 48;
+/** A drain empties any pile in about this long, however tall it is. */
+const DRAIN_SECONDS = 0.55;
+const DRAIN_MAX_INTERVAL = 0.05;
 
 interface Pile {
   x: number;
   y: number;
   z: number;
   indices: number[];
+  /** 1 → 0 after a bill lands: the stack squashes and springs back. */
+  bounce: number;
+}
+
+interface Drain {
+  pile: Pile;
+  target: () => THREE.Vector3;
+  timer: number;
+  interval: number;
+  /** Called as each bill reaches the collector; the drain is finished when every bill has arrived. */
+  arrive: () => void;
 }
 
 interface Flight {
@@ -25,6 +39,10 @@ interface Flight {
   delay: number;
   arc: number;
   spin: number;
+  /** Sideways swing, so a stream of bills spirals instead of flying in a straight line. */
+  swirl: number;
+  /** Pile this bill is landing on (counted as pending there until it lands). */
+  pileId?: string;
   onArrive?: () => void;
 }
 
@@ -39,26 +57,30 @@ const tmp = new THREE.Vector3();
  */
 export class CashView {
   readonly mesh: THREE.InstancedMesh;
-  private readonly free: number[] = [];
+  /** Which instance slots hold a bill. Slots are handed out lowest-first so `mesh.count` stays small. */
+  private readonly used = new Uint8Array(CAPACITY);
+  private high = 0;
   private readonly piles = new Map<string, Pile>();
   private readonly flights: Flight[] = [];
+  private readonly drains: Drain[] = [];
 
   constructor() {
+    // A banded bundle of notes: darker edge, paper band, a round emblem that reads at thumb size.
     const geometry = new GeoBuilder()
-      .box(0, 0, 0, 0.36, 0.045, 0.19, PALETTE.cash)
-      .box(0, 0.024, 0, 0.1, 0.004, 0.2, PALETTE.cashBand)
+      .box(0, 0, 0, 0.36, 0.045, 0.19, PALETTE.cashEdge, 0, { shade: 1 })
+      .box(0, 0.003, 0, 0.34, 0.045, 0.17, PALETTE.cash, 0, { shade: 1 })
+      .box(0, 0.024, 0, 0.09, 0.006, 0.195, PALETTE.cashBand, 0, { shade: 1 })
       .build();
     this.mesh = new THREE.InstancedMesh(geometry, MATERIALS.solid, CAPACITY);
     this.mesh.frustumCulled = false;
-    for (let i = CAPACITY - 1; i >= 0; i--) {
-      this.free.push(i);
-      this.mesh.setMatrixAt(i, hidden);
-    }
+    this.mesh.castShadow = true;
+    for (let i = 0; i < CAPACITY; i++) this.mesh.setMatrixAt(i, hidden);
+    this.mesh.count = 0;
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 
   createPile(id: string, x: number, y: number, z: number): void {
-    if (!this.piles.has(id)) this.piles.set(id, { x, y, z, indices: [] });
+    if (!this.piles.has(id)) this.piles.set(id, { x, y, z, indices: [], bounce: 0 });
   }
 
   movePile(id: string, x: number, y: number, z: number): void {
@@ -79,7 +101,11 @@ export class CashView {
     const pile = this.piles.get(id);
     if (!pile) return;
     const target = Math.min(MAX_BILLS_PER_PILE, Math.max(0, Math.floor(count)));
-    while (pile.indices.length < target && this.free.length > 0) pile.indices.push(this.free.pop()!);
+    while (pile.indices.length < target) {
+      const index = this.allocate();
+      if (index < 0) break;
+      pile.indices.push(index);
+    }
     while (pile.indices.length > target) this.release(pile.indices.pop()!);
     this.layoutPile(pile);
   }
@@ -93,29 +119,51 @@ export class CashView {
       if (slot >= MAX_BILLS_PER_PILE) break;
       const landing = this.slotPosition(pile, slot, new THREE.Vector3());
       this.launch(from.clone(), () => landing, n * 0.05, 0.4, 1.2, () => {
+        pile.bounce = 1;
         this.setPileCount(id, pile.indices.length + 1);
         onArrive?.();
       }, id);
     }
   }
 
-  /** Every bill in the pile flies to a (moving) target; the pile empties. Returns the number of bills. */
-  collectPile(id: string, target: () => THREE.Vector3, onArrive?: (index: number) => void): number {
+  /**
+   * The pile streams into a (moving) target one bill at a time, from the top of the stack, spiralling in.
+   * `onBill` fires as each bill arrives, `onDone` after the last. Returns the number of bills.
+   */
+  vacuum(id: string, target: () => THREE.Vector3, onBill?: (index: number, total: number) => void, onDone?: () => void): number {
     const pile = this.piles.get(id);
-    if (!pile || pile.indices.length === 0) return 0;
-    const count = pile.indices.length;
-    for (let n = 0; n < count; n++) {
-      const index = pile.indices.pop()!;
-      const from = this.slotPosition(pile, pile.indices.length, new THREE.Vector3());
-      this.release(index);
-      this.launch(from, target, n * 0.025, 0.32, 0.9, onArrive ? () => onArrive(n) : undefined);
+    if (!pile) {
+      onDone?.();
+      return 0;
     }
-    return count;
+    const inFlight = this.flights.filter((f) => f.pileId === id);
+    const total = pile.indices.length + inFlight.length;
+    if (total === 0) {
+      onDone?.();
+      return 0;
+    }
+    let arrived = 0;
+    const arrive = (): void => {
+      onBill?.(arrived, total);
+      arrived++;
+      if (arrived === total) onDone?.();
+    };
+    // Bills still on their way to this pile change course to the collector.
+    for (const f of inFlight) {
+      this.pendingByPile.set(id, Math.max(0, this.pendingFor(id) - 1));
+      f.pileId = undefined;
+      f.to = target;
+      f.onArrive = arrive;
+    }
+    if (pile.indices.length > 0) {
+      this.drains.push({ pile, target, timer: 0, interval: Math.min(DRAIN_MAX_INTERVAL, DRAIN_SECONDS / pile.indices.length), arrive });
+    }
+    return total;
   }
 
   /** Bills fly between two moving points (player → tile). */
   stream(from: () => THREE.Vector3, to: () => THREE.Vector3, count: number, spacing: number, onArrive?: () => void): void {
-    for (let n = 0; n < count; n++) this.launch(from().clone(), to, n * spacing, 0.35, 0.8, onArrive);
+    for (let n = 0; n < count; n++) this.launch(from().clone(), to, n * spacing, 0.35, 0.8, onArrive, undefined, 0.15);
   }
 
   removePile(id: string): void {
@@ -127,6 +175,25 @@ export class CashView {
 
   update(dt: number): void {
     let dirty = false;
+    for (let i = this.drains.length - 1; i >= 0; i--) {
+      const d = this.drains[i];
+      d.timer -= dt;
+      while (d.timer <= 0 && d.pile.indices.length > 0) {
+        d.timer += d.interval;
+        const index = d.pile.indices.pop()!;
+        const from = this.slotPosition(d.pile, d.pile.indices.length, new THREE.Vector3());
+        this.release(index);
+        const side = d.pile.indices.length % 2 ? 1 : -1;
+        this.launch(from, d.target, 0, 0.3, 0.75, d.arrive, undefined, side * (0.25 + Math.random() * 0.25));
+      }
+      if (d.pile.indices.length === 0) this.drains.splice(i, 1);
+    }
+    for (const pile of this.piles.values()) {
+      if (pile.bounce <= 0) continue;
+      pile.bounce = Math.max(0, pile.bounce - dt * 5);
+      this.layoutPile(pile);
+      dirty = true;
+    }
     for (let i = this.flights.length - 1; i >= 0; i--) {
       const f = this.flights[i];
       if (f.delay > 0) {
@@ -139,6 +206,7 @@ export class CashView {
       const k = t < 0.5 ? easeOutQuad(t * 2) * 0.5 : 0.5 + easeInQuad((t - 0.5) * 2) * 0.5;
       tmp.lerpVectors(f.from, to, k);
       tmp.y += Math.sin(t * Math.PI) * f.arc;
+      tmp.x += Math.sin(t * Math.PI) * f.swirl;
       dummy.position.copy(tmp);
       dummy.rotation.set(t * f.spin, t * f.spin * 1.7, 0);
       const s = t > 0.85 ? 1 - (t - 0.85) / 0.15 * 0.6 : 1;
@@ -149,6 +217,7 @@ export class CashView {
       if (t >= 1) {
         this.flights.splice(i, 1);
         this.release(f.index);
+        if (f.pileId) this.pendingByPile.set(f.pileId, Math.max(0, this.pendingFor(f.pileId) - 1));
         f.onArrive?.();
       }
     }
@@ -165,26 +234,36 @@ export class CashView {
     return this.pendingByPile.get(id) ?? 0;
   }
 
-  private launch(from: THREE.Vector3, to: () => THREE.Vector3, delay: number, duration: number, arc: number, onArrive?: () => void, pileId?: string): void {
-    const index = this.free.pop();
-    if (index === undefined) {
+  private launch(from: THREE.Vector3, to: () => THREE.Vector3, delay: number, duration: number, arc: number, onArrive?: () => void, pileId?: string, swirl = 0): void {
+    const index = this.allocate();
+    if (index < 0) {
       onArrive?.();
       return;
     }
     if (pileId) this.pendingByPile.set(pileId, this.pendingFor(pileId) + 1);
-    const done = pileId
-      ? () => {
-          this.pendingByPile.set(pileId, Math.max(0, this.pendingFor(pileId) - 1));
-          onArrive?.();
-        }
-      : onArrive;
     this.mesh.setMatrixAt(index, hidden);
-    this.flights.push({ index, from, to, t: 0, duration, delay, arc, spin: (Math.random() - 0.5) * 8, onArrive: done });
+    this.flights.push({ index, from, to, t: 0, duration, delay, arc, spin: (Math.random() - 0.5) * 8, swirl, pileId, onArrive });
+  }
+
+  /** Lowest free slot, or -1 when every bill is in use. Only slots below `high` are drawn. */
+  private allocate(): number {
+    for (let i = 0; i < CAPACITY; i++) {
+      if (this.used[i]) continue;
+      this.used[i] = 1;
+      if (i + 1 > this.high) {
+        this.high = i + 1;
+        this.mesh.count = this.high;
+      }
+      return i;
+    }
+    return -1;
   }
 
   private release(index: number): void {
     this.mesh.setMatrixAt(index, hidden);
-    this.free.push(index);
+    this.used[index] = 0;
+    while (this.high > 0 && !this.used[this.high - 1]) this.high--;
+    this.mesh.count = this.high;
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 
@@ -197,11 +276,16 @@ export class CashView {
   }
 
   private layoutPile(pile: Pile): void {
+    // Squash and stretch: the stack dips as a bill lands on it, then springs up.
+    const b = pile.bounce;
+    const squash = b > 0 ? 1 - Math.sin(b * Math.PI) * 0.22 : 1;
     for (let slot = 0; slot < pile.indices.length; slot++) {
       this.slotPosition(pile, slot, tmp);
+      tmp.y = pile.y + (tmp.y - pile.y) * squash;
       dummy.position.copy(tmp);
       dummy.rotation.set(0, (slot % 3) * 0.05 - 0.05, 0);
-      dummy.scale.set(1, 1, 1);
+      const spread = 1 + (1 - squash) * 0.5;
+      dummy.scale.set(spread, squash, spread);
       dummy.updateMatrix();
       this.mesh.setMatrixAt(pile.indices[slot], dummy.matrix);
     }

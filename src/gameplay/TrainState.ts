@@ -6,15 +6,14 @@ import { CarriageView, FLOOR_Y } from '../world/CarriageView';
 import { carriageOriginZ, getLayout, type BathroomLayout, type CabinLayout } from '../world/layout';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { GeoBuilder } from '../world/geo';
-import { MATERIALS } from '../world/materials';
+import { MATERIALS, PATTERN } from '../world/materials';
 import { PALETTE } from '../world/palette';
 import { GANGWAY_LENGTH, REAR_DECK_LENGTH } from '../world/layout';
 import type { Actor } from './Actor';
 import type { Guest } from './Guests';
+import { sourceActive, sourceStay, type SourceSpec } from './Pickup';
 import type { World } from './World';
 import { Zone } from './Zones';
-
-const SOURCE_DWELL = 0.18;
 
 export class Cabin {
   readonly id: string;
@@ -85,25 +84,30 @@ export class Bathroom {
 
 const tmp = new THREE.Vector3();
 
-/** Floor, brass railing and a lamp: the little rear platform where new carriages couple on. */
+/** The open observation platform behind the last carriage, where new carriages couple on. */
 function buildRearDeck(): THREE.Group {
   const b = new GeoBuilder();
   const y = FLOOR_Y;
   const z0 = GANGWAY_LENGTH;
   const z1 = GANGWAY_LENGTH + REAR_DECK_LENGTH;
-  b.box(0, (0.4 + y) / 2, GANGWAY_LENGTH / 2, 1.5, y - 0.4, GANGWAY_LENGTH, PALETTE.undercarriage);
-  b.box(0, y - 0.02, GANGWAY_LENGTH / 2, 1.4, 0.04, GANGWAY_LENGTH, PALETTE.floorPlank);
-  b.box(0, (0.35 + y) / 2, (z0 + z1) / 2, 2.8, y - 0.35, REAR_DECK_LENGTH, PALETTE.trainBodyDark);
-  b.box(0, y - 0.02, (z0 + z1) / 2, 2.7, 0.04, REAR_DECK_LENGTH - 0.1, PALETTE.floorPlank);
-  for (const x of [-1.35, 1.35]) b.box(x, y + 0.45, (z0 + z1) / 2, 0.06, 0.06, REAR_DECK_LENGTH, PALETTE.brass);
-  b.box(0, y + 0.45, z1 - 0.03, 2.76, 0.06, 0.06, PALETTE.brass);
-  for (const [x, z] of [[-1.35, z0], [1.35, z0], [-1.35, z1], [1.35, z1], [0, z1]]) b.box(x, y + 0.23, z, 0.06, 0.46, 0.06, PALETTE.brass);
-  b.cylinder(1.2, y + 0.9, z1 - 0.1, 0.04, 0.05, 0.9, PALETTE.ink, 6);
+  const zc = (z0 + z1) / 2;
+  b.box(0, (0.38 + y) / 2, zc, 2.8, y - 0.38, REAR_DECK_LENGTH, PALETTE.navy, 0, { shade: 0.85 });
+  b.box(0, y - 0.02, zc, 2.7, 0.04, REAR_DECK_LENGTH - 0.1, PALETTE.oak, 0, { pattern: PATTERN.planks, color2: PALETTE.walnut, scale: 0.22, shade: 1 });
+  // Brass railing with balusters, a gate rail at the back.
+  for (const x of [-1.35, 1.35]) b.box(x, y + 0.5, zc, 0.05, 0.05, REAR_DECK_LENGTH, PALETTE.brass, 0, { shade: 1 });
+  b.box(0, y + 0.5, z1 - 0.03, 2.75, 0.05, 0.05, PALETTE.brass, 0, { shade: 1 });
+  for (let z = z0 + 0.1; z <= z1; z += 0.3) for (const x of [-1.35, 1.35]) b.box(x, y + 0.25, z, 0.03, 0.5, 0.03, PALETTE.brass, 0, { shade: 0.85 });
+  for (let x = -1.2; x <= 1.21; x += 0.3) b.box(x, y + 0.25, z1 - 0.03, 0.03, 0.5, 0.03, PALETTE.brass, 0, { shade: 0.85 });
+  b.cylinder(1.2, y + 0.9, z1 - 0.1, 0.035, 0.05, 0.9, PALETTE.navy, 8);
   const group = new THREE.Group();
-  group.add(new THREE.Mesh(b.build(), MATERIALS.solid));
-  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), MATERIALS.lamp);
-  lamp.position.set(1.2, y + 1.4, z1 - 0.1);
-  group.add(lamp);
+  const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  group.add(mesh);
+  const lamp = new GeoBuilder().cylinder(0, 0, 0, 0.07, 0.1, 0.18, PALETTE.lampShade, 10, 'y', { shade: 0.9 }).build();
+  const lampMesh = new THREE.Mesh(lamp, MATERIALS.lamps);
+  lampMesh.position.set(1.2, y + 1.42, z1 - 0.1);
+  group.add(lampMesh);
   return group;
 }
 
@@ -506,21 +510,22 @@ export class TrainState {
       }));
       const deskCash = at('deskCash');
       w.cash.create('desk', deskCash.x, deskCash.z);
-      this.sourceZone(`src:tea`, at('urn'), 'tea', 'tea', () => Infinity, () => undefined);
-      this.sourceZone(`src:blanket`, at('blanket'), 'blanket', 'blanket', () => Infinity, () => undefined);
-      this.sourceZone(`src:pillow`, at('pillow'), 'pillow', 'pillow', () => Infinity, () => undefined);
+      this.sourceZone('src:tea', at('urn'), 'tea');
+      this.sourceZone('src:blanket', at('blanket'), 'blanket');
+      this.sourceZone('src:pillow', at('pillow'), 'pillow');
       this.luggageDropZone('rack:lobby', at('rack'));
       this.binZone('bin:lobby', at('bin'));
     }
 
     if (type === 'supply') {
       const facilities = w.data.facilities;
-      this.sourceZone('src:towel', at('shelf_towel'), 'towel', 'towel', () => facilities.supplyTowel, () => {
-        facilities.supplyTowel--;
+      const max = w.econ.facilities.supplyShelfMax;
+      this.sourceZone('src:towel', at('shelf_towel'), 'towel', () => facilities.supplyTowel, (delta) => {
+        facilities.supplyTowel = Math.min(max, facilities.supplyTowel + delta);
         w.save.markDirty();
       });
-      this.sourceZone('src:roll', at('shelf_roll'), 'roll', 'roll', () => facilities.supplyRoll, () => {
-        facilities.supplyRoll--;
+      this.sourceZone('src:roll', at('shelf_roll'), 'roll', () => facilities.supplyRoll, (delta) => {
+        facilities.supplyRoll = Math.min(max, facilities.supplyRoll + delta);
         w.save.markDirty();
       });
       const crate = at('crateDrop');
@@ -552,39 +557,38 @@ export class TrainState {
     }
 
     if (type === 'sleeper') {
-      this.sourceZone(`src:tea:${index}`, at('urn'), 'tea', 'tea', () => Infinity, () => undefined);
-      this.sourceZone(`src:blanket:${index}`, at('blanket'), 'blanket', 'blanket', () => Infinity, () => undefined);
-      this.sourceZone(`src:pillow:${index}`, at('pillow'), 'pillow', 'pillow', () => Infinity, () => undefined);
+      this.sourceZone(`src:tea:${index}`, at('urn'), 'tea');
+      this.sourceZone(`src:blanket:${index}`, at('blanket'), 'blanket');
+      this.sourceZone(`src:pillow:${index}`, at('pillow'), 'pillow');
     }
 
     if (type === 'luggage') this.luggageDropZone('rack:luggage', at('rack'));
   }
 
-  /** Stand here to pick items up, one every pickup interval, while there is room and stock. */
-  private sourceZone(id: string, p: Vec2, item: ItemKind, icon: 'tea' | 'blanket' | 'pillow' | 'towel' | 'roll', stock: () => number, take: () => void): void {
+  /**
+   * A supply source: it only hands out what someone is waiting for (see Demand), after a short dwell, and
+   * takes back anything nobody needs any more. Unlimited sources (tea urn, linen) pass no stock.
+   */
+  private sourceZone(id: string, p: Vec2, item: 'tea' | 'blanket' | 'pillow' | 'towel' | 'roll', stock?: () => number, adjust?: (delta: number) => void): void {
     const w = this.w;
+    const point = new THREE.Vector3(p.x, FLOOR_Y + 1.0, p.z);
+    const spec: SourceSpec = {
+      kind: item,
+      point: () => point,
+      stock: stock ?? (() => Infinity),
+      take: () => adjust?.(-1),
+      giveBack: () => adjust?.(1),
+      interval: w.econ.zones.pickupIntervalSeconds,
+    };
     w.zones.add(new Zone({
       id,
       x: p.x,
       z: p.z,
-      radius: 0.45,
-      icon,
-      active: () => stock() > 0,
-      stay: (zone, actor, dt) => {
-        if (actor.stack.isFull || stock() <= 0) return false;
-        if (!actor.isPlayer && !(actor as Actor & { wants?: (k: ItemKind) => boolean }).wants?.(item)) return false;
-        zone.timer += dt * actor.workMultiplier;
-        if (zone.timer < SOURCE_DWELL) return true;
-        if (zone.timer < SOURCE_DWELL + w.econ.zones.pickupIntervalSeconds && actor.stack.count > 0) return true;
-        zone.timer = SOURCE_DWELL;
-        actor.stack.add(item, tmp.set(p.x, FLOOR_Y + 1.0, p.z));
-        take();
-        actor.view.bounce(0.3);
-        w.audio.play('pickup', { pitch: 1 + actor.stack.count * 0.06 });
-        if (actor.isPlayer) w.haptics.light();
-        w.events.emit('item.picked', { item, byPlayer: actor.isPlayer });
-        return true;
-      },
+      radius: 0.5,
+      icon: item,
+      active: () => sourceActive(w, spec),
+      highlight: () => w.demand.playerWants(item) > 0 && spec.stock() > 0,
+      stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, spec),
     }));
   }
 
@@ -612,25 +616,37 @@ export class TrainState {
     }));
   }
 
+  /** The bin takes surplus only (never what a guest is waiting for), and only after a deliberate pause. */
   private binZone(id: string, p: Vec2): void {
     const w = this.w;
+    const target = new THREE.Vector3(p.x, FLOOR_Y + 0.5, p.z);
+    const binnable = (actor: Actor): ItemKind | null => {
+      for (const kind of actor.stack.items) if (kind !== 'luggage' && w.demand.surplus(actor, kind) > 0) return kind;
+      return null;
+    };
     w.zones.add(new Zone({
       id,
       x: p.x,
       z: p.z,
-      radius: 0.4,
+      radius: 0.42,
       icon: null,
       color: '#C9BFB0',
-      active: () => w.player.stack.count > 0,
+      active: () => binnable(w.player) !== null || w.staff.members.some((m) => binnable(m) !== null),
       hideWhenInactive: true,
       stay: (zone, actor, dt) => {
-        if (actor.stack.isEmpty) return false;
-        zone.timer += dt;
-        if (zone.timer < 0.35) return true;
-        zone.timer = 0;
-        actor.stack.clear(new THREE.Vector3(p.x, FLOOR_Y + 0.5, p.z));
-        w.audio.play('whoosh');
-        return false;
+        const kind = binnable(actor);
+        if (!kind) return false;
+        if (zone.timer < w.econ.zones.binDwellSeconds) {
+          zone.timer += dt;
+          zone.progress = Math.min(1, zone.timer / w.econ.zones.binDwellSeconds);
+          return true;
+        }
+        zone.repeat -= dt;
+        if (zone.repeat > 0) return true;
+        zone.repeat = w.econ.zones.pickupIntervalSeconds;
+        actor.stack.remove(kind, () => target);
+        w.audio.play('whoosh', { volume: 0.6 });
+        return true;
       },
     }));
   }

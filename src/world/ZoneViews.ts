@@ -13,6 +13,8 @@ export class ZoneRing {
   private readonly material: THREE.ShaderMaterial;
   private readonly icon: THREE.Sprite | null;
   private time = Math.random() * 5;
+  private lit = false;
+  private litAmount = 0;
 
   constructor(radius: number, icon: IconName | null, color = PALETTE.zone, iconHeight = 0.9) {
     this.material = createZoneMaterial(color);
@@ -50,6 +52,11 @@ export class ZoneRing {
     return this.group.visible;
   }
 
+  /** "You're needed here": the ring brightens and the icon bobs higher. */
+  set highlight(value: boolean) {
+    this.lit = value;
+  }
+
   set dimmed(value: boolean) {
     this.material.uniforms.uOpacity.value = value ? 0.35 : 1;
     if (this.icon) (this.icon.material as THREE.SpriteMaterial).opacity = value ? 0.4 : 1;
@@ -57,8 +64,15 @@ export class ZoneRing {
 
   update(dt: number): void {
     this.time += dt;
+    this.litAmount += ((this.lit ? 1 : 0) - this.litAmount) * Math.min(1, dt * 8);
+    const lit = this.litAmount;
     this.material.uniforms.uTime.value = this.time;
-    if (this.icon) this.icon.position.y = FLOOR_Y + 0.9 + Math.sin(this.time * 2.2) * 0.06;
+    this.material.uniforms.uLit.value = lit;
+    if (this.icon) {
+      this.icon.position.y = FLOOR_Y + 0.9 + lit * 0.25 + Math.sin(this.time * (2.2 + lit * 3)) * (0.06 + lit * 0.08);
+      const s = 0.5 + lit * 0.18;
+      this.icon.scale.set(s, s, 1);
+    }
   }
 }
 

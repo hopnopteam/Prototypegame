@@ -53,9 +53,11 @@ export type Ease = (t: number) => number;
 
 export const formatNumber = (value: number): string => {
   const v = Math.floor(value);
+  // Truncate rather than round, so 99,999 reads 99.9K (never a misleading 100.0K) and stays short.
   if (v < 10_000) return v.toLocaleString('en-US');
-  if (v < 1_000_000) return `${(v / 1000).toFixed(v < 100_000 ? 1 : 0)}K`;
-  return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v < 100_000) return `${(Math.floor(v / 100) / 10).toFixed(1)}K`;
+  if (v < 1_000_000) return `${Math.floor(v / 1000)}K`;
+  return `${(Math.floor(v / 100_000) / 10).toFixed(1)}M`;
 };
 
 export const formatClock = (seconds: number): string => {

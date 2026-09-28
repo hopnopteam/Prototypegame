@@ -26,11 +26,11 @@ function emit(result) {
   const js = result.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
   const css = readFileSync(resolve(root, 'src/ui/styles.css'), 'utf8');
   const body = readFileSync(resolve(root, 'src/ui/body.html'), 'utf8');
-  const fonts =
-    '<link rel="preconnect" href="https://fonts.googleapis.com">\n' +
-    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n' +
-    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Baloo+2:wght@500;600;700;800&display=swap">';
-  const head = `<title>Night Express</title>\n${fonts}\n<style>\n${css}\n</style>\n`;
+  // Jost (a Futura-style geometric sans, OFL) is embedded so the game looks the same offline and on
+  // first paint, with no font request at all.
+  const jost = readFileSync(resolve(root, 'node_modules/@fontsource-variable/jost/files/jost-latin-wght-normal.woff2')).toString('base64');
+  const fontFace = `@font-face { font-family: 'Jost'; font-style: normal; font-weight: 100 900; font-display: block; src: url(data:font/woff2;base64,${jost}) format('woff2'); }`;
+  const head = `<title>Night Express</title>\n<style>\n${fontFace}\n${css}\n</style>\n`;
   const script = `<script>\n${js}\n</script>\n`;
   // The Artifact skeleton already pads :root by the safe-area insets, so the fragment must not add them again.
   const artifactFit = '<style>:root { --safe-top: 0px; --safe-bottom: 0px; } html { box-sizing: border-box; }</style>\n';
@@ -41,6 +41,12 @@ function emit(result) {
     '<meta name="theme-color" content="#1C2740">\n' +
     `${head}</head>\n<body>\n${body}\n${script}</body>\n</html>\n`;
   mkdirSync(resolve(root, 'dist'), { recursive: true });
+  // OUT=preview.html writes a single full page (used with ENTRY=src/preview.ts for art iteration).
+  if (process.env.OUT) {
+    writeFileSync(resolve(root, 'dist', process.env.OUT), page);
+    console.log(`Built dist/${process.env.OUT}`);
+    return;
+  }
   writeFileSync(resolve(root, 'dist/index.html'), page);
   writeFileSync(resolve(root, 'dist/night-express.html'), fragment);
   const kb = (Buffer.byteLength(page) / 1024).toFixed(0);

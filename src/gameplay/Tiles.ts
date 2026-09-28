@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { UnlockDef } from '../config/content';
+import { UNLOCKS, type UnlockDef } from '../config/content';
 import type { Vec2 } from '../core/types';
 import { EVENTS } from '../services/analytics';
 import type { IconName } from '../ui/icons';
@@ -37,6 +37,8 @@ const ICON_BY_KIND: Record<UnlockDef['kind'], IconName> = {
  */
 export class Tiles {
   private readonly entries = new Map<string, TileEntry>();
+  /** The next carriage, shown locked on the rear deck from the start: the big goal is always in view. */
+  private preview: { id: string; view: TileView } | null = null;
   private readonly from = new THREE.Vector3();
   private readonly to = new THREE.Vector3();
   /** Seconds the player has stood on a tile without enough cash (drives the cash-stash offer). */
@@ -64,6 +66,28 @@ export class Tiles {
       if (!pos) continue;
       this.addEntry(def, pos);
     }
+    this.refreshPreview();
+  }
+
+  private refreshPreview(): void {
+    const w = this.w;
+    const next = UNLOCKS.find((u) => u.kind === 'couple' && u.carriage === w.train.count);
+    const show = !!next && !w.train.coupling && !w.unlocks.isAvailable(next.id) && !w.unlocks.isUnlocked(next.id);
+    if (!show || (this.preview && this.preview.id !== next!.id)) {
+      if (this.preview) {
+        w.scene.remove(this.preview.view.group);
+        this.preview.view.dispose();
+        this.preview = null;
+      }
+    }
+    if (show && !this.preview && next) {
+      const view = new TileView(1.6);
+      const pos = w.map.rearDeck().tile;
+      view.setPosition(pos.x, pos.z);
+      view.face.draw('carriage', next.price, 0, false, false, true);
+      w.scene.add(view.group);
+      this.preview = { id: next.id, view };
+    }
   }
 
   get list(): TileEntry[] {
@@ -89,6 +113,7 @@ export class Tiles {
         entry.paidThisVisit = 0;
       }
     }
+    this.preview?.view.update(dt, false, false);
     this.shortOfCash = anyShort ? this.shortOfCash + dt : 0;
   }
 

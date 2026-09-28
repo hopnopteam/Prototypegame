@@ -42,11 +42,14 @@ export class Journey {
     legsCompleted = 0,
     stopSerial = 0,
     moveSecondsOverride?: number,
+    /** A brand-new game opens pulling out of the first station, so the journey is on screen from second one. */
+    startPhase: 'onTheMove' | 'departing' = 'onTheMove',
   ) {
     this.stationIndex = stationIndex;
     this.legsCompleted = legsCompleted;
     this.stopSerial = stopSerial;
-    this.moveDuration = moveSecondsOverride ?? (legsCompleted === 0 && stopSerial === 0 ? config.firstLegMoveSeconds : config.moveSeconds);
+    this.phase = startPhase;
+    this.moveDuration = moveSecondsOverride ?? (stopSerial === 0 ? config.firstLegMoveSeconds : config.moveSeconds);
     this.stationDuration = config.stationSeconds;
   }
 
@@ -99,7 +102,7 @@ export class Journey {
     const v = this.config.cruiseSpeed;
     const tD = this.config.departingSeconds;
     if (this.phase === 'departing') return (v * this.time * this.time) / (2 * tD);
-    if (this.phase === 'onTheMove' && this.legsCompleted > 0) return (v * tD) / 2 + v * this.time;
+    if (this.phase === 'onTheMove' && (this.legsCompleted > 0 || this.stopSerial > 0)) return (v * tD) / 2 + v * this.time;
     return null;
   }
 
@@ -161,7 +164,7 @@ export class Journey {
       case 'departing':
         this.phase = 'onTheMove';
         this.legsCompleted++;
-        this.moveDuration = this.config.moveSeconds;
+        this.moveDuration = this.stopSerial === 0 ? this.config.firstLegMoveSeconds : this.config.moveSeconds;
         break;
     }
     this.listener.onPhase(this.phase, previous);

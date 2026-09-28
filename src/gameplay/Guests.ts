@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARCHETYPES, REQUEST_ITEMS, type ArchetypeDef, type StoryDef } from '../config/content';
+import { ARCHETYPES, type ArchetypeDef, type StoryDef } from '../config/content';
 import type { ItemKind, Vec2 } from '../core/types';
 import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from '../world/CarriageView';
@@ -18,6 +18,8 @@ export type GuestRequest = ItemKind | 'bathroom';
 const BATHROOM_USE_SECONDS = 2.6;
 const BATHROOM_EMPTY_WAIT = 6;
 const HAPPY_SECONDS = 1.1;
+/** Steps in the "generous tip" ring drawn around a request bubble. */
+export const TIP_RING_STEPS = 12;
 
 let nextId = 1;
 
@@ -35,6 +37,8 @@ export class Guest {
   queueSlot = -1;
   arrivedInQueue = false;
   request: GuestRequest | null = null;
+  /** Game time the current request was made (fast service earns a bigger tip). */
+  requestAt = 0;
   nextRequestIn = 0;
   destinationStop = Infinity;
   happyTime = 0;
@@ -281,7 +285,7 @@ export class Guests {
           guest.happyTime -= dt;
           if (guest.happyTime <= 0) this.backToBed(guest);
         } else if (guest.request && guest.request !== 'bathroom') {
-          guest.view.showBubble(guest.request as IconName, 'request');
+          guest.view.showBubble(guest.request as IconName, 'request', 1.85, this.tipRingStep(guest));
         }
         break;
       case 'waitingBathroom': {
@@ -326,6 +330,13 @@ export class Guests {
     }
   }
 
+  /** The ring around a request bubble shrinks as the generous-tip window runs out (never a penalty). */
+  private tipRingStep(guest: Guest): number {
+    const elapsed = this.w.time - guest.requestAt;
+    const fraction = 1 - elapsed / this.w.econ.service.quickSeconds;
+    return fraction <= 0 ? -1 : Math.ceil(fraction * TIP_RING_STEPS);
+  }
+
   private requestsAllowed(): boolean {
     // Requests fill the first minute (before the first station) so there is never a dead moment.
     return true;
@@ -338,9 +349,10 @@ export class Guests {
     if (story) request = story;
     else {
       const bathroomOpen = w.train.bathrooms.some((b) => b.unlocked);
-      request = bathroomOpen && w.rng.chance(w.econ.guests.bathroomVisitWeight) ? 'bathroom' : w.rng.pick(REQUEST_ITEMS);
+      request = bathroomOpen && w.rng.chance(w.econ.guests.bathroomVisitWeight) ? 'bathroom' : w.rng.weighted(guest.archetype.requests);
     }
     guest.request = request;
+    guest.requestAt = w.time;
     if (request === 'bathroom') {
       this.goToBathroom(guest);
       return;
@@ -352,15 +364,22 @@ export class Guests {
       guest.pos.z = guest.cabin.center.z + 0.2;
       guest.mover.facing = -Math.PI / 2;
     }
-    guest.view.showBubble(request, 'request');
+    guest.view.showBubble(request, 'request', 1.85, TIP_RING_STEPS);
     w.audio.play('soft', { volume: 0.5 });
   }
 
   private fulfil(guest: Guest, item: ItemKind, byPlayer: boolean): void {
     const w = this.w;
     if (guest.state !== 'requesting' || !guest.cabin) return;
-    const tip = Math.max(1, Math.round(w.econ.money.requestTip * guest.archetype.tipMultiplier * w.tipMultiplier()));
+    const service = w.econ.service;
+    const elapsed = w.time - guest.requestAt;
+    const speed = elapsed <= service.speedySeconds ? service.speedyTipMultiplier : elapsed <= service.quickSeconds ? service.quickTipMultiplier : 1;
+    const tip = Math.max(1, Math.round(w.econ.money.requestTip * guest.archetype.tipMultiplier * w.tipMultiplier() * speed));
     w.cash.add(guest.cabin.pileId, tip, this.tmp.set(guest.pos.x, FLOOR_Y + 1.1, guest.pos.z));
+    if (byPlayer && speed > 1) {
+      w.ui.floatText(speed >= service.speedyTipMultiplier ? 'Speedy!' : 'Quick!', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'info');
+      w.audio.play('sparkle', { pitch: speed >= service.speedyTipMultiplier ? 1.25 : 1 });
+    }
     w.addStars(w.econ.stars.requestFulfilled, 'request', guest.pos);
     w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.6, guest.pos.z, 5, 0.2);
     w.audio.play('heart');
@@ -464,7 +483,9 @@ export class Guests {
     cabin.guest = guest;
     guest.cabin = cabin;
     guest.queueSlot = -1;
-    const legs = Number(w.rng.weighted(w.econ.guests.rideLegsWeights as unknown as Record<string, number>));
+    // The opening is scripted: everyone gets off at the next stop, so cabins turn over on time, every time.
+    const early = w.data.route.stopsCompleted < w.econ.guests.earlyStopsOneLeg;
+    const legs = early ? 1 : Number(w.rng.weighted(w.econ.guests.rideLegsWeights as unknown as Record<string, number>));
     guest.destinationStop = w.journey.stopSerial + (guest.story ? 2 : legs);
     this.setState(guest, 'toCabin');
     const deskNode = 'c0:desk';

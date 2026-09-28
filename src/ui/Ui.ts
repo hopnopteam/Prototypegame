@@ -16,7 +16,29 @@ interface Floating {
   age: number;
   life: number;
   rise: number;
+  /** Speech bubbles are kept fully on screen and out from under the top bar. */
+  speech: boolean;
+  width: number;
 }
+
+/** Floats spawned close together (same place, same moment) stack upward instead of overprinting. */
+const FLOAT_STACK_METRES = 0.34;
+const FLOAT_NEAR = 0.9;
+const SCREEN_MARGIN = 10;
+
+/** A note flying from the conductor's head to the cash counter; the counter ticks up as each one lands. */
+interface Flyer {
+  el: HTMLElement;
+  t: number;
+  delay: number;
+  fromX: number;
+  fromY: number;
+  amount: number;
+}
+
+const FLYER_SECONDS = 0.5;
+/** The head counter waits this long after the last bill before sending the total to the counter. */
+const BURST_HOLD_SECONDS = 0.35;
 
 const FLOAT_LIFE = 1.15;
 const TOAST_SECONDS = 2.8;
@@ -41,12 +63,16 @@ export class Ui implements GameUi {
   private readonly pointerEl: HTMLElement;
   private readonly hud: {
     cash: HTMLElement; cashVal: HTMLElement; gems: HTMLElement; gemsVal: HTMLElement; miles: HTMLElement; milesVal: HTMLElement;
-    levelBadge: HTMLElement; levelFill: HTMLElement; levelCount: HTMLElement;
-    journey: HTMLElement; journeyName: HTMLElement; journeyTrain: HTMLElement; journeyTrack: HTMLElement; journeyClock: HTMLElement;
+    levelBadge: HTMLElement;
+    journey: HTMLElement; journeyKicker: HTMLElement; journeyName: HTMLElement; journeyTrain: HTMLElement; journeyTrack: HTMLElement; journeyClock: HTMLElement;
     upgrades: HTMLButtonElement; upgradesDot: HTMLElement; album: HTMLButtonElement; daily: HTMLButtonElement; dailyDot: HTMLElement;
   };
   private displayedCash = 0;
   private lastCash = 0;
+  /** Cash already in the wallet but still flying to the counter (shown once it lands). */
+  private pendingHud = 0;
+  private readonly burst = { el: null as unknown as HTMLElement, value: null as unknown as HTMLElement, total: 0, shown: 0, idle: 0, pop: 0, active: false };
+  private readonly flyers: Flyer[] = [];
   private offersKey = '';
   private resultEl: HTMLElement | null = null;
   private resultTimer = 0;
@@ -68,22 +94,21 @@ export class Ui implements GameUi {
     const cashVal = h('span.val', { text: '0' });
     const gemsVal = h('span.val', { text: '0' });
     const milesVal = h('span.val', { text: '0' });
-    const cash = h('div.pill.cash', { 'aria-label': 'Fares' }, icon('cash', 28), cashVal);
-    const gems = h('div.pill.gems', { 'aria-label': 'Gems' }, icon('gem', 24), gemsVal);
-    const miles = h('div.pill.miles', { 'aria-label': 'Rail Miles' }, icon('miles', 24), milesVal);
+    const cash = h('div.pill.cash', { 'aria-label': 'Fares' }, icon('cash', 24), cashVal);
+    const gems = h('div.pill.gems', { 'aria-label': 'Gems' }, icon('gem', 20), gemsVal);
+    const miles = h('div.pill.miles', { 'aria-label': 'Rail Miles' }, icon('miles', 20), milesVal);
     const levelBadge = h('div.badge', { text: '1' });
-    const levelFill = h('div.fill');
-    const levelCount = h('span.count', { text: '0/55' });
-    const level = h('div.level', { title: 'Route level' }, levelBadge, h('div.bar', {}, levelFill), icon('star', 18), levelCount);
+    const level = h('div.level', { title: 'Route level', role: 'img', 'aria-label': 'Route level' }, levelBadge, icon('star', 20, 'ico star'));
+    const journeyKicker = h('span.kicker', { text: 'Next' });
     const journeyName = h('span.name', { text: 'Millbrook' });
     const journeyTrain = h('div.train');
     const journeyTrack = h('div.track', {}, journeyTrain);
     const journeyClock = h('span.clock');
-    const journey = h('div.journey', {}, journeyName, journeyTrack, journeyClock);
+    const journey = h('div.journey', {}, journeyKicker, journeyName, journeyTrack, journeyClock);
 
     const top = h('div.hud-top', {},
-      h('div.hud-row', {}, cash, gems, miles),
-      h('div.hud-row', {}, level, journey),
+      h('div.hud-row', {}, cash, gems, miles, h('div.spacer'), level),
+      journey,
     );
 
     const button = (name: IconName, label: string, onclick: () => void): HTMLButtonElement =>
@@ -104,13 +129,18 @@ export class Ui implements GameUi {
     );
 
     this.floatLayer = h('div.floats');
+    this.burst.value = h('span', { text: '+0' });
+    this.burst.el = h('div.burst', { hidden: true }, icon('cash', 26), this.burst.value);
+    this.floatLayer.appendChild(this.burst.el);
     this.toastLayer = h('div.toasts');
     this.offerLayer = h('div.offers');
     this.boostLayer = h('div.boost');
     this.pointerEl = h('div.pointer', { hidden: true });
-    root.append(this.floatLayer, top, side, this.boostLayer, this.offerLayer, this.toastLayer, this.pointerEl);
+    // Active boosts live at the foot of the rail, so the left of the screen stays clear for the ticket.
+    side.appendChild(this.boostLayer);
+    root.append(this.floatLayer, top, side, this.offerLayer, this.toastLayer, this.pointerEl);
 
-    this.hud = { cash, cashVal, gems, gemsVal, miles, milesVal, levelBadge, levelFill, levelCount, journey, journeyName, journeyTrain, journeyTrack, journeyClock, upgrades, upgradesDot, album, daily, dailyDot };
+    this.hud = { cash, cashVal, gems, gemsVal, miles, milesVal, levelBadge, journey, journeyKicker, journeyName, journeyTrain, journeyTrack, journeyClock, upgrades, upgradesDot, album, daily, dailyDot };
   }
 
   bind(game: Game): void {
@@ -134,6 +164,7 @@ export class Ui implements GameUi {
     this.updateHud(dt);
     this.updateOffers(g.monetization.offers);
     this.updateFloats(dt);
+    this.updateBurst(dt);
     this.updatePointer();
     if (this.resultEl) {
       this.resultTimer -= dt;
@@ -148,7 +179,7 @@ export class Ui implements GameUi {
   private updateHud(dt: number): void {
     const g = this.game;
     const hud = this.hud;
-    const cash = g.wallet.get('cash');
+    const cash = Math.max(0, g.wallet.get('cash') - this.pendingHud);
     // Roll the counter toward the real value so earnings feel like a flow, not a jump.
     this.displayedCash = Math.abs(cash - this.displayedCash) < 1 ? cash : damp(this.displayedCash, cash, 12, dt);
     if (cash < this.lastCash) this.displayedCash = Math.min(this.displayedCash, cash + (this.displayedCash - cash) * 0.5);
@@ -161,15 +192,22 @@ export class Ui implements GameUi {
     const p = g.progression;
     const lp = p.levelProgress();
     setText(hud.levelBadge, String(p.level));
-    const width = `${Math.round(lp.fraction * 100)}%`;
-    if (hud.levelFill.style.width !== width) hud.levelFill.style.width = width;
-    setText(hud.levelCount, p.isMaxLevel ? 'MAX' : `${lp.current}/${lp.needed}`);
+    const ring = (Math.round(lp.fraction * 100) / 100).toFixed(2);
+    const level = hud.levelBadge.parentElement!;
+    if (level.style.getPropertyValue('--p') !== ring) level.style.setProperty('--p', ring);
+    level.classList.toggle('max', p.isMaxLevel);
+    const label = p.isMaxLevel ? `Route level ${p.level}, max` : `Route level ${p.level}: ${lp.current} of ${lp.needed} stars`;
+    if (level.title !== label) {
+      level.title = label;
+      level.setAttribute('aria-label', label);
+    }
 
     const j = g.journey;
     const station = g.station.currentStation();
     const stopped = j.phase === 'stationStop';
     hud.journey.classList.toggle('stop', stopped);
     hud.journey.classList.toggle('urgent', stopped && j.timeLeft <= g.econ.journey.lastCallSeconds);
+    setText(hud.journeyKicker, stopped ? 'Now' : 'Next');
     setText(hud.journeyName, station.name);
     setVisible(hud.journeyTrack, !stopped);
     const left = `${Math.round(j.legProgress * 100)}%`;
@@ -195,12 +233,14 @@ export class Ui implements GameUi {
     if (this.boostLayer.dataset.key !== boostKey) {
       this.boostLayer.dataset.key = boostKey;
       this.boostLayer.replaceChildren();
-      if (boostLeft > 0) this.boostLayer.append(h('div.pill', {}, icon('skate', 22), formatClock(boostLeft)));
-      if (doubled) this.boostLayer.append(h('div.pill', {}, icon('double', 22), 'Fares'));
+      if (boostLeft > 0) this.boostLayer.append(h('div.badge', { title: 'Roller skates' }, icon('skate', 24), h('span', { text: formatClock(boostLeft) })));
+      if (doubled) this.boostLayer.append(h('div.badge', { title: 'Double fares at the next stop' }, icon('double', 24), h('span', { text: '×2' })));
     }
   }
 
-  private updateOffers(offers: OfferView[]): void {
+  /** One offer at a time, in the one bottom slot: the most relevant one comes first from Monetization. */
+  private updateOffers(all: OfferView[]): void {
+    const offers = all.slice(0, 1);
     const key = offers.map((o) => `${o.id}:${o.label}`).join('|');
     if (key === this.offersKey) return;
     this.offersKey = key;
@@ -233,9 +273,102 @@ export class Ui implements GameUi {
         f.el.style.opacity = '0';
         continue;
       }
+      let x = this.screen.x;
+      const y = this.screen.y;
+      let opacity = t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1;
+      if (f.speech) {
+        if (f.width === 0) f.width = f.el.offsetWidth;
+        const half = f.width / 2 + SCREEN_MARGIN;
+        x = Math.min(Math.max(x, half), stage.size.width - half);
+        // Never under the top bar: a line said up there simply is not shown.
+        if (y < this.topBarBottom()) opacity = 0;
+      }
       const scale = t < 0.15 ? 0.6 + (t / 0.15) * 0.5 : t < 0.25 ? 1.1 - ((t - 0.15) / 0.1) * 0.1 : 1;
-      f.el.style.opacity = String(t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1);
-      f.el.style.transform = `translate(${this.screen.x}px, ${this.screen.y}px) translate(-50%, -50%) scale(${scale})`;
+      f.el.style.opacity = String(opacity);
+      f.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${scale})`;
+    }
+  }
+
+  /** Head counter: rolls up while bills stream in, then splits into notes that fly to the counter. */
+  private updateBurst(dt: number): void {
+    const b = this.burst;
+    if (b.active) {
+      const before = Math.floor(b.shown);
+      b.shown = Math.min(b.total, b.shown + Math.max(1, b.total - b.shown) * dt * 7);
+      if (Math.floor(b.shown) !== before) b.pop = 1;
+      if (b.shown >= b.total) b.idle += dt;
+      const player = this.game.player.pos;
+      this.tmp.set(player.x, 2.55, player.z);
+      if (this.game.stage.project(this.tmp, this.screen)) {
+        b.pop = Math.max(0, b.pop - dt * 6);
+        const scale = 1 + b.pop * 0.18;
+        b.el.style.transform = `translate(${this.screen.x}px, ${this.screen.y}px) translate(-50%, -50%) scale(${scale})`;
+      }
+      setText(b.value, `+${formatNumber(b.shown)}`);
+      if (b.idle > BURST_HOLD_SECONDS) this.sendBurstToCounter();
+    }
+    this.updateFlyers(dt);
+  }
+
+  private sendBurstToCounter(): void {
+    const b = this.burst;
+    const total = b.total;
+    const count = Math.max(3, Math.min(8, Math.round(total / 5)));
+    const rootRect = this.root.getBoundingClientRect();
+    const start = b.el.getBoundingClientRect();
+    const fromX = start.left + start.width / 2 - rootRect.left;
+    const fromY = start.top + start.height / 2 - rootRect.top;
+    let assigned = 0;
+    for (let i = 0; i < count; i++) {
+      const amount = i === count - 1 ? total - assigned : Math.floor(total / count);
+      assigned += amount;
+      const el = icon('cash', 28, 'ico flyer');
+      this.floatLayer.appendChild(el);
+      this.flyers.push({ el, t: 0, delay: i * 0.045, fromX: fromX + (Math.random() - 0.5) * 24, fromY: fromY + (Math.random() - 0.5) * 12, amount });
+    }
+    b.active = false;
+    b.total = 0;
+    b.shown = 0;
+    b.idle = 0;
+    b.el.classList.add('out');
+    window.setTimeout(() => {
+      if (!b.active) b.el.hidden = true;
+      b.el.classList.remove('out');
+    }, 220);
+  }
+
+  private updateFlyers(dt: number): void {
+    if (this.flyers.length === 0) return;
+    const rootRect = this.root.getBoundingClientRect();
+    const target = this.hud.cash.getBoundingClientRect();
+    const tx = target.left + 22 - rootRect.left;
+    const ty = target.top + target.height / 2 - rootRect.top;
+    for (let i = this.flyers.length - 1; i >= 0; i--) {
+      const f = this.flyers[i];
+      if (f.delay > 0) {
+        f.delay -= dt;
+        f.el.style.opacity = '0';
+        continue;
+      }
+      f.t += dt / FLYER_SECONDS;
+      const t = Math.min(1, f.t);
+      // Ease in: the notes linger a moment, then snap into the counter.
+      const k = t * t * (3 - 2 * t) * 0.35 + t * t * 0.65;
+      const x = f.fromX + (tx - f.fromX) * k + Math.sin(t * Math.PI) * 40 * (i % 2 ? 1 : -1);
+      const y = f.fromY + (ty - f.fromY) * k - Math.sin(t * Math.PI) * 30;
+      const scale = 1 - t * 0.35;
+      f.el.style.opacity = '1';
+      f.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) rotate(${t * 220}deg) scale(${scale})`;
+      if (t >= 1) {
+        f.el.remove();
+        this.flyers.splice(i, 1);
+        this.pendingHud = Math.max(0, this.pendingHud - f.amount);
+        const pill = this.hud.cash;
+        pill.classList.remove('bump');
+        void pill.offsetWidth;
+        pill.classList.add('bump');
+        this.game.audio.play('coin', { pitch: 2.4, volume: 0.35 });
+      }
     }
   }
 
@@ -251,13 +384,47 @@ export class Ui implements GameUi {
     if (this.floats.length > 24) return;
     const el = h(`div.float.${kind}` as 'div', {}, kind === 'star' ? icon('star', 20) : null, text);
     this.floatLayer.appendChild(el);
-    this.floats.push({ el, pos: new THREE.Vector3(x, y, z), age: 0, life: FLOAT_LIFE, rise: 1.1 });
+    this.floats.push({ el, pos: new THREE.Vector3(x, y + this.stackOffset(x, z), z), age: 0, life: FLOAT_LIFE, rise: 1.1, speech: false, width: 0 });
+  }
+
+  /** How far up a new float must start so it does not overprint recent ones at the same spot. */
+  private stackOffset(x: number, z: number): number {
+    let n = 0;
+    for (const f of this.floats) {
+      if (f.age < f.life * 0.45 && Math.abs(f.pos.x - x) < FLOAT_NEAR && Math.abs(f.pos.z - z) < FLOAT_NEAR) n++;
+    }
+    return n * FLOAT_STACK_METRES;
+  }
+
+  private topBarCache = 0;
+
+  private topBarBottom(): number {
+    if (this.topBarCache === 0) {
+      const top = this.root.querySelector('.hud-top') as HTMLElement | null;
+      this.topBarCache = top ? top.offsetTop + top.offsetHeight + 4 : 100;
+    }
+    return this.topBarCache;
   }
 
   speechLine(text: string, x: number, y: number, z: number): void {
     const el = h('div.speech', { text });
     this.floatLayer.appendChild(el);
-    this.floats.push({ el, pos: new THREE.Vector3(x, y, z), age: 0, life: 2.4, rise: 0.3 });
+    this.floats.push({ el, pos: new THREE.Vector3(x, y + this.stackOffset(x, z), z), age: 0, life: 2.4, rise: 0.3, speech: true, width: 0 });
+  }
+
+  cashCollected(amount: number): void {
+    if (amount <= 0) return;
+    this.pendingHud += amount;
+    const b = this.burst;
+    b.total += amount;
+    b.idle = 0;
+    b.pop = 1;
+    if (!b.active) {
+      b.active = true;
+      b.shown = 0;
+      b.el.hidden = false;
+      b.el.classList.remove('out');
+    }
   }
 
   toast(text: string, iconName?: IconName): void {
@@ -272,7 +439,7 @@ export class Ui implements GameUi {
 
   stationBanner(title: string, subtitle: string): void {
     this.announce(BANNER_MAX_DELAY, () => {
-      const el = h('div.banner', {}, h('div.sign', { text: title }), h('div.sub', { text: subtitle }));
+      const el = h('div.banner', { role: 'status' }, h('div.sign', { text: title }), h('div.sub', { text: subtitle }));
       this.root.appendChild(el);
       window.setTimeout(() => el.remove(), 2700);
       return 2.2;
@@ -281,7 +448,7 @@ export class Ui implements GameUi {
 
   celebrate(title: string, subtitle: string, iconName: IconName): void {
     this.announce(CELEBRATE_MAX_DELAY, () => {
-      const el = h('div.celebrate', {}, icon(iconName, 64), h('div.big', { text: title }), h('div.small', { text: subtitle }));
+      const el = h('div.celebrate', { role: 'status' }, h('div.card', {}, icon(iconName, 56), h('div.big', { text: title }), h('div.small', { text: subtitle })));
       this.root.appendChild(el);
       window.setTimeout(() => el.remove(), 2900);
       return 2.4;
@@ -294,21 +461,21 @@ export class Ui implements GameUi {
 
   showResult(result: StationResult): void {
     this.dismissResult();
+    const chip = (name: IconName, text: string, cls = ''): HTMLElement => h(`span${cls}` as 'span', {}, icon(name, 16), text);
     const rows = h('div.rows', {},
-      h('span', {}, icon('person', 18), `Boarded ${result.boarded}`),
-      h('span', {}, icon('heart', 18), `Alighted ${result.alighted}`),
-      h('span', {}, icon('cash', 18), `Tips ${formatNumber(result.tips)}`),
-      h('span', {}, icon('star', 18), `Stars +${result.stars}`),
-      result.luggageTotal > 0 ? h('span', {}, icon('luggage', 18), `Luggage ${result.luggageLoaded}/${result.luggageTotal}`) : null,
+      chip('person', String(result.boarded)),
+      chip('cash', formatNumber(result.tips)),
+      chip('star', `+${result.stars}`),
+      result.luggageTotal > 0 ? chip('luggage', `${result.luggageLoaded}/${result.luggageTotal}`) : null,
+      result.clean ? chip('chest', `+${formatNumber(result.bonusCash)}`, '.bonus') : null,
     );
     const body = h('div.body', {},
-      h('h3', { text: result.clean ? 'Perfect stop!' : 'Next stop soon' }),
+      h('div.head', {}, h('h3', { text: result.clean ? 'Perfect stop!' : 'All aboard' })),
       rows,
-      result.clean ? h('div.clean', {}, icon('chest', 20), `Station bonus +${result.bonusCash}`) : null,
-      !result.clean && result.waiting > 0 ? h('div.note', { text: `${result.waiting} waiting for the next train.` }) : null,
+      !result.clean && result.waiting > 0 ? h('div.note', { text: `${result.waiting} waiting for the next train` }) : null,
     );
-    const el = h('div.ticket', { role: 'status', onclick: () => this.dismissResult() },
-      h('div.stub', {}, h('small', { text: 'Departed' }), h('b', { text: result.stationName })),
+    const el = h('div.ticket', { role: 'status', 'aria-label': `${result.stationName}: ${result.boarded} boarded, ${result.tips} in tips, ${result.stars} stars`, onclick: () => this.dismissResult() },
+      h('div.stub', {}, icon('ticket', 30)),
       body,
     );
     this.root.appendChild(el);
