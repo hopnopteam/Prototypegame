@@ -4,7 +4,31 @@ import { GeoBuilder } from './geo';
 import { carriageOriginZ, DOOR_Z0, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0 } from './layout';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
-import { signTexture } from './sprites';
+import { CharacterView, type CharacterLook } from './CharacterView';
+import { mergePlanes } from './ExteriorView';
+import { posterTexture, signTexture } from './sprites';
+
+/** Marketing bought at the station workshop that shows on every platform. */
+export interface MarketingState {
+  posters: boolean;
+  band: boolean;
+}
+
+const POSTER_W = 1.0;
+const POSTER_H = 1.25;
+/** Posters stand where the camera sees them, past each carriage's own platform business (door, pile, vendor). */
+const POSTER_X = PLATFORM_X0 + 3.15;
+const POSTER_Z_IN_CARRIAGE = 11.5;
+const POSTER_AHEAD_Z = -6;
+const BAND_LOOK: CharacterLook = { body: '#C0485C', accent: '#E2B04A', skin: '#F1C7A6', hair: '#4A3428', pants: '#F4EEE2', hat: 'pillbox', hatColor: '#C0485C', bandColor: '#E2B04A', arms: true };
+const BAND_SKIN = ['#F1C7A6', '#C98E66', '#8D5A3C'];
+/** Where the band stands (between the waiting guests and the workshop pads) and what each one plays. */
+const BAND: { x: number; z: number; instrument: 'tuba' | 'drum' | 'trumpet' }[] = [
+  { x: PLATFORM_X0 + 2.75, z: 4.6, instrument: 'trumpet' },
+  { x: PLATFORM_X0 + 3.4, z: 4.3, instrument: 'tuba' },
+  { x: PLATFORM_X0 + 4.05, z: 4.6, instrument: 'drum' },
+];
+const BEAT_SECONDS = 0.5;
 
 /**
  * The station platform on the right of the train: a tiled deck, a pink station house with a clock, a mint
@@ -20,6 +44,12 @@ export class PlatformView {
   private deckMesh: THREE.Mesh | null = null;
   private lampMesh: THREE.Mesh | null = null;
   private vendor: THREE.Group | null = null;
+  private posters: THREE.Group | null = null;
+  private readonly posterMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
+  private posterKey = '';
+  private readonly band: CharacterView[] = [];
+  private beat = 0;
+  private marketing: MarketingState = { posters: false, band: false };
   length = 0;
   z0 = 0;
   z1 = 0;
@@ -155,6 +185,79 @@ export class PlatformView {
 
     if (supplyCarIndex !== null) this.vendor = buildVendor(carriageOriginZ(supplyCarIndex));
     if (this.vendor) this.group.add(this.vendor);
+    this.buildPosters();
+  }
+
+  /** Posters of your train on every platform, and a brass band at the door (marketing upgrades). */
+  setMarketing(state: MarketingState, trainName: string, body: string, trim: string): void {
+    const key = `${trainName}|${body}|${trim}`;
+    if (state.posters && key !== this.posterKey) {
+      this.posterMaterial.map?.dispose();
+      this.posterMaterial.map = posterTexture(trainName, body, trim);
+      this.posterMaterial.needsUpdate = true;
+      this.posterKey = key;
+    }
+    this.marketing = { ...state };
+    this.buildPosters();
+    if (state.band && this.band.length === 0) {
+      BAND.forEach((spot, i) => {
+        const view = new CharacterView({ ...BAND_LOOK, skin: BAND_SKIN[i % BAND_SKIN.length] });
+        view.setPosition(spot.x, FLOOR_Y, spot.z);
+        view.setFacing(-Math.PI / 4);
+        view.setCarrying(spot.instrument !== 'tuba');
+        view.body.add(buildInstrument(spot.instrument));
+        this.group.add(view.root);
+        this.band.push(view);
+      });
+    }
+    for (const view of this.band) view.root.visible = state.band;
+  }
+
+  /** The band plays while the platform is on screen: a little hop on every beat. */
+  animate(dt: number): void {
+    if (!this.marketing.band || this.band.length === 0) return;
+    this.beat += dt;
+    const onBeat = this.beat >= BEAT_SECONDS;
+    if (onBeat) this.beat -= BEAT_SECONDS;
+    this.band.forEach((view, i) => {
+      if (onBeat && (i !== 1 || Math.random() < 0.5)) view.bounce(0.35);
+      view.update(dt, 0);
+    });
+  }
+
+  private buildPosters(): void {
+    if (this.posters) {
+      this.group.remove(this.posters);
+      this.posters.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+      this.posters = null;
+    }
+    if (!this.marketing.posters || this.length === 0) return;
+    const rowX = POSTER_X;
+    const frame = new GeoBuilder();
+    const planes: THREE.BufferGeometry[] = [];
+    const spots = [POSTER_AHEAD_Z];
+    for (let z = POSTER_Z_IN_CARRIAGE; z < this.z1 - 6; z += carriageOriginZ(1)) spots.push(z);
+    for (const z of spots) {
+      const y0 = FLOOR_Y + 0.5;
+      // A navy A-board with brass caps; the poster leans back a little so it reads from above.
+      for (const dx of [-POSTER_W / 2 - 0.05, POSTER_W / 2 + 0.05]) {
+        frame.box(rowX + dx, FLOOR_Y + (POSTER_H + 0.5) / 2, z, 0.06, POSTER_H + 0.5, 0.06, PALETTE.navy, 0, { shade: 0.9 });
+        frame.sphere(rowX + dx, FLOOR_Y + POSTER_H + 0.55, z, 0.05, PALETTE.brass, 0);
+      }
+      frame.box(rowX, y0 + POSTER_H / 2, z - 0.03, POSTER_W + 0.12, POSTER_H + 0.1, 0.03, PALETTE.navy, 0, { shade: 0.85 });
+      const plane = new THREE.PlaneGeometry(POSTER_W, POSTER_H);
+      plane.rotateX(-0.12);
+      plane.translate(rowX, y0 + POSTER_H / 2, z);
+      planes.push(plane);
+    }
+    if (planes.length === 0) return;
+    const group = new THREE.Group();
+    const frameMesh = new THREE.Mesh(frame.build(), MATERIALS.solid);
+    frameMesh.castShadow = true;
+    group.add(frameMesh, new THREE.Mesh(mergePlanes(planes), this.posterMaterial));
+    for (const p of planes) p.dispose();
+    this.posters = group;
+    this.group.add(group);
   }
 
   /** Where the suitcases for boarding guests are piled (local = world when stopped). */
@@ -195,4 +298,23 @@ function buildVendor(originZ: number): THREE.Group {
   mesh.receiveShadow = true;
   group.add(mesh);
   return group;
+}
+
+/** Brass for the band: a trumpet held out front, a tuba worn over the shoulder, a drum at the waist. */
+function buildInstrument(kind: 'tuba' | 'drum' | 'trumpet'): THREE.Mesh {
+  const b = new GeoBuilder();
+  if (kind === 'trumpet') {
+    b.cylinder(0.12, 0.82, 0.3, 0.02, 0.02, 0.36, PALETTE.brass, 8, 'z', { shade: 1 });
+    b.cylinder(0.12, 0.82, 0.52, 0.07, 0.025, 0.1, PALETTE.brass, 10, 'z', { shade: 1 });
+  } else if (kind === 'tuba') {
+    b.cylinder(0.0, 0.7, 0.2, 0.12, 0.12, 0.3, PALETTE.brass, 12, 'y', { shade: 0.9 });
+    b.cylinder(-0.14, 1.12, 0.12, 0.2, 0.08, 0.3, PALETTE.brass, 14, 'y', { shade: 1 });
+  } else {
+    b.cylinder(0, 0.55, 0.28, 0.2, 0.2, 0.22, PALETTE.stationTrim, 14, 'y', { shade: 0.9 });
+    b.cylinder(0, 0.665, 0.28, 0.2, 0.2, 0.012, PALETTE.linen, 14, 'y', { shade: 1 });
+    b.cylinder(0, 0.55, 0.28, 0.205, 0.205, 0.03, '#C0485C', 14, 'y', { shade: 1 });
+  }
+  const mesh = new THREE.Mesh(b.build(), MATERIALS.character);
+  mesh.castShadow = true;
+  return mesh;
 }

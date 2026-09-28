@@ -25,6 +25,7 @@ export const COACH_HINTS: CoachLineDef[] = [
   { id: 'hire', icon: 'person', text: 'Hire help: they do the chores' },
   { id: 'couple', icon: 'carriage', text: 'Buy a carriage, then choose which' },
   { id: 'refurb', icon: 'paint', text: 'Refurbish: nicer cars earn more' },
+  { id: 'workshop', icon: 'megaphone', text: 'Station shop: dress up the train, bring more guests' },
   { id: 'washroom', icon: 'towel', text: 'Towels and rolls come from here' },
   { id: 'map', icon: 'dash', text: 'Tap a carriage to dash there' },
   { id: 'miles', icon: 'miles', text: 'Spend Rail Miles on yourself' },

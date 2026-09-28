@@ -234,3 +234,168 @@ export function getDirtTexture(): THREE.CanvasTexture {
   dirtTexture = finishTexture(c);
   return dirtTexture;
 }
+
+function fitFont(ctx: CanvasRenderingContext2D, text: string, weight: number, start: number, maxWidth: number, min = 14): number {
+  let size = start;
+  ctx.font = `${weight} ${size}px ${TILE_FONT}`;
+  while (ctx.measureText(text).width > maxWidth && size > min) {
+    size -= 2;
+    ctx.font = `${weight} ${size}px ${TILE_FONT}`;
+  }
+  return size;
+}
+
+/** A little side-on train in the player's livery, for posters and billboards. */
+function drawTrainSide(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, body: string, trim: string): void {
+  const h = width * 0.14;
+  const loco = width * 0.26;
+  const car = (width - loco) / 2 - 4;
+  const wheel = h * 0.18;
+  ctx.fillStyle = '#3B3A48';
+  ctx.fillRect(x, y + h, width, 3);
+  // Locomotive: boiler, cab and chimney.
+  ctx.fillStyle = body;
+  ctx.fillRect(x + loco * 0.35, y, loco * 0.65, h);
+  ctx.beginPath();
+  ctx.roundRect(x, y + h * 0.3, loco * 0.7, h * 0.7, h * 0.3);
+  ctx.fill();
+  ctx.fillRect(x + loco * 0.14, y - h * 0.3, loco * 0.12, h * 0.5);
+  ctx.fillStyle = trim;
+  ctx.fillRect(x, y + h * 0.62, width, h * 0.08);
+  for (let i = 0; i < 2; i++) {
+    const cx = x + loco + 4 + i * (car + 4);
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.roundRect(cx, y, car, h, 3);
+    ctx.fill();
+    ctx.fillStyle = trim;
+    ctx.fillRect(cx, y + h * 0.62, car, h * 0.08);
+    ctx.fillStyle = '#FFE7A8';
+    const windows = 4;
+    const ww = car / (windows * 1.6);
+    for (let k = 0; k < windows; k++) ctx.fillRect(cx + ww * 0.5 + k * ww * 1.6, y + h * 0.18, ww, h * 0.34);
+  }
+  ctx.fillStyle = '#2E2C38';
+  for (let wx = x + wheel * 1.6; wx < x + width - wheel; wx += wheel * 3.2) {
+    ctx.beginPath();
+    ctx.arc(wx, y + h + 1, wheel, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // A puff of steam.
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  for (const [dx, dy, r] of [[0.2, -0.55, 0.28], [0.05, -0.85, 0.36], [-0.15, -1.2, 0.3]]) {
+    ctx.beginPath();
+    ctx.arc(x + loco * dx + loco * 0.2, y + h * dy, h * r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/** The carriage nameboard: the train's name in navy on cream, framed in gold (Pullman style). */
+export function nameboardTexture(name: string): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 64;
+  const ctx = c.getContext('2d');
+  if (!ctx) throw new Error('2D canvas unavailable');
+  ctx.fillStyle = '#C9A04A';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, 512, 64, 14);
+  ctx.fill();
+  ctx.fillStyle = '#FBF4E2';
+  ctx.beginPath();
+  ctx.roundRect(6, 6, 500, 52, 10);
+  ctx.fill();
+  const label = name.toUpperCase();
+  fitFont(ctx, label, 700, 36, 440);
+  ctx.fillStyle = '#26324F';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, 256, 34);
+  return finishTexture(c);
+}
+
+/** A station poster: "Ride {name}", the train in its livery, the line underneath. */
+export function posterTexture(name: string, body: string, trim: string): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 320;
+  const ctx = c.getContext('2d');
+  if (!ctx) throw new Error('2D canvas unavailable');
+  ctx.fillStyle = '#FBF4E2';
+  ctx.fillRect(0, 0, 256, 320);
+  const sky = ctx.createLinearGradient(0, 70, 0, 230);
+  sky.addColorStop(0, '#F9D9B8');
+  sky.addColorStop(1, '#F6E9C9');
+  ctx.fillStyle = sky;
+  ctx.fillRect(14, 70, 228, 160);
+  ctx.fillStyle = '#E9A86B';
+  ctx.beginPath();
+  ctx.arc(190, 120, 26, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#9CC08E';
+  ctx.beginPath();
+  ctx.moveTo(14, 200);
+  ctx.quadraticCurveTo(90, 160, 150, 196);
+  ctx.quadraticCurveTo(200, 176, 242, 190);
+  ctx.lineTo(242, 230);
+  ctx.lineTo(14, 230);
+  ctx.fill();
+  drawTrainSide(ctx, 26, 186, 204, body, trim);
+  ctx.fillStyle = body;
+  ctx.fillRect(0, 0, 256, 62);
+  ctx.fillStyle = '#FBF4E2';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `600 20px ${TILE_FONT}`;
+  ctx.fillText('RIDE THE NIGHT SLEEPER', 128, 32);
+  const label = name.toUpperCase();
+  fitFont(ctx, label, 800, 34, 228);
+  ctx.fillStyle = '#26324F';
+  ctx.fillText(label, 128, 262);
+  ctx.font = `500 16px ${TILE_FONT}`;
+  ctx.fillStyle = '#6B6272';
+  ctx.fillText('Countryside Line · Nightly', 128, 296);
+  ctx.strokeStyle = '#C9A04A';
+  ctx.lineWidth = 8;
+  ctx.strokeRect(4, 4, 248, 312);
+  return finishTexture(c);
+}
+
+/** A roadside billboard: the train big, its name, and what everyone is saying. */
+export function billboardTexture(name: string, body: string, trim: string): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 256;
+  const ctx = c.getContext('2d');
+  if (!ctx) throw new Error('2D canvas unavailable');
+  const sky = ctx.createLinearGradient(0, 0, 0, 256);
+  sky.addColorStop(0, '#BFD8EE');
+  sky.addColorStop(1, '#F7E6C8');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, 512, 256);
+  ctx.fillStyle = '#A8CB94';
+  ctx.beginPath();
+  ctx.moveTo(0, 200);
+  ctx.quadraticCurveTo(180, 170, 300, 196);
+  ctx.quadraticCurveTo(420, 180, 512, 192);
+  ctx.lineTo(512, 256);
+  ctx.lineTo(0, 256);
+  ctx.fill();
+  drawTrainSide(ctx, 40, 150, 290, body, trim);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#26324F';
+  const label = name.toUpperCase();
+  fitFont(ctx, label, 800, 46, 470);
+  ctx.fillText(label, 22, 62);
+  ctx.font = `600 22px ${TILE_FONT}`;
+  ctx.fillStyle = '#5A5064';
+  ctx.fillText('The sleeper everyone is talking about', 24, 96);
+  ctx.fillStyle = '#E2A93B';
+  ctx.font = `700 34px ${TILE_FONT}`;
+  ctx.fillText('★★★★★', 350, 190);
+  ctx.strokeStyle = '#FBF4E2';
+  ctx.lineWidth = 10;
+  ctx.strokeRect(5, 5, 502, 246);
+  return finishTexture(c);
+}

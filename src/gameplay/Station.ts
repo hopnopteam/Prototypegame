@@ -6,6 +6,8 @@ import { FLOOR_Y } from '../world/CarriageView';
 import { createItemMesh } from '../world/ItemMeshes';
 import { PLATFORM_X0 } from '../world/layout';
 import { PlatformView } from '../world/PlatformView';
+import { billboardTexture } from '../world/sprites';
+import { DEFAULT_TRAIN_NAME } from '../config/press';
 import type { StationResult } from './events';
 import { sourceActive, sourceStay, type SourceSpec } from './Pickup';
 import type { World } from './World';
@@ -13,6 +15,8 @@ import { Zone } from './Zones';
 
 const APPROACH_MARGIN = 40;
 const DEPART_HIDE_DISTANCE = 70;
+/** Roadside billboards once the billboard campaign is bought. */
+const BILLBOARD_COUNT = 3;
 
 /**
  * The journey rhythm made physical (§5): the platform glides in and stops at the doors, guests board and
@@ -48,6 +52,14 @@ export class Station {
   init(): void {
     this.createZones();
     this.onTrainChanged();
+    this.refreshMarketing();
+    const w = this.w;
+    w.events.on('unlock.completed', ({ id }) => {
+      if (w.unlocks.get(id)?.kind === 'marketing') this.refreshMarketing(true);
+    });
+    w.events.on('train.named', () => this.refreshMarketing());
+    w.events.on('livery.changed', () => this.refreshMarketing());
+    document.fonts?.ready.then(() => this.refreshMarketing()).catch(() => undefined);
     this.view.setStationName(this.currentStation().name);
     // The sign is painted on canvas: repaint once the embedded display font is ready.
     document.fonts?.ready.then(() => this.view.setStationName(this.currentStation().name)).catch(() => undefined);
@@ -72,6 +84,29 @@ export class Station {
   recordTip(amount: number): void {
     this.tipsThisStop += amount;
   }
+
+  /**
+   * Marketing on show: posters of the train on every platform, a brass band at the door, and billboards in
+   * the countryside. `fresh` plays the reveal (the band strikes up, confetti over the posters).
+   */
+  refreshMarketing(fresh = false): void {
+    const w = this.w;
+    const has = (key: string): boolean => w.unlocks.isUnlocked(`st.${key}`);
+    const livery = w.currentLivery();
+    const name = w.data.press.trainName ?? DEFAULT_TRAIN_NAME;
+    this.view.setMarketing({ posters: has('posters'), band: has('band') }, name, livery.body, livery.trim);
+    const boards = has('billboard');
+    const key = `${boards}|${name}|${livery.body}`;
+    if (key !== this.billboardKey) {
+      this.billboardKey = key;
+      w.scenery.setBillboards(boards ? billboardTexture(name, livery.body, livery.trim) : null, BILLBOARD_COUNT);
+    }
+    if (fresh) {
+      w.audio.play('fanfare');
+      w.particles.emit('confetti', w.player.pos.x, FLOOR_Y + 2.4, w.player.pos.z - 1, 50, 1.2);
+    }
+  }
+  private billboardKey = '';
 
   /** Train grew: platform geometry, luggage pile and vendor move to match. */
   onTrainChanged(): void {
@@ -148,6 +183,7 @@ export class Station {
     }
     this.view.group.visible = visible;
     this.view.setOffset(this.platformOffset);
+    if (visible) this.view.animate(_dt);
     this.view.setNight(w.stage.lighting.night);
     const zOffset = this.platformOffset;
     w.scenery.setHiddenRegion(visible ? { x0: PLATFORM_X0 - 0.2, x1: PLATFORM_X0 + 16, z0: this.view.z0 + zOffset - 2, z1: this.view.z1 + zOffset + 2 } : null);
@@ -163,7 +199,8 @@ export class Station {
     const free = w.guests.bedsFree(stopSerial);
     const extra = w.rng.int(econ.extraBoarders[0], econ.extraBoarders[1]);
     const early = w.data.route.stopsCompleted < 2 ? econ.minBoarders : 1;
-    const count = Math.max(early, Math.min(econ.maxBoarders, free + extra));
+    // Marketing (posters, billboard, band) draws a few more travellers each stop.
+    const count = Math.max(early, Math.min(econ.maxBoarders, free + extra + w.stationPerks().passengers));
     const spots = this.waitingSpots(count);
     const story = w.meta.storyGuestForStop();
     const guests = w.guests.spawnPlatformGuests(spots, story);
@@ -213,7 +250,7 @@ export class Station {
     const clean = waiting === 0 && (this.luggagePile === 0 || storageFull);
     let bonusCash = 0;
     if (clean) {
-      bonusCash = Math.round(w.econ.money.stationBonusCash * (1 + w.econ.money.stationBonusPerCarriage * (w.train.count - 1)));
+      bonusCash = Math.round(w.econ.money.stationBonusCash * (1 + w.econ.money.stationBonusPerCarriage * (w.train.count - 1)) * (1 + w.stationPerks().stationBonus));
       const door = w.map.doors()[0];
       w.cash.add('bonus', bonusCash, this.tmp.set(door.inside.x + 0.5, FLOOR_Y + 1.5, door.inside.z));
       w.addStars(w.econ.stars.cleanStationStop, 'cleanStop', door.inside);

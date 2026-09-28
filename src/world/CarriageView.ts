@@ -29,11 +29,18 @@ export const BED_TOP = 0.4;
 
 /** Wall anatomy, in metres above the floor. */
 const WAINSCOT = 0.34;
-const WINDOW_Y0 = 0.44;
-const WINDOW_Y1 = 0.94;
+export const WINDOW_Y0 = 0.44;
+export const WINDOW_Y1 = 0.94;
 const SKIN = 0.05;
 const LIFT = 0.006;
 const WINDOW_SLOT = 1.55;
+
+/** Window spacing along a side wall; shared with the exterior dressing so window boxes sit under windows. */
+export function windowSpacing(len: number): { count: number; slot: number; width: number } {
+  const count = len > 1.2 ? Math.floor(len / WINDOW_SLOT) : 0;
+  const slot = count > 0 ? len / count : 0;
+  return { count, slot, width: Math.min(0.9, slot - 0.45) };
+}
 const FLAT: PartStyle = { shade: 1 };
 /** Supply stand steps: stock sits on these. */
 const SHELF_LOW = 0.3;
@@ -395,13 +402,11 @@ export class CarriageView {
     liv.slab(outer, FLOOR_Y + WINDOW_Y1, FLOOR_Y + h, white, 0, 0, FLAT);
     trim.slab(rect(outer.x0 - (left ? 0.004 : 0), r.z0, outer.x1 + (left ? 0 : 0.004), r.z1), FLOOR_Y + 0.28, FLOOR_Y + 0.32, white, 0, 0, FLAT);
 
-    const count = len > 1.2 ? Math.floor(len / WINDOW_SLOT) : 0;
+    const { count, slot, width } = windowSpacing(len);
     if (count === 0) {
       this.innerFinish(s, inner, FLOOR_Y + WINDOW_Y0, FLOOR_Y + WINDOW_Y1, rail);
       liv.slab(outer, FLOOR_Y + WINDOW_Y0, FLOOR_Y + WINDOW_Y1, white, 0, 0, FLAT);
     } else {
-      const slot = len / count;
-      const width = Math.min(0.9, slot - 0.45);
       let cursor = r.z0;
       for (let i = 0; i < count; i++) {
         const zc = r.z0 + slot * (i + 0.5);

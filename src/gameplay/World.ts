@@ -16,6 +16,7 @@ import type { Journey } from '../sim/Journey';
 import type { Progression } from '../sim/Progression';
 import type { TrainMap } from '../sim/TrainMap';
 import type { UnlockChain } from '../sim/UnlockChain';
+import type { StationPerks } from '../sim/unlockPlan';
 import type { Wallet } from '../sim/Wallet';
 import type { CashView } from '../world/CashView';
 import type { Particles } from '../world/Particles';
@@ -89,6 +90,8 @@ export interface World {
   /** Multiplier on fares from conductor upgrades, perks and boosts. */
   fareMultiplier(): number;
   tipMultiplier(): number;
+  /** What the station upgrades (exterior and marketing) add: tips, fares, passengers, VIPs, stop bonus. */
+  stationPerks(): StationPerks;
   /** Grants a reward once, doubled if the player watched an ad or paid gems for it. */
   collectWithDouble(placement: string, choice: DoubleChoice, gemCost: number, grant: (multiplier: number) => void): void;
   /** The livery the train is wearing now (Paint Shop pick or best earned). */

@@ -75,7 +75,7 @@ export const ARCHETYPES: ArchetypeDef[] = [
   },
 ];
 
-export type UnlockKind = 'cabin' | 'hire' | 'couple' | 'bathroom' | 'refurb' | 'staffUpgrade';
+export type UnlockKind = 'cabin' | 'hire' | 'couple' | 'bathroom' | 'refurb' | 'staffUpgrade' | 'exterior' | 'marketing';
 
 export interface UnlockDef {
   id: string;
@@ -104,7 +104,7 @@ export interface UnlockDef {
  */
 export interface UnlockTemplate {
   key: string;
-  kind: Exclude<UnlockKind, 'couple'>;
+  kind: Exclude<UnlockKind, 'couple' | 'exterior' | 'marketing'>;
   label: string;
   price: number;
   stars: number;
@@ -223,6 +223,33 @@ export const MAX_CARRIAGES = COUPLE_SLOTS.length + 1;
 
 /** Each later slot makes a carriage's own tiles this much dearer (a second sleeper is a bigger step). */
 export const SLOT_PRICE_STEP = 0.15;
+
+/**
+ * Station upgrades: bought on the platform, only while the train is in. The workshop does up the outside
+ * of the whole train (you see it from the platform); marketing brings more travellers and better ones to
+ * every stop (so more cabins pay off). Ids become 'st.<key>'.
+ */
+export interface StationUpgradeDef {
+  key: string;
+  kind: 'exterior' | 'marketing';
+  label: string;
+  price: number;
+  stars: number;
+  requires: string[];
+  effect: string;
+  bonus: { tips?: number; fares?: number; passengers?: number; vip?: number; stationBonus?: number };
+}
+
+export const STATION_UPGRADES: StationUpgradeDef[] = [
+  { key: 'posters', kind: 'marketing', label: 'Station Posters', price: 60, stars: 3, requires: ['couple_1'], effect: '+1 traveller at every stop', bonus: { passengers: 1 } },
+  { key: 'windowboxes', kind: 'exterior', label: 'Window Boxes', price: 80, stars: 3, requires: ['couple_1'], effect: 'Tips +5% (and flowers!)', bonus: { tips: 0.05 } },
+  { key: 'lamps', kind: 'exterior', label: 'Brass Lamps', price: 150, stars: 3, requires: ['st.windowboxes', 'couple_2'], effect: 'Tips +5% more', bonus: { tips: 0.05 } },
+  { key: 'billboard', kind: 'marketing', label: 'Billboards', price: 180, stars: 3, requires: ['st.posters', 'couple_2'], effect: '+1 traveller, more VIPs', bonus: { passengers: 1, vip: 0.6 } },
+  { key: 'lining', kind: 'exterior', label: 'Gold Lining', price: 220, stars: 4, requires: ['st.lamps', 'couple_3'], effect: 'Fares +5% on the whole train', bonus: { fares: 0.05 } },
+  { key: 'band', kind: 'marketing', label: 'Brass Band', price: 320, stars: 4, requires: ['st.billboard', 'couple_3'], effect: '+1 traveller, station bonus +50%', bonus: { passengers: 1, stationBonus: 0.5 } },
+  { key: 'nameboards', kind: 'exterior', label: 'Name Boards', price: 300, stars: 4, requires: ['st.lining', 'couple_4'], effect: 'Fares +5% more', bonus: { fares: 0.05 } },
+  { key: 'redcarpet', kind: 'exterior', label: 'Red Carpet', price: 420, stars: 5, requires: ['st.nameboards'], effect: 'Station bonus +50% more', bonus: { stationBonus: 0.5 } },
+];
 
 /** Pre-v3 saves grew in this fixed order; the migration maps their ids onto carriage slots. */
 export const LEGACY_TRAIN: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper'];

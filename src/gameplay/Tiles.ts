@@ -4,12 +4,14 @@ import type { Vec2 } from '../core/types';
 import { EVENTS } from '../services/analytics';
 import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from '../world/CarriageView';
-import { COUPLE_TILE_SIZE, TILE_SIZE, ZONE_RADIUS } from '../world/layout';
+import { COUPLE_TILE_SIZE, STATION_TILE_POS, TILE_SIZE, ZONE_RADIUS } from '../world/layout';
 import { TileView } from '../world/ZoneViews';
 import type { World } from './World';
 import { Zone } from './Zones';
 
 const DWELL_SECONDS = 0.3;
+/** Station upgrades live on the platform and only while the train is in. */
+const isStation = (def: UnlockDef): boolean => def.kind === 'exterior' || def.kind === 'marketing';
 const BILL_INTERVAL = 0.07;
 
 interface TileEntry {
@@ -30,6 +32,8 @@ const ICON_BY_KIND: Record<UnlockDef['kind'], IconName> = {
   bathroom: 'bath',
   refurb: 'paint',
   staffUpgrade: 'plus',
+  exterior: 'paint',
+  marketing: 'megaphone',
 };
 
 /**
@@ -65,7 +69,14 @@ export class Tiles {
     for (const [id, entry] of this.entries) {
       if (!availableIds.has(id)) this.removeEntry(id, entry);
     }
+    // Station upgrades: the next of each kind waits on the platform (shown only while the train is in).
+    for (const kind of ['exterior', 'marketing'] as const) {
+      if ([...this.entries.values()].some((e) => e.def.kind === kind)) continue;
+      const next = available.find((d) => d.kind === kind);
+      if (next) this.addEntry(next, { ...STATION_TILE_POS[kind] });
+    }
     const eligible = available.filter((def) => {
+      if (isStation(def)) return false;
       if (def.kind === 'couple') return !w.train.coupling && def.carriage === w.train.count;
       return def.carriage < w.train.count;
     });
@@ -75,7 +86,7 @@ export class Tiles {
       if (pos) this.addEntry(couple, pos);
     }
     const cap = w.data.profile.ftue.first_unlock === undefined ? 1 : w.econ.tiles.maxVisible;
-    let shown = [...this.entries.values()].filter((e) => e.def.kind !== 'couple').length;
+    let shown = [...this.entries.values()].filter((e) => e.def.kind !== 'couple' && !isStation(e.def)).length;
     if (shown >= cap) {
       this.refreshPreview();
       return;
@@ -84,7 +95,7 @@ export class Tiles {
     const firstPerCarriage = new Map<number, UnlockDef>();
     for (const def of eligible) {
       if (def.kind === 'couple' || this.entries.has(def.id)) continue;
-      if ([...this.entries.values()].some((e) => e.def.carriage === def.carriage && e.def.kind !== 'couple')) continue;
+      if ([...this.entries.values()].some((e) => e.def.carriage === def.carriage && e.def.kind !== 'couple' && !isStation(e.def))) continue;
       if (!firstPerCarriage.has(def.carriage)) firstPerCarriage.set(def.carriage, def);
     }
     const candidates = [...firstPerCarriage.values()].sort((a, b) => w.unlocks.remaining(a.id) - w.unlocks.remaining(b.id));
@@ -128,7 +139,13 @@ export class Tiles {
   update(dt: number): void {
     const cash = this.w.wallet.get('cash');
     let anyShort = false;
+    const atStation = this.w.journey.phase === 'stationStop';
     for (const entry of this.entries.values()) {
+      if (isStation(entry.def)) {
+        entry.view.group.visible = atStation;
+        entry.zone.enabled = atStation;
+        if (!atStation) continue;
+      }
       const remaining = this.w.unlocks.remaining(entry.def.id);
       const progress = 1 - remaining / entry.def.price;
       const affordable = cash >= remaining;
@@ -156,6 +173,7 @@ export class Tiles {
     let best: TileEntry | null = null;
     let bestD = range * range;
     for (const entry of this.entries.values()) {
+      if (isStation(entry.def) && !entry.view.group.visible) continue;
       // Standing on it: the tile face shows the fill, and a label would sit on the conductor's head.
       if (entry.zone.playerInside) return null;
       const d = (entry.pos.x - p.x) ** 2 + (entry.pos.z - p.z) ** 2;
@@ -180,7 +198,9 @@ export class Tiles {
   /** The cheapest visible tile, for guidance and cash offers. */
   cheapest(): TileEntry | null {
     let best: TileEntry | null = null;
+    const atStation = this.w.journey.phase === 'stationStop';
     for (const entry of this.entries.values()) {
+      if (isStation(entry.def) && !atStation) continue;
       if (!best || this.w.unlocks.remaining(entry.def.id) < this.w.unlocks.remaining(best.def.id)) best = entry;
     }
     return best;
@@ -306,6 +326,9 @@ export class Tiles {
         return map.hasAnchor(def.carriage, 'tile_refurb') ? map.anchor(def.carriage, 'tile_refurb') : null;
       case 'couple':
         return map.rearDeck().tile;
+      case 'exterior':
+      case 'marketing':
+        return { ...STATION_TILE_POS[def.kind] };
     }
   }
 }

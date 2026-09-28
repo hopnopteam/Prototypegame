@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ECONOMY } from '../src/config/economy';
-import { DEFAULT_TRAIN, MAX_CARRIAGES } from '../src/config/content';
+import { DEFAULT_TRAIN, MAX_CARRIAGES, STATION_UPGRADES } from '../src/config/content';
 import type { CarriageType } from '../src/core/types';
-import { allowedCarriages, buildUnlocks, carriageChoices, legacyCarriages, migrateLegacyId } from '../src/sim/unlockPlan';
+import { allowedCarriages, buildUnlocks, carriageChoices, legacyCarriages, migrateLegacyId, stationPerks } from '../src/sim/unlockPlan';
 import { Progression } from '../src/sim/Progression';
 import { UnlockChain } from '../src/sim/UnlockChain';
 import { Wallet } from '../src/sim/Wallet';
@@ -155,5 +155,26 @@ describe('carriage choice', () => {
     expect(migrateLegacyId('up_runner_2')).toBe('c2.up_runner');
     expect(migrateLegacyId('couple_3')).toBe('couple_3');
     expect(legacyCarriages(['couple_1', 'couple_2'])).toEqual(['lobby', 'bathroom', 'supply']);
+  });
+
+  it('offers station upgrades in order, each reachable once the train has grown', () => {
+    const defs = buildUnlocks([...DEFAULT_TRAIN]);
+    const ids = new Set(defs.map((d) => d.id));
+    const station = defs.filter((d) => d.kind === 'exterior' || d.kind === 'marketing');
+    expect(station.map((d) => d.id)).toEqual(STATION_UPGRADES.map((u) => `st.${u.key}`));
+    for (const d of station) {
+      expect(d.carriage).toBe(-1);
+      for (const r of d.requires) expect(ids.has(r)).toBe(true);
+    }
+  });
+
+  it('adds up the bonuses of the station upgrades bought', () => {
+    expect(stationPerks(() => false)).toEqual({ tips: 0, fares: 0, passengers: 0, vip: 0, stationBonus: 0 });
+    const all = stationPerks(() => true);
+    expect(all.passengers).toBe(STATION_UPGRADES.reduce((sum, u) => sum + (u.bonus.passengers ?? 0), 0));
+    expect(all.tips).toBeCloseTo(0.1);
+    const posters = stationPerks((id) => id === 'st.posters');
+    expect(posters.passengers).toBe(1);
+    expect(posters.tips).toBe(0);
   });
 });

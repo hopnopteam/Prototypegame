@@ -1,4 +1,4 @@
-import { CARRIAGE_CATALOGUE, CHOOSABLE, COUPLE_SLOTS, LEGACY_TRAIN, MAX_CARRIAGES, SLOT_PRICE_STEP, type UnlockDef } from '../config/content';
+import { CARRIAGE_CATALOGUE, CHOOSABLE, COUPLE_SLOTS, LEGACY_TRAIN, MAX_CARRIAGES, SLOT_PRICE_STEP, STATION_UPGRADES, type UnlockDef } from '../config/content';
 import type { CarriageType } from '../core/types';
 
 /** A tile's id: the carriage slot it lives in plus its key in that carriage's catalogue entry. */
@@ -33,6 +33,9 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
     }
     cabinsBefore += entry.cabins;
   });
+  for (const u of STATION_UPGRADES) {
+    defs.push({ id: `st.${u.key}`, kind: u.kind, label: u.label, price: u.price, stars: u.stars, carriage: -1, requires: u.requires, effect: u.effect });
+  }
   COUPLE_SLOTS.forEach((slot, i) => {
     const n = i + 1;
     defs.push({ id: `couple_${n}`, kind: 'couple', label: 'New Carriage', price: slot.price, stars: slot.stars, carriage: n, requires: slot.requires, effect: 'You choose what joins the train' });
@@ -104,4 +107,26 @@ export function legacyCarriages(unlocked: readonly string[]): CarriageType[] {
   let coupled = 0;
   for (let n = 1; n < LEGACY_TRAIN.length; n++) if (unlocked.includes(`couple_${n}`)) coupled = n;
   return LEGACY_TRAIN.slice(0, coupled + 1);
+}
+
+export interface StationPerks {
+  tips: number;
+  fares: number;
+  passengers: number;
+  vip: number;
+  stationBonus: number;
+}
+
+/** What the station upgrades bought so far add up to (each bonus is additive). */
+export function stationPerks(isUnlocked: (id: string) => boolean): StationPerks {
+  const perks: StationPerks = { tips: 0, fares: 0, passengers: 0, vip: 0, stationBonus: 0 };
+  for (const u of STATION_UPGRADES) {
+    if (!isUnlocked(`st.${u.key}`)) continue;
+    perks.tips += u.bonus.tips ?? 0;
+    perks.fares += u.bonus.fares ?? 0;
+    perks.passengers += u.bonus.passengers ?? 0;
+    perks.vip += u.bonus.vip ?? 0;
+    perks.stationBonus += u.bonus.stationBonus ?? 0;
+  }
+  return perks;
 }

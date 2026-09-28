@@ -8,6 +8,10 @@ const TEXTURE_METRES = 40;
 const TRACK_CLEAR_X = 3.4;
 /** An avenue of identical trees either side of the line: the storybook symmetry. */
 const AVENUE_X = 7.6;
+/** Billboards stand just beyond the ballast, alternating sides, where the camera always catches them. */
+const BILLBOARD_X = 3.75;
+const BILLBOARD_W = 2.3;
+const BILLBOARD_H = 1.2;
 const CAST_SCENERY_SHADOWS = false;
 
 interface PropKind {
@@ -60,6 +64,9 @@ export class Scenery {
   private hideRegion: { x0: number; x1: number; z0: number; z1: number } | null = null;
   private readonly river: THREE.Group;
   private riverZ = -400;
+  /** Roadside billboards for the player's train (a marketing upgrade), scrolling with the countryside. */
+  private readonly billboards: THREE.Group[] = [];
+  private readonly billboardMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
 
   constructor() {
     this.groundTexture = makeGroundTexture();
@@ -151,10 +158,38 @@ export class Scenery {
       this.writeSleepers();
     }
 
+    const span = this.span.zMax - this.span.zMin;
+    for (const board of this.billboards) {
+      board.position.z += dz;
+      if (board.position.z > this.span.zMax) board.position.z -= span;
+      board.visible = !this.isHidden(board.position.x, board.position.z) && !this.isHidden(board.position.x, board.position.z - 1.5);
+    }
+
     this.riverZ += dz;
     if (this.riverZ > this.span.zMax + 10) this.riverZ = this.span.zMin - 250 - this.rng.range(0, 350);
     this.river.position.z = this.riverZ;
     this.river.visible = this.riverZ > this.span.zMin - 20 && this.riverZ < this.span.zMax + 10;
+  }
+
+  /** Shows `count` billboards with this poster (null removes them). They sit on the far side of the line. */
+  setBillboards(texture: THREE.Texture | null, count: number): void {
+    if (this.billboardMaterial.map !== texture) {
+      this.billboardMaterial.map?.dispose();
+      this.billboardMaterial.map = texture;
+      this.billboardMaterial.needsUpdate = true;
+    }
+    const wanted = texture ? count : 0;
+    while (this.billboards.length < wanted) {
+      const board = buildBillboard(this.billboardMaterial);
+      const i = this.billboards.length;
+      board.position.set(i % 2 === 0 ? -BILLBOARD_X : BILLBOARD_X, 0, this.span.zMin + ((i + 0.5) / wanted) * (this.span.zMax - this.span.zMin));
+      this.group.add(board);
+      this.billboards.push(board);
+    }
+    while (this.billboards.length > wanted) {
+      const board = this.billboards.pop();
+      if (board) this.group.remove(board);
+    }
   }
 
   private isHidden(x: number, z: number): boolean {
@@ -368,4 +403,21 @@ function shadeHex(hex: string, amount: number): string {
   const g = c((n >> 8) & 255);
   const b = c(n & 255);
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
+/** A billboard on two posts, leaning back toward the camera; the poster face shares one material. */
+function buildBillboard(material: THREE.Material): THREE.Group {
+  const group = new THREE.Group();
+  const b = new GeoBuilder();
+  const y0 = 0.95;
+  for (const dx of [-BILLBOARD_W * 0.35, BILLBOARD_W * 0.35]) b.box(dx, (y0 + BILLBOARD_H) / 2, -0.08, 0.1, y0 + BILLBOARD_H, 0.1, '#6B5A4A', 0, { shade: 0.85 });
+  b.box(0, y0 + BILLBOARD_H / 2, -0.06, BILLBOARD_W + 0.16, BILLBOARD_H + 0.16, 0.05, '#F4EEE2', 0, { shade: 0.9 });
+  b.box(0, y0 - 0.05, 0.1, BILLBOARD_W + 0.1, 0.05, 0.3, '#6B5A4A', 0, { shade: 1 });
+  const frame = new THREE.Mesh(b.build(), MATERIALS.scenery);
+  frame.castShadow = CAST_SCENERY_SHADOWS;
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(BILLBOARD_W, BILLBOARD_H), material);
+  face.position.set(0, y0 + BILLBOARD_H / 2, -0.03);
+  group.add(frame, face);
+  group.rotation.x = -0.28;
+  return group;
 }

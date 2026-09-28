@@ -153,6 +153,8 @@ export class Coach {
         return world(w.tiles.list.find((t) => t.def.kind === 'couple')?.pos);
       case 'refurb':
         return world(w.tiles.list.find((t) => t.def.kind === 'refurb')?.pos);
+      case 'workshop':
+        return world(w.tiles.list.find((t) => (t.def.kind === 'exterior' || t.def.kind === 'marketing') && t.view.group.visible)?.pos);
       case 'washroom': {
         const supply = w.train.indexOfType('supply');
         return supply !== null ? world(w.map.anchor(supply, 'shelf_towel')) : null;
@@ -181,6 +183,8 @@ export class Coach {
         return w.tiles.list.some((t) => t.def.kind === 'couple');
       case 'refurb':
         return w.tiles.list.some((t) => t.def.kind === 'refurb');
+      case 'workshop':
+        return w.journey.phase === 'stationStop' && !w.guests.canBoard() && w.tiles.list.some((t) => (t.def.kind === 'exterior' || t.def.kind === 'marketing') && t.view.group.visible);
       case 'washroom':
         return w.train.hasSupplyCar() && w.train.bathrooms.some((b) => b.unlocked && !b.stocked);
       case 'map':

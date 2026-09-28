@@ -620,7 +620,8 @@ export class Guests {
     if (force) return ARCHETYPES.find((a) => a.id === force) ?? ARCHETYPES[0];
     const carriages = this.w.train.count;
     const weights: Record<string, number> = {};
-    for (const a of ARCHETYPES) if (carriages >= a.minCarriages) weights[a.id] = a.weight;
+    const vipBoost = 1 + this.w.stationPerks().vip;
+    for (const a of ARCHETYPES) if (carriages >= a.minCarriages) weights[a.id] = a.id === 'vip' ? a.weight * vipBoost : a.weight;
     const id = this.w.rng.weighted(weights);
     return ARCHETYPES.find((a) => a.id === id) ?? ARCHETYPES[0];
   }

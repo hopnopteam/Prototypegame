@@ -4,7 +4,9 @@ import { buildUnlocks, carriageChoices } from '../sim/unlockPlan';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Vec2 } from '../core/types';
 import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
-import { BATH_PILE_OFFSET, carriageOriginZ, getLayout, ZONE_RADIUS, type BathroomLayout, type CabinLayout } from '../world/layout';
+import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, ZONE_RADIUS, type BathroomLayout, type CabinLayout } from '../world/layout';
+import { ExteriorView } from '../world/ExteriorView';
+import { DEFAULT_TRAIN_NAME } from '../config/press';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { GeoBuilder } from '../world/geo';
 import { MATERIALS, PATTERN } from '../world/materials';
@@ -129,6 +131,8 @@ function buildRearDeck(): THREE.Group {
 export class TrainState {
   readonly group = new THREE.Group();
   readonly loco = new LocomotiveView();
+  /** Window boxes, lamps, lining, nameboards and the red carpet (station workshop upgrades). */
+  readonly exterior = new ExteriorView();
   readonly views: CarriageView[] = [];
   readonly cabins: Cabin[] = [];
   readonly bathrooms: Bathroom[] = [];
@@ -151,6 +155,7 @@ export class TrainState {
 
   constructor(private readonly w: World) {
     this.group.add(this.loco.group);
+    this.group.add(this.exterior.group);
     this.deck = buildRearDeck();
     this.group.add(this.deck);
   }
@@ -158,7 +163,10 @@ export class TrainState {
   /** Builds the train from the save: one carriage plus every coupling already bought. */
   init(): void {
     if (this.w.data.press.trainName) this.loco.setName(this.w.data.press.trainName);
-    this.w.events.on('train.named', ({ name }) => this.loco.setName(name));
+    this.w.events.on('train.named', ({ name }) => {
+      this.loco.setName(name);
+      this.rebuildExterior();
+    });
     document.fonts?.ready.then(() => this.loco.refreshName()).catch(() => undefined);
     for (const type of this.w.data.route.carriages) this.addCarriage(type, false);
     // A coupling was paid for but the choice never made (the app closed on the chooser): ask again.
@@ -168,6 +176,14 @@ export class TrainState {
       this.lastLuggageLeft = r.luggageTotal - r.luggageLoaded;
     });
     this.rebuildMap();
+    this.rebuildExterior();
+  }
+
+  /** Re-dresses the outside of the train from the exterior upgrades bought so far. */
+  rebuildExterior(): void {
+    const has = (key: string): boolean => this.w.unlocks.isUnlocked(`st.${key}`);
+    const name = this.w.data.press.trainName ?? DEFAULT_TRAIN_NAME;
+    this.exterior.build(this.types, { windowboxes: has('windowboxes'), lamps: has('lamps'), lining: has('lining'), nameboards: has('nameboards'), redcarpet: has('redcarpet') }, name);
   }
 
   /** Display name: the catalogue name, numbered when the train has more than one of a kind. */
@@ -272,6 +288,23 @@ export class TrainState {
     this.w.audio.play('door');
   }
 
+  /** Something new on the outside: a ripple of sparkle along the platform side of every carriage. */
+  private dressUpMoment(): void {
+    const w = this.w;
+    w.audio.play('fanfare');
+    w.stage.rig.shake(0.18, 0.3);
+    this.views.forEach((_, i) => {
+      const cz = carriageOriginZ(i) + CARRIAGE_LENGTH / 2;
+      w.tweens.run(0.01, () => undefined, {
+        delay: i * 0.12,
+        complete: () => {
+          w.particles.emit('sparkle', HALF_WIDTH + 0.2, FLOOR_Y + 1.0, cz - 3, 10, 0.8);
+          w.particles.emit('sparkle', HALF_WIDTH + 0.2, FLOOR_Y + 1.0, cz + 3, 10, 0.8);
+        },
+      });
+    });
+  }
+
   /** Applies a completed unlock tile to the train. */
   applyUnlock(def: UnlockDef, animate: boolean): void {
     switch (def.kind) {
@@ -287,6 +320,10 @@ export class TrainState {
       }
       case 'refurb':
         this.refurbish(def.carriage, def.tier ?? 1, animate);
+        break;
+      case 'exterior':
+        this.rebuildExterior();
+        if (animate) this.dressUpMoment();
         break;
       default:
         break;
@@ -318,6 +355,7 @@ export class TrainState {
         this.group.remove(view.group);
         this.addCarriage(plan.type, true, view);
         this.rebuildMap();
+        this.rebuildExterior();
         w.audio.play('clunk');
         w.audio.play('fanfare');
         w.haptics.heavy();
@@ -345,6 +383,7 @@ export class TrainState {
       this.doorAmount += Math.sign(this.doorTarget - this.doorAmount) * dt * 2.2;
       this.doorAmount = Math.min(1, Math.max(0, this.doorAmount));
       for (const view of this.views) view.setDoorOpen(this.doorAmount);
+      this.exterior.setCarpet(this.doorAmount);
     }
 
     // Chimney smoke streams back with speed; gentle steam at stops.

@@ -22,7 +22,7 @@ import { offlineEarnings } from '../sim/meta';
 import { Progression } from '../sim/Progression';
 import { TrainMap } from '../sim/TrainMap';
 import { UnlockChain } from '../sim/UnlockChain';
-import { buildUnlocks } from '../sim/unlockPlan';
+import { buildUnlocks, stationPerks, type StationPerks } from '../sim/unlockPlan';
 import { Wallet } from '../sim/Wallet';
 import { FLOOR_Y } from '../world/CarriageView';
 import { carriageOriginZ } from '../world/layout';
@@ -241,12 +241,23 @@ export class Game implements World {
   }
 
   fareMultiplier(): number {
-    return (1 + this.data.conductor.fareBonus * this.econ.conductor.fareBonus.perLevel) * (1 + this.data.meta.perks.fareBonus);
+    return (1 + this.data.conductor.fareBonus * this.econ.conductor.fareBonus.perLevel) * (1 + this.data.meta.perks.fareBonus + this.stationPerks().fares);
   }
 
   tipMultiplier(): number {
-    return 1 + this.data.meta.perks.tipBonus + this.train.trainTipBonus();
+    return 1 + this.data.meta.perks.tipBonus + this.train.trainTipBonus() + this.stationPerks().tips;
   }
+
+  /** Station upgrades bought so far (exterior and marketing); cached until the next unlock. */
+  stationPerks(): StationPerks {
+    if (!this.perksCache || this.perksCacheAt !== this.data.route.unlocked.length) {
+      this.perksCache = stationPerks((id) => this.unlocks.isUnlocked(id));
+      this.perksCacheAt = this.data.route.unlocked.length;
+    }
+    return this.perksCache;
+  }
+  private perksCache: StationPerks | null = null;
+  private perksCacheAt = -1;
 
   addStars(amount: number, source: string, at?: { x: number; z: number }): void {
     if (amount <= 0) return;

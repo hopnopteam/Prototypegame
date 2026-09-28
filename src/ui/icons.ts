@@ -7,7 +7,7 @@ export type IconName =
   | 'star' | 'cash' | 'gem' | 'miles' | 'bath' | 'clock' | 'ad' | 'lock' | 'plus' | 'carriage' | 'zzz'
   | 'heart' | 'bolt' | 'bag' | 'gear' | 'album' | 'calendar' | 'quest' | 'ticket' | 'check' | 'camera'
   | 'wrench' | 'skate' | 'hold' | 'chest' | 'noroom' | 'double' | 'box' | 'paint' | 'news' | 'trophy'
-  | 'mic' | 'dash' | 'hand' | 'menu' | 'conductor' | 'linen';
+  | 'mic' | 'dash' | 'hand' | 'menu' | 'conductor' | 'linen' | 'megaphone';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -561,6 +561,27 @@ const ICONS: Record<IconName, Draw> = {
     c.lineWidth = 6;
     c.strokeStyle = INK;
     c.lineCap = 'round';
+    c.stroke();
+  },
+  megaphone: (c) => {
+    // Marketing: a brass megaphone with sound waves.
+    c.beginPath();
+    c.moveTo(18, 42);
+    c.lineTo(34, 42);
+    c.lineTo(66, 22);
+    c.lineTo(66, 78);
+    c.lineTo(34, 58);
+    c.lineTo(18, 58);
+    c.closePath();
+    fillStroke(c, '#F2B233');
+    rr(c, 26, 58, 12, 20, 4);
+    fillStroke(c, '#C0485C', 5);
+    c.beginPath();
+    c.arc(70, 50, 12, -0.9, 0.9);
+    c.moveTo(80, 36);
+    c.arc(70, 50, 22, -0.9, 0.9);
+    c.lineWidth = 5;
+    c.strokeStyle = INK;
     c.stroke();
   },
   linen: (c) => {

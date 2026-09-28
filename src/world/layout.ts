@@ -520,6 +520,12 @@ export const COUPLE_TILE_SIZE = 1.6;
 /** A washroom's tip pile sits this far from its restock point. */
 export const BATH_PILE_OFFSET: Vec2 = { x: -0.95, z: 0.95 };
 
+/** Station upgrade tiles on the platform (world coordinates while the train is in), beside the lobby. */
+export const STATION_TILE_POS: Record<'exterior' | 'marketing', Vec2> = {
+  exterior: { x: PLATFORM_X0 + 2.4, z: 7.0 },
+  marketing: { x: PLATFORM_X0 + 2.4, z: 9.2 },
+};
+
 export type FootprintKind = 'zone' | 'tile' | 'pile' | 'home';
 
 /**
