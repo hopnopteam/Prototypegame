@@ -204,10 +204,10 @@ export class Press {
     if (passed.length === 0) return;
     const standing = this.standing;
     const last = passed[passed.length - 1];
-    this.w.ui.toast(`Overtook ${last.name}! Now #${standing.rank} in the league`, 'trophy');
     this.w.audio.play('sparkle', { pitch: 1.2 });
-    if (standing.rank === 1) this.once('champion');
-    else this.print('overtake', { rival: last.name });
+    const printed = standing.rank === 1 ? (this.state.fired.champion ? null : this.print('champion')) : this.print('overtake', { rival: last.name });
+    // Before the paper knows your name, a plain line says it instead.
+    if (!printed) this.w.ui.toast(`Overtook ${last.name}! Now #${standing.rank} in the league`, 'trophy');
   }
 
   // ─── Big moments ───────────────────────────────────────────────────────────

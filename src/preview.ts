@@ -25,6 +25,8 @@ const scenery = new Scenery();
 stage.scene.add(scenery.group);
 const loco = new LocomotiveView();
 stage.scene.add(loco.group);
+loco.setName(params.get('name') ?? 'The Night Owl');
+document.fonts?.ready.then(() => loco.refreshName()).catch(() => undefined);
 const count = Number(params.get('n') ?? '5');
 // ?tier=2 shows every carriage at one tier; ?tiers=0123 sets them one by one. ?level= picks the livery.
 const tierParam = params.get('tier');

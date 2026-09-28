@@ -49,6 +49,8 @@ const FLOAT_LIFE = 1.15;
 /** Tile labels show for the nearest tile within this many metres, floating this high above it. */
 const TILE_TAG_RANGE = 2.6;
 const TILE_TAG_HEIGHT = 1.35;
+/** Pixels below the top bar kept clear for the ticket and coach line. */
+const TILE_TAG_TOP_CLEARANCE = 150;
 const TOAST_SECONDS = 2.8;
 const NEWS_SECONDS = 4;
 const RESULT_SECONDS = 5.5;
@@ -447,10 +449,15 @@ export class Ui implements GameUi {
       this.tileTag.style.opacity = '0';
       return;
     }
+    // Never over the top bar or the ticket/coach slot under it: a tile up there simply is not labelled.
+    if (this.screen.y < this.topBarBottom() + TILE_TAG_TOP_CLEARANCE) {
+      this.tileTag.style.opacity = '0';
+      return;
+    }
     const width = this.tileTag.offsetWidth;
     const half = width / 2 + SCREEN_MARGIN;
     const x = Math.min(Math.max(this.screen.x, half), g.stage.size.width - half - 44);
-    const y = Math.max(this.screen.y, this.topBarBottom() + 30);
+    const y = this.screen.y;
     this.tileTag.style.opacity = '1';
     this.tileTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
   }

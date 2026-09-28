@@ -198,7 +198,7 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .coach-text { min-width: 0; text-wrap: balance; }
 .has-ticket .coach { visibility: hidden; }
 @keyframes coachIn { from { transform: translateY(-16px); opacity: 0; } }
-.tile-tag { position: absolute; left: 0; top: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; max-width: 180px; padding: 4px 10px 5px; border-radius: 10px; background: var(--ink); color: var(--cream); text-align: center; line-height: 1.15; will-change: transform; pointer-events: none; }
+.tile-tag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; max-width: 180px; padding: 4px 10px 5px; border-radius: 10px; background: var(--ink); color: var(--cream); text-align: center; line-height: 1.15; will-change: transform; pointer-events: none; }
 .tile-tag::after { content: ''; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: var(--ink); }
 .tile-tag b { font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
 .tile-tag span { font-size: 12px; font-weight: 600; color: #FFE39A; text-wrap: balance; }

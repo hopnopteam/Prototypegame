@@ -20,7 +20,7 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 | `npm run dev` | Same, rebuilding on every save |
 | `npm run typecheck` | Strict TypeScript check |
 | `npm test` | Unit tests (vitest): journey phases, ad policy, economy, save/migrations, walkable map |
-| `npm run smoke` | Headless browser run: the autopilot plays the first 13 minutes and checks the §14 beats, that every pickup was needed, the ad rules, save/reload and console errors |
+| `npm run smoke` | Headless browser run: the autopilot plays the first 13 minutes and checks the §14 beats, the walkthrough, naming and press, a refurbishment, that every pickup was needed, the ad rules, save/reload, draw calls and console errors |
 | `npm run audit:ui` | Stages the busiest HUD moments and every menu at five phone sizes and fails on any overlap, clipped text or off-screen element |
 | `npm run check` | Typecheck + tests + build |
 
@@ -28,7 +28,8 @@ Tools in `scripts/` (need Chromium via Playwright, pre-installed in the cloud se
 `pacing.mjs [seconds] [shotDir]` prints the first-session timeline for tuning; `ui-shots.mjs <dir>` screenshots
 every screen; `shot.mjs` and `play.mjs` are quick visual checks. For art work,
 `ENTRY=src/preview.ts OUT=preview.html node scripts/build.mjs` builds `dist/preview.html`, a static diorama of every
-carriage, character and prop (`?t=0.82` time of day, `&z=` camera position, `&zoom=`, `&platform=1`).
+carriage, character and prop (`?t=0.82` time of day, `&z=` camera position, `&zoom=`, `&platform=1`, `&tier=0..3` or
+`&tiers=0123` refurbishment tiers, `&level=` livery, `&name=` the locomotive's nameplate, `&sleeper=0` hides the sleeper).
 
 ## Developer tools
 
@@ -41,10 +42,12 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 
 | What | File |
 |---|---|
-| Every number: journey timers, speeds, capacities, fares, tips, fast-service bonus, pickup dwell, cash magnet reach, star thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
-| Content: stations, guest archetypes, carriages and their order, unlock tiles (price, stars, requirements), stories, quests, products | `src/config/content.ts` |
+| Every number: journey timers, speeds, capacities, fares, tips, refurbishment bonuses, quick-travel speed, fast-service bonus, pickup dwell, cash magnet reach, star thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
+| Content: stations, guest archetypes, carriages and their order, unlock tiles (price, stars, requirements, the effect line shown on the tile), refurbishment tiers, stories, quests, products | `src/config/content.ts` |
+| The press: rival trains, headlines per trigger, Rails Tonight interviews and perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
+| Walkthrough steps and one-time hints | `src/config/coach.ts` |
 | Carriage floor plans | `src/world/layout.ts` |
-| Colours: livery, each carriage's wallpaper, wainscot, floor pattern, bedding and curtains; countryside | `src/world/palette.ts` (pattern ids in `src/world/materials.ts`) |
+| Colours: liveries (earned and premium), each carriage's pastel identity, tier names, countryside | `src/world/palette.ts`; what each refurbishment tier looks like: `finishFor` and `buildProp` in `src/world/CarriageView.ts` |
 | UI colours and type | `src/ui/styles.css` (tokens at the top; Jost is embedded from `@fontsource-variable/jost`) |
 | Remote-config overrides (mock) | `src/services/remoteConfig.ts` |
 
@@ -54,11 +57,11 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 src/
   core/       event bus, tweens, rng, math, logging
   config/     economy.ts and content.ts: all tunables and content packs
-  sim/        pure logic, unit tested: Journey, AdPolicy, UnlockChain, Wallet, Progression, Walkable, NavGraph, TrainMap, meta
+  sim/        pure logic, unit tested: Journey, AdPolicy, UnlockChain, Wallet, Progression, Walkable, NavGraph, TrainMap, meta, press
   save/       versioned JSON save (localStorage + backup + migrations)
   services/   ads, IAP, analytics, remote config: interfaces + mocks
   world/      Three.js: stage, camera, lighting, scenery, platform, carriages, characters, particles, cash
-  gameplay/   Game (composition root), player, zones, tiles, guests, staff, station, train, guidance, meta, monetization, autopilot
+  gameplay/   Game (composition root), player, zones, tiles, guests, staff, station, train, guidance, coach, press, meta, monetization, autopilot
   audio/      WebAudio synth sfx + music, haptics
   ui/         DOM HUD, sheets, icons, styles
 tests/        vitest unit tests

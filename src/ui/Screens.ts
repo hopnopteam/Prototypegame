@@ -498,7 +498,7 @@ export class Screens {
       h('div.section-title', { text: 'Economy' }),
       h('div.grid-3', {},
         b('+500 fares', () => g.wallet.add('cash', 500, 'dev')), b('+100 gems', () => g.wallet.add('gems', 100, 'dev')), b('+10 miles', () => g.wallet.add('railMiles', 10, 'dev')),
-        b('+50 stars', () => g.devAddStars(50)), b('Fund next tile', () => g.devCompleteNextTile()), b('Clear floor cash', () => undefined),
+        b('+50 stars', () => g.devAddStars(50)), b('Fund next tile', () => g.devCompleteNextTile()), b('Press moment now', () => { close(); g.press.flushPending(); }),
       ),
       h('div.section-title', { text: 'Recording' }),
       h('div.grid-3', {},

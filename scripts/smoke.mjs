@@ -72,6 +72,10 @@ for (let t = 0; t < total; t += 5) {
       staff: g.staff.members.length,
       unlocked: g.data.route.unlocked.length,
       ftue: g.data.profile.ftue,
+      named: g.data.press.trainName,
+      stories: g.data.press.items.length,
+      coachDone: ['walk', 'checkin', 'cash', 'tile'].every((id) => g.flag(`coach_${id}`)),
+      tiers: g.train.tiers.slice(),
       positionsFinite: finite(g.player.pos) && g.guests.list.every((x) => finite(x.pos)) && g.staff.members.every((x) => finite(x.pos)),
     };
   });
@@ -86,6 +90,9 @@ for (const [beat, deadline] of Object.entries(DEADLINES)) {
 }
 check(snap.carriages >= 3, `${snap.carriages} carriages after ${fmt(snap.life)} (want 3+)`);
 check(snap.staff >= 2, `${snap.staff} staff after ${fmt(snap.life)} (want 2+)`);
+check(snap.coachDone, 'the four-step walkthrough completed');
+check(!!snap.named && snap.stories >= 3, `the train was named ("${snap.named}") and made the paper ${snap.stories} times`);
+check(snap.tiers.some((t) => t >= 1), `at least one carriage refurbished (tiers ${snap.tiers.join(',')})`);
 
 const picks = await page.evaluate(() => window.__picks);
 check(picks.total > 10 && picks.unneeded === 0, `every pickup was needed (${picks.total} picked, ${picks.unneeded} unneeded, ${picks.returned} returned)`);
