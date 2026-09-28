@@ -15,8 +15,13 @@ page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('Fail
 await page.goto(`file://${resolve('dist/index.html')}`);
 await page.waitForTimeout(700);
 await page.mouse.click(195, 700);
-const closeAll = () => page.evaluate(() => { for (const b of document.querySelectorAll('.sheet .close')) b.click(); for (const b of document.querySelectorAll('.scrim .btn')) if (b.textContent.trim() === 'Collect') b.click(); });
+const closeAll = () => page.evaluate(() => {
+  for (const b of document.querySelectorAll('.sheet .close')) b.click();
+  for (const b of document.querySelectorAll('.scrim [data-default]')) b.click();
+  for (const b of document.querySelectorAll('.scrim .btn')) if (b.textContent.trim() === 'Collect') b.click();
+});
 const shot = async (name, wait = 500) => { await page.waitForTimeout(wait); await page.screenshot({ path: `${out}/${name}.png` }); console.log('shot', name); };
+await shot('0-start', 1200);
 // Progress a bit so there is content.
 await page.evaluate(() => { const g = window.nightExpress; g.paused = true; g.setAutopilot(true); g.simulate(300); g.setAutopilot(false); g.paused = false; });
 await closeAll();
@@ -49,6 +54,34 @@ await page.evaluate(() => { const g = window.nightExpress; g.setTimeOfDay(0.82);
 await shot('j-night', 900);
 await page.evaluate(() => { const g = window.nightExpress; g.setTimeOfDay(0.64); });
 await shot('k-dusk', 900);
+await page.evaluate(() => { const g = window.nightExpress; g.setTimeOfDay(null); g.ui.showNaming(['The Night Owl', 'Silver Swallow', 'Moonlight Limited', 'The Dandelion', 'Lucky Clover', 'The Starling'], () => {}); });
+await shot('l-naming');
+await closeAll();
+await page.evaluate(() => { const g = window.nightExpress; if (!g.data.press.trainName) g.data.press.trainName = 'The Night Owl'; g.press.print('overtake', { rival: 'Puffing Billy' }); g.press.print('refurb2', { carriage: 'Sleeper & Lobby' }); g.ui.pressScreens.gazette(); });
+await shot('m-gazette');
+await closeAll();
+await page.evaluate(() => window.nightExpress.ui.showInterview({ level: 2, question: 'A new sleeper on the country line! What makes a good night train?', answers: [
+  { text: 'Tea, served before you ask.', perk: { kind: 'tipBonus', amount: 0.06, label: 'Tips +6%' } },
+  { text: 'Fair fares for a fine bed.', perk: { kind: 'fareBonus', amount: 0.05, label: 'Fares +5%' } },
+  { text: 'A conductor who never stops moving.', perk: { kind: 'speedBonus', amount: 0.05, label: 'Walk +5%' } },
+] }, 'The Night Owl', () => {}));
+await shot('n-interview');
+await closeAll();
+await page.evaluate(() => {
+  const awards = [
+    { id: 'newcomer', name: 'Best Newcomer', hint: 'Just keep going.', stat: 'always', target: 0, reward: { gems: 20, railMiles: 4 } },
+    { id: 'spotless', name: 'Spotless Service', hint: 'Make 6 perfect station stops.', stat: 'perfectStops', target: 6, reward: { gems: 15, railMiles: 3 } },
+  ];
+  window.nightExpress.ui.showCeremony({ level: 5, title: 'The Golden Whistle Awards', awards }, [
+    { award: awards[0], won: true, fresh: true, have: 1, need: 1 },
+    { award: awards[1], won: false, fresh: false, have: 4, need: 6 },
+  ], 'The Night Owl', () => {});
+});
+await shot('o-ceremony', 2600);
+await closeAll();
+await page.evaluate(() => window.nightExpress.ui.screens.progress());
+await shot('p-progress');
+await closeAll();
 const info = await page.evaluate(() => ({ draws: window.nightExpress.stage.drawCalls, tris: window.nightExpress.stage.renderer.info.render.triangles }));
 console.log(JSON.stringify(info));
 if (errors.length) console.log('ERRORS\n' + errors.join('\n'));

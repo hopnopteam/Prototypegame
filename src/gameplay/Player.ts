@@ -6,6 +6,7 @@ import { CharacterView, CONDUCTOR_LOOK } from '../world/CharacterView';
 import type { Actor } from './Actor';
 import { CarryStack } from './CarryStack';
 import type { Input } from './Input';
+import { PathFollower } from './PathPlanner';
 import type { World } from './World';
 
 /** The conductor: one finger to walk, everything else happens by walking over things. */
@@ -20,11 +21,19 @@ export class Player implements Actor {
   private facing = Math.PI;
   idleSeconds = 0;
   speedNow = 0;
+  /** Quick travel (tap a carriage on the train map): walks the route at dash speed until you touch the stick. */
+  readonly travel: PathFollower;
+  private dashTrail = 0;
 
   constructor(private readonly w: World, private readonly input: Input, spawn: Vec2) {
     this.pos = { x: spawn.x, z: spawn.z };
     this.stack = new CarryStack(this.view.stackAnchor, w.scene, w.tweens, this.capacity());
+    this.travel = new PathFollower(w);
     w.scene.add(this.view.root);
+  }
+
+  travelTo(target: Vec2): void {
+    this.travel.go(this.pos, target);
   }
 
   capacity(): number {
@@ -33,7 +42,7 @@ export class Player implements Actor {
 
   speed(): number {
     const w = this.w;
-    let speed = w.econ.player.moveSpeed * (1 + w.data.conductor.speed * w.econ.conductor.speed.perLevel);
+    let speed = w.econ.player.moveSpeed * (1 + w.data.conductor.speed * w.econ.conductor.speed.perLevel) * (1 + w.data.meta.perks.speedBonus);
     if (w.iap.isOwned('conductor_scooter')) speed *= 1 + SCOOTER_SPEED_BONUS;
     if (Date.now() < w.data.monetization.speedBoostUntil) speed *= w.econ.rewarded.speedBoost.multiplier;
     return speed;
@@ -46,8 +55,21 @@ export class Player implements Actor {
   update(dt: number): void {
     const w = this.w;
     this.stack.capacity = this.capacity();
-    const stick = this.input.read();
-    const max = this.speed();
+    let stick = this.input.read();
+    let max = this.speed();
+    if (this.travel.active) {
+      // Any touch on the stick takes back control.
+      if (Math.hypot(stick.x, stick.y) > 0.15) this.travel.stop();
+      else {
+        stick = this.travel.steer(this.pos, dt) ?? { x: 0, y: 0 };
+        max *= w.econ.player.dashMultiplier;
+        this.dashTrail -= dt;
+        if (this.dashTrail <= 0 && this.speedNow > 1) {
+          this.dashTrail = 0.06;
+          w.particles.emit('dust', this.pos.x, FLOOR_Y + 0.05, this.pos.z, 1, 0.15);
+        }
+      }
+    }
     // Screen up is world -z; screen right is world +x (the camera looks up the train).
     const tx = stick.x * max;
     const tz = stick.y * max;

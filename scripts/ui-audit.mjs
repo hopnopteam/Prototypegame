@@ -38,6 +38,8 @@ const auditPage = () => {
     banner: '.banner .sign, .banner .sub',
     celebrate: '.celebrate .card',
     boost: '.boost .badge',
+    coach: '.coach',
+    trainmap: '.trainmap',
   };
   const boxes = [];
   for (const [group, selector] of Object.entries(groups)) {
@@ -63,7 +65,7 @@ const auditPage = () => {
     }
   }
   // Clipped text: anything whose content is wider than its box.
-  const textSelectors = '.pill .val, .journey .name, .journey .clock, .chip .txt b, .chip .txt span, .chip button, .ticket h3, .ticket .where, .ticket .rows span, .banner .sign, .banner .sub, .celebrate .big, .celebrate .small, .toast, .btn, .sheet header h2, .product .info b, .product .buy, .gem-card, .gem-card small, .quest .info, .quest button, .upgrade .info b, .postcard .label, .day, .toggle';
+  const textSelectors = '.livery .buy, .name-chip, .answer .say, .award .info b, .tile-tag b, .masthead .paper-name, .pill .val, .journey .name, .journey .clock, .chip .txt b, .chip .txt span, .chip button, .ticket h3, .ticket .where, .ticket .rows span, .banner .sign, .banner .sub, .celebrate .big, .celebrate .small, .toast, .btn, .sheet header h2, .product .info b, .product .buy, .gem-card, .gem-card small, .quest .info, .quest button, .upgrade .info b, .postcard .label, .day, .toggle';
   document.querySelectorAll(textSelectors).forEach((el) => {
     if (!visible(el)) return;
     if (el.scrollWidth > el.clientWidth + 1) issues.push(`clipped text in ${el.className || el.tagName}: "${el.textContent.trim().slice(0, 40)}" (${el.scrollWidth}>${el.clientWidth})`);
@@ -116,10 +118,26 @@ for (const [width, height] of SIZES) {
     g.monetization.offers = [{ id: 'holdTheTrain', icon: 'hold', label: '+15s', detail: 'Hold the train', gemCost: 5 }];
     g.ui.showResult({ stationName: 'Larkspur Halt', boarded: 7, waiting: 0, alighted: 6, tips: 1234, luggageLoaded: 12, luggageTotal: 12, stars: 99, clean: true, bonusCash: 999 });
     g.ui.toast('Quest complete: Perfect station stops', 'quest');
+    g.ui.newsFlash({ id: 99, trigger: 'refurb3', headline: 'Velvet and Brass: The Moonlight Limited Goes Luxury', body: '', level: 6, carriages: 5, livery: '#2F4C82', trim: '#E2B653', at: 0 });
     g.ui.stationBanner('Larkspur Halt', 'All aboard · New postcard');
+    // A long train so the train map is up.
+    for (let i = 0; i < 4; i++) { g.train.coupleNext(); g.simulate(3.5); }
   });
   await page.waitForTimeout(700);
   report('busy HUD', await page.evaluate(auditPage));
+  // The coach line takes the ticket's slot once the ticket is gone.
+  await page.evaluate(() => {
+    const g = window.nightExpress;
+    for (const el of document.querySelectorAll('.ticket')) el.remove();
+    document.getElementById('ui').classList.remove('has-ticket');
+    g.coach.enabled = false;
+    g.coach.current = { id: 'audit', icon: 'towel', text: 'Washrooms need towels and rolls from the Supply Car' };
+  });
+  await page.waitForTimeout(400);
+  report('coach', await page.evaluate(auditPage));
+  await page.evaluate(() => window.nightExpress.ui.celebrate('Sleeper Car II', 'Coupled!', 'carriage'));
+  await page.waitForTimeout(3000);
+  report('celebration with the train map', await page.evaluate(auditPage));
   await page.evaluate(() => { for (const el of document.querySelectorAll('.banner')) el.remove(); window.nightExpress.ui.celebrate('Sleeper Car II', 'Coupled!', 'carriage'); });
   await page.waitForTimeout(3000);
   report('celebration', await page.evaluate(auditPage));
@@ -135,6 +153,11 @@ for (const [width, height] of SIZES) {
     ['level up', "window.nightExpress.ui.showLevelUp(8, { railMiles: 12, cash: 1200 }, 10, () => {})"],
     ['offline', "window.nightExpress.ui.showOffline(123456, 7200, 10, () => {})"],
     ['dev', 'window.nightExpress.ui.screens.devPanel()'],
+    ['progress', 'window.nightExpress.ui.screens.progress()'],
+    ['gazette', "const g = window.nightExpress; g.data.press.trainName = 'The Moonlight Limited'; g.press.print('refurb3', { carriage: 'Sleeper Car II' }); g.press.print('overtake', { rival: 'Duchess of Dover' }); g.ui.pressScreens.gazette()"],
+    ['naming', "window.nightExpress.ui.showNaming(['The Night Owl', 'Silver Swallow', 'Moonlight Limited', 'The Dandelion', 'Lucky Clover', 'The Starling'], () => {})"],
+    ['interview', "window.nightExpress.ui.showInterview({ level: 4, question: 'The Orient Belle calls you \"a local line with ideas\". Your reply?', answers: [{ text: 'See you at the Golden Whistles.', perk: { kind: 'fareBonus', amount: 0.06, label: 'Fares +6%' } }, { text: 'Our passengers would disagree.', perk: { kind: 'tipBonus', amount: 0.08, label: 'Tips +8%' } }, { text: 'Local, and proud of it.', perk: { kind: 'speedBonus', amount: 0.06, label: 'Walk +6%' } }] }, 'The Moonlight Limited', () => {})"],
+    ['ceremony', "const a = [{ id: 'popular', name: 'People\\'s Favourite', hint: 'Carry 250 guests.', stat: 'guests', target: 250, reward: { gems: 25, railMiles: 5 } }, { id: 'sleeper', name: 'Sleeper Train of the Year', hint: 'Top the Countryside League.', stat: 'rankOne', target: 0, reward: { gems: 40, railMiles: 8 } }, { id: 'spotless', name: 'Spotless Service', hint: 'Make 6 perfect station stops.', stat: 'perfectStops', target: 6, reward: { gems: 15, railMiles: 3 } }]; window.nightExpress.ui.showCeremony({ level: 8, title: 'Golden Whistle: Grand Final', awards: a }, [{ award: a[0], won: true, fresh: true, have: 250, need: 250 }, { award: a[1], won: true, fresh: true, have: 1, need: 1 }, { award: a[2], won: false, fresh: false, have: 4, need: 6 }], 'The Moonlight Limited', () => {})"],
   ];
   for (const [label, script] of menus) {
     await page.evaluate((s) => {
@@ -142,7 +165,7 @@ for (const [width, height] of SIZES) {
       g.data.meta.postcards = ['millbrook', 'hazelford', 'larkspur-halt'];
       new Function(s)();
     }, script);
-    await page.waitForTimeout(350);
+    await page.waitForTimeout(label === 'ceremony' ? 3000 : 350);
     report(label, await page.evaluate(auditPage));
     await page.evaluate(() => { for (const b of document.querySelectorAll('.sheet .close')) b.click(); for (const s of document.querySelectorAll('.scrim')) s.remove(); });
   }

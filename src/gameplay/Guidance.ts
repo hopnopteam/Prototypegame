@@ -13,15 +13,16 @@ export interface PointerState {
 }
 
 /** Screen-edge pointer insets in CSS pixels (top clears the HUD bars, right clears the side buttons). */
-const POINTER_INSET = { top: 124, right: 84, side: 36 };
+const POINTER_INSET = { top: 124, right: 84, left: 64, side: 36 };
 /** Until this much lifetime play the arrow always shows; after that only when the player seems stuck. */
 const FTUE_SECONDS = 150;
 const IDLE_BEFORE_HINT = 3;
 const REACHED = 0.9;
 
 /**
- * No tutorial text (§14): a bouncing arrow over the next useful thing and a screen-edge pointer when it is
- * off-screen. During the first minutes it always shows; later it appears only after a few idle seconds.
+ * A bouncing arrow over the next useful thing and a screen-edge pointer when it is off-screen (the Coach
+ * adds one short line saying what to do there). During the first minutes it always shows; later it appears
+ * only after a few idle seconds.
  */
 export class Guidance {
   private readonly arrow: THREE.Group;
@@ -71,7 +72,7 @@ export class Guidance {
     const onScreen = this.w.stage.project(this.tmp.set(target.x, FLOOR_Y + 1, target.z), this.screen);
     const { width, height } = this.w.stage.size;
     // The pointer lives inside the play area: below the HUD bars, left of the side buttons.
-    const left = POINTER_INSET.side;
+    const left = POINTER_INSET.left;
     const right = width - POINTER_INSET.right;
     const top = POINTER_INSET.top;
     const bottom = height - POINTER_INSET.side;

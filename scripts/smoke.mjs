@@ -57,7 +57,10 @@ for (let t = 0; t < total; t += 5) {
   snap = await page.evaluate(() => {
     const g = window.nightExpress;
     g.simulate(5);
-    for (const b of document.querySelectorAll('.scrim .btn')) {
+    // Sheets that need an answer (naming, interviews, awards) mark their default choice.
+    const choice = document.querySelector('.scrim [data-default]');
+    if (choice) choice.click();
+    else for (const b of document.querySelectorAll('.scrim .btn')) {
       if (/^(Collect|Maybe later|Claim)$/.test(b.textContent.trim())) { b.click(); break; }
     }
     const finite = (v) => Number.isFinite(v.x) && Number.isFinite(v.z);

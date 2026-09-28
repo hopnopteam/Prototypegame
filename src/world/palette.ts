@@ -56,11 +56,11 @@ export const PALETTE = {
   walnutDark: '#6E5140',
   oak: '#D9B98E',
   oakMid: '#C7A279',
-  plankWorn: '#B79C7C',
-  plankWornSeam: '#AE9373',
+  plankWorn: '#C6AC8A',
+  plankWornSeam: '#BBA07E',
   iron: '#6C6A70',
-  wallWorn: '#D8CFC0',
-  wallWornLow: '#BDB19E',
+  wallWorn: '#E4DACA',
+  wallWornLow: '#C9BBA5',
   linen: '#FBF7EF',
   porcelain: '#F7F7F4',
   brass: '#E2B653',
@@ -149,23 +149,35 @@ export const CARRIAGE_THEMES: Record<CarriageType, CarriageTheme> = {
 /** Tier names, shown on refurbishment tiles and in headlines. */
 export const TIER_NAMES = ['Rusty', 'Freshly painted', 'Cosy', 'Luxurious'];
 
-/** The train's paint job follows its reputation: it looks as famous as it is. */
+/**
+ * The train's paint job. Earned liveries follow its reputation (it looks as famous as it is); premium ones
+ * are bought with gems in the Paint Shop (cosmetic only, never power).
+ */
 export interface Livery {
-  minLevel: number;
+  id: string;
   name: string;
   body: string;
   trim: string;
+  /** Earned at this route level. */
+  minLevel?: number;
+  /** Or bought for this many gems. */
+  gems?: number;
 }
 
 export const LIVERIES: Livery[] = [
-  { minLevel: 1, name: 'Rust & Soot', body: '#9A7462', trim: '#7A6D66' },
-  { minLevel: 2, name: 'Meadow Green', body: '#5E8A6A', trim: '#EFE6D2' },
-  { minLevel: 4, name: 'Midnight Navy', body: '#34507A', trim: '#F1E6CC' },
-  { minLevel: 6, name: 'Royal Blue & Gold', body: '#2F4C82', trim: '#E2B653' },
+  { id: 'rust', minLevel: 1, name: 'Rust & Soot', body: '#A0705A', trim: '#D9CBB4' },
+  { id: 'meadow', minLevel: 2, name: 'Meadow Green', body: '#5E8A6A', trim: '#EFE6D2' },
+  { id: 'navy', minLevel: 4, name: 'Midnight Navy', body: '#34507A', trim: '#F1E6CC' },
+  { id: 'royal', minLevel: 6, name: 'Royal Blue & Gold', body: '#2F4C82', trim: '#E2B653' },
+  { id: 'pillarbox', gems: 120, name: 'Pillar-box Red', body: '#B5433F', trim: '#F3E7CF' },
+  { id: 'seafoam', gems: 120, name: 'Seafoam & Cream', body: '#6FA59C', trim: '#FBF3E4' },
+  { id: 'mustard', gems: 150, name: 'Mustard Express', body: '#D3A043', trim: '#34405A' },
+  { id: 'plum', gems: 180, name: 'Plum & Gold', body: '#5E3D63', trim: '#E2B653' },
 ];
 
+/** The best livery earned by this route level. */
 export function liveryFor(level: number): Livery {
   let best = LIVERIES[0];
-  for (const l of LIVERIES) if (level >= l.minLevel) best = l;
+  for (const l of LIVERIES) if (l.minLevel !== undefined && level >= l.minLevel) best = l;
   return best;
 }

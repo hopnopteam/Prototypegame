@@ -1,4 +1,5 @@
 import type { Vec2 } from '../core/types';
+import { planPath } from './PathPlanner';
 import type { World } from './World';
 
 const ARRIVE = 0.22;
@@ -64,57 +65,6 @@ export class Autopilot {
   }
 
   private plan(target: Vec2): Vec2[] {
-    const w = this.w;
-    const map = w.map;
-    const player = w.player.pos;
-    if (this.lineOfSight(player, target)) return [target];
-    const from = this.visibleNode(player);
-    const to = this.visibleNode(target);
-    if (!from || !to) return [target];
-    const path = [...(map.nav.findPath(from, to) ?? []), target];
-    // String-pull: skip any waypoint when a later one is in plain sight, so re-plans never walk backwards.
-    const smoothed: Vec2[] = [];
-    let cursor = player;
-    let i = 0;
-    while (i < path.length) {
-      let furthest = i;
-      for (let j = path.length - 1; j > i; j--) {
-        if (this.lineOfSight(cursor, path[j])) {
-          furthest = j;
-          break;
-        }
-      }
-      smoothed.push(path[furthest]);
-      cursor = path[furthest];
-      i = furthest + 1;
-    }
-    return smoothed;
-  }
-
-  private visibleNode(p: Vec2): string | null {
-    const map = this.w.map;
-    let best: string | null = null;
-    let bestD = Infinity;
-    for (const id of map.nav.ids()) {
-      if (id.startsWith('p:') && !map.areDoorsOpen) continue;
-      const n = map.nav.position(id);
-      const d = (n.x - p.x) ** 2 + (n.z - p.z) ** 2;
-      if (d < bestD && this.lineOfSight(p, n)) {
-        bestD = d;
-        best = id;
-      }
-    }
-    return best ?? map.nearestNode(p.x, p.z);
-  }
-
-  private lineOfSight(a: Vec2, b: Vec2): boolean {
-    const walk = this.w.map.walk;
-    const d = Math.hypot(b.x - a.x, b.z - a.z);
-    const steps = Math.max(2, Math.ceil(d / 0.15));
-    for (let i = 1; i < steps; i++) {
-      const t = i / steps;
-      if (!walk.isWalkable(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t)) return false;
-    }
-    return true;
+    return planPath(this.w, this.w.player.pos, target);
   }
 }

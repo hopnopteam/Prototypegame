@@ -25,12 +25,13 @@ import { Wallet } from '../sim/Wallet';
 import { FLOOR_Y } from '../world/CarriageView';
 import { carriageOriginZ } from '../world/layout';
 import { setLivery } from '../world/materials';
-import { liveryFor } from '../world/palette';
+import { LIVERIES, liveryFor, type Livery } from '../world/palette';
 import { CashView } from '../world/CashView';
 import { Particles } from '../world/Particles';
 import { Scenery } from '../world/Scenery';
 import { Stage } from '../world/Stage';
 import { CashPiles } from './CashPiles';
+import { Coach } from './Coach';
 import { Crowd } from './Crowd';
 import { Demand } from './Demand';
 import type { GameEvents } from './events';
@@ -41,9 +42,11 @@ import { Input } from './Input';
 import { Meta } from './Meta';
 import { Monetization } from './Monetization';
 import { Player } from './Player';
+import { Press } from './Press';
 import { StaffManager } from './Staff';
 import { Station } from './Station';
 import { Tiles } from './Tiles';
+import { TrainNeeds } from './TrainNeeds';
 import { TrainState } from './TrainState';
 import type { World } from './World';
 import { ZoneSystem } from './Zones';
@@ -88,10 +91,13 @@ export class Game implements World {
   readonly player: Player;
   readonly guidance: Guidance;
   readonly meta: Meta;
+  readonly press: Press;
   readonly demand: Demand;
   readonly monetization: Monetization;
   readonly input: Input;
   readonly autopilot: Autopilot;
+  readonly needs: TrainNeeds;
+  readonly coach: Coach;
   private readonly crowd: Crowd;
   time = 0;
   timeScale = 1;
@@ -161,6 +167,7 @@ export class Game implements World {
     this.station = new Station(this);
     this.tiles = new Tiles(this);
     this.meta = new Meta(this);
+    this.press = new Press(this, ui);
     this.input = new Input(canvas.parentElement ?? canvas, overlay);
     this.input.onFirstInteraction = () => this.audio.unlock();
 
@@ -169,6 +176,8 @@ export class Game implements World {
     const spawn = this.map.anchor(0, 'playerSpawn');
     this.player = new Player(this, this.input, spawn);
     this.guidance = new Guidance(this);
+    this.needs = new TrainNeeds(this);
+    this.coach = new Coach(this);
     this.monetization = new Monetization(this, {
       setAdPlaying: (playing) => this.setAdPlaying(playing),
       showFirstClassOffer: (discounted, price, onBuy, onClose) => ui.showFirstClassOffer(discounted, price, onBuy, onClose),
@@ -300,7 +309,9 @@ export class Game implements World {
     this.particles.update(dt);
     this.tweens.update(dt);
     this.guidance.update(dt);
+    this.coach.update(dt);
     this.monetization.update(dt);
+    this.press.update(dt);
     this.save.update(dt);
     if (this.creativeMode && this.wallet.get('cash') < 5000) this.wallet.add('cash', 5000, 'creative');
     if (this.lifetimeSeconds() > 720) this.ftue('session_12min');
@@ -397,18 +408,45 @@ export class Game implements World {
     }
   }
 
-  /** The paint job follows the route level: the train looks as famous as it is. */
-  private applyLivery(): string {
-    const livery = liveryFor(this.data.route.level);
+  /** The livery on the train: the player's Paint Shop pick, or the best one earned by reputation. */
+  currentLivery(): Livery {
+    const chosen = LIVERIES.find((l) => l.id === this.data.cosmetics.livery);
+    if (chosen && this.liveryAvailable(chosen)) return chosen;
+    return liveryFor(this.data.route.level);
+  }
+
+  liveryAvailable(livery: Livery): boolean {
+    if (livery.minLevel !== undefined) return this.data.route.level >= livery.minLevel;
+    return this.data.cosmetics.owned.includes(livery.id);
+  }
+
+  applyLivery(): string {
+    const livery = this.currentLivery();
     setLivery(livery.body, livery.trim);
     return livery.name;
   }
 
+  /** Paint Shop: pick a livery (null goes back to following reputation). */
+  chooseLivery(id: string | null): void {
+    this.data.cosmetics.livery = id;
+    const name = this.applyLivery();
+    this.save.markDirty();
+    this.audio.play('sparkle');
+    for (let i = 0; i < this.train.count; i++) this.particles.emit('sparkle', 0, FLOOR_Y + 1.2, carriageOriginZ(i) + 7, 10, 2.2);
+    this.events.emit('livery.changed', { name, level: this.data.route.level });
+  }
+
   private onLevelUp(level: number): void {
-    const before = liveryFor(level - 1).name;
-    if (this.applyLivery() !== before) {
-      this.events.emit('livery.changed', { name: liveryFor(level).name, level });
-      for (let i = 0; i < this.train.count; i++) this.particles.emit('sparkle', 0, FLOOR_Y + 1.2, carriageOriginZ(i) + 7, 14, 2.2);
+    const earned = liveryFor(level);
+    if (earned.id !== liveryFor(level - 1).id) {
+      // Following reputation: repaint now. Wearing a Paint Shop pick: keep it and mention the new one.
+      if (this.data.cosmetics.livery === null) {
+        this.applyLivery();
+        this.events.emit('livery.changed', { name: earned.name, level });
+        for (let i = 0; i < this.train.count; i++) this.particles.emit('sparkle', 0, FLOOR_Y + 1.2, carriageOriginZ(i) + 7, 14, 2.2);
+      } else {
+        this.ui.toast(`New livery earned: ${earned.name} (Paint Shop)`, 'paint');
+      }
     }
     const reward = this.progression.rewardFor(level);
     this.analytics.log(EVENTS.routeLevelUp, { level, time: Math.round(this.lifetimeSeconds()) });
@@ -461,6 +499,13 @@ export class Game implements World {
     if (!brandNew) return;
     this.stage.rig.focusOn(new THREE.Vector3(1.6, 0, 3.5), 1.6, 1.75);
     this.audio.play('whistle');
+  }
+
+  /** Train map tap: dash to what that carriage needs, or to its middle. */
+  travelToCarriage(index: number): void {
+    if (index < 0 || index >= this.train.count) return;
+    this.player.travelTo(this.needs.destination(index));
+    this.setFlag('coach_map');
   }
 
   // ─── Dev tools ──────────────────────────────────────────────────────────────

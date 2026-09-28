@@ -33,6 +33,8 @@ export interface GameEvents {
   'story.step': { id: string; step: number; done: boolean };
   'boost.changed': Record<string, never>;
   'toast': { text: string; icon?: string };
+  'train.named': { name: string };
+  'awards.presented': { level: number; won: number };
 }
 
 export interface StationResult {

@@ -34,7 +34,10 @@ for (let t = 0; t < total; t += chunk) {
     const g = window.nightExpress;
     g.simulate(c);
     // Dismiss popups like a player would: collect rewards, decline offers.
-    for (const b of document.querySelectorAll('.scrim .btn')) {
+    // Sheets that need an answer (naming, interviews, awards) mark their default choice.
+    const choice = document.querySelector('.scrim [data-default]');
+    if (choice) choice.click();
+    else for (const b of document.querySelectorAll('.scrim .btn')) {
       if (/^(Collect|Maybe later|Claim)$/.test(b.textContent.trim())) { b.click(); break; }
     }
     return {

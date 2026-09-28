@@ -20,6 +20,7 @@ import type { Wallet } from '../sim/Wallet';
 import type { CashView } from '../world/CashView';
 import type { Particles } from '../world/Particles';
 import type { Scenery } from '../world/Scenery';
+import type { Livery } from '../world/palette';
 import type { Stage } from '../world/Stage';
 import type { CashPiles } from './CashPiles';
 import type { Demand } from './Demand';
@@ -28,6 +29,7 @@ import type { Guests } from './Guests';
 import type { Guidance } from './Guidance';
 import type { Meta } from './Meta';
 import type { Player } from './Player';
+import type { Press } from './Press';
 import type { StaffManager } from './Staff';
 import type { Station } from './Station';
 import type { Tiles } from './Tiles';
@@ -73,6 +75,7 @@ export interface World {
   readonly player: Player;
   readonly guidance: Guidance;
   readonly meta: Meta;
+  readonly press: Press;
   readonly demand: Demand;
   readonly ui: UiApi;
   /** Game seconds since the page loaded (scaled by dev time scale). */
@@ -85,5 +88,7 @@ export interface World {
   /** Multiplier on fares from conductor upgrades, perks and boosts. */
   fareMultiplier(): number;
   tipMultiplier(): number;
+  /** The livery the train is wearing now (Paint Shop pick or best earned). */
+  currentLivery(): Livery;
   scenerySpanChanged(): void;
 }

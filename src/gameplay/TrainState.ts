@@ -151,6 +151,9 @@ export class TrainState {
 
   /** Builds the train from the save: one carriage plus every coupling already bought. */
   init(): void {
+    if (this.w.data.press.trainName) this.loco.setName(this.w.data.press.trainName);
+    this.w.events.on('train.named', ({ name }) => this.loco.setName(name));
+    document.fonts?.ready.then(() => this.loco.refreshName()).catch(() => undefined);
     const coupled = ROUTE1_CARRIAGES.filter((_, i) => i === 0 || this.w.unlocks.isUnlocked(`couple_${i}`)).length;
     for (let i = 0; i < coupled; i++) this.addCarriage(ROUTE1_CARRIAGES[i].type, false);
     this.rebuildMap();

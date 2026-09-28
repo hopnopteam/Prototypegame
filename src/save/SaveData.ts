@@ -20,6 +20,20 @@ export interface StoryState {
   aboard: boolean;
 }
 
+/** A story in the Rail Gazette, with what the train looked like that day (for its photo). */
+export interface NewsItem {
+  id: number;
+  trigger: string;
+  headline: string;
+  body: string;
+  level: number;
+  carriages: number;
+  livery: string;
+  trim: string;
+  /** Lifetime seconds when it was printed. */
+  at: number;
+}
+
 export interface SaveData {
   version: number;
   createdAt: number;
@@ -81,7 +95,25 @@ export interface SaveData {
     login: { lastClaimDay: string | null; day: number };
     quests: { day: string | null; items: QuestState[] };
     stories: Record<string, StoryState>;
-    perks: { tipBonus: number; fareBonus: number };
+    perks: { tipBonus: number; fareBonus: number; speedBonus: number };
+  };
+  /** Paint Shop: the chosen livery (null follows reputation) and premium liveries bought with gems. */
+  cosmetics: { livery: string | null; owned: string[] };
+  /** The world noticing your train: its name, the Rail Gazette, interviews, awards. */
+  press: {
+    trainName: string | null;
+    items: NewsItem[];
+    nextId: number;
+    unread: number;
+    /** Trigger → times it has made the paper. */
+    fired: Record<string, number>;
+    interviews: number[];
+    ceremonies: number[];
+    awards: string[];
+    /** Moments waiting for a calm beat to be shown: 'name', 'interview:2', 'ceremony:5'. */
+    pending: string[];
+    stats: { guests: number; perfectStops: number; requests: number; streak: number; weekGuests: number; lastWeeklyStop: number; lastQueueStop: number };
+    reputationSeen: number;
   };
 }
 
@@ -116,7 +148,21 @@ export function createDefaultSave(now: number, installId: string): SaveData {
       login: { lastClaimDay: null, day: 0 },
       quests: { day: null, items: [] },
       stories: {},
-      perks: { tipBonus: 0, fareBonus: 0 },
+      perks: { tipBonus: 0, fareBonus: 0, speedBonus: 0 },
+    },
+    cosmetics: { livery: null, owned: [] },
+    press: {
+      trainName: null,
+      items: [],
+      nextId: 1,
+      unread: 0,
+      fired: {},
+      interviews: [],
+      ceremonies: [],
+      awards: [],
+      pending: [],
+      stats: { guests: 0, perfectStops: 0, requests: 0, streak: 0, weekGuests: 0, lastWeeklyStop: 0, lastQueueStop: -99 },
+      reputationSeen: 0,
     },
   };
 }

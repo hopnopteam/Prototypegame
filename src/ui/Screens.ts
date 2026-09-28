@@ -1,7 +1,9 @@
 import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, type ProductDef } from '../config/content';
 import { formatDuration, formatNumber } from '../core/math';
 import type { DoubleChoice } from '../gameplay/GameUi';
+import { CEREMONIES, INTERVIEWS, NOMINATION_LEVEL } from '../config/press';
 import { conductorCost } from '../sim/meta';
+import { LIVERIES, liveryFor } from '../world/palette';
 import { h, icon } from './dom';
 import type { IconName } from './icons';
 import type { Ui } from './Ui';
@@ -83,17 +85,36 @@ export class Screens {
       close();
       onCollect(choice);
     };
-    const unlocks: Record<number, string> = {
-      2: 'Rail Miles and Conductor upgrades are open.',
-      3: 'Daily quests are open.',
-      4: 'The daily calendar is open.',
-      5: 'Regular passengers start telling their stories.',
-    };
+    const perks = levelPerks(level);
     close = this.sheet(`Route level ${level}!`, 'star', [
-      h('p.lead', { text: unlocks[level] ?? 'Countryside Local is getting famous.' }),
+      h('p.lead', { text: `${this.game.press.trainName} is getting famous.` }),
+      perks.length > 0 ? h('ul.perks', {}, ...perks.map((p) => h('li', { text: p }))) : null,
       h('div.reward', {}, h('span', {}, icon('miles', 30), `+${reward.railMiles}`), h('span', {}, icon('cash', 30), `+${formatNumber(reward.cash)}`)),
       this.doubleButtons(gemCost, finish),
     ], { closable: false, center: true });
+  }
+
+  /** Tap the level ring: where you are, what the next level brings, and who to overtake. */
+  progress(): void {
+    const g = this.game;
+    const p = g.progression;
+    const lp = p.levelProgress();
+    const standing = g.press.standing;
+    const next = p.level + 1;
+    const perks = p.isMaxLevel ? [] : levelPerks(next);
+    const reward = p.isMaxLevel ? null : p.rewardFor(next);
+    const pct = Math.round(lp.fraction * 100);
+    this.sheet(`Route level ${p.level}`, 'star', [
+      h('p.lead', { text: `${g.press.trainName} · ${g.currentLivery().name} livery` }),
+      p.isMaxLevel
+        ? h('p', { text: 'Countryside Local is at its top level. Every star still counts in the league.' })
+        : h('div.quest', {}, icon('star', 30), h('div.info', {}, `${lp.current} / ${lp.needed} stars to level ${next}`, h('div.bar', {}, h('i', { style: { width: `${pct}%` } })))),
+      reward ? h('div.section-title', { text: `Level ${next} brings` }) : null,
+      reward ? h('ul.perks', {}, ...[`+${reward.railMiles} Rail Miles and +${formatNumber(reward.cash)} Fares`, ...perks].map((t) => h('li', { text: t }))) : null,
+      h('div.section-title', { text: 'Countryside League' }),
+      h('p', { text: standing.next ? `#${standing.rank} of ${standing.total}. Overtake ${standing.next.name} in ${formatNumber(standing.next.reputation - g.data.route.stars)} stars.` : `#1 of ${standing.total}. The best sleeper on the line.` }),
+      h('p.small', { text: 'Stars come from building, cleaning cabins, bringing requests and perfect station stops.' }),
+    ], { center: true });
   }
 
   offline(amount: number, seconds: number, gemCost: number, onCollect: (choice: DoubleChoice) => void): void {
@@ -174,6 +195,8 @@ export class Screens {
     close = this.sheet('Shop', 'bag', [
       productRow('first_class_ticket', true),
       productRow('conductor_scooter', false),
+      h('div.section-title', { text: 'Paint shop' }),
+      this.paintShop(() => { close(); this.store(); }),
       h('div.section-title', { text: 'Gems' }),
       gemPacks,
       h('div.section-title', { text: 'Exchange' }),
@@ -181,6 +204,44 @@ export class Screens {
       h('p', { style: { fontSize: '13px', opacity: '0.7' }, text: 'Prototype store: purchases are simulated and no money is charged.' }),
     ]);
     g.analytics.log('iap_offer_shown', { product: 'store', trigger: 'store_button' });
+  }
+
+  /** Liveries: earned ones by reputation, premium ones for gems. Cosmetic only. */
+  private paintShop(refresh: () => void): HTMLElement {
+    const g = this.game;
+    const current = g.currentLivery();
+    const following = g.data.cosmetics.livery === null;
+    const card = (id: string | null, name: string, body: string, trim: string, action: HTMLElement): HTMLElement =>
+      h(`div.livery${(id === null ? following : !following && current.id === id) ? '.on' : ''}` as 'div', {},
+        h('div.mini', { style: { background: body } }, h('i', { style: { background: trim } })),
+        h('b', { text: name }),
+        action,
+      );
+    const earned = liveryFor(g.data.route.level);
+    const cards = [card(null, 'Latest earned', earned.body, earned.trim,
+      h('button.buy', { disabled: following, onclick: () => { g.chooseLivery(null); refresh(); } }, following ? 'Painted' : 'Paint'))];
+    for (const l of LIVERIES) {
+      const available = g.liveryAvailable(l);
+      const painted = !following && current.id === l.id;
+      let action: HTMLElement;
+      if (available) action = h('button.buy', { disabled: painted, onclick: () => { g.chooseLivery(l.id); refresh(); } }, painted ? 'Painted' : 'Paint');
+      else if (l.minLevel !== undefined) action = h('button.buy', { disabled: true }, `Level ${l.minLevel}`);
+      else {
+        const cost = l.gems ?? 0;
+        action = h('button.buy.gem', {
+          disabled: g.wallet.get('gems') < cost,
+          onclick: () => {
+            if (!g.wallet.trySpend('gems', cost, `livery:${l.id}`)) return;
+            g.data.cosmetics.owned.push(l.id);
+            g.analytics.log('iap_offer_purchased', { product: `livery:${l.id}`, currency: 'gems', amount: cost });
+            g.chooseLivery(l.id);
+            refresh();
+          },
+        }, icon('gem', 16), String(cost));
+      }
+      cards.push(card(l.id, l.name, l.body, l.trim, action));
+    }
+    return h('div.liveries', {}, ...cards);
   }
 
   mockStore(product: ProductDef, priceLabel: string): Promise<boolean> {
@@ -238,18 +299,28 @@ export class Screens {
   upgrades(): void {
     const g = this.game;
     let close: () => void = () => undefined;
+    const base = g.econ.player;
+    const describe = (key: 'speed' | 'capacity' | 'fareBonus', level: number): string => {
+      const track = g.econ.conductor[key];
+      if (key === 'capacity') return `${base.baseCarryCapacity + level * track.perLevel} items`;
+      if (key === 'speed') return `${(base.moveSpeed * (1 + level * track.perLevel)).toFixed(1)} m/s`;
+      return `+${Math.round(level * track.perLevel * 100)}%`;
+    };
     const rows = ([
-      ['speed', 'Brisk stride', 'Walk faster', 'bolt'],
-      ['capacity', 'Strong arms', 'Carry one more item', 'box'],
-      ['fareBonus', 'Charm', 'Every fare pays more', 'ticket'],
+      ['speed', 'Brisk stride', 'Walking speed', 'bolt'],
+      ['capacity', 'Strong arms', 'Carry at once', 'box'],
+      ['fareBonus', 'Charm', 'Every fare', 'ticket'],
     ] as const).map(([key, name, desc, iconName]) => {
       const track = g.econ.conductor[key];
       const level = g.data.conductor[key];
       const cost = conductorCost(track, level);
       const pips = h('div.pips', {}, ...Array.from({ length: track.maxLevel }, (_, i) => h(`i.pip${i < level ? '.on' : ''}` as 'i')));
+      const change = cost === null
+        ? h('p.change', {}, `${desc}: `, h('b', { text: describe(key, level) }))
+        : h('p.change', {}, `${desc}: ${describe(key, level)} → `, h('b', { text: describe(key, level + 1) }));
       return h('div.upgrade', {},
         icon(iconName, 40),
-        h('div.info', {}, h('b', { text: name }), h('p', { text: desc }), pips),
+        h('div.info', {}, h('b', { text: name }), change, pips),
         h('button.btn.primary', {
           style: { height: '44px', fontSize: '16px' },
           disabled: cost === null || g.wallet.get('railMiles') < cost,
@@ -434,6 +505,7 @@ export class Screens {
         b(g.creativeMode ? 'Creative off' : 'Creative on', () => {
           g.creativeMode = !g.creativeMode;
           g.guidance.enabled = !g.creativeMode;
+          g.coach.enabled = !g.creativeMode;
           g.ui.setHidden(g.creativeMode);
           if (g.creativeMode) {
             close();
@@ -459,6 +531,7 @@ export class Screens {
       onclick: () => {
         g.creativeMode = false;
         g.guidance.enabled = true;
+        g.coach.enabled = true;
         g.ui.setHidden(false);
         btn.remove();
       },
@@ -513,4 +586,23 @@ function shade(hex: string, amount: number): string {
   const n = parseInt(hex.slice(1), 16);
   const c = (v: number): number => Math.max(0, Math.min(255, v + amount));
   return `#${((c(n >> 16) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
+}
+
+/** What reaching a route level brings besides the reward: features, a new livery, the press. */
+export function levelPerks(level: number): string[] {
+  const perks: string[] = [];
+  const features: Record<number, string> = {
+    2: 'Conductor upgrades with Rail Miles',
+    3: 'Daily quests',
+    4: 'The daily calendar',
+    5: 'Regular passengers with stories',
+  };
+  if (features[level]) perks.push(features[level]);
+  const livery = LIVERIES.find((l) => l.minLevel === level);
+  if (livery && level > 1) perks.push(`New livery: ${livery.name}`);
+  if (INTERVIEWS.some((i) => i.level === level)) perks.push('A Rails Tonight interview');
+  if (level === NOMINATION_LEVEL) perks.push('A Golden Whistle nomination');
+  const ceremony = CEREMONIES.find((c) => c.level === level);
+  if (ceremony) perks.push(ceremony.title);
+  return perks;
 }

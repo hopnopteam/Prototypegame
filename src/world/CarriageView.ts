@@ -37,6 +37,9 @@ const FLAT: PartStyle = { shade: 1 };
 /** Supply stand steps: stock sits on these. */
 const SHELF_LOW = 0.3;
 const SHELF_HIGH = 0.62;
+/** Room door leaves: height, and each leaf's offset from the partition centre (they pass inside it). */
+const LEAF_HEIGHT = 0.66;
+const LEAF_GAP = 0.022;
 
 /** How a carriage looks at a refurbishment tier: the whole rags-to-riches story in one table. */
 interface Finish {
@@ -81,8 +84,61 @@ function finishFor(type: CarriageType, tier: number, t: CarriageTheme): Finish {
   return { ...base, ...carpetRoom, runner: { body: t.deep, edge: PALETTE.gold }, curtains: true, lamps: 3, decor: true };
 }
 
-interface StockSlots {
-  meshes: THREE.Mesh[];
+interface Slot {
+  x: number;
+  y: number;
+  z: number;
+  ry?: number;
+}
+
+const tmpMatrix = new THREE.Matrix4();
+const tmpQuat = new THREE.Quaternion();
+const tmpPos = new THREE.Vector3();
+const ONE = new THREE.Vector3(1, 1, 1);
+const UP = new THREE.Vector3(0, 1, 0);
+
+/**
+ * A row of stock (towels, rolls, suitcases) as instanced meshes: one draw per look however much is on the
+ * shelf. Slots fill in order; slot i uses geometry i % looks.
+ */
+class StockRack {
+  private readonly meshes: THREE.InstancedMesh[];
+  private shown = -1;
+
+  constructor(parent: THREE.Group, geometries: THREE.BufferGeometry[], slots: Slot[], castShadow = false) {
+    const looks = geometries.length;
+    this.meshes = geometries.map((geometry, k) => {
+      const capacity = Math.max(1, Math.ceil((slots.length - k) / looks));
+      const mesh = new THREE.InstancedMesh(geometry, MATERIALS.solid, capacity);
+      mesh.castShadow = castShadow;
+      mesh.receiveShadow = true;
+      mesh.userData.shared = true;
+      parent.add(mesh);
+      return mesh;
+    });
+    slots.forEach((slot, i) => {
+      tmpQuat.setFromAxisAngle(UP, slot.ry ?? 0);
+      tmpMatrix.compose(tmpPos.set(slot.x, slot.y, slot.z), tmpQuat, ONE);
+      this.meshes[i % looks].setMatrixAt(Math.floor(i / looks), tmpMatrix);
+    });
+    for (const mesh of this.meshes) {
+      mesh.instanceMatrix.needsUpdate = true;
+      // Bounds over every slot, so culling stays right whatever is shown.
+      mesh.computeBoundingSphere();
+      mesh.count = 0;
+    }
+    this.looks = looks;
+  }
+
+  private readonly looks: number;
+
+  show(count: number): void {
+    if (count === this.shown) return;
+    this.shown = count;
+    this.meshes.forEach((mesh, k) => {
+      mesh.count = Math.max(0, Math.min(mesh.instanceMatrix.count, Math.ceil((count - k) / this.looks)));
+    });
+  }
 }
 
 /** A doorway's sliding door: two leaves that telescope into the wall beside it. */
@@ -94,8 +150,10 @@ export interface RoomDoor {
   z: number;
   open: number;
   locked: boolean;
-  leaves: THREE.Mesh[];
   width: number;
+  /** First of this door's two instances in the carriage's leaf mesh, and each leaf's closed position. */
+  instance: number;
+  closedZ: [number, number];
 }
 
 /**
@@ -114,11 +172,13 @@ export class CarriageView {
   private readonly bathroomLocks: THREE.Mesh[] = [];
   private readonly dirt: THREE.Mesh[][] = [];
   private readonly doors: THREE.Mesh[] = [];
-  private readonly bathroomTowels: StockSlots[] = [];
-  private readonly bathroomRolls: StockSlots[] = [];
-  private shelfTowels: StockSlots | null = null;
-  private shelfRolls: StockSlots | null = null;
-  private readonly luggage: StockSlots = { meshes: [] };
+  private readonly bathroomTowels: StockRack[] = [];
+  private readonly bathroomRolls: StockRack[] = [];
+  private shelfTowels: StockRack | null = null;
+  private shelfRolls: StockRack | null = null;
+  private luggage: StockRack | null = null;
+  /** Every room door's two leaves, instanced: one draw for the whole carriage. */
+  private leafMesh: THREE.InstancedMesh | null = null;
   private doorOpen = 0;
   readonly theme: CarriageTheme;
   /** What sleepers are tucked under: matches the bedspread at this tier. */
@@ -131,6 +191,7 @@ export class CarriageView {
     this.blanketColor = tier <= 0 ? PALETTE.greyWool : tier >= 3 ? this.theme.deep : this.theme.blanket;
     this.buildStatic();
     this.buildRooms();
+    this.buildRoomDoors();
     this.buildDoors();
     this.buildStock();
   }
@@ -160,17 +221,17 @@ export class CarriageView {
   }
 
   setBathroomStock(bathroom: number, towels: number, rolls: number): void {
-    showCount(this.bathroomTowels[bathroom], towels);
-    showCount(this.bathroomRolls[bathroom], rolls);
+    this.bathroomTowels[bathroom]?.show(towels);
+    this.bathroomRolls[bathroom]?.show(rolls);
   }
 
   setShelfStock(towels: number, rolls: number): void {
-    showCount(this.shelfTowels, towels);
-    showCount(this.shelfRolls, rolls);
+    this.shelfTowels?.show(towels);
+    this.shelfRolls?.show(rolls);
   }
 
   setLuggageCount(count: number): void {
-    showCount(this.luggage, count);
+    this.luggage?.show(count);
   }
 
   /** 0 = closed, 1 = open. Platform doors slide along the carriage. */
@@ -185,11 +246,13 @@ export class CarriageView {
 
   /** Slides a room door: the front leaf travels a full width, the back leaf half, both into the wall. */
   setRoomDoor(door: RoomDoor, amount: number): void {
-    if (amount === door.open) return;
+    if (amount === door.open || !this.leafMesh) return;
     door.open = amount;
-    const [front, back] = door.leaves;
-    front.position.z = (front.userData.closedZ as number) + amount * door.width;
-    back.position.z = (back.userData.closedZ as number) + amount * door.width * 0.5;
+    for (let k = 0; k < 2; k++) {
+      tmpMatrix.makeTranslation(door.x + (k === 0 ? -LEAF_GAP : LEAF_GAP), FLOOR_Y + LEAF_HEIGHT / 2, door.closedZ[k] + amount * door.width * (k === 0 ? 1 : 0.5));
+      this.leafMesh.setMatrixAt(door.instance + k, tmpMatrix);
+    }
+    this.leafMesh.instanceMatrix.needsUpdate = true;
   }
 
   dispose(): void {
@@ -252,6 +315,7 @@ export class CarriageView {
       buildProp(s, lamps, prop, this.theme, this.tier);
     }
     this.buildDecor(s, f, lamps);
+    this.buildDoorFrames(s);
 
     const add = (builder: GeoBuilder, material: THREE.Material, cast: boolean, receive: boolean): void => {
       if (builder.isEmpty) return;
@@ -466,7 +530,6 @@ export class CarriageView {
         this.group.add(mesh);
         return mesh;
       });
-      this.addRoomDoor('cabin', cabin.index, cabin.door);
     }
 
     for (const bath of this.layout.bathrooms) {
@@ -483,7 +546,6 @@ export class CarriageView {
       this.group.add(group);
       this.bathroomFixtures[bath.index] = group;
       this.bathroomLocks[bath.index] = this.lockOverlay(bath.room);
-      this.addRoomDoor('bath', bath.index, bath.door);
     }
   }
 
@@ -496,40 +558,54 @@ export class CarriageView {
   }
 
   /**
-   * Two door leaves inside the partition's thickness, so they vanish into the wall when open. They sit a
-   * little lower than the wall and wear the carriage's accent, with a frame and threshold, so a doorway
-   * reads as a doorway from above even when it is shut.
+   * Room doors: two leaves per doorway inside the partition's thickness, so they vanish into the wall when
+   * open. They sit a little lower than the wall and wear the carriage's accent, with a frame and a
+   * threshold (built into the static mesh), so a doorway reads as one from above even when shut.
    */
-  private addRoomDoor(kind: 'cabin' | 'bath', index: number, door: [number, number]): void {
-    const width = door[1] - door[0];
+  private buildRoomDoors(): void {
+    const doors: { kind: 'cabin' | 'bath'; index: number; span: [number, number] }[] = [
+      ...this.layout.cabins.map((c) => ({ kind: 'cabin' as const, index: c.index, span: c.door })),
+      ...this.layout.bathrooms.map((b) => ({ kind: 'bath' as const, index: b.index, span: b.door })),
+    ];
+    if (doors.length === 0) return;
+    const width = doors[0].span[1] - doors[0].span[0];
     const leafLength = width / 2;
-    const height = 0.66;
     const x = (PARTITION_X0 + PARTITION_X1) / 2;
     const colour = this.tier <= 0 ? '#A48B72' : this.theme.deep;
-    const metal = this.tier >= 2 ? PALETTE.brass : this.tier <= 0 ? PALETTE.iron : '#C9B79C';
+    const metal = this.doorMetal();
     const leaf = new GeoBuilder()
-      .box(0, 0, 0, 0.035, height, leafLength - 0.01, colour, 0, { shade: 0.85 })
+      .box(0, 0, 0, 0.035, LEAF_HEIGHT, leafLength - 0.01, colour, 0, { shade: 0.85 })
       .box(0, 0.12, 0, 0.04, 0.22, leafLength * 0.6, this.tier <= 0 ? '#C2B29C' : '#E4EEF0', 0, FLAT)
-      .box(0, height / 2 + 0.005, 0, 0.04, 0.012, leafLength - 0.01, metal, 0, FLAT)
+      .box(0, LEAF_HEIGHT / 2 + 0.005, 0, 0.04, 0.012, leafLength - 0.01, metal, 0, FLAT)
       .box(0, -0.04, leafLength * 0.34, 0.05, 0.06, 0.025, metal, 0, FLAT)
       .build();
-    const leaves: THREE.Mesh[] = [];
-    for (const [i, dx] of [[0, -0.022], [1, 0.022]] as const) {
-      const mesh = new THREE.Mesh(leaf, MATERIALS.solid);
-      const closedZ = door[0] + leafLength * (i + 0.5);
-      mesh.position.set(x + dx, FLOOR_Y + height / 2, closedZ);
-      mesh.userData.closedZ = closedZ;
-      mesh.castShadow = true;
-      this.group.add(mesh);
-      leaves.push(mesh);
+    const mesh = new THREE.InstancedMesh(leaf, MATERIALS.solid, doors.length * 2);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    this.leafMesh = mesh;
+    doors.forEach((d, i) => {
+      const closedZ: [number, number] = [d.span[0] + leafLength * 0.5, d.span[0] + leafLength * 1.5];
+      const door: RoomDoor = { kind: d.kind, index: d.index, x, z: (d.span[0] + d.span[1]) / 2, open: -1, locked: false, width, instance: i * 2, closedZ };
+      this.roomDoors.push(door);
+      this.setRoomDoor(door, 0);
+    });
+    mesh.computeBoundingSphere();
+    this.group.add(mesh);
+  }
+
+  private doorMetal(): string {
+    return this.tier >= 2 ? PALETTE.brass : this.tier <= 0 ? PALETTE.iron : '#C9B79C';
+  }
+
+  /** Door frames and thresholds, merged into the carriage's static mesh. */
+  private buildDoorFrames(s: GeoBuilder): void {
+    const x = (PARTITION_X0 + PARTITION_X1) / 2;
+    const thick = PARTITION_X1 - PARTITION_X0;
+    const spans = [...this.layout.cabins.map((c) => c.door), ...this.layout.bathrooms.map((b) => b.door)];
+    for (const span of spans) {
+      for (const z of span) s.box(x, FLOOR_Y + (INTERIOR_WALL_HEIGHT + 0.06) / 2, z, thick + 0.04, INTERIOR_WALL_HEIGHT + 0.06, 0.06, this.finish.cap, 0, { shade: 0.85 });
+      s.box(x, FLOOR_Y + 0.004, (span[0] + span[1]) / 2, thick, 0.008, span[1] - span[0], this.doorMetal(), 0, FLAT);
     }
-    const frame = new GeoBuilder();
-    for (const z of door) frame.box(x, FLOOR_Y + (INTERIOR_WALL_HEIGHT + 0.06) / 2, z, PARTITION_X1 - PARTITION_X0 + 0.04, INTERIOR_WALL_HEIGHT + 0.06, 0.06, this.finish.cap, 0, { shade: 0.85 });
-    frame.box(x, FLOOR_Y + 0.004, (door[0] + door[1]) / 2, PARTITION_X1 - PARTITION_X0, 0.008, width, metal, 0, FLAT);
-    const frameMesh = new THREE.Mesh(frame.build(), MATERIALS.solid);
-    frameMesh.castShadow = true;
-    this.group.add(frameMesh);
-    this.roomDoors.push({ kind, index, x, z: (door[0] + door[1]) / 2, open: 0, locked: false, leaves, width });
   }
 
   private buildDoors(): void {
@@ -572,83 +648,63 @@ export class CarriageView {
         .build(),
     );
 
+    const shelves = new GeoBuilder();
     for (const bath of this.layout.bathrooms) {
       const anchorZ = bath.room.z0 + 1.35;
-      const towels: THREE.Mesh[] = [];
-      const rolls: THREE.Mesh[] = [];
+      const towels: Slot[] = [];
+      const rolls: Slot[] = [];
       for (let i = 0; i < 4; i++) {
-        const tm = new THREE.Mesh(towelGeo, MATERIALS.solid);
-        tm.position.set(INNER - 0.16, FLOOR_Y + 0.62 + (i % 2) * 0.1, anchorZ + Math.floor(i / 2) * 0.24);
-        this.group.add(tm);
-        towels.push(tm);
-        const rm = new THREE.Mesh(rollGeo, MATERIALS.solid);
-        rm.position.set(INNER - 0.12, FLOOR_Y + 0.42 + (i % 2) * 0.15, bath.room.z0 + 1.05 + Math.floor(i / 2) * 0.17);
-        this.group.add(rm);
-        rolls.push(rm);
+        towels.push({ x: INNER - 0.16, y: FLOOR_Y + 0.62 + (i % 2) * 0.1, z: anchorZ + Math.floor(i / 2) * 0.24 });
+        rolls.push({ x: INNER - 0.12, y: FLOOR_Y + 0.42 + (i % 2) * 0.15, z: bath.room.z0 + 1.05 + Math.floor(i / 2) * 0.17 });
       }
       // A little shelf for them.
-      const shelf = new GeoBuilder().box(INNER - 0.14, FLOOR_Y + 0.56, anchorZ + 0.12, 0.26, 0.03, 0.62, PALETTE.oak, 0, FLAT).build();
-      this.group.add(new THREE.Mesh(shelf, MATERIALS.solid));
-      this.bathroomTowels[bath.index] = { meshes: towels };
-      this.bathroomRolls[bath.index] = { meshes: rolls };
+      shelves.box(INNER - 0.14, FLOOR_Y + 0.56, anchorZ + 0.12, 0.26, 0.03, 0.62, PALETTE.oak, 0, FLAT);
+      this.bathroomTowels[bath.index] = new StockRack(this.group, [towelGeo], towels);
+      this.bathroomRolls[bath.index] = new StockRack(this.group, [rollGeo], rolls);
     }
+    if (!shelves.isEmpty) this.group.add(new THREE.Mesh(shelves.build(), MATERIALS.solid));
 
     const towelShelf = this.layout.props.find((p) => p.kind === 'shelfTowel');
     const rollShelf = this.layout.props.find((p) => p.kind === 'shelfRoll');
-    if (towelShelf) this.shelfTowels = { meshes: this.fillShelf(towelShelf.rect, towelGeo, 16, -1) };
-    if (rollShelf) this.shelfRolls = { meshes: this.fillShelf(rollShelf.rect, rollGeo, 16, 1) };
+    if (towelShelf) this.shelfTowels = new StockRack(this.group, [towelGeo], this.shelfSlots(towelShelf.rect, 16, -1));
+    if (rollShelf) this.shelfRolls = new StockRack(this.group, [rollGeo], this.shelfSlots(rollShelf.rect, 16, 1));
 
     const racks = this.layout.props.filter((p) => p.kind === 'rack' || p.kind === 'luggageRack');
-    let n = 0;
+    const cases: Slot[] = [];
     for (const rack of racks) {
       const capacity = rack.kind === 'rack' ? 4 : 8;
       const cols = rack.kind === 'rack' ? 1 : 2;
       const rows = Math.ceil(capacity / cols);
       const depth = rack.rect.z1 - rack.rect.z0;
       for (let i = 0; i < capacity; i++) {
-        const mesh = new THREE.Mesh(suitcaseGeos[n++ % suitcaseGeos.length], MATERIALS.solid);
-        mesh.castShadow = true;
         const col = i % cols;
         const row = Math.floor(i / cols) % rows;
         const layer = Math.floor(i / (cols * rows));
         const x = rack.rect.x0 + (rack.rect.x1 - rack.rect.x0) * ((col + 0.5) / cols);
         const z = rack.rect.z0 + depth * ((row + 0.5) / rows);
-        mesh.position.set(x, FLOOR_Y + 0.86 + layer * 0.28, z);
-        mesh.rotation.y = Math.PI / 2;
-        mesh.visible = false;
-        this.group.add(mesh);
-        this.luggage.meshes.push(mesh);
+        cases.push({ x, y: FLOOR_Y + 0.86 + layer * 0.28, z, ry: Math.PI / 2 });
       }
     }
+    if (cases.length > 0) this.luggage = new StockRack(this.group, suitcaseGeos, cases, true);
   }
 
-  private fillShelf(r: Rect, geometry: THREE.BufferGeometry, count: number, wallSide: number): THREE.Mesh[] {
-    const meshes: THREE.Mesh[] = [];
+  /** Stock positions on a stepped supply stand: the low step (by the aisle) fills first. */
+  private shelfSlots(r: Rect, count: number, wallSide: number): Slot[] {
+    const slots: Slot[] = [];
     const perStep = count / 2;
-    const cols = perStep;
     const quarter = (r.x1 - r.x0) / 4;
     const cx = (r.x0 + r.x1) / 2;
     for (let i = 0; i < count; i++) {
-      const mesh = new THREE.Mesh(geometry, MATERIALS.solid);
-      // Fill the low step first (nearest the aisle), then the high one.
       const high = i >= perStep;
-      const j = i % perStep;
-      const layer = Math.floor(j / cols);
-      const col = j % cols;
-      const x = cx + (high ? wallSide : -wallSide) * quarter;
-      const z = r.z0 + 0.35 + (col + 0.5) * ((r.z1 - r.z0 - 0.7) / cols);
-      mesh.position.set(x, FLOOR_Y + (high ? SHELF_HIGH : SHELF_LOW) + 0.06 + layer * 0.11, z);
-      mesh.visible = false;
-      this.group.add(mesh);
-      meshes.push(mesh);
+      const col = i % perStep;
+      slots.push({
+        x: cx + (high ? wallSide : -wallSide) * quarter,
+        y: FLOOR_Y + (high ? SHELF_HIGH : SHELF_LOW) + 0.06,
+        z: r.z0 + 0.35 + (col + 0.5) * ((r.z1 - r.z0 - 0.7) / perStep),
+      });
     }
-    return meshes;
+    return slots;
   }
-}
-
-function showCount(slots: StockSlots | null | undefined, count: number): void {
-  if (!slots) return;
-  for (let i = 0; i < slots.meshes.length; i++) slots.meshes[i].visible = i < count;
 }
 
 const rectInside = (inner: Rect, outer: Rect): boolean => inner.x0 >= outer.x0 - 0.01 && inner.x1 <= outer.x1 + 0.01 && inner.z0 >= outer.z0 - 0.01 && inner.z1 <= outer.z1 + 0.01;

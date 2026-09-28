@@ -4,6 +4,7 @@ import { GeoBuilder } from './geo';
 import { GANGWAY_LENGTH, LOCOMOTIVE_LENGTH } from './layout';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
+import { signTexture } from './sprites';
 
 /** Steam locomotive at the head of the train (top of the screen). Faces -z. Navy, gold and signal red. */
 export class LocomotiveView {
@@ -11,6 +12,9 @@ export class LocomotiveView {
   /** World position the smoke puffs come out of. */
   readonly chimneyTop = new THREE.Vector3();
   private readonly wheels: THREE.Mesh[] = [];
+  /** The brass nameplate on the tender, facing the train: the player's name for her. */
+  private readonly nameplate: THREE.Mesh;
+  private name = '';
 
   constructor() {
     const back = -GANGWAY_LENGTH;
@@ -101,6 +105,28 @@ export class LocomotiveView {
     }
 
     this.chimneyTop.set(0, 3.4, chimneyZ);
+
+    this.nameplate = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.3), new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false }));
+    this.nameplate.position.set(0, 0.86, back + 0.03);
+    this.nameplate.visible = false;
+    this.group.add(this.nameplate);
+  }
+
+  setName(name: string): void {
+    if (name === this.name) return;
+    this.name = name;
+    const material = this.nameplate.material as THREE.MeshBasicMaterial;
+    material.map?.dispose();
+    material.map = signTexture(name, PALETTE.brass, PALETTE.ink, 640, 96);
+    material.needsUpdate = true;
+    this.nameplate.visible = name.length > 0;
+  }
+
+  /** Repaint once the display font has arrived. */
+  refreshName(): void {
+    const name = this.name;
+    this.name = '';
+    this.setName(name);
   }
 
   update(dt: number, speed: number): void {

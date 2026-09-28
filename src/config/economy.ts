@@ -25,6 +25,8 @@ export const ECONOMY = {
     acceleration: 38,
     radius: 0.3,
     baseCarryCapacity: 3,
+    /** Quick travel (tap a carriage on the train map) walks the route this much faster. */
+    dashMultiplier: 1.8,
   },
 
   zones: {

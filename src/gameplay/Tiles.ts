@@ -117,6 +117,32 @@ export class Tiles {
     this.shortOfCash = anyShort ? this.shortOfCash + dt : 0;
   }
 
+  /**
+   * The tile nearest to a point (within `range`) with its name and what it does, for the label over it. The
+   * locked next-carriage preview says what it is waiting for.
+   */
+  nearTag(p: Vec2, range: number): { label: string; effect: string; x: number; z: number; locked: boolean } | null {
+    let best: TileEntry | null = null;
+    let bestD = range * range;
+    for (const entry of this.entries.values()) {
+      const d = (entry.pos.x - p.x) ** 2 + (entry.pos.z - p.z) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = entry;
+      }
+    }
+    if (best) return { label: best.def.label, effect: best.def.effect, x: best.pos.x, z: best.pos.z, locked: false };
+    if (this.preview) {
+      const pos = this.w.map.rearDeck().tile;
+      if ((pos.x - p.x) ** 2 + (pos.z - p.z) ** 2 < range * range) {
+        const def = UNLOCKS.find((u) => u.id === this.preview!.id);
+        const waiting = def?.requires.map((id) => UNLOCKS.find((u) => u.id === id)).find((u) => u && !this.w.unlocks.isUnlocked(u.id));
+        if (def) return { label: def.label, effect: waiting ? `Unlocks after ${waiting.label}` : def.effect, x: pos.x, z: pos.z, locked: true };
+      }
+    }
+    return null;
+  }
+
   /** The cheapest visible tile, for guidance and cash offers. */
   cheapest(): TileEntry | null {
     let best: TileEntry | null = null;
@@ -209,6 +235,8 @@ export class Tiles {
     w.analytics.log(EVENTS.unlockCompleted, { id: def.id, price: def.price, time: Math.round(w.lifetimeSeconds()) });
     w.analytics.log(EVENTS.currencySpent, { currency: 'cash', amount: def.price, sink: `unlock:${def.kind}` });
     w.events.emit('unlock.completed', { id: def.id, price: def.price, x: entry.pos.x, z: entry.pos.z });
+    // Say what you just bought (the big moments get their own card instead).
+    if (def.kind !== 'couple' && def.kind !== 'refurb') w.ui.toast(`${def.label}: ${def.effect}`, ICON_BY_KIND[def.kind]);
 
     if (def.kind === 'hire' && def.role) {
       w.staff.hire(def.role, def.carriage);

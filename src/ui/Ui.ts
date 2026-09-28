@@ -8,7 +8,12 @@ import type { OfferView } from '../gameplay/Monetization';
 import type { FloatKind } from '../gameplay/UiApi';
 import { h, icon, setText, setVisible } from './dom';
 import type { IconName } from './icons';
+import { PressScreens } from './PressScreens';
 import { Screens } from './Screens';
+import { TrainMapUi } from './TrainMapUi';
+import type { CeremonyDef, InterviewDef } from '../config/press';
+import type { CeremonyResult } from '../gameplay/Press';
+import type { NewsItem } from '../save/SaveData';
 
 interface Floating {
   el: HTMLElement;
@@ -41,7 +46,11 @@ const FLYER_SECONDS = 0.5;
 const BURST_HOLD_SECONDS = 0.35;
 
 const FLOAT_LIFE = 1.15;
+/** Tile labels show for the nearest tile within this many metres, floating this high above it. */
+const TILE_TAG_RANGE = 2.6;
+const TILE_TAG_HEIGHT = 1.35;
 const TOAST_SECONDS = 2.8;
+const NEWS_SECONDS = 4;
 const RESULT_SECONDS = 5.5;
 /** Seconds a queued announcement may wait (behind another one or an open sheet) before it is dropped. */
 const BANNER_MAX_DELAY = 5;
@@ -55,17 +64,28 @@ export class Ui implements GameUi {
   readonly root: HTMLElement;
   game!: Game;
   readonly screens: Screens;
+  readonly pressScreens: PressScreens;
   private readonly floats: Floating[] = [];
   private readonly floatLayer: HTMLElement;
   private readonly toastLayer: HTMLElement;
   private readonly offerLayer: HTMLElement;
   private readonly boostLayer: HTMLElement;
   private readonly pointerEl: HTMLElement;
+  private readonly coachEl: HTMLElement;
+  private readonly coachText: HTMLElement;
+  private readonly coachIcon: HTMLElement;
+  private coachKey = '';
+  private readonly tileTag: HTMLElement;
+  private readonly tileTagName: HTMLElement;
+  private readonly tileTagEffect: HTMLElement;
+  private tileTagKey = '';
+  private readonly trainMap: TrainMapUi;
   private readonly hud: {
     cash: HTMLElement; cashVal: HTMLElement; gems: HTMLElement; gemsVal: HTMLElement; miles: HTMLElement; milesVal: HTMLElement;
     levelBadge: HTMLElement;
     journey: HTMLElement; journeyKicker: HTMLElement; journeyName: HTMLElement; journeyTrain: HTMLElement; journeyTrack: HTMLElement; journeyClock: HTMLElement;
     upgrades: HTMLButtonElement; upgradesDot: HTMLElement; album: HTMLButtonElement; daily: HTMLButtonElement; dailyDot: HTMLElement;
+    gazette: HTMLButtonElement; gazetteDot: HTMLElement;
   };
   private displayedCash = 0;
   private lastCash = 0;
@@ -90,6 +110,7 @@ export class Ui implements GameUi {
   constructor(root: HTMLElement) {
     this.root = root;
     this.screens = new Screens(this);
+    this.pressScreens = new PressScreens(this.screens, this);
 
     const cashVal = h('span.val', { text: '0' });
     const gemsVal = h('span.val', { text: '0' });
@@ -98,7 +119,7 @@ export class Ui implements GameUi {
     const gems = h('div.pill.gems', { 'aria-label': 'Gems' }, icon('gem', 20), gemsVal);
     const miles = h('div.pill.miles', { 'aria-label': 'Rail Miles' }, icon('miles', 20), milesVal);
     const levelBadge = h('div.badge', { text: '1' });
-    const level = h('div.level', { title: 'Route level', role: 'img', 'aria-label': 'Route level' }, levelBadge, icon('star', 20, 'ico star'));
+    const level = h('button.level', { title: 'Route level', 'aria-label': 'Route level', onclick: () => { this.game.audio.play('click'); this.screens.progress(); } }, levelBadge, icon('star', 20, 'ico star'));
     const journeyKicker = h('span.kicker', { text: 'Next' });
     const journeyName = h('span.name', { text: 'Millbrook' });
     const journeyTrain = h('div.train');
@@ -120,8 +141,12 @@ export class Ui implements GameUi {
     const album = button('album', 'Postcard album', () => this.screens.album());
     const daily = button('calendar', 'Daily rewards and quests', () => this.screens.daily());
     daily.appendChild(dailyDot);
+    const gazetteDot = h('span.dot', { hidden: true });
+    const gazette = button('news', 'The Rail Gazette', () => this.pressScreens.gazette());
+    gazette.appendChild(gazetteDot);
     const side = h('div.side', {},
       button('bag', 'Shop', () => this.screens.store()),
+      gazette,
       upgrades,
       daily,
       album,
@@ -136,11 +161,18 @@ export class Ui implements GameUi {
     this.offerLayer = h('div.offers');
     this.boostLayer = h('div.boost');
     this.pointerEl = h('div.pointer', { hidden: true });
+    this.coachIcon = h('span.coach-icon');
+    this.coachText = h('span.coach-text');
+    this.coachEl = h('div.coach', { role: 'status', hidden: true }, this.coachIcon, this.coachText);
+    this.tileTagName = h('b');
+    this.tileTagEffect = h('span');
+    this.tileTag = h('div.tile-tag', { hidden: true }, this.tileTagName, this.tileTagEffect);
+    this.trainMap = new TrainMapUi(() => this.game);
     // Active boosts live at the foot of the rail, so the left of the screen stays clear for the ticket.
     side.appendChild(this.boostLayer);
-    root.append(this.floatLayer, top, side, this.offerLayer, this.toastLayer, this.pointerEl);
+    root.append(this.floatLayer, this.tileTag, top, side, this.trainMap.el, this.coachEl, this.offerLayer, this.toastLayer, this.pointerEl);
 
-    this.hud = { cash, cashVal, gems, gemsVal, miles, milesVal, levelBadge, journey, journeyKicker, journeyName, journeyTrain, journeyTrack, journeyClock, upgrades, upgradesDot, album, daily, dailyDot };
+    this.hud = { cash, cashVal, gems, gemsVal, miles, milesVal, levelBadge, journey, journeyKicker, journeyName, journeyTrain, journeyTrack, journeyClock, upgrades, upgradesDot, album, daily, dailyDot, gazette, gazetteDot };
   }
 
   bind(game: Game): void {
@@ -166,6 +198,9 @@ export class Ui implements GameUi {
     this.updateFloats(dt);
     this.updateBurst(dt);
     this.updatePointer();
+    this.updateCoach();
+    this.updateTileTag();
+    this.trainMap.update(dt);
     if (this.resultEl) {
       this.resultTimer -= dt;
       if (this.resultTimer <= 0) this.dismissResult();
@@ -225,6 +260,11 @@ export class Ui implements GameUi {
     setText(hud.dailyDot, String(dailyCount));
     hud.daily.classList.toggle('glow', dailyCount > 0);
     setVisible(hud.album, g.data.meta.postcards.length > 0);
+    const unread = g.press.unread;
+    setVisible(hud.gazette, g.data.press.items.length > 0);
+    setVisible(hud.gazetteDot, unread > 0);
+    setText(hud.gazetteDot, String(unread));
+    hud.gazette.classList.toggle('glow', unread > 0);
 
     // Boost timers.
     const boostLeft = (g.data.monetization.speedBoostUntil - Date.now()) / 1000;
@@ -372,6 +412,49 @@ export class Ui implements GameUi {
     }
   }
 
+  /** One short coach line under the top bar (the walkthrough, then first-time hints). */
+  private updateCoach(): void {
+    const line = this.hidden ? null : this.game.coach.current;
+    const key = line?.id ?? '';
+    if (key === this.coachKey) return;
+    this.coachKey = key;
+    setVisible(this.coachEl, !!line);
+    if (!line) return;
+    this.coachIcon.replaceChildren(icon(line.icon, 24));
+    this.coachText.textContent = line.text;
+    this.coachEl.classList.remove('in');
+    void this.coachEl.offsetWidth;
+    this.coachEl.classList.add('in');
+  }
+
+  /** Names the nearest tile and says what it does, so nothing is bought blind. */
+  private updateTileTag(): void {
+    const g = this.game;
+    const tag = this.hidden ? null : g.tiles.nearTag(g.player.pos, TILE_TAG_RANGE);
+    const key = tag ? `${tag.label}|${tag.effect}` : '';
+    if (key !== this.tileTagKey) {
+      this.tileTagKey = key;
+      setVisible(this.tileTag, !!tag);
+      if (tag) {
+        this.tileTagName.textContent = tag.label;
+        this.tileTagEffect.textContent = tag.effect;
+        this.tileTag.classList.toggle('locked', tag.locked);
+      }
+    }
+    if (!tag) return;
+    this.tmp.set(tag.x, TILE_TAG_HEIGHT, tag.z);
+    if (!g.stage.project(this.tmp, this.screen)) {
+      this.tileTag.style.opacity = '0';
+      return;
+    }
+    const width = this.tileTag.offsetWidth;
+    const half = width / 2 + SCREEN_MARGIN;
+    const x = Math.min(Math.max(this.screen.x, half), g.stage.size.width - half - 44);
+    const y = Math.max(this.screen.y, this.topBarBottom() + 30);
+    this.tileTag.style.opacity = '1';
+    this.tileTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+  }
+
   private updatePointer(): void {
     const p = this.game.guidance.pointer;
     setVisible(this.pointerEl, p.visible && !this.hidden);
@@ -441,6 +524,7 @@ export class Ui implements GameUi {
     this.announce(BANNER_MAX_DELAY, () => {
       const el = h('div.banner', { role: 'status' }, h('div.sign', { text: title }), h('div.sub', { text: subtitle }));
       this.root.appendChild(el);
+      this.holdCard(2700);
       window.setTimeout(() => el.remove(), 2700);
       return 2.2;
     });
@@ -450,9 +534,18 @@ export class Ui implements GameUi {
     this.announce(CELEBRATE_MAX_DELAY, () => {
       const el = h('div.celebrate', { role: 'status' }, h('div.card', {}, icon(iconName, 56), h('div.big', { text: title }), h('div.small', { text: subtitle })));
       this.root.appendChild(el);
+      this.holdCard(2900);
       window.setTimeout(() => el.remove(), 2900);
       return 2.4;
     });
+  }
+
+  /** While a centre card is up the train map steps aside (the card is wider than the play area's middle). */
+  private cardTimer = 0;
+  private holdCard(ms: number): void {
+    this.root.classList.add('has-card');
+    window.clearTimeout(this.cardTimer);
+    this.cardTimer = window.setTimeout(() => this.root.classList.remove('has-card'), ms);
   }
 
   private announce(maxDelay: number, play: () => number): void {
@@ -510,6 +603,36 @@ export class Ui implements GameUi {
 
   showFirstClassOffer(discounted: boolean, price: string, onBuy: () => void, onClose: () => void): void {
     this.screens.firstClass(discounted, price, onBuy, onClose);
+  }
+
+  // ─── Press ──────────────────────────────────────────────────────────────────
+
+  get busy(): boolean {
+    return this.screens.isOpen;
+  }
+
+  showNaming(suggestions: string[], onDone: (name: string) => void): void {
+    this.pressScreens.naming(suggestions, onDone);
+  }
+
+  showInterview(def: InterviewDef, trainName: string, onAnswer: (index: number) => void): void {
+    this.pressScreens.interview(def, trainName, onAnswer);
+  }
+
+  showCeremony(def: CeremonyDef, results: CeremonyResult[], trainName: string, onDone: () => void): void {
+    this.pressScreens.ceremony(def, results, trainName, onDone);
+  }
+
+  /** A new story in the paper: a newsprint strip with the headline; the Gazette button glows until read. */
+  newsFlash(item: NewsItem): void {
+    const el = h('div.toast.news', {}, icon('news', 22), h('span.kicker', { text: 'Gazette' }), h('span.headline', { text: item.headline }));
+    this.toastLayer.appendChild(el);
+    while (this.toastLayer.children.length > 3) this.toastLayer.firstElementChild?.remove();
+    this.game?.audio.play('pop', { pitch: 1.3, volume: 0.5 });
+    window.setTimeout(() => {
+      el.classList.add('out');
+      window.setTimeout(() => el.remove(), 320);
+    }, NEWS_SECONDS * 1000);
   }
 
   // ─── Mock presenters ────────────────────────────────────────────────────────
