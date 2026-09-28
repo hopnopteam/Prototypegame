@@ -1,5 +1,15 @@
+import type { CarriageType } from '../core/types';
 import type { IconName } from '../ui/icons';
 import type { StationResult } from './events';
+
+export interface CarriageChoiceView {
+  type: CarriageType;
+  name: string;
+  pitch: string;
+  inside: string;
+  /** Why it is recommended now, on the first card only. */
+  reason: string | null;
+}
 
 export type FloatKind = 'cash' | 'star' | 'gem' | 'miles' | 'info';
 
@@ -11,6 +21,8 @@ export interface UiApi {
   showResult(result: StationResult): void;
   speechLine(text: string, x: number, y: number, z: number): void;
   celebrate(title: string, subtitle: string, icon: IconName): void;
+  /** A coupling is paid for: offer the carriages that may join (recommended first). */
+  showCarriageChoice(choices: CarriageChoiceView[], onPick: (type: CarriageType) => void): void;
   /** The player scooped cash: count it up over their head, then send it to the counter. */
   cashCollected(amount: number): void;
 }

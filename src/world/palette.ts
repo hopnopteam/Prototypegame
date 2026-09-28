@@ -54,20 +54,20 @@ export const PALETTE = {
   // Neutrals and materials
   walnut: '#8E6A4C',
   walnutDark: '#6E5140',
-  oak: '#D9B98E',
-  oakMid: '#C7A279',
-  plankWorn: '#C6AC8A',
-  plankWornSeam: '#BBA07E',
-  iron: '#6C6A70',
-  wallWorn: '#E4DACA',
-  wallWornLow: '#C9BBA5',
+  oak: '#E6CFA6',
+  oakMid: '#D9BE91',
+  plankWorn: '#E4DCCB',
+  plankWornSeam: '#D8CEBA',
+  iron: '#7A8591',
+  wallWorn: '#E9EFE6',
+  wallWornLow: '#C9D8CC',
   linen: '#FBF7EF',
   porcelain: '#F7F7F4',
   brass: '#E2B653',
   ink: '#2F2A36',
   mattress: '#FBF7EF',
   pillow: '#FFFFFF',
-  greyWool: '#9C9A9E',
+  greyWool: '#B4BDC7',
   mustard: '#E5B452',
   mustardDark: '#C99A3E',
   raspberry: '#C0606A',
@@ -116,7 +116,7 @@ export const PALETTE = {
   cash: '#7CC47F',
   cashEdge: '#3F8A4C',
   cashBand: '#F4EBC8',
-  zone: '#FFFDF8',
+  zone: '#56708F',
   zoneActive: '#F2B233',
 };
 
@@ -165,7 +165,7 @@ export interface Livery {
 }
 
 export const LIVERIES: Livery[] = [
-  { id: 'rust', minLevel: 1, name: 'Rust & Soot', body: '#A0705A', trim: '#D9CBB4' },
+  { id: 'primer', minLevel: 1, name: 'Workshop Grey', body: '#7F8E9B', trim: '#EDE6D6' },
   { id: 'meadow', minLevel: 2, name: 'Meadow Green', body: '#5E8A6A', trim: '#EFE6D2' },
   { id: 'navy', minLevel: 4, name: 'Midnight Navy', body: '#34507A', trim: '#F1E6CC' },
   { id: 'royal', minLevel: 6, name: 'Royal Blue & Gold', body: '#2F4C82', trim: '#E2B653' },

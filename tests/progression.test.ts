@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ECONOMY } from '../src/config/economy';
-import { UNLOCKS } from '../src/config/content';
+import { DEFAULT_TRAIN, MAX_CARRIAGES } from '../src/config/content';
+import type { CarriageType } from '../src/core/types';
+import { allowedCarriages, buildUnlocks, carriageChoices, legacyCarriages, migrateLegacyId } from '../src/sim/unlockPlan';
 import { Progression } from '../src/sim/Progression';
 import { UnlockChain } from '../src/sim/UnlockChain';
 import { Wallet } from '../src/sim/Wallet';
@@ -56,55 +58,102 @@ describe('Progression', () => {
   });
 });
 
+const UNLOCKS = buildUnlocks(DEFAULT_TRAIN);
+
 describe('UnlockChain', () => {
   const makeChain = (flags: Record<string, boolean> = {}) => new UnlockChain(UNLOCKS, { unlocked: [], partial: {} }, () => flags);
 
   it('shows only the first tile at the start', () => {
-    expect(makeChain().available().map((d) => d.id)).toEqual(['cabin_0_1']);
+    expect(makeChain().available().map((d) => d.id)).toEqual(['c0.cabin_1']);
   });
 
   it('takes payment in instalments and completes once', () => {
     const chain = makeChain();
-    expect(chain.pay('cabin_0_1', 4)).toBe(4);
-    expect(chain.complete('cabin_0_1')).toBe(false);
-    expect(chain.pay('cabin_0_1', 100)).toBe(16);
-    expect(chain.complete('cabin_0_1')).toBe(true);
-    expect(chain.complete('cabin_0_1')).toBe(false);
-    expect(chain.available().map((d) => d.id)).toEqual(['cabin_0_2']);
+    expect(chain.pay('c0.cabin_1', 4)).toBe(4);
+    expect(chain.complete('c0.cabin_1')).toBe(false);
+    expect(chain.pay('c0.cabin_1', 100)).toBe(16);
+    expect(chain.complete('c0.cabin_1')).toBe(true);
+    expect(chain.complete('c0.cabin_1')).toBe(false);
+    expect(chain.available().map((d) => d.id)).toEqual(['c0.cabin_2']);
   });
 
   it('waits for gameplay flags (hire after the first manual clean)', () => {
     const flags: Record<string, boolean> = {};
-    const chain = new UnlockChain(UNLOCKS, { unlocked: ['cabin_0_1', 'cabin_0_2'], partial: {} }, () => flags);
-    expect(chain.isAvailable('hire_attendant_0')).toBe(false);
+    const chain = new UnlockChain(UNLOCKS, { unlocked: ['c0.cabin_1', 'c0.cabin_2'], partial: {} }, () => flags);
+    expect(chain.isAvailable('c0.hire_attendant')).toBe(false);
     flags.firstCabinCleaned = true;
-    expect(chain.isAvailable('hire_attendant_0')).toBe(true);
+    expect(chain.isAvailable('c0.hire_attendant')).toBe(true);
   });
 
-  it('every requirement refers to a real unlock and the chain has no dead ends', () => {
-    const ids = new Set(UNLOCKS.map((u) => u.id));
-    for (const def of UNLOCKS) for (const r of def.requires) expect(ids.has(r)).toBe(true);
-    const chain = new UnlockChain(UNLOCKS, { unlocked: [], partial: {} }, () => ({ firstCabinCleaned: true }));
-    let guard = 0;
-    while (chain.available().length > 0 && guard++ < 100) {
-      for (const def of chain.available()) chain.forceComplete(def.id);
+  it('every requirement refers to a real unlock and every chosen train has no dead ends', () => {
+    const trains: CarriageType[][] = [
+      [...DEFAULT_TRAIN],
+      ['lobby', 'sleeper', 'bathroom', 'sleeper', 'supply'],
+      ['lobby', 'luggage', 'sleeper', 'bathroom', 'supply'],
+    ];
+    for (const train of trains) {
+      const defs = buildUnlocks(train);
+      const ids = new Set(defs.map((u) => u.id));
+      for (const def of defs) for (const r of def.requires) expect(ids.has(r), `${train.join(',')}: ${def.id} needs ${r}`).toBe(true);
+      const chain = new UnlockChain(defs, { unlocked: [], partial: {} }, () => ({ firstCabinCleaned: true }));
+      let guard = 0;
+      while (chain.available().length > 0 && guard++ < 200) {
+        for (const def of chain.available()) chain.forceComplete(def.id);
+      }
+      expect(defs.every((u) => chain.isUnlocked(u.id)), train.join(',')).toBe(true);
     }
-    expect(UNLOCKS.every((u) => chain.isUnlocked(u.id))).toBe(true);
   });
 
   it('points at the cheapest available tile', () => {
-    const chain = new UnlockChain(UNLOCKS, { unlocked: ['cabin_0_1', 'cabin_0_2', 'hire_attendant_0'], partial: {} }, () => ({}));
-    expect(chain.cheapestAvailable()?.id).toBe('refurb_0_1');
+    const chain = new UnlockChain(UNLOCKS, { unlocked: ['c0.cabin_1', 'c0.cabin_2', 'c0.hire_attendant'], partial: {} }, () => ({}));
+    expect(chain.cheapestAvailable()?.id).toBe('c0.refurb_1');
+  });
+
+  it('keeps completed tiles when the chain grows with a new carriage', () => {
+    const state = { unlocked: ['c0.cabin_1'], partial: {} };
+    const chain = new UnlockChain(buildUnlocks(['lobby']), state, () => ({}));
+    chain.setDefs(buildUnlocks(['lobby', 'sleeper']));
+    expect(chain.isUnlocked('c0.cabin_1')).toBe(true);
+    expect(chain.get('c1.cabin_0')?.label).toBe('Cabin 4');
   });
 
   it('refurbishes every carriage one tier at a time, and says what each tile does', () => {
     for (const def of UNLOCKS) expect(def.effect.length, def.id).toBeGreaterThan(0);
-    const refurbs = UNLOCKS.filter((u) => u.kind === 'refurb');
-    for (const def of refurbs) {
+    for (const def of UNLOCKS.filter((u) => u.kind === 'refurb')) {
       const tier = def.tier ?? 0;
       expect(tier, def.id).toBeGreaterThanOrEqual(1);
-      if (tier > 1) expect(def.requires, def.id).toContain(`refurb_${def.carriage}_${tier - 1}`);
-      expect(def.id).toBe(`refurb_${def.carriage}_${tier}`);
+      if (tier > 1) expect(def.requires, def.id).toContain(`c${def.carriage}.refurb_${tier - 1}`);
+      expect(def.id).toBe(`c${def.carriage}.refurb_${tier}`);
     }
+  });
+});
+
+describe('carriage choice', () => {
+  const none = { leftBehind: 0, luggageLeft: 0 };
+
+  it('recommends a washroom car first, then its supplies', () => {
+    expect(carriageChoices(['lobby'], none)[0]).toEqual({ type: 'bathroom', reason: expect.any(String) });
+    expect(carriageChoices(['lobby'], none).map((c) => c.type)).not.toContain('supply');
+    expect(carriageChoices(['lobby', 'bathroom'], none)[0].type).toBe('supply');
+  });
+
+  it('recommends beds when guests were left behind, racks when bags were', () => {
+    expect(carriageChoices(['lobby', 'bathroom', 'supply'], { leftBehind: 3, luggageLeft: 0 })[0].type).toBe('sleeper');
+    expect(carriageChoices(['lobby', 'bathroom', 'supply'], { leftBehind: 0, luggageLeft: 4 })[0].type).toBe('luggage');
+  });
+
+  it('respects each type\'s limit and the train length', () => {
+    expect(allowedCarriages(['lobby', 'sleeper', 'sleeper'])).not.toContain('sleeper');
+    expect(allowedCarriages([...DEFAULT_TRAIN])).toEqual([]);
+    expect(MAX_CARRIAGES).toBe(DEFAULT_TRAIN.length);
+  });
+
+  it('maps pre-choice save ids onto carriage slots', () => {
+    expect(migrateLegacyId('cabin_0_1')).toBe('c0.cabin_1');
+    expect(migrateLegacyId('hire_attendant_0')).toBe('c0.hire_attendant');
+    expect(migrateLegacyId('refurb_4_2')).toBe('c4.refurb_2');
+    expect(migrateLegacyId('up_runner_2')).toBe('c2.up_runner');
+    expect(migrateLegacyId('couple_3')).toBe('couple_3');
+    expect(legacyCarriages(['couple_1', 'couple_2'])).toEqual(['lobby', 'bathroom', 'supply']);
   });
 });

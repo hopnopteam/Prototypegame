@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { ROUTE1_CARRIAGES, UNLOCKS, type UnlockDef } from '../config/content';
+import { CARRIAGE_CATALOGUE, MAX_CARRIAGES, type UnlockDef } from '../config/content';
+import { buildUnlocks, carriageChoices } from '../sim/unlockPlan';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Vec2 } from '../core/types';
 import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
@@ -136,6 +137,11 @@ export class TrainState {
   tiers: number[] = [];
   luggageStored = 0;
   coupling = false;
+  /** The chooser is open. */
+  private choosing = false;
+  private pendingChoice = false;
+  private lastLeftBehind = 0;
+  private lastLuggageLeft = 0;
   private doorTarget = 0;
   private doorAmount = 0;
   private smokeTimer = 0;
@@ -154,9 +160,48 @@ export class TrainState {
     if (this.w.data.press.trainName) this.loco.setName(this.w.data.press.trainName);
     this.w.events.on('train.named', ({ name }) => this.loco.setName(name));
     document.fonts?.ready.then(() => this.loco.refreshName()).catch(() => undefined);
-    const coupled = ROUTE1_CARRIAGES.filter((_, i) => i === 0 || this.w.unlocks.isUnlocked(`couple_${i}`)).length;
-    for (let i = 0; i < coupled; i++) this.addCarriage(ROUTE1_CARRIAGES[i].type, false);
+    for (const type of this.w.data.route.carriages) this.addCarriage(type, false);
+    // A coupling was paid for but the choice never made (the app closed on the chooser): ask again.
+    this.pendingChoice = this.w.unlocks.isUnlocked(`couple_${this.count}`);
+    this.w.events.on('station.result', (r) => {
+      this.lastLeftBehind = r.leftBehind;
+      this.lastLuggageLeft = r.luggageTotal - r.luggageLoaded;
+    });
     this.rebuildMap();
+  }
+
+  /** Display name: the catalogue name, numbered when the train has more than one of a kind. */
+  carriageName(index: number): string {
+    const type = this.types[index] ?? this.w.data.route.carriages[index];
+    if (!type) return 'Carriage';
+    const name = CARRIAGE_CATALOGUE[type].name;
+    const nth = this.w.data.route.carriages.slice(0, index + 1).filter((t) => t === type).length;
+    return nth > 1 ? `${name} ${'I'.repeat(nth)}` : name;
+  }
+
+  /**
+   * A coupling has been paid for: the player chooses what joins the train (recommended pick first), then
+   * it rolls in. The unlock chain grows the new carriage's tiles.
+   */
+  requestCoupling(onDone?: () => void): void {
+    const w = this.w;
+    if (this.coupling || this.choosing) return;
+    const choices = carriageChoices(w.data.route.carriages, { leftBehind: this.lastLeftBehind, luggageLeft: this.lastLuggageLeft });
+    if (choices.length === 0) return;
+    this.choosing = true;
+    this.pendingChoice = false;
+    w.audio.play('fanfare');
+    w.ui.showCarriageChoice(choices.map((c) => {
+      const entry = CARRIAGE_CATALOGUE[c.type];
+      return { type: c.type, name: entry.name, pitch: entry.pitch, inside: entry.inside, reason: c.reason };
+    }), (type) => {
+      this.choosing = false;
+      w.data.route.carriages.push(type);
+      w.unlocks.setDefs(buildUnlocks(w.data.route.carriages));
+      w.save.markDirty();
+      w.analytics.log('carriage_chosen', { type, slot: this.count, offered: choices.map((c) => c.type).join(',') });
+      this.coupleNext(type, onDone);
+    });
   }
 
   get count(): number {
@@ -243,20 +288,17 @@ export class TrainState {
       case 'refurb':
         this.refurbish(def.carriage, def.tier ?? 1, animate);
         break;
-      case 'couple':
-        if (animate) this.coupleNext();
-        break;
       default:
         break;
     }
   }
 
-  /** Rolls the next carriage in from off-screen and couples it with a clunk. */
-  coupleNext(onDone?: () => void): void {
+  /** Rolls the chosen carriage in from off-screen and couples it with a clunk. */
+  coupleNext(type: CarriageType, onDone?: () => void): void {
     const index = this.types.length;
-    const plan = ROUTE1_CARRIAGES[index];
-    if (!plan || this.coupling) return;
+    if (this.coupling) return;
     this.coupling = true;
+    const plan = { type, name: '' };
     const view = new CarriageView(getLayout(plan.type), index, this.savedTier(index));
     const targetZ = carriageOriginZ(index);
     const startZ = targetZ + 48;
@@ -284,7 +326,7 @@ export class TrainState {
         const cz = targetZ - 0.6;
         w.particles.emit('dust', 0, FLOOR_Y + 0.3, cz, 28, 1.2);
         w.particles.emit('confetti', 0, FLOOR_Y + 2.5, targetZ + 2, 60, 1.5);
-        w.ui.celebrate(plan.name, 'Coupled!', 'carriage');
+        w.ui.celebrate(this.carriageName(index), 'Coupled!', 'carriage');
         w.events.emit('carriage.coupled', { index, type: plan.type });
         this.coupling = false;
         onDone?.();
@@ -294,6 +336,7 @@ export class TrainState {
 
   update(dt: number): void {
     const w = this.w;
+    if (this.pendingChoice && dt > 0) this.requestCoupling(() => w.tiles.refresh());
     const speed = w.journey.speed;
     this.loco.update(dt, speed);
 
@@ -327,7 +370,12 @@ export class TrainState {
     if (w.player) this.updateRoomDoors(dt);
 
     // Keep visuals in sync with state (cheap: a handful of visibility flags).
-    for (const cabin of this.cabins) this.views[cabin.carriage]?.setDirt(cabin.index, cabin.dirty);
+    for (const cabin of this.cabins) {
+      const view = this.views[cabin.carriage];
+      if (!view) continue;
+      view.setDirt(cabin.index, cabin.dirty);
+      for (let i = 0; i < cabin.spotZones.length; i++) if (cabin.dirty[i]) view.setDirtFade(cabin.index, i, cabin.spotZones[i].progress);
+    }
     for (const bath of this.bathrooms) this.views[bath.carriage]?.setBathroomStock(bath.layout.index, bath.towels, bath.rolls);
     const supply = this.indexOfType('supply');
     if (supply !== null) this.views[supply].setShelfStock(Math.ceil(this.supplyTowel / 1), Math.ceil(this.supplyRoll / 1));
@@ -383,7 +431,7 @@ export class TrainState {
 
   private savedTier(index: number): number {
     let tier = 0;
-    for (const u of UNLOCKS) if (u.kind === 'refurb' && u.carriage === index && this.w.unlocks.isUnlocked(u.id)) tier = Math.max(tier, u.tier ?? 1);
+    for (const u of this.w.unlocks.defs) if (u.kind === 'refurb' && u.carriage === index && this.w.unlocks.isUnlocked(u.id)) tier = Math.max(tier, u.tier ?? 1);
     return tier;
   }
 
@@ -418,7 +466,7 @@ export class TrainState {
     w.particles.emit('confetti', 0, FLOOR_Y + 2.2, originZ + 7, 40, 1.8);
     view.group.scale.set(1, 0.9, 1);
     w.tweens.run(0.6, (t) => view.group.scale.set(1, 0.9 + 0.1 * t, 1), { ease: easeOutBack });
-    w.ui.celebrate(ROUTE1_CARRIAGES[index]?.name ?? 'Carriage', TIER_NAMES[tier] ?? 'Refurbished', 'wrench');
+    w.ui.celebrate(this.carriageName(index), TIER_NAMES[tier] ?? 'Refurbished', 'paint');
     w.events.emit('carriage.refurbished', { index, type, tier });
   }
 
@@ -456,7 +504,7 @@ export class TrainState {
 
   rebuildMap(): void {
     const w = this.w;
-    const moreToCome = ROUTE1_CARRIAGES.length > this.types.length;
+    const moreToCome = MAX_CARRIAGES > this.types.length;
     w.map.rebuild(this.types, w.journey.doorsOpen, moreToCome);
     this.deck.visible = moreToCome;
     this.deck.position.z = w.map.rearZ;
@@ -517,8 +565,8 @@ export class TrainState {
       z: spot.z,
       radius: 0.36,
       icon: null,
-      color: '#F2E6C9',
-      hideWhenInactive: true,
+      // The mess itself is the marker: it fades as you scrub (no ring cluttering the cabin).
+      ring: false,
       active: () => cabin.dirty[i] && !cabin.guest,
       stay: (zone, actor, dt) => {
         zone.progress += (dt / w.econ.zones.cleanSpotSeconds) * actor.workMultiplier;

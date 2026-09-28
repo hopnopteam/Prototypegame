@@ -75,20 +75,6 @@ export const ARCHETYPES: ArchetypeDef[] = [
   },
 ];
 
-/** Carriages in route 1, in coupling order. Index 0 is on the train from the start. */
-export interface CarriagePlan {
-  type: CarriageType;
-  name: string;
-}
-
-export const ROUTE1_CARRIAGES: CarriagePlan[] = [
-  { type: 'lobby', name: 'Sleeper & Lobby' },
-  { type: 'bathroom', name: 'Bathroom Car' },
-  { type: 'supply', name: 'Supply Car' },
-  { type: 'luggage', name: 'Luggage Car' },
-  { type: 'sleeper', name: 'Sleeper Car II' },
-];
-
 export type UnlockKind = 'cabin' | 'hire' | 'couple' | 'bathroom' | 'refurb' | 'staffUpgrade';
 
 export interface UnlockDef {
@@ -107,56 +93,139 @@ export interface UnlockDef {
   role?: StaffRole;
   /** Refurbishment tier this tile brings the carriage to (1 Freshly painted … 3 Luxurious). */
   tier?: number;
-  /** What it does, in a few words, shown on the tile card so no purchase is a mystery. */
+  /** What it does, in a few words, shown on the tile label so no purchase is a mystery. */
   effect: string;
 }
 
 /**
- * The unlock chain: each completion reveals the next tiles, so the next goal is always visible and
- * 20–60 seconds away (§9). Prices are tuned to the §14 first-session timeline.
- *
- * Rags to riches: every carriage arrives second-hand (tier 0: putty walls, iron cots, bare bulbs) and is
- * refurbished tier by tier. Refurbs are the train visibly getting better AND the main fare multiplier.
+ * A tile inside a carriage, before it knows which slot the carriage took. `requires` lists keys of this
+ * carriage's other tiles, 'couple' (the coupling that brought this carriage), or '@<id>' for any tile on
+ * the train. '{n}' in a label becomes the train-wide cabin number.
  */
-export const UNLOCKS: UnlockDef[] = [
-  { id: 'cabin_0_1', kind: 'cabin', label: 'Cabin 2', price: 20, stars: 2, carriage: 0, cabin: 1, requires: [], effect: 'Room for one more guest' },
-  { id: 'cabin_0_2', kind: 'cabin', label: 'Cabin 3', price: 35, stars: 2, carriage: 0, cabin: 2, requires: ['cabin_0_1'], effect: 'Room for one more guest' },
-  { id: 'hire_attendant_0', kind: 'hire', label: 'Attendant', price: 45, stars: 3, carriage: 0, role: 'attendant', requires: ['cabin_0_2'], flags: ['firstCabinCleaned'], effect: 'Cleans cabins for you' },
-  { id: 'couple_1', kind: 'couple', label: 'Bathroom Car', price: 130, stars: 6, carriage: 1, requires: ['hire_attendant_0'], effect: 'Guests tip for a washroom' },
-  { id: 'refurb_0_1', kind: 'refurb', label: 'Fresh Paint', price: 40, stars: 3, carriage: 0, tier: 1, requires: ['hire_attendant_0'], effect: 'Fares +25% in this carriage' },
-  { id: 'couple_2', kind: 'couple', label: 'Supply Car', price: 95, stars: 6, carriage: 2, requires: ['couple_1'], effect: 'Towels and loo rolls on tap' },
-  { id: 'bath_1_1', kind: 'bathroom', label: 'Washroom 2', price: 50, stars: 2, carriage: 1, bathroom: 1, requires: ['couple_2'], effect: 'Shorter washroom queues' },
-  { id: 'refurb_1_1', kind: 'refurb', label: 'Scrub & Tile', price: 60, stars: 3, carriage: 1, tier: 1, requires: ['couple_2'], effect: 'Washroom tips +50%' },
-  { id: 'hire_runner_2', kind: 'hire', label: 'Supply Runner', price: 80, stars: 3, carriage: 2, role: 'runner', requires: ['couple_2'], effect: 'Restocks washrooms for you' },
-  { id: 'refurb_0_2', kind: 'refurb', label: 'Cosy Makeover', price: 110, stars: 4, carriage: 0, tier: 2, requires: ['couple_2', 'refurb_0_1'], effect: 'Fares +25% more in this carriage' },
-  { id: 'refurb_2_1', kind: 'refurb', label: 'Fresh Paint', price: 55, stars: 3, carriage: 2, tier: 1, requires: ['hire_runner_2'], effect: 'Every tip on the train +5%' },
-  { id: 'hire_porter_0', kind: 'hire', label: 'Porter', price: 130, stars: 3, carriage: 0, role: 'porter', requires: ['hire_runner_2'], effect: 'Checks guests in and loads luggage' },
-  { id: 'up_attendant_0', kind: 'staffUpgrade', label: 'Attendant Training', price: 110, stars: 2, carriage: 0, role: 'attendant', requires: ['hire_porter_0'], effect: 'Attendant +20% speed, +1 carry' },
-  { id: 'couple_3', kind: 'couple', label: 'Luggage Car', price: 260, stars: 8, carriage: 3, requires: ['hire_porter_0'], effect: 'Room for 16 more suitcases' },
-  { id: 'bath_1_2', kind: 'bathroom', label: 'Bath Suite', price: 150, stars: 3, carriage: 1, bathroom: 2, requires: ['bath_1_1', 'couple_3'], effect: 'A third washroom, with a tub' },
-  { id: 'hire_porter_3', kind: 'hire', label: 'Luggage Porter', price: 200, stars: 3, carriage: 3, role: 'porter', requires: ['couple_3'], effect: 'Carries luggage to the back' },
-  { id: 'refurb_3_1', kind: 'refurb', label: 'Fresh Paint', price: 90, stars: 3, carriage: 3, tier: 1, requires: ['couple_3'], effect: 'Every tip on the train +5%' },
-  { id: 'refurb_1_2', kind: 'refurb', label: 'Cosy Washrooms', price: 180, stars: 4, carriage: 1, tier: 2, requires: ['couple_3', 'refurb_1_1'], effect: 'Washroom tips +50% more' },
-  { id: 'couple_4', kind: 'couple', label: 'Sleeper Car II', price: 400, stars: 8, carriage: 4, requires: ['couple_3'], effect: 'Five more cabins' },
-  { id: 'cabin_4_0', kind: 'cabin', label: 'Cabin 4', price: 60, stars: 2, carriage: 4, cabin: 0, requires: ['couple_4'], effect: 'Room for one more guest' },
-  { id: 'cabin_4_1', kind: 'cabin', label: 'Cabin 5', price: 90, stars: 2, carriage: 4, cabin: 1, requires: ['cabin_4_0'], effect: 'Room for one more guest' },
-  { id: 'refurb_4_1', kind: 'refurb', label: 'Fresh Paint', price: 120, stars: 3, carriage: 4, tier: 1, requires: ['cabin_4_0'], effect: 'Fares +25% in this carriage' },
-  { id: 'hire_attendant_4', kind: 'hire', label: 'Attendant', price: 240, stars: 3, carriage: 4, role: 'attendant', requires: ['cabin_4_1'], effect: 'Cleans this car\'s cabins' },
-  { id: 'cabin_4_2', kind: 'cabin', label: 'Cabin 6', price: 130, stars: 2, carriage: 4, cabin: 2, requires: ['cabin_4_1'], effect: 'Room for one more guest' },
-  { id: 'cabin_4_3', kind: 'cabin', label: 'Cabin 7', price: 180, stars: 2, carriage: 4, cabin: 3, requires: ['cabin_4_2'], effect: 'Room for one more guest' },
-  { id: 'cabin_4_4', kind: 'cabin', label: 'Cabin 8', price: 240, stars: 2, carriage: 4, cabin: 4, requires: ['cabin_4_3'], effect: 'Room for one more guest' },
-  { id: 'refurb_4_2', kind: 'refurb', label: 'Cosy Makeover', price: 260, stars: 4, carriage: 4, tier: 2, requires: ['cabin_4_2', 'refurb_4_1'], effect: 'Fares +25% more in this carriage' },
-  { id: 'refurb_0_3', kind: 'refurb', label: 'Luxury Refit', price: 380, stars: 5, carriage: 0, tier: 3, requires: ['couple_4', 'refurb_0_2'], effect: 'Fares +25% more, and it shows' },
-  { id: 'refurb_1_3', kind: 'refurb', label: 'Marble & Brass', price: 340, stars: 5, carriage: 1, tier: 3, requires: ['couple_4', 'refurb_1_2'], effect: 'Washroom tips +50% more' },
-  { id: 'refurb_2_2', kind: 'refurb', label: 'Cosy Makeover', price: 220, stars: 4, carriage: 2, tier: 2, requires: ['couple_4', 'refurb_2_1'], effect: 'Every tip on the train +5% more' },
-  { id: 'refurb_3_2', kind: 'refurb', label: 'Cosy Makeover', price: 240, stars: 4, carriage: 3, tier: 2, requires: ['couple_4', 'refurb_3_1'], effect: 'Every tip on the train +5% more' },
-  { id: 'up_porter_0', kind: 'staffUpgrade', label: 'Porter Training', price: 300, stars: 2, carriage: 0, role: 'porter', requires: ['couple_4'], effect: 'Porter +20% speed, +1 carry' },
-  { id: 'up_runner_2', kind: 'staffUpgrade', label: 'Runner Training', price: 260, stars: 2, carriage: 2, role: 'runner', requires: ['couple_4'], effect: 'Runner +20% speed, +1 carry' },
-  { id: 'up_attendant_4', kind: 'staffUpgrade', label: 'Attendant Training', price: 380, stars: 2, carriage: 4, role: 'attendant', requires: ['hire_attendant_4'], effect: 'Attendant +20% speed, +1 carry' },
-  { id: 'refurb_4_3', kind: 'refurb', label: 'Luxury Refit', price: 480, stars: 5, carriage: 4, tier: 3, requires: ['cabin_4_4', 'refurb_4_2'], effect: 'Fares +25% more, and it shows' },
-  { id: 'refurb_2_3', kind: 'refurb', label: 'Luxury Refit', price: 420, stars: 5, carriage: 2, tier: 3, requires: ['refurb_0_3', 'refurb_2_2'], effect: 'Every tip on the train +5% more' },
-  { id: 'refurb_3_3', kind: 'refurb', label: 'Luxury Refit', price: 440, stars: 5, carriage: 3, tier: 3, requires: ['refurb_0_3', 'refurb_3_2'], effect: 'Every tip on the train +5% more' },
+export interface UnlockTemplate {
+  key: string;
+  kind: Exclude<UnlockKind, 'couple'>;
+  label: string;
+  price: number;
+  stars: number;
+  requires: string[];
+  flags?: string[];
+  cabin?: number;
+  bathroom?: number;
+  role?: StaffRole;
+  tier?: number;
+  effect: string;
+}
+
+/**
+ * The carriage catalogue: what can join the train, and the tiles that come with each. When a coupling is
+ * paid for, the player picks the next carriage from what is allowed (the growing train is theirs to
+ * design).
+ */
+export interface CarriageDef {
+  type: CarriageType;
+  name: string;
+  /** One line for the chooser card: why you would want it. */
+  pitch: string;
+  /** How many a route-1 train may have. */
+  max: number;
+  /** Offered only once the train has one of these. */
+  needs?: CarriageType[];
+  /** Cabins in its floor plan (for train-wide cabin numbers on tiles). */
+  cabins: number;
+  /** What is inside, for the chooser card. */
+  inside: string;
+  unlocks: UnlockTemplate[];
+}
+
+export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
+  lobby: {
+    type: 'lobby', name: 'Sleeper & Lobby', pitch: 'Where it all began.', max: 1, cabins: 3, inside: 'Reception desk, 3 cabins',
+    unlocks: [
+      { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 20, stars: 2, cabin: 1, requires: [], effect: 'Room for one more guest' },
+      { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 35, stars: 2, cabin: 2, requires: ['cabin_1'], effect: 'Room for one more guest' },
+      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 45, stars: 3, role: 'attendant', requires: ['cabin_2'], flags: ['firstCabinCleaned'], effect: 'Cleans cabins for you' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Fresh Paint', price: 40, stars: 3, tier: 1, requires: ['hire_attendant'], effect: 'Fares +25% in this carriage' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 110, stars: 4, tier: 2, requires: ['refurb_1', '@couple_2'], effect: 'Fares +25% more in this carriage' },
+      { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 130, stars: 3, role: 'porter', requires: ['@couple_2'], effect: 'Checks guests in and loads luggage' },
+      { key: 'up_attendant', kind: 'staffUpgrade', label: 'Attendant Training', price: 110, stars: 2, role: 'attendant', requires: ['hire_porter'], effect: 'Attendant +20% speed, +1 carry' },
+      { key: 'up_porter', kind: 'staffUpgrade', label: 'Porter Training', price: 300, stars: 2, role: 'porter', requires: ['@couple_4'], effect: 'Porter +20% speed, +1 carry' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 380, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Fares +25% more, and it shows' },
+    ],
+  },
+  bathroom: {
+    type: 'bathroom', name: 'Bathroom Car', pitch: 'Every guest tips for a fresh washroom.', max: 1, cabins: 0, inside: 'Up to 3 washrooms',
+    unlocks: [
+      { key: 'bath_1', kind: 'bathroom', label: 'Washroom 2', price: 50, stars: 2, bathroom: 1, requires: ['couple', '@couple_2'], effect: 'Shorter washroom queues' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Scrub & Tile', price: 60, stars: 3, tier: 1, requires: ['couple', '@couple_2'], effect: 'Washroom tips +50%' },
+      { key: 'bath_2', kind: 'bathroom', label: 'Bath Suite', price: 150, stars: 3, bathroom: 2, requires: ['bath_1', '@couple_3'], effect: 'A third washroom, with a tub' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Washrooms', price: 180, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Washroom tips +50% more' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Marble & Brass', price: 340, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Washroom tips +50% more' },
+    ],
+  },
+  supply: {
+    type: 'supply', name: 'Supply Car', pitch: 'Towels and loo rolls on tap for the washrooms.', max: 1, needs: ['bathroom'], cabins: 0, inside: 'Shelves, crate bay, a runner',
+    unlocks: [
+      { key: 'hire_runner', kind: 'hire', label: 'Supply Runner', price: 80, stars: 3, role: 'runner', requires: ['couple'], effect: 'Restocks washrooms for you' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Fresh Paint', price: 55, stars: 3, tier: 1, requires: ['hire_runner'], effect: 'Every tip on the train +5%' },
+      { key: 'up_runner', kind: 'staffUpgrade', label: 'Runner Training', price: 260, stars: 2, role: 'runner', requires: ['hire_runner', '@couple_4'], effect: 'Runner +20% speed, +1 carry' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 220, stars: 4, tier: 2, requires: ['refurb_1', '@couple_4'], effect: 'Every tip on the train +5% more' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 420, stars: 5, tier: 3, requires: ['refurb_2', '@c0.refurb_3'], effect: 'Every tip on the train +5% more' },
+    ],
+  },
+  luggage: {
+    type: 'luggage', name: 'Luggage Car', pitch: 'Room for 16 more suitcases: every bag tips.', max: 1, cabins: 0, inside: 'Racks for 16 bags, a porter',
+    unlocks: [
+      { key: 'hire_porter', kind: 'hire', label: 'Luggage Porter', price: 200, stars: 3, role: 'porter', requires: ['couple'], effect: 'Carries luggage to the back' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Fresh Paint', price: 90, stars: 3, tier: 1, requires: ['couple'], effect: 'Every tip on the train +5%' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 240, stars: 4, tier: 2, requires: ['refurb_1', '@couple_4'], effect: 'Every tip on the train +5% more' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 440, stars: 5, tier: 3, requires: ['refurb_2', '@c0.refurb_3'], effect: 'Every tip on the train +5% more' },
+    ],
+  },
+  sleeper: {
+    type: 'sleeper', name: 'Sleeper Car', pitch: 'Five more cabins: more guests, more fares.', max: 2, cabins: 5, inside: '5 cabins and a linen nook',
+    unlocks: [
+      { key: 'cabin_0', kind: 'cabin', label: 'Cabin {n}', price: 60, stars: 2, cabin: 0, requires: ['couple'], effect: 'Room for one more guest' },
+      { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 90, stars: 2, cabin: 1, requires: ['cabin_0'], effect: 'Room for one more guest' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Fresh Paint', price: 120, stars: 3, tier: 1, requires: ['cabin_0'], effect: 'Fares +25% in this carriage' },
+      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 240, stars: 3, role: 'attendant', requires: ['cabin_1'], effect: "Cleans this car's cabins" },
+      { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 130, stars: 2, cabin: 2, requires: ['cabin_1'], effect: 'Room for one more guest' },
+      { key: 'cabin_3', kind: 'cabin', label: 'Cabin {n}', price: 180, stars: 2, cabin: 3, requires: ['cabin_2'], effect: 'Room for one more guest' },
+      { key: 'cabin_4', kind: 'cabin', label: 'Cabin {n}', price: 240, stars: 2, cabin: 4, requires: ['cabin_3'], effect: 'Room for one more guest' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 260, stars: 4, tier: 2, requires: ['cabin_2', 'refurb_1'], effect: 'Fares +25% more in this carriage' },
+      { key: 'up_attendant', kind: 'staffUpgrade', label: 'Attendant Training', price: 380, stars: 2, role: 'attendant', requires: ['hire_attendant'], effect: 'Attendant +20% speed, +1 carry' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 480, stars: 5, tier: 3, requires: ['cabin_4', 'refurb_2'], effect: 'Fares +25% more, and it shows' },
+    ],
+  },
+};
+
+/** Types the player may choose at a coupling, in default order. */
+export const CHOOSABLE: CarriageType[] = ['bathroom', 'supply', 'sleeper', 'luggage'];
+
+/** The train a new player grows by following the recommended picks (previews and tests use it too). */
+export const DEFAULT_TRAIN: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper'];
+
+/** Couplings: each adds one carriage of the player's choice. */
+export interface CoupleSlot {
+  price: number;
+  stars: number;
+  requires: string[];
+}
+
+export const COUPLE_SLOTS: CoupleSlot[] = [
+  { price: 130, stars: 6, requires: ['c0.hire_attendant'] },
+  { price: 95, stars: 6, requires: ['couple_1'] },
+  { price: 260, stars: 8, requires: ['couple_2', 'c0.hire_porter'] },
+  { price: 400, stars: 8, requires: ['couple_3'] },
 ];
+/** Route 1 holds this many carriages: fewer than the catalogue offers, so every pick is a real choice. */
+export const MAX_CARRIAGES = COUPLE_SLOTS.length + 1;
+
+/** Each later slot makes a carriage's own tiles this much dearer (a second sleeper is a bigger step). */
+export const SLOT_PRICE_STEP = 0.15;
+
+/** Pre-v3 saves grew in this fixed order; the migration maps their ids onto carriage slots. */
+export const LEGACY_TRAIN: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper'];
 
 /** Old unlock ids and what they became, for save migration (bedding upgrades became refurbishments). */
 export const RENAMED_UNLOCKS: Record<string, string> = {

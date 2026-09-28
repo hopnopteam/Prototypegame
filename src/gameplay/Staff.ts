@@ -318,7 +318,7 @@ export class StaffManager {
     const luggageCarPorter = w.train.types[m.carriage] === 'luggage';
     if (w.journey.doorsOpen) {
       // Board first: guests waiting is the most visible thing on a platform.
-      if (!luggageCarPorter && w.guests.platformGuests().length > 0 && !this.someoneAt('board', m)) {
+      if (!luggageCarPorter && w.guests.canBoard() && !this.someoneAt('board', m)) {
         const zone = station.boardingPoint();
         return {
           label: 'board', icon: 'ticket',

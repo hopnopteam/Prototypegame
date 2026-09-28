@@ -90,6 +90,11 @@ export const ECONOMY = {
     magnetRadius: 1.1,
   },
 
+  tiles: {
+    /** Unlock tiles on show at once besides the coupling (fewer choices, clearer next goal). */
+    maxVisible: 2,
+  },
+
   /** Carriage refurbishment (rags to riches): what each tier is worth, by carriage type. */
   refurb: {
     /** Sleeper cabins: fare multiplier per tier (3 tiers: x1.75). */

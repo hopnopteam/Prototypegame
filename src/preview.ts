@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARCHETYPES, ROUTE1_CARRIAGES } from './config/content';
+import { ARCHETYPES, DEFAULT_TRAIN } from './config/content';
 import { BED_TOP, CarriageView, FLOOR_Y } from './world/CarriageView';
 import { CharacterView, CONDUCTOR_LOOK, STAFF_LOOKS } from './world/CharacterView';
 import { carriageOriginZ, getLayout } from './world/layout';
@@ -33,7 +33,7 @@ const tierParam = params.get('tier');
 const tiers = params.get('tiers') ?? '';
 const liv = liveryFor(Number(params.get('level') ?? '1'));
 setLivery(liv.body, liv.trim);
-ROUTE1_CARRIAGES.slice(0, count).forEach((c, i) => {
+DEFAULT_TRAIN.map((type) => ({ type })).slice(0, count).forEach((c, i) => {
   const tier = tierParam !== null ? Number(tierParam) : Number(tiers[i] ?? '0');
   const view = new CarriageView(getLayout(c.type), i, tier);
   view.group.position.z = carriageOriginZ(i);

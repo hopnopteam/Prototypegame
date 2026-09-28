@@ -121,7 +121,7 @@ export const MATERIALS = {
 
 /** 0 = day, 1 = full night. */
 const DAY_TINT = new THREE.Color('#FFFFFF');
-const NIGHT_TINT = new THREE.Color('#3E4C7E');
+const NIGHT_TINT = new THREE.Color('#5E6FA6');
 
 /**
  * 0 = day, 1 = full night. Night is staged, not simulated: the lights stay warm (the train's own lamps)
@@ -129,7 +129,7 @@ const NIGHT_TINT = new THREE.Color('#3E4C7E');
  */
 export function setNightAmount(amount: number): void {
   MATERIALS.scenery.color.copy(DAY_TINT).lerp(NIGHT_TINT, amount);
-  MATERIALS.ground.color.copy(DAY_TINT).lerp(NIGHT_TINT, amount * 0.92);
+  MATERIALS.ground.color.copy(DAY_TINT).lerp(NIGHT_TINT, amount * 0.85);
   MATERIALS.solid.emissiveIntensity = 0.06 * amount;
   MATERIALS.livery.emissiveIntensity = 0.05 * amount;
   MATERIALS.liveryTrim.emissiveIntensity = 0.05 * amount;
@@ -177,23 +177,27 @@ export function createZoneMaterial(color: string): THREE.ShaderMaterial {
       uniform float uLit;
       varying vec2 vUv;
       const float PI = 3.14159265;
+      // Rounded square: a painted floor pad, like a station marking.
+      float roundBox(vec2 p, vec2 b, float r) {
+        vec2 q = abs(p) - b + r;
+        return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+      }
       void main() {
         vec2 p = vUv * 2.0 - 1.0;
-        float r = length(p);
-        if (r > 1.0) discard;
-        float aa = fwidth(r) * 1.5;
-        float ring = smoothstep(0.76 - aa, 0.76 + aa, r) * (1.0 - smoothstep(0.96 - aa, 0.96 + aa, r));
-        // Dashed outline while idle, solid once it matters: reads like a painted floor marking.
+        float d = roundBox(p, vec2(0.9), 0.34);
+        float aa = fwidth(d) * 1.2;
+        float inside = 1.0 - smoothstep(-aa, aa, d);
+        if (inside <= 0.0) discard;
+        float border = smoothstep(-0.13 - aa, -0.13 + aa, d) * inside;
         float angle = atan(p.x, p.y);
         float a = (angle + PI) / (2.0 * PI);
-        float dash = mix(step(0.35, fract(a * 16.0)), 1.0, max(uLit, step(0.001, uProgress)));
         float filled = step(a, uProgress) * step(0.001, uProgress);
-        float disc = (1.0 - smoothstep(0.72, 0.76, r)) * filled;
-        float glow = uPulse * (0.16 + 0.1 * sin(uTime * 6.0)) * (1.0 - smoothstep(0.0, 0.8, r));
-        float lit = uLit * (0.3 + 0.14 * sin(uTime * 5.0)) * (1.0 - smoothstep(0.1, 0.8, r));
-        vec3 color = mix(mix(uColor, uFill, uLit * 0.85), uFill, max(filled * ring, disc));
-        float alpha = max(ring * dash * (0.9 + 0.1 * filled), disc * 0.5) + glow + lit;
-        gl_FragColor = vec4(color, alpha * uOpacity);
+        float breathe = 0.5 + 0.5 * sin(uTime * 4.0);
+        vec3 edge = mix(uColor, uFill, max(uLit, step(0.001, uProgress)));
+        vec3 color = mix(vec3(1.0, 0.99, 0.96), uFill, filled * 0.85 + uLit * 0.25);
+        color = mix(color, edge, border);
+        float alpha = inside * (0.34 + 0.2 * uLit * breathe + 0.4 * filled + 0.1 * uPulse) + border * 0.62;
+        gl_FragColor = vec4(color, min(1.0, alpha) * uOpacity);
       }
     `,
   });

@@ -18,14 +18,16 @@ interface Key {
  * storybook look), with a low warm sun at golden hour and a cool moon at night.
  */
 const KEYS: Key[] = [
-  { t: 0.0, sky: '#F2E4C4', hemiSky: '#FFF6E8', hemiGround: '#A7B386', hemi: 1.55, sun: '#FFF0D8', sunIntensity: 2.1, night: 0 },
-  { t: 0.42, sky: '#F2E4C4', hemiSky: '#FFF6E8', hemiGround: '#A7B386', hemi: 1.55, sun: '#FFF0D8', sunIntensity: 2.1, night: 0 },
-  { t: 0.56, sky: '#F5CFA0', hemiSky: '#FFE6C4', hemiGround: '#A99270', hemi: 1.45, sun: '#FFC98A', sunIntensity: 1.95, night: 0.04 },
-  { t: 0.66, sky: '#E7A18E', hemiSky: '#F5BFB0', hemiGround: '#7A6A74', hemi: 1.3, sun: '#FF9E78', sunIntensity: 1.35, night: 0.45 },
-  { t: 0.74, sky: '#1F2A4A', hemiSky: '#FFE6C8', hemiGround: '#6A5C66', hemi: 1.2, sun: '#FFD9AE', sunIntensity: 0.75, night: 1 },
-  { t: 0.9, sky: '#1F2A4A', hemiSky: '#FFE6C8', hemiGround: '#6A5C66', hemi: 1.2, sun: '#FFD9AE', sunIntensity: 0.75, night: 1 },
-  { t: 0.96, sky: '#EDBBA6', hemiSky: '#F8D6C2', hemiGround: '#857B6E', hemi: 1.4, sun: '#FFCFA2', sunIntensity: 1.5, night: 0.3 },
-  { t: 1.0, sky: '#F2E4C4', hemiSky: '#FFF6E8', hemiGround: '#A7B386', hemi: 1.55, sun: '#FFF0D8', sunIntensity: 2.1, night: 0 },
+  { t: 0.0, sky: '#F2E8D0', hemiSky: '#FFF8EC', hemiGround: '#AEB894', hemi: 1.6, sun: '#FFF4E2', sunIntensity: 2.05, night: 0 },
+  { t: 0.5, sky: '#F2E8D0', hemiSky: '#FFF8EC', hemiGround: '#AEB894', hemi: 1.6, sun: '#FFF4E2', sunIntensity: 2.05, night: 0 },
+  // Golden hour and dusk stay soft: warm light, never an orange wash over the whole scene.
+  { t: 0.6, sky: '#F6DDBA', hemiSky: '#FFF0DC', hemiGround: '#A8A58A', hemi: 1.55, sun: '#FFE0B8', sunIntensity: 1.9, night: 0.03 },
+  { t: 0.68, sky: '#E9B9A8', hemiSky: '#F8E0D8', hemiGround: '#8C8A98', hemi: 1.45, sun: '#FFC8A4', sunIntensity: 1.4, night: 0.4 },
+  // Night is moonlit and readable: cool, bright ambient; the train glows warm against it.
+  { t: 0.75, sky: '#2A3A62', hemiSky: '#D6DEF6', hemiGround: '#6E7690', hemi: 1.45, sun: '#C8D6FF', sunIntensity: 0.95, night: 1 },
+  { t: 0.9, sky: '#2A3A62', hemiSky: '#D6DEF6', hemiGround: '#6E7690', hemi: 1.45, sun: '#C8D6FF', sunIntensity: 0.95, night: 1 },
+  { t: 0.96, sky: '#EFCDBC', hemiSky: '#FAE6DA', hemiGround: '#949080', hemi: 1.5, sun: '#FFE0C4', sunIntensity: 1.6, night: 0.25 },
+  { t: 1.0, sky: '#F2E8D0', hemiSky: '#FFF8EC', hemiGround: '#AEB894', hemi: 1.6, sun: '#FFF4E2', sunIntensity: 2.05, night: 0 },
 ];
 
 const a = new THREE.Color();

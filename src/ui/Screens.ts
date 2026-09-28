@@ -3,7 +3,9 @@ import { formatDuration, formatNumber } from '../core/math';
 import type { DoubleChoice } from '../gameplay/GameUi';
 import { CEREMONIES, INTERVIEWS, NOMINATION_LEVEL } from '../config/press';
 import { conductorCost } from '../sim/meta';
-import { LIVERIES, liveryFor } from '../world/palette';
+import { CARRIAGE_THEMES, LIVERIES, liveryFor } from '../world/palette';
+import type { CarriageChoiceView } from '../gameplay/UiApi';
+import type { CarriageType } from '../core/types';
 import { h, icon } from './dom';
 import type { IconName } from './icons';
 import type { Ui } from './Ui';
@@ -92,6 +94,38 @@ export class Screens {
       h('div.reward', {}, h('span', {}, icon('miles', 30), `+${reward.railMiles}`), h('span', {}, icon('cash', 30), `+${formatNumber(reward.cash)}`)),
       this.doubleButtons(gemCost, finish),
     ], { closable: false, center: true });
+  }
+
+  /**
+   * The coupling moment: which carriage joins the train? Cards for what the train may take next, the
+   * recommended one first with the reason it would help right now.
+   */
+  carriageChoice(choices: CarriageChoiceView[], onPick: (type: CarriageType) => void): void {
+    let close: () => void = () => undefined;
+    const icons: Record<CarriageType, IconName> = { lobby: 'ticket', bathroom: 'bath', supply: 'towel', luggage: 'luggage', sleeper: 'bed' };
+    const cards = choices.map((c, i) => {
+      const theme = CARRIAGE_THEMES[c.type];
+      return h(`button.carriage-card${i === 0 && c.reason ? '.recommended' : ''}` as 'button', {
+        'data-default': i === 0 ? '' : undefined,
+        onclick: () => {
+          close();
+          onPick(c.type);
+        },
+      },
+        h('div.art', { style: { background: theme.wall } }, h('span.disc', { style: { background: theme.deep } }, icon(icons[c.type], 40))),
+        h('div.info', {},
+          i === 0 && c.reason ? h('span.ribbon', { text: 'Recommended' }) : null,
+          h('b', { text: c.name }),
+          h('span.pitch', { text: c.pitch }),
+          h('span.inside', { text: c.inside }),
+          i === 0 && c.reason ? h('span.reason', { text: c.reason }) : null,
+        ),
+      );
+    });
+    close = this.sheet('Choose your next carriage', 'carriage', [
+      h('p.lead', { text: 'Your train, your design. Which carriage joins next?' }),
+      h('div.carriage-cards', {}, ...cards),
+    ], { closable: false, center: true, className: 'chooser' });
   }
 
   /** Tap the level ring: where you are, what the next level brings, and who to overtake. */

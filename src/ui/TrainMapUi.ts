@@ -54,7 +54,7 @@ export class TrainMapUi {
       slot.badge.replaceChildren();
       setVisible(slot.badge, !!need);
       if (need) slot.badge.appendChild(icon(need.icon as IconName, 18));
-      const name = g.carriagePlan[i]?.name ?? `Carriage ${i + 1}`;
+      const name = g.train.carriageName(i);
       slot.button.setAttribute('aria-label', need ? `${name}: ${need.label}. Tap to go there.` : `${name}. Tap to go there.`);
     }
   }

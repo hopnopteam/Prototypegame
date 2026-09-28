@@ -12,14 +12,26 @@ export interface UnlockState {
 export class UnlockChain {
   private readonly byId = new Map<string, UnlockDef>();
   private readonly done: Set<string>;
+  private list: readonly UnlockDef[] = [];
 
   constructor(
-    readonly defs: readonly UnlockDef[],
+    defs: readonly UnlockDef[],
     private readonly state: UnlockState,
     private readonly flags: () => Record<string, boolean>,
   ) {
-    for (const def of defs) this.byId.set(def.id, def);
+    this.setDefs(defs);
     this.done = new Set(state.unlocked);
+  }
+
+  get defs(): readonly UnlockDef[] {
+    return this.list;
+  }
+
+  /** The chain changes shape when the player picks a carriage: new tiles appear, completed ones stay. */
+  setDefs(defs: readonly UnlockDef[]): void {
+    this.list = defs;
+    this.byId.clear();
+    for (const def of defs) this.byId.set(def.id, def);
   }
 
   get(id: string): UnlockDef | undefined {

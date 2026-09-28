@@ -1,9 +1,11 @@
+import type { CarriageType } from '../core/types';
+
 /**
  * Everything persisted for the player. Rules that keep old saves loading forever:
  * - Adding a field: give it a default in createDefaultSave(); loading deep-merges defaults, no version bump.
  * - Renaming, removing or changing the meaning of a field: bump SAVE_VERSION and add a migration.
  */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface QuestState {
   kind: string;
@@ -62,6 +64,8 @@ export interface SaveData {
     id: string;
     stars: number;
     level: number;
+    /** The carriages in the order the player chose them (index 0 is the lobby car). */
+    carriages: CarriageType[];
     unlocked: string[];
     /** Money already paid into tiles that are not finished yet. */
     partial: Record<string, number>;
@@ -125,7 +129,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {} },
     settings: { sound: true, music: true, haptics: true, devTools: false },
     wallet: { cash: 0, gems: 0, railMiles: 0 },
-    route: { id: 'countryside', stars: 0, level: 1, unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0 },
+    route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0 },
     staff: {},
     conductor: { speed: 0, capacity: 0, fareBonus: 0 },
     facilities: { supplyTowel: -1, supplyRoll: -1, bathrooms: [] },

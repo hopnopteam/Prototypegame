@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { AudioEngine } from '../audio/AudioEngine';
 import { Haptics } from '../audio/Haptics';
-import { PRODUCTS, ROUTE1_CARRIAGES, UNLOCKS } from '../config/content';
+import { CARRIAGE_CATALOGUE, PRODUCTS } from '../config/content';
 import { ECONOMY, type Economy } from '../config/economy';
 import { EventBus } from '../core/EventBus';
 import { log } from '../core/log';
@@ -21,6 +21,7 @@ import { offlineEarnings } from '../sim/meta';
 import { Progression } from '../sim/Progression';
 import { TrainMap } from '../sim/TrainMap';
 import { UnlockChain } from '../sim/UnlockChain';
+import { buildUnlocks } from '../sim/unlockPlan';
 import { Wallet } from '../sim/Wallet';
 import { FLOOR_Y } from '../world/CarriageView';
 import { carriageOriginZ } from '../world/layout';
@@ -141,7 +142,7 @@ export class Game implements World {
       this.save.markDirty();
     });
     this.progression = new Progression(this.econ.progression, this.data.route);
-    this.unlocks = new UnlockChain(UNLOCKS, this.data.route, () => this.data.profile.flags);
+    this.unlocks = new UnlockChain(buildUnlocks(this.data.route.carriages), this.data.route, () => this.data.profile.flags);
     const route = this.data.route;
     this.journey = new Journey(this.econ.journey, {
       onPhase: (phase, previous) => {
@@ -547,7 +548,7 @@ export class Game implements World {
     location.reload();
   }
 
-  get carriagePlan(): typeof ROUTE1_CARRIAGES {
-    return ROUTE1_CARRIAGES;
+  get catalogue(): typeof CARRIAGE_CATALOGUE {
+    return CARRIAGE_CATALOGUE;
   }
 }

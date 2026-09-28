@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { UNLOCKS, type UnlockDef } from '../config/content';
+import type { UnlockDef } from '../config/content';
 import type { Vec2 } from '../core/types';
 import { EVENTS } from '../services/analytics';
 import type { IconName } from '../ui/icons';
@@ -52,26 +52,56 @@ export class Tiles {
     }).catch(() => undefined);
   }
 
+  /**
+   * Shows the next goals, never a floor full of price tags: the coupling tile (the big goal) plus at most
+   * a couple of others, each the next step in its own carriage, cheapest first. During the first minute
+   * only one tile is shown, so the first lesson is unmistakable.
+   */
   refresh(): void {
     const w = this.w;
-    const available = new Set(w.unlocks.available().map((d) => d.id));
+    const available = w.unlocks.available();
+    const availableIds = new Set(available.map((d) => d.id));
     for (const [id, entry] of this.entries) {
-      if (!available.has(id)) this.removeEntry(id, entry);
+      if (!availableIds.has(id)) this.removeEntry(id, entry);
     }
-    for (const def of w.unlocks.available()) {
-      if (this.entries.has(def.id)) continue;
-      if (def.kind === 'couple' && (w.train.coupling || def.carriage !== w.train.count)) continue;
-      if (def.carriage >= w.train.count && def.kind !== 'couple') continue;
+    const eligible = available.filter((def) => {
+      if (def.kind === 'couple') return !w.train.coupling && def.carriage === w.train.count;
+      return def.carriage < w.train.count;
+    });
+    const couple = eligible.find((d) => d.kind === 'couple');
+    if (couple && !this.entries.has(couple.id)) {
+      const pos = this.positionFor(couple);
+      if (pos) this.addEntry(couple, pos);
+    }
+    const cap = w.data.profile.ftue.first_unlock === undefined ? 1 : w.econ.tiles.maxVisible;
+    let shown = [...this.entries.values()].filter((e) => e.def.kind !== 'couple').length;
+    if (shown >= cap) {
+      this.refreshPreview();
+      return;
+    }
+    // One candidate per carriage (the first in its designed order), then the cheapest of those.
+    const firstPerCarriage = new Map<number, UnlockDef>();
+    for (const def of eligible) {
+      if (def.kind === 'couple' || this.entries.has(def.id)) continue;
+      if ([...this.entries.values()].some((e) => e.def.carriage === def.carriage && e.def.kind !== 'couple')) continue;
+      if (!firstPerCarriage.has(def.carriage)) firstPerCarriage.set(def.carriage, def);
+    }
+    const candidates = [...firstPerCarriage.values()].sort((a, b) => w.unlocks.remaining(a.id) - w.unlocks.remaining(b.id));
+    // Anything already part-paid comes first: a tile you have put money into never disappears.
+    for (const def of eligible) if (def.kind !== 'couple' && !this.entries.has(def.id) && w.unlocks.paid(def.id) > 0 && !candidates.includes(def)) candidates.unshift(def);
+    for (const def of candidates) {
+      if (shown >= cap) break;
       const pos = this.positionFor(def);
       if (!pos) continue;
       this.addEntry(def, pos);
+      shown++;
     }
     this.refreshPreview();
   }
 
   private refreshPreview(): void {
     const w = this.w;
-    const next = UNLOCKS.find((u) => u.kind === 'couple' && u.carriage === w.train.count);
+    const next = w.unlocks.defs.find((u) => u.kind === 'couple' && u.carriage === w.train.count);
     const show = !!next && !w.train.coupling && !w.unlocks.isAvailable(next.id) && !w.unlocks.isUnlocked(next.id);
     if (!show || (this.preview && this.preview.id !== next!.id)) {
       if (this.preview) {
@@ -125,6 +155,8 @@ export class Tiles {
     let best: TileEntry | null = null;
     let bestD = range * range;
     for (const entry of this.entries.values()) {
+      // Standing on it: the tile face shows the fill, and a label would sit on the conductor's head.
+      if (entry.zone.playerInside) return null;
       const d = (entry.pos.x - p.x) ** 2 + (entry.pos.z - p.z) ** 2;
       if (d < bestD) {
         bestD = d;
@@ -135,8 +167,9 @@ export class Tiles {
     if (this.preview) {
       const pos = this.w.map.rearDeck().tile;
       if ((pos.x - p.x) ** 2 + (pos.z - p.z) ** 2 < range * range) {
-        const def = UNLOCKS.find((u) => u.id === this.preview!.id);
-        const waiting = def?.requires.map((id) => UNLOCKS.find((u) => u.id === id)).find((u) => u && !this.w.unlocks.isUnlocked(u.id));
+        const defs = this.w.unlocks.defs;
+        const def = defs.find((u) => u.id === this.preview!.id);
+        const waiting = def?.requires.map((id) => defs.find((u) => u.id === id)).find((u) => u && !this.w.unlocks.isUnlocked(u.id));
         if (def) return { label: def.label, effect: waiting ? `Unlocks after ${waiting.label}` : def.effect, x: pos.x, z: pos.z, locked: true };
       }
     }
@@ -245,7 +278,7 @@ export class Tiles {
     } else if (def.kind === 'staffUpgrade' && def.role) {
       w.staff.upgrade(def.role, def.carriage);
     } else if (def.kind === 'couple') {
-      w.train.coupleNext(() => this.refresh());
+      w.train.requestCoupling(() => this.refresh());
     } else {
       w.train.applyUnlock(def, true);
     }

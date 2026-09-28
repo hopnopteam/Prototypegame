@@ -112,7 +112,7 @@ export class Guidance {
     const stack = player.stack;
 
     if (w.journey.doorsOpen) {
-      const boarding = w.guests.platformGuests().length > 0 && w.staff.count('porter') === 0;
+      const boarding = w.guests.canBoard() && w.staff.count('porter') === 0;
       if (boarding && stack.isEmpty) return w.station.boardingPoint();
       if (!stack.isFull && w.demand.playerWants('luggage') > 0 && !stack.has('luggage')) return w.station.luggagePoint();
     }

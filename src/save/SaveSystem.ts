@@ -1,4 +1,5 @@
 import { RENAMED_UNLOCKS } from '../config/content';
+import { legacyCarriages, migrateLegacyId } from '../sim/unlockPlan';
 import { log } from '../core/log';
 import { createDefaultSave, mergeDefaults, SAVE_VERSION, type SaveData } from './SaveData';
 import type { SaveStorage } from './SaveStorage';
@@ -28,6 +29,23 @@ export const SAVE_MIGRATIONS: SaveMigration[] = [
           }
         }
       }
+    },
+  },
+  {
+    // v2 → v3: the player now chooses each carriage, so tile ids are relative to carriage slots and the
+    // save records the chosen order (old saves grew in the old fixed order).
+    from: 2,
+    apply(raw) {
+      const route = raw.route as { unlocked?: string[]; partial?: Record<string, number>; carriages?: string[] } | undefined;
+      if (!route) return;
+      const unlocked = Array.isArray(route.unlocked) ? route.unlocked.map(migrateLegacyId) : [];
+      route.unlocked = unlocked;
+      if (route.partial) {
+        const partial: Record<string, number> = {};
+        for (const [id, paid] of Object.entries(route.partial)) partial[migrateLegacyId(id)] = paid;
+        route.partial = partial;
+      }
+      route.carriages = legacyCarriages(unlocked);
     },
   },
 ];

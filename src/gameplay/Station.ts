@@ -158,15 +158,12 @@ export class Station {
     this.spawnedForStop = stopSerial;
     w.guests.removePlatformGuests();
     const econ = w.econ.guests;
-    const staying = w.guests.stayingPast(stopSerial);
-    const free = Math.max(0, w.train.openCabinCount() - staying);
+    // Enough travellers to fill every free bed, plus one or two more who will have to wait for the next
+    // train: visible demand that says "build more cabins".
+    const free = w.guests.bedsFree(stopSerial);
     const extra = w.rng.int(econ.extraBoarders[0], econ.extraBoarders[1]);
-    const room = Math.max(0, w.guests.queueCapacity - w.guests.queue.length);
-    // Enough guests to fill the free cabins plus a couple waiting (a reason to clean and unlock), but
-    // never a crowd that piles up stop after stop when every cabin is full.
-    const wanted = free + extra - w.guests.queue.length;
     const early = w.data.route.stopsCompleted < 2 ? econ.minBoarders : 1;
-    const count = Math.min(room, Math.max(early, Math.min(econ.maxBoarders, wanted)));
+    const count = Math.max(early, Math.min(econ.maxBoarders, free + extra));
     const spots = this.waitingSpots(count);
     const story = w.meta.storyGuestForStop();
     const guests = w.guests.spawnPlatformGuests(spots, story);
@@ -208,7 +205,10 @@ export class Station {
 
   private finishStop(): void {
     const w = this.w;
-    const waiting = w.guests.platformGuests().length;
+    const onPlatform = w.guests.platformGuests().length;
+    // Only guests who had a bed count against a perfect stop; the rest are demand, not a miss.
+    const waiting = Math.min(onPlatform, w.guests.bedsFree());
+    const leftBehind = onPlatform - waiting;
     const storageFull = w.train.luggageStored >= w.train.luggageCapacity;
     const clean = waiting === 0 && (this.luggagePile === 0 || storageFull);
     let bonusCash = 0;
@@ -227,6 +227,7 @@ export class Station {
       stationName: this.currentStation().name,
       boarded: this.boardedThisStop,
       waiting,
+      leftBehind,
       alighted: this.alightedThisStop,
       tips: this.tipsThisStop,
       luggageLoaded: this.luggageLoadedThisStop,
@@ -270,10 +271,10 @@ export class Station {
       z: door.outside.z,
       radius: 0.6,
       icon: 'ticket',
-      active: () => w.journey.doorsOpen && w.guests.platformGuests().length > 0,
+      active: () => w.journey.doorsOpen && w.guests.canBoard(),
       hideWhenInactive: true,
       stay: (zone, actor, dt) => {
-        if (w.guests.queue.length >= w.guests.queueCapacity) return false;
+        if (!w.guests.canBoard()) return false;
         zone.progress += (dt / w.econ.zones.boardIntervalSeconds) * actor.workMultiplier;
         if (zone.progress < 1) return true;
         zone.progress = 0;

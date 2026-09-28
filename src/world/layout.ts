@@ -31,6 +31,12 @@ export const INTERIOR_END = CARRIAGE_LENGTH - REAR_VESTIBULE - 0.06;
 export const PLATFORM_X0 = HALF_WIDTH + 0.25;
 export const PLATFORM_WIDTH = 6.5;
 
+/** The lobby queue: slot 0 at the desk, then a straight line toward the entrance, then along the door. */
+export const QUEUE_SLOTS: Vec2[] = [
+  { x: -0.1, z: 2.8 }, { x: 0.55, z: 2.8 }, { x: 1.2, z: 2.8 },
+  { x: 1.2, z: 3.45 }, { x: 0.55, z: 3.45 }, { x: -0.1, z: 3.45 },
+];
+
 export type PropKind =
   | 'bed' | 'desk' | 'urn' | 'linen' | 'rack' | 'bin' | 'toilet' | 'sink' | 'bathtub'
   | 'shelfTowel' | 'shelfRoll' | 'crateBay' | 'bench' | 'luggageRack' | 'plant' | 'lamp';
@@ -314,10 +320,8 @@ function buildLobby(): CarriageLayout {
   b.anchor('tile_up_porter', 0.55, 1.45);
   b.anchor('stackItems', 0.8, 1.2);
 
-  b.layout.queue = [
-    { x: -0.15, z: 2.8 }, { x: 0.55, z: 2.8 }, { x: 1.25, z: 2.8 },
-    { x: 1.25, z: 3.55 }, { x: 0.55, z: 3.55 }, { x: -0.15, z: 3.55 },
-  ];
+  // One tidy snake from the desk, each place painted on the floor (drawn by CarriageView).
+  b.layout.queue = QUEUE_SLOTS.map((p) => ({ ...p }));
 
   const doorIn = 'door_in';
   b.node('lobby_front', 0.25, 1.5);

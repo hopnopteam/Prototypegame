@@ -86,8 +86,9 @@ export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ri
   return texture;
 }
 
+/** Bubbles and icons are UI in the world: drawn over walls and furniture so a wall never cuts one in half. */
 export function makeSprite(texture: THREE.Texture, size: number): THREE.Sprite {
-  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false });
   const sprite = new THREE.Sprite(material);
   sprite.scale.set(size, size, 1);
   sprite.renderOrder = 10;

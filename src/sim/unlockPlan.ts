@@ -1,0 +1,107 @@
+import { CARRIAGE_CATALOGUE, CHOOSABLE, COUPLE_SLOTS, LEGACY_TRAIN, MAX_CARRIAGES, SLOT_PRICE_STEP, type UnlockDef } from '../config/content';
+import type { CarriageType } from '../core/types';
+
+/** A tile's id: the carriage slot it lives in plus its key in that carriage's catalogue entry. */
+export const tileId = (carriage: number, key: string): string => `c${carriage}.${key}`;
+
+/**
+ * The whole unlock chain for a train the player has designed: every carriage's own tiles (priced for the
+ * slot it took) plus the couplings. Rebuilt whenever a carriage joins.
+ */
+export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
+  const defs: UnlockDef[] = [];
+  let cabinsBefore = 0;
+  carriages.forEach((type, index) => {
+    const entry = CARRIAGE_CATALOGUE[type];
+    const scale = index <= 1 ? 1 : 1 + SLOT_PRICE_STEP * (index - 1);
+    for (const t of entry.unlocks) {
+      defs.push({
+        id: tileId(index, t.key),
+        kind: t.kind,
+        label: t.label.replace('{n}', String(cabinsBefore + (t.cabin ?? 0) + 1)),
+        price: Math.round(t.price * scale),
+        stars: t.stars,
+        carriage: index,
+        requires: t.requires.map((r) => (r === 'couple' ? `couple_${index}` : r.startsWith('@') ? r.slice(1) : tileId(index, r))),
+        flags: t.flags,
+        cabin: t.cabin,
+        bathroom: t.bathroom,
+        role: t.role,
+        tier: t.tier,
+        effect: t.effect,
+      });
+    }
+    cabinsBefore += entry.cabins;
+  });
+  COUPLE_SLOTS.forEach((slot, i) => {
+    const n = i + 1;
+    defs.push({ id: `couple_${n}`, kind: 'couple', label: 'New Carriage', price: slot.price, stars: slot.stars, carriage: n, requires: slot.requires, effect: 'You choose what joins the train' });
+  });
+  return defs;
+}
+
+/** What the train needs, as seen at the last stops: drives which carriage the chooser recommends. */
+export interface ChoiceSignals {
+  /** Guests left on the platform for want of a bed. */
+  leftBehind: number;
+  /** Bags left on the platform because the racks were full. */
+  luggageLeft: number;
+}
+
+export interface CarriageChoice {
+  type: CarriageType;
+  /** Why this one is recommended right now (only on the first choice, when there is a reason). */
+  reason: string | null;
+}
+
+/** Carriages the train may take next (within each type's limit, with what they need already aboard). */
+export function allowedCarriages(carriages: readonly CarriageType[]): CarriageType[] {
+  if (carriages.length >= MAX_CARRIAGES) return [];
+  const count = (t: CarriageType): number => carriages.filter((c) => c === t).length;
+  return CHOOSABLE.filter((t) => {
+    const entry = CARRIAGE_CATALOGUE[t];
+    return count(t) < entry.max && (entry.needs ?? []).every((n) => carriages.includes(n));
+  });
+}
+
+/**
+ * Up to three cards for the chooser, the best pick first: a washroom car before anything else, then the
+ * supplies it needs, then beds if guests are being left behind, then racks if bags are.
+ */
+export function carriageChoices(carriages: readonly CarriageType[], signals: ChoiceSignals, limit = 3): CarriageChoice[] {
+  const allowed = allowedCarriages(carriages);
+  const has = (t: CarriageType): boolean => carriages.includes(t);
+  let best: CarriageType | null = null;
+  let reason: string | null = null;
+  if (!has('bathroom') && allowed.includes('bathroom')) {
+    best = 'bathroom';
+    reason = 'Guests keep asking for a washroom';
+  } else if (has('bathroom') && !has('supply') && allowed.includes('supply')) {
+    best = 'supply';
+    reason = 'The washrooms will need restocking';
+  } else if (signals.leftBehind > 0 && allowed.includes('sleeper')) {
+    best = 'sleeper';
+    reason = `${signals.leftBehind} guest${signals.leftBehind === 1 ? ' was' : 's were'} left behind: you need beds`;
+  } else if (signals.luggageLeft > 0 && allowed.includes('luggage')) {
+    best = 'luggage';
+    reason = `${signals.luggageLeft} bag${signals.luggageLeft === 1 ? '' : 's'} had no room`;
+  }
+  const ordered = best ? [best, ...allowed.filter((t) => t !== best)] : allowed;
+  return ordered.slice(0, limit).map((type, i) => ({ type, reason: i === 0 ? reason : null }));
+}
+
+/** v2 → v3: ids tied to the old fixed carriage order become slot-relative ids. */
+export function migrateLegacyId(id: string): string {
+  const room = /^(cabin|bath|refurb)_(\d+)_(\d+)$/.exec(id);
+  if (room) return tileId(Number(room[2]), `${room[1]}_${room[3]}`);
+  const staff = /^((?:hire|up)_[a-z]+)_(\d+)$/.exec(id);
+  if (staff) return tileId(Number(staff[2]), staff[1]);
+  return id;
+}
+
+/** The carriages an old save had coupled, in the old fixed order. */
+export function legacyCarriages(unlocked: readonly string[]): CarriageType[] {
+  let coupled = 0;
+  for (let n = 1; n < LEGACY_TRAIN.length; n++) if (unlocked.includes(`couple_${n}`)) coupled = n;
+  return LEGACY_TRAIN.slice(0, coupled + 1);
+}

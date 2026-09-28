@@ -88,8 +88,9 @@ describe('SaveSystem', () => {
     const save = create(SAVE_MIGRATIONS);
     save.load();
     expect(save.data.version).toBe(SAVE_VERSION);
-    expect(save.data.route.unlocked).toEqual(['cabin_0_1', 'refurb_0_1', 'refurb_0_2']);
-    expect(save.data.route.partial).toEqual({ refurb_4_1: 30 });
+    expect(save.data.route.unlocked).toEqual(['c0.cabin_1', 'c0.refurb_1', 'c0.refurb_2']);
+    expect(save.data.route.partial).toEqual({ 'c4.refurb_1': 30 });
+    expect(save.data.route.carriages).toEqual(['lobby']);
   });
 
   it('treats a save without a version as unreadable', () => {

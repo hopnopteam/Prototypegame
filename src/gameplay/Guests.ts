@@ -90,7 +90,7 @@ export class Guests {
       guest.state = 'queue';
       guest.queueSlot = i;
       guest.arrivedInQueue = true;
-      guest.mover.facing = -Math.PI / 2;
+      guest.mover.facing = this.queueFacing(i);
       this.queue.push(guest);
     }
   }
@@ -114,8 +114,22 @@ export class Guests {
     return this.list.filter((g) => g.state === 'platform');
   }
 
+  /**
+   * Beds not spoken for at this stop: open cabins minus everyone aboard who is not getting off here. Only
+   * that many can board; the rest wait for the next train (the clearest sign you need more cabins).
+   */
+  bedsFree(stopSerial = this.w.journey.stopSerial): number {
+    return Math.max(0, this.w.train.openCabinCount() - this.stayingPast(stopSerial));
+  }
+
+  /** Someone on the platform has a bed waiting for them. */
+  canBoard(): boolean {
+    return this.bedsFree() > 0 && this.list.some((g) => g.state === 'platform');
+  }
+
   /** Boards the next platform guest: they walk in through the door and join the desk queue. */
   boardNext(): Guest | null {
+    if (this.bedsFree() <= 0) return null;
     const guest = this.list.find((g) => g.state === 'platform');
     if (!guest) return null;
     const map = this.w.map;
@@ -222,6 +236,16 @@ export class Guests {
   update(dt: number): void {
     const w = this.w;
     const platformOffset = w.station.platformOffset;
+    // Platform guests beyond the free beds hold up a "no room" sign: they cannot board this time.
+    let beds = w.journey.phase === 'stationStop' || w.journey.phase === 'arriving' ? this.bedsFree(w.journey.phase === 'arriving' ? w.journey.stopSerial + 1 : w.journey.stopSerial) : -1;
+    for (const guest of this.list) {
+      if (guest.state !== 'platform') continue;
+      if (beds < 0) guest.view.showBubble(null);
+      else if (beds > 0) {
+        beds--;
+        guest.view.showBubble(null);
+      } else guest.view.showBubble('noroom', 'alert', 1.85);
+    }
     for (const guest of [...this.list]) {
       guest.stateTime += dt;
       guest.mover.update(dt);
@@ -546,7 +570,15 @@ export class Guests {
     guest.arrivedInQueue = true;
     guest.state = 'queue';
     guest.stateTime = 0;
-    guest.mover.facing = -Math.PI / 2;
+    guest.mover.facing = this.queueFacing(guest.queueSlot);
+  }
+
+  /** Everyone in line faces the place ahead of them (the first faces the desk): an orderly queue. */
+  private queueFacing(slot: number): number {
+    if (slot <= 0) return -Math.PI / 2;
+    const here = this.slotPosition(slot);
+    const ahead = this.slotPosition(slot - 1);
+    return Math.atan2(ahead.x - here.x, ahead.z - here.z);
   }
 
   private reflowQueue(): void {

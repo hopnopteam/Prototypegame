@@ -5,7 +5,8 @@ import type { StationResult } from '../gameplay/events';
 import type { Game } from '../gameplay/Game';
 import type { DoubleChoice, GameUi } from '../gameplay/GameUi';
 import type { OfferView } from '../gameplay/Monetization';
-import type { FloatKind } from '../gameplay/UiApi';
+import type { CarriageChoiceView, FloatKind } from '../gameplay/UiApi';
+import type { CarriageType } from '../core/types';
 import { h, icon, setText, setVisible } from './dom';
 import type { IconName } from './icons';
 import { PressScreens } from './PressScreens';
@@ -610,6 +611,10 @@ export class Ui implements GameUi {
 
   showFirstClassOffer(discounted: boolean, price: string, onBuy: () => void, onClose: () => void): void {
     this.screens.firstClass(discounted, price, onBuy, onClose);
+  }
+
+  showCarriageChoice(choices: CarriageChoiceView[], onPick: (type: CarriageType) => void): void {
+    this.screens.carriageChoice(choices, onPick);
   }
 
   // ─── Press ──────────────────────────────────────────────────────────────────

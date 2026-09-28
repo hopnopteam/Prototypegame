@@ -41,6 +41,8 @@ export interface StationResult {
   stationName: string;
   boarded: number;
   waiting: number;
+  /** Guests who wanted to travel but found no free bed (a sign the train needs cabins). */
+  leftBehind: number;
   alighted: number;
   tips: number;
   luggageLoaded: number;

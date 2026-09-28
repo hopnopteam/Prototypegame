@@ -11,6 +11,7 @@ import {
   INTERIOR_WALL_HEIGHT,
   PARTITION_X0,
   PARTITION_X1,
+  QUEUE_SLOTS,
   REAR_VESTIBULE,
   WALL,
   type CarriageLayout,
@@ -67,7 +68,7 @@ function finishFor(type: CarriageType, tier: number, t: CarriageTheme): Finish {
   const tiled = type === 'bathroom';
   if (tier <= 0) {
     return {
-      wall: PALETTE.wallWorn, wallLow: PALETTE.wallWornLow, panelled: false, cap: '#7A6554',
+      wall: PALETTE.wallWorn, wallLow: PALETTE.wallWornLow, panelled: false, cap: '#9DAFA3',
       floor: PALETTE.plankWorn, floorSeam: PALETTE.plankWornSeam, floorPattern: PATTERN.planks, floorScale: 0.34,
       room: PALETTE.plankWorn, roomSeam: PALETTE.plankWornSeam, roomPattern: PATTERN.planks, roomScale: 0.34,
       runner: null, curtains: false, lamps: 0, decor: false,
@@ -218,6 +219,14 @@ export class CarriageView {
     const meshes = this.dirt[cabin];
     if (!meshes) return;
     for (let i = 0; i < meshes.length; i++) meshes[i].visible = !!spots[i];
+  }
+
+  /** Scrubbing: the mark fades and shrinks with cleaning progress (0..1). */
+  setDirtFade(cabin: number, spot: number, progress: number): void {
+    const mesh = this.dirt[cabin]?.[spot];
+    if (!mesh) return;
+    (mesh.material as THREE.MeshBasicMaterial).opacity = 1 - 0.85 * progress;
+    mesh.scale.setScalar(1 - 0.35 * progress);
   }
 
   setBathroomStock(bathroom: number, towels: number, rolls: number): void {
@@ -468,9 +477,20 @@ export class CarriageView {
         }
       }
     }
-    if (type === 'lobby' && fin.decor) {
-      f.disc(0.55, FLOOR_Y + LIFT, 3.15, 0.95, PALETTE.gold, 32);
-      f.disc(0.55, FLOOR_Y + LIFT * 2, 3.15, 0.9, this.theme.deep, 32);
+    if (type === 'lobby') {
+      // Painted queue places: where to stand reads at a glance, and the line stays tidy.
+      const mark = this.tier >= 2 ? this.theme.deep : '#B9AE9C';
+      QUEUE_SLOTS.forEach((p, i) => {
+        f.disc(p.x, FLOOR_Y + LIFT, p.z, 0.22, mark, 24);
+        f.disc(p.x, FLOOR_Y + LIFT * 2, p.z, 0.17, fin.floor, 24);
+        const next = QUEUE_SLOTS[i + 1];
+        if (!next) return;
+        // A dotted guide to the next place.
+        for (let k = 1; k <= 3; k++) {
+          const t = k / 4;
+          f.disc(p.x + (next.x - p.x) * t, FLOOR_Y + LIFT, p.z + (next.z - p.z) * t, 0.035, mark, 10);
+        }
+      });
     }
     if (fin.decor && type !== 'lobby') {
       frame(-1.35, 0.66, 0.44, 0.32, PALETTE.frameCanvas[this.index % 4]);
@@ -519,9 +539,10 @@ export class CarriageView {
       this.cabinBeds[cabin.index] = bedGroup;
 
       this.cabinLocks[cabin.index] = this.lockOverlay(cabin.room);
-      const dirtMaterial = new THREE.MeshBasicMaterial({ map: getDirtTexture(), transparent: true, depthWrite: false });
       this.dirt[cabin.index] = cabin.spots.map((spot, i) => {
         const size = 0.54 + (i % 2) * 0.08;
+        // Each spot has its own material so it can fade on its own as it is scrubbed.
+        const dirtMaterial = new THREE.MeshBasicMaterial({ map: getDirtTexture(), transparent: true, depthWrite: false });
         const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2), dirtMaterial);
         mesh.position.set(spot.x, FLOOR_Y + 0.02, spot.z);
         mesh.rotation.y = i * 1.9 + cabin.index;

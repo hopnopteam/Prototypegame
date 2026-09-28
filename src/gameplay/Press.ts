@@ -1,4 +1,4 @@
-import { ROUTE1_CARRIAGES, STORIES } from '../config/content';
+import { STORIES } from '../config/content';
 import {
   CEREMONIES,
   DEFAULT_TRAIN_NAME,
@@ -86,13 +86,13 @@ export class Press {
       w.save.markDirty();
     });
     e.on('carriage.coupled', ({ index }) => {
-      const carriage = ROUTE1_CARRIAGES[index]?.name ?? 'carriage';
+      const carriage = w.train.carriageName(index);
       this.print(index === 1 ? 'firstCoupling' : 'coupling', { carriage, n: index + 1 });
     });
     e.on('staff.hired', () => this.once('firstHire'));
     e.on('carriage.refurbished', ({ index, tier }) => {
       const trigger = `refurb${Math.min(3, tier)}` as PressTrigger;
-      this.once(trigger, { carriage: ROUTE1_CARRIAGES[index]?.name ?? 'carriage', tier: TIER_NAMES[tier] ?? '' });
+      this.once(trigger, { carriage: w.train.carriageName(index), tier: TIER_NAMES[tier] ?? '' });
     });
     e.on('livery.changed', ({ name }) => this.print('livery', { livery: name }));
     e.on('stars.added', () => this.checkLeague());

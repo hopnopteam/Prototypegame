@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ROUTE1_CARRIAGES } from '../src/config/content';
+import { DEFAULT_TRAIN } from '../src/config/content';
 import { ECONOMY } from '../src/config/economy';
 import type { Vec2 } from '../src/core/types';
 import { TrainMap } from '../src/sim/TrainMap';
 
-const FULL_TRAIN = ROUTE1_CARRIAGES.map((c) => c.type);
+const FULL_TRAIN = [...DEFAULT_TRAIN];
 const GRID = 0.05;
 
 /** Flood-fills walkable space on a grid from a start point; returns a lookup for reachability. */
