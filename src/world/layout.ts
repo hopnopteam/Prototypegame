@@ -261,8 +261,9 @@ class LayoutBuilder {
       this.edge(corridorNode, cabinNode);
       previousCorridor = corridorNode;
 
-      const openX0 = PARTITION_X1 + 0.35;
-      const openX1 = bed.x0 - 0.3;
+      // The walk-in beside the bed, where every centre stays on open floor (a step clear of the bed).
+      const openX0 = PARTITION_X1 + 0.32;
+      const openX1 = bed.x0 - 0.42;
       this.layout.cabins.push({
         index: c,
         room,
@@ -270,13 +271,13 @@ class LayoutBuilder {
         door: [doorZ0, doorZ1],
         bed,
         spots: [
-          { x: openX0, z: cz0 + 0.55 },
+          { x: openX0, z: cz0 + 0.6 },
           { x: openX1, z: cz0 + len * 0.5 },
-          { x: openX0 + 0.1, z: cz1 - 0.5 },
+          { x: openX0, z: cz1 - 0.55 },
         ],
-        center: { x: (openX0 + openX1) / 2, z: cz0 + len * 0.52 },
+        center: { x: (openX0 + openX1) / 2, z: cz0 + len * 0.5 },
         bedPose: { x: (bed.x0 + bed.x1) / 2, z: (bed.z0 + bed.z1) / 2 },
-        tipPile: { x: openX1 - 0.12, z: cz1 - 0.45 },
+        tipPile: { x: openX1, z: cz1 - 0.42 },
         corridorNode,
         node: cabinNode,
       });
@@ -297,27 +298,32 @@ function buildLobby(): CarriageLayout {
   b.vestibules(0);
   b.room(-INNER, WALL, INNER, lobbyEnd);
 
+  // Front counter along the end wall: the tea urn and one linen cupboard (blankets and pillows), each
+  // with its pad centred in front. Reception desk on the left facing the door; the queue snakes in front
+  // of it; luggage rack at the back right; the attendant's post at the back left.
   b.prop('desk', -1.2, 2.1, -0.5, 3.5, 'right');
-  b.prop('urn', -INNER, WALL, -1.5, 0.75, 'rear');
-  b.prop('linen', -0.95, WALL, 0.45, 0.62, 'rear');
-  b.prop('rack', 1.45, 4.2, INNER, 5.85, 'left');
-  b.prop('bin', 1.72, WALL, INNER, 0.5, 'left');
-  b.prop('plant', -INNER, 5.4, -1.8, 5.85, 'right', false);
+  b.prop('urn', -INNER, WALL, -1.2, 0.66, 'rear');
+  b.prop('linen', -0.5, WALL, 0.9, 0.62, 'rear');
+  b.prop('rack', 1.45, 4.1, INNER, 5.75, 'left');
+  b.prop('bin', -INNER, 5.3, -1.72, 5.7, 'right');
+  b.prop('plant', 1.62, WALL, INNER, 0.55, 'left', false);
 
-  b.anchor('deskService', -1.68, 2.8);
+  b.anchor('deskService', -1.62, 2.8);
   b.anchor('deskCash', -1.62, 3.95);
-  b.anchor('startCash', -1.62, 4.75);
-  b.anchor('playerSpawn', -0.7, 4.7);
-  b.anchor('urn', -1.6, 1.12);
-  b.anchor('blanket', -0.6, 0.98);
-  b.anchor('pillow', 0.12, 0.98);
-  b.anchor('rack', 1.1, 5.0);
-  b.anchor('bin', 1.3, 0.88);
-  b.anchor('home_attendant', -0.25, 5.05);
-  b.anchor('home_porter', 0.55, 1.45);
-  b.anchor('tile_refurb', 1.05, CARRIAGE_LENGTH - 0.75);
-  b.anchor('tile_up_attendant', -0.25, 5.05);
-  b.anchor('tile_up_porter', 0.55, 1.45);
+  b.anchor('startCash', -1.62, 4.7);
+  b.anchor('playerSpawn', -0.7, 4.3);
+  b.anchor('urn', -1.62, 1.12);
+  b.anchor('linen', 0.2, 1.12);
+  b.anchor('blanket', 0.2, 1.12);
+  b.anchor('pillow', 0.2, 1.12);
+  b.anchor('rack', 0.9, 4.95);
+  b.anchor('bin', -1.3, 5.5);
+  b.anchor('home_attendant', -0.45, 4.8);
+  b.anchor('tile_up_attendant', -0.45, 4.8);
+  // The porter's post is at the carriage's back door, out of the busy lobby.
+  b.anchor('home_porter', -1.05, CARRIAGE_LENGTH - 0.72);
+  b.anchor('tile_up_porter', -1.05, CARRIAGE_LENGTH - 0.72);
+  b.anchor('tile_refurb', 1.05, CARRIAGE_LENGTH - 0.72);
   b.anchor('stackItems', 0.8, 1.2);
 
   // One tidy snake from the desk, each place painted on the floor (drawn by CarriageView).
@@ -326,10 +332,10 @@ function buildLobby(): CarriageLayout {
   const doorIn = 'door_in';
   b.node('lobby_front', 0.25, 1.5);
   b.node('lobby_fl', -1.62, 1.55);
-  b.node('desk', -1.68, 2.8);
+  b.node('desk', -1.62, 2.8);
   b.node('lobby_rl', -1.55, 4.45);
   b.node('lobby_rear', 0.35, 4.45);
-  b.node('rack', 1.1, 5.0);
+  b.node('rack', 0.9, 4.95);
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, lobbyEnd - 0.1);
   // The desk is reached from behind (lobby_rl), so guests never walk through the staff side.
   b.chain(doorIn, 'lobby_front', 'lobby_fl');
@@ -347,14 +353,16 @@ function buildSleeper(): CarriageLayout {
   b.shell({ frontGangway: true, doors: false });
   b.vestibules(front);
   // A small service nook in the front vestibule: supplies sit next to the cabins that need them.
-  b.prop('urn', -INNER, WALL, -1.5, 0.7, 'rear');
-  b.prop('linen', 0.85, WALL, INNER, 0.6, 'rear');
-  b.anchor('urn', -1.6, 1.12);
-  b.anchor('blanket', 1.05, 1.0);
-  b.anchor('pillow', 1.72, 1.0);
-  b.anchor('home_attendant', 1.2, CARRIAGE_LENGTH - 0.75);
-  b.anchor('tile_up_attendant', 1.2, CARRIAGE_LENGTH - 0.75);
-  b.anchor('tile_refurb', -1.05, CARRIAGE_LENGTH - 0.75);
+  // The service nook either side of the gangway: tea on the left, linen on the right.
+  b.prop('urn', -INNER, WALL, -1.2, 0.66, 'rear');
+  b.prop('linen', 1.0, WALL, INNER, 0.62, 'rear');
+  b.anchor('urn', -1.62, 1.12);
+  b.anchor('linen', 1.45, 1.12);
+  b.anchor('blanket', 1.45, 1.12);
+  b.anchor('pillow', 1.45, 1.12);
+  b.anchor('home_attendant', 1.05, CARRIAGE_LENGTH - 0.72);
+  b.anchor('tile_up_attendant', 1.05, CARRIAGE_LENGTH - 0.72);
+  b.anchor('tile_refurb', -1.05, CARRIAGE_LENGTH - 0.72);
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, front - 0.1);
   b.node('nook', 0, 1.05);
   b.chain('vest_front', 'nook', 'corr_in');
@@ -401,7 +409,8 @@ function buildBathroom(): CarriageLayout {
       room: rect(PARTITION_X1, z0 + 0.06, INNER, z1 - 0.06),
       doorZ,
       door: [doorZ0, doorZ1],
-      restock: { x: 0.25, z: z0 + 2.35 },
+      // The restock pad stands in front of the towel shelf on the right wall, between loo and basin.
+      restock: { x: 1.15, z: z0 + 1.72 },
       useSpot: { x: INNER - 1.0, z: z0 + 0.7 },
       node,
       useNode,
@@ -490,4 +499,82 @@ export function rearDeck(carriageCount: number): { room: Rect; tile: Vec2 } {
 /** Station platform walkable area (world coordinates, platform stopped). */
 export function platformRoom(carriageCount: number): Rect {
   return rect(PLATFORM_X0, -LOCOMOTIVE_LENGTH, PLATFORM_X0 + PLATFORM_WIDTH, trainRearZ(carriageCount) + 3);
+}
+
+/** Walk-over zone radii (metres), shared by gameplay and the placement test so they cannot drift apart. */
+export const ZONE_RADIUS = {
+  desk: 0.45,
+  source: 0.5,
+  rack: 0.6,
+  bin: 0.42,
+  request: 0.62,
+  spot: 0.36,
+  restock: 0.6,
+  crate: 0.6,
+  tile: 0.6,
+  coupleTile: 0.8,
+} as const;
+/** Unlock tiles are squares this wide on the floor. */
+export const TILE_SIZE = 1.2;
+export const COUPLE_TILE_SIZE = 1.6;
+/** A washroom's tip pile sits this far from its restock point. */
+export const BATH_PILE_OFFSET: Vec2 = { x: -0.95, z: 0.95 };
+
+export type FootprintKind = 'zone' | 'tile' | 'pile' | 'home';
+
+/**
+ * Everything the player walks over in a carriage, in local coordinates: zones, unlock tiles, cash piles
+ * and staff homes. `group` marks things that never exist at the same time (a cabin's tile and its
+ * request zone), so they may share a spot.
+ */
+export interface Footprint {
+  id: string;
+  kind: FootprintKind;
+  x: number;
+  z: number;
+  /** Circle radius, or half the side for tiles. */
+  r: number;
+  group?: string;
+}
+
+export function footprints(layout: CarriageLayout): Footprint[] {
+  const out: Footprint[] = [];
+  const a = layout.anchors;
+  const zone = (id: string, p: Vec2 | undefined, r: number, group?: string): void => {
+    if (p) out.push({ id, kind: 'zone', x: p.x, z: p.z, r, group });
+  };
+  const tile = (id: string, p: Vec2 | undefined, group?: string): void => {
+    if (p) out.push({ id, kind: 'tile', x: p.x, z: p.z, r: TILE_SIZE / 2, group });
+  };
+  const pile = (id: string, p: Vec2 | undefined): void => {
+    if (p) out.push({ id, kind: 'pile', x: p.x, z: p.z, r: 0.28 });
+  };
+  zone('desk', a.deskService, ZONE_RADIUS.desk);
+  pile('deskCash', a.deskCash);
+  pile('startCash', a.startCash);
+  zone('urn', a.urn, ZONE_RADIUS.source);
+  zone('linen', a.linen, ZONE_RADIUS.source);
+  zone('rack', a.rack, ZONE_RADIUS.rack);
+  zone('bin', a.bin, ZONE_RADIUS.bin);
+  zone('shelf_towel', a.shelf_towel, ZONE_RADIUS.source);
+  zone('shelf_roll', a.shelf_roll, ZONE_RADIUS.source);
+  zone('crateDrop', a.crateDrop, ZONE_RADIUS.crate);
+  tile('tile_refurb', a.tile_refurb);
+  for (const role of ['attendant', 'porter', 'runner']) {
+    // A staff member's hire tile sits on their home, then the training tile does: never together.
+    tile(`tile_up_${role}`, a[`tile_up_${role}`], `staff_${role}`);
+    tile(`hire_${role}`, a[`home_${role}`], `staff_${role}`);
+  }
+  for (const cabin of layout.cabins) {
+    zone(`request_${cabin.index}`, cabin.center, ZONE_RADIUS.request, `cabin_${cabin.index}`);
+    tile(`cabin_tile_${cabin.index}`, cabin.center, `cabin_${cabin.index}`);
+    cabin.spots.forEach((s, i) => zone(`spot_${cabin.index}_${i}`, s, ZONE_RADIUS.spot, `cabin_${cabin.index}`));
+    pile(`tips_${cabin.index}`, cabin.tipPile);
+  }
+  for (const bath of layout.bathrooms) {
+    zone(`restock_${bath.index}`, bath.restock, ZONE_RADIUS.restock, `bath_${bath.index}`);
+    tile(`bath_tile_${bath.index}`, bath.restock, `bath_${bath.index}`);
+    pile(`bath_tips_${bath.index}`, { x: bath.restock.x + BATH_PILE_OFFSET.x, z: bath.restock.z + BATH_PILE_OFFSET.z });
+  }
+  return out;
 }

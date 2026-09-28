@@ -30,6 +30,17 @@ export const COACH_HINTS: CoachLineDef[] = [
   { id: 'miles', icon: 'miles', text: 'Spend Rail Miles on yourself' },
 ];
 
+/** While the walkthrough waits for enough cash to build, the coach says what the arrow is pointing at. */
+export const COACH_GUIDANCE_LINES: Record<string, CoachLineDef> = {
+  desk: { id: 'g_desk', icon: 'ticket', text: 'Check in the next guest' },
+  cash: { id: 'g_cash', icon: 'cash', text: 'Collect your cash' },
+  clean: { id: 'g_clean', icon: 'broom', text: 'Walk over the mess to clean' },
+  fetch: { id: 'g_fetch', icon: 'tea', text: 'Grab what the guest wants' },
+  deliver: { id: 'g_deliver', icon: 'heart', text: 'Bring it to the guest' },
+  board: { id: 'g_board', icon: 'ticket', text: 'Board the passengers' },
+  luggage: { id: 'g_luggage', icon: 'luggage', text: 'Load their luggage' },
+};
+
 /** Seconds a hint stays up (at least the minimum, even if it resolves at once). */
 export const COACH_HINT_SECONDS = 5;
 export const COACH_HINT_MIN_SECONDS = 2.5;

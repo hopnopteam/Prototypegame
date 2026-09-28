@@ -1,4 +1,4 @@
-import { COACH_GESTURE_DELAY, COACH_HINT_MIN_SECONDS, COACH_HINT_SECONDS, COACH_HINTS, COACH_STEPS, type CoachLineDef } from '../config/coach';
+import { COACH_GESTURE_DELAY, COACH_GUIDANCE_LINES, COACH_HINT_MIN_SECONDS, COACH_HINT_SECONDS, COACH_HINTS, COACH_STEPS, type CoachLineDef } from '../config/coach';
 import type { Vec2 } from '../core/types';
 import type { World } from './World';
 
@@ -42,8 +42,9 @@ export class Coach {
     this.think -= dt;
     // Keep world anchors fresh every frame (targets move: guests, cash piles).
     if (this.current && 'world' in this.current.anchor) {
-      const target = this.targetFor(this.current.id);
-      if (target && 'world' in target) this.current.anchor = target;
+      const target = this.current.id.startsWith('g_') ? this.w.guidance.bestTarget() : null;
+      const anchor = target ? { world: target } : this.targetFor(this.current.id);
+      if (anchor && 'world' in anchor) this.current.anchor = anchor;
     }
     if (this.think > 0) return;
     this.think = THINK_SECONDS;
@@ -57,6 +58,15 @@ export class Coach {
       if (this.stepComplete(step.id)) {
         this.finish(step.id);
         continue;
+      }
+      // Building needs cash: until there is enough, say what the arrow points at instead.
+      if (step.id === 'tile' && !this.canAffordTile()) {
+        const line = COACH_GUIDANCE_LINES[this.w.guidance.reason];
+        const target = this.w.guidance.bestTarget();
+        if (line && target) {
+          this.show(line, { world: target });
+          return;
+        }
       }
       const anchor = this.targetFor(step.id);
       this.show(step, anchor);
@@ -79,6 +89,11 @@ export class Coach {
       this.show(hint, anchor);
       return;
     }
+  }
+
+  private canAffordTile(): boolean {
+    const tile = this.w.tiles.cheapest();
+    return !!tile && this.w.unlocks.remaining(tile.def.id) <= this.w.wallet.get('cash');
   }
 
   private show(line: CoachLineDef, anchor: CoachAnchor | null): void {

@@ -4,7 +4,7 @@ import { buildUnlocks, carriageChoices } from '../sim/unlockPlan';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Vec2 } from '../core/types';
 import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
-import { carriageOriginZ, getLayout, type BathroomLayout, type CabinLayout } from '../world/layout';
+import { BATH_PILE_OFFSET, carriageOriginZ, getLayout, ZONE_RADIUS, type BathroomLayout, type CabinLayout } from '../world/layout';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { GeoBuilder } from '../world/geo';
 import { MATERIALS, PATTERN } from '../world/materials';
@@ -552,7 +552,7 @@ export class TrainState {
       id: `req:${cabin.id}`,
       x: cabin.center.x,
       z: cabin.center.z,
-      radius: 0.62,
+      radius: ZONE_RADIUS.request,
       icon: null,
       ring: true,
       hideWhenInactive: true,
@@ -563,7 +563,7 @@ export class TrainState {
       id: `spot:${cabin.id}:${i}`,
       x: spot.x,
       z: spot.z,
-      radius: 0.36,
+      radius: ZONE_RADIUS.spot,
       icon: null,
       // The mess itself is the marker: it fades as you scrub (no ring cluttering the cabin).
       ring: false,
@@ -596,12 +596,12 @@ export class TrainState {
   private createBathroomZones(bath: Bathroom): void {
     const w = this.w;
     const max = w.econ.facilities;
-    w.cash.create(bath.pileId, bath.restock.x + 0.55, bath.restock.z + 1.0);
+    w.cash.create(bath.pileId, bath.restock.x + BATH_PILE_OFFSET.x, bath.restock.z + BATH_PILE_OFFSET.z);
     w.zones.add(new Zone({
       id: `restock:${bath.id}`,
       x: bath.restock.x,
       z: bath.restock.z,
-      radius: 0.6,
+      radius: ZONE_RADIUS.restock,
       icon: 'towel',
       active: () => bath.unlocked && (bath.towels < max.bathroomTowelMax || bath.rolls < max.bathroomRollMax),
       hideWhenInactive: false,
@@ -648,16 +648,15 @@ export class TrainState {
         id: 'desk',
         x: desk.x,
         z: desk.z,
-        radius: 0.55,
+        radius: ZONE_RADIUS.desk,
         icon: 'ticket',
         active: () => w.guests.hasGuestAtDesk(),
         stay: (zone, actor, dt) => w.guests.deskStay(zone, actor, dt),
       }));
       const deskCash = at('deskCash');
       w.cash.create('desk', deskCash.x, deskCash.z);
-      this.sourceZone('src:tea', at('urn'), 'tea');
-      this.sourceZone('src:blanket', at('blanket'), 'blanket');
-      this.sourceZone('src:pillow', at('pillow'), 'pillow');
+      this.sourceZone('src:tea', at('urn'), ['tea']);
+      this.sourceZone('src:linen', at('linen'), ['blanket', 'pillow']);
       this.luggageDropZone('rack:lobby', at('rack'));
       this.binZone('bin:lobby', at('bin'));
     }
@@ -665,11 +664,11 @@ export class TrainState {
     if (type === 'supply') {
       const facilities = w.data.facilities;
       const max = w.econ.facilities.supplyShelfMax;
-      this.sourceZone('src:towel', at('shelf_towel'), 'towel', () => facilities.supplyTowel, (delta) => {
+      this.sourceZone('src:towel', at('shelf_towel'), ['towel'], () => facilities.supplyTowel, (delta) => {
         facilities.supplyTowel = Math.min(max, facilities.supplyTowel + delta);
         w.save.markDirty();
       });
-      this.sourceZone('src:roll', at('shelf_roll'), 'roll', () => facilities.supplyRoll, (delta) => {
+      this.sourceZone('src:roll', at('shelf_roll'), ['roll'], () => facilities.supplyRoll, (delta) => {
         facilities.supplyRoll = Math.min(max, facilities.supplyRoll + delta);
         w.save.markDirty();
       });
@@ -678,7 +677,7 @@ export class TrainState {
         id: 'crateDrop',
         x: crate.x,
         z: crate.z,
-        radius: 0.6,
+        radius: ZONE_RADIUS.crate,
         icon: 'crate',
         active: () => w.player.stack.has('crate') || w.staff.anyCarrying('crate'),
         hideWhenInactive: false,
@@ -702,9 +701,8 @@ export class TrainState {
     }
 
     if (type === 'sleeper') {
-      this.sourceZone(`src:tea:${index}`, at('urn'), 'tea');
-      this.sourceZone(`src:blanket:${index}`, at('blanket'), 'blanket');
-      this.sourceZone(`src:pillow:${index}`, at('pillow'), 'pillow');
+      this.sourceZone(`src:tea:${index}`, at('urn'), ['tea']);
+      this.sourceZone(`src:linen:${index}`, at('linen'), ['blanket', 'pillow']);
     }
 
     if (type === 'luggage') this.luggageDropZone('rack:luggage', at('rack'));
@@ -712,28 +710,33 @@ export class TrainState {
 
   /**
    * A supply source: it only hands out what someone is waiting for (see Demand), after a short dwell, and
-   * takes back anything nobody needs any more. Unlimited sources (tea urn, linen) pass no stock.
+   * takes back anything nobody needs any more. One station can hold several items (the linen cupboard has
+   * blankets and pillows): it gives whichever is wanted. Unlimited sources (tea urn, linen) pass no stock.
    */
-  private sourceZone(id: string, p: Vec2, item: 'tea' | 'blanket' | 'pillow' | 'towel' | 'roll', stock?: () => number, adjust?: (delta: number) => void): void {
+  private sourceZone(id: string, p: Vec2, items: ('tea' | 'blanket' | 'pillow' | 'towel' | 'roll')[], stock?: () => number, adjust?: (delta: number) => void): void {
     const w = this.w;
     const point = new THREE.Vector3(p.x, FLOOR_Y + 1.0, p.z);
-    const spec: SourceSpec = {
+    const specs: SourceSpec[] = items.map((item) => ({
       kind: item,
       point: () => point,
       stock: stock ?? (() => Infinity),
       take: () => adjust?.(-1),
       giveBack: () => adjust?.(1),
       interval: w.econ.zones.pickupIntervalSeconds,
+    }));
+    const pick = (actor: Actor): SourceSpec => {
+      const d = w.demand;
+      return specs.find((s) => s.giveBack && d.surplus(actor, s.kind) > 0) ?? specs.find((s) => d.wants(actor, s.kind)) ?? specs[0];
     };
     w.zones.add(new Zone({
       id,
       x: p.x,
       z: p.z,
-      radius: 0.5,
-      icon: item,
-      active: () => sourceActive(w, spec),
-      highlight: () => w.demand.playerWants(item) > 0 && spec.stock() > 0,
-      stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, spec),
+      radius: ZONE_RADIUS.source,
+      icon: items.length > 1 ? 'linen' : items[0],
+      active: () => specs.some((s) => sourceActive(w, s)),
+      highlight: () => specs.some((s) => w.demand.playerWants(s.kind) > 0 && s.stock() > 0),
+      stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, pick(actor)),
     }));
   }
 
@@ -743,7 +746,7 @@ export class TrainState {
       id,
       x: p.x,
       z: p.z,
-      radius: 0.6,
+      radius: ZONE_RADIUS.rack,
       icon: 'luggage',
       active: () => this.luggageStored < this.luggageCapacity && (w.player.stack.has('luggage') || w.staff.anyCarrying('luggage')),
       hideWhenInactive: false,
@@ -773,7 +776,7 @@ export class TrainState {
       id,
       x: p.x,
       z: p.z,
-      radius: 0.42,
+      radius: ZONE_RADIUS.bin,
       icon: null,
       color: '#C9BFB0',
       active: () => binnable(w.player) !== null || w.staff.members.some((m) => binnable(m) !== null),

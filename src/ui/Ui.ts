@@ -251,7 +251,7 @@ export class Ui implements GameUi {
     const ftue = g.data.profile.ftue;
     const flags = g.data.profile.flags;
     this.reveal(hud.level, ftue.first_unlock !== undefined || g.progression.level > 1);
-    this.reveal(hud.journey, ftue.first_unlock !== undefined || g.journey.phase !== 'onTheMove' || g.data.route.stopsCompleted > 0);
+    this.reveal(hud.journey, ftue.first_unlock !== undefined || g.journey.phase === 'arriving' || g.journey.phase === 'stationStop' || g.data.route.stopsCompleted > 0);
     this.reveal(hud.gems, g.wallet.get('gems') > 0 || !!flags.firstStationDone);
     this.reveal(hud.shop, !!flags.firstStationDone);
     const upgradesOpen = g.progression.isFeatureUnlocked('conductorUpgrades');

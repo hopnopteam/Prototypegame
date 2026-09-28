@@ -7,7 +7,7 @@ export type IconName =
   | 'star' | 'cash' | 'gem' | 'miles' | 'bath' | 'clock' | 'ad' | 'lock' | 'plus' | 'carriage' | 'zzz'
   | 'heart' | 'bolt' | 'bag' | 'gear' | 'album' | 'calendar' | 'quest' | 'ticket' | 'check' | 'camera'
   | 'wrench' | 'skate' | 'hold' | 'chest' | 'noroom' | 'double' | 'box' | 'paint' | 'news' | 'trophy'
-  | 'mic' | 'dash' | 'hand' | 'menu' | 'conductor';
+  | 'mic' | 'dash' | 'hand' | 'menu' | 'conductor' | 'linen';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -562,6 +562,19 @@ const ICONS: Record<IconName, Draw> = {
     c.strokeStyle = INK;
     c.lineCap = 'round';
     c.stroke();
+  },
+  linen: (c) => {
+    // The linen cupboard: a folded blanket with a pillow on top.
+    rr(c, 14, 50, 72, 34, 10);
+    fillStroke(c, '#7D9CBB');
+    c.beginPath();
+    c.moveTo(22, 64);
+    c.lineTo(78, 64);
+    c.lineWidth = 4;
+    c.strokeStyle = '#FFFFFF';
+    c.stroke();
+    rr(c, 24, 18, 52, 30, 14);
+    fillStroke(c, '#FFFFFF');
   },
   hand: (c) => {
     // A pointing hand for the drag gesture.

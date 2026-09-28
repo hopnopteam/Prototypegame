@@ -5,6 +5,8 @@ import { GeoBuilder } from '../world/geo';
 import { MATERIALS } from '../world/materials';
 import type { World } from './World';
 
+export type GuidanceReason = 'none' | 'board' | 'luggage' | 'deliver' | 'return' | 'cash' | 'desk' | 'tile' | 'fetch' | 'clean' | 'save';
+
 export interface PointerState {
   x: number;
   y: number;
@@ -30,6 +32,8 @@ export class Guidance {
   private thinkTimer = 0;
   private time = 0;
   readonly pointer: PointerState = { x: 0, y: 0, angle: 0, visible: false };
+  /** What the player should do at the last picked target (the coach puts it into words). */
+  reason: GuidanceReason = 'none';
   private readonly tmp = new THREE.Vector3();
   private readonly screen = { x: 0, y: 0 };
   enabled = true;
@@ -106,6 +110,16 @@ export class Guidance {
   }
 
   private pick(forBot = false): Vec2 | null {
+    const target = this.choose(forBot);
+    return target;
+  }
+
+  private because(reason: GuidanceReason, target: Vec2 | null): Vec2 | null {
+    this.reason = target ? reason : 'none';
+    return target;
+  }
+
+  private choose(forBot: boolean): Vec2 | null {
     const w = this.w;
     const player = w.player;
     const map = w.map;
@@ -113,50 +127,50 @@ export class Guidance {
 
     if (w.journey.doorsOpen) {
       const boarding = w.guests.canBoard() && w.staff.count('porter') === 0;
-      if (boarding && stack.isEmpty) return w.station.boardingPoint();
-      if (!stack.isFull && w.demand.playerWants('luggage') > 0 && !stack.has('luggage')) return w.station.luggagePoint();
+      if (boarding && stack.isEmpty) return this.because('board', w.station.boardingPoint());
+      if (!stack.isFull && w.demand.playerWants('luggage') > 0 && !stack.has('luggage')) return this.because('luggage', w.station.luggagePoint());
     }
 
     if (!stack.isEmpty) {
       const need = this.whereNeeded(stack.items);
-      if (need) return need;
+      if (need) return this.because('deliver', need);
       // Only surplus in hand: point at the shelf it goes back to.
       const surplus = w.demand.firstSurplus(player);
       if (surplus) {
         const back = this.returnPoint(surplus);
-        if (back) return back;
+        if (back) return this.because('return', back);
       }
     }
 
     const pile = w.cash.nearestWithCash(player.pos);
-    if (pile && pile.value >= 1) return { x: pile.x, z: pile.z };
+    if (pile && pile.value >= 1) return this.because('cash', { x: pile.x, z: pile.z });
 
-    if (w.guests.hasGuestAtDesk() && w.train.freeCabin() && w.staff.count('porter') === 0) return map.anchor(0, 'deskService');
+    if (w.guests.hasGuestAtDesk() && w.train.freeCabin() && w.staff.count('porter') === 0) return this.because('desk', map.anchor(0, 'deskService'));
 
     const cash = w.wallet.get('cash');
     const tile = w.tiles.cheapest();
-    if (tile && w.unlocks.remaining(tile.def.id) <= cash) return tile.pos;
+    if (tile && w.unlocks.remaining(tile.def.id) <= cash) return this.because('tile', tile.pos);
 
     const request = w.guests.openRequests().find((g) => !w.staff.isHandled(g));
     if (request && request.request && request.request !== 'bathroom') {
       const source = this.sourceFor(request.request, request.cabin?.carriage ?? 0);
-      if (source) return source;
+      if (source) return this.because('fetch', source);
     }
 
     const dirty = w.train.cabins.find((c) => c.isDirty && !c.guest && !c.cleaner);
     if (dirty) {
       const i = dirty.dirty.findIndex(Boolean);
-      return dirty.spots[i];
+      return this.because('clean', dirty.spots[i]);
     }
 
     const supply = w.train.indexOfType('supply');
     if (supply !== null && !stack.isFull) {
-      if (w.demand.playerWants('towel') > 0 && w.data.facilities.supplyTowel > 0) return map.anchor(supply, 'shelf_towel');
-      if (w.demand.playerWants('roll') > 0 && w.data.facilities.supplyRoll > 0) return map.anchor(supply, 'shelf_roll');
+      if (w.demand.playerWants('towel') > 0 && w.data.facilities.supplyTowel > 0) return this.because('fetch', map.anchor(supply, 'shelf_towel'));
+      if (w.demand.playerWants('roll') > 0 && w.data.facilities.supplyRoll > 0) return this.because('fetch', map.anchor(supply, 'shelf_roll'));
     }
 
-    if (tile && (forBot || w.player.idleSeconds > IDLE_BEFORE_HINT * 2)) return tile.pos;
-    return null;
+    if (tile && (forBot || w.player.idleSeconds > IDLE_BEFORE_HINT * 2)) return this.because('save', tile.pos);
+    return this.because('none', null);
   }
 
   private whereNeeded(items: ItemKind[]): Vec2 | null {

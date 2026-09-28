@@ -4,6 +4,7 @@ import type { Vec2 } from '../core/types';
 import { EVENTS } from '../services/analytics';
 import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from '../world/CarriageView';
+import { COUPLE_TILE_SIZE, TILE_SIZE, ZONE_RADIUS } from '../world/layout';
 import { TileView } from '../world/ZoneViews';
 import type { World } from './World';
 import { Zone } from './Zones';
@@ -111,7 +112,7 @@ export class Tiles {
       }
     }
     if (show && !this.preview && next) {
-      const view = new TileView(1.6);
+      const view = new TileView(COUPLE_TILE_SIZE);
       const pos = w.map.rearDeck().tile;
       view.setPosition(pos.x, pos.z);
       view.face.draw('carriage', next.price, 0, false, false, true);
@@ -187,7 +188,7 @@ export class Tiles {
 
   private addEntry(def: UnlockDef, pos: Vec2): void {
     const w = this.w;
-    const view = new TileView(def.kind === 'couple' ? 1.6 : 1.3);
+    const view = new TileView(def.kind === 'couple' ? COUPLE_TILE_SIZE : TILE_SIZE);
     view.setPosition(pos.x, pos.z);
     w.scene.add(view.group);
     const entry: TileEntry = { def, view, pos, acc: 0, billTimer: 0, stand: 0, paidThisVisit: 0, zone: null as unknown as Zone };
@@ -195,7 +196,7 @@ export class Tiles {
       id: `tile:${def.id}`,
       x: pos.x,
       z: pos.z,
-      radius: def.kind === 'couple' ? 0.8 : 0.66,
+      radius: def.kind === 'couple' ? ZONE_RADIUS.coupleTile : ZONE_RADIUS.tile,
       staff: false,
       ring: false,
       priority: 1,
