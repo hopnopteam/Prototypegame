@@ -146,6 +146,39 @@ function shadeOf(hex: string): string {
   return `#${((c((n >> 16) & 255) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
 }
 
+/** Sleepers lie on their back: the body's back rests this far above the root (on the mattress). */
+const SLEEP_LIFT = 0.2;
+const blanketCache = new Map<string, THREE.BufferGeometry>();
+const eyelidCache = new Map<string, THREE.BufferGeometry>();
+
+/** A plump blanket from the shoulders to past the feet, with a folded-back linen edge. */
+function blanketGeometry(color: string): THREE.BufferGeometry {
+  let g = blanketCache.get(color);
+  if (!g) {
+    g = new GeoBuilder()
+      .rounded(0, 0.25, -0.2, 0.8, 0.42, 1.2, 0.14, color, { shade: 0.9 })
+      .rounded(0, 0.27, -0.78, 0.82, 0.4, 0.14, 0.06, PALETTE.linen, { shade: 0.95 })
+      .build();
+    blanketCache.set(color, g);
+  }
+  return g;
+}
+
+/** Closed eyes: lids in skin colour over the eyes, with a small dark lash line. */
+function eyelidGeometry(skin: string): THREE.BufferGeometry {
+  let g = eyelidCache.get(skin);
+  if (!g) {
+    const b = new GeoBuilder();
+    for (const x of [-0.085, 0.085]) {
+      b.sphere(x, HEAD_Y + 0.015, 0.232, 0.04, skin, 0, 1.3, { shade: 1 });
+      b.box(x, HEAD_Y - 0.008, 0.268, 0.06, 0.012, 0.01, SHOE, 0, { shade: 1 });
+    }
+    g = b.build();
+    eyelidCache.set(skin, g);
+  }
+  return g;
+}
+
 /**
  * A chibi character: merged body + separate legs (and arms for staff), a blob shadow, an optional speech
  * bubble, and an anchor where carried items stack.
@@ -164,7 +197,10 @@ export class CharacterView {
   private pose: 'stand' | 'sleep' | 'sit' = 'stand';
   private bubbleTime = 0;
   private bubbleBaseY = 1.85;
+  private bubbleZ = 0;
   private squash = 0;
+  private blanket: THREE.Mesh | null = null;
+  private eyelids: THREE.Mesh | null = null;
 
   constructor(readonly look: CharacterLook, scale = 1) {
     this.root.add(this.body);
@@ -215,18 +251,42 @@ export class CharacterView {
     this.squash = Math.max(this.squash, amount);
   }
 
-  setPose(pose: 'stand' | 'sleep' | 'sit'): void {
-    if (pose === this.pose) return;
+  /**
+   * `sleep` lays the character on their back with the head toward local −z (put the root at the foot end
+   * of the pillow + 1 m), closes their eyes and tucks them under a blanket of `blanketColor`.
+   */
+  setPose(pose: 'stand' | 'sleep' | 'sit', blanketColor = PALETTE.greyWool): void {
+    if (pose === this.pose && (pose !== 'sleep' || this.blanket?.userData.color === blanketColor)) return;
     this.pose = pose;
     this.body.rotation.set(0, 0, 0);
     this.body.position.set(0, 0, 0);
+    this.body.scale.set(1, 1, 1);
     this.shadow.visible = pose === 'stand';
+    this.bubbleZ = 0;
     if (pose === 'sleep') {
       this.body.rotation.x = -Math.PI / 2;
-      this.body.position.set(0, 0.45, -0.3);
+      this.body.position.set(0, SLEEP_LIFT, 0);
+      this.body.scale.z = 0.8;
+      this.bubbleZ = -HEAD_Y;
+      if (!this.blanket || this.blanket.userData.color !== blanketColor) {
+        if (this.blanket) this.root.remove(this.blanket);
+        this.blanket = new THREE.Mesh(blanketGeometry(blanketColor), MATERIALS.character);
+        this.blanket.userData.color = blanketColor;
+        this.blanket.userData.shared = true;
+        this.blanket.castShadow = true;
+        this.root.add(this.blanket);
+      }
+      if (!this.eyelids) {
+        this.eyelids = new THREE.Mesh(eyelidGeometry(this.look.skin), MATERIALS.character);
+        this.eyelids.userData.shared = true;
+        this.body.add(this.eyelids);
+      }
     } else if (pose === 'sit') {
       this.body.position.y = -0.12;
     }
+    if (this.blanket) this.blanket.visible = pose === 'sleep';
+    if (this.eyelids) this.eyelids.visible = pose === 'sleep';
+    if (this.bubble) this.bubble.position.z = this.bubbleZ;
   }
 
   /** `ring` (0..steps, or -1 for none) draws the generous-tip ring around a request bubble. */
@@ -248,7 +308,7 @@ export class CharacterView {
     }
     this.bubble.visible = true;
     this.bubbleBaseY = height;
-    this.bubble.position.set(0, height, 0);
+    this.bubble.position.set(0, height, this.bubbleZ);
     // A ring tick is not a new bubble: only pop in when the icon itself changes.
     if (!sameIcon) this.bubbleTime = 0;
   }
@@ -270,7 +330,8 @@ export class CharacterView {
     if (this.pose !== 'stand') {
       for (const leg of this.legs) leg.rotation.x = this.pose === 'sit' ? -1.3 : 0;
       this.phase += dt;
-      if (this.pose === 'sleep') this.body.scale.set(1, 1, 1 + Math.sin(this.phase * 2) * 0.02);
+      // Slow breathing: the blanket rises and falls.
+      if (this.pose === 'sleep' && this.blanket) this.blanket.scale.y = 1 + Math.sin(this.phase * 1.6) * 0.06;
       return;
     }
 

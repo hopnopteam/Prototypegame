@@ -17,9 +17,11 @@ export interface GameEvents {
   'unlock.completed': { id: string; price: number; x: number; z: number };
   'tile.draining': { x: number; z: number };
   'carriage.coupled': { index: number; type: string };
+  'carriage.refurbished': { index: number; type: string; tier: number };
   'staff.hired': { role: StaffRole; carriage: number };
   'stars.added': { amount: number; source: string; x?: number; z?: number };
   'level.up': { level: number };
+  'livery.changed': { name: string; level: number };
   'journey.phase': { phase: JourneyPhase; previous: JourneyPhase; station: number };
   'journey.lastCall': Record<string, never>;
   'station.result': StationResult;

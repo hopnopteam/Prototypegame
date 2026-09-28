@@ -1,170 +1,171 @@
 import type { CarriageType } from '../core/types';
 
 /**
- * Night Express palette. Direction: a dollhouse cross-section of a pastel sleeper train, after the
- * storybook symmetry of Wes Anderson's trains and hotels: powder-blue livery with navy and gold, one
- * signature colour per carriage, patterned floors, brass everywhere. Outside is a patchwork of sage,
- * mustard and lavender fields. Colours are chosen to stay distinct at thumb size and under night light.
+ * Night Express palette, v2: calm and legible first.
+ *
+ * Rules (from the clearest top-down idle games, e.g. My Perfect Hotel, and storybook illustration):
+ * - Most of the image is warm neutrals: cream, oak, white. Large surfaces are flat colour, no patterns.
+ * - Each carriage has ONE pastel identity for its walls, all pastels at the same lightness, so the train
+ *   reads as a family and only the hue says "this is the bathroom car".
+ * - Value hierarchy: floor lightest and quietest → walls → furniture → characters (strongest colour) →
+ *   interactive things (gold, the only accent).
+ * - The countryside is desaturated so the train always sits in front of it.
  */
 export const PALETTE = {
-  // Sky and ground
-  skyDay: '#F2E4C4',
-  meadow: '#A9C27F',
-  meadowDark: '#9AB672',
-  wheat: '#EBC867',
-  mustardField: '#E0B04E',
-  lavender: '#BFA9DA',
-  mintField: '#BCD9A2',
-  clover: '#EDB8C2',
-  ploughed: '#C9A07A',
-  hedge: '#6E9859',
-  hedgeDark: '#5C8650',
-  verge: '#D9CBA0',
+  // Countryside (quiet, low contrast)
+  skyDay: '#EEE6D2',
+  meadow: '#B9CA93',
+  meadowDark: '#B0C28A',
+  wheat: '#DECB8F',
+  mustardField: '#D6C28A',
+  lavender: '#C6CFA2',
+  mintField: '#C3D29F',
+  clover: '#BFCE98',
+  ploughed: '#CDB793',
+  hedge: '#94AF7A',
+  hedgeDark: '#87A26E',
+  verge: '#DDD1B2',
 
   // Track
-  ballast: '#BCB0A2',
-  ballastDark: '#A69A8D',
-  sleeper: '#7B5B45',
-  rail: '#A3AAB4',
-  railTop: '#D6DAE0',
+  ballast: '#BFB6AA',
+  ballastDark: '#B5AC9F',
+  sleeper: '#8A735F',
+  rail: '#A9AFB8',
+  railTop: '#DADEE3',
 
-  // Livery
-  livery: '#8CC4D6',
-  liveryDark: '#6BA7BC',
-  navy: '#2C4A6E',
-  navyDark: '#1F3551',
-  gold: '#E3B352',
-  goldDark: '#B9862E',
-  creamBand: '#F6ECD6',
-  undercarriage: '#3A3943',
-  wheel: '#2A2A31',
-  chrome: '#C3CAD2',
+  // Livery defaults (the live livery comes from LIVERIES via materials)
+  livery: '#5E8A6A',
+  liveryDark: '#4C7358',
+  navy: '#34507A',
+  navyDark: '#263C5C',
+  gold: '#E2B653',
+  goldDark: '#B98C33',
+  creamBand: '#F3EBDA',
+  undercarriage: '#3E3C45',
+  wheel: '#2E2D34',
+  chrome: '#C7CDD4',
 
   // Locomotive
-  locoBody: '#2C4A6E',
-  locoRed: '#D1495B',
-  locoBlack: '#24242B',
-  smokebox: '#34343C',
+  locoBody: '#2F3A4A',
+  locoRed: '#C4574D',
+  locoBlack: '#26262C',
+  smokebox: '#33333A',
 
-  // Interiors (shared)
-  walnut: '#8A5A3C',
-  walnutDark: '#6B4430',
-  oak: '#C08B5C',
-  linen: '#FBF6EC',
-  porcelain: '#F6F7F5',
-  brass: '#E3B352',
-  ink: '#2A2433',
-  mattress: '#FBF6EC',
+  // Neutrals and materials
+  walnut: '#8E6A4C',
+  walnutDark: '#6E5140',
+  oak: '#D9B98E',
+  oakMid: '#C7A279',
+  plankWorn: '#B79C7C',
+  plankWornSeam: '#AE9373',
+  iron: '#6C6A70',
+  wallWorn: '#D8CFC0',
+  wallWornLow: '#BDB19E',
+  linen: '#FBF7EF',
+  porcelain: '#F7F7F4',
+  brass: '#E2B653',
+  ink: '#2F2A36',
+  mattress: '#FBF7EF',
   pillow: '#FFFFFF',
-  mustard: '#E9B949',
-  mustardDark: '#D1953A',
-  raspberry: '#C0485C',
-  raspberryDark: '#983547',
-  pink: '#F4B8C0',
-  powder: '#B9D6E8',
-  mint: '#BFE5D3',
-  teal: '#3F8F8B',
-  coral: '#EE8F7A',
-  plum: '#8E5D86',
-  lampShade: '#F7E3B0',
+  greyWool: '#9C9A9E',
+  mustard: '#E5B452',
+  mustardDark: '#C99A3E',
+  raspberry: '#C0606A',
+  raspberryDark: '#9C4A54',
+  pink: '#EBC4BE',
+  powder: '#C3D8E6',
+  mint: '#C9E4D6',
+  teal: '#4F9591',
+  coral: '#E08A6E',
+  plum: '#8E6A8C',
+  lampShade: '#F6E6BD',
   lampGlow: '#FFD68A',
-  towel: '#F29CA8',
+  towel: '#EDA3AC',
   towelStripe: '#FFFFFF',
   rollPaper: '#FFFFFF',
-  suitcase: '#C9764A',
-  windowDay: '#88B3C9',
+  suitcase: '#C98A5E',
+  windowDay: '#9FC0D0',
   windowNight: '#FFC766',
-  frameCanvas: ['#7FA7C9', '#E7B6A8', '#9CC59B', '#E8C872'] as string[],
+  frameCanvas: ['#9DB8CF', '#E6C0B4', '#AFCBA7', '#E6D39A'] as string[],
 
   // Station
-  platformTile: '#EFE4D0',
-  platformTile2: '#E1D2B8',
-  platformEdge: '#F2C94C',
-  stationPink: '#F2B7B4',
-  stationTrim: '#FBF6EC',
-  canopy: '#9ED3C0',
-  canopyDark: '#6FB29D',
-  roofTerracotta: '#C9695B',
-  roofSlate: '#5E7A99',
+  platformTile: '#EEE7DA',
+  platformTile2: '#E7DFD1',
+  platformEdge: '#EDC75A',
+  stationPink: '#F1E4CF',
+  stationTrim: '#FFFDF8',
+  canopy: '#A9CFC0',
+  canopyDark: '#8BB9A7',
+  roofTerracotta: '#C27A67',
+  roofSlate: '#6F8499',
 
-  // Countryside
-  trunk: '#8A6445',
-  treeGreen: '#7FAE5E',
-  treeLight: '#98C26C',
-  blossom: '#F2B6C3',
-  cypress: '#5E8C58',
-  cottageWalls: ['#F4C7C3', '#F6E3A8', '#BFE0D6', '#C9D8EF', '#FBF3E4'] as string[],
-  cottageRoofs: ['#C9695B', '#5E7A99', '#8E5D78', '#6E8F5C'] as string[],
+  // Countryside props
+  trunk: '#8C6F55',
+  treeGreen: '#8EB46F',
+  treeLight: '#A3C383',
+  blossom: '#E9C9C9',
+  cypress: '#6F9A68',
+  cottageWalls: ['#F4EEE1', '#F0E4CC', '#E6ECE2'] as string[],
+  cottageRoofs: ['#C27A67', '#6F8499', '#8C7A6B'] as string[],
   sheep: '#FBF7EF',
-  sheepFace: '#3A3230',
-  water: '#8CC6DE',
-  waterLight: '#BFE3F0',
+  sheepFace: '#3E3634',
+  water: '#9CC9DB',
+  waterLight: '#C4E1EB',
 
   // Money and feedback
   cash: '#7CC47F',
   cashEdge: '#3F8A4C',
   cashBand: '#F4EBC8',
-  zone: '#FFF6E4',
+  zone: '#FFFDF8',
   zoneActive: '#F2B233',
 };
 
-/** One signature look per carriage: wallpaper, wainscot, trim and a patterned floor. */
+/**
+ * One identity per carriage. Everything else about how a carriage looks comes from its refurbishment
+ * tier (see CarriageView): tier 0 is a tired old carriage in putty and bare planks; each tier repaints,
+ * carpets and finally dresses it in wood panelling and brass.
+ */
 export interface CarriageTheme {
+  /** The pastel wall colour (tier 1+). */
   wall: string;
-  wallStripe: string;
-  wainscot: string;
-  trim: string;
-  floor: string;
-  floor2: string;
-  /** Pattern id for the main floor (see materials.ts PATTERN). */
-  floorPattern: number;
-  floorScale: number;
-  /** Cabin / room floors. */
-  room: string;
-  room2: string;
-  roomPattern: number;
-  roomScale: number;
-  runner: string;
-  runnerEdge: string;
-  curtain: string;
+  /** Lower wall band / deeper tone of the same hue. */
+  wallLow: string;
+  /** Soft floor covering in rooms (tier 2+). */
+  carpet: string;
+  /** Deeper version for the runner and rich finishes (tier 3). */
+  deep: string;
   blanket: string;
-  blanket2: string;
+  curtain: string;
 }
 
 export const CARRIAGE_THEMES: Record<CarriageType, CarriageTheme> = {
-  lobby: {
-    wall: '#F4B8C0', wallStripe: '#EFA6B1', wainscot: '#C0485C', trim: '#E3B352',
-    floor: '#F7EDDC', floor2: '#E6A2AE', floorPattern: 4, floorScale: 0.42,
-    room: '#E9DDC5', room2: '#DCCBAE', roomPattern: 2, roomScale: 0.22,
-    runner: '#C0485C', runnerEdge: '#E3B352',
-    curtain: '#E3B352', blanket: '#E9B949', blanket2: '#D1953A',
-  },
-  sleeper: {
-    wall: '#B9D6E8', wallStripe: '#A8CADF', wainscot: '#4E7FA6', trim: '#F1D48A',
-    floor: '#EFE5D2', floor2: '#DCCDB2', floorPattern: 1, floorScale: 0.34,
-    room: '#E4D8BE', room2: '#D6C6A6', roomPattern: 2, roomScale: 0.22,
-    runner: '#2C4A6E', runnerEdge: '#E3B352',
-    curtain: '#E9B949', blanket: '#C0485C', blanket2: '#983547',
-  },
-  bathroom: {
-    wall: '#BFE5D3', wallStripe: '#ADDCC6', wainscot: '#5FA88C', trim: '#FBF6EC',
-    floor: '#F4F1EA', floor2: '#4A5A70', floorPattern: 1, floorScale: 0.3,
-    room: '#F7F4EC', room2: '#4A5A70', roomPattern: 1, roomScale: 0.3,
-    runner: '#3F8F8B', runnerEdge: '#FBF6EC',
-    curtain: '#FBF6EC', blanket: '#F29CA8', blanket2: '#FFFFFF',
-  },
-  supply: {
-    wall: '#F2D48B', wallStripe: '#EBC977', wainscot: '#B88A3E', trim: '#6B4430',
-    floor: '#C99762', floor2: '#B5834F', floorPattern: 5, floorScale: 0.7,
-    room: '#C99762', room2: '#B5834F', roomPattern: 5, roomScale: 0.7,
-    runner: '#6E8F5C', runnerEdge: '#F2D48B',
-    curtain: '#6E8F5C', blanket: '#6E8F5C', blanket2: '#F2D48B',
-  },
-  luggage: {
-    wall: '#EDAA8C', wallStripe: '#E59B7C', wainscot: '#A0493B', trim: '#F3E3C3',
-    floor: '#BE916A', floor2: '#A97E58', floorPattern: 9, floorScale: 0.32,
-    room: '#BE916A', room2: '#A97E58', roomPattern: 9, roomScale: 0.32,
-    runner: '#2C4A6E', runnerEdge: '#F3E3C3',
-    curtain: '#2C4A6E', blanket: '#2C4A6E', blanket2: '#F3E3C3',
-  },
+  lobby: { wall: '#EBC9C2', wallLow: '#D7AAA2', carpet: '#E9D8CD', deep: '#B9707A', blanket: '#D98E8F', curtain: '#E2B653' },
+  sleeper: { wall: '#C6D9E6', wallLow: '#A6C0D4', carpet: '#DCE3E6', deep: '#5E7FA0', blanket: '#7D9CBB', curtain: '#E5B452' },
+  bathroom: { wall: '#CCE5D8', wallLow: '#A9CDBB', carpet: '#EEF2EC', deep: '#5F9C86', blanket: '#EDA3AC', curtain: '#FFFDF8' },
+  supply: { wall: '#EFDDAE', wallLow: '#D9C38D', carpet: '#E8DDC4', deep: '#C29A48', blanket: '#8FAE78', curtain: '#8FAE78' },
+  luggage: { wall: '#EFD0BA', wallLow: '#DDB397', carpet: '#E9DACD', deep: '#A7705A', blanket: '#5E7FA0', curtain: '#5E7FA0' },
 };
+
+/** Tier names, shown on refurbishment tiles and in headlines. */
+export const TIER_NAMES = ['Rusty', 'Freshly painted', 'Cosy', 'Luxurious'];
+
+/** The train's paint job follows its reputation: it looks as famous as it is. */
+export interface Livery {
+  minLevel: number;
+  name: string;
+  body: string;
+  trim: string;
+}
+
+export const LIVERIES: Livery[] = [
+  { minLevel: 1, name: 'Rust & Soot', body: '#9A7462', trim: '#7A6D66' },
+  { minLevel: 2, name: 'Meadow Green', body: '#5E8A6A', trim: '#EFE6D2' },
+  { minLevel: 4, name: 'Midnight Navy', body: '#34507A', trim: '#F1E6CC' },
+  { minLevel: 6, name: 'Royal Blue & Gold', body: '#2F4C82', trim: '#E2B653' },
+];
+
+export function liveryFor(level: number): Livery {
+  let best = LIVERIES[0];
+  for (const l of LIVERIES) if (level >= l.minLevel) best = l;
+  return best;
+}

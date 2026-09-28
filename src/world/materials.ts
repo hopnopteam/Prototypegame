@@ -101,6 +101,9 @@ function patterned(material: THREE.MeshLambertMaterial): THREE.MeshLambertMateri
 export const MATERIALS = {
   /** The train, platform and props: at night they glow faintly warm, as if lit from within. */
   solid: patterned(new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color('#FFB870'), emissiveIntensity: 0 })),
+  /** The train's paint job (body and trim): one colour for every carriage, changed as reputation grows. */
+  livery: new THREE.MeshLambertMaterial({ vertexColors: true, color: '#9A7462', emissive: new THREE.Color('#FFB870'), emissiveIntensity: 0 }),
+  liveryTrim: new THREE.MeshLambertMaterial({ vertexColors: true, color: '#7A6D66', emissive: new THREE.Color('#FFB870'), emissiveIntensity: 0 }),
   /** The countryside: tinted moonlit blue at night while the train stays lamplit. */
   scenery: patterned(new THREE.MeshLambertMaterial({ vertexColors: true })),
   /** The field patchwork (its texture is painted by Scenery). */
@@ -128,6 +131,8 @@ export function setNightAmount(amount: number): void {
   MATERIALS.scenery.color.copy(DAY_TINT).lerp(NIGHT_TINT, amount);
   MATERIALS.ground.color.copy(DAY_TINT).lerp(NIGHT_TINT, amount * 0.92);
   MATERIALS.solid.emissiveIntensity = 0.06 * amount;
+  MATERIALS.livery.emissiveIntensity = 0.05 * amount;
+  MATERIALS.liveryTrim.emissiveIntensity = 0.05 * amount;
   MATERIALS.character.emissiveIntensity = 0.05 * amount;
   MATERIALS.floor.emissiveIntensity = 0.22 * amount;
   MATERIALS.windows.emissiveIntensity = 1.25 * amount;
@@ -192,4 +197,10 @@ export function createZoneMaterial(color: string): THREE.ShaderMaterial {
       }
     `,
   });
+}
+
+/** Repaints every carriage at once (livery parts are white in geometry and take the material colour). */
+export function setLivery(body: string, trim: string): void {
+  MATERIALS.livery.color.set(body);
+  MATERIALS.liveryTrim.color.set(trim);
 }

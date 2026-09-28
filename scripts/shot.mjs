@@ -12,7 +12,7 @@ try {
 }
 
 const [out = 'shot.png', query = '', wait = '1500', width = '390', height = '844'] = process.argv.slice(2);
-const url = `file://${resolve('dist/index.html')}${query}`;
+const url = `file://${resolve(process.env.PAGE ?? 'dist/index.html')}${query}`;
 const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: Number(width), height: Number(height) }, deviceScaleFactor: 1, ignoreHTTPSErrors: true });
 const errors = [];

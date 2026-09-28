@@ -74,8 +74,6 @@ export const ECONOMY = {
 
   money: {
     baseFare: 12,
-    /** Each comfort upgrade on a cabin raises its fare. */
-    comfortFareBonus: 6,
     alightTip: 8,
     luggageTip: 4,
     requestTip: 7,
@@ -88,6 +86,16 @@ export const ECONOMY = {
     startingFloorCash: 6,
     /** Walk this close to a cash pile and it streams into your pockets. */
     magnetRadius: 1.1,
+  },
+
+  /** Carriage refurbishment (rags to riches): what each tier is worth, by carriage type. */
+  refurb: {
+    /** Sleeper cabins: fare multiplier per tier (3 tiers: x1.75). */
+    fareBonusPerTier: 0.25,
+    /** Bathroom car: washroom tip multiplier per tier. */
+    bathTipBonusPerTier: 0.5,
+    /** Supply and luggage cars: every tip on the train, per tier. */
+    trainTipBonusPerTier: 0.05,
   },
 
   stars: {

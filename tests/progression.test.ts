@@ -94,6 +94,17 @@ describe('UnlockChain', () => {
 
   it('points at the cheapest available tile', () => {
     const chain = new UnlockChain(UNLOCKS, { unlocked: ['cabin_0_1', 'cabin_0_2', 'hire_attendant_0'], partial: {} }, () => ({}));
-    expect(chain.cheapestAvailable()?.id).toBe('bedding_0');
+    expect(chain.cheapestAvailable()?.id).toBe('refurb_0_1');
+  });
+
+  it('refurbishes every carriage one tier at a time, and says what each tile does', () => {
+    for (const def of UNLOCKS) expect(def.effect.length, def.id).toBeGreaterThan(0);
+    const refurbs = UNLOCKS.filter((u) => u.kind === 'refurb');
+    for (const def of refurbs) {
+      const tier = def.tier ?? 0;
+      expect(tier, def.id).toBeGreaterThanOrEqual(1);
+      if (tier > 1) expect(def.requires, def.id).toContain(`refurb_${def.carriage}_${tier - 1}`);
+      expect(def.id).toBe(`refurb_${def.carriage}_${tier}`);
+    }
   });
 });

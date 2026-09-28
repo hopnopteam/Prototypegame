@@ -1,13 +1,13 @@
 import * as THREE from 'three';
-import { BEDDING_FARE_BONUS, ROUTE1_CARRIAGES, UNLOCKS, type UnlockDef } from '../config/content';
+import { ROUTE1_CARRIAGES, UNLOCKS, type UnlockDef } from '../config/content';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Vec2 } from '../core/types';
-import { CarriageView, FLOOR_Y } from '../world/CarriageView';
+import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
 import { carriageOriginZ, getLayout, type BathroomLayout, type CabinLayout } from '../world/layout';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { GeoBuilder } from '../world/geo';
 import { MATERIALS, PATTERN } from '../world/materials';
-import { PALETTE } from '../world/palette';
+import { PALETTE, TIER_NAMES } from '../world/palette';
 import { GANGWAY_LENGTH, REAR_DECK_LENGTH } from '../world/layout';
 import type { Actor } from './Actor';
 import type { Guest } from './Guests';
@@ -24,6 +24,8 @@ export class Cabin {
   readonly center: Vec2;
   readonly spots: Vec2[];
   readonly bedPose: Vec2;
+  /** Where a sleeper's root goes so their head lands on the pillow (CharacterView sleep pose). */
+  readonly sleepPose: Vec2;
   readonly tipPile: Vec2;
   readonly node: string;
   readonly pileId: string;
@@ -38,6 +40,7 @@ export class Cabin {
     this.center = w(layout.center);
     this.spots = layout.spots.map(w);
     this.bedPose = w(layout.bedPose);
+    this.sleepPose = { x: this.bedPose.x, z: layout.bed.z0 + originZ + PILLOW_Z + SLEEPER_HEAD };
     this.tipPile = w(layout.tipPile);
     this.node = `c${carriage}:${layout.node}`;
     this.pileId = `cabin:${this.id}`;
@@ -83,6 +86,13 @@ export class Bathroom {
 }
 
 const tmp = new THREE.Vector3();
+/** Pillow centre from the head of the bed, and the sleeper's head from their root (CharacterView). */
+const PILLOW_Z = 0.27;
+const SLEEPER_HEAD = 1.02;
+/** Room doors open when someone is this close to the doorway centre (metres), at these rates (per second). */
+const ROOM_DOOR_REACH = 1.25;
+const ROOM_DOOR_OPEN_RATE = 4;
+const ROOM_DOOR_CLOSE_RATE = 1.6;
 
 /** The open observation platform behind the last carriage, where new carriages couple on. */
 function buildRearDeck(): THREE.Group {
@@ -91,7 +101,7 @@ function buildRearDeck(): THREE.Group {
   const z0 = GANGWAY_LENGTH;
   const z1 = GANGWAY_LENGTH + REAR_DECK_LENGTH;
   const zc = (z0 + z1) / 2;
-  b.box(0, (0.38 + y) / 2, zc, 2.8, y - 0.38, REAR_DECK_LENGTH, PALETTE.navy, 0, { shade: 0.85 });
+  const liv = new GeoBuilder().box(0, (0.38 + y) / 2, zc, 2.8, y - 0.38, REAR_DECK_LENGTH, '#FFFFFF', 0, { shade: 0.85 });
   b.box(0, y - 0.02, zc, 2.7, 0.04, REAR_DECK_LENGTH - 0.1, PALETTE.oak, 0, { pattern: PATTERN.planks, color2: PALETTE.walnut, scale: 0.22, shade: 1 });
   // Brass railing with balusters, a gate rail at the back.
   for (const x of [-1.35, 1.35]) b.box(x, y + 0.5, zc, 0.05, 0.05, REAR_DECK_LENGTH, PALETTE.brass, 0, { shade: 1 });
@@ -103,7 +113,7 @@ function buildRearDeck(): THREE.Group {
   const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-  group.add(mesh);
+  group.add(mesh, new THREE.Mesh(liv.build(), MATERIALS.livery));
   const lamp = new GeoBuilder().cylinder(0, 0, 0, 0.07, 0.1, 0.18, PALETTE.lampShade, 10, 'y', { shade: 0.9 }).build();
   const lampMesh = new THREE.Mesh(lamp, MATERIALS.lamps);
   lampMesh.position.set(1.2, y + 1.42, z1 - 0.1);
@@ -122,7 +132,8 @@ export class TrainState {
   readonly cabins: Cabin[] = [];
   readonly bathrooms: Bathroom[] = [];
   types: CarriageType[] = [];
-  beddingLevel: number[] = [];
+  /** Refurbishment tier per carriage: 0 second-hand … 3 luxurious. */
+  tiers: number[] = [];
   luggageStored = 0;
   coupling = false;
   private doorTarget = 0;
@@ -176,8 +187,26 @@ export class TrainState {
     return this.indexOfType('supply') !== null;
   }
 
-  fareBonus(cabin: Cabin): number {
-    return (this.beddingLevel[cabin.carriage] ?? 0) * BEDDING_FARE_BONUS;
+  /** Refurbished cabins pay more: the whole point of doing up a rusty carriage. */
+  fareMultiplier(cabin: Cabin): number {
+    return 1 + (this.tiers[cabin.carriage] ?? 0) * this.w.econ.refurb.fareBonusPerTier;
+  }
+
+  bathTipMultiplier(bath: Bathroom): number {
+    return 1 + (this.tiers[bath.carriage] ?? 0) * this.w.econ.refurb.bathTipBonusPerTier;
+  }
+
+  /** A smart supply and luggage car lift every tip on the train. */
+  trainTipBonus(): number {
+    let tiers = 0;
+    this.types.forEach((type, i) => {
+      if (type === 'supply' || type === 'luggage') tiers += this.tiers[i] ?? 0;
+    });
+    return tiers * this.w.econ.refurb.trainTipBonusPerTier;
+  }
+
+  tierOf(carriage: number): number {
+    return this.tiers[carriage] ?? 0;
   }
 
   /** The best free cabin for a new guest: the lowest carriage first, so walks stay short. */
@@ -208,9 +237,8 @@ export class TrainState {
         if (bath) this.unlockBathroom(bath, animate);
         break;
       }
-      case 'bedding':
-        this.beddingLevel[def.carriage] = (this.beddingLevel[def.carriage] ?? 0) + 1;
-        if (animate) this.celebrateBeds(def.carriage);
+      case 'refurb':
+        this.refurbish(def.carriage, def.tier ?? 1, animate);
         break;
       case 'couple':
         if (animate) this.coupleNext();
@@ -226,7 +254,7 @@ export class TrainState {
     const plan = ROUTE1_CARRIAGES[index];
     if (!plan || this.coupling) return;
     this.coupling = true;
-    const view = new CarriageView(getLayout(plan.type), index);
+    const view = new CarriageView(getLayout(plan.type), index, this.savedTier(index));
     const targetZ = carriageOriginZ(index);
     const startZ = targetZ + 48;
     view.group.position.z = startZ;
@@ -293,6 +321,8 @@ export class TrainState {
       this.views.forEach((v, i) => (v.group.position.z = carriageOriginZ(i) + offset));
     }
 
+    if (w.player) this.updateRoomDoors(dt);
+
     // Keep visuals in sync with state (cheap: a handful of visibility flags).
     for (const cabin of this.cabins) this.views[cabin.carriage]?.setDirt(cabin.index, cabin.dirty);
     for (const bath of this.bathrooms) this.views[bath.carriage]?.setBathroomStock(bath.layout.index, bath.towels, bath.rolls);
@@ -306,12 +336,12 @@ export class TrainState {
 
   private addCarriage(type: CarriageType, animate: boolean, existingView?: CarriageView): void {
     const index = this.types.length;
-    const view = existingView ?? new CarriageView(getLayout(type), index);
+    const view = existingView ?? new CarriageView(getLayout(type), index, this.savedTier(index));
     view.group.position.z = carriageOriginZ(index);
     this.group.add(view.group);
     this.views.push(view);
     this.types.push(type);
-    this.beddingLevel[index] = UNLOCKS.filter((u) => u.kind === 'bedding' && u.carriage === index && this.w.unlocks.isUnlocked(u.id)).length;
+    this.tiers[index] = view.tier;
     const layout = getLayout(type);
     const originZ = carriageOriginZ(index);
 
@@ -348,6 +378,79 @@ export class TrainState {
     for (const bl of layout.bathrooms) view.setBathroomLocked(bl.index, bl.index !== 0);
   }
 
+  private savedTier(index: number): number {
+    let tier = 0;
+    for (const u of UNLOCKS) if (u.kind === 'refurb' && u.carriage === index && this.w.unlocks.isUnlocked(u.id)) tier = Math.max(tier, u.tier ?? 1);
+    return tier;
+  }
+
+  /**
+   * The makeover: the carriage is rebuilt at its new tier (walls, floors, furniture, lamps) while
+   * everything living in it (beds, dirt, stock, luggage) carries over. The glow-up is the reward you see.
+   */
+  refurbish(index: number, tier: number, animate: boolean): void {
+    const old = this.views[index];
+    const type = this.types[index];
+    if (!old || type === undefined || tier <= old.tier) return;
+    const view = new CarriageView(getLayout(type), index, tier);
+    view.group.position.copy(old.group.position);
+    for (const cabin of this.cabins) if (cabin.carriage === index) view.setCabinLocked(cabin.index, !cabin.unlocked);
+    for (const bath of this.bathrooms) if (bath.carriage === index) view.setBathroomLocked(bath.layout.index, !bath.unlocked);
+    view.setDoorOpen(this.doorAmount);
+    this.group.remove(old.group);
+    old.dispose();
+    this.group.add(view.group);
+    this.views[index] = view;
+    this.tiers[index] = tier;
+    // Refresh stock visibility this frame rather than next.
+    this.update(0);
+    if (!animate) return;
+    const w = this.w;
+    const originZ = carriageOriginZ(index);
+    w.stage.rig.focusOn(new THREE.Vector3(0, 0, originZ + 7), 2.2, 1.0);
+    w.stage.rig.shake(0.15, 0.3);
+    w.audio.play('fanfare');
+    w.haptics.success();
+    for (let z = 1; z < 13; z += 1.5) w.particles.emit('sparkle', (z % 3) - 1, FLOOR_Y + 0.9, originZ + z, 6, 0.9);
+    w.particles.emit('confetti', 0, FLOOR_Y + 2.2, originZ + 7, 40, 1.8);
+    view.group.scale.set(1, 0.9, 1);
+    w.tweens.run(0.6, (t) => view.group.scale.set(1, 0.9 + 0.1 * t, 1), { ease: easeOutBack });
+    w.ui.celebrate(ROUTE1_CARRIAGES[index]?.name ?? 'Carriage', TIER_NAMES[tier] ?? 'Refurbished', 'wrench');
+    w.events.emit('carriage.refurbished', { index, type, tier });
+  }
+
+  /** Room doors slide open for anyone walking up to them, and close behind. Locked rooms stay shut. */
+  private updateRoomDoors(dt: number): void {
+    const w = this.w;
+    const reach2 = ROOM_DOOR_REACH * ROOM_DOOR_REACH;
+    for (let i = 0; i < this.views.length; i++) {
+      const view = this.views[i];
+      const originZ = view.group.position.z;
+      for (const door of view.roomDoors) {
+        const want = door.locked ? 0 : this.someoneNear(door, originZ, reach2) ? 1 : 0;
+        if (door.open === want) continue;
+        const rate = want > door.open ? ROOM_DOOR_OPEN_RATE : ROOM_DOOR_CLOSE_RATE;
+        const next = want > door.open ? Math.min(1, door.open + dt * rate) : Math.max(0, door.open - dt * rate);
+        if (door.open === 0 && want === 1 && dt > 0) w.audio.play('door', { volume: 0.25, pitch: 1.4 });
+        view.setRoomDoor(door, next);
+      }
+    }
+  }
+
+  private someoneNear(door: RoomDoor, originZ: number, reach2: number): boolean {
+    const w = this.w;
+    const dz = door.z + originZ;
+    const near = (p: Vec2): boolean => {
+      const x = p.x - door.x;
+      const z = p.z - dz;
+      return x * x + z * z < reach2;
+    };
+    if (near(w.player.pos)) return true;
+    for (const m of w.staff.members) if (near(m.pos)) return true;
+    for (const g of w.guests.list) if (!g.inCabin && near(g.pos)) return true;
+    return false;
+  }
+
   rebuildMap(): void {
     const w = this.w;
     const moreToCome = ROUTE1_CARRIAGES.length > this.types.length;
@@ -382,15 +485,6 @@ export class TrainState {
       const fixtures = view.bathroomFixtures[bath.layout.index];
       if (fixtures) this.popIn(fixtures);
       this.w.particles.emit('sparkle', bath.restock.x, FLOOR_Y + 0.6, bath.restock.z, 18, 0.8);
-    }
-  }
-
-  private celebrateBeds(carriage: number): void {
-    for (const cabin of this.cabins) {
-      if (cabin.carriage !== carriage || !cabin.unlocked) continue;
-      this.w.particles.emit('sparkle', cabin.bedPose.x, FLOOR_Y + 0.6, cabin.bedPose.z, 8, 0.5);
-      const bed = this.views[carriage].cabinBeds[cabin.index];
-      if (bed) this.popIn(bed, 0.8);
     }
   }
 

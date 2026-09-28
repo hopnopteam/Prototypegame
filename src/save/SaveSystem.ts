@@ -1,3 +1,4 @@
+import { RENAMED_UNLOCKS } from '../config/content';
 import { log } from '../core/log';
 import { createDefaultSave, mergeDefaults, SAVE_VERSION, type SaveData } from './SaveData';
 import type { SaveStorage } from './SaveStorage';
@@ -11,7 +12,25 @@ export interface SaveMigration {
 }
 
 /** Register one step per SAVE_VERSION bump. Never delete old steps: players can skip many updates. */
-export const SAVE_MIGRATIONS: SaveMigration[] = [];
+export const SAVE_MIGRATIONS: SaveMigration[] = [
+  {
+    // v1 → v2: bedding upgrades became carriage refurbishments.
+    from: 1,
+    apply(raw) {
+      const route = raw.route as { unlocked?: string[]; partial?: Record<string, number> } | undefined;
+      if (!route) return;
+      if (Array.isArray(route.unlocked)) route.unlocked = route.unlocked.map((id) => RENAMED_UNLOCKS[id] ?? id);
+      if (route.partial) {
+        for (const [from, to] of Object.entries(RENAMED_UNLOCKS)) {
+          if (from in route.partial) {
+            route.partial[to] = route.partial[from];
+            delete route.partial[from];
+          }
+        }
+      }
+    },
+  },
+];
 
 export interface SaveSystemOptions {
   key: string;

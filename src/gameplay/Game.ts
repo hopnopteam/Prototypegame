@@ -23,6 +23,9 @@ import { TrainMap } from '../sim/TrainMap';
 import { UnlockChain } from '../sim/UnlockChain';
 import { Wallet } from '../sim/Wallet';
 import { FLOOR_Y } from '../world/CarriageView';
+import { carriageOriginZ } from '../world/layout';
+import { setLivery } from '../world/materials';
+import { liveryFor } from '../world/palette';
 import { CashView } from '../world/CashView';
 import { Particles } from '../world/Particles';
 import { Scenery } from '../world/Scenery';
@@ -162,6 +165,7 @@ export class Game implements World {
     this.input.onFirstInteraction = () => this.audio.unlock();
 
     this.train.init();
+    this.applyLivery();
     const spawn = this.map.anchor(0, 'playerSpawn');
     this.player = new Player(this, this.input, spawn);
     this.guidance = new Guidance(this);
@@ -230,7 +234,7 @@ export class Game implements World {
   }
 
   tipMultiplier(): number {
-    return 1 + this.data.meta.perks.tipBonus;
+    return 1 + this.data.meta.perks.tipBonus + this.train.trainTipBonus();
   }
 
   addStars(amount: number, source: string, at?: { x: number; z: number }): void {
@@ -393,7 +397,19 @@ export class Game implements World {
     }
   }
 
+  /** The paint job follows the route level: the train looks as famous as it is. */
+  private applyLivery(): string {
+    const livery = liveryFor(this.data.route.level);
+    setLivery(livery.body, livery.trim);
+    return livery.name;
+  }
+
   private onLevelUp(level: number): void {
+    const before = liveryFor(level - 1).name;
+    if (this.applyLivery() !== before) {
+      this.events.emit('livery.changed', { name: liveryFor(level).name, level });
+      for (let i = 0; i < this.train.count; i++) this.particles.emit('sparkle', 0, FLOOR_Y + 1.2, carriageOriginZ(i) + 7, 14, 2.2);
+    }
     const reward = this.progression.rewardFor(level);
     this.analytics.log(EVENTS.routeLevelUp, { level, time: Math.round(this.lifetimeSeconds()) });
     this.events.emit('level.up', { level });

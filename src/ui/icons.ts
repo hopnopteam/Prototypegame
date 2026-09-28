@@ -6,7 +6,8 @@ export type IconName =
   | 'tea' | 'blanket' | 'pillow' | 'towel' | 'roll' | 'luggage' | 'crate' | 'broom' | 'bed' | 'person'
   | 'star' | 'cash' | 'gem' | 'miles' | 'bath' | 'clock' | 'ad' | 'lock' | 'plus' | 'carriage' | 'zzz'
   | 'heart' | 'bolt' | 'bag' | 'gear' | 'album' | 'calendar' | 'quest' | 'ticket' | 'check' | 'camera'
-  | 'wrench' | 'skate' | 'hold' | 'chest' | 'noroom' | 'double' | 'box';
+  | 'wrench' | 'skate' | 'hold' | 'chest' | 'noroom' | 'double' | 'box' | 'paint' | 'news' | 'trophy'
+  | 'mic' | 'dash';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -468,6 +469,99 @@ const ICONS: Record<IconName, Draw> = {
     c.beginPath();
     c.arc(50, 56, 15, 0, Math.PI * 2);
     fillStroke(c, '#9FD3F0', 5);
+  },
+  paint: (c) => {
+    // A paint roller: the refurbishment tile.
+    c.beginPath();
+    c.moveTo(78, 30);
+    c.lineTo(86, 30);
+    c.lineTo(86, 52);
+    c.lineTo(52, 58);
+    c.lineTo(52, 66);
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.lineJoin = 'round';
+    c.stroke();
+    rr(c, 44, 64, 16, 28, 6);
+    fillStroke(c, '#8E6A4C');
+    rr(c, 12, 16, 68, 28, 12);
+    fillStroke(c, '#E9A1A8');
+    c.beginPath();
+    c.moveTo(22, 24);
+    c.lineTo(56, 24);
+    c.lineWidth = 5;
+    c.strokeStyle = '#FFFFFF';
+    c.stroke();
+  },
+  news: (c) => {
+    // A folded newspaper: the Rail Gazette.
+    rr(c, 14, 20, 72, 62, 8);
+    fillStroke(c, CREAM);
+    c.fillStyle = INK;
+    c.fillRect(24, 30, 52, 9);
+    rr(c, 24, 46, 22, 24, 3);
+    fillStroke(c, '#9DB8CF', 4);
+    c.fillStyle = INK;
+    for (const y of [48, 56, 64]) c.fillRect(52, y, 24, 4);
+    c.fillRect(24, 74, 52, 3);
+  },
+  trophy: (c) => {
+    // The Golden Whistle award.
+    c.beginPath();
+    c.moveTo(28, 16);
+    c.lineTo(72, 16);
+    c.quadraticCurveTo(72, 56, 50, 60);
+    c.quadraticCurveTo(28, 56, 28, 16);
+    c.closePath();
+    fillStroke(c, '#FFD35C');
+    for (const side of [-1, 1]) {
+      c.beginPath();
+      c.arc(50 + side * 26, 30, 10, side < 0 ? 0.5 * Math.PI : -0.5 * Math.PI, side < 0 ? 1.5 * Math.PI : 0.5 * Math.PI, side > 0);
+      c.lineWidth = 6;
+      c.strokeStyle = INK;
+      c.stroke();
+    }
+    rr(c, 44, 58, 12, 14, 2);
+    fillStroke(c, '#E2B653', 5);
+    rr(c, 30, 72, 40, 12, 4);
+    fillStroke(c, '#8E6A4C', 5);
+  },
+  mic: (c) => {
+    // An interviewer's microphone.
+    rr(c, 36, 12, 28, 44, 14);
+    fillStroke(c, '#C9BFB0');
+    c.beginPath();
+    c.arc(50, 44, 24, 0, Math.PI);
+    c.moveTo(50, 68);
+    c.lineTo(50, 84);
+    c.moveTo(36, 86);
+    c.lineTo(64, 86);
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.lineCap = 'round';
+    c.stroke();
+  },
+  dash: (c) => {
+    // Quick travel: a running arrow with speed lines.
+    c.beginPath();
+    c.moveTo(34, 30);
+    c.lineTo(62, 30);
+    c.lineTo(62, 18);
+    c.lineTo(86, 50);
+    c.lineTo(62, 82);
+    c.lineTo(62, 70);
+    c.lineTo(34, 70);
+    c.closePath();
+    fillStroke(c, '#FFD35C');
+    c.beginPath();
+    for (const y of [38, 50, 62]) {
+      c.moveTo(12, y);
+      c.lineTo(26, y);
+    }
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.lineCap = 'round';
+    c.stroke();
   },
   wrench: (c) => {
     c.save();

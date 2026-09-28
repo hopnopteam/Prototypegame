@@ -13,8 +13,11 @@ export const HALF_WIDTH = 2.2;
 export const WALL = 0.16;
 export const INNER = HALF_WIDTH - WALL;
 /** Corridor runs along the left; cabins sit to the right of this partition. */
-export const PARTITION_X0 = -0.75;
-export const PARTITION_X1 = -0.6;
+export const PARTITION_X0 = -0.6;
+export const PARTITION_X1 = -0.46;
+/** Room doorways: wide enough to walk through without threading a needle (they slide open as you come). */
+export const ROOM_DOOR_WIDTH = 1.2;
+export const ROOM_DOOR_OFFSET = 0.3;
 export const EXTERIOR_WALL_HEIGHT = 1.1;
 export const INTERIOR_WALL_HEIGHT = 0.85;
 export const GANGWAY_HALF = 0.7;
@@ -56,6 +59,8 @@ export interface CabinLayout {
   index: number;
   room: Rect;
   doorZ: number;
+  /** The doorway in the partition (z range); a sliding door fills it when nobody is near. */
+  door: [number, number];
   bed: Rect;
   spots: Vec2[];
   center: Vec2;
@@ -69,6 +74,7 @@ export interface BathroomLayout {
   index: number;
   room: Rect;
   doorZ: number;
+  door: [number, number];
   restock: Vec2;
   useSpot: Vec2;
   node: string;
@@ -227,8 +233,8 @@ class LayoutBuilder {
     for (let c = 0; c < count; c++) {
       const cz0 = z0 + c * len;
       const cz1 = cz0 + len;
-      const doorZ0 = cz0 + 0.25;
-      const doorZ1 = cz0 + 1.15;
+      const doorZ0 = cz0 + ROOM_DOOR_OFFSET;
+      const doorZ1 = doorZ0 + ROOM_DOOR_WIDTH;
       const doorZ = (doorZ0 + doorZ1) / 2;
       partitionGaps.push([doorZ0, doorZ1]);
 
@@ -240,11 +246,11 @@ class LayoutBuilder {
       this.room(room.x0, room.z0, room.x1, room.z1);
       this.connector(PARTITION_X0 - 0.45, doorZ0, PARTITION_X1 + 0.45, doorZ1, 'x');
 
-      const bed = rect(INNER - 1.1, cz0 + 0.2, INNER, cz0 + 0.2 + Math.min(1.9, len - 0.45));
+      const bed = rect(INNER - 1.05, cz0 + 0.18, INNER, cz0 + 0.18 + Math.min(1.85, len - 0.4));
       this.prop('bed', bed.x0, bed.z0, bed.x1, bed.z1, 'front');
 
       const corridorNode = this.node(`corr_${c}`, (-INNER + PARTITION_X0) / 2, doorZ);
-      const cabinNode = this.node(`cabin_${c}`, 0.12, doorZ + 0.15);
+      const cabinNode = this.node(`cabin_${c}`, 0.22, doorZ + 0.1);
       this.chain(previousCorridor, corridorNode);
       this.edge(corridorNode, cabinNode);
       previousCorridor = corridorNode;
@@ -255,6 +261,7 @@ class LayoutBuilder {
         index: c,
         room,
         doorZ,
+        door: [doorZ0, doorZ1],
         bed,
         spots: [
           { x: openX0, z: cz0 + 0.55 },
@@ -302,7 +309,7 @@ function buildLobby(): CarriageLayout {
   b.anchor('bin', 1.3, 0.88);
   b.anchor('home_attendant', -0.25, 5.05);
   b.anchor('home_porter', 0.55, 1.45);
-  b.anchor('tile_bedding', 1.05, CARRIAGE_LENGTH - 0.75);
+  b.anchor('tile_refurb', 1.05, CARRIAGE_LENGTH - 0.75);
   b.anchor('tile_up_attendant', -0.25, 5.05);
   b.anchor('tile_up_porter', 0.55, 1.45);
   b.anchor('stackItems', 0.8, 1.2);
@@ -343,7 +350,7 @@ function buildSleeper(): CarriageLayout {
   b.anchor('pillow', 1.72, 1.0);
   b.anchor('home_attendant', 1.2, CARRIAGE_LENGTH - 0.75);
   b.anchor('tile_up_attendant', 1.2, CARRIAGE_LENGTH - 0.75);
-  b.anchor('tile_bedding', -0.9, CARRIAGE_LENGTH - 0.75);
+  b.anchor('tile_refurb', -1.05, CARRIAGE_LENGTH - 0.75);
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, front - 0.1);
   b.node('nook', 0, 1.05);
   b.chain('vest_front', 'nook', 'corr_in');
@@ -360,41 +367,46 @@ function buildBathroom(): CarriageLayout {
   b.connector(-INNER, front - 0.5, PARTITION_X0, end + 0.55, 'z');
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, front);
 
-  const mid = (front + end) / 2;
-  const rooms: [number, number][] = [[front, mid], [mid, end]];
+  // Three compact washrooms (a train loo, not a spa): two with a basin, the last a bath suite.
+  const count = 3;
+  const len = (end - front) / count;
   const gaps: [number, number][] = [];
   let previous = 'corr_in';
   b.edge('vest_front', 'corr_in');
-  rooms.forEach(([z0, z1], index) => {
+  for (let index = 0; index < count; index++) {
+    const z0 = front + index * len;
+    const z1 = z0 + len;
     b.wall(PARTITION_X1, z0 - 0.06, INNER, z0 + 0.06);
-    if (index === rooms.length - 1) b.wall(PARTITION_X1, z1 - 0.06, INNER, z1 + 0.06);
-    const doorZ0 = z0 + 0.3;
-    const doorZ1 = z0 + 1.3;
+    if (index === count - 1) b.wall(PARTITION_X1, z1 - 0.06, INNER, z1 + 0.06);
+    const doorZ0 = z0 + ROOM_DOOR_OFFSET;
+    const doorZ1 = doorZ0 + ROOM_DOOR_WIDTH;
     const doorZ = (doorZ0 + doorZ1) / 2;
     gaps.push([doorZ0, doorZ1]);
     b.room(PARTITION_X1, z0 + 0.06, INNER, z1 - 0.06);
     b.connector(PARTITION_X0 - 0.45, doorZ0, PARTITION_X1 + 0.45, doorZ1, 'x');
-    b.prop('toilet', INNER - 0.7, z0 + 0.35, INNER, z0 + 1.05, 'left');
-    b.prop('sink', INNER - 0.55, z0 + 2.3, INNER, z0 + 3.1, 'left');
-    b.prop('bathtub', 0.1, z1 - 1.35, INNER, z1 - 0.12, 'left');
+    b.prop('toilet', INNER - 0.62, z0 + 0.3, INNER, z0 + 0.95, 'left');
+    if (index < count - 1) b.prop('sink', INNER - 0.5, z1 - 1.05, INNER, z1 - 0.4, 'left');
+    else b.prop('bathtub', 0.55, z1 - 1.25, INNER, z1 - 0.14, 'left');
     const corridorNode = b.node(`corr_${index}`, (-INNER + PARTITION_X0) / 2, doorZ);
-    const node = b.node(`bath_${index}`, 0.1, doorZ + 0.3);
-    const useNode = b.node(`bath_use_${index}`, INNER - 1.05, z0 + 0.8);
+    const node = b.node(`bath_${index}`, 0.15, doorZ + 0.1);
+    const useNode = b.node(`bath_use_${index}`, INNER - 1.0, z0 + 0.7);
     b.chain(previous, corridorNode, node, useNode);
     previous = corridorNode;
     b.layout.bathrooms.push({
       index,
       room: rect(PARTITION_X1, z0 + 0.06, INNER, z1 - 0.06),
       doorZ,
-      restock: { x: 0.35, z: z0 + 2.7 },
-      useSpot: { x: INNER - 1.05, z: z0 + 0.8 },
+      door: [doorZ0, doorZ1],
+      restock: { x: 0.25, z: z0 + 2.35 },
+      useSpot: { x: INNER - 1.0, z: z0 + 0.7 },
       node,
       useNode,
     });
-  });
+  }
   b.wallAlongZ(PARTITION_X0, PARTITION_X1, front, end, gaps, 'interior');
   b.node('corr_end', (-INNER + PARTITION_X0) / 2, CARRIAGE_LENGTH - REAR_VESTIBULE + 0.35);
   b.chain(previous, 'corr_end', 'vest_rear');
+  b.anchor('tile_refurb', 1.05, CARRIAGE_LENGTH - 0.75);
   return b.layout;
 }
 
@@ -415,6 +427,7 @@ function buildSupply(): CarriageLayout {
   b.anchor('home_runner', -0.9, 8.3);
   b.anchor('tile_up_runner', -0.9, 8.3);
   b.anchor('bin', -0.95, 12.2);
+  b.anchor('tile_refurb', 1.05, CARRIAGE_LENGTH - 0.75);
   b.node('aisle_front', 0, front + 0.2);
   b.node('aisle_mid', 0, 6.5);
   b.node('aisle_rear', 0, 11.2);
@@ -433,6 +446,7 @@ function buildLuggage(): CarriageLayout {
   b.anchor('rack', 0, 6.8);
   b.anchor('home_porter', 0.6, 3.4);
   b.anchor('tile_up_porter', 0.6, 3.4);
+  b.anchor('tile_refurb', 1.05, CARRIAGE_LENGTH - 0.75);
   b.node('aisle_front', 0, front + 0.3);
   b.node('rack', 0, 6.8);
   b.node('aisle_rear', 0, 11.2);

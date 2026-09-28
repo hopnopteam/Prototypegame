@@ -16,7 +16,10 @@ export class LocomotiveView {
     const back = -GANGWAY_LENGTH;
     const front = back - LOCOMOTIVE_LENGTH;
     const b = new GeoBuilder();
-    const body = PALETTE.locoBody;
+    // Boiler, cab and tender wear the train's livery (white here, tinted by the shared material).
+    const liv = new GeoBuilder();
+    const trim = new GeoBuilder();
+    const body = '#FFFFFF';
     const mid = (front + back) / 2;
 
     // Frame and running board: red valance with a gold line, black chassis.
@@ -28,7 +31,7 @@ export class LocomotiveView {
     const boilerFront = front + 0.8;
     const boilerBack = back - 3.4;
     const boilerLength = boilerBack - boilerFront;
-    b.cylinder(0, 1.55, (boilerFront + boilerBack) / 2, 0.95, 0.95, boilerLength, body, 24, 'z', { shade: 0.75 });
+    liv.cylinder(0, 1.55, (boilerFront + boilerBack) / 2, 0.95, 0.95, boilerLength, body, 24, 'z', { shade: 0.75 });
     b.cylinder(0, 1.55, boilerFront - 0.05, 0.98, 0.98, 0.5, PALETTE.smokebox, 24, 'z', { shade: 0.75 });
     b.cylinder(0, 1.55, boilerFront - 0.32, 0.5, 0.5, 0.06, PALETTE.locoBlack, 20, 'z', { shade: 1 });
     for (let i = 1; i <= 3; i++) b.cylinder(0, 1.55, boilerFront + (boilerLength * i) / 4, 0.985, 0.985, 0.07, PALETTE.gold, 24, 'z', { shade: 0.85 });
@@ -44,15 +47,15 @@ export class LocomotiveView {
     const cabFront = boilerBack;
     const cabBack = back - 0.6;
     const cabMid = (cabFront + cabBack) / 2;
-    b.box(0, 1.65, cabMid, 3.0, 2.2, cabBack - cabFront, body, 0, { shade: 0.75 });
-    b.box(0, 2.0, cabMid, 3.03, 0.7, cabBack - cabFront - 0.2, PALETTE.creamBand, 0, { shade: 1 });
+    liv.box(0, 1.65, cabMid, 3.0, 2.2, cabBack - cabFront, body, 0, { shade: 0.75 });
+    trim.box(0, 2.0, cabMid, 3.03, 0.7, cabBack - cabFront - 0.2, body, 0, { shade: 1 });
     b.box(0, 2.88, cabMid, 3.3, 0.14, cabBack - cabFront + 0.4, PALETTE.navyDark, 0, { shade: 1 });
     b.box(0, 0.95, cabMid, 3.04, 0.12, cabBack - cabFront, PALETTE.gold, 0, { shade: 1 });
     b.box(1.53, 1.3, cabMid, 0.02, 0.26, 0.7, PALETTE.gold, 0, { shade: 1 });
     // Tender end facing the train: navy panel with gold lining, a round window, coal heaped on top.
-    b.box(0, 1.2, back - 0.3, 2.7, 1.3, 0.6, body, 0, { shade: 0.7 });
+    liv.box(0, 1.2, back - 0.3, 2.7, 1.3, 0.6, body, 0, { shade: 0.7 });
     b.box(0, 1.2, back - 0.005, 2.5, 1.1, 0.02, PALETTE.navyDark, 0, { shade: 1 });
-    b.box(0, 1.2, back + 0.006, 2.4, 1.0, 0.012, body, 0, { shade: 0.95 });
+    liv.box(0, 1.2, back + 0.006, 2.4, 1.0, 0.012, body, 0, { shade: 0.95 });
     b.cylinder(0, 1.35, back + 0.012, 0.22, 0.22, 0.02, PALETTE.gold, 18, 'z', { shade: 1 });
     b.cylinder(0, 1.35, back + 0.02, 0.18, 0.18, 0.02, PALETTE.windowDay, 18, 'z', { shade: 1 });
     b.box(0, 1.87, back - 0.3, 2.5, 0.06, 0.55, PALETTE.gold, 0, { shade: 1 });
@@ -67,6 +70,10 @@ export class LocomotiveView {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this.group.add(mesh);
+    const livery = new THREE.Mesh(liv.build(), MATERIALS.livery);
+    livery.castShadow = true;
+    livery.receiveShadow = true;
+    this.group.add(livery, new THREE.Mesh(trim.build(), MATERIALS.liveryTrim));
 
     // Cab windows and the headlamp glow at night.
     const windows = new GeoBuilder();

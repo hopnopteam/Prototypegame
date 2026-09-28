@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultSave, mergeDefaults, SAVE_VERSION } from '../src/save/SaveData';
 import { MemorySaveStorage } from '../src/save/SaveStorage';
-import { SaveSystem, type SaveMigration } from '../src/save/SaveSystem';
+import { SAVE_MIGRATIONS, SaveSystem, type SaveMigration } from '../src/save/SaveSystem';
 
 const KEY = 'test.save';
 
@@ -75,12 +75,21 @@ describe('SaveSystem', () => {
 
   it('fills fields missing from older saves with defaults', () => {
     storage.setCandidates(KEY, JSON.stringify({ version: 1, wallet: { cash: 50 }, profile: { installId: 'abc' } }));
-    const save = create();
+    const save = create(SAVE_MIGRATIONS);
     save.load();
     expect(save.data.wallet.cash).toBe(50);
     expect(save.data.wallet.gems).toBe(0);
     expect(save.data.settings.sound).toBe(true);
     expect(save.data.profile.installId).toBe('abc');
+  });
+
+  it('migrates v1 bedding upgrades to carriage refurbishments', () => {
+    storage.setCandidates(KEY, JSON.stringify({ version: 1, route: { unlocked: ['cabin_0_1', 'bedding_0', 'bedding2_0'], partial: { bedding_4: 30 } }, profile: { installId: 'abc' } }));
+    const save = create(SAVE_MIGRATIONS);
+    save.load();
+    expect(save.data.version).toBe(SAVE_VERSION);
+    expect(save.data.route.unlocked).toEqual(['cabin_0_1', 'refurb_0_1', 'refurb_0_2']);
+    expect(save.data.route.partial).toEqual({ refurb_4_1: 30 });
   });
 
   it('treats a save without a version as unreadable', () => {

@@ -27,7 +27,7 @@ const ICON_BY_KIND: Record<UnlockDef['kind'], IconName> = {
   hire: 'person',
   couple: 'carriage',
   bathroom: 'bath',
-  bedding: 'pillow',
+  refurb: 'paint',
   staffUpgrade: 'plus',
 };
 
@@ -240,8 +240,8 @@ export class Tiles {
         return map.hasAnchor(def.carriage, `home_${def.role}`) ? map.anchor(def.carriage, `home_${def.role}`) : null;
       case 'staffUpgrade':
         return map.hasAnchor(def.carriage, `tile_up_${def.role}`) ? map.anchor(def.carriage, `tile_up_${def.role}`) : null;
-      case 'bedding':
-        return map.hasAnchor(def.carriage, 'tile_bedding') ? map.anchor(def.carriage, 'tile_bedding') : null;
+      case 'refurb':
+        return map.hasAnchor(def.carriage, 'tile_refurb') ? map.anchor(def.carriage, 'tile_refurb') : null;
       case 'couple':
         return map.rearDeck().tile;
     }

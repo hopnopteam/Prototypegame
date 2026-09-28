@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ARCHETYPES, type ArchetypeDef, type StoryDef } from '../config/content';
 import type { ItemKind, Vec2 } from '../core/types';
 import type { IconName } from '../ui/icons';
-import { FLOOR_Y } from '../world/CarriageView';
+import { BED_TOP, FLOOR_Y } from '../world/CarriageView';
 import { CharacterView, type CharacterLook } from '../world/CharacterView';
 import { Mover, type Actor } from './Actor';
 import type { Bathroom, Cabin } from './TrainState';
@@ -231,8 +231,8 @@ export class Guests {
       const y = FLOOR_Y;
       const z = guest.pos.z + (guest.onPlatform ? platformOffset : 0);
       if (guest.state === 'resting' && guest.cabin) {
-        guest.view.setPose('sleep');
-        guest.view.setPosition(guest.cabin.bedPose.x, y, guest.cabin.bedPose.z);
+        guest.view.setPose('sleep', w.train.views[guest.cabin.carriage]?.blanketColor);
+        guest.view.setPosition(guest.cabin.sleepPose.x, y + BED_TOP, guest.cabin.sleepPose.z);
         guest.view.setFacing(0);
       } else {
         guest.view.setPose('stand');
@@ -304,7 +304,7 @@ export class Guests {
           bath.towels--;
           bath.rolls--;
           w.train.persistBathrooms();
-          const tip = Math.max(1, Math.round(w.econ.money.bathroomTip * guest.archetype.tipMultiplier * w.tipMultiplier()));
+          const tip = Math.max(1, Math.round(w.econ.money.bathroomTip * guest.archetype.tipMultiplier * w.tipMultiplier() * w.train.bathTipMultiplier(bath)));
           w.cash.add(bath.pileId, tip, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
           w.audio.play('flush');
           w.events.emit('bathroom.used', { tipped: true });
@@ -469,7 +469,7 @@ export class Guests {
     const w = this.w;
     const money = w.econ.money;
     const doubled = w.data.monetization.doubleFaresStop !== null && w.data.monetization.doubleFaresStop >= w.journey.stopSerial;
-    const fare = Math.round((money.baseFare + w.train.fareBonus(cabin)) * guest.archetype.fareMultiplier * w.fareMultiplier() * (doubled ? 2 : 1));
+    const fare = Math.round(money.baseFare * w.train.fareMultiplier(cabin) * guest.archetype.fareMultiplier * w.fareMultiplier() * (doubled ? 2 : 1));
     w.cash.add('desk', fare, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
     w.audio.play('bell');
     w.haptics.light();

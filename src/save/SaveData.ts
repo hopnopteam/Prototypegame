@@ -3,7 +3,7 @@
  * - Adding a field: give it a default in createDefaultSave(); loading deep-merges defaults, no version bump.
  * - Renaming, removing or changing the meaning of a field: bump SAVE_VERSION and add a migration.
  */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export interface QuestState {
   kind: string;
