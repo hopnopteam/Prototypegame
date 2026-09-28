@@ -7,7 +7,7 @@ export type IconName =
   | 'star' | 'cash' | 'gem' | 'miles' | 'bath' | 'clock' | 'ad' | 'lock' | 'plus' | 'carriage' | 'zzz'
   | 'heart' | 'bolt' | 'bag' | 'gear' | 'album' | 'calendar' | 'quest' | 'ticket' | 'check' | 'camera'
   | 'wrench' | 'skate' | 'hold' | 'chest' | 'noroom' | 'double' | 'box' | 'paint' | 'news' | 'trophy'
-  | 'mic' | 'dash';
+  | 'mic' | 'dash' | 'hand' | 'menu' | 'conductor';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -562,6 +562,53 @@ const ICONS: Record<IconName, Draw> = {
     c.strokeStyle = INK;
     c.lineCap = 'round';
     c.stroke();
+  },
+  hand: (c) => {
+    // A pointing hand for the drag gesture.
+    c.beginPath();
+    c.moveTo(40, 58);
+    c.lineTo(40, 18);
+    c.quadraticCurveTo(40, 10, 47, 10);
+    c.quadraticCurveTo(54, 10, 54, 18);
+    c.lineTo(54, 44);
+    c.lineTo(62, 42);
+    c.quadraticCurveTo(70, 42, 70, 49);
+    c.lineTo(76, 48);
+    c.quadraticCurveTo(84, 49, 84, 57);
+    c.lineTo(84, 70);
+    c.quadraticCurveTo(84, 90, 62, 90);
+    c.lineTo(52, 90);
+    c.quadraticCurveTo(38, 90, 30, 78);
+    c.lineTo(20, 62);
+    c.quadraticCurveTo(16, 54, 24, 52);
+    c.quadraticCurveTo(32, 50, 40, 58);
+    c.closePath();
+    fillStroke(c, '#FBEAD8', 5);
+  },
+  menu: (c) => {
+    for (const y of [28, 50, 72]) {
+      rr(c, 18, y - 6, 64, 12, 6);
+      fillStroke(c, '#FBF3E4', 4);
+    }
+  },
+  conductor: (c) => {
+    // The conductor's cap: navy crown, red band, gold badge.
+    c.beginPath();
+    c.moveTo(16, 56);
+    c.quadraticCurveTo(16, 22, 50, 20);
+    c.quadraticCurveTo(84, 22, 84, 56);
+    c.closePath();
+    fillStroke(c, '#2C4A6E');
+    rr(c, 14, 52, 72, 14, 5);
+    fillStroke(c, '#C0485C', 5);
+    c.beginPath();
+    c.moveTo(18, 66);
+    c.quadraticCurveTo(50, 90, 82, 66);
+    c.closePath();
+    fillStroke(c, '#1F3551', 5);
+    c.beginPath();
+    c.arc(50, 40, 8, 0, Math.PI * 2);
+    fillStroke(c, '#F2B233', 4);
   },
   wrench: (c) => {
     c.save();

@@ -25,6 +25,7 @@ import type { Stage } from '../world/Stage';
 import type { CashPiles } from './CashPiles';
 import type { Demand } from './Demand';
 import type { GameEvents } from './events';
+import type { DoubleChoice } from './GameUi';
 import type { Guests } from './Guests';
 import type { Guidance } from './Guidance';
 import type { Meta } from './Meta';
@@ -88,6 +89,8 @@ export interface World {
   /** Multiplier on fares from conductor upgrades, perks and boosts. */
   fareMultiplier(): number;
   tipMultiplier(): number;
+  /** Grants a reward once, doubled if the player watched an ad or paid gems for it. */
+  collectWithDouble(placement: string, choice: DoubleChoice, gemCost: number, grant: (multiplier: number) => void): void;
   /** The livery the train is wearing now (Paint Shop pick or best earned). */
   currentLivery(): Livery;
   scenerySpanChanged(): void;

@@ -1,7 +1,7 @@
 import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, type ProductDef } from '../config/content';
 import { formatDuration, formatNumber } from '../core/math';
 import type { DoubleChoice } from '../gameplay/GameUi';
-import { CEREMONIES, INTERVIEWS, NOMINATION_LEVEL } from '../config/press';
+import { CEREMONIES, INTERVIEWS, NOMINATION_LEVEL, RIVALS } from '../config/press';
 import { conductorCost } from '../sim/meta';
 import { CARRIAGE_THEMES, LIVERIES, liveryFor } from '../world/palette';
 import type { CarriageChoiceView } from '../gameplay/UiApi';
@@ -58,6 +58,15 @@ export class Screens {
     this.ui.root.appendChild(scrim);
     this.setOpen(1);
     return close;
+  }
+
+  /** A custom full-screen moment (the front page) counts as an open sheet while it is up. */
+  hold(): void {
+    this.setOpen(1);
+  }
+
+  release(): void {
+    this.setOpen(-1);
   }
 
   private setOpen(delta: number): void {
@@ -128,6 +137,46 @@ export class Screens {
     ], { closable: false, center: true, className: 'chooser' });
   }
 
+  /** The league table: the rivals, and you among them. */
+  private league(): HTMLElement {
+    const g = this.game;
+    const reputation = g.data.route.stars;
+    const rows = [...RIVALS.map((r) => ({ name: r.name, rep: r.reputation, you: false, livery: r.livery })),
+      { name: g.press.trainName, rep: reputation, you: true, livery: g.currentLivery().body }]
+      .sort((a, b) => b.rep - a.rep || (a.you ? -1 : 1));
+    return h('ol.league', {}, ...rows.map((row, i) => h(`li${row.you ? '.you' : ''}` as 'li', {},
+      h('span.rank', { text: String(i + 1) }),
+      h('span.swatch', { style: { background: row.livery } }),
+      h('span.name', {}, h('b', { text: row.name })),
+      h('span.rep', {}, icon('star', 14), formatNumber(row.rep)),
+    )));
+  }
+
+  /** The menu: everything that is not play, one tap away and out of the way. */
+  menu(): void {
+    const g = this.game;
+    let close: () => void = () => undefined;
+    const go = (fn: () => void) => () => {
+      g.audio.play('click');
+      close();
+      fn();
+    };
+    const dailyCount = g.meta.claimableQuests() + (g.meta.canClaimLogin() ? 1 : 0);
+    const row = (iconName: IconName, label: string, detail: string, onclick: () => void, badge = 0): HTMLElement =>
+      h('button.menu-row', { onclick },
+        icon(iconName, 34),
+        h('span.text', {}, h('b', { text: label }), h('small', { text: detail })),
+        badge > 0 ? h('span.count', { text: String(badge) }) : h('span.chev', { text: '›' }),
+      );
+    const standing = g.press.standing;
+    close = this.sheet('Menu', 'menu', [
+      row('trophy', 'League & level', `#${standing.rank} of ${standing.total} · route level ${g.progression.level}`, go(() => this.progress())),
+      g.meta.questsUnlocked() || g.meta.loginUnlocked() ? row('calendar', 'Daily', 'Calendar and quests', go(() => this.daily()), dailyCount) : null,
+      g.data.meta.postcards.length > 0 ? row('album', 'Postcards', `${g.data.meta.postcards.length} collected`, go(() => this.album())) : null,
+      row('gear', 'Settings', 'Sound, vibration, more', go(() => this.settings())),
+    ], { className: 'menu-sheet' });
+  }
+
   /** Tap the level ring: where you are, what the next level brings, and who to overtake. */
   progress(): void {
     const g = this.game;
@@ -146,9 +195,10 @@ export class Screens {
       reward ? h('div.section-title', { text: `Level ${next} brings` }) : null,
       reward ? h('ul.perks', {}, ...[`+${reward.railMiles} Rail Miles and +${formatNumber(reward.cash)} Fares`, ...perks].map((t) => h('li', { text: t }))) : null,
       h('div.section-title', { text: 'Countryside League' }),
-      h('p', { text: standing.next ? `#${standing.rank} of ${standing.total}. Overtake ${standing.next.name} in ${formatNumber(standing.next.reputation - g.data.route.stars)} stars.` : `#1 of ${standing.total}. The best sleeper on the line.` }),
+      h('p', { text: standing.next ? `Overtake ${standing.next.name} in ${formatNumber(standing.next.reputation - g.data.route.stars)} stars.` : 'Number one: the best sleeper on the line.' }),
+      this.league(),
       h('p.small', { text: 'Stars come from building, cleaning cabins, bringing requests and perfect station stops.' }),
-    ], { center: true });
+    ]);
   }
 
   offline(amount: number, seconds: number, gemCost: number, onCollect: (choice: DoubleChoice) => void): void {

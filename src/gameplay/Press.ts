@@ -2,15 +2,14 @@ import { STORIES } from '../config/content';
 import {
   CEREMONIES,
   DEFAULT_TRAIN_NAME,
+  FRONT_PAGE_REWARDS,
   HEADLINES,
   INTERVIEWS,
-  LONG_QUEUE_MIN,
-  NOMINATION_LEVEL,
   PRESS_ARCHIVE,
   RIVALS,
+  TOP_RANK_NEWS,
   TRAIN_NAME_MAX,
   TRAIN_NAME_SUGGESTIONS,
-  WEEKLY_EVERY_STOPS,
   type AwardDef,
   type CeremonyDef,
   type InterviewDef,
@@ -18,7 +17,7 @@ import {
 } from '../config/press';
 import type { NewsItem } from '../save/SaveData';
 import { awardProgress, cleanTrainName, fillTemplate, leagueStanding, rivalsPassed, type LeagueStanding } from '../sim/press';
-import { TIER_NAMES } from '../world/palette';
+import type { DoubleChoice } from './GameUi';
 import type { World } from './World';
 
 export interface CeremonyResult {
@@ -30,74 +29,64 @@ export interface CeremonyResult {
   need: number;
 }
 
-/** What the press needs from the UI. Opening any of these pauses the game like every other sheet. */
+export interface FrontPageReward {
+  cash: number;
+  gems: number;
+  railMiles: number;
+}
+
+/** What the press needs from the UI. Each of these is a sheet, which pauses the game like every other. */
 export interface PressUi {
   showNaming(suggestions: string[], onDone: (name: string) => void): void;
   showInterview(def: InterviewDef, trainName: string, onAnswer: (index: number) => void): void;
   showCeremony(def: CeremonyDef, results: CeremonyResult[], trainName: string, onDone: () => void): void;
-  newsFlash(item: NewsItem): void;
+  /** The celebratory front page: the story, a photo of the train, and a reward to collect (×2 optional). */
+  showFrontPage(item: NewsItem, reward: FrontPageReward, gemCost: number, onCollect: (choice: DoubleChoice) => void): void;
   /** A sheet is open; big moments wait. */
   readonly busy: boolean;
 }
 
-/** After a departure, the next this-many seconds are a calm beat for a naming card, interview or ceremony. */
+/** After a departure, this many seconds are a calm beat for interviews and ceremonies. */
 const CALM_SECONDS = 25;
-/** Passenger milestones that make the paper. */
-const GUEST_MILESTONES: [number, PressTrigger][] = [[25, 'guests25'], [100, 'guests100'], [250, 'guests250']];
+/** A front page waits this long after its moment (so the coupling card and camera finish first). */
+const FRONT_PAGE_DELAY = 3.2;
+const GUESTS_NEWS = 100;
 
 /**
- * The world noticing your train (the answer to "what am I working towards?"): you name her, the Rail
- * Gazette reports what you actually do, a league table of rival trains shows who to overtake next, Rails
- * Tonight interviews you as you level up (every answer a small perk), and the Golden Whistle Awards judge
- * how you played. Big moments wait for the calm right after a departure; nothing interrupts a task.
+ * The world noticing your train (the answer to "what am I working towards?"): you name her, the league
+ * table of rival trains shows who to overtake next, Rails Tonight interviews you as you level up (every
+ * answer a small perk), the Golden Whistle Awards judge how you played, and the Rail Gazette puts only the
+ * big moments on its front page, each one a small celebration that pays. Moments wait for calm: never at a
+ * station, never on top of another sheet, never mid-coupling.
  */
 export class Press {
   private calm = 0;
+  private sinceMoment = 99;
 
   constructor(private readonly w: World, private readonly ui: PressUi) {
     const p = this.state;
     if (p.reputationSeen === 0) p.reputationSeen = w.data.route.stars;
     if (!p.trainName && w.data.route.stopsCompleted > 0) this.queue('name');
     const e = w.events;
-    e.on('guest.checkedIn', () => this.onGuest());
+    e.on('guest.checkedIn', () => {
+      p.stats.guests++;
+      if (p.stats.guests === GUESTS_NEWS) this.print('guests100');
+    });
     e.on('request.fulfilled', () => {
       p.stats.requests++;
     });
     e.on('station.result', (r) => {
       if (w.data.route.stopsCompleted >= 1) this.queue('name');
-      if (r.clean) {
-        p.stats.perfectStops++;
-        p.stats.streak++;
-        if (p.stats.streak % 3 === 0) this.print('perfectStreak', { station: r.stationName });
-      } else {
-        p.stats.streak = 0;
-        const stop = w.data.route.stopsCompleted;
-        if (r.waiting >= LONG_QUEUE_MIN && stop - p.stats.lastQueueStop >= 6) {
-          p.stats.lastQueueStop = stop;
-          this.print('longQueue', { station: r.stationName, n: r.waiting });
-        }
-      }
-      const stop = w.data.route.stopsCompleted;
-      if (stop - p.stats.lastWeeklyStop >= WEEKLY_EVERY_STOPS && p.trainName) {
-        p.stats.lastWeeklyStop = stop;
-        this.print('weekly', { n: p.stats.weekGuests });
-        p.stats.weekGuests = 0;
-      }
+      if (r.clean) p.stats.perfectStops++;
       w.save.markDirty();
     });
-    e.on('carriage.coupled', ({ index }) => {
-      const carriage = w.train.carriageName(index);
-      this.print(index === 1 ? 'firstCoupling' : 'coupling', { carriage, n: index + 1 });
-    });
-    e.on('staff.hired', () => this.once('firstHire'));
+    e.on('carriage.coupled', ({ index }) => this.print('coupling', { carriage: w.train.carriageName(index), n: index + 1 }));
     e.on('carriage.refurbished', ({ index, tier }) => {
-      const trigger = `refurb${Math.min(3, tier)}` as PressTrigger;
-      this.once(trigger, { carriage: w.train.carriageName(index), tier: TIER_NAMES[tier] ?? '' });
+      if (tier >= 3) this.print('refurb3', { carriage: w.train.carriageName(index) });
     });
     e.on('livery.changed', ({ name }) => this.print('livery', { livery: name }));
     e.on('stars.added', () => this.checkLeague());
     e.on('level.up', ({ level }) => {
-      if (level === NOMINATION_LEVEL) this.once('nominated');
       if (INTERVIEWS.some((i) => i.level === level) && !p.interviews.includes(level)) this.queue(`interview:${level}`);
       if (CEREMONIES.some((c) => c.level === level) && !p.ceremonies.includes(level)) this.queue(`ceremony:${level}`);
     });
@@ -128,20 +117,17 @@ export class Press {
     return leagueStanding(this.w.data.route.stars, RIVALS);
   }
 
-  get unread(): number {
-    return this.state.unread;
-  }
-
-  markRead(): void {
-    if (this.state.unread === 0) return;
-    this.state.unread = 0;
-    this.w.save.markDirty();
-  }
-
   update(dt: number): void {
-    if (this.calm <= 0) return;
-    this.calm -= dt;
-    if (this.state.pending.length > 0 && !this.ui.busy) this.showNext();
+    this.sinceMoment += dt;
+    if (this.calm > 0) this.calm -= dt;
+    const p = this.state;
+    if (p.pending.length === 0 || this.ui.busy || this.w.train.coupling) return;
+    const phase = this.w.journey.phase;
+    if (phase === 'arriving' || phase === 'stationStop') return;
+    const next = p.pending[0];
+    // Interviews and ceremonies are for the breather after a station; the rest just need a quiet moment.
+    const needsBreather = next.startsWith('interview:') || next.startsWith('ceremony:');
+    if (needsBreather ? this.calm > 0 : this.sinceMoment >= FRONT_PAGE_DELAY) this.showNext();
   }
 
   /** Dev: show whatever is pending now. */
@@ -149,24 +135,18 @@ export class Press {
     if (this.state.pending.length > 0 && !this.ui.busy) this.showNext();
   }
 
-  // ─── Printing ───────────────────────────────────────────────────────────────
+  // ─── Front pages ────────────────────────────────────────────────────────────
 
-  private once(trigger: PressTrigger, vars: Record<string, string | number> = {}): void {
-    if (this.state.fired[trigger]) return;
-    this.print(trigger, vars);
-  }
-
+  /** Prints a story and queues its front page. Returns null before the train has a name. */
   print(trigger: PressTrigger, vars: Record<string, string | number> = {}): NewsItem | null {
     const w = this.w;
     const p = this.state;
-    // Nobody writes about a train without a name: early news waits for the naming card.
     if (!p.trainName && trigger !== 'named') return null;
     const variants = HEADLINES[trigger];
     const count = p.fired[trigger] ?? 0;
     const def = variants[count % variants.length];
     p.fired[trigger] = count + 1;
-    const standing = this.standing;
-    const all = { train: this.trainName, rank: standing.rank, n: w.train.count, ...vars };
+    const all = { train: this.trainName, rank: this.standing.rank, n: w.train.count, ...vars };
     const livery = w.currentLivery();
     const item: NewsItem = {
       id: p.nextId++,
@@ -181,18 +161,32 @@ export class Press {
     };
     p.items.unshift(item);
     if (p.items.length > PRESS_ARCHIVE) p.items.length = PRESS_ARCHIVE;
-    p.unread++;
-    w.save.markDirty();
-    this.ui.newsFlash(item);
+    this.sinceMoment = 0;
+    this.queue(`front:${item.id}`);
     w.analytics.log('press_printed', { trigger, level: item.level });
     return item;
   }
 
-  private onGuest(): void {
-    const p = this.state;
-    p.stats.guests++;
-    p.stats.weekGuests++;
-    for (const [n, trigger] of GUEST_MILESTONES) if (p.stats.guests === n) this.print(trigger, { n });
+  private rewardFor(item: NewsItem): FrontPageReward {
+    const r = FRONT_PAGE_REWARDS[item.trigger as PressTrigger] ?? {};
+    return { cash: (r.cashPerCarriage ?? 0) * item.carriages, gems: r.gems ?? 0, railMiles: r.railMiles ?? 0 };
+  }
+
+  private showFrontPage(id: number): void {
+    const w = this.w;
+    const item = this.state.items.find((i) => i.id === id);
+    if (!item) return;
+    const reward = this.rewardFor(item);
+    const gemCost = w.econ.rewarded.levelUpDouble.gemCost;
+    w.audio.play('fanfare');
+    w.haptics.success();
+    this.ui.showFrontPage(item, reward, gemCost, (choice) => w.collectWithDouble('frontPageDouble', choice, gemCost, (k) => {
+      if (reward.cash > 0) w.wallet.add('cash', reward.cash * k, 'press');
+      if (reward.gems > 0) w.wallet.add('gems', reward.gems * k, 'press');
+      if (reward.railMiles > 0) w.wallet.add('railMiles', reward.railMiles * k, 'press');
+      w.audio.play('chest');
+      w.particles.emit('confetti', w.player.pos.x, 2.6, w.player.pos.z, 50, 1.4);
+    }));
   }
 
   private checkLeague(): void {
@@ -205,9 +199,12 @@ export class Press {
     const standing = this.standing;
     const last = passed[passed.length - 1];
     this.w.audio.play('sparkle', { pitch: 1.2 });
-    const printed = standing.rank === 1 ? (this.state.fired.champion ? null : this.print('champion')) : this.print('overtake', { rival: last.name });
-    // Before the paper knows your name, a plain line says it instead.
-    if (!printed) this.w.ui.toast(`Overtook ${last.name}! Now #${standing.rank} in the league`, 'trophy');
+    this.w.ui.toast(`Overtook ${last.name} · now #${standing.rank}`, 'trophy');
+    if (standing.rank === 1) {
+      if (!p.fired.champion) this.print('champion');
+    } else if (standing.rank <= TOP_RANK_NEWS && !p.fired.topThree) {
+      this.print('topThree', { rival: last.name });
+    }
   }
 
   // ─── Big moments ───────────────────────────────────────────────────────────
@@ -216,7 +213,9 @@ export class Press {
     const p = this.state;
     if (p.pending.includes(key)) return;
     if (key === 'name' && p.trainName) return;
-    p.pending.push(key);
+    // The naming card always comes before any story about the train.
+    if (key === 'name') p.pending.unshift(key);
+    else p.pending.push(key);
     this.w.save.markDirty();
   }
 
@@ -226,7 +225,9 @@ export class Press {
     this.w.save.markDirty();
     if (!key) return;
     this.calm = 0;
+    this.sinceMoment = 0;
     if (key === 'name') this.showNaming();
+    else if (key.startsWith('front:')) this.showFrontPage(Number(key.split(':')[1]));
     else if (key.startsWith('interview:')) this.showInterview(Number(key.split(':')[1]));
     else if (key.startsWith('ceremony:')) this.showCeremony(Number(key.split(':')[1]));
   }
@@ -254,7 +255,6 @@ export class Press {
       w.save.markDirty();
       w.audio.play('unlock');
       w.ui.toast(`Rails Tonight: ${answer.perk.label}, for good`, 'mic');
-      this.print('interview', { quote: answer.text });
     });
   }
 
@@ -281,9 +281,7 @@ export class Press {
     }
     w.save.markDirty();
     this.ui.showCeremony({ ...def, awards }, results, this.trainName, () => {
-      const won = results.filter((r) => r.fresh);
-      if (won.length > 0) this.print('award', { award: won.map((r) => r.award.name).join(' and ') });
-      w.events.emit('awards.presented', { level, won: won.length });
+      w.events.emit('awards.presented', { level, won: results.filter((r) => r.fresh).length });
     });
   }
 }

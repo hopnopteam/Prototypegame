@@ -32,10 +32,11 @@ export const TRAIN_NAME_MAX = 22;
 /** Used until the player names the train (and if they leave the field empty). */
 export const DEFAULT_TRAIN_NAME = 'The Night Express';
 
-export type PressTrigger =
-  | 'named' | 'firstCoupling' | 'coupling' | 'firstHire' | 'refurb1' | 'refurb2' | 'refurb3' | 'livery'
-  | 'overtake' | 'perfectStreak' | 'longQueue' | 'guests25' | 'guests100' | 'guests250' | 'story'
-  | 'award' | 'nominated' | 'interview' | 'weekly' | 'champion';
+/**
+ * Only big, visible moments make the front page (and each one pays): naming the train, every new carriage,
+ * a luxury refit, a new livery, breaking into the top three, topping the league, a hundred passengers.
+ */
+export type PressTrigger = 'named' | 'coupling' | 'refurb3' | 'livery' | 'topThree' | 'champion' | 'guests100' | 'story';
 
 export interface HeadlineDef {
   headline: string;
@@ -44,38 +45,34 @@ export interface HeadlineDef {
 
 /** One or more variants per trigger; a variant is picked by how many times the trigger has fired. */
 export const HEADLINES: Record<PressTrigger, HeadlineDef[]> = {
-  named: [{ headline: 'A Sleeper Train for the Countryside Line?', body: '{train} rattles out of Millbrook with one rusty carriage, three iron cots and a very determined conductor. "Rusty but charming," says a passenger.' }],
-  firstCoupling: [{ headline: '{train} Grows a Second Carriage', body: 'The {carriage} rolled in with a clunk heard two fields away. Passengers report "actual washrooms".' }],
+  named: [{ headline: 'A New Sleeper for the Countryside!', body: '{train} rattles out of Millbrook with one old carriage and a very determined conductor.' }],
   coupling: [
-    { headline: '{train} Is Getting Longer', body: 'A {carriage} joins the train. Station masters are measuring their platforms.' },
-    { headline: 'Now {n} Carriages Long', body: 'The {carriage} couples on. "She used to be one rusty carriage," a porter recalls.' },
+    { headline: '{train} Grows a Carriage!', body: 'The {carriage} rolled in with a clunk heard two fields away.' },
+    { headline: '{train} Is Getting Longer!', body: 'A {carriage} joins the train. Station masters are measuring their platforms.' },
+    { headline: 'Now {n} Carriages Long!', body: 'The {carriage} couples on. "She used to be one old carriage," a porter recalls.' },
   ],
-  firstHire: [{ headline: 'Help Wanted? Help Hired!', body: '{train} takes on its first member of staff. The conductor was spotted sitting down for the first time in weeks.' }],
-  refurb1: [{ headline: 'A Lick of Paint for {train}', body: 'The {carriage} is freshly painted. Early reviews: "It no longer smells of coal."' }],
-  refurb2: [{ headline: 'Carpets! On {train}!', body: 'The {carriage} goes cosy: carpets, curtains, proper lamps. Fares are up and nobody minds.' }],
-  refurb3: [{ headline: 'Velvet and Brass: {train} Goes Luxury', body: 'The {carriage} is refitted in walnut and brass. The Orient Belle is said to be "not worried". She is worried.' }],
-  livery: [{ headline: '{train} Unveils {livery} Livery', body: 'A new paint job to match a growing name. Trainspotters along the line have started waving.' }],
-  overtake: [
-    { headline: '{train} Overtakes {rival}', body: 'The Countryside League has a new number {rank}. {rival} could not be reached for comment.' },
-    { headline: 'Up to Number {rank}!', body: '{train} passes {rival} in the league table. Bookmakers are shortening the odds.' },
-  ],
-  perfectStreak: [
-    { headline: 'Clockwork at {station}', body: 'Three perfect stops in a row: every passenger aboard, every bag loaded. Swiss railways are taking notes.' },
-    { headline: 'Another Perfect Stop', body: '{station} passengers praise "the smoothest boarding on the line".' },
-  ],
-  longQueue: [
-    { headline: 'Queues at {station}', body: '{n} passengers are waiting for {train}. "Worth the wait," says one. More cabins, perhaps?' },
-  ],
-  guests25: [{ headline: '25 Passengers and Counting', body: '{train} has carried its twenty-fifth guest. A small cake was served. The cake was also rusty.' }],
-  guests100: [{ headline: 'One Hundred Happy Sleepers', body: '{train} passes a hundred passengers. "I slept like a log," said a man who is, professionally, a lumberjack.' }],
-  guests250: [{ headline: 'The Talk of the Countryside', body: '250 guests and rising. {train} is now the most-booked sleeper west of Millbrook.' }],
+  refurb3: [{ headline: 'Velvet and Brass!', body: 'The {carriage} is refitted in walnut and brass. The Orient Belle is said to be "not worried". She is worried.' }],
+  livery: [{ headline: '{train} Unveils a New Look!', body: 'Fresh {livery} paint to match a growing name. Trainspotters have started waving.' }],
+  topThree: [{ headline: 'Into the Top Three!', body: '{train} passes {rival} and joins the best sleepers on the line.' }],
+  champion: [{ headline: 'Number One!', body: '{train} tops the Countryside League. From one old carriage to the best sleeper on the line.' }],
+  guests100: [{ headline: 'One Hundred Happy Sleepers!', body: '"I slept like a log," said a man who is, professionally, a lumberjack.' }],
   story: [{ headline: '{story}', body: 'A regular passenger\'s journey comes to a happy end aboard {train}.' }],
-  award: [{ headline: 'Golden Whistle: {award}!', body: '{train} takes home the Golden Whistle for {award}. The conductor thanked "my staff, my passengers, and my feet".' }],
-  nominated: [{ headline: '{train} Up for a Golden Whistle', body: 'The Golden Whistle Awards nominate {train} for Best Newcomer. The ceremony is at route level 5.' }],
-  interview: [{ headline: '"{quote}"', body: 'The conductor of {train}, speaking to Rails Tonight.' }],
-  weekly: [{ headline: 'The Week on the Line', body: '{train} carried {n} passengers this week and sits at number {rank} in the Countryside League.' }],
-  champion: [{ headline: 'Number One!', body: '{train} tops the Countryside League. From one rusty carriage to the best sleeper on the line.' }],
 };
+
+/** What each front page pays when you read it (cash scales with the train's length). */
+export const FRONT_PAGE_REWARDS: Record<PressTrigger, { gems?: number; railMiles?: number; cashPerCarriage?: number }> = {
+  named: { gems: 5 },
+  coupling: { cashPerCarriage: 30 },
+  refurb3: { gems: 10 },
+  livery: { railMiles: 2 },
+  topThree: { gems: 10 },
+  champion: { gems: 25 },
+  guests100: { gems: 10 },
+  story: { railMiles: 2 },
+};
+
+/** A rival at or above this rank is front-page news when you pass them. */
+export const TOP_RANK_NEWS = 3;
 
 export type PerkKind = 'tipBonus' | 'fareBonus' | 'speedBonus';
 
@@ -165,9 +162,5 @@ export const CEREMONIES: CeremonyDef[] = [
 
 /** Route level at which the nomination is announced (a promise the player can see coming). */
 export const NOMINATION_LEVEL = 3;
-/** A weekly edition after every this many station stops. */
-export const WEEKLY_EVERY_STOPS = 4;
-/** Keep this many past stories in the paper. */
-export const PRESS_ARCHIVE = 24;
-/** Only this many passengers left waiting make the news. */
-export const LONG_QUEUE_MIN = 3;
+/** Keep the last few stories (the newest one's photo shows the train as it looked that day). */
+export const PRESS_ARCHIVE = 3;

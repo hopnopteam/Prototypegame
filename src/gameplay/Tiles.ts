@@ -268,8 +268,8 @@ export class Tiles {
     w.analytics.log(EVENTS.unlockCompleted, { id: def.id, price: def.price, time: Math.round(w.lifetimeSeconds()) });
     w.analytics.log(EVENTS.currencySpent, { currency: 'cash', amount: def.price, sink: `unlock:${def.kind}` });
     w.events.emit('unlock.completed', { id: def.id, price: def.price, x: entry.pos.x, z: entry.pos.z });
-    // Say what you just bought (the big moments get their own card instead).
-    if (def.kind !== 'couple' && def.kind !== 'refurb') w.ui.toast(`${def.label}: ${def.effect}`, ICON_BY_KIND[def.kind]);
+    // Say what you just bought, right where it happened (the big moments get their own card instead).
+    if (def.kind !== 'couple' && def.kind !== 'refurb') w.ui.floatText(`${def.label}!`, entry.pos.x, FLOOR_Y + 2.1, entry.pos.z, 'info');
 
     if (def.kind === 'hire' && def.role) {
       w.staff.hire(def.role, def.carriage);

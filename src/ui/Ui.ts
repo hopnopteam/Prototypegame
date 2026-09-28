@@ -1,20 +1,20 @@
 import * as THREE from 'three';
 import type { ProductDef } from '../config/content';
+import type { CeremonyDef, InterviewDef } from '../config/press';
 import { damp, formatClock, formatNumber } from '../core/math';
+import type { CarriageType } from '../core/types';
 import type { StationResult } from '../gameplay/events';
 import type { Game } from '../gameplay/Game';
 import type { DoubleChoice, GameUi } from '../gameplay/GameUi';
 import type { OfferView } from '../gameplay/Monetization';
+import type { CeremonyResult, FrontPageReward } from '../gameplay/Press';
 import type { CarriageChoiceView, FloatKind } from '../gameplay/UiApi';
-import type { CarriageType } from '../core/types';
+import type { NewsItem } from '../save/SaveData';
 import { h, icon, setText, setVisible } from './dom';
 import type { IconName } from './icons';
 import { PressScreens } from './PressScreens';
 import { Screens } from './Screens';
 import { TrainMapUi } from './TrainMapUi';
-import type { CeremonyDef, InterviewDef } from '../config/press';
-import type { CeremonyResult } from '../gameplay/Press';
-import type { NewsItem } from '../save/SaveData';
 
 interface Floating {
   el: HTMLElement;
@@ -22,15 +22,10 @@ interface Floating {
   age: number;
   life: number;
   rise: number;
-  /** Speech bubbles are kept fully on screen and out from under the top bar. */
+  /** Speech bubbles are kept whole inside the play area. */
   speech: boolean;
   width: number;
 }
-
-/** Floats spawned close together (same place, same moment) stack upward instead of overprinting. */
-const FLOAT_STACK_METRES = 0.34;
-const FLOAT_NEAR = 0.9;
-const SCREEN_MARGIN = 10;
 
 /** A note flying from the conductor's head to the cash counter; the counter ticks up as each one lands. */
 interface Flyer {
@@ -42,26 +37,43 @@ interface Flyer {
   amount: number;
 }
 
+/** The part of the screen the world owns: between the side columns, below the top bar, above the offer. */
+interface PlayRect {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** Floats spawned close together (same place, same moment) stack upward instead of overprinting. */
+const FLOAT_STACK_METRES = 0.34;
+const FLOAT_NEAR = 0.9;
+const FLOAT_LIFE = 1.15;
+const EDGE = 6;
 const FLYER_SECONDS = 0.5;
 /** The head counter waits this long after the last bill before sending the total to the counter. */
 const BURST_HOLD_SECONDS = 0.35;
-
-const FLOAT_LIFE = 1.15;
 /** Tile labels show for the nearest tile within this many metres, floating this high above it. */
 const TILE_TAG_RANGE = 2.6;
 const TILE_TAG_HEIGHT = 1.35;
-/** Pixels below the top bar kept clear for the ticket and coach line. */
-const TILE_TAG_TOP_CLEARANCE = 150;
-const TOAST_SECONDS = 2.8;
-const NEWS_SECONDS = 4;
+/** Coach labels float above the guidance arrow. */
+const GUIDE_HEIGHT = 2.55;
+const TOAST_SECONDS = 2.6;
+const MAX_TOASTS = 2;
+/** At most one guest line on screen, and a breather between them: personality, not chatter. */
+const SPEECH_GAP_SECONDS = 4;
 const RESULT_SECONDS = 5.5;
 /** Seconds a queued announcement may wait (behind another one or an open sheet) before it is dropped. */
 const BANNER_MAX_DELAY = 5;
 const CELEBRATE_MAX_DELAY = 60;
 
 /**
- * The DOM layer: HUD, world-anchored feedback (floating numbers, speech), toasts, banners, the station
- * ticket, and every modal. Writes to the DOM only when a value changes.
+ * The DOM layer. Layout contract (styles.css header): a top bar (level, cash, gems; then the journey
+ * strip), a left column (train map) and a right column (menu, shop, conductor, boosts) of the same width,
+ * the middle column under the top bar for the station ticket, and one bottom slot for an offer with at
+ * most two toasts above it. World-anchored text (numbers, speech, tile labels, coach lines) is clamped to
+ * the play rect between those, so nothing the world says ever sits on the HUD. HUD pieces appear only
+ * once they mean something. Writes to the DOM only when a value changes.
  */
 export class Ui implements GameUi {
   readonly root: HTMLElement;
@@ -74,21 +86,15 @@ export class Ui implements GameUi {
   private readonly offerLayer: HTMLElement;
   private readonly boostLayer: HTMLElement;
   private readonly pointerEl: HTMLElement;
-  private readonly coachEl: HTMLElement;
-  private readonly coachText: HTMLElement;
-  private readonly coachIcon: HTMLElement;
-  private coachKey = '';
-  private readonly tileTag: HTMLElement;
-  private readonly tileTagName: HTMLElement;
-  private readonly tileTagEffect: HTMLElement;
-  private tileTagKey = '';
+  private readonly guide: { el: HTMLElement; icon: HTMLElement; text: HTMLElement; key: string };
+  private readonly gesture: HTMLElement;
+  private readonly tileTag: { el: HTMLElement; name: HTMLElement; effect: HTMLElement; key: string };
   private readonly trainMap: TrainMapUi;
   private readonly hud: {
-    cash: HTMLElement; cashVal: HTMLElement; gems: HTMLElement; gemsVal: HTMLElement; miles: HTMLElement; milesVal: HTMLElement;
-    levelBadge: HTMLElement;
+    top: HTMLElement; cash: HTMLElement; cashVal: HTMLElement; gems: HTMLElement; gemsVal: HTMLElement;
+    level: HTMLButtonElement; levelBadge: HTMLElement;
     journey: HTMLElement; journeyKicker: HTMLElement; journeyName: HTMLElement; journeyTrain: HTMLElement; journeyTrack: HTMLElement; journeyClock: HTMLElement;
-    upgrades: HTMLButtonElement; upgradesDot: HTMLElement; album: HTMLButtonElement; daily: HTMLButtonElement; dailyDot: HTMLElement;
-    gazette: HTMLButtonElement; gazetteDot: HTMLElement;
+    side: HTMLElement; menu: HTMLButtonElement; menuDot: HTMLElement; shop: HTMLButtonElement; conductor: HTMLButtonElement; conductorDot: HTMLElement;
   };
   private displayedCash = 0;
   private lastCash = 0;
@@ -101,6 +107,9 @@ export class Ui implements GameUi {
   private resultTimer = 0;
   private readonly tmp = new THREE.Vector3();
   private readonly screen = { x: 0, y: 0 };
+  private readonly rect: PlayRect = { left: 0, right: 0, top: 0, bottom: 0 };
+  private rectTimer = 0;
+  private sinceSpeech = 99;
   private hidden = false;
   /**
    * Big centre-screen moments play one at a time so they never pile on top of each other. Each has a
@@ -109,6 +118,7 @@ export class Ui implements GameUi {
    */
   private readonly announcements: { play: () => number; expires: number }[] = [];
   private announcementTimer = 0;
+  private cardTimer = 0;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -117,44 +127,29 @@ export class Ui implements GameUi {
 
     const cashVal = h('span.val', { text: '0' });
     const gemsVal = h('span.val', { text: '0' });
-    const milesVal = h('span.val', { text: '0' });
     const cash = h('div.pill.cash', { 'aria-label': 'Fares' }, icon('cash', 24), cashVal);
     const gems = h('div.pill.gems', { 'aria-label': 'Gems' }, icon('gem', 20), gemsVal);
-    const miles = h('div.pill.miles', { 'aria-label': 'Rail Miles' }, icon('miles', 20), milesVal);
     const levelBadge = h('div.badge', { text: '1' });
-    const level = h('button.level', { title: 'Route level', 'aria-label': 'Route level', onclick: () => { this.game.audio.play('click'); this.screens.progress(); } }, levelBadge, icon('star', 20, 'ico star'));
+    const level = h('button.level', { title: 'Route level', 'aria-label': 'Route level', onclick: () => this.tap(() => this.screens.progress()) }, levelBadge, icon('star', 20, 'ico star'));
     const journeyKicker = h('span.kicker', { text: 'Next' });
     const journeyName = h('span.name', { text: 'Millbrook' });
     const journeyTrain = h('div.train');
     const journeyTrack = h('div.track', {}, journeyTrain);
     const journeyClock = h('span.clock');
     const journey = h('div.journey', {}, journeyKicker, journeyName, journeyTrack, journeyClock);
-
-    const top = h('div.hud-top', {},
-      h('div.hud-row', {}, cash, gems, miles, h('div.spacer'), level),
-      journey,
-    );
+    const top = h('div.hud-top', {}, h('div.hud-row', {}, level, cash, gems), journey);
 
     const button = (name: IconName, label: string, onclick: () => void): HTMLButtonElement =>
-      h('button', { 'aria-label': label, title: label, onclick: () => { this.game.audio.play('click'); onclick(); } }, icon(name, 30));
-    const upgradesDot = h('span.dot', { hidden: true });
-    const dailyDot = h('span.dot', { hidden: true });
-    const upgrades = button('miles', 'Conductor upgrades', () => this.screens.upgrades());
-    upgrades.appendChild(upgradesDot);
-    const album = button('album', 'Postcard album', () => this.screens.album());
-    const daily = button('calendar', 'Daily rewards and quests', () => this.screens.daily());
-    daily.appendChild(dailyDot);
-    const gazetteDot = h('span.dot', { hidden: true });
-    const gazette = button('news', 'The Rail Gazette', () => this.pressScreens.gazette());
-    gazette.appendChild(gazetteDot);
-    const side = h('div.side', {},
-      button('bag', 'Shop', () => this.screens.store()),
-      gazette,
-      upgrades,
-      daily,
-      album,
-      button('gear', 'Settings', () => this.screens.settings()),
-    );
+      h('button', { 'aria-label': label, title: label, onclick: () => this.tap(onclick) }, icon(name, 28));
+    const menuDot = h('span.dot', { hidden: true });
+    const menu = button('menu', 'Menu', () => this.screens.menu());
+    menu.appendChild(menuDot);
+    const shop = button('bag', 'Shop', () => this.screens.store());
+    const conductorDot = h('span.dot', { hidden: true });
+    const conductor = button('conductor', 'Conductor: upgrades and outfits', () => this.screens.upgrades());
+    conductor.appendChild(conductorDot);
+    this.boostLayer = h('div.boost');
+    const side = h('div.side', {}, menu, shop, conductor, this.boostLayer);
 
     this.floatLayer = h('div.floats');
     this.burst.value = h('span', { text: '+0' });
@@ -162,20 +157,24 @@ export class Ui implements GameUi {
     this.floatLayer.appendChild(this.burst.el);
     this.toastLayer = h('div.toasts');
     this.offerLayer = h('div.offers');
-    this.boostLayer = h('div.boost');
     this.pointerEl = h('div.pointer', { hidden: true });
-    this.coachIcon = h('span.coach-icon');
-    this.coachText = h('span.coach-text');
-    this.coachEl = h('div.coach', { role: 'status', hidden: true }, this.coachIcon, this.coachText);
-    this.tileTagName = h('b');
-    this.tileTagEffect = h('span');
-    this.tileTag = h('div.tile-tag', { hidden: true }, this.tileTagName, this.tileTagEffect);
+    const guideIcon = h('span.guide-icon');
+    const guideText = h('span.guide-text');
+    this.guide = { el: h('div.guide', { role: 'status', hidden: true }, guideIcon, guideText), icon: guideIcon, text: guideText, key: '' };
+    this.gesture = h('div.gesture', { hidden: true, 'aria-hidden': 'true' }, h('div.track'), icon('hand', 44, 'ico hand'), h('div.label', { text: 'Drag anywhere to walk' }));
+    const tagName = h('b');
+    const tagEffect = h('span');
+    this.tileTag = { el: h('div.tile-tag', { hidden: true }, tagName, tagEffect), name: tagName, effect: tagEffect, key: '' };
     this.trainMap = new TrainMapUi(() => this.game);
-    // Active boosts live at the foot of the rail, so the left of the screen stays clear for the ticket.
-    side.appendChild(this.boostLayer);
-    root.append(this.floatLayer, this.tileTag, top, side, this.trainMap.el, this.coachEl, this.offerLayer, this.toastLayer, this.pointerEl);
+    root.append(this.floatLayer, this.tileTag.el, this.guide.el, top, side, this.trainMap.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
 
-    this.hud = { cash, cashVal, gems, gemsVal, miles, milesVal, levelBadge, journey, journeyKicker, journeyName, journeyTrain, journeyTrack, journeyClock, upgrades, upgradesDot, album, daily, dailyDot, gazette, gazetteDot };
+    this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, journey, journeyKicker, journeyName, journeyTrain, journeyTrack, journeyClock, side, menu, menuDot, shop, conductor, conductorDot };
+    window.addEventListener('resize', () => (this.rectTimer = 0));
+  }
+
+  private tap(action: () => void): void {
+    this.game.audio.play('click');
+    action();
   }
 
   bind(game: Game): void {
@@ -183,8 +182,8 @@ export class Ui implements GameUi {
     this.displayedCash = game.wallet.get('cash');
     this.lastCash = this.displayedCash;
     game.events.on('currency.changed', ({ kind, delta }) => {
-      if (delta <= 0) return;
-      const el = kind === 'cash' ? this.hud.cash : kind === 'gems' ? this.hud.gems : this.hud.miles;
+      if (delta <= 0 || kind === 'railMiles') return;
+      const el = kind === 'cash' ? this.hud.cash : this.hud.gems;
       el.classList.remove('bump');
       void el.offsetWidth;
       el.classList.add('bump');
@@ -196,12 +195,15 @@ export class Ui implements GameUi {
   update(dt: number): void {
     const g = this.game;
     if (!g) return;
+    this.sinceSpeech += dt;
+    this.rectTimer -= dt;
+    if (this.rectTimer <= 0) this.measure();
     this.updateHud(dt);
     this.updateOffers(g.monetization.offers);
     this.updateFloats(dt);
     this.updateBurst(dt);
     this.updatePointer();
-    this.updateCoach();
+    this.updateGuide();
     this.updateTileTag();
     this.trainMap.update(dt);
     if (this.resultEl) {
@@ -214,6 +216,26 @@ export class Ui implements GameUi {
     if (this.announcementTimer <= 0 && this.announcements.length > 0 && !this.screens.isOpen) this.announcementTimer = this.announcements.shift()!.play();
   }
 
+  /** Recomputes the play rect from the HUD's real boxes (cheap; twice a second and on resize). */
+  private measure(): void {
+    this.rectTimer = 0.5;
+    const rootRect = this.root.getBoundingClientRect();
+    const top = this.hud.journey.getBoundingClientRect();
+    const side = this.hud.side.getBoundingClientRect();
+    const map = this.trainMap.el.getBoundingClientRect();
+    const offer = this.offerLayer.getBoundingClientRect();
+    const r = this.rect;
+    r.top = (top.bottom > 0 ? top.bottom : 90) - rootRect.top + EDGE;
+    r.left = (map.width > 0 ? map.right - rootRect.left : 0) + EDGE;
+    r.right = (side.width > 0 ? side.left - rootRect.left : rootRect.width) - EDGE;
+    r.bottom = (offer.height > 0 ? offer.top - rootRect.top : rootRect.height - 80) - EDGE;
+    // The station ticket takes the top of the middle column while it is up.
+    if (this.resultEl) r.top = Math.max(r.top, this.resultEl.getBoundingClientRect().bottom - rootRect.top + EDGE);
+    // Toasts sit above the offer slot: world text stays above them.
+    const toast = this.toastLayer.lastElementChild?.getBoundingClientRect();
+    if (toast && toast.height > 0) r.bottom = Math.min(r.bottom, toast.top - rootRect.top - EDGE);
+  }
+
   private updateHud(dt: number): void {
     const g = this.game;
     const hud = this.hud;
@@ -224,20 +246,27 @@ export class Ui implements GameUi {
     this.lastCash = cash;
     setText(hud.cashVal, formatNumber(this.displayedCash));
     setText(hud.gemsVal, formatNumber(g.wallet.get('gems')));
-    setText(hud.milesVal, formatNumber(g.wallet.get('railMiles')));
-    setVisible(hud.miles, g.progression.isFeatureUnlocked('conductorUpgrades') || g.wallet.get('railMiles') > 0);
+
+    // Progressive reveal: each piece of the HUD arrives when it starts to matter.
+    const ftue = g.data.profile.ftue;
+    const flags = g.data.profile.flags;
+    this.reveal(hud.level, ftue.first_unlock !== undefined || g.progression.level > 1);
+    this.reveal(hud.journey, ftue.first_unlock !== undefined || g.journey.phase !== 'onTheMove' || g.data.route.stopsCompleted > 0);
+    this.reveal(hud.gems, g.wallet.get('gems') > 0 || !!flags.firstStationDone);
+    this.reveal(hud.shop, !!flags.firstStationDone);
+    const upgradesOpen = g.progression.isFeatureUnlocked('conductorUpgrades');
+    this.reveal(hud.conductor, upgradesOpen);
 
     const p = g.progression;
     const lp = p.levelProgress();
     setText(hud.levelBadge, String(p.level));
     const ring = (Math.round(lp.fraction * 100) / 100).toFixed(2);
-    const level = hud.levelBadge.parentElement!;
-    if (level.style.getPropertyValue('--p') !== ring) level.style.setProperty('--p', ring);
-    level.classList.toggle('max', p.isMaxLevel);
+    if (hud.level.style.getPropertyValue('--p') !== ring) hud.level.style.setProperty('--p', ring);
+    hud.level.classList.toggle('max', p.isMaxLevel);
     const label = p.isMaxLevel ? `Route level ${p.level}, max` : `Route level ${p.level}: ${lp.current} of ${lp.needed} stars`;
-    if (level.title !== label) {
-      level.title = label;
-      level.setAttribute('aria-label', label);
+    if (hud.level.title !== label) {
+      hud.level.title = label;
+      hud.level.setAttribute('aria-label', label);
     }
 
     const j = g.journey;
@@ -250,26 +279,16 @@ export class Ui implements GameUi {
     setVisible(hud.journeyTrack, !stopped);
     const left = `${Math.round(j.legProgress * 100)}%`;
     if (hud.journeyTrain.style.left !== left) hud.journeyTrain.style.left = left;
-    setText(hud.journeyClock, stopped ? formatClock(j.timeLeft) : j.phase === 'departing' ? '' : j.phase === 'arriving' ? 'Arriving' : '');
+    setText(hud.journeyClock, stopped ? formatClock(j.timeLeft) : j.phase === 'arriving' ? 'Arriving' : '');
 
-    const upgradesOpen = g.progression.isFeatureUnlocked('conductorUpgrades');
-    setVisible(hud.upgrades, upgradesOpen);
-    setVisible(hud.upgradesDot, upgradesOpen && this.screens.affordableUpgrades() > 0);
-    hud.upgrades.classList.toggle('glow', upgradesOpen && this.screens.affordableUpgrades() > 0);
-    const dailyOpen = g.meta.questsUnlocked() || g.meta.loginUnlocked();
-    setVisible(hud.daily, dailyOpen);
+    const affordable = upgradesOpen && this.screens.affordableUpgrades() > 0;
+    setVisible(hud.conductorDot, affordable);
+    hud.conductor.classList.toggle('glow', affordable);
     const dailyCount = g.meta.claimableQuests() + (g.meta.canClaimLogin() ? 1 : 0);
-    setVisible(hud.dailyDot, dailyCount > 0);
-    setText(hud.dailyDot, String(dailyCount));
-    hud.daily.classList.toggle('glow', dailyCount > 0);
-    setVisible(hud.album, g.data.meta.postcards.length > 0);
-    const unread = g.press.unread;
-    setVisible(hud.gazette, g.data.press.items.length > 0);
-    setVisible(hud.gazetteDot, unread > 0);
-    setText(hud.gazetteDot, String(unread));
-    hud.gazette.classList.toggle('glow', unread > 0);
+    setVisible(hud.menuDot, dailyCount > 0);
+    setText(hud.menuDot, String(dailyCount));
 
-    // Boost timers.
+    // Boost timers, at the foot of the rail.
     const boostLeft = (g.data.monetization.speedBoostUntil - Date.now()) / 1000;
     const doubled = g.data.monetization.doubleFaresStop !== null && g.data.monetization.doubleFaresStop >= g.journey.stopSerial && g.data.monetization.doubleFaresStop <= g.journey.stopSerial + 1;
     const boostKey = `${boostLeft > 0 ? Math.ceil(boostLeft) : 0}|${doubled}`;
@@ -281,12 +300,26 @@ export class Ui implements GameUi {
     }
   }
 
+  /** Shows an element with a little pop the first time it appears; keeps its layout slot while hidden. */
+  private reveal(el: HTMLElement, show: boolean): void {
+    const shown = !el.classList.contains('unrevealed');
+    if (show === shown) return;
+    el.classList.toggle('unrevealed', !show);
+    if (show) {
+      el.classList.remove('pop');
+      void el.offsetWidth;
+      el.classList.add('pop');
+      this.rectTimer = 0;
+    }
+  }
+
   /** One offer at a time, in the one bottom slot: the most relevant one comes first from Monetization. */
   private updateOffers(all: OfferView[]): void {
     const offers = all.slice(0, 1);
     const key = offers.map((o) => `${o.id}:${o.label}`).join('|');
     if (key === this.offersKey) return;
     this.offersKey = key;
+    this.rectTimer = 0;
     this.offerLayer.replaceChildren(
       ...offers.map((offer) =>
         h('div.chip', {},
@@ -301,6 +334,7 @@ export class Ui implements GameUi {
 
   private updateFloats(dt: number): void {
     const stage = this.game.stage;
+    const r = this.rect;
     for (let i = this.floats.length - 1; i >= 0; i--) {
       const f = this.floats[i];
       f.age += dt;
@@ -316,16 +350,13 @@ export class Ui implements GameUi {
         f.el.style.opacity = '0';
         continue;
       }
-      let x = this.screen.x;
+      if (f.width === 0) f.width = f.el.offsetWidth;
+      const half = f.width / 2 + EDGE;
+      // Kept whole inside the play rect; anything that would drift under the HUD fades out instead.
+      const x = Math.min(Math.max(this.screen.x, r.left + half), r.right - half);
       const y = this.screen.y;
       let opacity = t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1;
-      if (f.speech) {
-        if (f.width === 0) f.width = f.el.offsetWidth;
-        const half = f.width / 2 + SCREEN_MARGIN;
-        x = Math.min(Math.max(x, half), stage.size.width - half);
-        // Never under the top bar: a line said up there simply is not shown.
-        if (y < this.topBarBottom()) opacity = 0;
-      }
+      if (y < r.top + 14 || y > r.bottom - 10) opacity = 0;
       const scale = t < 0.15 ? 0.6 + (t / 0.15) * 0.5 : t < 0.25 ? 1.1 - ((t - 0.15) / 0.1) * 0.1 : 1;
       f.el.style.opacity = String(opacity);
       f.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${scale})`;
@@ -345,7 +376,9 @@ export class Ui implements GameUi {
       if (this.game.stage.project(this.tmp, this.screen)) {
         b.pop = Math.max(0, b.pop - dt * 6);
         const scale = 1 + b.pop * 0.18;
-        b.el.style.transform = `translate(${this.screen.x}px, ${this.screen.y}px) translate(-50%, -50%) scale(${scale})`;
+        const r = this.rect;
+        const y = Math.max(this.screen.y, r.top + 20);
+        b.el.style.transform = `translate(${this.screen.x}px, ${y}px) translate(-50%, -50%) scale(${scale})`;
       }
       setText(b.value, `+${formatNumber(b.shown)}`);
       if (b.idle > BURST_HOLD_SECONDS) this.sendBurstToCounter();
@@ -415,58 +448,105 @@ export class Ui implements GameUi {
     }
   }
 
-  /** One short coach line under the top bar (the walkthrough, then first-time hints). */
-  private updateCoach(): void {
-    const line = this.hidden ? null : this.game.coach.current;
-    const key = line?.id ?? '';
-    if (key === this.coachKey) return;
-    this.coachKey = key;
-    setVisible(this.coachEl, !!line);
-    if (!line) return;
-    this.coachIcon.replaceChildren(icon(line.icon, 24));
-    this.coachText.textContent = line.text;
-    this.coachEl.classList.remove('in');
-    void this.coachEl.offsetWidth;
-    this.coachEl.classList.add('in');
+  /**
+   * The coach line, right where the action is: over the spot in the world (at the play rect's edge with
+   * an arrow when the spot is off screen), beside the HUD button it is about, or as the walk gesture.
+   */
+  private updateGuide(): void {
+    const g = this.game;
+    const line = this.hidden || this.screens.isOpen ? null : g.coach.current;
+    const gestureOn = !!line && 'gesture' in line.anchor;
+    setVisible(this.gesture, gestureOn);
+    const labelled = line && !gestureOn ? line : null;
+    const key = labelled ? `${labelled.id}` : '';
+    if (key !== this.guide.key) {
+      this.guide.key = key;
+      setVisible(this.guide.el, !!labelled);
+      if (labelled) {
+        this.guide.icon.replaceChildren(icon(labelled.icon, 22));
+        this.guide.text.textContent = labelled.text;
+        this.guide.el.classList.remove('in');
+        void this.guide.el.offsetWidth;
+        this.guide.el.classList.add('in');
+      }
+    }
+    if (!labelled) return;
+    const el = this.guide.el;
+    const r = this.rect;
+    const rootRect = this.root.getBoundingClientRect();
+    const width = el.offsetWidth;
+    const height = el.offsetHeight;
+    let x = 0;
+    let y = 0;
+    let tail = 'down';
+    const anchor = labelled.anchor;
+    if ('hud' in anchor) {
+      // Beside the button: the train map on the left, the conductor button on the right.
+      const target = (anchor.hud === 'map' ? this.trainMap.el : this.hud.conductor).getBoundingClientRect();
+      if (target.width === 0) {
+        el.style.opacity = '0';
+        return;
+      }
+      if (anchor.hud === 'map') {
+        x = target.right - rootRect.left + 10 + width / 2;
+        tail = 'left';
+      } else {
+        x = target.left - rootRect.left - 10 - width / 2;
+        tail = 'right';
+      }
+      y = target.top - rootRect.top + target.height / 2;
+    } else if ('world' in anchor) {
+      this.tmp.set(anchor.world.x, GUIDE_HEIGHT, anchor.world.z);
+      const onScreen = g.stage.project(this.tmp, this.screen);
+      x = this.screen.x;
+      y = this.screen.y - height / 2;
+      if (!onScreen || y < r.top + height / 2 || y > r.bottom - height / 2) {
+        // Off screen: park at the edge in its direction, pointing the way.
+        tail = !onScreen || this.screen.y > r.bottom ? 'down' : 'up';
+        y = tail === 'down' ? r.bottom - height / 2 - 8 : r.top + height / 2 + 8;
+      }
+    }
+    x = Math.min(Math.max(x, r.left + width / 2), r.right - width / 2);
+    el.dataset.tail = tail;
+    el.style.opacity = '1';
+    el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
   }
 
   /** Names the nearest tile and says what it does, so nothing is bought blind. */
   private updateTileTag(): void {
     const g = this.game;
-    const tag = this.hidden ? null : g.tiles.nearTag(g.player.pos, TILE_TAG_RANGE);
+    const guideOn = !this.guide.el.hidden;
+    const tag = this.hidden || guideOn ? null : g.tiles.nearTag(g.player.pos, TILE_TAG_RANGE);
+    const t = this.tileTag;
     const key = tag ? `${tag.label}|${tag.effect}` : '';
-    if (key !== this.tileTagKey) {
-      this.tileTagKey = key;
-      setVisible(this.tileTag, !!tag);
+    if (key !== t.key) {
+      t.key = key;
+      setVisible(t.el, !!tag);
       if (tag) {
-        this.tileTagName.textContent = tag.label;
-        this.tileTagEffect.textContent = tag.effect;
-        this.tileTag.classList.toggle('locked', tag.locked);
+        t.name.textContent = tag.label;
+        t.effect.textContent = tag.effect;
+        t.el.classList.toggle('locked', tag.locked);
       }
     }
     if (!tag) return;
     this.tmp.set(tag.x, TILE_TAG_HEIGHT, tag.z);
-    if (!g.stage.project(this.tmp, this.screen)) {
-      this.tileTag.style.opacity = '0';
+    const r = this.rect;
+    if (!g.stage.project(this.tmp, this.screen) || this.screen.y - t.el.offsetHeight < r.top || this.screen.y > r.bottom) {
+      t.el.style.opacity = '0';
       return;
     }
-    // Never over the top bar or the ticket/coach slot under it: a tile up there simply is not labelled.
-    if (this.screen.y < this.topBarBottom() + TILE_TAG_TOP_CLEARANCE) {
-      this.tileTag.style.opacity = '0';
-      return;
-    }
-    const width = this.tileTag.offsetWidth;
-    const half = width / 2 + SCREEN_MARGIN;
-    const x = Math.min(Math.max(this.screen.x, half), g.stage.size.width - half - 44);
-    const y = this.screen.y;
-    this.tileTag.style.opacity = '1';
-    this.tileTag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+    const half = t.el.offsetWidth / 2;
+    const x = Math.min(Math.max(this.screen.x, r.left + half), r.right - half);
+    t.el.style.opacity = '1';
+    t.el.style.transform = `translate(${x}px, ${this.screen.y}px) translate(-50%, -100%)`;
   }
 
   private updatePointer(): void {
     const p = this.game.guidance.pointer;
-    setVisible(this.pointerEl, p.visible && !this.hidden);
-    if (p.visible) this.pointerEl.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${p.angle}rad)`;
+    // The coach label already points the way when it is up.
+    const show = p.visible && !this.hidden && this.guide.el.hidden;
+    setVisible(this.pointerEl, show);
+    if (show) this.pointerEl.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${p.angle}rad)`;
   }
 
   // ─── UiApi ──────────────────────────────────────────────────────────────────
@@ -487,20 +567,12 @@ export class Ui implements GameUi {
     return n * FLOAT_STACK_METRES;
   }
 
-  private topBarCache = 0;
-
-  private topBarBottom(): number {
-    if (this.topBarCache === 0) {
-      const top = this.root.querySelector('.hud-top') as HTMLElement | null;
-      this.topBarCache = top ? top.offsetTop + top.offsetHeight + 4 : 100;
-    }
-    return this.topBarCache;
-  }
-
   speechLine(text: string, x: number, y: number, z: number): void {
+    if (this.sinceSpeech < SPEECH_GAP_SECONDS || this.floats.some((f) => f.speech)) return;
+    this.sinceSpeech = 0;
     const el = h('div.speech', { text });
     this.floatLayer.appendChild(el);
-    this.floats.push({ el, pos: new THREE.Vector3(x, y + this.stackOffset(x, z), z), age: 0, life: 2.4, rise: 0.3, speech: true, width: 0 });
+    this.floats.push({ el, pos: new THREE.Vector3(x, y, z), age: 0, life: 2.4, rise: 0.3, speech: true, width: 0 });
   }
 
   cashCollected(amount: number): void {
@@ -519,9 +591,10 @@ export class Ui implements GameUi {
   }
 
   toast(text: string, iconName?: IconName): void {
-    const el = h('div.toast', {}, iconName ? icon(iconName, 22) : null, text);
+    const el = h('div.toast', {}, iconName ? icon(iconName, 22) : null, h('span', { text }));
     this.toastLayer.appendChild(el);
-    while (this.toastLayer.children.length > 3) this.toastLayer.firstElementChild?.remove();
+    while (this.toastLayer.children.length > MAX_TOASTS) this.toastLayer.firstElementChild?.remove();
+    this.rectTimer = 0;
     window.setTimeout(() => {
       el.classList.add('out');
       window.setTimeout(() => el.remove(), 320);
@@ -548,8 +621,7 @@ export class Ui implements GameUi {
     });
   }
 
-  /** While a centre card is up the train map steps aside (the card is wider than the play area's middle). */
-  private cardTimer = 0;
+  /** While a centre card is up, world labels and the train map step aside so the card reads alone. */
   private holdCard(ms: number): void {
     this.root.classList.add('has-card');
     window.clearTimeout(this.cardTimer);
@@ -570,10 +642,13 @@ export class Ui implements GameUi {
       result.luggageTotal > 0 ? chip('luggage', `${result.luggageLoaded}/${result.luggageTotal}`) : null,
       result.clean ? chip('chest', `+${formatNumber(result.bonusCash)}`, '.bonus') : null,
     );
+    const note = result.leftBehind > 0
+      ? `${result.leftBehind} left behind: no free beds`
+      : !result.clean && result.waiting > 0 ? `${result.waiting} waiting for the next train` : null;
     const body = h('div.body', {},
       h('div.head', {}, h('h3', { text: result.clean ? 'Perfect stop!' : 'All aboard' })),
       rows,
-      !result.clean && result.waiting > 0 ? h('div.note', { text: `${result.waiting} waiting for the next train` }) : null,
+      note ? h('div.note', { text: note }) : null,
     );
     const el = h('div.ticket', { role: 'status', 'aria-label': `${result.stationName}: ${result.boarded} boarded, ${result.tips} in tips, ${result.stars} stars`, onclick: () => this.dismissResult() },
       h('div.stub', {}, icon('ticket', 30)),
@@ -583,12 +658,14 @@ export class Ui implements GameUi {
     this.root.classList.add('has-ticket');
     this.resultEl = el;
     this.resultTimer = RESULT_SECONDS;
+    this.rectTimer = 0;
   }
 
   private dismissResult(): void {
     const el = this.resultEl;
     if (!el) return;
     this.resultEl = null;
+    this.rectTimer = 0;
     this.root.classList.remove('has-ticket');
     el.classList.add('out');
     window.setTimeout(() => el.remove(), 400);
@@ -635,16 +712,8 @@ export class Ui implements GameUi {
     this.pressScreens.ceremony(def, results, trainName, onDone);
   }
 
-  /** A new story in the paper: a newsprint strip with the headline; the Gazette button glows until read. */
-  newsFlash(item: NewsItem): void {
-    const el = h('div.toast.news', {}, icon('news', 22), h('span.kicker', { text: 'Gazette' }), h('span.headline', { text: item.headline }));
-    this.toastLayer.appendChild(el);
-    while (this.toastLayer.children.length > 3) this.toastLayer.firstElementChild?.remove();
-    this.game?.audio.play('pop', { pitch: 1.3, volume: 0.5 });
-    window.setTimeout(() => {
-      el.classList.add('out');
-      window.setTimeout(() => el.remove(), 320);
-    }, NEWS_SECONDS * 1000);
+  showFrontPage(item: NewsItem, reward: FrontPageReward, gemCost: number, onCollect: (choice: DoubleChoice) => void): void {
+    this.pressScreens.frontPage(item, reward, gemCost, onCollect);
   }
 
   // ─── Mock presenters ────────────────────────────────────────────────────────

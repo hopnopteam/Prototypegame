@@ -1,8 +1,8 @@
-import { CEREMONIES, RIVALS, TRAIN_NAME_MAX, type CeremonyDef, type InterviewDef } from '../config/press';
+import { TRAIN_NAME_MAX, type CeremonyDef, type InterviewDef } from '../config/press';
 import { formatNumber } from '../core/math';
-import type { CeremonyResult } from '../gameplay/Press';
+import type { DoubleChoice } from '../gameplay/GameUi';
+import type { CeremonyResult, FrontPageReward } from '../gameplay/Press';
 import type { NewsItem } from '../save/SaveData';
-import { awardProgress } from '../sim/press';
 import { h, icon } from './dom';
 import type { Screens } from './Screens';
 import type { Ui } from './Ui';
@@ -83,70 +83,47 @@ export class PressScreens {
     this.game.audio.play('fanfare');
   }
 
-  gazette(): void {
+  /**
+   * The front page: the paper spins in and lands, your train in the photo, the headline, and a reward to
+   * collect. Only big moments get one, so each feels like an event.
+   */
+  frontPage(item: NewsItem, reward: FrontPageReward, gemCost: number, onCollect: (choice: DoubleChoice) => void): void {
     const g = this.game;
-    const press = g.press;
-    press.markRead();
-    const items = g.data.press.items;
-    const parts: (Node | null)[] = [];
-    parts.push(h('div.masthead', {},
-      h('div.paper-name', { text: 'The Rail Gazette' }),
-      h('div.edition', { text: `Countryside edition · No. ${Math.max(1, g.data.press.nextId - 1)}` }),
-    ));
-    const lead = items[0];
-    if (!lead) {
-      parts.push(h('p.empty', { text: 'Nobody has written about your train yet. Make your first station stop and the press will come.' }));
-    } else {
-      parts.push(this.story(lead, true));
-    }
-
-    // The league table: who is ahead, and who to overtake next.
-    const standing = press.standing;
-    const reputation = g.data.route.stars;
-    const table = [...RIVALS.map((r) => ({ name: r.name, rep: r.reputation, blurb: r.blurb, you: false, livery: r.livery })),
-      { name: press.trainName, rep: reputation, blurb: 'That’s you.', you: true, livery: '' }]
-      .sort((a, b) => b.rep - a.rep || (a.you ? -1 : 1));
-    parts.push(h('div.section-title', { text: 'Countryside League' }));
-    if (standing.next) parts.push(h('p.target', {}, icon('trophy', 18), `Overtake ${standing.next.name}: ${formatNumber(standing.next.reputation - reputation)} stars to go`));
-    else parts.push(h('p.target', {}, icon('trophy', 18), 'Number one on the line!'));
-    parts.push(h('ol.league', {}, ...table.map((row, i) => h(`li${row.you ? '.you' : ''}` as 'li', {},
-      h('span.rank', { text: String(i + 1) }),
-      h('span.swatch', { style: { background: row.you ? g.currentLivery().body : row.livery } }),
-      h('span.name', {}, h('b', { text: row.name }), h('small', { text: row.blurb })),
-      h('span.rep', {}, icon('star', 14), formatNumber(row.rep)),
-    ))));
-
-    // The Golden Whistle: trophies won, and what the next ceremony will judge.
-    parts.push(h('div.section-title', { text: 'Golden Whistle' }));
-    const won = g.data.press.awards;
-    const allAwards = CEREMONIES.flatMap((c) => c.awards);
-    if (won.length > 0) parts.push(h('div.trophies', {}, ...allAwards.filter((a) => won.includes(a.id)).map((a) => h('span.trophy', {}, icon('trophy', 22), a.name))));
-    const next = CEREMONIES.find((c) => !g.data.press.ceremonies.includes(c.level));
-    if (next) {
-      const stats = g.data.press.stats;
-      parts.push(h('p.small', { text: `Next ceremony at route level ${next.level}. The judges are watching:` }));
-      for (const award of next.awards) {
-        const p = awardProgress(award, stats, standing.rank);
-        const pct = Math.round(Math.min(1, p.have / Math.max(1, p.need)) * 100);
-        parts.push(h('div.quest', {},
-          icon('trophy', 26),
-          h('div.info', {}, `${award.name}: ${award.hint}`, h('div.bar', {}, h('i', { style: { width: `${pct}%` } }))),
-        ));
-      }
-    }
-
-    if (items.length > 1) {
-      parts.push(h('div.section-title', { text: 'Earlier' }));
-      for (const item of items.slice(1)) parts.push(this.story(item, false));
-    }
-    this.screens.sheet('Rail Gazette', 'news', parts, { className: 'gazette' });
-  }
-
-  private story(item: NewsItem, lead: boolean): HTMLElement {
-    if (!lead) return h('div.story.news', {}, h('b', { text: item.headline }), h('p', { text: item.body }));
     const photo = h('canvas.photo', { width: 600, height: 260 });
     drawTrainPhoto(photo, item);
-    return h('article.lead-story', {}, photo, h('h3', { text: item.headline }), h('p', { text: item.body }));
+    const chips: HTMLElement[] = [];
+    if (reward.cash > 0) chips.push(h('span', {}, icon('cash', 26), `+${formatNumber(reward.cash)}`));
+    if (reward.gems > 0) chips.push(h('span', {}, icon('gem', 24), `+${reward.gems}`));
+    if (reward.railMiles > 0) chips.push(h('span', {}, icon('miles', 24), `+${reward.railMiles}`));
+    let done = false;
+    const finish = (choice: DoubleChoice): void => {
+      if (done) return;
+      done = true;
+      scrim.classList.add('out');
+      window.setTimeout(() => scrim.remove(), 260);
+      this.screens.release();
+      onCollect(choice);
+    };
+    const paper = h('article.frontpage', { role: 'dialog', 'aria-label': `The Rail Gazette: ${item.headline}` },
+      h('div.masthead', {}, h('div.paper-name', { text: 'The Rail Gazette' }), h('div.edition', { text: `Extra! · No. ${item.id}` })),
+      photo,
+      h('h3', { text: item.headline }),
+      h('p', { text: item.body }),
+      chips.length > 0 ? h('div.reward', {}, ...chips) : null,
+      h('div.btn-row', {},
+        h('button.btn.primary', { onclick: () => finish('ad') }, icon('ad', 22), '×2 Free'),
+        h('button.btn.gem', { onclick: () => finish('gems'), disabled: g.wallet.get('gems') < gemCost }, icon('gem', 20), `×2 · ${gemCost}`),
+      ),
+      h('button.btn.green', { 'data-default': '', onclick: () => finish('none') }, 'Collect'),
+    );
+    const scrim = h('div.scrim.center.press-scrim', {}, h('div.rays'), paper);
+    this.ui.root.appendChild(scrim);
+    this.screens.hold();
+    g.audio.play('whoosh');
+    window.setTimeout(() => {
+      g.audio.play('clunk', { volume: 0.5 });
+      g.haptics.light();
+    }, 700);
   }
 }
 

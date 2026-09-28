@@ -1,18 +1,25 @@
-import { COACH_HINT_MIN_SECONDS, COACH_HINT_SECONDS, COACH_HINTS, COACH_STEPS, type CoachLineDef } from '../config/coach';
+import { COACH_GESTURE_DELAY, COACH_HINT_MIN_SECONDS, COACH_HINT_SECONDS, COACH_HINTS, COACH_STEPS, type CoachLineDef } from '../config/coach';
 import type { Vec2 } from '../core/types';
 import type { World } from './World';
 
-const THINK_SECONDS = 0.4;
+const THINK_SECONDS = 0.3;
 /** Walking this far from the spawn point completes the first step. */
 const WALK_METRES = 1.2;
 
+/** Where a coach line is shown: over a spot in the world, by a HUD element, or as the walk gesture. */
+export type CoachAnchor = { world: Vec2 } | { hud: 'map' | 'conductor' } | { gesture: true };
+
+export interface CoachLine extends CoachLineDef {
+  anchor: CoachAnchor;
+}
+
 /**
- * A very small walkthrough: four steps teach the loop (walk, check in, scoop cash, build), then each new
- * mechanic gets one line the first time it appears. Lines sit in one slot under the top bar and never
- * block anything; the guidance arrow shows where.
+ * A very small walkthrough: four steps teach the loop (walk, check in, collect, build), then each new
+ * mechanic gets one line the first time it appears. Every line sits where the action is, never across the
+ * screen, and the guidance arrow bounces over the same spot.
  */
 export class Coach {
-  current: CoachLineDef | null = null;
+  current: CoachLine | null = null;
   private shown = 0;
   private think = 0;
   private readonly spawn: Vec2;
@@ -31,28 +38,31 @@ export class Coach {
   }
 
   update(dt: number): void {
-    const w = this.w;
     this.shown += dt;
     this.think -= dt;
+    // Keep world anchors fresh every frame (targets move: guests, cash piles).
+    if (this.current && 'world' in this.current.anchor) {
+      const target = this.targetFor(this.current.id);
+      if (target && 'world' in target) this.current.anchor = target;
+    }
     if (this.think > 0) return;
     this.think = THINK_SECONDS;
-    if (!this.enabled) {
+    if (!this.enabled || this.w.journey.phase === 'arriving') {
       this.current = null;
       return;
     }
 
-    // Walkthrough: the first unfinished step, skipping any the player already did.
     for (const step of COACH_STEPS) {
       if (this.done(step.id)) continue;
       if (this.stepComplete(step.id)) {
         this.finish(step.id);
         continue;
       }
-      this.show(step);
+      const anchor = this.targetFor(step.id);
+      this.show(step, anchor);
       return;
     }
 
-    // One-time hints.
     const cur = this.current;
     if (cur && !COACH_STEPS.some((s) => s.id === cur.id)) {
       const resolved = !this.hintActive(cur.id);
@@ -62,18 +72,22 @@ export class Coach {
     } else if (cur) {
       this.current = null;
     }
-    if (w.journey.phase === 'arriving') return;
     for (const hint of COACH_HINTS) {
       if (this.done(hint.id) || !this.hintActive(hint.id)) continue;
-      this.show(hint);
+      const anchor = this.targetFor(hint.id);
+      if (!anchor) continue;
+      this.show(hint, anchor);
       return;
     }
   }
 
-  private show(line: CoachLineDef): void {
-    if (this.current?.id === line.id) return;
-    this.current = line;
-    this.shown = 0;
+  private show(line: CoachLineDef, anchor: CoachAnchor | null): void {
+    if (!anchor) {
+      this.current = null;
+      return;
+    }
+    if (this.current?.id !== line.id) this.shown = 0;
+    this.current = { ...line, anchor };
   }
 
   private stepComplete(id: string): boolean {
@@ -93,6 +107,50 @@ export class Coach {
     }
   }
 
+  /** Where each line points. Null hides it for now (nothing to point at yet). */
+  private targetFor(id: string): CoachAnchor | null {
+    const w = this.w;
+    const world = (p: Vec2 | null | undefined): CoachAnchor | null => (p ? { world: p } : null);
+    switch (id) {
+      case 'walk':
+        return w.player.idleSeconds > COACH_GESTURE_DELAY ? { gesture: true } : null;
+      case 'checkin':
+        return world(w.map.anchor(0, 'deskService'));
+      case 'cash': {
+        const pile = w.cash.nearestWithCash(w.player.pos);
+        return pile && pile.value >= 1 ? world({ x: pile.x, z: pile.z }) : null;
+      }
+      case 'tile':
+        return world(w.tiles.cheapest()?.pos);
+      case 'request': {
+        const guest = w.guests.openRequests().find((g) => !w.staff.isHandled(g));
+        return world(guest?.cabin?.center);
+      }
+      case 'dirty': {
+        const cabin = w.train.cabins.find((c) => c.isDirty && !c.guest && !c.cleaner);
+        return world(cabin ? cabin.spots[cabin.dirty.findIndex(Boolean)] : null);
+      }
+      case 'station':
+        return world(w.station.boardingPoint());
+      case 'hire':
+        return world(w.tiles.list.find((t) => t.def.kind === 'hire')?.pos);
+      case 'couple':
+        return world(w.tiles.list.find((t) => t.def.kind === 'couple')?.pos);
+      case 'refurb':
+        return world(w.tiles.list.find((t) => t.def.kind === 'refurb')?.pos);
+      case 'washroom': {
+        const supply = w.train.indexOfType('supply');
+        return supply !== null ? world(w.map.anchor(supply, 'shelf_towel')) : null;
+      }
+      case 'map':
+        return { hud: 'map' };
+      case 'miles':
+        return { hud: 'conductor' };
+      default:
+        return null;
+    }
+  }
+
   private hintActive(id: string): boolean {
     const w = this.w;
     switch (id) {
@@ -101,7 +159,7 @@ export class Coach {
       case 'dirty':
         return w.train.cabins.some((c) => c.isDirty && !c.guest && !c.cleaner);
       case 'station':
-        return w.journey.phase === 'stationStop';
+        return w.journey.phase === 'stationStop' && w.guests.canBoard();
       case 'hire':
         return w.tiles.list.some((t) => t.def.kind === 'hire');
       case 'couple':
@@ -112,8 +170,6 @@ export class Coach {
         return w.train.hasSupplyCar() && w.train.bathrooms.some((b) => b.unlocked && !b.stocked);
       case 'map':
         return w.train.count >= 3;
-      case 'gazette':
-        return w.data.press.unread > 0;
       case 'miles':
         return w.progression.isFeatureUnlocked('conductorUpgrades') && w.wallet.get('railMiles') > 0;
       default:

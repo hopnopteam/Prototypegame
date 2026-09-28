@@ -11,7 +11,8 @@ try { playwright = require('playwright'); } catch { playwright = require('/opt/n
 
 const file = resolve('dist/index.html');
 if (!existsSync(file)) { console.error('dist/index.html missing: run npm run build first.'); process.exit(1); }
-const SIZES = [[360, 640], [375, 667], [390, 844], [412, 915], [430, 932]];
+// Phones from the smallest in use, plus the Claude desktop app's artifact panel (letterboxed, ~337×600).
+const SIZES = [[320, 568], [337, 600], [360, 640], [375, 667], [390, 844], [412, 915], [430, 932]];
 
 const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const problems = [];
@@ -38,8 +39,10 @@ const auditPage = () => {
     banner: '.banner .sign, .banner .sub',
     celebrate: '.celebrate .card',
     boost: '.boost .badge',
-    coach: '.coach',
     trainmap: '.trainmap',
+    guide: '.guide',
+    tiletag: '.tile-tag',
+    gesture: '.gesture',
   };
   const boxes = [];
   for (const [group, selector] of Object.entries(groups)) {
@@ -60,6 +63,9 @@ const auditPage = () => {
     for (let j = i + 1; j < boxes.length; j++) {
       const b = boxes[j];
       if (a.group === 'banner' && b.group === 'banner') continue;
+      // World labels may cross each other; they must never cross the HUD.
+      const world = ['guide', 'tiletag', 'gesture'];
+      if (world.includes(a.group) && world.includes(b.group)) continue;
       const overlap = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left) > pad && Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top) > pad;
       if (overlap) issues.push(`${a.name} overlaps ${b.name}`);
     }
@@ -118,10 +124,9 @@ for (const [width, height] of SIZES) {
     g.monetization.offers = [{ id: 'holdTheTrain', icon: 'hold', label: '+15s', detail: 'Hold the train', gemCost: 5 }];
     g.ui.showResult({ stationName: 'Larkspur Halt', boarded: 7, waiting: 0, alighted: 6, tips: 1234, luggageLoaded: 12, luggageTotal: 12, stars: 99, clean: true, bonusCash: 999 });
     g.ui.toast('Quest complete: Perfect station stops', 'quest');
-    g.ui.newsFlash({ id: 99, trigger: 'refurb3', headline: 'Velvet and Brass: The Moonlight Limited Goes Luxury', body: '', level: 6, carriages: 5, livery: '#2F4C82', trim: '#E2B653', at: 0 });
     g.ui.stationBanner('Larkspur Halt', 'All aboard · New postcard');
     // A long train so the train map is up.
-    for (let i = 0; i < 4; i++) { g.train.coupleNext(); g.simulate(3.5); }
+    for (const type of ['bathroom', 'supply', 'luggage', 'sleeper']) { g.train.coupleNext(type); g.simulate(3.5); }
   });
   await page.waitForTimeout(700);
   report('busy HUD', await page.evaluate(auditPage));
@@ -131,7 +136,7 @@ for (const [width, height] of SIZES) {
     for (const el of document.querySelectorAll('.ticket')) el.remove();
     document.getElementById('ui').classList.remove('has-ticket');
     g.coach.enabled = false;
-    g.coach.current = { id: 'audit', icon: 'towel', text: 'Washrooms need towels and rolls from the Supply Car' };
+    g.coach.current = { id: 'audit', icon: 'towel', text: 'Towels and rolls come from here', anchor: { world: { x: 0, z: 8 } } };
   });
   await page.waitForTimeout(400);
   report('coach', await page.evaluate(auditPage));
@@ -145,7 +150,10 @@ for (const [width, height] of SIZES) {
   // Every menu.
   const menus = [
     ['shop', "document.querySelector('.side button[aria-label=\"Shop\"]').click()"],
-    ['settings', "document.querySelector('.side button[aria-label=\"Settings\"]').click()"],
+    ['settings', 'window.nightExpress.ui.screens.settings()'],
+    ['menu', 'window.nightExpress.ui.screens.menu()'],
+    ['front page', "const g = window.nightExpress; g.data.press.trainName = 'The Moonlight Limited'; const item = g.press.print('refurb3', { carriage: 'Sleeper Car II' }); g.ui.showFrontPage(item, { cash: 0, gems: 10, railMiles: 2 }, 10, () => {})"],
+    ['chooser', "window.nightExpress.ui.showCarriageChoice([{ type: 'sleeper', name: 'Sleeper Car', pitch: 'Five more cabins: more guests, more fares.', inside: '5 cabins and a linen nook', reason: '3 guests were left behind: you need beds' }, { type: 'luggage', name: 'Luggage Car', pitch: 'Room for 16 more suitcases: every bag tips.', inside: 'Racks for 16 bags, a porter', reason: null }, { type: 'bathroom', name: 'Bathroom Car', pitch: 'Every guest tips for a fresh washroom.', inside: 'Up to 3 washrooms', reason: null }], () => {})"],
     ['upgrades', 'window.nightExpress.ui.screens.upgrades()'],
     ['daily', 'window.nightExpress.ui.screens.daily()'],
     ['album', 'window.nightExpress.ui.screens.album()'],
@@ -154,7 +162,6 @@ for (const [width, height] of SIZES) {
     ['offline', "window.nightExpress.ui.showOffline(123456, 7200, 10, () => {})"],
     ['dev', 'window.nightExpress.ui.screens.devPanel()'],
     ['progress', 'window.nightExpress.ui.screens.progress()'],
-    ['gazette', "const g = window.nightExpress; g.data.press.trainName = 'The Moonlight Limited'; g.press.print('refurb3', { carriage: 'Sleeper Car II' }); g.press.print('overtake', { rival: 'Duchess of Dover' }); g.ui.pressScreens.gazette()"],
     ['naming', "window.nightExpress.ui.showNaming(['The Night Owl', 'Silver Swallow', 'Moonlight Limited', 'The Dandelion', 'Lucky Clover', 'The Starling'], () => {})"],
     ['interview', "window.nightExpress.ui.showInterview({ level: 4, question: 'The Orient Belle calls you \"a local line with ideas\". Your reply?', answers: [{ text: 'See you at the Golden Whistles.', perk: { kind: 'fareBonus', amount: 0.06, label: 'Fares +6%' } }, { text: 'Our passengers would disagree.', perk: { kind: 'tipBonus', amount: 0.08, label: 'Tips +8%' } }, { text: 'Local, and proud of it.', perk: { kind: 'speedBonus', amount: 0.06, label: 'Walk +6%' } }] }, 'The Moonlight Limited', () => {})"],
     ['ceremony', "const a = [{ id: 'popular', name: 'People\\'s Favourite', hint: 'Carry 250 guests.', stat: 'guests', target: 250, reward: { gems: 25, railMiles: 5 } }, { id: 'sleeper', name: 'Sleeper Train of the Year', hint: 'Top the Countryside League.', stat: 'rankOne', target: 0, reward: { gems: 40, railMiles: 8 } }, { id: 'spotless', name: 'Spotless Service', hint: 'Make 6 perfect station stops.', stat: 'perfectStops', target: 6, reward: { gems: 15, railMiles: 3 } }]; window.nightExpress.ui.showCeremony({ level: 8, title: 'Golden Whistle: Grand Final', awards: a }, [{ award: a[0], won: true, fresh: true, have: 250, need: 250 }, { award: a[1], won: true, fresh: true, have: 1, need: 1 }, { award: a[2], won: false, fresh: false, have: 4, need: 6 }], 'The Moonlight Limited', () => {})"],
@@ -165,11 +172,57 @@ for (const [width, height] of SIZES) {
       g.data.meta.postcards = ['millbrook', 'hazelford', 'larkspur-halt'];
       new Function(s)();
     }, script);
-    await page.waitForTimeout(label === 'ceremony' ? 3000 : 350);
+    await page.waitForTimeout(label === 'ceremony' ? 3000 : label === 'front page' ? 1200 : 350);
     report(label, await page.evaluate(auditPage));
     await page.evaluate(() => { for (const b of document.querySelectorAll('.sheet .close')) b.click(); for (const s of document.querySelectorAll('.scrim')) s.remove(); });
   }
   for (const e of errors) problems.push(`${width}×${height} page error: ${e}`);
+  await page.close();
+}
+
+// Live play: the autopilot plays a few minutes in real time while world text (numbers, speech, labels,
+// the head counter) is sampled against every visible HUD box. Catches overlaps no staged screen shows.
+const liveCheck = () => {
+  const vis = (el) => {
+    if (!el.isConnected) return false;
+    const st = getComputedStyle(el);
+    if (st.display === 'none' || st.visibility === 'hidden' || Number(st.opacity) < 0.05) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  };
+  const hud = [...document.querySelectorAll('.hud-top .pill, .hud-top .level, .hud-top .journey, .side button, .boost .badge, .trainmap, .ticket, .offers .chip, .toasts .toast')].filter(vis);
+  const world = [...document.querySelectorAll('.float, .speech, .guide, .tile-tag, .burst')].filter(vis);
+  const out = [];
+  for (const w of world) {
+    // Fading in or out at the edge is fine: only count clearly visible text.
+    if (Number(getComputedStyle(w).opacity) < 0.5) continue;
+    const a = w.getBoundingClientRect();
+    for (const hEl of hud) {
+      const b = hEl.getBoundingClientRect();
+      const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+      const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+      if (ox > 2 && oy > 2) out.push(`${w.className.split(' ')[0]} "${w.textContent.trim().slice(0, 24)}" over ${hEl.className.split(' ')[0]}`);
+    }
+  }
+  return out;
+};
+for (const [width, height] of [[337, 600], [390, 844]]) {
+  const page = await browser.newPage({ viewport: { width, height } });
+  await page.goto(`file://${file}`);
+  await page.waitForTimeout(700);
+  await page.mouse.click(width / 2, height - 60);
+  await page.evaluate(() => { const g = window.nightExpress; g.setAutopilot(true); g.timeScale = 3; });
+  const seen = new Set();
+  for (let i = 0; i < 90; i++) {
+    await page.waitForTimeout(500);
+    await page.evaluate(() => {
+      const choice = document.querySelector('.scrim [data-default]');
+      if (choice) choice.click();
+      else for (const b of document.querySelectorAll('.scrim .btn')) if (/^(Collect|Maybe later|Claim)$/.test(b.textContent.trim())) { b.click(); break; }
+    });
+    for (const issue of await page.evaluate(liveCheck)) seen.add(issue);
+  }
+  for (const issue of seen) problems.push(`${width}×${height} live play: ${issue}`);
   await page.close();
 }
 

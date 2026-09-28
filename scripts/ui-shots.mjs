@@ -32,7 +32,7 @@ await closeAll();
 await page.evaluate(() => document.querySelector('.side button[aria-label="Shop"]').click());
 await shot('c-shop');
 await closeAll();
-await page.evaluate(() => { const g = window.nightExpress; g.data.settings.devTools = true; document.querySelector('.side button[aria-label="Settings"]').click(); });
+await page.evaluate(() => { const g = window.nightExpress; g.data.settings.devTools = true; g.ui.screens.settings(); });
 await shot('d-settings');
 await closeAll();
 await page.evaluate(() => window.nightExpress.ui.screens.devPanel());
@@ -57,8 +57,17 @@ await shot('k-dusk', 900);
 await page.evaluate(() => { const g = window.nightExpress; g.setTimeOfDay(null); g.ui.showNaming(['The Night Owl', 'Silver Swallow', 'Moonlight Limited', 'The Dandelion', 'Lucky Clover', 'The Starling'], () => {}); });
 await shot('l-naming');
 await closeAll();
-await page.evaluate(() => { const g = window.nightExpress; if (!g.data.press.trainName) g.data.press.trainName = 'The Night Owl'; g.press.print('overtake', { rival: 'Puffing Billy' }); g.press.print('refurb2', { carriage: 'Sleeper & Lobby' }); g.ui.pressScreens.gazette(); });
-await shot('m-gazette');
+await page.evaluate(() => { const g = window.nightExpress; if (!g.data.press.trainName) g.data.press.trainName = 'The Night Owl'; const item = g.press.print('coupling', { carriage: 'Bathroom Car', n: 2 }); g.ui.showFrontPage(item, { cash: 60, gems: 0, railMiles: 0 }, 10, () => {}); });
+await shot('m-frontpage', 1400);
+await closeAll();
+await page.evaluate(() => window.nightExpress.ui.showCarriageChoice([
+  { type: 'sleeper', name: 'Sleeper Car', pitch: 'Five more cabins: more guests, more fares.', inside: '5 cabins and a linen nook', reason: '3 guests were left behind: you need beds' },
+  { type: 'luggage', name: 'Luggage Car', pitch: 'Room for 16 more suitcases: every bag tips.', inside: 'Racks for 16 bags, a porter', reason: null },
+], () => {}));
+await shot('q-chooser');
+await closeAll();
+await page.evaluate(() => window.nightExpress.ui.screens.menu());
+await shot('r-menu');
 await closeAll();
 await page.evaluate(() => window.nightExpress.ui.showInterview({ level: 2, question: 'A new sleeper on the country line! What makes a good night train?', answers: [
   { text: 'Tea, served before you ask.', perk: { kind: 'tipBonus', amount: 0.06, label: 'Tips +6%' } },
