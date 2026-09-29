@@ -40,38 +40,55 @@ export interface ArchetypeDef {
   /** What they tend to ask for: personality you can learn and plan around. */
   requests: Partial<Record<'tea' | 'blanket' | 'pillow', number>>;
   lines: string[];
+  /** What they leave behind in the cabin (a few are picked each time; see MESS in economy.ts). */
+  mess: MessPiece[];
 }
+
+/** Things a guest can leave on the cabin floor (built in world/Mess.ts). */
+export type MessPiece =
+  | 'newspaper' | 'cup' | 'papers' | 'paperBalls' | 'socks' | 'map' | 'wrappers' | 'bottle' | 'book' | 'yarn'
+  | 'petals' | 'champagne' | 'teddy' | 'toyTrain' | 'appleCore' | 'boa' | 'cards';
+/** How they leave the bed. */
+export type BedMess = 'heap' | 'tangle' | 'kicked';
+/** Bits anyone might leave, mixed in now and then so no two rooms look alike. */
+export const COMMON_MESS: MessPiece[] = ['paperBalls', 'wrappers', 'cup'];
 
 export const ARCHETYPES: ArchetypeDef[] = [
   {
     id: 'businessman', label: 'Businessman', weight: 3, fareMultiplier: 1, tipMultiplier: 1, speedMultiplier: 1.08, minCarriages: 1,
     colors: { body: '#5B6C85', accent: '#C0485C', skin: '#F1C7A5', hair: '#3A2E28' }, accessory: 'briefcase', requests: { tea: 4, pillow: 1, blanket: 1 },
     lines: ['Tea. Urgently.', 'Is the Wi-Fi steam powered?', 'Wake me at the meeting.'],
+    mess: ['newspaper', 'papers', 'cup', 'paperBalls'],
   },
   {
     id: 'backpacker', label: 'Backpacker', weight: 3, fareMultiplier: 0.9, tipMultiplier: 0.8, speedMultiplier: 1.12, minCarriages: 1,
     colors: { body: '#6FA36B', accent: '#EE8F4A', skin: '#D9A07A', hair: '#8C5A32' }, accessory: 'backpack', requests: { pillow: 4, tea: 1, blanket: 1 },
     lines: ['Best hostel ever!', 'Do you have a spare pillow? Asking for me.', 'I packed light. Mostly snacks.'],
+    mess: ['map', 'wrappers', 'socks', 'bottle'],
   },
   {
     id: 'grandma', label: 'Grandma', weight: 2, fareMultiplier: 1, tipMultiplier: 1.25, speedMultiplier: 0.82, minCarriages: 1,
     colors: { body: '#B39BD1', accent: '#FBF6EC', skin: '#F2CFB3', hair: '#EFEFEF' }, accessory: 'handbag', requests: { blanket: 4, tea: 2, pillow: 1 },
     lines: ['Lovely train, dear.', 'A blanket would be heaven.', 'In my day trains had fewer buttons.'],
+    mess: ['yarn', 'book', 'cup', 'newspaper'],
   },
   {
     id: 'newlyweds', label: 'Newlyweds', weight: 1.2, fareMultiplier: 1.1, tipMultiplier: 1.35, speedMultiplier: 1, minCarriages: 1,
     colors: { body: '#FBF3E4', accent: '#E8849A', skin: '#EDBE9A', hair: '#5A3B2A' }, accessory: 'flower', requests: { tea: 3, pillow: 2, blanket: 1 },
     lines: ['Just married!', 'Two teas, one straw.', 'Our first trip together!'],
+    mess: ['petals', 'champagne', 'cards', 'cup'],
   },
   {
     id: 'family', label: 'Family', weight: 1.5, fareMultiplier: 1.2, tipMultiplier: 1.1, speedMultiplier: 0.95, minCarriages: 2,
     colors: { body: '#4F86B8', accent: '#F2C94C', skin: '#E3AE87', hair: '#2F2520' }, accessory: 'child', requests: { blanket: 2, pillow: 2, tea: 1 },
     lines: ['Are we there yet?', 'She wants the top bunk.', 'Snacks for the small one?'],
+    mess: ['teddy', 'toyTrain', 'appleCore', 'wrappers'],
   },
   {
     id: 'vip', label: 'VIP', weight: 0.6, fareMultiplier: 1.6, tipMultiplier: 2.4, speedMultiplier: 0.9, minCarriages: 3,
     colors: { body: '#C8A27A', accent: '#E3B352', skin: '#F0C6A2', hair: '#1E1A18' }, accessory: 'furcoat', requests: { tea: 2, pillow: 2, blanket: 2 },
     lines: ['Darling, is this first class?', 'I tip in the currency of joy. And cash.', 'The fur is faux. The tips are real.'],
+    mess: ['boa', 'champagne', 'cards', 'petals'],
   },
 ];
 

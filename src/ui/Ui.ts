@@ -8,7 +8,7 @@ import type { StationResult } from '../gameplay/events';
 import type { Game } from '../gameplay/Game';
 import type { DoubleChoice, GameUi } from '../gameplay/GameUi';
 import type { OfferView } from '../gameplay/Monetization';
-import type { CeremonyResult, FrontPageReward } from '../gameplay/Press';
+import type { CeremonyResult, FrontPageReward, RivalWatch } from '../gameplay/Press';
 import type { CarriageChoiceView, FloatKind } from '../gameplay/UiApi';
 import type { NewsItem } from '../save/SaveData';
 import { h, icon, setText, setVisible } from './dom';
@@ -514,7 +514,9 @@ export class Ui implements GameUi {
   private updateGuide(): void {
     const g = this.game;
     const line = this.hidden || this.screens.isOpen ? null : g.coach.current;
-    const gestureOn = !!line && 'gesture' in line.anchor;
+    // The walk gesture gives way to a centre card or a toast (it would sit on top of them).
+    const busyCentre = this.root.classList.contains('has-card') || this.toastLayer.childElementCount > 0;
+    const gestureOn = !!line && 'gesture' in line.anchor && !busyCentre;
     setVisible(this.gesture, gestureOn);
     const labelled = line && !gestureOn ? line : null;
     const key = labelled ? `${labelled.id}` : '';
@@ -808,6 +810,7 @@ export class Ui implements GameUi {
   stationBanner(title: string, subtitle: string): void {
     this.announce(BANNER_MAX_DELAY, () => {
       const el = h('div.banner', { role: 'status' }, h('div.sign', { text: title }), h('div.sub', { text: subtitle }));
+      this.clearCards();
       this.root.appendChild(el);
       this.holdCard(2700);
       window.setTimeout(() => el.remove(), 2700);
@@ -818,11 +821,17 @@ export class Ui implements GameUi {
   celebrate(title: string, subtitle: string, iconName: IconName): void {
     this.announce(CELEBRATE_MAX_DELAY, () => {
       const el = h('div.celebrate', { role: 'status' }, h('div.card', {}, icon(iconName, 56), h('div.big', { text: title }), h('div.small', { text: subtitle })));
+      this.clearCards();
       this.root.appendChild(el);
       this.holdCard(2900);
       window.setTimeout(() => el.remove(), 2900);
       return 2.4;
     });
+  }
+
+  /** A new centre card replaces the one fading out, so two never share the middle of the screen. */
+  private clearCards(): void {
+    for (const old of this.root.querySelectorAll('.celebrate, .banner')) old.remove();
   }
 
   /** While a centre card is up, world labels and the train map step aside so the card reads alone. */
@@ -924,6 +933,10 @@ export class Ui implements GameUi {
 
   showFrontPage(item: NewsItem, reward: FrontPageReward, gemCost: number, onCollect: (choice: DoubleChoice) => void): void {
     this.pressScreens.frontPage(item, reward, gemCost, onCollect);
+  }
+
+  showRivalWatch(watch: RivalWatch, onDone: () => void): void {
+    this.pressScreens.rivalWatch(watch, onDone);
   }
 
   // ─── Mock presenters ────────────────────────────────────────────────────────

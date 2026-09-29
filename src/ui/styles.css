@@ -216,7 +216,7 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .celebrate { position: absolute; z-index: 30; left: 50%; top: max(45%, calc(var(--rail-top) + 220px)); transform: translate(-50%, -50%); text-align: center; animation: celebrate 2.8s ease-in-out forwards; width: min(290px, calc(100% - 2 * var(--middle-left))); }
 .celebrate .card { position: relative; padding: 30px 16px 14px; background: var(--pink); border: var(--line); border-radius: 10px; box-shadow: inset 0 0 0 4px var(--pink), inset 0 0 0 6px var(--raspberry), 0 4px 0 var(--ink); }
 .celebrate .ico { position: absolute; left: 50%; top: -30px; transform: translateX(-50%); width: 56px; height: 56px; padding: 4px; border-radius: 50%; background: var(--cream); border: var(--line); box-sizing: content-box; }
-.celebrate .big { font-weight: 800; font-size: clamp(20px, 6.6vw, 26px); letter-spacing: 0.12em; text-transform: uppercase; color: var(--navy); text-wrap: balance; line-height: 1.1; }
+.celebrate .big { font-weight: 800; font-size: clamp(18px, 6vw, 26px); letter-spacing: 0.12em; text-transform: uppercase; color: var(--navy); text-wrap: balance; line-height: 1.1; }
 .celebrate .small { margin-top: 6px; font-weight: 700; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--raspberry-dark); text-wrap: balance; }
 @keyframes celebrate { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } 14% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); } 24% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
 
@@ -260,7 +260,7 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .gesture .hand { position: absolute; left: 20px; top: 20px; width: 44px; height: 44px; filter: drop-shadow(0 3px 0 #2A243366); animation: sweep 1.6s ease-in-out infinite; }
 .gesture .label { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.06em; color: var(--cream); text-shadow: 0 2px 0 var(--ink), 1.5px 0 0 var(--ink), -1.5px 0 0 var(--ink), 0 -1.5px 0 var(--ink); }
 @keyframes sweep { 0% { transform: translateX(0) rotate(-8deg); } 50% { transform: translateX(76px) rotate(8deg); } 100% { transform: translateX(0) rotate(-8deg); } }
-.has-card .guide, .has-card .tile-tag { opacity: 0 !important; }
+.has-card .guide, .has-card .tile-tag, .has-card .rush { opacity: 0 !important; }
 /* Rush: the streak under the conductor's feet, a mustard pill with a draining bar. */
 .rush { position: absolute; left: 0; top: 0; display: flex; align-items: baseline; gap: 4px; padding: 3px 9px 6px; border-radius: 999px; background: var(--mustard); color: var(--ink); border: 2px solid var(--ink); box-shadow: 0 2px 0 var(--ink); pointer-events: none; will-change: transform; }
 .rush span { font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
@@ -428,6 +428,33 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 .frontpage p { margin: 0; font-size: 14px; line-height: 1.35; }
 .frontpage .reward { font-size: 22px; padding: 8px; }
 .masthead { text-align: center; padding-bottom: 6px; border-bottom: 3px double var(--ink); }
+/* Rival Watch: a rival owner's taunt, on a plum scrim with red rays. */
+.rival-scrim { background: #3A1F33D9; }
+.rival-scrim .rays { background: repeating-conic-gradient(#C0485C33 0 10deg, transparent 10deg 20deg); }
+.frontpage.rival .masthead .edition { opacity: 1; color: var(--raspberry); }
+.frontpage.rival h3 { font-size: clamp(18px, 5.6vw, 22px); text-transform: none; letter-spacing: 0; font-style: italic; }
+.portrait { display: block; flex: none; }
+.frontpage .owner { display: flex; align-items: center; gap: 10px; }
+.frontpage .owner > div { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.frontpage .owner b { font-size: 18px; font-weight: 800; }
+.frontpage .owner span { font-size: 13px; opacity: 0.75; }
+.frontpage .owner .kicker { font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--raspberry); opacity: 1; }
+.frontpage .humbled { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 2px dashed #2A243366; border-radius: 8px; background: #EFE3C8; }
+.frontpage .humbled > div { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.frontpage .humbled b { font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #4F7A4A; }
+.frontpage .humbled span { font-size: 13px; font-style: italic; }
+.frontpage .tape { display: flex; align-items: center; gap: 6px; }
+.frontpage .tape .tape-side { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 5px 4px; border: 2px solid var(--ink); border-radius: 8px; background: #EFE3C8; }
+.frontpage .tape .tape-side.you { background: var(--cream); box-shadow: inset 0 0 0 2px var(--mustard); }
+.frontpage .tape .tape-side span { max-width: 100%; font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.frontpage .tape .tape-side b { display: flex; align-items: center; gap: 3px; font-size: 18px; font-weight: 800; }
+.frontpage .tape .vs { font-weight: 800; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--raspberry); }
+.frontpage .tape-bar { height: 10px; border-radius: 5px; background: #E3D6BC; border: 2px solid var(--ink); overflow: hidden; }
+.frontpage .tape-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--mustard), #F7CF5A); }
+.frontpage .small.center { text-align: center; font-size: 13px; font-weight: 700; }
+/* The Gazette's reporter (the debut interview) on newsprint rather than the TV studio. */
+.tv.gazette { background: #F4ECDB; color: var(--ink); box-shadow: inset 0 0 0 4px #F4ECDB, inset 0 0 0 6px var(--ink); }
+.tv.gazette .onair { background: var(--ink); color: #F4ECDB; animation: none; }
 .masthead .paper-name { font-weight: 800; font-size: clamp(20px, 6.5vw, 26px); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink); }
 .masthead .edition { font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.6; margin-top: 2px; }
 /* Menu rows. */
@@ -480,33 +507,46 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 /* ── Title screen ─────────────────────────────────────── */
 /* ── Title screen and intro ──────────────────────────────── */
 .splash {
-  position: absolute; z-index: 100; inset: 0; pointer-events: auto; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-  padding: calc(var(--safe-top) + 11vh) 20px calc(var(--safe-bottom) + 26px); cursor: pointer; transition: opacity 360ms ease-out;
-  background: linear-gradient(180deg, rgba(31, 53, 81, 0.62) 0%, rgba(31, 53, 81, 0.18) 36%, transparent 52%, rgba(31, 53, 81, 0.72) 100%);
+  position: absolute; z-index: 100; inset: 0; pointer-events: auto; box-sizing: border-box; display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: center; gap: 12px; padding: calc(var(--safe-top) + 14px) var(--gutter) calc(var(--safe-bottom) + 14px); cursor: pointer; transition: opacity 360ms ease-out;
+  background: linear-gradient(180deg, rgba(31, 53, 81, 0.35) 0%, transparent 30%, transparent 70%, rgba(31, 53, 81, 0.4) 100%);
 }
 .splash.out { opacity: 0; pointer-events: none; }
-.title-screen .hud-top, .title-screen .side, .title-screen .offers, .title-screen .pointer, .title-screen .floats, .title-screen .toasts, .title-screen .joystick, .title-screen .guide, .title-screen .gesture, .title-screen .tile-tag, .title-screen .trainmap, .title-screen .objective, .title-screen .rush, .title-screen .ticket { visibility: hidden; }
-.splash .logo { text-align: center; animation: logoIn 800ms cubic-bezier(.2,1.3,.4,1); }
+.title-screen .hud-top, .title-screen .side, .title-screen .offers, .title-screen .pointer, .title-screen .floats, .title-screen .toasts, .title-screen .joystick, .title-screen .guide, .title-screen .gesture, .title-screen .tile-tag, .title-screen .trainmap, .title-screen .objective, .title-screen .rush, .title-screen .ticket, .title-screen .speech, .title-screen .coach { visibility: hidden; }
+/* 1. The logo card: a solid enamel plate, so no text ever sits on the scene. */
+.title-card {
+  position: relative; box-sizing: border-box; width: min(340px, 100%); margin-top: 12px; padding: 22px 18px 14px; text-align: center; border-radius: 22px;
+  background: linear-gradient(#FFFDF7, #F3E4C6); border: var(--line); box-shadow: 0 6px 0 var(--ink), var(--bevel); animation: logoIn 800ms cubic-bezier(.2,1.3,.4,1);
+}
 @keyframes logoIn { from { translate: 0 -24px; scale: 0.9; opacity: 0; } }
-.splash .kicker {
-  display: inline-block; padding: 5px 13px; border-radius: 999px; background: linear-gradient(#FFD266, var(--mustard)); border: 2.5px solid var(--ink);
-  box-shadow: 0 3px 0 var(--ink); font-weight: 800; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink);
+.title-card .kicker {
+  position: absolute; left: 50%; top: 0; translate: -50% -55%; white-space: nowrap; padding: 5px 13px; border-radius: 999px; background: linear-gradient(#FFD266, var(--mustard));
+  border: 2.5px solid var(--ink); box-shadow: 0 3px 0 var(--ink); font-weight: 800; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink);
 }
-.splash .wordmark {
-  margin-top: 14px; font-weight: 800; font-size: clamp(54px, 17vw, 78px); line-height: 0.92; letter-spacing: 0.05em; color: #FFF6E4; text-transform: uppercase;
-  text-shadow: 0 3px 0 var(--ink), 3px 0 0 var(--ink), -3px 0 0 var(--ink), 0 -3px 0 var(--ink), 2.5px 2.5px 0 var(--ink), -2.5px 2.5px 0 var(--ink), 2.5px -2.5px 0 var(--ink), -2.5px -2.5px 0 var(--ink), 0 9px 0 var(--ink);
+.title-card .wordmark { margin: 0; font-weight: 800; font-size: min(15vw, 7.4vh, 60px); line-height: 0.92; letter-spacing: 0.06em; color: var(--navy); text-transform: uppercase; }
+.title-card .rule { width: 62%; height: 3px; margin: 10px auto 8px; border-top: 2px solid var(--raspberry); border-bottom: 2px solid var(--raspberry); box-sizing: content-box; height: 2px; }
+.title-card .tag { margin: 0 auto; max-width: 250px; font-weight: 700; font-size: 14px; line-height: 1.3; color: var(--ink); text-wrap: balance; }
+/* 2. The view: nothing over the train. */
+.title-view { width: 100%; min-height: 0; }
+/* 3. The panel: the save, the one button, the credit. */
+.title-panel {
+  box-sizing: border-box; width: min(340px, 100%); display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 14px 14px 10px; border-radius: 24px;
+  background: linear-gradient(#34557C, #1F3551); border: var(--line); box-shadow: 0 6px 0 var(--ink), inset 0 2px 0 rgba(255, 255, 255, 0.18); animation: panelIn 700ms 120ms cubic-bezier(.2,1.2,.4,1) backwards;
 }
-.splash .tag { margin: 16px auto 0; max-width: 270px; font-weight: 700; font-size: 15px; color: #FFF6E4; line-height: 1.3; text-wrap: balance; text-shadow: 0 2px 0 rgba(31, 30, 40, 0.55); }
-.splash .actions { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+@keyframes panelIn { from { translate: 0 30px; opacity: 0; } }
+.save-card { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 14px; background: linear-gradient(#FFFDF7, #F3E4C6); border: 2.5px solid var(--ink); }
+.save-card .swatch { flex: none; width: 26px; height: 26px; border-radius: 8px; border: 3px solid; box-shadow: 0 0 0 2px var(--ink); }
+.save-card .save-text { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; text-align: left; }
+.save-card b { font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.save-card span { font-size: 12px; font-weight: 700; opacity: 0.7; }
 .title-play {
-  min-width: 230px; height: 66px; padding: 0 28px; border-radius: 22px; border: var(--line); background: linear-gradient(#9FE38D, #4FAE5F); color: #FFFDF7; cursor: pointer;
+  width: 100%; height: 64px; padding: 0 28px; border-radius: 20px; border: var(--line); background: linear-gradient(#9FE38D, #4FAE5F); color: #FFFDF7; cursor: pointer;
   font: inherit; font-weight: 800; font-size: 27px; letter-spacing: 0.14em; text-transform: uppercase; box-shadow: 0 6px 0 var(--ink), var(--bevel);
   text-shadow: 0 2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink); animation: playPulse 1.6s ease-in-out infinite;
 }
 .title-play:active { translate: 0 3px; box-shadow: 0 3px 0 var(--ink), var(--bevel); }
-@keyframes playPulse { 0%, 100% { scale: 1; } 50% { scale: 1.05; } }
-.splash .save-line { padding: 5px 13px; border-radius: 12px; background: rgba(31, 53, 81, 0.78); color: #FFF6E4; font-weight: 700; font-size: 13px; }
-.splash .foot { font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255, 246, 228, 0.72); }
+@keyframes playPulse { 0%, 100% { scale: 1; } 50% { scale: 1.04; } }
+.title-panel .foot { text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(255, 246, 228, 0.7); }
 /* The intro's caption: a card in the lower third (its slide-in animates `translate`, not the centring transform). */
 .cine-caption {
   position: absolute; z-index: 60; left: 50%; bottom: calc(var(--safe-bottom) + 14vh); transform: translateX(-50%); width: min(330px, calc(100% - 40px));

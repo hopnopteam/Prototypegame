@@ -120,6 +120,8 @@ export interface SaveData {
     pending: string[];
     stats: { guests: number; perfectStops: number; requests: number; streak: number; weekGuests: number; lastWeeklyStop: number; lastQueueStop: number };
     reputationSeen: number;
+    /** Rival Watch: owners who have taunted you, and those whose grumble after being passed has run. */
+    rivals: { taunted: number[]; humbled: number[] };
   };
 }
 
@@ -170,6 +172,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
       pending: [],
       stats: { guests: 0, perfectStops: 0, requests: 0, streak: 0, weekGuests: 0, lastWeeklyStop: 0, lastQueueStop: -99 },
       reputationSeen: 0,
+      rivals: { taunted: [], humbled: [] },
     },
   };
 }

@@ -5,7 +5,7 @@ import { EVENTS } from '../services/analytics';
 import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from '../world/CarriageView';
 import { COUPLE_TILE_SIZE, STATION_TILE_POS, TILE_SIZE, ZONE_RADIUS } from '../world/layout';
-import { TileView } from '../world/ZoneViews';
+import { markWorldUi, TileView } from '../world/ZoneViews';
 import type { World } from './World';
 import { Zone } from './Zones';
 
@@ -131,6 +131,7 @@ export class Tiles {
       const pos = w.map.rearDeck().tile;
       view.setPosition(pos.x, pos.z);
       view.face.draw('carriage', next.price, 0, false, false, true);
+      markWorldUi(view.group);
       w.scene.add(view.group);
       this.preview = { id: next.id, view };
     }
@@ -214,6 +215,7 @@ export class Tiles {
     const w = this.w;
     const view = new TileView(def.kind === 'couple' ? COUPLE_TILE_SIZE : TILE_SIZE);
     view.setPosition(pos.x, pos.z);
+    markWorldUi(view.group);
     w.scene.add(view.group);
     const entry: TileEntry = { def, view, pos, acc: 0, billTimer: 0, stand: 0, paidThisVisit: 0, zone: null as unknown as Zone };
     entry.zone = w.zones.add(new Zone({

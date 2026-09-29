@@ -4,10 +4,17 @@ import { FLOOR_Y } from './CarriageView';
 import { createZoneMaterial } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, TileFace } from './sprites';
+import { WORLD_UI_LAYER } from './CameraRig';
 
 const RING_GEOMETRY = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 
 /** Floor ring for a walk-over zone, with an optional floating icon so its purpose reads at a glance. */
+
+/** Moves an object and everything in it onto the world-UI layer. */
+export function markWorldUi(object: THREE.Object3D): void {
+  object.traverse((o) => o.layers.set(WORLD_UI_LAYER));
+}
+
 export class ZoneRing {
   readonly group = new THREE.Group();
   private readonly material: THREE.ShaderMaterial;
@@ -20,7 +27,8 @@ export class ZoneRing {
     this.material = createZoneMaterial(color);
     const ring = new THREE.Mesh(RING_GEOMETRY, this.material);
     ring.scale.set(radius * 2, 1, radius * 2);
-    ring.position.y = FLOOR_Y + 0.015;
+    // Above the cabin mat's top layer (3 cm), so a mat never hides a pad.
+    ring.position.y = FLOOR_Y + 0.036;
     ring.renderOrder = 2;
     this.group.add(ring);
     if (icon) {

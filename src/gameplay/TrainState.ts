@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CARRIAGE_CATALOGUE, MAX_CARRIAGES, type ComfortKey, type UnlockDef } from '../config/content';
+import { CARRIAGE_CATALOGUE, MAX_CARRIAGES, type BedMess, type ComfortKey, type MessPiece, type UnlockDef } from '../config/content';
 import { buildUnlocks, carriageChoices } from '../sim/unlockPlan';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Vec2 } from '../core/types';
@@ -29,6 +29,9 @@ export class Cabin {
   readonly bedPose: Vec2;
   /** Where a sleeper's root goes so their head lands on the pillow (CharacterView sleep pose). */
   readonly sleepPose: Vec2;
+  /** Where a new guest stands by the bed, and where they sit on its edge to read before lying down. */
+  readonly bedSide: Vec2;
+  readonly sitPose: Vec2;
   readonly tipPile: Vec2;
   readonly node: string;
   readonly pileId: string;
@@ -36,6 +39,8 @@ export class Cabin {
   spotZones: Zone[] = [];
   /** Staff member walking here to clean it. */
   cleaner: Actor | null = null;
+  /** What the last guest left behind (chosen as they get off; null: a default mess). */
+  messPlan: { pieces: MessPiece[]; bed: BedMess; seed: number } | null = null;
 
   constructor(readonly carriage: number, readonly layout: CabinLayout, originZ: number) {
     this.id = `c${carriage}_${layout.index}`;
@@ -45,6 +50,8 @@ export class Cabin {
     this.dirty = layout.spots.map(() => false);
     this.bedPose = w(layout.bedPose);
     this.sleepPose = { x: this.bedPose.x, z: layout.bed.z0 + originZ + PILLOW_Z + SLEEPER_HEAD };
+    this.bedSide = { x: layout.bed.x0 - 0.24, z: this.bedPose.z };
+    this.sitPose = { x: layout.bed.x0 + 0.12, z: this.bedPose.z };
     this.tipPile = w(layout.tipPile);
     this.node = `c${carriage}:${layout.node}`;
     this.pileId = `cabin:${this.id}`;
@@ -98,7 +105,7 @@ const ROOM_DOOR_REACH = 1.25;
 const ROOM_DOOR_OPEN_RATE = 4;
 const ROOM_DOOR_CLOSE_RATE = 1.6;
 /** A cabin's mess clears away in this many visible steps while it is tidied. */
-const CLEAN_STEPS = 4;
+const CLEAN_STEPS = 7;
 /** Where the conductor steps to (metres ahead of the old rear) while a new carriage rolls in. */
 const COUPLING_STEP_BACK = 0.8;
 /** How long the refurbishment wipe takes to sweep the carriage (seconds). */
@@ -449,8 +456,9 @@ export class TrainState {
     for (const cabin of this.cabins) {
       const view = this.views[cabin.carriage];
       if (!view) continue;
+      if (cabin.messPlan) view.setMess(cabin.index, cabin.messPlan.pieces, cabin.messPlan.bed, cabin.messPlan.seed);
       view.setDirt(cabin.index, cabin.dirty);
-      for (let i = 0; i < cabin.spotZones.length; i++) if (cabin.dirty[i]) view.setDirtFade(cabin.index, i, cabin.spotZones[i].progress);
+      for (let i = 0; i < cabin.spotZones.length; i++) if (cabin.dirty[i]) view.setDirtFade(cabin.index, i, cabin.spotZones[i].progress, this.onMessPop);
     }
     for (const bath of this.bathrooms) this.views[bath.carriage]?.setBathroomStock(bath.layout.index, bath.towels, bath.rolls);
     const supply = this.indexOfType('supply');
@@ -711,6 +719,14 @@ export class TrainState {
     this.w.tweens.run(0.5, (t) => object.scale.setScalar(from + (1 - from) * t), { ease: easeOutBack });
   }
 
+  /** Each bit of mess going: a puff, a pop, a glint. */
+  private readonly onMessPop = (x: number, y: number, z: number): void => {
+    const w = this.w;
+    w.audio.play('pop', { volume: 0.5, pitch: 1.1 + Math.random() * 0.3 });
+    w.particles.emit('dust', x, y - 0.15, z, 6, 0.25);
+    w.particles.emit('sparkle', x, y, z, 3, 0.2);
+  };
+
   private createCabinZones(cabin: Cabin): void {
     const w = this.w;
     w.cash.create(cabin.pileId, cabin.tipPile.x, cabin.tipPile.z);
@@ -730,20 +746,22 @@ export class TrainState {
       x: spot.x,
       z: spot.z,
       radius: ZONE_RADIUS.spot,
-      icon: null,
-      // The mess itself is the marker: it fades as you scrub (no ring cluttering the cabin).
-      ring: false,
+      // The one place to stand: a broom pad in the middle of the mat, shown only while the room is dirty.
+      icon: 'broom',
+      ring: true,
+      hideWhenInactive: true,
       active: () => cabin.dirty[i] && !cabin.guest,
       stay: (zone, actor, dt) => {
         const before = zone.progress;
         zone.progress += (dt / w.econ.zones.cleanCabinSeconds) * actor.workMultiplier;
+        // Out comes the broom: a side-to-side sweep, brush sounds, a little dust at the feet. Each piece of
+        // mess pops away in turn (onMessPop) and the mat brightens back.
+        actor.view.act('sweep');
         if (zone.progress < 1) {
-          // A small scrub: a soft brush sound as each bit of mess goes, a few sparkles, a little hop.
           const steps = CLEAN_STEPS;
           if (Math.floor(zone.progress * steps) > Math.floor(before * steps)) {
-            w.audio.play('scrub', { volume: 0.45, pitch: 0.9 + zone.progress * 0.4 });
-            w.particles.emit('sparkle', spot.x, FLOOR_Y + 0.3, spot.z, 3, 0.35);
-            if (actor.isPlayer) w.player.view.bounce(0.25);
+            w.audio.play('scrub', { volume: 0.4, pitch: 0.9 + zone.progress * 0.4 });
+            w.particles.emit('dust', actor.pos.x, FLOOR_Y + 0.1, actor.pos.z + 0.3, 3, 0.2);
           }
           return true;
         }

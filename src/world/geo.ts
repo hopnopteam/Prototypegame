@@ -115,7 +115,7 @@ export class GeoBuilder {
   }
 
   /** Box with rounded vertical edges (cushions, cabinets, bodies), `radius` in metres. */
-  rounded(x: number, y: number, z: number, w: number, h: number, d: number, radius: number, color: string, style?: PartStyle): this {
+  rounded(x: number, y: number, z: number, w: number, h: number, d: number, radius: number, color: string, style?: PartStyle, rotY = 0): this {
     const r = Math.min(radius, w / 2 - 1e-3, d / 2 - 1e-3);
     const shape = new THREE.Shape();
     const hw = w / 2 - r;
@@ -132,7 +132,7 @@ export class GeoBuilder {
     const geometry = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false, curveSegments: 4 });
     geometry.rotateX(Math.PI / 2);
     geometry.translate(0, h / 2, 0);
-    return this.add(geometry, color, x, y, z, 0, 0, 0, style);
+    return this.add(geometry, color, x, y, z, 0, rotY, 0, style);
   }
 
   cylinder(x: number, y: number, z: number, radiusTop: number, radiusBottom: number, height: number, color: string, segments = 10, axis: 'x' | 'y' | 'z' = 'y', style?: PartStyle): this {

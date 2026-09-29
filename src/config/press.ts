@@ -6,6 +6,31 @@
  * {livery}, {tier}, {carriage}, {rank}, {quote}, {award}, {story}.
  */
 
+/** How a rival owner's portrait is drawn (a quick caricature on the Gazette page). */
+export interface OwnerLook {
+  skin: string;
+  hair: string;
+  hat: 'tophat' | 'bun' | 'tam' | 'tiara' | 'goggles' | 'bowler' | 'feather';
+  face: 'moustache' | 'lorgnette' | 'beard' | 'pearls' | 'scarf' | 'monocle' | 'lashes';
+}
+
+/**
+ * The owner of a rival train: a whimsical villain who looks down on your little sleeper. They taunt you in
+ * the Gazette's Rival Watch when their train becomes your next target, and grumble when you pass them.
+ */
+export interface RivalOwner {
+  name: string;
+  /** How the Gazette styles them. */
+  title: string;
+  look: OwnerLook;
+  /** The taunt: a quoted headline and one short paragraph ({train} is your train). */
+  taunt: { headline: string; body: string };
+  /** What they splutter once you pass them. */
+  humbled: string;
+  /** How many carriages their train has in the Gazette photo (always more than yours, at first). */
+  carriages: number;
+}
+
 export interface Rival {
   name: string;
   /** Reputation (route stars) needed to overtake them. */
@@ -13,17 +38,75 @@ export interface Rival {
   /** One line of colour for the league table. */
   blurb: string;
   livery: string;
+  trim: string;
+  owner: RivalOwner;
 }
 
 /** The Countryside League. The player starts at the bottom; overtaking the Orient Belle makes you #1. */
 export const RIVALS: Rival[] = [
-  { name: 'Puffing Billy', reputation: 25, blurb: 'Mostly steam, some train.', livery: '#8C7A6B' },
-  { name: 'Midnight Mail', reputation: 100, blurb: 'Carries letters. Occasionally people.', livery: '#4A4E69' },
-  { name: 'Highland Rambler', reputation: 200, blurb: 'Tartan seats, strong opinions.', livery: '#5E7F5A' },
-  { name: 'Duchess of Dover', reputation: 330, blurb: 'Serves tea at exactly 4 o\'clock.', livery: '#8E6A8C' },
-  { name: 'The Silver Arrow', reputation: 480, blurb: 'Fast, shiny, a little smug.', livery: '#9AA3AD' },
-  { name: 'The Blue Pullman', reputation: 640, blurb: 'Old money on new rails.', livery: '#34507A' },
-  { name: 'Orient Belle', reputation: 820, blurb: 'Five-time Golden Whistle winner.', livery: '#7A2E3A' },
+  {
+    name: 'Puffing Billy', reputation: 25, blurb: 'Mostly steam, some train.', livery: '#8C7A6B', trim: '#3A3440',
+    owner: {
+      name: 'Sir Reginald Soot', title: 'coal baron', carriages: 3,
+      look: { skin: '#F0C8A8', hair: '#6B6B6B', hat: 'tophat', face: 'moustache' },
+      taunt: { headline: '“One Carriage? How Adorable.”', body: 'Sir Reginald Soot of the Puffing Billy chuckles into his waistcoat. “My coal bunker is bigger than {train}.”' },
+      humbled: 'Beginner\'s luck! My chimney was sulking.',
+    },
+  },
+  {
+    name: 'Midnight Mail', reputation: 100, blurb: 'Carries letters. Occasionally people.', livery: '#4A4E69', trim: '#C9A45C',
+    owner: {
+      name: 'Lady Mildred Postlethwaite', title: 'postmistress general', carriages: 4,
+      look: { skin: '#F4D3BC', hair: '#B7B0C8', hat: 'bun', face: 'lorgnette' },
+      taunt: { headline: '“Letters Travel Better Than Their Guests!”', body: '“We deliver on time. {train} delivers… eventually,” sniffs Lady Mildred of the Midnight Mail.' },
+      humbled: 'Return to sender! This is most irregular.',
+    },
+  },
+  {
+    name: 'Highland Rambler', reputation: 200, blurb: 'Tartan seats, strong opinions.', livery: '#5E7F5A', trim: '#B8483E',
+    owner: {
+      name: 'The McTavish', title: 'laird of the Rambler', carriages: 5,
+      look: { skin: '#E9B89A', hair: '#C2562E', hat: 'tam', face: 'beard' },
+      taunt: { headline: '“A Wee Train for Wee People.”', body: '“Our tartan seats have seen more miles than their paint,” booms The McTavish from the Highland Rambler.' },
+      humbled: 'Och! My bagpipes will hear of this.',
+    },
+  },
+  {
+    name: 'Duchess of Dover', reputation: 330, blurb: 'Serves tea at exactly 4 o\'clock.', livery: '#8E6A8C', trim: '#EAD9A8',
+    owner: {
+      name: 'Duchess Wilhelmina', title: 'of Dover, and of tea', carriages: 5,
+      look: { skin: '#F6DCC8', hair: '#E8E2D6', hat: 'tiara', face: 'pearls' },
+      taunt: { headline: '“Tea at Four. Sharp. Unlike Some.”', body: '“One simply cannot sleep on a train that pours at five past,” says the Duchess, stroking her poodle.' },
+      humbled: 'Five past four! The poodle is inconsolable.',
+    },
+  },
+  {
+    name: 'The Silver Arrow', reputation: 480, blurb: 'Fast, shiny, a little smug.', livery: '#9AA3AD', trim: '#2E2D34',
+    owner: {
+      name: 'Baron von Zoom', title: 'fastest man on rails', carriages: 6,
+      look: { skin: '#EFCFB4', hair: '#E3C16F', hat: 'goggles', face: 'scarf' },
+      taunt: { headline: '“Speed Is Luxury, Darling.”', body: 'Baron von Zoom polishes his goggles. “By the time {train} pours the tea, we have arrived.”' },
+      humbled: 'Impossible! I was… letting them win.',
+    },
+  },
+  {
+    name: 'The Blue Pullman', reputation: 640, blurb: 'Old money on new rails.', livery: '#34507A', trim: '#D9B45A',
+    owner: {
+      name: 'Cornelius Gold III', title: 'old money', carriages: 7,
+      look: { skin: '#F2D0B6', hair: '#3B3A40', hat: 'bowler', face: 'monocle' },
+      taunt: { headline: '“New Money Smells of Paint.”', body: '“Our carpets are older than their conductor,” sniffs Cornelius Gold III of the Blue Pullman.' },
+      humbled: 'My monocle fell in my soup.',
+    },
+  },
+  {
+    name: 'Orient Belle', reputation: 820, blurb: 'Five-time Golden Whistle winner.', livery: '#7A2E3A', trim: '#E2B653',
+    owner: {
+      name: 'Madame Valentina Noir', title: 'five-time champion', carriages: 8,
+      look: { skin: '#F1CDB5', hair: '#1F1B24', hat: 'feather', face: 'lashes' },
+      taunt: { headline: '“Five Golden Whistles. They Have… a Whistle.”', body: '“Number one is a lonely place, darling. Let\'s keep it that way,” purrs Madame Noir of the Orient Belle.' },
+      humbled: 'Enjoy it, darling. While it lasts.',
+    },
+  },
 ];
 
 /** Offered on the naming card; the player can type their own. */
@@ -45,7 +128,7 @@ export interface HeadlineDef {
 
 /** One or more variants per trigger; a variant is picked by how many times the trigger has fired. */
 export const HEADLINES: Record<PressTrigger, HeadlineDef[]> = {
-  named: [{ headline: 'A New Sleeper for the Countryside!', body: '{train} rattles out of Millbrook with one old carriage and a very determined conductor.' }],
+  named: [{ headline: 'A New Sleeper for the Countryside!', body: '{train} rattles out of Millbrook with one old carriage and a very determined conductor. “{quote}”' }],
   coupling: [
     { headline: '{train} Grows a Carriage!', body: 'The {carriage} rolled in with a clunk heard two fields away.' },
     { headline: '{train} Is Getting Longer!', body: 'A {carriage} joins the train. Station masters are measuring their platforms.' },
@@ -53,8 +136,8 @@ export const HEADLINES: Record<PressTrigger, HeadlineDef[]> = {
   ],
   refurb3: [{ headline: 'Velvet and Brass!', body: 'The {carriage} is refitted in walnut and brass. The Orient Belle is said to be "not worried". She is worried.' }],
   livery: [{ headline: '{train} Unveils a New Look!', body: 'Fresh {livery} paint to match a growing name. Trainspotters have started waving.' }],
-  topThree: [{ headline: 'Into the Top Three!', body: '{train} passes {rival} and joins the best sleepers on the line.' }],
-  champion: [{ headline: 'Number One!', body: '{train} tops the Countryside League. From one old carriage to the best sleeper on the line.' }],
+  topThree: [{ headline: 'Into the Top Three!', body: '{train} passes {rival} and joins the best sleepers on the line. “{quote}” says their owner.' }],
+  champion: [{ headline: 'Number One!', body: '{train} tops the Countryside League. From one old carriage to the best sleeper on the line. “{quote}”' }],
   guests100: [{ headline: 'One Hundred Happy Sleepers!', body: '"I slept like a log," said a man who is, professionally, a lumberjack.' }],
   story: [{ headline: '{story}', body: 'A regular passenger\'s journey comes to a happy end aboard {train}.' }],
 };
@@ -71,6 +154,9 @@ export const FRONT_PAGE_REWARDS: Record<PressTrigger, { gems?: number; railMiles
   story: { railMiles: 2 },
 };
 
+/** The debut interview's level key (it comes with the naming, after the first stop). */
+export const DEBUT_INTERVIEW = 0;
+
 /** A rival at or above this rank is front-page news when you pass them. */
 export const TOP_RANK_NEWS = 3;
 
@@ -82,15 +168,25 @@ export interface InterviewAnswer {
 }
 
 export interface InterviewDef {
+  /** Route level that brings it; 0 is the debut, right after the first station stop (with the naming). */
   level: number;
+  /** The Rail Gazette sends a reporter; Rails Tonight is on the telly. */
+  show: 'gazette' | 'tv';
   question: string;
   answers: InterviewAnswer[];
 }
 
-/** Rails Tonight: a TV interview after these route levels. Every answer is a good answer. */
+/** Who asks the questions. */
+export const INTERVIEW_HOSTS: Record<InterviewDef['show'], { title: string; host: string; badge: string }> = {
+  gazette: { title: 'The Rail Gazette', host: 'Percy Inkwell', badge: 'Interview' },
+  tv: { title: 'Rails Tonight', host: 'Penny Quill', badge: 'On air' },
+};
+
+/** Interviews: the debut after the first stop, then Rails Tonight after these route levels. Every answer is good. */
 export const INTERVIEWS: InterviewDef[] = [
   {
-    level: 2,
+    level: 0,
+    show: 'gazette',
     question: 'A new sleeper on the country line! What makes a good night train?',
     answers: [
       { text: 'Tea, served before you ask.', perk: { kind: 'tipBonus', amount: 0.06, label: 'Tips +6%' } },
@@ -100,6 +196,7 @@ export const INTERVIEWS: InterviewDef[] = [
   },
   {
     level: 4,
+    show: 'tv',
     question: 'The Orient Belle calls you "a local line with ideas". Your reply?',
     answers: [
       { text: 'See you at the Golden Whistles.', perk: { kind: 'fareBonus', amount: 0.06, label: 'Fares +6%' } },
@@ -109,6 +206,7 @@ export const INTERVIEWS: InterviewDef[] = [
   },
   {
     level: 6,
+    show: 'tv',
     question: 'From one rusty carriage to this. What\'s next?',
     answers: [
       { text: 'More carriages. Always more.', perk: { kind: 'fareBonus', amount: 0.08, label: 'Fares +8%' } },

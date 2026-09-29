@@ -30,7 +30,8 @@ await page.waitForTimeout(800);
 await page.mouse.click(195, 700);
 // Tests drive the game themselves: skip the intro so it cannot unpause the game halfway through.
 await page.evaluate(() => window.nightExpress.skipIntro?.());
-await page.waitForTimeout(400);
+// The title fades out over ~0.4 s; wait for it to leave rather than racing the fade.
+await page.waitForFunction(() => !document.querySelector('.splash'), null, { timeout: 3000 }).catch(() => undefined);
 check(await page.evaluate(() => !!window.nightExpress && !document.querySelector('.splash')), 'boots and the title card starts the game');
 
 // Record the journey phase and lifetime at every interstitial, so the §12 rules can be verified after.
@@ -76,6 +77,8 @@ for (let t = 0; t < total; t += 5) {
       ftue: g.data.profile.ftue,
       named: g.data.press.trainName,
       stories: g.data.press.items.length,
+      debut: g.data.press.interviews.includes(0),
+      taunts: g.data.press.rivals.taunted.length,
       coachDone: ['walk', 'checkin', 'cash', 'tile'].every((id) => g.flag(`coach_${id}`)),
       tiers: g.train.tiers.slice(),
       station: g.data.route.unlocked.filter((id) => id.startsWith('st.')),
@@ -98,6 +101,8 @@ check(snap.carriages >= 3, `${snap.carriages} carriages after ${fmt(snap.life)} 
 check(snap.staff >= 2, `${snap.staff} staff after ${fmt(snap.life)} (want 2+)`);
 check(snap.coachDone, 'the four-step walkthrough completed');
 check(!!snap.named && snap.stories >= 3, `the train was named ("${snap.named}") and made the paper ${snap.stories} times`);
+check(snap.debut, 'the Gazette interviewed the conductor after the first stop');
+check(snap.taunts >= 1, `a rival owner taunted the train in Rival Watch (${snap.taunts})`);
 check(snap.tiers.some((t) => t >= 1), `at least one carriage refurbished (tiers ${snap.tiers.join(',')})`);
 check(snap.station.length >= 1, `station upgrades bought at stops (${snap.station.join(', ') || 'none'})`);
 check(snap.objective >= 12, `the objective chain kept moving (${snap.objective} goals done)`);
@@ -130,8 +135,8 @@ const door = await page.evaluate(() => {
 check(door.walkable && door.moved > 0.5, `a doorway shutting never traps the conductor (walked ${door.moved.toFixed(2)} m after)`);
 
 // The save must survive a reload with progress intact.
-const before = snap.unlocked;
-await page.evaluate(() => { const g = window.nightExpress; g.setAutopilot(false); g.save.saveNow(); });
+// Counted at the moment of saving: the doorway test above runs more of the sim, and a tile can finish in it.
+const before = await page.evaluate(() => { const g = window.nightExpress; g.setAutopilot(false); g.save.saveNow(); return g.data.route.unlocked.length; });
 await page.reload();
 await page.waitForTimeout(800);
 const after = await page.evaluate(() => ({ unlocked: window.nightExpress.data.route.unlocked.length, cabins: window.nightExpress.train.openCabinCount() }));

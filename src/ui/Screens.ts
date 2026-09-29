@@ -21,6 +21,9 @@ interface SheetOptions {
 /** Every modal sheet. Opening one pauses the simulation; closing the last one resumes it. */
 export class Screens {
   private open = 0;
+  /** While the title screen or the intro is up, sheets wait here and open once play begins. */
+  private titleHold = false;
+  private readonly deferred: HTMLElement[] = [];
 
   constructor(private readonly ui: Ui) {}
 
@@ -28,9 +31,25 @@ export class Screens {
     return this.ui.game;
   }
 
-  /** True while any sheet is up; centre-screen announcements wait for it to close. */
+  /** True while any sheet is up (or the title holds them); centre-screen announcements wait for it. */
   get isOpen(): boolean {
-    return this.open > 0;
+    return this.open > 0 || this.titleHold;
+  }
+
+  /** The title screen and the intro keep sheets back (offline earnings, offers, the press) until play. */
+  holdForTitle(on: boolean): void {
+    this.titleHold = on;
+    if (on) return;
+    for (const scrim of this.deferred.splice(0)) this.present(scrim);
+  }
+
+  private present(scrim: HTMLElement): void {
+    if (this.titleHold) {
+      this.deferred.push(scrim);
+      return;
+    }
+    this.ui.root.appendChild(scrim);
+    this.setOpen(1);
   }
 
   sheet(title: string, iconName: IconName | null, content: (Node | null | false)[], options: SheetOptions = {}): () => void {
@@ -39,8 +58,12 @@ export class Screens {
     const close = (): void => {
       if (closed) return;
       closed = true;
-      scrim.remove();
-      this.setOpen(-1);
+      const waiting = this.deferred.indexOf(scrim);
+      if (waiting >= 0) this.deferred.splice(waiting, 1);
+      else {
+        scrim.remove();
+        this.setOpen(-1);
+      }
       options.onClose?.();
     };
     const header = h('header', {},
@@ -56,8 +79,7 @@ export class Screens {
         if (closable && e.target === scrim) close();
       },
     }, sheet);
-    this.ui.root.appendChild(scrim);
-    this.setOpen(1);
+    this.present(scrim);
     return close;
   }
 
@@ -142,13 +164,13 @@ export class Screens {
   private league(): HTMLElement {
     const g = this.game;
     const reputation = g.data.route.stars;
-    const rows = [...RIVALS.map((r) => ({ name: r.name, rep: r.reputation, you: false, livery: r.livery })),
-      { name: g.press.trainName, rep: reputation, you: true, livery: g.currentLivery().body }]
+    const rows = [...RIVALS.map((r) => ({ name: r.name, owner: r.owner.name, rep: r.reputation, you: false, livery: r.livery })),
+      { name: g.press.trainName, owner: 'You', rep: reputation, you: true, livery: g.currentLivery().body }]
       .sort((a, b) => b.rep - a.rep || (a.you ? -1 : 1));
     return h('ol.league', {}, ...rows.map((row, i) => h(`li${row.you ? '.you' : ''}` as 'li', {},
       h('span.rank', { text: String(i + 1) }),
       h('span.swatch', { style: { background: row.livery } }),
-      h('span.name', {}, h('b', { text: row.name })),
+      h('span.name', {}, h('b', { text: row.name }), h('small', { text: row.owner })),
       h('span.rep', {}, icon('star', 14), formatNumber(row.rep)),
     )));
   }
@@ -196,7 +218,7 @@ export class Screens {
       reward ? h('div.section-title', { text: `Level ${next} brings` }) : null,
       reward ? h('ul.perks', {}, ...[`+${reward.railMiles} Rail Miles and +${formatNumber(reward.cash)} Fares`, ...perks].map((t) => h('li', { text: t }))) : null,
       h('div.section-title', { text: 'Countryside League' }),
-      h('p', { text: standing.next ? `Overtake ${standing.next.name} in ${formatNumber(standing.next.reputation - g.data.route.stars)} stars.` : 'Number one: the best sleeper on the line.' }),
+      h('p', { text: standing.next ? `Overtake ${standing.next.owner.name}'s ${standing.next.name} in ${formatNumber(standing.next.reputation - g.data.route.stars)} stars.` : 'Number one: the best sleeper on the line.' }),
       this.league(),
       h('p.small', { text: 'Stars come from building, cleaning cabins, bringing requests and perfect station stops.' }),
     ]);

@@ -9,6 +9,8 @@ function boot(): void {
   if (!canvas || !overlay) throw new Error('Night Express: missing #scene or #ui');
 
   const ui = new Ui(overlay);
+  // Sheets raised while starting up (offline earnings, offers, the press) wait until play begins.
+  ui.screens.holdForTitle(true);
   let game: Game;
   try {
     game = new Game(canvas, overlay, ui);
@@ -19,22 +21,35 @@ function boot(): void {
   ui.bind(game);
   game.start();
 
-  // Title screen: the train waits at Millbrook under a slow camera drift; one clear button to start. It
-  // also turns sound on (browsers need a tap first). New players then get the short intro; anyone with a
-  // save goes straight back to their train.
+  // Title screen, in three fixed places: the logo card at the top, a clear view of the train waiting at
+  // Millbrook in the middle (no pads, bubbles or labels over it), and one panel at the bottom with the
+  // save and the button. The tap also turns sound on (browsers need one). New players then get the short
+  // intro; anyone with a save goes straight back to their train.
   const brandNew = game.isBrandNew;
-  const saveLine = brandNew
+  const livery = game.currentLivery();
+  const carriages = game.train.count;
+  const saveCard = brandNew
     ? null
-    : `${game.data.press.trainName ?? 'Your train'} · Level ${game.progression.level} · ${game.train.count} carriage${game.train.count === 1 ? '' : 's'}`;
+    : h('div.save-card', {},
+      h('span.swatch', { style: { background: livery.body, borderColor: livery.trim } }),
+      h('div.save-text', {},
+        h('b', { text: game.data.press.trainName ?? 'Your train' }),
+        h('span', { text: `Route level ${game.progression.level} · ${carriages} carriage${carriages === 1 ? '' : 's'}` }),
+      ));
   const play = h('button.title-play', {}, brandNew ? 'Play' : 'Continue');
   const splash = h('div.splash', { role: 'dialog', 'aria-label': 'Night Express' },
-    h('div.logo', {},
+    h('header.title-card', {},
       h('div.kicker', { text: 'The Countryside Local' }),
-      h('div.wordmark', { html: 'Night<br>Express' }),
-      h('div.tag', { text: 'Run a sleeper train that grows carriage by carriage.' }),
+      h('h1.wordmark', { html: 'Night<br>Express' }),
+      h('div.rule'),
+      h('p.tag', { text: 'Run a sleeper train that grows carriage by carriage.' }),
     ),
-    h('div.actions', {}, play, saveLine ? h('div.save-line', { text: saveLine }) : null),
-    h('div.foot', { text: 'Hopnop · publisher prototype' }),
+    h('div.title-view'),
+    h('footer.title-panel', {},
+      saveCard,
+      play,
+      h('div.foot', { text: 'Hopnop · publisher prototype' }),
+    ),
   );
   game.paused = true;
   game.setAttract(true);
@@ -51,6 +66,7 @@ function boot(): void {
     const begin = (): void => {
       overlay.classList.remove('title-screen');
       game.paused = false;
+      ui.screens.holdForTitle(false);
     };
     if (brandNew) game.playIntro(begin);
     else begin();

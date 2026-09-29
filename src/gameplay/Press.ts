@@ -1,9 +1,11 @@
 import { STORIES } from '../config/content';
 import {
   CEREMONIES,
+  DEBUT_INTERVIEW,
   DEFAULT_TRAIN_NAME,
   FRONT_PAGE_REWARDS,
   HEADLINES,
+  INTERVIEW_HOSTS,
   INTERVIEWS,
   PRESS_ARCHIVE,
   RIVALS,
@@ -14,6 +16,7 @@ import {
   type CeremonyDef,
   type InterviewDef,
   type PressTrigger,
+  type Rival,
 } from '../config/press';
 import type { NewsItem } from '../save/SaveData';
 import { awardProgress, cleanTrainName, fillTemplate, leagueStanding, rivalsPassed, type LeagueStanding } from '../sim/press';
@@ -42,8 +45,23 @@ export interface PressUi {
   showCeremony(def: CeremonyDef, results: CeremonyResult[], trainName: string, onDone: () => void): void;
   /** The celebratory front page: the story, a photo of the train, and a reward to collect (×2 optional). */
   showFrontPage(item: NewsItem, reward: FrontPageReward, gemCost: number, onCollect: (choice: DoubleChoice) => void): void;
+  /** Rival Watch: a rival owner's taunt (and the last one you passed, grumbling), with the gap to close. */
+  showRivalWatch(watch: RivalWatch, onDone: () => void): void;
   /** A sheet is open; big moments wait. */
   readonly busy: boolean;
+}
+
+export interface RivalWatch {
+  rival: Rival;
+  /** Their place in the league (1 = top). */
+  rank: number;
+  /** The rival you passed most recently, if their grumble has not run yet. */
+  humbled: Rival | null;
+  trainName: string;
+  stars: number;
+  livery: string;
+  trim: string;
+  carriages: number;
 }
 
 /** After a departure, this many seconds are a calm beat for interviews and ceremonies. */
@@ -51,6 +69,8 @@ const CALM_SECONDS = 25;
 /** A front page waits this long after its moment (so the coupling card and camera finish first). */
 const FRONT_PAGE_DELAY = 3.2;
 const GUESTS_NEWS = 100;
+/** Seconds between press cards (the debut chain aside), so news never arrives in a pile. */
+const PRESS_GAP = 15;
 
 /**
  * The world noticing your train (the answer to "what am I working towards?"): you name her, the league
@@ -62,10 +82,13 @@ const GUESTS_NEWS = 100;
 export class Press {
   private calm = 0;
   private sinceMoment = 99;
+  private sinceShown = 99;
 
   constructor(private readonly w: World, private readonly ui: PressUi) {
     const p = this.state;
     if (p.reputationSeen === 0) p.reputationSeen = w.data.route.stars;
+    // Saves from before the debut interview (it used to come at level 2): treat it as done.
+    if (p.trainName && !p.interviews.includes(DEBUT_INTERVIEW) && !p.pending.includes(`interview:${DEBUT_INTERVIEW}`)) p.interviews.push(DEBUT_INTERVIEW);
     if (!p.trainName && w.data.route.stopsCompleted > 0) this.queue('name');
     const e = w.events;
     e.on('guest.checkedIn', () => {
@@ -85,7 +108,10 @@ export class Press {
       if (tier >= 3) this.print('refurb3', { carriage: w.train.carriageName(index) });
     });
     e.on('livery.changed', ({ name }) => this.print('livery', { livery: name }));
-    e.on('stars.added', () => this.checkLeague());
+    e.on('stars.added', () => {
+      this.checkLeague();
+      this.checkRivalTarget();
+    });
     e.on('level.up', ({ level }) => {
       if (INTERVIEWS.some((i) => i.level === level) && !p.interviews.includes(level)) this.queue(`interview:${level}`);
       if (CEREMONIES.some((c) => c.level === level) && !p.ceremonies.includes(level)) this.queue(`ceremony:${level}`);
@@ -119,20 +145,39 @@ export class Press {
 
   update(dt: number): void {
     this.sinceMoment += dt;
+    this.sinceShown += dt;
     if (this.calm > 0) this.calm -= dt;
     const p = this.state;
     if (p.pending.length === 0 || this.ui.busy || this.w.train.coupling) return;
     const phase = this.w.journey.phase;
     if (phase === 'arriving' || phase === 'stationStop') return;
-    const next = p.pending[0];
-    // Interviews and ceremonies are for the breather after a station; the rest just need a quiet moment.
-    const needsBreather = next.startsWith('interview:') || next.startsWith('ceremony:');
-    if (needsBreather ? this.calm > 0 : this.sinceMoment >= FRONT_PAGE_DELAY) this.showNext();
+    // The first moment that is ready goes next, so a taunt waiting for its breather never holds up news.
+    const index = p.pending.findIndex((key) => this.ready(key));
+    if (index >= 0) this.showNext(index);
+  }
+
+  /**
+   * Interviews, ceremonies and rival taunts are for the breather after a station (one per breather); the
+   * rest just need a quiet moment. Cards keep a gap between them, except the debut (name, interview, front
+   * page), which is one moment: meet the new train.
+   */
+  private ready(key: string): boolean {
+    if (this.isDebut(key)) return this.sinceMoment >= FRONT_PAGE_DELAY;
+    if (this.sinceShown < PRESS_GAP) return false;
+    const needsBreather = key.startsWith('interview:') || key.startsWith('ceremony:') || key.startsWith('rival:');
+    return needsBreather ? this.calm > 0 : this.sinceMoment >= FRONT_PAGE_DELAY;
+  }
+
+  private isDebut(key: string): boolean {
+    if (key === 'name' || key === `interview:${DEBUT_INTERVIEW}`) return true;
+    if (!key.startsWith('front:')) return false;
+    const id = Number(key.split(':')[1]);
+    return this.state.items.find((i) => i.id === id)?.trigger === 'named';
   }
 
   /** Dev: show whatever is pending now. */
   flushPending(): void {
-    if (this.state.pending.length > 0 && !this.ui.busy) this.showNext();
+    if (this.state.pending.length > 0 && !this.ui.busy) this.showNext(0);
   }
 
   // ─── Front pages ────────────────────────────────────────────────────────────
@@ -147,12 +192,14 @@ export class Press {
     const def = variants[count % variants.length];
     p.fired[trigger] = count + 1;
     const all = { train: this.trainName, rank: this.standing.rank, n: w.train.count, ...vars };
+    // A story without a quote drops the empty quotation marks.
+    const fill = (text: string): string => fillTemplate(text, all).replace(/\s*“”/g, '');
     const livery = w.currentLivery();
     const item: NewsItem = {
       id: p.nextId++,
       trigger,
-      headline: fillTemplate(def.headline, all),
-      body: fillTemplate(def.body, all),
+      headline: fill(def.headline),
+      body: fill(def.body),
       level: w.progression.level,
       carriages: w.train.count,
       livery: livery.body,
@@ -200,11 +247,81 @@ export class Press {
     const last = passed[passed.length - 1];
     this.w.audio.play('sparkle', { pitch: 1.2 });
     this.w.ui.toast(`Overtook ${last.name} · now #${standing.rank}`, 'trophy');
+    // The big overtakes are front-page news, with the loser's grumble as the quote.
     if (standing.rank === 1) {
-      if (!p.fired.champion) this.print('champion');
+      if (!p.fired.champion) {
+        this.print('champion', { quote: last.owner.humbled });
+        this.markHumbled(last);
+      }
     } else if (standing.rank <= TOP_RANK_NEWS && !p.fired.topThree) {
-      this.print('topThree', { rival: last.name });
+      this.print('topThree', { rival: last.name, quote: last.owner.humbled });
+      this.markHumbled(last);
     }
+  }
+
+  // ─── Rival Watch ───────────────────────────────────────────────────────────
+
+  /** The next rival up the table taunts you (once each), after the debut and in a breather. */
+  private checkRivalTarget(): void {
+    const p = this.state;
+    if (!p.trainName || !p.interviews.includes(DEBUT_INTERVIEW)) return;
+    const next = this.standing.next;
+    if (!next) return;
+    const index = RIVALS.indexOf(next);
+    if (index < 0 || p.rivals.taunted.includes(index)) return;
+    this.queue(`rival:${index}`);
+  }
+
+  private markHumbled(rival: Rival): void {
+    const index = RIVALS.indexOf(rival);
+    const humbled = this.state.rivals.humbled;
+    if (index >= 0 && !humbled.includes(index)) humbled.push(index);
+  }
+
+  private watchFor(rival: Rival, humbled: Rival | null): RivalWatch {
+    const w = this.w;
+    const livery = w.currentLivery();
+    return {
+      rival,
+      rank: RIVALS.filter((r) => r.reputation > rival.reputation).length + 1,
+      humbled,
+      trainName: this.trainName,
+      stars: w.data.route.stars,
+      livery: livery.body,
+      trim: livery.trim,
+      carriages: w.train.count,
+    };
+  }
+
+  /** Dev and audits: show a rival's taunt now (the one below them grumbling), without changing progress. */
+  devShowRival(index: number): void {
+    const rival = RIVALS[Math.max(0, Math.min(RIVALS.length - 1, index))];
+    this.ui.showRivalWatch(this.watchFor(rival, RIVALS[RIVALS.indexOf(rival) - 1] ?? null), () => undefined);
+  }
+
+  private showRival(index: number): void {
+    const w = this.w;
+    const p = this.state;
+    const rival = RIVALS[index];
+    if (!rival || p.rivals.taunted.includes(index)) return;
+    p.rivals.taunted.push(index);
+    const stars = w.data.route.stars;
+    // Passed them before they got a word in: their grumble goes in the next taunt instead.
+    if (stars >= rival.reputation) {
+      this.checkRivalTarget();
+      return;
+    }
+    // The last rival you passed whose grumble has not run yet.
+    const passed = RIVALS.map((r, i) => ({ r, i })).filter(({ r, i }) => r.reputation <= stars && !p.rivals.humbled.includes(i));
+    const humbled = passed.length > 0 ? passed[passed.length - 1] : null;
+    for (const { i } of passed) p.rivals.humbled.push(i);
+    w.save.markDirty();
+    w.audio.play('whoosh');
+    this.ui.showRivalWatch(this.watchFor(rival, humbled ? humbled.r : null), () => {
+      w.audio.play('whistleShort');
+      w.events.emit('rival.taunted', { rival: rival.name });
+      w.analytics.log('rival_taunt', { rival: rival.name, stars });
+    });
   }
 
   // ─── Big moments ───────────────────────────────────────────────────────────
@@ -219,28 +336,34 @@ export class Press {
     this.w.save.markDirty();
   }
 
-  private showNext(): void {
+  private showNext(index: number): void {
     const p = this.state;
-    const key = p.pending.shift();
+    const [key] = p.pending.splice(index, 1);
     this.w.save.markDirty();
     if (!key) return;
-    this.calm = 0;
+    // One big moment per breather; front pages do not use it up.
+    if (!key.startsWith('front:')) this.calm = 0;
     this.sinceMoment = 0;
+    this.sinceShown = 0;
     if (key === 'name') this.showNaming();
     else if (key.startsWith('front:')) this.showFrontPage(Number(key.split(':')[1]));
     else if (key.startsWith('interview:')) this.showInterview(Number(key.split(':')[1]));
     else if (key.startsWith('ceremony:')) this.showCeremony(Number(key.split(':')[1]));
+    else if (key.startsWith('rival:')) this.showRival(Number(key.split(':')[1]));
   }
 
   private showNaming(): void {
     const w = this.w;
     if (this.state.trainName) return;
     this.ui.showNaming(TRAIN_NAME_SUGGESTIONS, (raw) => {
-      this.state.trainName = cleanTrainName(raw, TRAIN_NAME_MAX, DEFAULT_TRAIN_NAME);
+      const p = this.state;
+      p.trainName = cleanTrainName(raw, TRAIN_NAME_MAX, DEFAULT_TRAIN_NAME);
       w.save.markDirty();
-      w.events.emit('train.named', { name: this.state.trainName });
+      w.events.emit('train.named', { name: p.trainName });
       w.audio.play('whistleShort');
-      this.print('named');
+      // The Gazette's reporter has a question first; the front page quotes the answer.
+      if (p.interviews.includes(DEBUT_INTERVIEW)) this.print('named');
+      else if (!p.pending.includes(`interview:${DEBUT_INTERVIEW}`)) p.pending.unshift(`interview:${DEBUT_INTERVIEW}`);
     });
   }
 
@@ -254,7 +377,11 @@ export class Press {
       w.data.meta.perks[answer.perk.kind] += answer.perk.amount;
       w.save.markDirty();
       w.audio.play('unlock');
-      w.ui.toast(`Rails Tonight: ${answer.perk.label}, for good`, 'mic');
+      w.ui.toast(`${INTERVIEW_HOSTS[def.show].title}: ${answer.perk.label}, for good`, 'mic');
+      if (level === DEBUT_INTERVIEW) {
+        this.print('named', { quote: answer.text });
+        this.checkRivalTarget();
+      }
     });
   }
 

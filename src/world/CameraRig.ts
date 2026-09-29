@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { damp } from '../core/math';
 
+/**
+ * Pads, tiles and the guide arrow draw on their own camera layer, so the title screen and the intro can
+ * show the train alone (showWorldUi).
+ */
+export const WORLD_UI_LAYER = 1;
+
 const PITCH = THREE.MathUtils.degToRad(55);
 const FOV = 44;
 const BASE_DISTANCE = 20;
@@ -38,6 +44,16 @@ export class CameraRig {
   private readonly context = { zoom: 1, x: 0, z: 0 };
   private readonly contextNow = { zoom: 1, x: 0, z: 0 };
   clampX: [number, number] = [-2.5, 6];
+
+  constructor() {
+    this.camera.layers.enable(WORLD_UI_LAYER);
+  }
+
+  /** Pads, tiles and the guide arrow (hidden for the title screen and the intro, so the train reads alone). */
+  showWorldUi(on: boolean): void {
+    if (on) this.camera.layers.enable(WORLD_UI_LAYER);
+    else this.camera.layers.disable(WORLD_UI_LAYER);
+  }
 
   resize(aspect: number): void {
     this.camera.aspect = aspect;

@@ -69,6 +69,7 @@ export class PlatformView {
     this.group.add(sign);
 
     this.master = new CharacterView(MASTER_LOOK);
+    this.master.leans = false;
     this.master.root.userData.object = 'character:master';
     this.master.setPosition(MASTER_POS.x, FLOOR_Y, MASTER_POS.z);
     this.master.setFacing(-Math.PI / 2 + 0.6);
@@ -240,6 +241,7 @@ export class PlatformView {
     if (state.band && this.band.length === 0) {
       BAND.forEach((spot, i) => {
         const view = new CharacterView({ ...BAND_LOOK, skin: BAND_SKIN[i % BAND_SKIN.length] });
+        view.leans = false;
         view.setPosition(spot.x, FLOOR_Y, spot.z);
         view.setFacing(-Math.PI / 4);
         view.setCarrying(spot.instrument !== 'tuba');

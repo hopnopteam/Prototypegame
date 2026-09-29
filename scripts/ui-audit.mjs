@@ -99,16 +99,28 @@ for (const [width, height] of SIZES) {
   await page.waitForTimeout(700);
   const report = (label, issues) => { for (const issue of issues) problems.push(`${width}×${height} ${label}: ${issue}`); };
 
-  // Title screen.
+  // Title screen: logo card at the top, a clear view of the train, one panel at the bottom; nothing overlaps,
+  // nothing leaves the screen, the view keeps at least a fifth of the height, and no sheet opens on top.
+  // Measured once the cards have slid in.
+  await page.evaluate(() => Promise.race([
+    Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))),
+    new Promise((r) => setTimeout(r, 2000)),
+  ]));
   report('title', await page.evaluate(() => {
-    const logo = document.querySelector('.splash .logo')?.getBoundingClientRect();
-    const play = document.querySelector('.splash .title-play')?.getBoundingClientRect();
-    const foot = document.querySelector('.splash .foot')?.getBoundingClientRect();
+    const box = (sel) => document.querySelector(sel)?.getBoundingClientRect();
+    const card = box('.splash .title-card');
+    const kicker = box('.splash .title-card .kicker');
+    const view = box('.splash .title-view');
+    const panel = box('.splash .title-panel');
+    const play = box('.splash .title-play');
+    const foot = box('.splash .foot');
     const out = [];
-    if (!logo || !play) out.push('title logo or play button missing');
-    if (logo && play && logo.bottom > play.top) out.push('title logo overlaps the play button');
+    if (!card || !play || !panel) out.push('title card, panel or play button missing');
+    if (card && panel && card.bottom > panel.top) out.push('title card overlaps the bottom panel');
     if (play && foot && play.bottom > foot.top) out.push('play button overlaps the footer');
-    for (const [name, r] of [['logo', logo], ['play', play], ['foot', foot]]) if (r && (r.left < 0 || r.right > innerWidth || r.top < 0 || r.bottom > innerHeight)) out.push(`title ${name} leaves the screen`);
+    if (view && view.height < innerHeight * 0.2) out.push(`the train view is only ${Math.round(view.height)} px tall`);
+    if (document.querySelector('.scrim')) out.push('a sheet opened over the title');
+    for (const [name, r] of [['card', card], ['kicker', kicker], ['panel', panel], ['play', play], ['foot', foot]]) if (r && (r.left < 0 || r.right > innerWidth || r.top < 0 || r.bottom > innerHeight)) out.push(`title ${name} leaves the screen`);
     return out;
   }));
   await page.mouse.click(width / 2, height - 60);
@@ -185,7 +197,9 @@ for (const [width, height] of SIZES) {
     ['dev', 'window.nightExpress.ui.screens.devPanel()'],
     ['progress', 'window.nightExpress.ui.screens.progress()'],
     ['naming', "window.nightExpress.ui.showNaming(['The Night Owl', 'Silver Swallow', 'Moonlight Limited', 'The Dandelion', 'Lucky Clover', 'The Starling'], () => {})"],
-    ['interview', "window.nightExpress.ui.showInterview({ level: 4, question: 'The Orient Belle calls you \"a local line with ideas\". Your reply?', answers: [{ text: 'See you at the Golden Whistles.', perk: { kind: 'fareBonus', amount: 0.06, label: 'Fares +6%' } }, { text: 'Our passengers would disagree.', perk: { kind: 'tipBonus', amount: 0.08, label: 'Tips +8%' } }, { text: 'Local, and proud of it.', perk: { kind: 'speedBonus', amount: 0.06, label: 'Walk +6%' } }] }, 'The Moonlight Limited', () => {})"],
+    ['interview', "window.nightExpress.ui.showInterview({ level: 4, show: 'tv', question: 'The Orient Belle calls you \"a local line with ideas\". Your reply?', answers: [{ text: 'See you at the Golden Whistles.', perk: { kind: 'fareBonus', amount: 0.06, label: 'Fares +6%' } }, { text: 'Our passengers would disagree.', perk: { kind: 'tipBonus', amount: 0.08, label: 'Tips +8%' } }, { text: 'Local, and proud of it.', perk: { kind: 'speedBonus', amount: 0.06, label: 'Walk +6%' } }] }, 'The Moonlight Limited', () => {})"],
+    ['rival watch', 'window.nightExpress.press.devShowRival(1)'],
+    ['gazette interview', "window.nightExpress.ui.showInterview({ level: 0, show: 'gazette', question: 'A new sleeper on the country line! What makes a good night train?', answers: [{ text: 'Tea, served before you ask.', perk: { kind: 'tipBonus', amount: 0.06, label: 'Tips +6%' } }, { text: 'Fair fares for a fine bed.', perk: { kind: 'fareBonus', amount: 0.05, label: 'Fares +5%' } }, { text: 'A conductor who never stops moving.', perk: { kind: 'speedBonus', amount: 0.05, label: 'Walk +5%' } }] }, 'The Moonlight Limited', () => {})"],
     ['ceremony', "const a = [{ id: 'popular', name: 'People\\'s Favourite', hint: 'Carry 250 guests.', stat: 'guests', target: 250, reward: { gems: 25, railMiles: 5 } }, { id: 'sleeper', name: 'Sleeper Train of the Year', hint: 'Top the Countryside League.', stat: 'rankOne', target: 0, reward: { gems: 40, railMiles: 8 } }, { id: 'spotless', name: 'Spotless Service', hint: 'Make 6 perfect station stops.', stat: 'perfectStops', target: 6, reward: { gems: 15, railMiles: 3 } }]; window.nightExpress.ui.showCeremony({ level: 8, title: 'Golden Whistle: Grand Final', awards: a }, [{ award: a[0], won: true, fresh: true, have: 250, need: 250 }, { award: a[1], won: true, fresh: true, have: 1, need: 1 }, { award: a[2], won: false, fresh: false, have: 4, need: 6 }], 'The Moonlight Limited', () => {})"],
   ];
   for (const [label, script] of menus) {
@@ -194,7 +208,7 @@ for (const [width, height] of SIZES) {
       g.data.meta.postcards = ['millbrook', 'hazelford', 'larkspur-halt'];
       new Function(s)();
     }, script);
-    await page.waitForTimeout(label === 'ceremony' ? 3000 : label === 'front page' ? 1200 : 350);
+    await page.waitForTimeout(label === 'ceremony' ? 3000 : label === 'front page' || label === 'rival watch' ? 1200 : 350);
     // Let entrance animations settle (a slow frame can leave a sheet mid-slide).
     await page.evaluate(() => Promise.race([
       Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))),

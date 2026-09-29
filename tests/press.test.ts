@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CEREMONIES, HEADLINES, INTERVIEWS, RIVALS } from '../src/config/press';
+import { CEREMONIES, DEBUT_INTERVIEW, HEADLINES, INTERVIEWS, RIVALS } from '../src/config/press';
 import { ECONOMY } from '../src/config/economy';
 import { awardProgress, cleanTrainName, fillTemplate, leagueStanding, rivalsPassed } from '../src/sim/press';
 
@@ -41,6 +41,24 @@ describe('press', () => {
     expect(cleanTrainName('  The   <b>Owl</b>  ', 22, 'Default')).toBe('The bOwl/b');
     expect(cleanTrainName('   ', 22, 'Default')).toBe('Default');
     expect(cleanTrainName('A'.repeat(40), 22, 'Default')).toHaveLength(22);
+  });
+
+  it('opens with the Gazette interview after the first stop, then Rails Tonight', () => {
+    const debut = INTERVIEWS.find((i) => i.level === DEBUT_INTERVIEW);
+    expect(debut?.show).toBe('gazette');
+    expect(INTERVIEWS.filter((i) => i.level > DEBUT_INTERVIEW).every((i) => i.show === 'tv')).toBe(true);
+  });
+
+  it('gives every rival an owner who taunts, grumbles and outnumbers a new train', () => {
+    for (const rival of RIVALS) {
+      expect(rival.owner.taunt.headline.length, rival.name).toBeGreaterThan(0);
+      expect(rival.owner.taunt.body.length, rival.name).toBeLessThanOrEqual(140);
+      expect(rival.owner.humbled.length, rival.name).toBeLessThanOrEqual(50);
+      expect(rival.owner.carriages, rival.name).toBeGreaterThan(1);
+    }
+    // Each rival up the table has at least as grand a train as the one below.
+    const byRep = [...RIVALS].sort((a, b) => a.reputation - b.reputation);
+    for (let i = 1; i < byRep.length; i++) expect(byRep[i].owner.carriages).toBeGreaterThanOrEqual(byRep[i - 1].owner.carriages);
   });
 
   it('has a headline for every trigger and an answer for every interview', () => {

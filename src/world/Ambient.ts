@@ -58,6 +58,7 @@ export class Ambient {
   constructor() {
     ONLOOKER_LOOKS.forEach(({ look, scale }) => {
       const view = new CharacterView(look, scale);
+      view.leans = false;
       this.group.add(view.root);
       this.onlookers.push({ view, x: 0, z: 0, hop: this.rng.range(0, 2) });
     });

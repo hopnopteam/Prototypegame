@@ -79,6 +79,12 @@ export const ECONOMY = {
     initialGuests: 2,
     /** Until this many stops are done every guest rides exactly one leg: the opening is scripted, never luck. */
     earlyStopsOneLeg: 3,
+    /** Seconds a new guest sits on the bed edge reading before lying down (it counts toward their first request). */
+    settleSeconds: 4,
+    /** Seconds a served guest enjoys it (sips the tea, hugs the pillow) before going back to bed. */
+    enjoySeconds: 2.2,
+    /** Seconds a new request is announced with a wave. */
+    waveSeconds: 1.4,
   },
 
   service: {
@@ -144,6 +150,22 @@ export const ECONOMY = {
     noWashroomSeconds: 110,
     /** Service mood (0 grumpy … 1 delighted): colours what new passengers have heard and their reviews. */
     mood: { start: 0.6, rest: 0.6, driftPerMinute: 0.06, fast: 0.05, slow: -0.08, missed: -0.08, perfectStop: 0.06, emptyWashroom: -0.05 },
+  },
+
+  /** What a departing guest leaves behind: pieces from their archetype's pool, sometimes a common one. */
+  /** Everyone aboard leans with the train: back as it pulls away, forward as it brakes (radians). */
+  lean: {
+    /** Radians of lean per unit of acceleration (world units per second²). */
+    perAccel: 0.035,
+    max: 0.12,
+    /** How quickly the lean follows the train (per second). */
+    sharpness: 3,
+  },
+  mess: {
+    minPieces: 2,
+    maxPieces: 3,
+    /** Chance one piece is swapped for something anyone might leave (a paper ball, a wrapper). */
+    commonChance: 0.3,
   },
 
   /** Comforts (reading lamps, flowers, radios; soaps, towel rails): what each one adds in its carriage. */

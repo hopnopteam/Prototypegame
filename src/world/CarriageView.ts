@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { rect, type CarriageType, type Rect } from '../core/types';
 import type { ComfortKey } from '../config/content';
+import { buildBedMess, buildMessPiece, seeded, type BedMess, type MessPiece } from './Mess';
 import { GeoBuilder, type PartStyle } from './geo';
 import {
   CARRIAGE_LENGTH,
@@ -47,8 +48,10 @@ const FLAT: PartStyle = { shade: 1 };
  * Heights (above the floor) of everything lying flat on it, each in its own layer at least 4 mm from the
  * next: rooms 0–6 mm, queue marks to 11, runners 12, cabin mess from 40.
  */
-/** Each piece of a cabin's mess pops away over this share of the tidying. */
-const MESS_POP = 0.18;
+/** Each piece of a cabin's mess is swept in to the broom over this share of the tidying. */
+const MESS_POP = 0.2;
+/** How high a swept piece hops on its way in (metres). */
+const MESS_HOP = 0.35;
 /** A hex colour lightened (+) or darkened (−). */
 function shadeHex(hex: string, amount: number): string {
   const n = parseInt(hex.slice(1), 16);
@@ -63,6 +66,36 @@ const shortenEnds = (r: Rect, by: number): Rect => (r.z1 - r.z0 >= r.x1 - r.x0 ?
 const SHELF_LOW = 0.3;
 const SHELF_HIGH = 0.62;
 const SHELF_TOP = 0.012;
+/** The cabin mat: half-size around the cleaning spot, layer thickness, and each layer's inset. */
+const MAT_HALF = { x: 0.55, z: 0.52 };
+const MAT_STEP = 0.006;
+const MAT_INSET = 0.045;
+/** A dirty room's mat colour multiplier (trodden and dim) before it is tidied. */
+const MAT_DIRTY = [0.72, 0.68, 0.62] as const;
+/** Mess pieces are built this much bigger than their MESS_CELL, so they read at phone zoom. */
+const MESS_SCALE = 1.9;
+/**
+ * Mess floor slots on the boards around the mat, outside the cleaning pad: front left, front right, back
+ * left (the back right corner is where the tip is left). The room stays one spot to clean from.
+ */
+const MESS_SLOTS = [{ x: -0.38, z: -0.82 }, { x: 0.4, z: -0.82 }, { x: -0.38, z: 0.82 }];
+
+interface CabinMess {
+  group: THREE.Group;
+  items: THREE.Mesh[];
+  key: string;
+  /** The cleaning spot: swept pieces fly here. */
+  heart: { x: number; z: number };
+}
+
+/** A mat's layers, bottom to top, by tier: worn and dull, then clean oatmeal, then colour, then gold. */
+function matLayers(tier: number, theme: CarriageTheme): string[] {
+  if (tier <= 0) return ['#8F8373', '#A89B88'];
+  if (tier === 1) return ['#CDBE9F', '#EDE3CF'];
+  if (tier === 2) return ['#F4EBDA', theme.deep];
+  return [PALETTE.gold, theme.deep, '#F4EBDA', theme.deep];
+}
+
 /** The washroom stock stand: panel width, board tops and overall height (metres above the floor). */
 const WASH_SHELF = { side: 0.03, middle: 0.33, top: 0.6, height: 0.64 };
 /** Room door leaves: height, and each leaf's offset from the partition centre (they pass inside it). */
@@ -102,7 +135,8 @@ function finishFor(type: CarriageType, tier: number, t: CarriageTheme): Finish {
     };
   }
   const oakRoom = tiled ? { room: '#F4F1EA', roomSeam: '#DCE3E0', roomPattern: PATTERN.checker, roomScale: 0.3 } : { room: PALETTE.boards, roomSeam: PALETTE.boardsSeam, roomPattern: PATTERN.boards, roomScale: 0.3 };
-  const carpetRoom = tiled ? oakRoom : { room: t.carpet, roomSeam: t.carpet, roomPattern: PATTERN.none, roomScale: 1 };
+  // Cabins keep their floorboards at every tier: the mat is what gets finer.
+  const carpetRoom = oakRoom;
   const base = {
     wall: t.wall, wallLow: t.wallLow, panelled: tier >= 3, cap: PALETTE.walnut,
     floor: PALETTE.boards, floorSeam: PALETTE.boardsSeam, floorPattern: PATTERN.boards, floorScale: 0.3,
@@ -207,7 +241,10 @@ export class CarriageView {
   private cabinComforts: THREE.Group[] = [];
   private bathComforts: THREE.Group[] = [];
   /** Each cabin's mess after a guest leaves: pieces that clear away as it is tidied, and floor stains. */
-  private readonly mess: { group: THREE.Group; items: THREE.Mesh[]; stains: THREE.Mesh[] }[] = [];
+  private readonly mess: CabinMess[] = [];
+  /** Each cabin's mat: its own material, so a dirty room's mat dims and brightens back as it is tidied. */
+  private readonly mats: THREE.Mesh[] = [];
+  private readonly cabinLocked: boolean[] = [];
   private readonly doors: THREE.Mesh[] = [];
   private readonly bathroomTowels: StockRack[] = [];
   private readonly bathroomRolls: StockRack[] = [];
@@ -240,6 +277,11 @@ export class CarriageView {
     if (bed) bed.visible = !locked;
     const comforts = this.cabinComforts[cabin];
     if (comforts) comforts.visible = !locked;
+    const mat = this.mats[cabin];
+    if (mat) mat.visible = !locked;
+    this.cabinLocked[cabin] = locked;
+    const mess = this.mess[cabin];
+    if (mess && locked) mess.group.visible = false;
     const door = this.roomDoors.find((d) => d.kind === 'cabin' && d.index === cabin);
     if (door) door.locked = locked;
   }
@@ -259,26 +301,61 @@ export class CarriageView {
   setDirt(cabin: number, spots: boolean[]): void {
     const mess = this.mess[cabin];
     if (!mess) return;
-    const dirty = spots.some(Boolean);
+    // A room still for sale has nothing in it to tidy.
+    const dirty = spots.some(Boolean) && !this.cabinLocked[cabin];
     if (mess.group.visible === dirty) return;
     mess.group.visible = dirty;
     if (dirty) this.setDirtFade(cabin, 0, 0);
+    else this.tintMat(cabin, 1);
   }
 
-  /** Tidying (0..1): the pieces go one after another with a little pop, and the stains fade. */
-  setDirtFade(cabin: number, _spot: number, progress: number): void {
+  /**
+   * Tidying (0..1): one after another, each piece is swept in to the broom (a hop and a shrink toward the
+   * middle of the mat) and pops; last of all the bed straightens flat. The mat brightens back as it goes.
+   * `onPop` hears each piece as it vanishes (world position), for the puff and the sound.
+   */
+  setDirtFade(cabin: number, _spot: number, progress: number, onPop?: (x: number, y: number, z: number) => void): void {
     const mess = this.mess[cabin];
     if (!mess) return;
     const n = mess.items.length;
     mess.items.forEach((item, k) => {
+      const home = item.userData.home as { x: number; y: number; z: number; scale: number };
       const gone = (k + 1) / (n + 1);
       const t = Math.min(1, Math.max(0, (progress - (gone - MESS_POP)) / MESS_POP));
-      // A quick swell before it vanishes reads as "whisked away".
-      const scale = t <= 0 ? 1 : t < 0.35 ? 1 + t * 0.5 : Math.max(0, (1 - t) / 0.65) * 1.17;
-      item.scale.setScalar(Math.max(0.001, scale));
-      item.visible = scale > 0.01;
+      const visible = t < 1;
+      if (item.visible && !visible && onPop) {
+        item.getWorldPosition(tmpPos);
+        onPop(tmpPos.x, FLOOR_Y + 0.25, tmpPos.z);
+      }
+      item.visible = visible;
+      if (k === n - 1) {
+        // The unmade bed smooths down into the made one.
+        const flat = t * t;
+        item.scale.set(1, Math.max(0.001, 1 - flat), 1);
+        item.position.y = home.y + (BED_TOP + 0.03) * flat;
+        return;
+      }
+      const p = t * t * (3 - 2 * t);
+      item.position.set(
+        home.x + (mess.heart.x - home.x) * p,
+        home.y + Math.sin(p * Math.PI) * MESS_HOP,
+        home.z + (mess.heart.z - home.z) * p,
+      );
+      item.scale.setScalar(Math.max(0.001, home.scale * (1 - 0.8 * p)));
     });
-    for (const stain of mess.stains) (stain.material as THREE.MeshBasicMaterial).opacity = 0.95 * (1 - progress);
+    this.tintMat(cabin, progress);
+  }
+
+  /** 0 = the mat as a guest left it (dimmed, trodden), 1 = fresh. */
+  private tintMat(cabin: number, clean: number): void {
+    const mat = this.mats[cabin];
+    if (!mat) return;
+    const k = Math.min(1, Math.max(0, clean));
+    (mat.material as THREE.MeshLambertMaterial).color.setRGB(
+      MAT_DIRTY[0] + (1 - MAT_DIRTY[0]) * k,
+      MAT_DIRTY[1] + (1 - MAT_DIRTY[1]) * k,
+      MAT_DIRTY[2] + (1 - MAT_DIRTY[2]) * k,
+    );
   }
 
   setBathroomStock(bathroom: number, towels: number, rolls: number): void {
@@ -454,39 +531,77 @@ export class CarriageView {
    * paper, a cup on its side, and a couple of stains. Each piece is its own small mesh so it can pop away
    * as the cabin is tidied; the neat bed underneath is what's left.
    */
-  private buildMess(cabin: CabinLayout): { group: THREE.Group; items: THREE.Mesh[]; stains: THREE.Mesh[] } {
+  private buildMess(cabin: CabinLayout): CabinMess {
     const group = new THREE.Group();
     group.visible = false;
-    const items: THREE.Mesh[] = [];
-    const heap = shadeHex(this.blanketColor, -26);
-    const bed = cabin.bed;
-    const bx = (bed.x0 + bed.x1) / 2;
-    const bz = (bed.z0 + bed.z1) / 2;
+    this.group.add(group);
     const heart = cabin.spots[0] ?? cabin.center;
-    const piece = (build: (b: GeoBuilder) => void, x: number, z: number, ry: number, name = 'piece'): void => {
+    const mess: CabinMess = { group, items: [], key: '', heart: { x: heart.x, z: heart.z } };
+    this.mess[cabin.index] = mess;
+    // A default mess (previews and the audit); the game sets each guest's own with setMess().
+    this.setMess(cabin.index, ['newspaper', 'cup', 'paperBalls'], 'heap', 1);
+    return mess;
+  }
+
+  /**
+   * What the last guest left: floor pieces in the mat's corner slots (clear of the cleaner in the middle),
+   * then the unmade bed, in the order they get tidied (floor first, the bed last: the big reveal).
+   */
+  setMess(cabinIndex: number, pieces: readonly MessPiece[], bed: BedMess, seed: number): void {
+    const mess = this.mess[cabinIndex];
+    const cabin = this.layout.cabins[cabinIndex];
+    if (!mess || !cabin) return;
+    const key = `${pieces.join(',')}|${bed}|${seed}`;
+    if (key === mess.key) return;
+    mess.key = key;
+    for (const item of mess.items) {
+      mess.group.remove(item);
+      item.geometry.dispose();
+    }
+    mess.items.length = 0;
+    const rand = seeded(seed);
+    const heart = mess.heart;
+    const floor = FLOOR_Y + LIFT;
+    const add = (build: (b: GeoBuilder) => void, x: number, y: number, z: number, ry: number, scale: number, name: string): void => {
       const b = new GeoBuilder();
       build(b);
       const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
       mesh.userData.object = `mess:${name}`;
+      mesh.userData.home = { x, y, z, scale };
       mesh.castShadow = true;
-      mesh.position.set(x, 0, z);
+      mesh.position.set(x, y, z);
       mesh.rotation.y = ry;
-      group.add(mesh);
-      items.push(mesh);
+      mesh.scale.setScalar(scale);
+      mess.group.add(mesh);
+      mess.items.push(mesh);
     };
-    const top = FLOOR_Y + BED_TOP + 0.06;
-    // Order = the order they clear: litter first, the bed last (the big reveal).
-    piece((b) => b.box(0, FLOOR_Y + 0.044, 0, 0.36, 0.008, 0.46, '#EFE8D8', 0, { shade: 1 }).box(0.04, FLOOR_Y + 0.051, -0.08, 0.26, 0.004, 0.03, '#8A8378', 0, { shade: 1 }).box(0.04, FLOOR_Y + 0.051, 0.02, 0.26, 0.004, 0.03, '#8A8378', 0, { shade: 1 }), heart.x - 0.28, heart.z + 0.32, 0.6, 'newspaper');
-    piece((b) => b.cylinder(0, FLOOR_Y + 0.05, 0, 0.045, 0.036, 0.09, PALETTE.porcelain, 10, 'z').cylinder(0.02, FLOOR_Y + 0.024, 0.09, 0.09, 0.09, 0.006, '#9B6B45', 14, 'y', { shade: 1 }), heart.x + 0.3, heart.z - 0.28, 1.1, 'cup');
-    piece((b) => b
-      .rounded(0, top, 0, (bed.x1 - bed.x0) * 0.8, 0.14, 0.55, 0.07, heap, { shade: 0.85 })
-      .rounded(0.12, top + 0.06, 0.28, (bed.x1 - bed.x0) * 0.55, 0.12, 0.42, 0.06, heap, { shade: 0.9 })
-      .rounded(-0.1, top + 0.04, -0.3, (bed.x1 - bed.x0) * 0.5, 0.1, 0.36, 0.05, PALETTE.linen, { shade: 0.9 }), bx, bz + 0.1, 0.25, 'bedding');
-    // Three clear things to tidy, no muddy decals: the room reads dirty at a glance and clean after.
-    const stains: THREE.Mesh[] = [];
-    this.group.add(group);
-    return { group, items, stains };
+    // Slots in a shuffled order, so the same pieces never sit in the same places twice.
+    const slots = MESS_SLOTS.map((o) => ({ x: heart.x + o.x, z: heart.z + o.z })).sort(() => rand() - 0.5);
+    pieces.slice(0, slots.length).forEach((piece, i) => {
+      const slot = slots[i];
+      // Quarter turns only: a piece's square cell stays a square cell.
+      add((b) => buildMessPiece(b, piece, 0), slot.x, floor, slot.z, Math.floor(rand() * 4) * (Math.PI / 2), MESS_SCALE, piece);
+    });
+    const r = cabin.bed;
+    const w = r.x1 - r.x0 - 0.1;
+    const d = r.z1 - r.z0 - 0.3;
+    add((b) => buildBedMess(b, bed, w, d, BED_TOP + 0.03, this.blanketColor, shadeHex(this.blanketColor, -26)), (r.x0 + r.x1) / 2, FLOOR_Y, (r.z0 + r.z1) / 2 + 0.1, 0, 1, `bed-${bed}`);
+    if (mess.group.visible) this.setDirtFade(cabinIndex, 0, 0);
   }
+
+  /** The mat in the walk-in: plain layered slabs (no patterns), worn at first and finer with every tier. */
+  private buildMat(cabin: CabinLayout): THREE.Mesh {
+    const heart = cabin.spots[0] ?? cabin.center;
+    const r = rect(heart.x - MAT_HALF.x, heart.z - MAT_HALF.z, heart.x + MAT_HALF.x, heart.z + MAT_HALF.z);
+    const b = new GeoBuilder();
+    const layers = matLayers(this.tier, this.theme);
+    layers.forEach((color, i) => b.slab(r, FLOOR_Y + LIFT + i * MAT_STEP, FLOOR_Y + LIFT + (i + 1) * MAT_STEP, color, 0, i * MAT_INSET, FLAT));
+    const mesh = new THREE.Mesh(b.build(), new THREE.MeshLambertMaterial({ vertexColors: true }));
+    mesh.receiveShadow = true;
+    this.group.add(mesh);
+    return mesh;
+  }
+
 
   /** A drum of washing behind each machine's round window, turning slowly. */
   private buildSpinners(): void {
@@ -681,12 +796,7 @@ export class CarriageView {
     }
 
     for (const cabin of this.layout.cabins) {
-      const { room, bed } = cabin;
-      if (fin.decor) {
-        const rx0 = room.x0 + 0.3;
-        const rx1 = bed.x0 - 0.2;
-        f.slab(rect(rx0, room.z0 + 0.55, rx1, room.z1 - 0.4), FLOOR_Y + LIFT, FLOOR_Y + LIFT * 2, this.theme.deep, 0, 0, FLAT);
-      }
+      const { bed } = cabin;
       if (fin.lamps >= 2) {
         s.box(INNER - 0.035, FLOOR_Y + 0.74, bed.z0 + 0.3, 0.05, 0.025, 0.025, fin.lamps >= 3 ? PALETTE.brass : PALETTE.walnut, 0, FLAT);
         lamps.cylinder(INNER - 0.09, FLOOR_Y + 0.8, bed.z0 + 0.3, 0.035, 0.06, 0.08, PALETTE.lampShade, 10, 'y', { shade: 0.9 });
@@ -723,7 +833,8 @@ export class CarriageView {
       this.cabinBeds[cabin.index] = bedGroup;
 
       this.cabinLocks[cabin.index] = this.lockOverlay(cabin.room);
-      this.mess[cabin.index] = this.buildMess(cabin);
+      this.mats[cabin.index] = this.buildMat(cabin);
+      this.buildMess(cabin);
     }
 
     for (const bath of this.layout.bathrooms) {

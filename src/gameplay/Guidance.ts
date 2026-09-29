@@ -3,6 +3,7 @@ import type { ItemKind, Vec2 } from '../core/types';
 import { FLOOR_Y } from '../world/CarriageView';
 import { GeoBuilder } from '../world/geo';
 import { MATERIALS } from '../world/materials';
+import { markWorldUi } from '../world/ZoneViews';
 import type { World } from './World';
 
 export type GuidanceReason = 'none' | 'board' | 'luggage' | 'deliver' | 'return' | 'cash' | 'desk' | 'tile' | 'fetch' | 'clean' | 'save';
@@ -46,6 +47,7 @@ export class Guidance {
     mesh.rotation.x = Math.PI;
     this.arrow.add(mesh);
     this.arrow.visible = false;
+    markWorldUi(this.arrow);
     w.scene.add(this.arrow);
   }
 

@@ -1,6 +1,6 @@
 import type * as THREE from 'three';
 import type { IconName } from '../ui/icons';
-import { ZoneRing } from '../world/ZoneViews';
+import { markWorldUi, ZoneRing } from '../world/ZoneViews';
 import type { Actor } from './Actor';
 
 export interface ZoneOptions {
@@ -116,7 +116,10 @@ export class ZoneSystem {
 
   add(zone: Zone): Zone {
     this.zones.push(zone);
-    if (zone.ring) this.scene.add(zone.ring.group);
+    if (zone.ring) {
+      markWorldUi(zone.ring.group);
+      this.scene.add(zone.ring.group);
+    }
     return zone;
   }
 

@@ -4,6 +4,7 @@ import { GeoBuilder } from './geo';
 import { MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, type BubbleStyle } from './sprites';
+import { WORLD_UI_LAYER } from './CameraRig';
 
 export type HatKind = 'conductor' | 'boater' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'none';
 export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'none';
@@ -194,6 +195,60 @@ function eyelidGeometry(skin: string): THREE.BufferGeometry {
 }
 
 /**
+ * Little things people do (the world reacts to them): sweeping a cabin, reading on the bed, sipping the tea
+ * you brought, checking a watch in the queue, washing hands, stamping tickets, hugging a pillow.
+ */
+export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'wash' | 'stamp' | 'hug' | 'wave';
+type PropKind = 'broom' | 'paper' | 'cup' | 'stamp' | 'bundle';
+
+const propCache = new Map<PropKind, THREE.BufferGeometry>();
+/** Hand-held props, built once and shared (positioned for the body group, facing +z). */
+function propGeometry(kind: PropKind): THREE.BufferGeometry {
+  let g = propCache.get(kind);
+  if (g) return g;
+  const b = new GeoBuilder();
+  const style = { shade: 0.95 };
+  switch (kind) {
+    case 'broom':
+      // Held at the hands, leaning forward so the brush sweeps just in front of the feet.
+      b.cylinder(0, 0, 0, 0.018, 0.018, 0.72, '#A87A4E', 6, 'y', style);
+      b.rounded(0, -0.38, 0, 0.26, 0.08, 0.07, 0.03, '#E2B653', style);
+      break;
+    case 'paper':
+      // An open newspaper held up in front of the face.
+      b.box(-0.11, 0, 0, 0.2, 0.26, 0.012, '#F4EFE3', 0.25, style);
+      b.box(0.11, 0, 0, 0.2, 0.26, 0.012, '#F4EFE3', -0.25, style);
+      b.box(-0.11, 0.08, 0.012, 0.14, 0.03, 0.004, '#6D6A66', 0.25, style);
+      b.box(0.11, 0.05, 0.012, 0.14, 0.02, 0.004, '#9A968F', -0.25, style);
+      break;
+    case 'cup':
+      b.cylinder(0, 0, 0, 0.045, 0.036, 0.08, PALETTE.porcelain, 10, 'y', style);
+      b.cylinder(0, 0.035, 0, 0.038, 0.038, 0.012, '#9B6B45', 10, 'y', style);
+      b.cylinder(0, -0.045, 0, 0.07, 0.07, 0.01, PALETTE.porcelain, 12, 'y', style);
+      break;
+    case 'stamp':
+      b.cylinder(0, 0, 0, 0.022, 0.022, 0.1, '#6E5140', 8, 'y', style);
+      b.cylinder(0, -0.065, 0, 0.045, 0.045, 0.03, '#C0485C', 10, 'y', style);
+      break;
+    case 'bundle':
+      // A pillow or folded blanket hugged to the chest.
+      b.rounded(0, 0, 0, 0.36, 0.22, 0.14, 0.06, '#FFFFFF', style);
+      break;
+  }
+  g = b.build();
+  propCache.set(kind, g);
+  return g;
+}
+
+/** Which prop goes with which action, and where it sits on the body (hand height, in front). */
+const ACTION_PROPS: Partial<Record<CharacterAction, { kind: PropKind; pos: [number, number, number]; rot: [number, number, number] }>> = {
+  sweep: { kind: 'broom', pos: [0.08, 0.46, 0.26], rot: [0.75, 0, 0] },
+  read: { kind: 'paper', pos: [0, 0.74, 0.34], rot: [-0.25, 0, 0] },
+  stamp: { kind: 'stamp', pos: [0.2, 0.6, 0.3], rot: [0, 0, 0] },
+  hug: { kind: 'bundle', pos: [0, 0.58, 0.3], rot: [0, 0, 0] },
+};
+
+/**
  * A chibi character: merged body + separate legs (and arms for staff), a blob shadow, an optional speech
  * bubble, and an anchor where carried items stack.
  */
@@ -215,6 +270,16 @@ export class CharacterView {
   private squash = 0;
   private blanket: THREE.Mesh | null = null;
   private eyelids: THREE.Mesh | null = null;
+  /** The current action and how much longer it lasts (callers refresh it while it goes on). */
+  private action: CharacterAction = 'none';
+  private actionTime = 0;
+  private actionClock = 0;
+  private readonly props = new Map<PropKind, THREE.Mesh>();
+  private cupInHand: THREE.Mesh | null = null;
+  /** The whole train's sway (radians about x): everyone lurches when it brakes or pulls away. */
+  static lean = 0;
+  /** Aboard the train (sways with it); people on the platform or by the line stand still. */
+  leans = true;
 
   private readonly bodyMesh: THREE.Mesh;
   private readonly legMeshes: THREE.Mesh[] = [];
@@ -293,6 +358,112 @@ export class CharacterView {
     this.carrying = carrying;
   }
 
+  /**
+   * Do something for a moment (`seconds`), or keep doing it by calling every frame: the cleaner sweeps
+   * while they clean, the porter stamps while checking in. Props appear only while the action runs.
+   */
+  act(action: CharacterAction, seconds = 0.25): void {
+    const same = action === this.action;
+    if (!same) this.actionClock = 0;
+    this.action = action;
+    this.actionTime = Math.max(same ? this.actionTime : 0, seconds);
+  }
+
+  get currentAction(): CharacterAction {
+    return this.action;
+  }
+
+  private showProp(kind: PropKind | null): void {
+    for (const [k, mesh] of this.props) mesh.visible = k === kind;
+    if (!kind || this.props.has(kind)) return;
+    const spec = Object.values(ACTION_PROPS).find((p) => p?.kind === kind);
+    if (!spec) return;
+    const mesh = new THREE.Mesh(propGeometry(kind), MATERIALS.character);
+    mesh.userData.shared = true;
+    mesh.castShadow = true;
+    mesh.position.set(...spec.pos);
+    mesh.rotation.set(...spec.rot);
+    this.body.add(mesh);
+    this.props.set(kind, mesh);
+  }
+
+  /** The tea cup rides in the right hand (it follows the arm up to the mouth). */
+  private showCup(on: boolean): void {
+    if (on && !this.cupInHand) {
+      this.cupInHand = new THREE.Mesh(propGeometry('cup'), MATERIALS.character);
+      this.cupInHand.userData.shared = true;
+      this.cupInHand.position.set(0, -0.36, 0.06);
+      this.arms[1].add(this.cupInHand);
+    }
+    if (this.cupInHand) this.cupInHand.visible = on;
+  }
+
+  /** Arms, body and props for the current action (after the walk cycle has had its say). */
+  private applyAction(dt: number): void {
+    if (this.actionTime > 0) {
+      this.actionTime -= dt;
+      this.actionClock += dt;
+      if (this.actionTime <= 0) this.action = 'none';
+    }
+    const a = this.action;
+    const spec = ACTION_PROPS[a];
+    this.showProp(spec ? spec.kind : null);
+    this.showCup(a === 'sip');
+    if (a === 'none') return;
+    const t = this.actionClock;
+    const ease = Math.min(1, dt * 12);
+    const aim = (i: number, x: number, z: number): void => {
+      this.arms[i].rotation.x += (x - this.arms[i].rotation.x) * ease;
+      this.arms[i].rotation.z += (z - this.arms[i].rotation.z) * ease;
+    };
+    switch (a) {
+      case 'sweep':
+        // Both hands on the broom, a side-to-side sweep from the hips.
+        aim(0, -0.8, 0.45);
+        aim(1, -0.7, -0.35);
+        this.body.rotation.y = Math.sin(t * 7) * 0.32;
+        this.body.position.y -= 0.03;
+        break;
+      case 'read':
+        aim(0, -1.25, 0.4);
+        aim(1, -1.25, -0.4);
+        this.body.rotation.x += Math.sin(t * 1.3) * 0.03;
+        break;
+      case 'sip': {
+        // Lift, sip, lower, on a slow loop.
+        const cycle = t % 2.2;
+        const up = cycle < 0.35 ? cycle / 0.35 : cycle < 1.1 ? 1 : cycle < 1.45 ? 1 - (cycle - 1.1) / 0.35 : 0;
+        aim(1, -0.6 - up * 1.7, -0.25 * up);
+        break;
+      }
+      case 'watch': {
+        const raised = t % 3.6 < 1.4;
+        aim(0, raised ? -1.5 : 0, raised ? 0.7 : 0.1);
+        if (raised) this.body.rotation.x += 0.1;
+        break;
+      }
+      case 'wash':
+        aim(0, -1.0 + Math.sin(t * 11) * 0.15, 0.3);
+        aim(1, -1.0 - Math.sin(t * 11) * 0.15, -0.3);
+        break;
+      case 'stamp': {
+        const down = Math.max(0, Math.sin(t * 9));
+        aim(1, -1.3 + down * 0.8, -0.2);
+        const stamp = this.props.get('stamp');
+        if (stamp) stamp.position.y = 0.6 - down * 0.12;
+        break;
+      }
+      case 'hug':
+        aim(0, -1.05, 0.55);
+        aim(1, -1.05, -0.55);
+        this.body.rotation.z = Math.sin(t * 2.5) * 0.06;
+        break;
+      case 'wave':
+        aim(1, -2.75, 0.25 + Math.sin(t * 9) * 0.4);
+        break;
+    }
+  }
+
   /** A little squash-and-stretch hop (pickups, payments). */
   bounce(amount = 1): void {
     this.squash = Math.max(this.squash, amount);
@@ -348,6 +519,8 @@ export class CharacterView {
     }
     if (!this.bubble) {
       this.bubble = makeSprite(bubbleTexture(icon, style, ring), 0.9);
+      // Bubbles are world UI: hidden with the pads on the title screen and in the intro.
+      this.bubble.layers.set(WORLD_UI_LAYER);
       this.root.add(this.bubble);
     } else {
       (this.bubble.material as THREE.SpriteMaterial).map = bubbleTexture(icon, style, ring);
@@ -374,11 +547,17 @@ export class CharacterView {
       this.bubble.scale.set(s, s, 1);
       this.bubble.position.y = this.bubbleBaseY + Math.sin(this.bubbleTime * 3) * 0.05;
     }
+    this.root.rotation.x = this.pose === 'sleep' || !this.leans ? 0 : CharacterView.lean;
     if (this.pose !== 'stand') {
       for (const leg of this.legs) leg.rotation.x = this.pose === 'sit' ? -1.3 : 0;
       this.phase += dt;
       // Slow breathing: the blanket rises and falls.
       if (this.pose === 'sleep' && this.blanket) this.blanket.scale.y = 1 + Math.sin(this.phase * 1.6) * 0.06;
+      if (this.pose === 'sit') {
+        this.body.position.y = -0.12;
+        this.body.rotation.set(0, 0, 0);
+        this.applyAction(dt);
+      }
       return;
     }
 
@@ -392,17 +571,24 @@ export class CharacterView {
     this.body.position.y = bob;
     this.body.rotation.x = moving ? 0.08 : 0;
 
-    for (let i = 0; i < 2; i++) {
-      const arm = this.arms[i];
-      const target = this.waving && i === 1 ? -2.75 : this.carrying ? -1.35 : (i === 0 ? -s : s) * swing * 0.8;
-      arm.rotation.x += (target - arm.rotation.x) * Math.min(1, dt * 14);
+    // An action owns the arms while it runs; otherwise they swing with the walk (or carry, or wave).
+    if (this.action === 'none') {
+      for (let i = 0; i < 2; i++) {
+        const arm = this.arms[i];
+        const target = this.waving && i === 1 ? -2.75 : this.carrying ? -1.35 : (i === 0 ? -s : s) * swing * 0.8;
+        arm.rotation.x += (target - arm.rotation.x) * Math.min(1, dt * 14);
+        const rest = i === 0 ? -0.1 : 0.1;
+        if (!(this.waving && i === 1)) arm.rotation.z += (rest - arm.rotation.z) * Math.min(1, dt * 14);
+      }
+      if (this.waving) {
+        this.waveTime += dt;
+        this.arms[1].rotation.z = 0.25 + Math.sin(this.waveTime * 9) * 0.4;
+      }
     }
-    if (this.waving) {
-      this.waveTime += dt;
-      this.arms[1].rotation.z = 0.25 + Math.sin(this.waveTime * 9) * 0.4;
-    } else if (this.arms[1].rotation.z !== 0.1) {
-      this.arms[1].rotation.z = 0.1;
-    }
+
+    this.body.rotation.y = 0;
+    this.body.rotation.z = 0;
+    this.applyAction(dt);
 
     if (this.squash > 0) {
       this.squash = Math.max(0, this.squash - dt * 4);

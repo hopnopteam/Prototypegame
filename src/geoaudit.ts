@@ -13,6 +13,7 @@ import { CarriageView, FLOOR_Y } from './world/CarriageView';
 import { ExteriorView } from './world/ExteriorView';
 import { carriageOriginZ, getLayout, trainRearZ } from './world/layout';
 import { LocomotiveView } from './world/LocomotiveView';
+import { BED_MESS, MESS_PIECES } from './world/Mess';
 import { PlatformView } from './world/PlatformView';
 import { buildRearDeck } from './world/RearDeck';
 
@@ -314,8 +315,12 @@ const HOLDS: Record<string, string[]> = {
   'prop:shelfTowel': ['stock:shelfTowel'],
   'prop:shelfRoll': ['stock:shelfRoll'],
   'prop:washShelf': ['stock:towel', 'stock:roll'],
+  // An unmade bed is built on top of the made one.
+  bed: ['mess:bed-heap', 'mess:bed-tangle', 'mess:bed-kicked'],
 };
 const holds = (container: string, item: string): boolean => (HOLDS[container] ?? []).includes(item.split('#')[0]);
+
+let messTurn = 0;
 
 /** The whole train at one tier, every exterior upgrade, a platform with its marketing. */
 function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras: THREE.Object3D[] = []): THREE.Group {
@@ -329,6 +334,10 @@ function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras
     layout.cabins.forEach((c) => {
       view.setCabinLocked(c.index, locked);
       view.setDirt(c.index, [true, true, true]);
+      // Every mess piece in turn, four to a room (more than any guest leaves), and every unmade-bed look.
+      const pieces = [0, 1, 2, 3].map((j) => MESS_PIECES[(messTurn * 4 + j) % MESS_PIECES.length]);
+      view.setMess(c.index, pieces, BED_MESS[messTurn % BED_MESS.length], messTurn + 1);
+      messTurn++;
     });
     layout.bathrooms.forEach((b) => view.setBathroomLocked(b.index, locked));
     // Every comfort, so their props are checked against every tier's furniture.

@@ -1,9 +1,10 @@
-import { TRAIN_NAME_MAX, type CeremonyDef, type InterviewDef } from '../config/press';
+import { INTERVIEW_HOSTS, RIVALS, TRAIN_NAME_MAX, type CeremonyDef, type InterviewDef } from '../config/press';
 import { formatNumber } from '../core/math';
 import type { DoubleChoice } from '../gameplay/GameUi';
-import type { CeremonyResult, FrontPageReward } from '../gameplay/Press';
+import type { CeremonyResult, FrontPageReward, RivalWatch } from '../gameplay/Press';
 import type { NewsItem } from '../save/SaveData';
 import { h, icon } from './dom';
+import { drawOwnerPortrait } from './portraits';
 import type { Screens } from './Screens';
 import type { Ui } from './Ui';
 
@@ -51,10 +52,12 @@ export class PressScreens {
         onAnswer(i);
       },
     }, h('span.say', { text: `“${answer.text}”` }), h('span.perk', {}, icon(perkIcon(answer.perk.kind), 16), answer.perk.label)));
-    close = this.screens.sheet('Rails Tonight', 'mic', [
-      h('div.tv', {},
-        h('div.onair', { text: 'On air' }),
-        h('div.host', {}, icon('mic', 30), h('div', {}, h('b', { text: 'Penny Quill' }), h('span', { text: `with the conductor of ${trainName}` }))),
+    const host = INTERVIEW_HOSTS[def.show];
+    const gazette = def.show === 'gazette';
+    close = this.screens.sheet(host.title, gazette ? 'news' : 'mic', [
+      h(`div.tv${gazette ? '.gazette' : ''}` as 'div', {},
+        h('div.onair', { text: host.badge }),
+        h('div.host', {}, icon(gazette ? 'news' : 'mic', 30), h('div', {}, h('b', { text: host.host }), h('span', { text: `with the conductor of ${trainName}` }))),
         h('p.question', { text: `“${def.question}”` }),
       ),
       h('div.section-title', { text: 'Your answer (every answer helps, for good)' }),
@@ -125,6 +128,70 @@ export class PressScreens {
       g.haptics.light();
     }, 700);
   }
+
+  /**
+   * Rival Watch: the Gazette hands the page to a rival owner, who brags about their train and sneers at
+   * yours. Their portrait, their (longer, grander) train in the photo, the quote, and the gap to close. The
+   * last rival you passed gets a line at the top, grumbling. It pays nothing: the prize is overtaking them.
+   */
+  rivalWatch(watch: RivalWatch, onDone: () => void): void {
+    const g = this.game;
+    const { rival } = watch;
+    const owner = rival.owner;
+    const photo = h('canvas.photo', { width: 600, height: 260 }) as HTMLCanvasElement;
+    drawTrainPhoto(photo, { livery: rival.livery, trim: rival.trim, carriages: Math.max(owner.carriages, watch.carriages + 1), id: 100 + RIVALS.indexOf(rival) });
+    const gap = Math.max(0, rival.reputation - watch.stars);
+    const pct = Math.max(4, Math.min(100, Math.round((watch.stars / rival.reputation) * 100)));
+    let done = false;
+    const finish = (): void => {
+      if (done) return;
+      done = true;
+      scrim.classList.add('out');
+      window.setTimeout(() => scrim.remove(), 260);
+      this.screens.release();
+      onDone();
+    };
+    const fill = (text: string): string => text.replace(/\{train\}/g, watch.trainName);
+    const paper = h('article.frontpage.rival', { role: 'dialog', 'aria-label': `Rival Watch: ${owner.name}` },
+      h('div.masthead', {}, h('div.paper-name', { text: 'The Rail Gazette' }), h('div.edition', { text: 'Rival Watch' })),
+      watch.humbled
+        ? h('div.humbled', {}, portrait(watch.humbled, 40), h('div', {},
+          h('b', { text: `Overtaken: ${watch.humbled.name}` }),
+          h('span', { text: `“${watch.humbled.owner.humbled}” ${watch.humbled.owner.name}` })))
+        : null,
+      h('div.owner', {}, portrait(rival, 84), h('div', {},
+        h('span.kicker', { text: `#${watch.rank} in the league` }),
+        h('b', { text: owner.name }),
+        h('span', { text: `${owner.title}, ${rival.name}` }))),
+      h('h3', { text: owner.taunt.headline }),
+      photo,
+      h('p', { text: fill(owner.taunt.body) }),
+      h('div.tape', {},
+        h('div.tape-side', {}, h('span', { text: rival.name }), h('b', {}, icon('star', 16), formatNumber(rival.reputation))),
+        h('div.vs', { text: 'vs' }),
+        h('div.tape-side.you', {}, h('span', { text: watch.trainName }), h('b', {}, icon('star', 16), formatNumber(watch.stars))),
+      ),
+      h('div.bar.tape-bar', {}, h('i', { style: { width: `${pct}%` } })),
+      h('p.small.center', { text: `${formatNumber(gap)} more stars to overtake ${rival.name}.` }),
+      h('button.btn.primary', { 'data-default': '', onclick: finish }, 'Challenge accepted!'),
+    );
+    const scrim = h('div.scrim.center.press-scrim.rival-scrim', {}, h('div.rays'), paper);
+    this.ui.root.appendChild(scrim);
+    this.screens.hold();
+    window.setTimeout(() => {
+      g.audio.play('clunk', { volume: 0.5 });
+      g.haptics.light();
+    }, 700);
+  }
+}
+
+/** A small canvas portrait of a rival owner. */
+function portrait(rival: RivalWatch['rival'], size: number): HTMLCanvasElement {
+  const canvas = h('canvas.portrait', { width: size * 2, height: size * 2 }) as HTMLCanvasElement;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+  drawOwnerPortrait(canvas, rival.owner.look, rival.livery, rival.trim);
+  return canvas;
 }
 
 function perkIcon(kind: string): 'cash' | 'ticket' | 'bolt' {

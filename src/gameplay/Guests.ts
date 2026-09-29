@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { ARCHETYPES, type ArchetypeDef, type StoryDef } from '../config/content';
+import { ARCHETYPES, COMMON_MESS, type ArchetypeDef, type MessPiece, type StoryDef } from '../config/content';
 import type { ItemKind, Vec2 } from '../core/types';
 import type { IconName } from '../ui/icons';
 import { BED_TOP, FLOOR_Y } from '../world/CarriageView';
 import { CharacterView, type CharacterLook } from '../world/CharacterView';
+import { BED_MESS } from '../world/Mess';
 import { Mover, type Actor } from './Actor';
 import type { Bathroom, Cabin } from './TrainState';
 import type { World } from './World';
@@ -17,7 +18,10 @@ export type GuestRequest = ItemKind | 'bathroom';
 
 const BATHROOM_USE_SECONDS = 2.6;
 const BATHROOM_EMPTY_WAIT = 6;
-const HAPPY_SECONDS = 1.1;
+/** A seated guest's root sits this far above the floor so they rest on the mattress (hips 0.24 m up). */
+const SIT_ROOT = BED_TOP - 0.24;
+/** A guest back from the washroom sits only briefly before lying down again. */
+const RETURN_SETTLE_SECONDS = 0.8;
 /** Steps in the "generous tip" ring drawn around a request bubble. */
 export const TIP_RING_STEPS = 12;
 
@@ -43,6 +47,8 @@ export class Guest {
   slow = false;
   /** Already grumbled about an empty washroom this visit. */
   complained = false;
+  /** Seconds to sit on the bed edge (reading) before lying down. */
+  settleFor = 0;
   nextRequestIn = 0;
   destinationStop = Infinity;
   happyTime = 0;
@@ -171,6 +177,8 @@ export class Guests {
       return false;
     }
     zone.progress += (dt / this.w.econ.zones.checkInSeconds) * actor.workMultiplier;
+    // Whoever is behind the desk stamps the ticket.
+    actor.view.act('stamp');
     if (zone.progress < 1) return true;
     zone.progress = 0;
     this.checkIn(guest, cabin, actor);
@@ -263,14 +271,22 @@ export class Guests {
 
       const y = FLOOR_Y;
       const z = guest.pos.z + (guest.onPlatform ? platformOffset : 0);
+      guest.view.leans = guest.aboard;
+      if (guest.child) guest.child.leans = guest.aboard;
       if (guest.state === 'resting' && guest.cabin) {
         guest.view.setPose('sleep', w.train.views[guest.cabin.carriage]?.blanketColor);
         guest.view.setPosition(guest.cabin.sleepPose.x, y + BED_TOP, guest.cabin.sleepPose.z);
         guest.view.setFacing(0);
+      } else if (guest.state === 'settling' && guest.cabin && !guest.mover.isMoving) {
+        guest.view.setPose('sit');
+        guest.view.setPosition(guest.cabin.sitPose.x, y + SIT_ROOT, guest.cabin.sitPose.z);
+        guest.view.setFacing(-Math.PI / 2);
+        if (guest.settleFor > 1) guest.view.act('read', 0.3);
       } else {
         guest.view.setPose('stand');
         guest.view.setPosition(guest.pos.x, y, z);
         guest.view.setFacing(guest.mover.facing);
+        this.idleAction(guest);
       }
       guest.view.update(dt, guest.mover.speedNow);
 
@@ -290,6 +306,24 @@ export class Guests {
     }
   }
 
+  /** What someone standing about does with their hands: watches in queues, waves at the train. */
+  private idleAction(guest: Guest): void {
+    const w = this.w;
+    if (guest.mover.isMoving) return;
+    switch (guest.state) {
+      case 'platform':
+        if (w.journey.phase === 'arriving') guest.view.act('wave', 0.3);
+        else if (guest.stateTime > 2) guest.view.act('watch', 0.3);
+        break;
+      case 'queue':
+        if (guest.arrivedInQueue && guest.stateTime > 2.5) guest.view.act('watch', 0.3);
+        break;
+      case 'inBathroom':
+        guest.view.act('wash', 0.3);
+        break;
+    }
+  }
+
   private think(guest: Guest, dt: number): void {
     const w = this.w;
     switch (guest.state) {
@@ -299,7 +333,9 @@ export class Guests {
         else guest.view.showBubble('noroom', 'alert');
         break;
       case 'settling':
-        if (guest.stateTime > 0.6) this.setState(guest, 'resting');
+        // Reading on the bed edge counts toward their first request.
+        guest.nextRequestIn -= dt;
+        if (guest.stateTime > guest.settleFor) this.setState(guest, 'resting');
         break;
       case 'resting':
         // Their stop may have arrived while they were busy (bathroom, a request): get off now.
@@ -403,6 +439,7 @@ export class Guests {
       guest.mover.facing = -Math.PI / 2;
     }
     guest.view.showBubble(request, 'request', 1.85, TIP_RING_STEPS);
+    guest.view.act('wave', w.econ.guests.waveSeconds);
     w.audio.play('soft', { volume: 0.5 });
   }
 
@@ -424,7 +461,9 @@ export class Guests {
     w.audio.play('heart');
     guest.view.showBubble('heart', 'plain', 1.75);
     guest.view.bounce(1);
-    guest.happyTime = HAPPY_SECONDS;
+    guest.happyTime = w.econ.guests.enjoySeconds;
+    // They enjoy it where you can see it: a sip of the tea, a hug of the pillow or blanket.
+    guest.view.act(item === 'tea' ? 'sip' : 'hug', w.econ.guests.enjoySeconds);
     guest.slow = false;
     w.events.emit('request.fulfilled', { item, tip, x: guest.pos.x, z: guest.pos.z, byPlayer, speedy: speed >= service.speedyTipMultiplier });
     if (guest.story) w.meta?.onStoryRequestDone(guest.story, item);
@@ -500,8 +539,9 @@ export class Guests {
     const from = w.map.nearestNode(guest.pos.x, guest.pos.z);
     const path = from ? w.map.nav.findPath(from, guest.cabin.node) : null;
     const cabin = guest.cabin;
-    guest.mover.go([...(path ?? []), cabin.center], () => {
+    guest.mover.go([...(path ?? []), cabin.bedSide], () => {
       this.setState(guest, 'settling');
+      guest.settleFor = RETURN_SETTLE_SECONDS;
       guest.nextRequestIn = w.rng.range(...w.econ.guests.requestInterval);
     });
   }
@@ -531,14 +571,31 @@ export class Guests {
     this.setState(guest, 'toCabin');
     const deskNode = 'c0:desk';
     const path = w.map.nav.findPath(w.map.nearestNode(guest.pos.x, guest.pos.z) ?? deskNode, cabin.node);
-    guest.mover.go([...(path ?? []), cabin.center], () => {
+    guest.mover.go([...(path ?? []), cabin.bedSide], () => {
+      // They sit on the edge of the bed with the paper for a moment before turning in.
       this.setState(guest, 'settling');
+      guest.settleFor = w.econ.guests.settleSeconds;
       const first = w.econ.guests.firstRequestDelay;
       guest.nextRequestIn = w.rng.range(first[0], first[1]);
     });
     w.events.emit('guest.checkedIn', { fare, x: guest.pos.x, z: guest.pos.z, byPlayer: actor.isPlayer });
     if (guest.story) w.meta?.onStoryGuestCheckedIn(guest.story);
     w.feedback.onCheckIn(guest);
+  }
+
+  /** What this guest leaves behind: a few things only their kind would (a teddy, a map, petals) and an unmade bed. */
+  private messFor(guest: Guest): { pieces: MessPiece[]; bed: (typeof BED_MESS)[number]; seed: number } {
+    const w = this.w;
+    const rules = w.econ.mess;
+    const pool = [...guest.archetype.mess];
+    const count = Math.min(pool.length, w.rng.int(rules.minPieces, rules.maxPieces));
+    const pieces: MessPiece[] = [];
+    while (pieces.length < count) pieces.push(pool.splice(Math.floor(w.rng.next() * pool.length), 1)[0]);
+    if (w.rng.chance(rules.commonChance)) {
+      const extra = w.rng.pick(COMMON_MESS);
+      if (!pieces.includes(extra)) pieces[pieces.length - 1] = extra;
+    }
+    return { pieces, bed: w.rng.pick(BED_MESS), seed: w.rng.int(1, 1e6) };
   }
 
   private startAlighting(guest: Guest): void {
@@ -555,10 +612,12 @@ export class Guests {
     }
     const tipAmount = Math.max(1, Math.round(tip));
     w.cash.add(cabin.pileId, tipAmount, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
+    cabin.messPlan = this.messFor(guest);
     cabin.dirty.fill(true);
     w.station.recordTip(tipAmount);
     guest.request = null;
     this.setState(guest, 'alighting');
+    guest.view.act('wave', 1.2);
     guest.view.showBubble(null);
     const door = w.map.doors()[0];
     const from = cabin.node;

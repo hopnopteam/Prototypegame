@@ -37,6 +37,7 @@ export interface GameEvents {
   'toast': { text: string; icon?: string };
   'train.named': { name: string };
   'awards.presented': { level: number; won: number };
+  'rival.taunted': { rival: string };
 }
 
 export interface StationResult {

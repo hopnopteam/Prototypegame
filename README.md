@@ -20,9 +20,9 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 | `npm run dev` | Same, rebuilding on every save |
 | `npm run typecheck` | Strict TypeScript check |
 | `npm test` | Unit tests (vitest): journey phases, ad policy, economy, the generated unlock chain and carriage choice, comforts, station upgrades, the objective chain, chatter, save/migrations, walkable map, furniture and pad placement |
-| `npm run smoke` | Headless browser run: the autopilot plays the first 13 minutes and checks the §14 beats, the walkthrough, naming and press, a refurbishment, a station upgrade, the objective chain and comforts, that every pickup was needed, the ad rules, that a doorway shutting never traps the conductor, save/reload (unlocks and open cabins), draw calls and console errors |
-| `npm run audit:ui` | Checks the title screen and the intro caption, stages the busiest HUD moments and every menu at seven phone sizes (320×568 to 430×932), then samples live play, and fails on any overlap, clipped text or off-screen element |
-| `npm run audit:geo` | Builds every carriage at every tier (all comforts, full stock, a dirty cabin), the locomotive, rear deck, exterior and platform, and fails on (1) any visible coplanar overlap of different surfaces (flicker) and (2) any two objects, or an object and a wall, passing through each other (clipping). Both must report 0 |
+| `npm run smoke` | Headless browser run: the autopilot plays the first 13 minutes and checks the §14 beats, the walkthrough, naming, the Gazette debut interview, a Rival Watch taunt and the press, a refurbishment, a station upgrade, the objective chain and comforts, that every pickup was needed, the ad rules, that a doorway shutting never traps the conductor, save/reload (unlocks and open cabins), draw calls and console errors |
+| `npm run audit:ui` | Checks the title screen (logo card, a clear view of the train, the bottom panel; no sheet on top) and the intro caption, stages the busiest HUD moments and every menu at seven phone sizes (320×568 to 430×932), then samples live play, and fails on any overlap, clipped text or off-screen element |
+| `npm run audit:geo` | Builds every carriage at every tier (all comforts, full stock, every guest type's mess and unmade bed), the locomotive, rear deck, exterior and platform, and fails on (1) any visible coplanar overlap of different surfaces (flicker) and (2) any two objects, or an object and a wall, passing through each other (clipping). Both must report 0 |
 | `npm run check` | Typecheck + tests + build |
 
 Tools in `scripts/` (need Chromium via Playwright, pre-installed in the cloud sessions):
@@ -44,11 +44,11 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 
 | What | File |
 |---|---|
-| Every number: journey timers, speeds, capacities, fares, tips, refurbishment and comfort bonuses, Rush streak window and bonus, stride and quick-travel speed, camera framing, soft-cue thresholds and chatter rate, fast-service bonus, pickup dwell, cash magnet reach, level thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
+| Every number: journey timers, how much mess a guest leaves, the train's lean, speeds, capacities, fares, tips, refurbishment and comfort bonuses, Rush streak window and bonus, stride and quick-travel speed, camera framing, soft-cue thresholds and chatter rate, fast-service bonus, pickup dwell, cash magnet reach, level thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
 | The objective chain (goals, rewards) | `src/config/objectives.ts` |
 | What passengers say, by situation | `src/config/chatter.ts` |
-| Content: stations, guest archetypes, the carriage catalogue (each type's tiles incl. comforts, prices, limits and chooser text), coupling slots, station upgrades (exterior and marketing, with their bonuses), refurbishment tiers, stories, quests, products | `src/config/content.ts` |
-| The press: rival trains, front-page headlines and rewards per trigger, Rails Tonight interviews and perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
+| Content: stations, guest archetypes (with what each leaves behind), the carriage catalogue (each type's tiles incl. comforts, prices, limits and chooser text), coupling slots, station upgrades (exterior and marketing, with their bonuses), refurbishment tiers, stories, quests, products | `src/config/content.ts` |
+| The press: rival trains and their villainous owners (taunts, grumbles, portraits), front-page headlines and rewards per trigger, the Gazette debut interview and Rails Tonight interviews with perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
 | Conductor outfits (earned and premium) and shoes by speed level | `src/config/wardrobe.ts` |
 | Walkthrough steps, one-time hints and the intro's camera beats and captions | `src/config/coach.ts` |
 | Carriage floor plans | `src/world/layout.ts` |

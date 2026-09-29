@@ -71,7 +71,7 @@ await closeAll();
 await page.evaluate(() => window.nightExpress.ui.screens.menu());
 await shot('r-menu');
 await closeAll();
-await page.evaluate(() => window.nightExpress.ui.showInterview({ level: 2, question: 'A new sleeper on the country line! What makes a good night train?', answers: [
+await page.evaluate(() => window.nightExpress.ui.showInterview({ level: 0, show: 'gazette', question: 'A new sleeper on the country line! What makes a good night train?', answers: [
   { text: 'Tea, served before you ask.', perk: { kind: 'tipBonus', amount: 0.06, label: 'Tips +6%' } },
   { text: 'Fair fares for a fine bed.', perk: { kind: 'fareBonus', amount: 0.05, label: 'Fares +5%' } },
   { text: 'A conductor who never stops moving.', perk: { kind: 'speedBonus', amount: 0.05, label: 'Walk +5%' } },

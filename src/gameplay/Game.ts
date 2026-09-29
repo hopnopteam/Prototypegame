@@ -26,6 +26,7 @@ import { UnlockChain } from '../sim/UnlockChain';
 import { buildUnlocks, stationPerks, type StationPerks } from '../sim/unlockPlan';
 import { Wallet } from '../sim/Wallet';
 import { FLOOR_Y } from '../world/CarriageView';
+import { CharacterView } from '../world/CharacterView';
 import { carriageOriginZ, HALF_WIDTH } from '../world/layout';
 import { setLivery } from '../world/materials';
 import { LIVERIES, liveryFor, type Livery } from '../world/palette';
@@ -120,6 +121,7 @@ export class Game implements World {
   private hiddenAt = 0;
   private lastFrame = 0;
   private sessionSeconds = 0;
+  private lastTrainSpeed = 0;
   private running = false;
 
   constructor(canvas: HTMLCanvasElement, overlay: HTMLElement, readonly ui: GameUi) {
@@ -332,6 +334,7 @@ export class Game implements World {
     this.journey.update(dt);
     this.station.update(dt);
     this.scenery.update(dt, this.journey.speed);
+    this.updateLean(dt);
     this.ambient.update(dt, this.journey.speed, this.stage.rig.target, this.stage.lighting.night, this.scenery.isHiddenAt);
     this.player.update(dt);
     this.zones.update(dt, [this.player, ...this.staff.members]);
@@ -354,6 +357,16 @@ export class Game implements World {
     this.save.update(dt);
     if (this.creativeMode && this.wallet.get('cash') < 5000) this.wallet.add('cash', 5000, 'creative');
     if (this.lifetimeSeconds() > 720) this.ftue('session_12min');
+  }
+
+  /** Passengers and crew sway with the train's pull and braking (the rear of the train is +z). */
+  private updateLean(dt: number): void {
+    if (dt <= 0) return;
+    const rules = this.econ.lean;
+    const accel = (this.journey.speed - this.lastTrainSpeed) / dt;
+    this.lastTrainSpeed = this.journey.speed;
+    const target = Math.max(-rules.max, Math.min(rules.max, accel * rules.perAccel));
+    CharacterView.lean += (target - CharacterView.lean) * Math.min(1, dt * rules.sharpness);
   }
 
   private present(realDt: number): void {
@@ -584,6 +597,7 @@ export class Game implements World {
   /** Title screen: a slow, wide drift over the train at its first station (the game is paused). */
   setAttract(on: boolean): void {
     this.attractTime = on ? 0 : -1;
+    this.stage.rig.showWorldUi(!on && !this.cinematic);
   }
 
   /**
@@ -594,6 +608,7 @@ export class Game implements World {
   playIntro(done: () => void): void {
     this.paused = true;
     this.cinematic = { index: -1, t: 0, done };
+    this.stage.rig.showWorldUi(false);
     this.audio.play('whistle');
   }
 
@@ -610,6 +625,7 @@ export class Game implements World {
     const c = this.cinematic;
     if (!c) return;
     this.cinematic = null;
+    this.stage.rig.showWorldUi(true);
     this.ui.showCaption(null);
     // Back to the conductor with a short glide, then play.
     this.stage.rig.focusOn(new THREE.Vector3(this.player.pos.x, 0, this.player.pos.z), 0.01, 1);
