@@ -9,6 +9,7 @@ const MIN_VISIBLE_WIDTH = 8.4;
 const LOOK_AHEAD = 1.2;
 const FOLLOW_SHARPNESS = 5;
 const CAMERA_NEAR = 6;
+const CONTEXT_SHARPNESS = 2.2;
 const CAMERA_FAR = 160;
 
 /**
@@ -31,6 +32,9 @@ export class CameraRig {
   private overrideTime = 0;
   private overrideZoom = 1;
   private initialised = false;
+  /** Context framing (rooms, platform, stride): targets, and the smoothed values actually used. */
+  private readonly context = { zoom: 1, x: 0, z: 0 };
+  private readonly contextNow = { zoom: 1, x: 0, z: 0 };
   clampX: [number, number] = [-2.5, 6];
 
   resize(aspect: number): void {
@@ -66,6 +70,13 @@ export class CameraRig {
     this.zoom = zoom;
   }
 
+  /** Framing for where the player is: a zoom factor and an offset of the look point (smoothed here). */
+  setContext(zoom: number, offsetX: number, offsetZ: number): void {
+    this.context.zoom = zoom;
+    this.context.x = offsetX;
+    this.context.z = offsetZ;
+  }
+
   /** Where the camera is looking (ground level); ambient life stages itself around it. */
   get target(): THREE.Vector3 {
     return this.focus;
@@ -77,9 +88,14 @@ export class CameraRig {
   }
 
   update(dt: number, followX: number, followZ: number): void {
-    let tx = Math.min(this.clampX[1], Math.max(this.clampX[0], followX * 0.75));
-    let tz = followZ - LOOK_AHEAD;
-    let zoom = this.zoom;
+    // Slow, even easing so framing changes read as a glide, never a jolt.
+    const c = this.contextNow;
+    c.zoom = damp(c.zoom, this.context.zoom, CONTEXT_SHARPNESS, dt);
+    c.x = damp(c.x, this.context.x, CONTEXT_SHARPNESS, dt);
+    c.z = damp(c.z, this.context.z, CONTEXT_SHARPNESS, dt);
+    let tx = Math.min(this.clampX[1], Math.max(this.clampX[0], followX * 0.75 + c.x));
+    let tz = followZ - LOOK_AHEAD + c.z;
+    let zoom = this.zoom * c.zoom;
     if (this.overrideTarget && this.overrideTime > 0) {
       this.overrideTime -= dt;
       tx = this.overrideTarget.x;

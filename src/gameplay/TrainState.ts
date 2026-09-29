@@ -222,6 +222,18 @@ export class TrainState {
     return capacity;
   }
 
+  /** The cabin or washroom (world rect) the point is inside, if any: the camera frames it. */
+  roomAt(p: Vec2): { x0: number; z0: number; x1: number; z1: number } | null {
+    for (const list of [this.cabins, this.bathrooms] as (Cabin | Bathroom)[][]) {
+      for (const room of list) {
+        const r = room.layout.room;
+        const oz = carriageOriginZ(room.carriage);
+        if (p.x > r.x0 && p.x < r.x1 && p.z > r.z0 + oz && p.z < r.z1 + oz) return { x0: r.x0, z0: r.z0 + oz, x1: r.x1, z1: r.z1 + oz };
+      }
+    }
+    return null;
+  }
+
   /**
    * Nearest place to pick up towels or rolls: the washroom car's closet (always stocked) or the stores'
    * shelves while they hold stock.

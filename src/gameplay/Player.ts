@@ -27,6 +27,15 @@ export class Player implements Actor {
   private facing = Math.PI;
   idleSeconds = 0;
   speedNow = 0;
+  /** Current velocity (m/s), for the camera's lead. */
+  get velocity(): { x: number; z: number } {
+    return { x: this.vx, z: this.vz };
+  }
+
+  /** 0…1: how far into a stride the conductor is (the camera eases out a touch as they pick up pace). */
+  strideAmount = 0;
+  private strideTime = 0;
+  private strideAngle = 0;
   /** Quick travel (tap a carriage on the train map): walks the route at dash speed until you touch the stick. */
   readonly travel: PathFollower;
   private dashTrail = 0;
@@ -76,13 +85,42 @@ export class Player implements Actor {
       // Any touch on the stick takes back control.
       if (Math.hypot(stick.x, stick.y) > 0.15) this.travel.stop();
       else {
+        const left = this.travel.remaining(this.pos);
         stick = this.travel.steer(this.pos, dt) ?? { x: 0, y: 0 };
-        max *= w.econ.player.dashMultiplier;
+        // Quick travel takes at most a second and a half, however long the train has grown.
+        const p = w.econ.player;
+        max *= Math.min(p.maxDashMultiplier, Math.max(p.dashMultiplier, left / (p.dashMaxSeconds * this.speed())));
         this.dashTrail -= dt;
         if (this.dashTrail <= 0 && this.speedNow > 1) {
           this.dashTrail = 0.06;
           w.particles.emit('dust', this.pos.x, FLOOR_Y + 0.05, this.pos.z, 1, 0.15);
         }
+      }
+    }
+    // Stride: a steady push the same way builds pace (quick travel has its own).
+    const push = Math.hypot(stick.x, stick.y);
+    const stride = w.econ.player.stride;
+    if (!this.travel.active && push > 0.7) {
+      const angle = Math.atan2(stick.x, stick.y);
+      const turn = Math.abs(Math.atan2(Math.sin(angle - this.strideAngle), Math.cos(angle - this.strideAngle)));
+      if (this.strideTime === 0 || turn > (stride.turnResetDegrees * Math.PI) / 180) {
+        this.strideTime = dt;
+        this.strideAngle = angle;
+      } else {
+        this.strideTime += dt;
+        this.strideAngle = dampAngle(this.strideAngle, angle, 4, dt);
+      }
+    } else {
+      this.strideTime = 0;
+    }
+    const ramp = Math.min(1, Math.max(0, (this.strideTime - stride.delaySeconds) / stride.rampSeconds));
+    this.strideAmount = ramp * ramp * (3 - 2 * ramp);
+    max *= 1 + (stride.multiplier - 1) * this.strideAmount;
+    if (this.strideAmount > 0.5) {
+      this.dashTrail -= dt;
+      if (this.dashTrail <= 0 && this.speedNow > 1) {
+        this.dashTrail = 0.09;
+        w.particles.emit('dust', this.pos.x, FLOOR_Y + 0.05, this.pos.z, 1, 0.12);
       }
     }
     // Screen up is world -z; screen right is world +x (the camera looks up the train).

@@ -89,6 +89,18 @@ export class PathFollower {
     return this.target !== null;
   }
 
+  /** Metres left along the route from here. */
+  remaining(pos: Vec2): number {
+    if (!this.target) return 0;
+    let total = 0;
+    let from = pos;
+    for (const p of this.path.length > 0 ? this.path : [this.target]) {
+      total += Math.hypot(p.x - from.x, p.z - from.z);
+      from = p;
+    }
+    return total;
+  }
+
   steer(pos: Vec2, dt: number): { x: number; y: number } | null {
     const target = this.target;
     if (!target) return null;

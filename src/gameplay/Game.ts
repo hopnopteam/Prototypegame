@@ -25,7 +25,7 @@ import { UnlockChain } from '../sim/UnlockChain';
 import { buildUnlocks, stationPerks, type StationPerks } from '../sim/unlockPlan';
 import { Wallet } from '../sim/Wallet';
 import { FLOOR_Y } from '../world/CarriageView';
-import { carriageOriginZ } from '../world/layout';
+import { carriageOriginZ, HALF_WIDTH } from '../world/layout';
 import { setLivery } from '../world/materials';
 import { LIVERIES, liveryFor, type Livery } from '../world/palette';
 import { CashView } from '../world/CashView';
@@ -352,6 +352,7 @@ export class Game implements World {
     this.audio.update(realDt);
     const rig = this.stage.rig;
     rig.clampX = this.journey.doorsOpen ? [-1.5, 6.5] : [-1.2, 1.6];
+    this.frameCamera();
     rig.update(realDt, this.player.pos.x, this.player.pos.z);
     this.ui.update(realDt);
     this.stage.render(realDt);
@@ -362,6 +363,35 @@ export class Game implements World {
   /** A beat of slow motion (real seconds) for a big moment. Sim-only runs ignore it. */
   hitStop(seconds: number): void {
     this.hitStopTime = Math.max(this.hitStopTime, seconds);
+  }
+
+  /**
+   * Context framing: ease in on the room the conductor is in (a better look at the bed, the mess, the
+   * guest), out on the platform, and out a touch with a lead while striding or quick-travelling.
+   */
+  private frameCamera(): void {
+    const cam = this.econ.camera;
+    const p = this.player;
+    let zoom = 1;
+    let ox = 0;
+    let oz = 0;
+    const room = this.train.roomAt(p.pos);
+    if (room) {
+      zoom = cam.roomZoom;
+      ox = ((room.x0 + room.x1) / 2 - p.pos.x) * cam.roomBias;
+      oz = ((room.z0 + room.z1) / 2 - p.pos.z) * cam.roomBias;
+    } else if (p.pos.x > HALF_WIDTH + 0.3) {
+      zoom = cam.platformZoom;
+    }
+    const v = p.velocity;
+    const speed = Math.hypot(v.x, v.z);
+    const pace = p.travel.active ? 1 : p.strideAmount;
+    if (pace > 0 && speed > 0.5) {
+      zoom *= p.travel.active ? cam.travelZoom : 1 + cam.strideZoom * pace;
+      ox += (v.x / speed) * cam.lead * pace * 0.4;
+      oz += (v.z / speed) * cam.lead * pace;
+    }
+    this.stage.rig.setContext(zoom, ox, oz);
   }
 
   private dayCycleOverride: number | null = null;

@@ -25,9 +25,23 @@ export const ECONOMY = {
     acceleration: 38,
     radius: 0.3,
     baseCarryCapacity: 3,
-    /** Quick travel (tap a carriage on the train map) walks the route this much faster. */
+    /** Quick travel (tap a carriage on the train map) walks the route this much faster… */
     dashMultiplier: 1.8,
+    /** …and never takes longer than this (it speeds up on a long train), up to maxDashMultiplier. */
+    dashMaxSeconds: 1.6,
+    maxDashMultiplier: 4,
+    /**
+     * Stride: keep walking the same way (a corridor, the aisle) and the conductor picks up pace, so a long
+     * train is never a slog. Resets on a sharp turn or a stop.
+     */
+    stride: { delaySeconds: 0.45, rampSeconds: 0.7, multiplier: 1.55, turnResetDegrees: 55 },
   },
+
+  /**
+   * The camera eases in when you step into a cabin or washroom (framing the room), out on the platform
+   * and a touch out while you stride down the train, leading the way you are going.
+   */
+  camera: { roomZoom: 0.82, roomBias: 0.4, platformZoom: 1.12, strideZoom: 0.08, travelZoom: 1.1, lead: 1.3 },
 
   zones: {
     checkInSeconds: 0.9,
