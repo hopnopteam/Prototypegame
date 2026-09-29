@@ -1,10 +1,13 @@
-import { COACH_GESTURE_DELAY, COACH_GUIDANCE_LINES, COACH_HINT_MIN_SECONDS, COACH_HINT_SECONDS, COACH_HINTS, COACH_STEPS, type CoachLineDef } from '../config/coach';
-import type { Vec2 } from '../core/types';
+import { COACH_GESTURE_DELAY, COACH_GUIDANCE_LINES, COACH_HINTS, COACH_OPTIONAL_SECONDS, COACH_REST_SECONDS, COACH_STEPS, type CoachLineDef } from '../config/coach';
+import type { StaffRole, Vec2 } from '../core/types';
+import { FLOOR_Y } from '../world/CarriageView';
 import type { World } from './World';
 
-const THINK_SECONDS = 0.3;
+const THINK_SECONDS = 0.25;
 /** Walking this far from the spawn point completes the first step. */
 const WALK_METRES = 1.2;
+/** Height of the "Nice!" over a finished step. */
+const PRAISE_HEIGHT = 1.9;
 
 /** Where a coach line is shown: over a spot in the world, by a HUD element, or as the walk gesture. */
 export type CoachAnchor = { world: Vec2 } | { hud: 'map' | 'conductor' } | { gesture: true };
@@ -13,20 +16,38 @@ export interface CoachLine extends CoachLineDef {
   anchor: CoachAnchor;
 }
 
+/** Lessons that retire once the job is automated (nobody needs teaching a chore the staff now do). */
+const AUTOMATED_BY: Record<string, StaffRole> = { dirty: 'attendant', station: 'porter', washroom: 'attendant' };
+/** Lessons about conveniences: they retire after a while on screen even if unused. */
+const OPTIONAL = new Set(['map', 'miles']);
+
 /**
- * A very small walkthrough: four steps teach the loop (walk, check in, collect, build), then each new
- * mechanic gets one line the first time it appears. Every line sits where the action is, never across the
- * screen, and the guidance arrow bounces over the same spot.
+ * A walkthrough that moves at the player's pace: four steps teach the loop (walk, check in, collect,
+ * build), then each mechanic gets a lesson the first time it appears. A step or lesson only completes
+ * when the player does it, then gets a "Nice!" and a short rest before the next line. Every line sits
+ * where the action is, and the guidance arrow bounces over the same spot.
  */
 export class Coach {
   current: CoachLine | null = null;
   private shown = 0;
   private think = 0;
+  private rest = 0;
   private readonly spawn: Vec2;
   enabled = true;
 
   constructor(private readonly w: World) {
     this.spawn = { ...w.player.pos };
+    // Doing the thing is what completes a lesson.
+    const e = w.events;
+    e.on('request.fulfilled', ({ byPlayer }) => byPlayer && this.learn('request'));
+    e.on('spot.cleaned', ({ byPlayer }) => byPlayer && this.learn('dirty'));
+    e.on('guest.boarded', ({ byPlayer }) => byPlayer && this.learn('station'));
+    e.on('bathroom.restocked', ({ byPlayer }) => byPlayer && this.learn('washroom'));
+    e.on('staff.hired', () => this.learn('hire'));
+    e.on('carriage.coupled', () => this.learn('couple'));
+    e.on('carriage.refurbished', () => this.learn('refurb'));
+    e.on('conductor.upgraded', () => this.learn('miles'));
+    e.on('unlock.completed', ({ id }) => id.startsWith('st.') && this.learn('workshop'));
   }
 
   private done(id: string): boolean {
@@ -37,13 +58,36 @@ export class Coach {
     this.w.setFlag(`coach_${id}`);
   }
 
+  /** The player did it: praise it where it happened, then rest before the next line. */
+  learn(id: string): void {
+    if (this.done(id)) return;
+    this.finish(id);
+    const cur = this.current;
+    if (!cur || !(cur.id === id || cur.id.startsWith(`${id}_`))) return;
+    this.praise(cur);
+  }
+
+  private praise(line: CoachLine): void {
+    const w = this.w;
+    const at = 'world' in line.anchor ? line.anchor.world : w.player.pos;
+    w.ui.floatText('Nice!', at.x, FLOOR_Y + PRAISE_HEIGHT, at.z, 'info');
+    w.audio.play('ding', { volume: 0.6 });
+    this.current = null;
+    this.rest = COACH_REST_SECONDS;
+  }
+
+  /** The walkthrough is finished once the four loop steps are done. */
+  get walkthroughDone(): boolean {
+    return COACH_STEPS.every((s) => this.done(s.id));
+  }
+
   update(dt: number): void {
     this.shown += dt;
     this.think -= dt;
+    this.rest -= dt;
     // Keep world anchors fresh every frame (targets move: guests, cash piles).
     if (this.current && 'world' in this.current.anchor) {
-      const target = this.current.id.startsWith('g_') ? this.w.guidance.bestTarget() : null;
-      const anchor = target ? { world: target } : this.targetFor(this.current.id);
+      const anchor = this.anchorFor(this.current.id);
       if (anchor && 'world' in anchor) this.current.anchor = anchor;
     }
     if (this.think > 0) return;
@@ -52,11 +96,17 @@ export class Coach {
       this.current = null;
       return;
     }
+    // A breath after each success.
+    if (this.rest > 0) return;
 
     for (const step of COACH_STEPS) {
       if (this.done(step.id)) continue;
       if (this.stepComplete(step.id)) {
         this.finish(step.id);
+        if (this.current?.id === step.id || this.current?.id.startsWith('g_')) {
+          this.praise(this.current);
+          return;
+        }
         continue;
       }
       // Building needs cash: until there is enough, say what the arrow points at instead.
@@ -68,27 +118,40 @@ export class Coach {
           return;
         }
       }
-      const anchor = this.targetFor(step.id);
-      this.show(step, anchor);
+      this.show(step, this.targetFor(step.id));
       return;
     }
 
-    const cur = this.current;
-    if (cur && !COACH_STEPS.some((s) => s.id === cur.id)) {
-      const resolved = !this.hintActive(cur.id);
-      if (this.shown < COACH_HINT_SECONDS && !(resolved && this.shown > COACH_HINT_MIN_SECONDS)) return;
-      this.finish(cur.id);
-      this.current = null;
-    } else if (cur) {
-      this.current = null;
-    }
+    // One lesson at a time, in order, for whichever mechanic is in play right now.
     for (const hint of COACH_HINTS) {
-      if (this.done(hint.id) || !this.hintActive(hint.id)) continue;
-      const anchor = this.targetFor(hint.id);
+      if (hint.id.includes('_') || this.done(hint.id)) continue;
+      const role = AUTOMATED_BY[hint.id];
+      if (role && this.w.staff.count(role) > 0) {
+        this.finish(hint.id);
+        continue;
+      }
+      if (OPTIONAL.has(hint.id) && this.current?.id === hint.id && this.shown > COACH_OPTIONAL_SECONDS) {
+        this.finish(hint.id);
+        this.current = null;
+        continue;
+      }
+      if (!this.hintActive(hint.id)) continue;
+      const line = hint.id === 'request' ? this.requestStage() : hint;
+      const anchor = this.anchorFor(line.id);
       if (!anchor) continue;
-      this.show(hint, anchor);
+      this.show(line, anchor);
       return;
     }
+    this.current = null;
+  }
+
+  /** Requests are taught in two parts: where to pick the item up, then where to take it. */
+  private requestStage(): CoachLineDef {
+    const reason = this.w.guidance.reason;
+    const find = (id: string): CoachLineDef => COACH_HINTS.find((h) => h.id === id) ?? COACH_HINTS[0];
+    if (reason === 'fetch') return find('request_fetch');
+    if (reason === 'deliver') return find('request_deliver');
+    return find('request');
   }
 
   private canAffordTile(): boolean {
@@ -120,6 +183,15 @@ export class Coach {
       default:
         return true;
     }
+  }
+
+  private anchorFor(id: string): CoachAnchor | null {
+    // Guidance lines and the two request stages follow the guidance arrow's target.
+    if (id.startsWith('g_') || id === 'request_fetch' || id === 'request_deliver') {
+      const target = this.w.guidance.bestTarget();
+      return target ? { world: target } : null;
+    }
+    return this.targetFor(id);
   }
 
   /** Where each line points. Null hides it for now (nothing to point at yet). */

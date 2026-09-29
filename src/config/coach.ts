@@ -1,9 +1,11 @@
 import type { IconName } from '../ui/icons';
 
 /**
- * The coach: a tiny walkthrough and one-time hints, one short line each (§11: no walls of text). Lines
- * appear right where the action is (a label over the spot, or by the button), never as a banner. The
- * first four teach the loop in order; hints appear the first time a mechanic shows up, then never again.
+ * The coach: a short walkthrough and one lesson per mechanic, one short line each (§11: no walls of text).
+ * Lines appear right where the action is (a label over the spot, or by the button), never as a banner.
+ * Nothing moves on by itself: each step waits until the player has actually done it, says "Nice!", and
+ * takes a breath before the next one. A lesson whose moment passes (the train leaves, a guest is served by
+ * someone else) hides and comes back the next time; once a job is automated its lesson is retired.
  */
 export interface CoachLineDef {
   id: string;
@@ -20,6 +22,8 @@ export const COACH_STEPS: CoachLineDef[] = [
 
 export const COACH_HINTS: CoachLineDef[] = [
   { id: 'request', icon: 'tea', text: 'Bring what the guest asks for' },
+  { id: 'request_fetch', icon: 'tea', text: 'Pick it up here' },
+  { id: 'request_deliver', icon: 'heart', text: 'Now bring it to the guest' },
   { id: 'dirty', icon: 'broom', text: 'Walk over the mess to clean' },
   { id: 'station', icon: 'ticket', text: 'Board the guests before the train leaves' },
   { id: 'hire', icon: 'person', text: 'Hire help: they do the chores' },
@@ -60,8 +64,9 @@ export const INTRO_BEATS: IntroBeat[] = [
   { focus: 'desk', seconds: 2.3, zoom: 0.92, text: '…and a guest at the desk. Let’s get to work!' },
 ];
 
-/** Seconds a hint stays up (at least the minimum, even if it resolves at once). */
-export const COACH_HINT_SECONDS = 5;
-export const COACH_HINT_MIN_SECONDS = 2.5;
+/** Seconds between one step being done and the next line appearing (a breath, and the "Nice!"). */
+export const COACH_REST_SECONDS = 2.2;
+/** Lessons about optional conveniences (the train map, Rail Miles) retire after this long on screen. */
+export const COACH_OPTIONAL_SECONDS = 8;
 /** The walk gesture only appears if the player has not moved for this long. */
 export const COACH_GESTURE_DELAY = 1.2;

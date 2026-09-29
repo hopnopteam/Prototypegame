@@ -54,7 +54,7 @@ export class Rush {
     w.ui.cashCollected(cash);
     w.particles.emit('star', p.x, FLOOR_Y + 1.4, p.z, 10, 0.5);
     w.particles.emit('cash', p.x, FLOOR_Y + 1.4, p.z, 8, 0.3);
-    w.audio.play('chest', { volume: 0.5 });
+    w.audio.play('streak');
     w.haptics.light();
     w.stage.rig.punch(0.025);
     w.events.emit('rush.bonus', { streak: this.streak, cash });

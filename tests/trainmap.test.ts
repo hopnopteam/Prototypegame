@@ -3,6 +3,7 @@ import { DEFAULT_TRAIN } from '../src/config/content';
 import { ECONOMY } from '../src/config/economy';
 import type { Vec2 } from '../src/core/types';
 import { TrainMap } from '../src/sim/TrainMap';
+import { carriageOriginZ, getLayout } from '../src/world/layout';
 
 const FULL_TRAIN = [...DEFAULT_TRAIN];
 const GRID = 0.05;
@@ -112,6 +113,18 @@ describe('TrainMap', () => {
     const reach = reachable(small, small.anchor(0, 'playerSpawn'));
     expect(reach(small.anchor(0, 'deskService'))).toBe(true);
     expect(reach(small.rearDeck().tile)).toBe(true);
+  });
+
+  it('slides the conductor into a doorway when they walk into the wall beside it', () => {
+    const cabin = getLayout('lobby').cabins[0];
+    const doorZ = carriageOriginZ(0) + cabin.door[0];
+    // In the corridor, lined up with the very edge of the doorway, walking straight across at the frame.
+    const pos = { x: -1.2, z: doorZ + 0.05 };
+    const plain = { ...pos };
+    for (let i = 0; i < 40; i++) map.walk.move(plain, 0.05, 0);
+    expect(plain.x).toBeLessThan(-0.9);
+    for (let i = 0; i < 40; i++) map.walk.move(pos, 0.05, 0, ECONOMY.player.doorAssist);
+    expect(pos.x).toBeGreaterThan(-0.3);
   });
 
   it('snaps a stranded point back onto walkable floor', () => {

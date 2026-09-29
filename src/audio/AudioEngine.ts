@@ -1,14 +1,21 @@
+import { AUDIO, type CueName } from '../config/audio';
 import { log } from '../core/log';
+import { SAMPLES, type SampleId } from './samples';
 
-export type Sfx =
-  | 'pop' | 'pickup' | 'drop' | 'cash' | 'coin' | 'bell' | 'ding' | 'scrub' | 'sparkle' | 'clunk'
-  | 'whistle' | 'whistleShort' | 'fanfare' | 'levelup' | 'punch' | 'whoosh' | 'click' | 'chime'
-  | 'soft' | 'door' | 'chest' | 'unlock' | 'heart' | 'flush' | 'miss' | 'grumble';
+export type Sfx = CueName;
+
+interface Sample {
+  buffer: AudioBuffer;
+  /** Where the sound actually starts (MP3 encoders pad the front with a few ms of silence). */
+  offset: number;
+}
 
 /**
- * Every sound in the game, synthesised with WebAudio: no audio files, tiny download, works offline.
- * Starts silent until the first touch (browsers require a gesture), then plays sfx, the rail clack that
- * follows train speed, station ambience and a soft procedural travel tune.
+ * Every sound in the game. Effects are real samples (warm UI cues, coins and build thunks, plus a steam
+ * whistle, rail clacks, a coupling clunk and more rendered for this game: assets/audio/CREDITS.md), played
+ * to the end of their natural tails through a gentle compressor so a busy moment never clips or breaks
+ * up. The mix lives in config/audio.ts. Music stays procedural (a soft travel tune) and the station murmur
+ * is filtered noise. Silent until the first touch (browsers require a gesture).
  */
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -17,8 +24,12 @@ export class AudioEngine {
   private musicBus!: GainNode;
   private ambience!: GainNode;
   private noiseBuffer!: AudioBuffer;
+  private readonly samples = new Map<SampleId, Sample>();
+  private readonly voices = new Map<Sfx, number>();
   private soundOn = true;
   private musicOn = true;
+  private paused = false;
+  private suspendTimer = 0;
   private speed = 0;
   private clackTimer = 0;
   private musicTime = 0;
@@ -39,22 +50,29 @@ export class AudioEngine {
       if (!this.ctx) {
         const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
         if (!Ctor) return;
-        this.ctx = new Ctor();
-        this.master = this.ctx.createGain();
-        this.master.gain.value = 0.8;
-        this.master.connect(this.ctx.destination);
-        this.sfx = this.ctx.createGain();
-        this.sfx.connect(this.master);
-        this.musicBus = this.ctx.createGain();
-        this.musicBus.gain.value = 0.22;
-        this.musicBus.connect(this.master);
-        this.ambience = this.ctx.createGain();
-        this.ambience.gain.value = 0.5;
-        this.ambience.connect(this.master);
+        const ctx = new Ctor();
+        this.ctx = ctx;
+        const c = AUDIO.compressor;
+        const compressor = ctx.createDynamicsCompressor();
+        compressor.threshold.value = c.threshold;
+        compressor.knee.value = c.knee;
+        compressor.ratio.value = c.ratio;
+        compressor.attack.value = c.attack;
+        compressor.release.value = c.release;
+        this.master = ctx.createGain();
+        this.master.gain.value = AUDIO.mix.master;
+        compressor.connect(this.master).connect(ctx.destination);
+        this.sfx = ctx.createGain();
+        this.sfx.connect(compressor);
+        this.musicBus = ctx.createGain();
+        this.musicBus.connect(compressor);
+        this.ambience = ctx.createGain();
+        this.ambience.connect(compressor);
         this.noiseBuffer = this.makeNoise();
         this.applyToggles();
+        void this.decodeAll(ctx);
       }
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      if (this.ctx.state === 'suspended' && !this.paused) void this.ctx.resume();
     } catch (error) {
       log.warn('Audio', 'WebAudio unavailable', error);
     }
@@ -66,11 +84,27 @@ export class AudioEngine {
     this.applyToggles();
   }
 
-  /** Suspends everything while an ad plays or the tab is hidden. */
+  /** Fades everything out (not a hard cut) while an ad plays or the tab is hidden, and back in after. */
   setPaused(paused: boolean): void {
-    if (!this.ctx) return;
-    if (paused) void this.ctx.suspend();
-    else void this.ctx.resume();
+    const ctx = this.ctx;
+    if (!ctx || paused === this.paused) return;
+    this.paused = paused;
+    const t = ctx.currentTime;
+    const fade = AUDIO.pauseFade;
+    window.clearTimeout(this.suspendTimer);
+    this.master.gain.cancelScheduledValues(t);
+    this.master.gain.setValueAtTime(this.master.gain.value, t);
+    if (paused) {
+      this.master.gain.linearRampToValueAtTime(0, t + fade);
+      this.suspendTimer = window.setTimeout(() => void ctx.suspend(), fade * 1000 + 40);
+    } else {
+      void ctx.resume().then(() => {
+        const now = ctx.currentTime;
+        this.master.gain.cancelScheduledValues(now);
+        this.master.gain.setValueAtTime(0, now);
+        this.master.gain.linearRampToValueAtTime(AUDIO.mix.master, now + fade);
+      });
+    }
   }
 
   setTrainSpeed(fraction: number): void {
@@ -110,117 +144,51 @@ export class AudioEngine {
 
   play(name: Sfx, options: { pitch?: number; volume?: number } = {}): void {
     const ctx = this.ctx;
-    if (!ctx || !this.soundOn || ctx.state !== 'running') return;
-    // Rate-limit identical sounds so a burst of pickups never becomes noise.
+    if (!ctx || !this.soundOn || ctx.state !== 'running' || this.paused) return;
+    const cue = AUDIO.cues[name];
     const now = ctx.currentTime;
-    const last = this.lastPlay.get(name) ?? -1;
-    if (now - last < 0.025) return;
+    // Never cut a sound that is playing: a cue that just started, or is ringing enough times, waits.
+    if (now - (this.lastPlay.get(name) ?? -1) < (cue.gap ?? 0.03)) return;
+    if ((this.voices.get(name) ?? 0) >= (cue.voices ?? 4)) return;
+    const sample = this.samples.get(cue.samples[Math.floor(Math.random() * cue.samples.length)]);
+    if (!sample) return;
     this.lastPlay.set(name, now);
-    const p = options.pitch ?? 1;
-    const v = options.volume ?? 1;
-    const t = now + 0.005;
-    switch (name) {
-      case 'pop':
-        this.tone(t, 520 * p, 1250 * p, 0.09, 'sine', 0.35 * v);
-        break;
-      case 'pickup':
-        this.tone(t, 660 * p, 920 * p, 0.07, 'triangle', 0.22 * v);
-        break;
-      case 'drop':
-        this.tone(t, 540 * p, 360 * p, 0.09, 'triangle', 0.22 * v);
-        break;
-      case 'cash':
-        // Register "ka-ching": a drawer thunk, a bright noise flick, then two ringing bells.
-        this.tone(t, 180, 120, 0.06, 'triangle', 0.12 * v);
-        this.noise(t, 0.04, 'highpass', 5000, 0.1 * v);
-        this.tone(t + 0.05, 2093 * p, 2093 * p, 0.42, 'sine', 0.13 * v, 0.002);
-        this.tone(t + 0.05, 5776 * p, 5776 * p, 0.12, 'sine', 0.03 * v, 0.002);
-        this.tone(t + 0.1, 2637 * p, 2637 * p, 0.5, 'sine', 0.11 * v, 0.002);
-        break;
-      case 'coin':
-        // A small bell "ting": fundamental plus an inharmonic partial, like a struck coin.
-        this.tone(t, 1568 * p, 1568 * p, 0.16, 'sine', 0.1 * v, 0.002);
-        this.tone(t, 4327 * p, 4327 * p, 0.07, 'sine', 0.035 * v, 0.002);
-        break;
-      case 'bell':
-        this.tone(t, 1760 * p, 1760 * p, 0.9, 'sine', 0.18 * v, 0.002);
-        this.tone(t, 2637 * p, 2637 * p, 0.6, 'sine', 0.08 * v, 0.002);
-        break;
-      case 'ding':
-        this.tone(t, 1046 * p, 1046 * p, 0.45, 'sine', 0.2 * v, 0.002);
-        break;
-      case 'scrub':
-        this.noise(t, 0.12, 'bandpass', 1400 * p, 0.14 * v);
-        this.noise(t + 0.13, 0.1, 'bandpass', 1100 * p, 0.1 * v);
-        break;
-      case 'sparkle':
-        [2093, 2637, 3136].forEach((f, i) => this.tone(t + i * 0.05, f * p, f * p, 0.18, 'sine', 0.07 * v, 0.002));
-        break;
-      case 'clunk':
-        this.tone(t, 110, 48, 0.35, 'sine', 0.6 * v);
-        this.noise(t, 0.12, 'lowpass', 380, 0.5 * v);
-        this.tone(t + 0.02, 420, 380, 0.08, 'square', 0.08 * v);
-        break;
-      case 'whistle':
-        this.whistle(t, 1.3, v);
-        break;
-      case 'whistleShort':
-        this.whistle(t, 0.5, v * 0.8);
-        break;
-      case 'fanfare':
-        [523, 659, 784, 1046].forEach((f, i) => this.tone(t + i * 0.11, f, f, i === 3 ? 0.7 : 0.16, 'triangle', 0.2 * v, 0.004));
-        [1046, 1318].forEach((f) => this.tone(t + 0.44, f, f, 0.8, 'sine', 0.08 * v, 0.004));
-        break;
-      case 'levelup':
-        [392, 523, 659, 784, 1046, 1318].forEach((f, i) => this.tone(t + i * 0.07, f, f, i === 5 ? 0.9 : 0.14, 'triangle', 0.18 * v, 0.003));
-        this.play('sparkle', { volume: v });
-        break;
-      case 'punch':
-        this.noise(t, 0.025, 'highpass', 3000, 0.2 * v);
-        this.tone(t, 1200 * p, 900 * p, 0.04, 'square', 0.06 * v);
-        break;
-      case 'whoosh':
-        this.sweep(t, 0.25, 500, 2400, 0.12 * v);
-        break;
-      case 'click':
-        this.tone(t, 900, 900, 0.025, 'sine', 0.12 * v);
-        break;
-      case 'chime':
-        [1318, 1046, 784].forEach((f, i) => this.tone(t + i * 0.22, f, f, 0.6, 'sine', 0.15 * v, 0.002));
-        break;
-      case 'soft':
-        this.tone(t, 330, 280, 0.12, 'triangle', 0.12 * v);
-        break;
-      case 'door':
-        this.noise(t, 0.3, 'lowpass', 700, 0.12 * v);
-        this.tone(t, 160, 120, 0.25, 'sine', 0.12 * v);
-        break;
-      case 'chest':
-        this.play('pop', { pitch: 0.8, volume: v });
-        this.play('sparkle', { volume: v });
-        break;
-      case 'unlock':
-        this.tone(t, 440 * p, 880 * p, 0.12, 'triangle', 0.25 * v);
-        this.tone(t + 0.1, 880 * p, 1320 * p, 0.18, 'triangle', 0.2 * v);
-        this.noise(t + 0.08, 0.2, 'highpass', 4000, 0.06 * v);
-        break;
-      case 'heart':
-        this.tone(t, 784 * p, 988 * p, 0.12, 'sine', 0.14 * v);
-        this.tone(t + 0.1, 1175 * p, 1175 * p, 0.2, 'sine', 0.12 * v);
-        break;
-      case 'flush':
-        this.sweep(t, 0.6, 1800, 300, 0.1 * v);
-        break;
-      case 'miss':
-        // A soft "wah-wah": something slipped by, nothing lost for good.
-        this.tone(t, 392 * p, 370 * p, 0.16, 'triangle', 0.13 * v);
-        this.tone(t + 0.17, 330 * p, 262 * p, 0.3, 'triangle', 0.13 * v);
-        break;
-      case 'grumble':
-        this.tone(t, 150 * p, 132 * p, 0.14, 'sawtooth', 0.035 * v);
-        this.tone(t + 0.12, 140 * p, 118 * p, 0.18, 'sawtooth', 0.03 * v);
-        break;
-    }
+    const bend = 1 + ((options.pitch ?? 1) - 1) * (cue.pitchScale ?? 1);
+    const jitter = 1 + (cue.jitter ?? 0) * (Math.random() * 2 - 1);
+    const rate = Math.max(0.5, Math.min(2, bend * jitter));
+    this.voices.set(name, (this.voices.get(name) ?? 0) + 1);
+    this.start(sample, rate, cue.gain * (options.volume ?? 1), this.sfx, () => this.voices.set(name, Math.max(0, (this.voices.get(name) ?? 1) - 1)));
+  }
+
+  private start(sample: Sample, rate: number, gain: number, out: AudioNode, onEnded?: () => void): void {
+    const ctx = this.ctx!;
+    const source = ctx.createBufferSource();
+    source.buffer = sample.buffer;
+    source.playbackRate.value = rate;
+    const g = ctx.createGain();
+    g.gain.value = gain;
+    source.connect(g).connect(out);
+    source.onended = () => {
+      source.disconnect();
+      g.disconnect();
+      onEnded?.();
+    };
+    source.start(ctx.currentTime + 0.002, sample.offset);
+  }
+
+  private async decodeAll(ctx: AudioContext): Promise<void> {
+    await Promise.all((Object.keys(SAMPLES) as SampleId[]).map(async (id) => {
+      try {
+        const bytes = Uint8Array.from(atob(SAMPLES[id]), (ch) => ch.charCodeAt(0));
+        const buffer = await ctx.decodeAudioData(bytes.buffer);
+        const data = buffer.getChannelData(0);
+        let first = 0;
+        while (first < data.length && Math.abs(data[first]) < 0.001) first++;
+        this.samples.set(id, { buffer, offset: Math.max(0, first - 8) / buffer.sampleRate });
+      } catch (error) {
+        log.warn('Audio', `could not decode ${id}`, error);
+      }
+    }));
   }
 
   update(dt: number): void {
@@ -231,10 +199,9 @@ export class AudioEngine {
       this.clackTimer -= dt;
       if (this.clackTimer <= 0) {
         const gap = 0.16 / (0.4 + this.speed);
-        const volume = 0.05 + this.speed * 0.09;
-        const t = ctx.currentTime + 0.01;
-        this.clack(t, volume);
-        this.clack(t + gap, volume * 0.8);
+        const volume = 0.35 + this.speed * 0.65;
+        this.clack(volume);
+        window.setTimeout(() => this.clack(volume * 0.8), gap * 1000);
         this.clackTimer = 0.7 / (0.25 + this.speed * 1.1);
       }
     }
@@ -243,9 +210,9 @@ export class AudioEngine {
 
   private applyToggles(): void {
     if (!this.ctx) return;
-    this.sfx.gain.value = this.soundOn ? 1 : 0;
-    this.ambience.gain.value = this.soundOn ? 0.5 : 0;
-    this.musicBus.gain.value = this.musicOn ? 0.22 : 0;
+    this.sfx.gain.value = this.soundOn ? AUDIO.mix.sfx : 0;
+    this.ambience.gain.value = this.soundOn ? AUDIO.mix.ambience : 0;
+    this.musicBus.gain.value = this.musicOn ? AUDIO.mix.music : 0;
   }
 
   private makeNoise(): AudioBuffer {
@@ -276,73 +243,13 @@ export class AudioEngine {
     osc.stop(t + duration + 0.02);
   }
 
-  private noise(t: number, duration: number, filterType: BiquadFilterType, freq: number, gain: number, out: AudioNode = this.sfx): void {
-    const ctx = this.ctx!;
-    const source = ctx.createBufferSource();
-    source.buffer = this.noiseBuffer;
-    const filter = ctx.createBiquadFilter();
-    filter.type = filterType;
-    filter.frequency.value = freq;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(gain, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
-    source.connect(filter).connect(g).connect(out);
-    source.start(t, Math.random());
-    source.stop(t + duration + 0.02);
-  }
 
-  private sweep(t: number, duration: number, f0: number, f1: number, gain: number): void {
-    const ctx = this.ctx!;
-    const source = ctx.createBufferSource();
-    source.buffer = this.noiseBuffer;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.Q.value = 2;
-    filter.frequency.setValueAtTime(f0, t);
-    filter.frequency.exponentialRampToValueAtTime(f1, t + duration);
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(gain, t + duration * 0.3);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
-    source.connect(filter).connect(g).connect(this.sfx);
-    source.start(t, Math.random());
-    source.stop(t + duration + 0.02);
-  }
 
-  private whistle(t: number, duration: number, volume: number): void {
-    const ctx = this.ctx!;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 900;
-    filter.Q.value = 1.2;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.16 * volume, t + 0.08);
-    g.gain.setValueAtTime(0.16 * volume, t + duration - 0.15);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
-    filter.connect(g).connect(this.sfx);
-    const vibrato = ctx.createOscillator();
-    vibrato.frequency.value = 6;
-    const vibratoGain = ctx.createGain();
-    vibratoGain.gain.value = 7;
-    vibrato.connect(vibratoGain);
-    for (const f of [587, 740, 880]) {
-      const osc = ctx.createOscillator();
-      osc.type = 'sawtooth';
-      osc.frequency.value = f;
-      vibratoGain.connect(osc.frequency);
-      osc.connect(filter);
-      osc.start(t);
-      osc.stop(t + duration + 0.05);
-    }
-    vibrato.start(t);
-    vibrato.stop(t + duration + 0.05);
-    this.noise(t, duration, 'highpass', 3000, 0.05 * volume);
-  }
-
-  private clack(t: number, volume: number): void {
-    this.noise(t, 0.05, 'bandpass', 2200, volume, this.ambience);
-    this.tone(t, 180, 90, 0.07, 'sine', volume * 1.2, 0.003, this.ambience);
+  private clack(volume: number): void {
+    const cfg = AUDIO.clack;
+    const sample = this.samples.get(cfg.samples[Math.floor(Math.random() * cfg.samples.length)]);
+    if (!sample) return;
+    this.start(sample, 1 + cfg.jitter * (Math.random() * 2 - 1), cfg.gain * volume, this.ambience);
   }
 
   /** Four-bar loop, F major: F – Dm – B♭ – C. Pad, bass and a gentle pentatonic pluck. */

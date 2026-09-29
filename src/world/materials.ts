@@ -28,6 +28,8 @@ export const PATTERN = {
    * soft seams and staggered end joints. `scale` is the plank width.
    */
   boards: 10,
+  /** Chevron parquet: diagonal blocks mirrored column to column (luxurious rooms). `scale` is the column width. */
+  chevron: 11,
 } as const;
 
 const PATTERN_VERTEX_HEAD = /* glsl */ `
@@ -83,6 +85,16 @@ float patternMask(vec3 pos, vec3 n, vec2 pat) {
   if (type < 7.5) return sqw(h * 0.5);
   if (type < 8.5) return thin(h, 0.14);
   if (type < 9.5) return thin(p.x, 0.08) + thin(p.y * 0.23 + floor(p.x) * 0.37, 0.03);
+  if (type > 10.5) {
+    // Chevron: columns of diagonal blocks, the diagonal flipping each column; each block its own tone.
+    float c = floor(p.x);
+    float s = mod(c, 2.0) < 0.5 ? 1.0 : -1.0;
+    float d = (p.y + s * fract(p.x)) * 2.2;
+    float seamC = thin(p.x, 0.05);
+    float seamD = thin(d, 0.07);
+    float tone = hash21(vec2(c, floor(d)));
+    return max(max(seamC, seamD) * 0.85, tone * 0.35);
+  }
   // Boards: plank index across, a staggered segment index along; each board gets its own tone.
   float ix = floor(p.x);
   float along = p.y * 0.2 + hash21(vec2(ix, 3.1)) * 5.0;

@@ -20,6 +20,8 @@ const options = {
   legalComments: 'none',
   define: { 'process.env.NODE_ENV': '"production"' },
   logLevel: 'warning',
+  // Sound samples ride inside the one HTML file.
+  loader: { '.mp3': 'base64' },
 };
 
 function emit(result) {

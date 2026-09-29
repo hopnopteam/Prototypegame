@@ -23,6 +23,19 @@ export const ECONOMY = {
   player: {
     moveSpeed: 5.0,
     acceleration: 38,
+    /** Stopping and turning back are firmer than starting, so the conductor stops where you let go. */
+    braking: 70,
+    /**
+     * Stick response: full speed a little before the rim (`fullSpeedAt` of the throw), and a gentle curve
+     * (`stickCurve` > 1) so small movements of the thumb give slow, precise steps.
+     */
+    fullSpeedAt: 0.85,
+    stickCurve: 1.3,
+    /** Walking into a wall within this far of an opening slides you into it (doorways, gangways, props). */
+    doorAssist: 0.38,
+    /** Metres per footstep sound, and the chance an old (run-down) floorboard creaks underfoot. */
+    stepLength: 0.62,
+    creakChance: 0.1,
     radius: 0.3,
     baseCarryCapacity: 3,
     /** Quick travel (tap a carriage on the train map) walks the route this much faster… */

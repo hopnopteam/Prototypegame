@@ -14,6 +14,11 @@ const NEXT_DELAY_SECONDS = 1.8;
 export class Objectives {
   /** Seconds left on the "done" celebration before advancing. */
   private doneTimer = 0;
+  /**
+   * What the player did while an earlier goal was up: the next goal counts it, so "pick up your cash"
+   * never asks again for something you already did a moment ago.
+   */
+  private recent: Partial<Record<ObjectiveEvent, number>> = {};
 
   constructor(private readonly w: World) {}
 
@@ -84,19 +89,31 @@ export class Objectives {
 
   private count(event: ObjectiveEvent, amount = 1, unlock?: UnlockDef): void {
     const def = this.current;
-    if (!def || this.done || def.event !== event || isTotal(def)) return;
-    if (def.filter && (!unlock || !matches(unlock, def.filter))) return;
+    const counts = !!def && !this.done && def.event === event && !isTotal(def) && (!def.filter || (!!unlock && matches(unlock, def.filter)));
+    if (!def || !counts) {
+      // Not this goal's business: remember it for the next one.
+      if (!unlock) this.recent[event] = (this.recent[event] ?? 0) + amount;
+      return;
+    }
     this.state.progress = Math.min(def.target, this.state.progress + amount);
     this.w.save.markDirty();
     if (this.state.progress >= def.target) this.complete(def);
   }
 
+
   /** A newly current objective may already be met (a level reached, an old save): settle it at once. */
   private activate(): void {
     const def = this.current;
     if (!def) return;
+    const earlier = this.recent[def.event] ?? 0;
+    this.recent = {};
     if (def.event === 'level') this.syncLevel();
     else if (isTotal(def)) this.syncTotal();
+    else if (earlier > 0 && !def.filter && def.event !== 'rush' && def.event !== 'perfectStop') {
+      // Already done while the last goal was up: counts now.
+      this.state.progress = Math.min(def.target, this.state.progress + earlier);
+      if (this.state.progress >= def.target) this.complete(def);
+    }
   }
 
   /**

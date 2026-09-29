@@ -15,9 +15,13 @@ export const INNER = HALF_WIDTH - WALL;
 /** Corridor runs along the left (1.2 m, room to pass); rooms sit to the right of this partition. */
 export const PARTITION_X0 = -0.84;
 export const PARTITION_X1 = -0.7;
-/** Room doorways: wide enough to walk through without threading a needle (they slide open as you come). */
-export const ROOM_DOOR_WIDTH = 1.2;
-export const ROOM_DOOR_OFFSET = 0.3;
+/**
+ * Room doorways: wide and in the middle of the room's wall, so you walk straight in onto the room's work spot
+ * without threading a needle (bi-parting doors slide into the wall on both sides as you come).
+ */
+export const ROOM_DOOR_WIDTH = 1.4;
+/** A doorway centred on a room's corridor wall. */
+const centredDoor = (z0: number, z1: number): [number, number] => [(z0 + z1) / 2 - ROOM_DOOR_WIDTH / 2, (z0 + z1) / 2 + ROOM_DOOR_WIDTH / 2];
 export const EXTERIOR_WALL_HEIGHT = 1.1;
 export const INTERIOR_WALL_HEIGHT = 0.85;
 export const GANGWAY_HALF = 0.7;
@@ -242,8 +246,7 @@ class LayoutBuilder {
     for (let c = 0; c < count; c++) {
       const cz0 = z0 + c * len;
       const cz1 = cz0 + len;
-      const doorZ0 = cz0 + ROOM_DOOR_OFFSET;
-      const doorZ1 = doorZ0 + ROOM_DOOR_WIDTH;
+      const [doorZ0, doorZ1] = centredDoor(cz0, cz1);
       const doorZ = (doorZ0 + doorZ1) / 2;
       partitionGaps.push([doorZ0, doorZ1]);
 
@@ -409,8 +412,7 @@ function buildBathroom(): CarriageLayout {
     const z1 = z0 + len;
     b.wall(PARTITION_X1, z0 - 0.06, INNER, z0 + 0.06);
     if (index === count - 1) b.wall(PARTITION_X1, z1 - 0.06, INNER, z1 + 0.06);
-    const doorZ0 = z0 + ROOM_DOOR_OFFSET;
-    const doorZ1 = doorZ0 + ROOM_DOOR_WIDTH;
+    const [doorZ0, doorZ1] = centredDoor(z0, z1);
     const doorZ = (doorZ0 + doorZ1) / 2;
     gaps.push([doorZ0, doorZ1]);
     b.room(PARTITION_X1, z0 + 0.06, INNER, z1 - 0.06);

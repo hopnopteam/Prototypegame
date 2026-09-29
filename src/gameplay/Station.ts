@@ -339,7 +339,7 @@ export class Station {
         zone.progress += (dt / w.econ.zones.boardIntervalSeconds) * actor.workMultiplier;
         if (zone.progress < 1) return true;
         zone.progress = 0;
-        const guest = w.guests.boardNext();
+        const guest = w.guests.boardNext(actor.isPlayer);
         if (guest) {
           w.audio.play('punch');
           if (actor.isPlayer) w.haptics.light();

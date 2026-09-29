@@ -662,6 +662,7 @@ export class Game implements World {
 
   /** Train map tap: dash to what that carriage needs, or to its middle. */
   travelToCarriage(index: number): void {
+    this.coach.learn('map');
     if (index < 0 || index >= this.train.count) return;
     this.player.travelTo(this.needs.destination(index));
     this.setFlag('coach_map');

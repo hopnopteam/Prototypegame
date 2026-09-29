@@ -23,6 +23,7 @@ import {
 } from './layout';
 import { MATERIALS, PATTERN } from './materials';
 import { CARRIAGE_THEMES, PALETTE, type CarriageTheme } from './palette';
+import { buildCobwebs, buildFloor, type FloorResult } from './Floors';
 
 /** Height of every walkable floor (train and platform); the ground is at y = 0. */
 export const FLOOR_Y = 0.55;
@@ -66,12 +67,6 @@ const shortenEnds = (r: Rect, by: number): Rect => (r.z1 - r.z0 >= r.x1 - r.x0 ?
 const SHELF_LOW = 0.3;
 const SHELF_HIGH = 0.62;
 const SHELF_TOP = 0.012;
-/** The cabin mat: half-size around the cleaning spot, layer thickness, and each layer's inset. */
-const MAT_HALF = { x: 0.55, z: 0.52 };
-const MAT_STEP = 0.006;
-const MAT_INSET = 0.045;
-/** A dirty room's mat colour multiplier (trodden and dim) before it is tidied. */
-const MAT_DIRTY = [0.72, 0.68, 0.62] as const;
 /** Mess pieces are built this much bigger than their MESS_CELL, so they read at phone zoom. */
 const MESS_SCALE = 1.9;
 /**
@@ -88,19 +83,14 @@ interface CabinMess {
   heart: { x: number; z: number };
 }
 
-/** A mat's layers, bottom to top, by tier: worn and dull, then clean oatmeal, then colour, then gold. */
-function matLayers(tier: number, theme: CarriageTheme): string[] {
-  if (tier <= 0) return ['#8F8373', '#A89B88'];
-  if (tier === 1) return ['#CDBE9F', '#EDE3CF'];
-  if (tier === 2) return ['#F4EBDA', theme.deep];
-  return [PALETTE.gold, theme.deep, '#F4EBDA', theme.deep];
-}
 
 /** The washroom stock stand: panel width, board tops and overall height (metres above the floor). */
 const WASH_SHELF = { side: 0.03, middle: 0.33, top: 0.6, height: 0.64 };
 /** Room door leaves: height, and each leaf's offset from the partition centre (they pass inside it). */
 const LEAF_HEIGHT = 0.66;
 const LEAF_GAP = 0.04;
+/** An open leaf stops this far short of the end of the wall it slides into. */
+const DOOR_POCKET_MARGIN = 0.015;
 
 /** How a carriage looks at a refurbishment tier: the whole rags-to-riches story in one table. */
 interface Finish {
@@ -158,6 +148,7 @@ const tmpMatrix = new THREE.Matrix4();
 const tmpQuat = new THREE.Quaternion();
 const tmpPos = new THREE.Vector3();
 const ONE = new THREE.Vector3(1, 1, 1);
+const tmpScale = new THREE.Vector3(1, 1, 1);
 const UP = new THREE.Vector3(0, 1, 0);
 
 /**
@@ -206,7 +197,7 @@ class StockRack {
   }
 }
 
-/** A doorway's sliding door: two leaves that telescope into the wall beside it. */
+/** A doorway's sliding door: two leaves that part and slide into the wall on either side. */
 export interface RoomDoor {
   kind: 'cabin' | 'bath';
   index: number;
@@ -219,6 +210,11 @@ export interface RoomDoor {
   /** First of this door's two instances in the carriage's leaf mesh, and each leaf's closed position. */
   instance: number;
   closedZ: [number, number];
+  /**
+   * Each leaf's length, which is also how far it slides (front leaf toward −z, back leaf toward +z). A leaf
+   * is only as long as the wall beside it, so an open door always vanishes completely.
+   */
+  lengths: [number, number];
 }
 
 /**
@@ -243,7 +239,6 @@ export class CarriageView {
   /** Each cabin's mess after a guest leaves: pieces that clear away as it is tidied, and floor stains. */
   private readonly mess: CabinMess[] = [];
   /** Each cabin's mat: its own material, so a dirty room's mat dims and brightens back as it is tidied. */
-  private readonly mats: THREE.Mesh[] = [];
   private readonly cabinLocked: boolean[] = [];
   private readonly doors: THREE.Mesh[] = [];
   private readonly bathroomTowels: StockRack[] = [];
@@ -258,6 +253,7 @@ export class CarriageView {
   /** What sleepers are tucked under: matches the bedspread at this tier. */
   readonly blanketColor: string;
   private readonly finish: Finish;
+  private floorInfo: FloorResult = { queueBase: FLOOR_Y };
 
   constructor(readonly layout: CarriageLayout, readonly index: number, readonly tier = 0) {
     this.theme = CARRIAGE_THEMES[layout.type];
@@ -277,8 +273,6 @@ export class CarriageView {
     if (bed) bed.visible = !locked;
     const comforts = this.cabinComforts[cabin];
     if (comforts) comforts.visible = !locked;
-    const mat = this.mats[cabin];
-    if (mat) mat.visible = !locked;
     this.cabinLocked[cabin] = locked;
     const mess = this.mess[cabin];
     if (mess && locked) mess.group.visible = false;
@@ -306,12 +300,11 @@ export class CarriageView {
     if (mess.group.visible === dirty) return;
     mess.group.visible = dirty;
     if (dirty) this.setDirtFade(cabin, 0, 0);
-    else this.tintMat(cabin, 1);
   }
 
   /**
    * Tidying (0..1): one after another, each piece is swept in to the broom (a hop and a shrink toward the
-   * middle of the mat) and pops; last of all the bed straightens flat. The mat brightens back as it goes.
+   * cleaning spot) and pops; last of all the bed straightens flat.
    * `onPop` hears each piece as it vanishes (world position), for the puff and the sound.
    */
   setDirtFade(cabin: number, _spot: number, progress: number, onPop?: (x: number, y: number, z: number) => void): void {
@@ -343,20 +336,9 @@ export class CarriageView {
       );
       item.scale.setScalar(Math.max(0.001, home.scale * (1 - 0.8 * p)));
     });
-    this.tintMat(cabin, progress);
   }
 
-  /** 0 = the mat as a guest left it (dimmed, trodden), 1 = fresh. */
-  private tintMat(cabin: number, clean: number): void {
-    const mat = this.mats[cabin];
-    if (!mat) return;
-    const k = Math.min(1, Math.max(0, clean));
-    (mat.material as THREE.MeshLambertMaterial).color.setRGB(
-      MAT_DIRTY[0] + (1 - MAT_DIRTY[0]) * k,
-      MAT_DIRTY[1] + (1 - MAT_DIRTY[1]) * k,
-      MAT_DIRTY[2] + (1 - MAT_DIRTY[2]) * k,
-    );
-  }
+
 
   setBathroomStock(bathroom: number, towels: number, rolls: number): void {
     this.bathroomTowels[bathroom]?.show(towels);
@@ -382,12 +364,13 @@ export class CarriageView {
     }
   }
 
-  /** Slides a room door: the front leaf travels a full width, the back leaf half, both into the wall. */
+  /** Slides a room door: the two leaves part and disappear into the wall on either side. */
   setRoomDoor(door: RoomDoor, amount: number): void {
     if (amount === door.open || !this.leafMesh) return;
     door.open = amount;
     for (let k = 0; k < 2; k++) {
-      tmpMatrix.makeTranslation(door.x + (k === 0 ? -LEAF_GAP : LEAF_GAP), FLOOR_Y + LEAF_HEIGHT / 2, door.closedZ[k] + amount * door.width * (k === 0 ? 1 : 0.5));
+      tmpPos.set(door.x + (k === 0 ? -LEAF_GAP : LEAF_GAP), FLOOR_Y + LEAF_HEIGHT / 2, door.closedZ[k] + amount * door.lengths[k] * (k === 0 ? -1 : 1));
+      tmpMatrix.compose(tmpPos, tmpQuat.identity(), tmpScale.set(1, 1, door.lengths[k] / (door.width / 2)));
       this.leafMesh.setMatrixAt(door.instance + k, tmpMatrix);
     }
     this.leafMesh.instanceMatrix.needsUpdate = true;
@@ -463,9 +446,17 @@ export class CarriageView {
     const lamps = new GeoBuilder();
     const fin = this.finish;
 
-    // Chassis: a skirt in the livery with a trim line, dark bogies below.
-    liv.box(0, 0.46, L / 2, HALF_WIDTH * 2 - 0.06, 0.16, L - 0.12, '#FFFFFF', 0, { shade: 0.8 });
-    trim.box(0, 0.525, L / 2, HALF_WIDTH * 2 - 0.02, 0.025, L - 0.1, '#FFFFFF', 0, FLAT);
+    // Chassis: a skirt in the livery with a trim line, dark bogies below. Skirt and trim are hollow frames,
+    // so the space under the floor stays open for the run-down subfloor and joists to show through holes.
+    const skirtW = HALF_WIDTH * 2 - 0.06;
+    const skirtL = L - 0.12;
+    const rim = 0.14;
+    for (const side of [-1, 1]) {
+      liv.box(side * (skirtW / 2 - rim / 2), 0.46, L / 2, rim, 0.16, skirtL, '#FFFFFF', 0, { shade: 0.8 });
+      liv.box(0, 0.46, L / 2 + side * (skirtL / 2 - rim / 2), skirtW - rim * 2 - 0.004, 0.16, rim, '#FFFFFF', 0, { shade: 0.8 });
+      trim.box(side * (HALF_WIDTH - 0.01 - rim / 2), 0.525, L / 2, rim, 0.025, L - 0.1, '#FFFFFF', 0, FLAT);
+      trim.box(0, 0.525, L / 2 + side * ((L - 0.1) / 2 - rim / 2), HALF_WIDTH * 2 - 0.02 - rim * 2 - 0.004, 0.025, rim, '#FFFFFF', 0, FLAT);
+    }
     s.box(0, 0.28, L / 2, HALF_WIDTH * 2 - 0.6, 0.2, L - 0.8, PALETTE.undercarriage);
     for (const z of [2.3, L - 2.3]) {
       s.box(0, 0.2, z, 2.4, 0.18, 2.2, PALETTE.wheel);
@@ -473,10 +464,12 @@ export class CarriageView {
     }
     for (const z of [0.02, L - 0.02]) for (const x of [-1.3, 1.3]) s.cylinder(x, 0.42, z, 0.11, 0.11, 0.25, PALETTE.chrome, 10, 'z');
 
-    // Floor: one quiet base everywhere; rooms and the runner are the only overlays, and none overlap.
-    f.box(0, FLOOR_Y - 0.03, L / 2, HALF_WIDTH * 2 - 0.04, 0.06, L - 0.04, fin.floor, 0, { pattern: fin.floorPattern, color2: fin.floorSeam, scale: fin.floorScale, shade: 1 });
-    for (const cabin of this.layout.cabins) f.slab(cabin.room, FLOOR_Y, FLOOR_Y + LIFT, fin.room, 0, 0, { pattern: fin.roomPattern, color2: fin.roomSeam, scale: fin.roomScale, shade: 1 });
-    for (const bath of this.layout.bathrooms) f.slab(bath.room, FLOOR_Y, FLOOR_Y + LIFT, fin.room, 0, 0, { pattern: fin.roomPattern, color2: fin.roomSeam, scale: fin.roomScale, shade: 1 });
+    // Floor: the tier's boards (broken and old, then repaired, polished, parquet), rooms and rugs (Floors.ts).
+    this.floorInfo = buildFloor(f, this.layout, this.tier, this.theme, this.index * 7 + this.layout.type.length);
+    if (this.tier <= 0) {
+      const webs = buildCobwebs(this.layout, this.index + 3);
+      if (webs) this.group.add(webs);
+    }
     if (fin.runner && (this.layout.cabins.length > 0 || this.layout.bathrooms.length > 0)) {
       const z0 = this.layout.type === 'lobby' ? 6.1 : this.frontDepth() + 0.05;
       const z1 = L - REAR_VESTIBULE - 0.05;
@@ -589,18 +582,7 @@ export class CarriageView {
     if (mess.group.visible) this.setDirtFade(cabinIndex, 0, 0);
   }
 
-  /** The mat in the walk-in: plain layered slabs (no patterns), worn at first and finer with every tier. */
-  private buildMat(cabin: CabinLayout): THREE.Mesh {
-    const heart = cabin.spots[0] ?? cabin.center;
-    const r = rect(heart.x - MAT_HALF.x, heart.z - MAT_HALF.z, heart.x + MAT_HALF.x, heart.z + MAT_HALF.z);
-    const b = new GeoBuilder();
-    const layers = matLayers(this.tier, this.theme);
-    layers.forEach((color, i) => b.slab(r, FLOOR_Y + LIFT + i * MAT_STEP, FLOOR_Y + LIFT + (i + 1) * MAT_STEP, color, 0, i * MAT_INSET, FLAT));
-    const mesh = new THREE.Mesh(b.build(), new THREE.MeshLambertMaterial({ vertexColors: true }));
-    mesh.receiveShadow = true;
-    this.group.add(mesh);
-    return mesh;
-  }
+
 
 
   /** A drum of washing behind each machine's round window, turning slowly. */
@@ -776,15 +758,17 @@ export class CarriageView {
     if (type === 'lobby') {
       // Painted queue places: where to stand reads at a glance, and the line stays tidy.
       const mark = this.tier >= 2 ? this.theme.deep : '#B9AE9C';
+      const base = this.floorInfo.queueBase;
+      const inner = base > FLOOR_Y ? '#EFE5D2' : fin.floor;
       QUEUE_SLOTS.forEach((p, i) => {
-        f.disc(p.x, FLOOR_Y + LIFT, p.z, 0.22, mark, 24);
-        f.disc(p.x, FLOOR_Y + LIFT * 2, p.z, 0.17, fin.floor, 24);
+        f.disc(p.x, base + LIFT, p.z, 0.22, mark, 24);
+        f.disc(p.x, base + LIFT * 2, p.z, 0.17, inner, 24);
         const next = QUEUE_SLOTS[i + 1];
         if (!next) return;
         // A dotted guide to the next place.
         for (let k = 1; k <= 3; k++) {
           const t = k / 4;
-          f.disc(p.x + (next.x - p.x) * t, FLOOR_Y + LIFT, p.z + (next.z - p.z) * t, 0.035, mark, 10);
+          f.disc(p.x + (next.x - p.x) * t, base + LIFT, p.z + (next.z - p.z) * t, 0.035, mark, 10);
         }
       });
     }
@@ -833,7 +817,6 @@ export class CarriageView {
       this.cabinBeds[cabin.index] = bedGroup;
 
       this.cabinLocks[cabin.index] = this.lockOverlay(cabin.room);
-      this.mats[cabin.index] = this.buildMat(cabin);
       this.buildMess(cabin);
     }
 
@@ -892,9 +875,23 @@ export class CarriageView {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this.leafMesh = mesh;
+    // The partition's solid stretches either side of each doorway: a leaf slides as far as its wall allows.
+    const partition = this.layout.walls.filter((w) => Math.abs(w.x0 - PARTITION_X0) < 0.02 && Math.abs(w.x1 - PARTITION_X1) < 0.02);
+    const wallRoom = (edge: number, forward: boolean): number => {
+      const wall = partition.find((w) => Math.abs((forward ? w.z0 : w.z1) - edge) < 0.02);
+      return wall ? wall.z1 - wall.z0 : 0;
+    };
     doors.forEach((d, i) => {
-      const closedZ: [number, number] = [d.span[0] + leafLength * 0.5, d.span[0] + leafLength * 1.5];
-      const door: RoomDoor = { kind: d.kind, index: d.index, x, z: (d.span[0] + d.span[1]) / 2, open: -1, locked: false, width, instance: i * 2, closedZ };
+      const front = wallRoom(d.span[0], false) - DOOR_POCKET_MARGIN;
+      const rear = wallRoom(d.span[1], true) - DOOR_POCKET_MARGIN;
+      let a = Math.min(width / 2, front);
+      let b = width - a;
+      if (b > rear) {
+        b = rear;
+        a = Math.min(width - b, front);
+      }
+      const closedZ: [number, number] = [d.span[0] + a / 2, d.span[1] - b / 2];
+      const door: RoomDoor = { kind: d.kind, index: d.index, x, z: (d.span[0] + d.span[1]) / 2, open: -1, locked: false, width, instance: i * 2, closedZ, lengths: [a, b] };
       this.roomDoors.push(door);
       this.setRoomDoor(door, 0);
     });

@@ -823,7 +823,7 @@ export class TrainState {
         }
         w.audio.play('drop');
         this.persistBathrooms();
-        w.events.emit('bathroom.restocked', {});
+        w.events.emit('bathroom.restocked', { byPlayer: actor.isPlayer });
         w.events.emit('item.dropped', { item: 'towel', byPlayer: actor.isPlayer });
         return true;
       },

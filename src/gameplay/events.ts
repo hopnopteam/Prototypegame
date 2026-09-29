@@ -5,7 +5,7 @@ export interface GameEvents {
   'currency.changed': { kind: CurrencyKind; amount: number; delta: number; source: string };
   'cash.collected': { amount: number; x: number; z: number };
   'guest.checkedIn': { fare: number; x: number; z: number; byPlayer: boolean };
-  'guest.boarded': Record<string, never>;
+  'guest.boarded': { byPlayer: boolean };
   'guest.alighted': { tip: number };
   'request.fulfilled': { item: ItemKind; tip: number; x: number; z: number; byPlayer: boolean; speedy: boolean };
   'cabin.cleaned': { byPlayer: boolean; x: number; z: number };
@@ -28,7 +28,7 @@ export interface GameEvents {
   'rush.bonus': { streak: number; cash: number };
   'conductor.upgraded': { key: string; level: number };
   'bathroom.used': { tipped: boolean };
-  'bathroom.restocked': Record<string, never>;
+  'bathroom.restocked': { byPlayer: boolean };
   'crate.delivered': Record<string, never>;
   'ftue.step': { step: string };
   'postcard.collected': { id: string; name: string };

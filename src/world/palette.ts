@@ -59,6 +59,8 @@ export const PALETTE = {
   /** Floorboards (MPH-style): honey planks, each a little darker or lighter, with soft seams. */
   boards: '#E9C895',
   boardsSeam: '#C29A66',
+  /** Cosy rooms: the same boards, polished to a deeper glow. */
+  boardsPolished: '#DDB57F',
   /** Run-down floorboards: the same boards, weathered grey. */
   plankWorn: '#CFC4B2',
   plankWornSeam: '#A2968A',

@@ -71,8 +71,11 @@ export class Walkable {
     return true;
   }
 
-  /** Moves `pos` by (dx, dz), sliding along walls. Sub-steps so fast movers never skip a thin wall. */
-  move(pos: Vec2, dx: number, dz: number): void {
+  /**
+   * Moves `pos` by (dx, dz), sliding along walls. Sub-steps so fast movers never skip a thin wall. With
+   * `assist` (metres), walking into a wall close beside an opening slides you into the opening.
+   */
+  move(pos: Vec2, dx: number, dz: number, assist = 0): void {
     const length = Math.hypot(dx, dz);
     const steps = Math.max(1, Math.ceil(length / STEP));
     const sx = dx / steps;
@@ -87,10 +90,37 @@ export class Walkable {
         pos.x = nx;
       } else if (sz !== 0 && this.isWalkable(pos.x, nz)) {
         pos.z = nz;
-      } else {
+      } else if (!(assist > 0 && this.funnel(pos, sx, sz, assist))) {
         break;
       }
     }
+  }
+
+  /**
+   * Blocked head-on: look sideways (up to `reach`) for a spot from which the same step would go through,
+   * and slide one step toward the nearer one. This is what makes a doorway easy to hit with a thumb.
+   */
+  private funnel(pos: Vec2, sx: number, sz: number, reach: number): boolean {
+    const step = Math.hypot(sx, sz);
+    if (step < 1e-5) return false;
+    // Perpendicular to the direction of travel.
+    const px = -sz / step;
+    const pz = sx / step;
+    for (let o = STEP * 0.75; o <= reach + 1e-6; o += STEP * 0.75) {
+      for (const side of [1, -1]) {
+        const ox = pos.x + px * o * side;
+        const oz = pos.z + pz * o * side;
+        if (!this.isWalkable(ox, oz) || !this.isWalkable(ox + sx * 2, oz + sz * 2)) continue;
+        const slide = Math.min(step, o);
+        const nx = pos.x + px * slide * side;
+        const nz = pos.z + pz * slide * side;
+        if (!this.isWalkable(nx, nz)) continue;
+        pos.x = nx;
+        pos.z = nz;
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Closest walkable point, used to rescue anything left standing where a door just closed. */

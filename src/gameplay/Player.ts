@@ -2,6 +2,7 @@ import { SCOOTER_SPEED_BONUS } from '../config/content';
 import { approach, dampAngle } from '../core/math';
 import type { Vec2 } from '../core/types';
 import { FLOOR_Y } from '../world/CarriageView';
+import { carriageOriginZ, HALF_WIDTH } from '../world/layout';
 import { CharacterView, CONDUCTOR_LOOK } from '../world/CharacterView';
 import type { Actor } from './Actor';
 import { CarryStack } from './CarryStack';
@@ -39,6 +40,7 @@ export class Player implements Actor {
   /** Quick travel (tap a carriage on the train map): walks the route at dash speed until you touch the stick. */
   readonly travel: PathFollower;
   private dashTrail = 0;
+  private stepDistance = 0;
 
   constructor(private readonly w: World, private readonly input: Input, spawn: Vec2) {
     this.pos = { x: spawn.x, z: spawn.z };
@@ -60,6 +62,19 @@ export class Player implements Actor {
     this.travel.go(this.pos, target);
   }
 
+  /** Soft steps on the boards as the conductor walks; an old floorboard creaks now and then. */
+  private footsteps(moved: number): void {
+    const w = this.w;
+    this.stepDistance += moved;
+    if (this.stepDistance < w.econ.player.stepLength || this.speedNow < 0.8) return;
+    this.stepDistance = 0;
+    w.audio.play('step', { volume: Math.min(1, 0.5 + this.speedNow / 10) });
+    if (Math.abs(this.pos.x) > HALF_WIDTH) return;
+    let carriage = 0;
+    for (let i = 0; i < w.train.count; i++) if (this.pos.z >= carriageOriginZ(i) - 0.6) carriage = i;
+    if (w.train.tierOf(carriage) <= 0 && w.rng.chance(w.econ.player.creakChance)) w.audio.play('creak');
+  }
+
   capacity(): number {
     return this.w.econ.player.baseCarryCapacity + this.w.data.conductor.capacity * this.w.econ.conductor.capacity.perLevel;
   }
@@ -78,8 +93,15 @@ export class Player implements Actor {
 
   update(dt: number): void {
     const w = this.w;
+    const p = w.econ.player;
     this.stack.capacity = this.capacity();
     let stick = this.input.read();
+    // Shape the thumb: slow and precise near the centre, full speed a little before the rim.
+    const throwLength = Math.hypot(stick.x, stick.y);
+    if (throwLength > 1e-4 && !this.input.override) {
+      const shaped = Math.pow(Math.min(1, throwLength / p.fullSpeedAt), p.stickCurve);
+      stick = { x: (stick.x / throwLength) * shaped, y: (stick.y / throwLength) * shaped };
+    }
     let max = this.speed();
     if (this.travel.active) {
       // Any touch on the stick takes back control.
@@ -88,7 +110,6 @@ export class Player implements Actor {
         const left = this.travel.remaining(this.pos);
         stick = this.travel.steer(this.pos, dt) ?? { x: 0, y: 0 };
         // Quick travel takes at most a second and a half, however long the train has grown.
-        const p = w.econ.player;
         max *= Math.min(p.maxDashMultiplier, Math.max(p.dashMultiplier, left / (p.dashMaxSeconds * this.speed())));
         this.dashTrail -= dt;
         if (this.dashTrail <= 0 && this.speedNow > 1) {
@@ -126,7 +147,9 @@ export class Player implements Actor {
     // Screen up is world -z; screen right is world +x (the camera looks up the train).
     const tx = stick.x * max;
     const tz = stick.y * max;
-    const accel = w.econ.player.acceleration * dt;
+    // Firmer when stopping or turning back than when setting off: you stop where you let go.
+    const slowing = tx * this.vx + tz * this.vz < 0 || Math.hypot(tx, tz) < Math.hypot(this.vx, this.vz) - 0.05;
+    const accel = (slowing ? p.braking : p.acceleration) * dt;
     this.vx = approach(this.vx, tx, accel);
     this.vz = approach(this.vz, tz, accel);
     // Safety net: if the floor ever closed around the conductor (a door shutting on them, a carriage
@@ -140,9 +163,10 @@ export class Player implements Actor {
     const moving = Math.hypot(this.vx, this.vz) > 0.05;
     if (moving) {
       const before = { x: this.pos.x, z: this.pos.z };
-      w.map.walk.move(this.pos, this.vx * dt, this.vz * dt);
+      w.map.walk.move(this.pos, this.vx * dt, this.vz * dt, this.travel.active ? 0 : p.doorAssist);
       const moved = Math.hypot(this.pos.x - before.x, this.pos.z - before.z);
       this.speedNow = moved / Math.max(1e-4, dt);
+      this.footsteps(moved);
       if (Math.hypot(tx, tz) > 0.1) this.facing = dampAngle(this.facing, Math.atan2(tx, tz), 14, dt);
       this.idleSeconds = 0;
     } else {

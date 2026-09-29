@@ -138,7 +138,7 @@ export class Guests {
   }
 
   /** Boards the next platform guest: they walk in through the door and join the desk queue. */
-  boardNext(): Guest | null {
+  boardNext(byPlayer = false): Guest | null {
     if (this.bedsFree() <= 0) return null;
     const guest = this.list.find((g) => g.state === 'platform');
     if (!guest) return null;
@@ -153,7 +153,7 @@ export class Guests {
     const slot = this.slotPosition(guest.queueSlot);
     const path = [door.outside, door.inside, slot];
     guest.mover.go(path, () => this.arriveInQueue(guest));
-    this.w.events.emit('guest.boarded', {});
+    this.w.events.emit('guest.boarded', { byPlayer });
     return guest;
   }
 
