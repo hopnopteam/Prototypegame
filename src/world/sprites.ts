@@ -443,3 +443,64 @@ export function headlineTexture(text: string): THREE.CanvasTexture {
   ctx.strokeRect(3, 3, 314, 194);
   return finishTexture(c);
 }
+
+/** Years of grime on an old floor: soft irregular blotches and scuffs (tier 0 carriages). */
+let grimeTexture: THREE.CanvasTexture | null = null;
+export function getGrimeTexture(): THREE.CanvasTexture {
+  if (grimeTexture) return grimeTexture;
+  const [c, ctx] = canvas(128);
+  const blot = (x: number, y: number, r: number, alpha: number): void => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(88, 70, 52, ${alpha})`);
+    g.addColorStop(1, 'rgba(88, 70, 52, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  blot(64, 64, 58, 0.45);
+  blot(38, 44, 30, 0.35);
+  blot(90, 82, 26, 0.4);
+  blot(70, 30, 18, 0.3);
+  ctx.strokeStyle = 'rgba(70, 55, 40, 0.35)';
+  ctx.lineWidth = 2;
+  for (const [x0, y0, x1, y1] of [[30, 80, 60, 92], [70, 60, 100, 52], [44, 30, 58, 22]]) {
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
+  grimeTexture = finishTexture(c);
+  return grimeTexture;
+}
+
+/** A cobweb for a dusty corner: radial threads and sagging rings (tier 0 carriages). */
+let cobwebTexture: THREE.CanvasTexture | null = null;
+export function getCobwebTexture(): THREE.CanvasTexture {
+  if (cobwebTexture) return cobwebTexture;
+  const [c, ctx] = canvas(128);
+  ctx.strokeStyle = 'rgba(250, 250, 245, 0.85)';
+  ctx.lineWidth = 1.6;
+  // Anchored in the top-left corner (the room corner), spreading into the quarter circle.
+  for (let i = 0; i <= 5; i++) {
+    const a = (i / 5) * (Math.PI / 2);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(a) * 124, Math.sin(a) * 124);
+    ctx.stroke();
+  }
+  for (const r of [28, 52, 78, 104]) {
+    ctx.beginPath();
+    for (let i = 0; i <= 5; i++) {
+      const a = (i / 5) * (Math.PI / 2);
+      const sag = i > 0 && i < 5 ? 0.9 : 1;
+      const x = Math.cos(a) * r * sag;
+      const y = Math.sin(a) * r * sag;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  cobwebTexture = finishTexture(c);
+  return cobwebTexture;
+}

@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { rect, type CarriageType, type Rect } from '../core/types';
-import { GeoBuilder, type PartStyle } from './geo';
+import { GeoBuilder, mergePlanes, type PartStyle } from './geo';
 import {
   CARRIAGE_LENGTH,
   DOOR_Z0,
   DOOR_Z1,
+  EXTERIOR_WALL_HEIGHT,
+  GANGWAY_HALF,
   GANGWAY_LENGTH,
   HALF_WIDTH,
   INNER,
@@ -21,7 +23,7 @@ import {
 } from './layout';
 import { MATERIALS, PATTERN } from './materials';
 import { CARRIAGE_THEMES, PALETTE, type CarriageTheme } from './palette';
-import { getDirtTexture } from './sprites';
+import { getCobwebTexture, getDirtTexture, getGrimeTexture } from './sprites';
 
 /** Height of every walkable floor (train and platform); the ground is at y = 0. */
 export const FLOOR_Y = 0.55;
@@ -43,6 +45,14 @@ export function windowSpacing(len: number): { count: number; slot: number; width
   return { count, slot, width: Math.min(0.9, slot - 0.45) };
 }
 const FLAT: PartStyle = { shade: 1 };
+/** Missing-board slots sit this far above the floor, clear of the room overlays (no shared planes). */
+const DAMAGE_LIFT = 0.018;
+/**
+ * Heights (above the floor) of everything lying flat on it, each in its own layer at least 4 mm from the
+ * next: rooms 0–6 mm, queue marks to 11, runners 12, board gaps 15–21, puddle 22–26, cabin spills to 29,
+ * grime 30–33, stains 34/40, papers 37–57.
+ */
+const FLOOR_LAYER = { puddle: 0.024, grime: 0.03, litter: 0.04 } as const;
 /** Each piece of a cabin's mess pops away over this share of the tidying. */
 const MESS_POP = 0.18;
 /** A hex colour lightened (+) or darkened (−). */
@@ -101,7 +111,8 @@ function finishFor(type: CarriageType, tier: number, t: CarriageTheme): Finish {
     wall: t.wall, wallLow: t.wallLow, panelled: tier >= 3, cap: PALETTE.walnut,
     floor: PALETTE.oak, floorSeam: PALETTE.oakMid, floorPattern: PATTERN.planks, floorScale: 0.3,
   };
-  if (tier === 1) return { ...base, ...oakRoom, runner: null, curtains: false, lamps: 1, decor: false };
+  // Repaired: sound, clean and plain (neutral paint); the carriage's own colours arrive at Cosy.
+  if (tier === 1) return { ...base, wall: '#EFEADF', wallLow: '#D8D0C0', ...oakRoom, runner: null, curtains: false, lamps: 1, decor: false };
   if (tier === 2) return { ...base, ...carpetRoom, runner: { body: t.deep, edge: t.wall }, curtains: true, lamps: 2, decor: false };
   return { ...base, ...carpetRoom, runner: { body: t.deep, edge: PALETTE.gold }, curtains: true, lamps: 3, decor: true };
 }
@@ -362,6 +373,7 @@ export class CarriageView {
     this.buildDecor(s, f, lamps);
     this.buildDoorFrames(s);
     this.buildSpinners();
+    if (this.tier <= 0) this.buildDamage(s);
 
     const add = (builder: GeoBuilder, material: THREE.Material, cast: boolean, receive: boolean): void => {
       if (builder.isEmpty) return;
@@ -404,7 +416,7 @@ export class CarriageView {
     };
     const top = FLOOR_Y + BED_TOP + 0.06;
     // Order = the order they clear: litter first, the bed last (the big reveal).
-    piece((b) => b.box(0, FLOOR_Y + 0.012, 0, 0.36, 0.014, 0.46, '#EFE8D8', 0, { shade: 1 }).box(0.04, FLOOR_Y + 0.021, -0.08, 0.26, 0.004, 0.03, '#8A8378', 0, { shade: 1 }).box(0.04, FLOOR_Y + 0.021, 0.02, 0.26, 0.004, 0.03, '#8A8378', 0, { shade: 1 }), heart.x - 0.28, heart.z + 0.32, 0.6);
+    piece((b) => b.box(0, FLOOR_Y + 0.044, 0, 0.36, 0.008, 0.46, '#EFE8D8', 0, { shade: 1 }).box(0.04, FLOOR_Y + 0.051, -0.08, 0.26, 0.004, 0.03, '#8A8378', 0, { shade: 1 }).box(0.04, FLOOR_Y + 0.051, 0.02, 0.26, 0.004, 0.03, '#8A8378', 0, { shade: 1 }), heart.x - 0.28, heart.z + 0.32, 0.6);
     piece((b) => b.cylinder(0, FLOOR_Y + 0.05, 0, 0.045, 0.036, 0.09, PALETTE.porcelain, 10, 'z').cylinder(0.02, FLOOR_Y + 0.024, 0.09, 0.09, 0.09, 0.006, '#9B6B45', 14, 'y', { shade: 1 }), heart.x + 0.3, heart.z - 0.28, 1.1);
     piece((b) => b.rounded(0, FLOOR_Y + 0.07, 0, 0.5, 0.13, 0.3, 0.06, PALETTE.pillow, { shade: 0.85 }), bed.x0 - 0.3, bed.z0 + 0.45, 0.35);
     piece((b) => b
@@ -423,6 +435,103 @@ export class CarriageView {
     }
     this.group.add(group);
     return { group, items, stains };
+  }
+
+  /**
+   * A carriage that has seen better days (tier 0 only; the first refurbishment repairs all of it): grime
+   * on the floor, gaps where planks are missing and one lifting, cobwebs in the corners, peeling patches on
+   * the end walls, and rust along the roof edge you see from above.
+   */
+  private buildDamage(s: GeoBuilder): void {
+    const L = CARRIAGE_LENGTH;
+    const seed = this.layout.type.length * 7 + this.index * 13;
+    const rand = (k: number): number => {
+      const x = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    };
+    // Missing floorboards: dark slots along the corridor and open floors, and one board lifting.
+    const floors = this.layout.rooms.filter((r) => r.x1 - r.x0 > 0.9 && r.z1 - r.z0 > 1.2);
+    for (let k = 0; k < 6 && floors.length > 0; k++) {
+      const r = floors[k % floors.length];
+      const len = 0.6 + rand(k) * 0.8;
+      const x = r.x0 + 0.3 + rand(k + 10) * Math.max(0.1, r.x1 - r.x0 - 0.6);
+      const z = r.z0 + 0.4 + rand(k + 20) * Math.max(0.1, r.z1 - r.z0 - len - 0.8);
+      s.box(x, FLOOR_Y + DAMAGE_LIFT, z + len / 2, 0.11, 0.006, len, '#34291F', 0, FLAT);
+      s.box(x + 0.02, FLOOR_Y + DAMAGE_LIFT, z + len + 0.04, 0.07, 0.006, 0.08, '#34291F', 0.4, FLAT);
+    }
+    // A leak in the roof: a tin bucket against the corridor wall catching drips, a puddle round it.
+    const corridor = this.layout.rooms.find((r) => r.x0 <= -INNER + 0.01 && r.z1 - r.z0 > 3) ?? floors[0];
+    if (corridor) {
+      const bz = corridor.z0 + (corridor.z1 - corridor.z0) * (0.3 + rand(120) * 0.4);
+      const bx = corridor.x0 + 0.22;
+      s.cylinder(bx, FLOOR_Y + 0.13, bz, 0.13, 0.1, 0.26, '#8D949A', 12, 'y', { shade: 0.8 });
+      s.cylinder(bx, FLOOR_Y + 0.25, bz, 0.115, 0.115, 0.012, '#6F9BB8', 12, 'y', FLAT);
+      s.cylinder(bx + 0.18, FLOOR_Y + FLOOR_LAYER.puddle, bz + 0.1, 0.3, 0.3, 0.004, '#9DB9CC', 18, 'y', FLAT);
+    }
+    // Litter: yesterday's papers drifting along the corridors (cabins have their own mess).
+    const cabinRooms = new Set(this.layout.cabins.map((c) => `${c.room.x0},${c.room.z0}`));
+    const open = floors.filter((r) => !cabinRooms.has(`${r.x0},${r.z0}`));
+    for (let k = 0; k < 3 && open.length > 0; k++) {
+      const r = open[(k + 2) % open.length];
+      const x = r.x0 + 0.25 + rand(k + 130) * Math.max(0.1, r.x1 - r.x0 - 0.5);
+      const z = r.z0 + 0.3 + rand(k + 140) * Math.max(0.1, r.z1 - r.z0 - 0.6);
+      s.add(new THREE.BoxGeometry(0.28, 0.006, 0.36), '#E7E0CF', x, FLOOR_Y + FLOOR_LAYER.litter + k * 0.006, z, 0, rand(k + 150) * 3, 0, FLAT);
+    }
+    if (floors.length > 0) {
+      const r = floors[0];
+      s.add(new THREE.BoxGeometry(0.13, 0.03, 0.9), '#B9A98E', r.x0 + 0.35, FLOOR_Y + 0.06, r.z0 + 0.9, 0.09, 0.2, 0, { shade: 0.9 });
+    }
+    // Peeling patches and a water stain on the front wall's inside face (it faces the camera).
+    const faceZ = WALL + 0.008;
+    let layer = 0;
+    for (let k = 0; k < 3; k++) {
+      const x = -INNER + 0.4 + rand(k + 30) * (INNER * 2 - 0.8);
+      if (Math.abs(x) < GANGWAY_HALF + 0.25) continue;
+      const w = 0.22 + rand(k + 40) * 0.25;
+      const h = 0.14 + rand(k + 50) * 0.2;
+      const y = FLOOR_Y + 0.5 + rand(k + 60) * 0.35;
+      // Each patch a little further out than the last, so overlapping patches never share a plane.
+      s.box(x, y, faceZ + layer * 0.006, w, h, 0.005, k === 0 ? '#B8B09A' : '#F3F0E6', 0, FLAT);
+      s.box(x + w * 0.2, y - h * 0.45, faceZ + layer * 0.006 + 0.004, w * 0.5, 0.02, 0.005, '#8E8674', 0, FLAT);
+      layer += 2;
+    }
+    // Rust along the roof edge on both sides.
+    for (const side of [-1, 1]) {
+      for (let k = 0; k < 5; k++) {
+        const z = 0.8 + rand(k * 3 + side + 70) * (L - 1.6);
+        const len = 0.25 + rand(k + 80) * 0.5;
+        s.box(side * (HALF_WIDTH - 0.06), FLOOR_Y + EXTERIOR_WALL_HEIGHT + 0.056 + k * 0.005, z, 0.1 - k * 0.006, 0.006, len, k % 2 ? '#8A5A3C' : '#A0673F', 0, FLAT);
+      }
+    }
+    // Grime on the floor and cobwebs in the corners: two transparent meshes for the whole carriage.
+    const grime: THREE.BufferGeometry[] = [];
+    for (let k = 0; k < 7 && open.length > 0; k++) {
+      const r = open[(k + 1) % open.length];
+      const size = 0.6 + rand(k + 90) * 0.7;
+      const plane = new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2).rotateY(rand(k + 95) * 6);
+      plane.translate(r.x0 + 0.3 + rand(k + 100) * Math.max(0.1, r.x1 - r.x0 - 0.6), FLOOR_Y + FLOOR_LAYER.grime + k * 0.0005, r.z0 + 0.3 + rand(k + 110) * Math.max(0.1, r.z1 - r.z0 - 0.6));
+      grime.push(plane);
+    }
+    if (grime.length > 0) {
+      const mesh = new THREE.Mesh(mergePlanes(grime), new THREE.MeshBasicMaterial({ map: getGrimeTexture(), transparent: true, depthWrite: false }));
+      mesh.renderOrder = 1;
+      this.group.add(mesh);
+      for (const g of grime) g.dispose();
+    }
+    const webs: THREE.BufferGeometry[] = [];
+    const webY = FLOOR_Y + EXTERIOR_WALL_HEIGHT - 0.12;
+    for (const [cx, cz, rot] of [[-INNER, WALL, 0], [INNER, WALL, -Math.PI / 2], [-INNER, L - WALL, Math.PI / 2], [INNER, L - WALL, Math.PI]] as [number, number, number][]) {
+      // The texture's corner is the web's anchor: turn each so it sits in its own corner.
+      const plane = new THREE.PlaneGeometry(0.55, 0.55).rotateX(-Math.PI / 2);
+      plane.translate(0.275, 0, 0.275);
+      plane.rotateY(rot);
+      plane.translate(cx, webY, cz);
+      webs.push(plane);
+    }
+    const webMesh = new THREE.Mesh(mergePlanes(webs), new THREE.MeshBasicMaterial({ map: getCobwebTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+    webMesh.renderOrder = 2;
+    this.group.add(webMesh);
+    for (const g of webs) g.dispose();
   }
 
   /** A drum of washing behind each machine's round window, turning slowly. */
@@ -532,8 +641,10 @@ export class CarriageView {
         if (i < count - 1 && i % lampEvery === 0) {
           const pz = zc + slot / 2;
           if (fin.lamps === 0) {
+            // Bare bulbs on a flex, every other one blown.
             s.box(innerFace + inward * 0.02, FLOOR_Y + 0.9, pz, 0.02, 0.1, 0.02, PALETTE.ink, 0, FLAT);
-            lamps.sphere(innerFace + inward * 0.05, FLOOR_Y + 0.82, pz, 0.035, PALETTE.lampShade, 0, 1, FLAT);
+            if (i % 4 === 0) lamps.sphere(innerFace + inward * 0.05, FLOOR_Y + 0.82, pz, 0.035, PALETTE.lampShade, 0, 1, FLAT);
+            else s.sphere(innerFace + inward * 0.05, FLOOR_Y + 0.82, pz, 0.035, '#8C8A84', 0, 1, FLAT);
           } else {
             s.box(innerFace + inward * 0.035, FLOOR_Y + 0.72, pz, 0.07, 0.025, 0.025, fin.lamps >= 3 ? PALETTE.brass : fin.cap, 0, FLAT);
             lamps.cylinder(innerFace + inward * 0.09, FLOOR_Y + 0.78, pz, 0.04, 0.065, 0.09, PALETTE.lampShade, 10, 'y', { shade: 0.9 });
@@ -672,7 +783,7 @@ export class CarriageView {
 
   private lockOverlay(room: Rect): THREE.Mesh {
     const lock = new THREE.Mesh(new THREE.PlaneGeometry(room.x1 - room.x0 - 0.04, room.z1 - room.z0 - 0.04).rotateX(-Math.PI / 2), MATERIALS.lockedOverlay);
-    lock.position.set((room.x0 + room.x1) / 2, FLOOR_Y + 0.05, (room.z0 + room.z1) / 2);
+    lock.position.set((room.x0 + room.x1) / 2, FLOOR_Y + 0.08, (room.z0 + room.z1) / 2);
     lock.visible = false;
     this.group.add(lock);
     return lock;

@@ -1,11 +1,10 @@
 import * as THREE from 'three';
 import { FLOOR_Y } from './CarriageView';
-import { GeoBuilder } from './geo';
+import { GeoBuilder, mergePlanes } from './geo';
 import { carriageOriginZ, DOOR_Z0, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0 } from './layout';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
 import { CharacterView, type CharacterLook } from './CharacterView';
-import { mergePlanes } from './ExteriorView';
 import { headlineTexture, posterTexture, signTexture } from './sprites';
 
 /** Marketing bought at the station workshop that shows on every platform. */

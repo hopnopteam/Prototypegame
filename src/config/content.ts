@@ -144,7 +144,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
     unlocks: [
       { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 30, stars: 2, cabin: 1, requires: [], effect: 'Room for one more guest' },
       { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 45, stars: 3, role: 'attendant', requires: ['cabin_1'], flags: ['firstCabinCleaned'], effect: 'Cleans cabins for you' },
-      { key: 'refurb_1', kind: 'refurb', label: 'Fresh Paint', price: 40, stars: 3, tier: 1, requires: ['hire_attendant'], effect: 'Fares +25% in this carriage' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 40, stars: 3, tier: 1, requires: ['hire_attendant'], effect: 'Fares +25% in this carriage' },
       { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 110, stars: 4, tier: 2, requires: ['refurb_1', '@couple_2'], effect: 'Fares +25% more in this carriage' },
       { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 110, stars: 3, role: 'porter', requires: ['@couple_2'], effect: 'Checks guests in and loads luggage' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Attendant Training', price: 110, stars: 2, role: 'attendant', requires: ['hire_porter'], effect: 'Attendant +20% speed, +1 carry' },
@@ -156,7 +156,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
     type: 'bathroom', name: 'Washroom Car', pitch: 'Guests tip for a fresh washroom. Its own closet keeps it stocked.', max: 1, cabins: 0, inside: '3 washrooms, a linen closet, the laundry',
     unlocks: [
       { key: 'bath_1', kind: 'bathroom', label: 'Washroom 2', price: 50, stars: 2, bathroom: 1, requires: ['couple', '@couple_2'], effect: 'Shorter washroom queues' },
-      { key: 'refurb_1', kind: 'refurb', label: 'Scrub & Tile', price: 60, stars: 3, tier: 1, requires: ['couple', '@couple_2'], effect: 'Washroom tips +50%' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs & Tiles', price: 60, stars: 3, tier: 1, requires: ['couple', '@couple_2'], effect: 'Washroom tips +50%' },
       { key: 'bath_2', kind: 'bathroom', label: 'Bath Suite', price: 120, stars: 3, bathroom: 2, requires: ['bath_1', '@couple_3'], effect: 'A third washroom, with a tub' },
       { key: 'refurb_2', kind: 'refurb', label: 'Cosy Washrooms', price: 180, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Washroom tips +50% more' },
       { key: 'refurb_3', kind: 'refurb', label: 'Marble & Brass', price: 340, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Washroom tips +50% more' },
@@ -166,7 +166,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
     type: 'supply', name: 'Stores Car', pitch: 'A runner keeps every washroom stocked for you.', max: 1, needs: ['bathroom'], cabins: 0, inside: 'Stores, crate bay, a staff room, a runner',
     unlocks: [
       { key: 'hire_runner', kind: 'hire', label: 'Supply Runner', price: 80, stars: 3, role: 'runner', requires: ['couple'], effect: 'Restocks washrooms for you' },
-      { key: 'refurb_1', kind: 'refurb', label: 'Fresh Paint', price: 55, stars: 3, tier: 1, requires: ['hire_runner'], effect: 'Every tip on the train +5%' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 55, stars: 3, tier: 1, requires: ['hire_runner'], effect: 'Every tip on the train +5%' },
       { key: 'up_runner', kind: 'staffUpgrade', label: 'Runner Training', price: 260, stars: 2, role: 'runner', requires: ['hire_runner', '@couple_4'], effect: 'Runner +20% speed, +1 carry' },
       { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 220, stars: 4, tier: 2, requires: ['refurb_1', '@couple_4'], effect: 'Every tip on the train +5% more' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 420, stars: 5, tier: 3, requires: ['refurb_2', '@c0.refurb_3'], effect: 'Every tip on the train +5% more' },
@@ -176,7 +176,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
     type: 'luggage', name: 'Luggage Car', pitch: 'Room for 16 more suitcases: every bag tips.', max: 1, cabins: 0, inside: 'Racks for 16 bags, a porter',
     unlocks: [
       { key: 'hire_porter', kind: 'hire', label: 'Luggage Porter', price: 200, stars: 3, role: 'porter', requires: ['couple'], effect: 'Carries luggage to the back' },
-      { key: 'refurb_1', kind: 'refurb', label: 'Fresh Paint', price: 90, stars: 3, tier: 1, requires: ['couple'], effect: 'Every tip on the train +5%' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 90, stars: 3, tier: 1, requires: ['couple'], effect: 'Every tip on the train +5%' },
       { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 240, stars: 4, tier: 2, requires: ['refurb_1', '@couple_4'], effect: 'Every tip on the train +5% more' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 440, stars: 5, tier: 3, requires: ['refurb_2', '@c0.refurb_3'], effect: 'Every tip on the train +5% more' },
     ],
@@ -186,7 +186,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
     unlocks: [
       { key: 'cabin_0', kind: 'cabin', label: 'Cabin {n}', price: 60, stars: 2, cabin: 0, requires: ['couple'], effect: 'Room for one more guest' },
       { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 90, stars: 2, cabin: 1, requires: ['cabin_0'], effect: 'Room for one more guest' },
-      { key: 'refurb_1', kind: 'refurb', label: 'Fresh Paint', price: 120, stars: 3, tier: 1, requires: ['cabin_0'], effect: 'Fares +25% in this carriage' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 120, stars: 3, tier: 1, requires: ['cabin_0'], effect: 'Fares +25% in this carriage' },
       { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 240, stars: 3, role: 'attendant', requires: ['cabin_1'], effect: "Cleans this car's cabins" },
       { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 130, stars: 2, cabin: 2, requires: ['cabin_1'], effect: 'Room for one more guest' },
       { key: 'cabin_3', kind: 'cabin', label: 'Cabin {n}', price: 180, stars: 2, cabin: 3, requires: ['cabin_2'], effect: 'Room for one more guest' },

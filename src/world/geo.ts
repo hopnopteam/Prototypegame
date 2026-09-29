@@ -177,3 +177,34 @@ export class GeoBuilder {
     return merged;
   }
 }
+
+/** Joins textured planes (same material) into one geometry: one draw call for a set of signs, posters or decals. */
+export function mergePlanes(planes: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  let vertices = 0;
+  let indices = 0;
+  for (const p of planes) {
+    vertices += p.getAttribute('position').count;
+    indices += p.getIndex()?.count ?? 0;
+  }
+  const position = new Float32Array(vertices * 3);
+  const uv = new Float32Array(vertices * 2);
+  const index: number[] = [];
+  let v = 0;
+  for (const p of planes) {
+    const pos = p.getAttribute('position');
+    const tex = p.getAttribute('uv');
+    for (let i = 0; i < pos.count; i++) {
+      position.set([pos.getX(i), pos.getY(i), pos.getZ(i)], (v + i) * 3);
+      uv.set([tex.getX(i), tex.getY(i)], (v + i) * 2);
+    }
+    const idx = p.getIndex();
+    if (idx) for (let i = 0; i < idx.count; i++) index.push(idx.getX(i) + v);
+    v += pos.count;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geometry.setIndex(index);
+  geometry.computeBoundingSphere();
+  return geometry;
+}

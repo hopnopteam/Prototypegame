@@ -56,11 +56,11 @@ export const PALETTE = {
   walnutDark: '#6E5140',
   oak: '#E6CFA6',
   oakMid: '#D9BE91',
-  plankWorn: '#E4DCCB',
-  plankWornSeam: '#D8CEBA',
+  plankWorn: '#CFC1A6',
+  plankWornSeam: '#B9AA8C',
   iron: '#7A8591',
-  wallWorn: '#E9EFE6',
-  wallWornLow: '#C9D8CC',
+  wallWorn: '#D9DAC9',
+  wallWornLow: '#B6BCA7',
   linen: '#FBF7EF',
   porcelain: '#F7F7F4',
   brass: '#E2B653',
@@ -147,7 +147,8 @@ export const CARRIAGE_THEMES: Record<CarriageType, CarriageTheme> = {
 };
 
 /** Tier names, shown on refurbishment tiles and in headlines. */
-export const TIER_NAMES = ['Rusty', 'Freshly painted', 'Cosy', 'Luxurious'];
+/** Rags to riches: run-down → repaired (clean and plain) → cosy (its colours) → luxurious. */
+export const TIER_NAMES = ['Run-down', 'Repaired', 'Cosy', 'Luxurious'];
 
 /**
  * The train's paint job. Earned liveries follow its reputation (it looks as famous as it is); premium ones
