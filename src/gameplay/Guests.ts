@@ -39,6 +39,10 @@ export class Guest {
   request: GuestRequest | null = null;
   /** Game time the current request was made (fast service earns a bigger tip). */
   requestAt = 0;
+  /** The current request has waited too long (a soft cue: the bubble turns red). */
+  slow = false;
+  /** Already grumbled about an empty washroom this visit. */
+  complained = false;
   nextRequestIn = 0;
   destinationStop = Infinity;
   happyTime = 0;
@@ -145,6 +149,11 @@ export class Guests {
     guest.mover.go(path, () => this.arriveInQueue(guest));
     this.w.events.emit('guest.boarded', {});
     return guest;
+  }
+
+  /** The guest waiting at the desk, if one has reached it. */
+  deskGuest(): Guest | null {
+    return this.hasGuestAtDesk() ? this.queue[0] : null;
   }
 
   hasGuestAtDesk(): boolean {
@@ -309,7 +318,7 @@ export class Guests {
           guest.happyTime -= dt;
           if (guest.happyTime <= 0) this.backToBed(guest);
         } else if (guest.request && guest.request !== 'bathroom') {
-          guest.view.showBubble(guest.request as IconName, 'request', 1.85, this.tipRingStep(guest));
+          guest.view.showBubble(guest.request as IconName, guest.slow ? 'alert' : 'request', 1.85, this.tipRingStep(guest));
         }
         break;
       case 'waitingBathroom': {
@@ -335,6 +344,10 @@ export class Guests {
           this.leaveBathroom(guest);
         } else {
           guest.view.showBubble(bath.towels <= 0 ? 'towel' : 'roll', 'alert');
+          if (!guest.complained) {
+            guest.complained = true;
+            w.feedback.onEmptyWashroom(guest, bath.towels <= 0 ? 'towel' : 'roll');
+          }
           if (guest.stateTime > BATHROOM_USE_SECONDS + BATHROOM_EMPTY_WAIT) {
             w.events.emit('bathroom.used', { tipped: false });
             this.leaveBathroom(guest);
@@ -377,6 +390,7 @@ export class Guests {
     }
     guest.request = request;
     guest.requestAt = w.time;
+    guest.slow = false;
     if (request === 'bathroom') {
       this.goToBathroom(guest);
       return;
@@ -398,7 +412,8 @@ export class Guests {
     const service = w.econ.service;
     const elapsed = w.time - guest.requestAt;
     const speed = elapsed <= service.speedySeconds ? service.speedyTipMultiplier : elapsed <= service.quickSeconds ? service.quickTipMultiplier : 1;
-    const tip = Math.max(1, Math.round(w.econ.money.requestTip * guest.archetype.tipMultiplier * w.tipMultiplier() * speed));
+    const comfort = guest.cabin ? w.train.cabinTipMultiplier(guest.cabin) : 1;
+    const tip = Math.max(1, Math.round(w.econ.money.requestTip * guest.archetype.tipMultiplier * w.tipMultiplier() * comfort * speed));
     w.cash.add(guest.cabin.pileId, tip, this.tmp.set(guest.pos.x, FLOOR_Y + 1.1, guest.pos.z));
     if (byPlayer && speed > 1) {
       w.ui.floatText(speed >= service.speedyTipMultiplier ? 'Speedy!' : 'Quick!', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'info');
@@ -410,9 +425,10 @@ export class Guests {
     guest.view.showBubble('heart', 'plain', 1.75);
     guest.view.bounce(1);
     guest.happyTime = HAPPY_SECONDS;
+    guest.slow = false;
     w.events.emit('request.fulfilled', { item, tip, x: guest.pos.x, z: guest.pos.z, byPlayer });
     if (guest.story) w.meta?.onStoryRequestDone(guest.story, item);
-    if (w.rng.chance(0.3)) w.ui.speechLine(w.rng.pick(guest.archetype.lines), guest.pos.x, FLOOR_Y + 2.1, guest.pos.z);
+    w.feedback.onRequestServed(guest, elapsed, byPlayer);
   }
 
   private backToBed(guest: Guest): void {
@@ -450,6 +466,7 @@ export class Guests {
   }
 
   private enterBathroom(guest: Guest, bath: Bathroom): void {
+    guest.complained = false;
     bath.occupant = guest;
     const i = bath.waiting.indexOf(guest);
     if (i >= 0) bath.waiting.splice(i, 1);
@@ -521,6 +538,7 @@ export class Guests {
     });
     w.events.emit('guest.checkedIn', { fare, x: guest.pos.x, z: guest.pos.z, byPlayer: actor.isPlayer });
     if (guest.story) w.meta?.onStoryGuestCheckedIn(guest.story);
+    w.feedback.onCheckIn(guest);
   }
 
   private startAlighting(guest: Guest): void {
@@ -530,7 +548,7 @@ export class Guests {
     if (!w.journey.doorsOpen) return;
     const cabin = guest.cabin;
     // They leave a tip and a lived-in cabin behind.
-    let tip = w.econ.money.alightTip * guest.archetype.tipMultiplier * w.tipMultiplier();
+    let tip = w.econ.money.alightTip * guest.archetype.tipMultiplier * w.tipMultiplier() * w.train.cabinTipMultiplier(cabin);
     if (w.train.luggageStored > 0) {
       w.train.luggageStored--;
       tip += w.econ.money.luggageTip;
@@ -547,7 +565,7 @@ export class Guests {
     const path = w.map.nav.findPath(from, door.outsideNode);
     const exit = { x: door.outside.x + 2.2, z: door.outside.z - 3 - w.rng.next() * 3 };
     guest.mover.go([...(path ?? [door.inside, door.outside]), exit], () => this.finishAlighting(guest, false));
-    if (w.rng.chance(0.35)) w.ui.speechLine('Thank you! Lovely ride!', guest.pos.x, FLOOR_Y + 2.1, guest.pos.z);
+    w.feedback.onAlight(guest);
   }
 
   private finishAlighting(guest: Guest, teleported: boolean): void {

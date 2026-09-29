@@ -121,6 +121,40 @@ export const ECONOMY = {
   },
 
   /**
+   * Soft failure cues and passenger chatter. Nothing is ever lost for good (§5); a missed passenger, a slow
+   * request or an empty washroom just gets noticed (a grey note, a sound, a grumble) so the player sees what
+   * to improve. They switch on only once the basics are learnt.
+   */
+  feedback: {
+    /** Cues start at this route level... */
+    cuesFromLevel: 2,
+    /** ...or after this many station stops, whichever comes first. */
+    cuesFromStop: 5,
+    /** A request unanswered this long turns its bubble red, with a grumble. */
+    slowRequestSeconds: 30,
+    /** A guest left at the desk this long (with a room ready) rings the bell. */
+    deskWaitSeconds: 18,
+    /** Passengers speak at most this often... */
+    chatterGapSeconds: 8,
+    /** ...each kind of remark at most this often... */
+    sameLineSeconds: 45,
+    /** ...and only this often when something happens. */
+    chatterChance: 0.35,
+    /** No washroom car yet: someone asks where the loo is about this often (seconds). */
+    noWashroomSeconds: 110,
+    /** Service mood (0 grumpy … 1 delighted): colours what new passengers have heard and their reviews. */
+    mood: { start: 0.6, rest: 0.6, driftPerMinute: 0.06, fast: 0.05, slow: -0.08, missed: -0.08, perfectStop: 0.06, emptyWashroom: -0.05 },
+  },
+
+  /** Comforts (reading lamps, flowers, radios; soaps, towel rails): what each one adds in its carriage. */
+  comfort: {
+    /** Tips left in that carriage's cabins (alighting and requests). */
+    cabinTipBonus: 0.2,
+    /** Washroom tips in that carriage. */
+    bathTipBonus: 0.25,
+  },
+
+  /**
    * Rush: services the conductor does back to back (check-in, requests, cleaning, luggage) build a streak;
    * milestones pay a cash bonus. Letting it lapse costs nothing (§5: no failure, only bonuses).
    */
@@ -142,7 +176,7 @@ export const ECONOMY = {
 
   progression: {
     /** Stars needed to reach each route level (index 0 = level 1). Route 1 maxes at level 8. */
-    levelThresholds: [0, 70, 170, 300, 460, 650, 880, 1160],
+    levelThresholds: [0, 75, 170, 290, 420, 560, 710, 880],
     levelRailMiles: [0, 3, 4, 5, 6, 8, 10, 12],
     levelCash: [0, 80, 150, 250, 400, 600, 850, 1200],
     /** Feature gates by route level (§9: introduce each layer after the one below is understood). */

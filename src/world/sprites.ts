@@ -132,35 +132,49 @@ export class TileFace {
       ctx.arcTo(x, y, x + size, y, r);
       ctx.closePath();
     };
-    const state = locked ? 'rgba(90, 80, 70, 0.45)' : highlight ? '#F2B233' : affordable ? '#4E9A6E' : '#C39A6B';
-    path(8);
-    ctx.fillStyle = locked ? 'rgba(236, 228, 214, 0.6)' : 'rgba(251, 243, 228, 0.95)';
+    // A bright enamel face: green when you can afford it, gold while paying, sand while saving up.
+    const face = locked ? ['#E4DCCD', '#CFC5B4'] : highlight ? ['#FFD978', '#F2B233'] : affordable ? ['#8FD57E', '#4FAE5F'] : ['#FFF6E4', '#EBD8B4'];
+    const rim = locked ? 'rgba(90, 80, 70, 0.5)' : highlight ? '#C8891B' : affordable ? '#2F7D50' : '#B98D5C';
+    path(10);
+    const gradient = ctx.createLinearGradient(0, 10, 0, 246);
+    gradient.addColorStop(0, face[0]);
+    gradient.addColorStop(1, face[1]);
+    ctx.fillStyle = gradient;
+    ctx.globalAlpha = locked ? 0.7 : 1;
     ctx.fill();
+    ctx.globalAlpha = 1;
     if (progress > 0) {
+      // Paid so far fills from the bottom in gold.
       ctx.save();
-      path(8);
+      path(10);
       ctx.clip();
-      ctx.fillStyle = 'rgba(242, 178, 51, 0.8)';
-      const h = 240 * progress;
-      ctx.fillRect(8, 248 - h, 240, h);
+      ctx.fillStyle = 'rgba(242, 178, 51, 0.9)';
+      const h = 236 * progress;
+      ctx.fillRect(10, 246 - h, 236, h);
       ctx.restore();
     }
-    path(8);
-    ctx.lineWidth = 12;
-    ctx.strokeStyle = state;
+    // A light top edge inside the rim: the enamel catches the light.
+    path(22, 22);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = locked ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.55)';
     ctx.stroke();
-    path(26, 18);
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = locked ? 'rgba(90, 80, 70, 0.3)' : state;
+    path(10);
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = rim;
     ctx.stroke();
-    ctx.globalAlpha = locked ? 0.45 : 1;
-    drawIcon(ctx, icon, 76, 36, 104);
-    ctx.fillStyle = INK;
-    ctx.font = `700 56px ${TILE_FONT}`;
+    ctx.globalAlpha = locked ? 0.5 : 1;
+    drawIcon(ctx, icon, 72, 30, 112);
+    const price = formatNumber(Math.ceil(remaining));
+    ctx.font = `800 60px ${TILE_FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(formatNumber(Math.ceil(remaining)), 146, 190);
-    drawIcon(ctx, 'cash', 30, 166, 46);
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = INK;
+    ctx.strokeText(price, 148, 192);
+    ctx.fillStyle = '#FFFDF7';
+    ctx.fillText(price, 148, 192);
+    drawIcon(ctx, 'cash', 26, 166, 48);
     ctx.globalAlpha = 1;
     if (locked) drawIcon(ctx, 'lock', 156, 18, 78);
     this.texture.needsUpdate = true;

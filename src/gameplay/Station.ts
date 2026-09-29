@@ -252,10 +252,13 @@ export class Station {
 
   private finishStop(): void {
     const w = this.w;
-    const onPlatform = w.guests.platformGuests().length;
+    const platform = w.guests.platformGuests();
+    const onPlatform = platform.length;
     // Only guests who had a bed count against a perfect stop; the rest are demand, not a miss.
     const waiting = Math.min(onPlatform, w.guests.bedsFree());
     const leftBehind = onPlatform - waiting;
+    // The first in line had the beds (they carry no "no room" sign), so they are the ones who missed it.
+    w.feedback.onDeparture(platform.slice(0, waiting), platform.slice(waiting));
     const storageFull = w.train.luggageStored >= w.train.luggageCapacity;
     const clean = waiting === 0 && (this.luggagePile === 0 || storageFull);
     let bonusCash = 0;

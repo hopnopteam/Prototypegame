@@ -1,3 +1,4 @@
+import type { ComfortKey } from './config/content';
 import * as THREE from 'three';
 import { ARCHETYPES, DEFAULT_TRAIN } from './config/content';
 import { BED_TOP, CarriageView, FLOOR_Y } from './world/CarriageView';
@@ -40,6 +41,9 @@ DEFAULT_TRAIN.map((type) => ({ type })).slice(0, count).forEach((c, i) => {
   if (c.type === 'lobby') { view.setCabinLocked(1, true); view.setDirt(0, [true]); view.setLuggageCount(3); }
   if (c.type === 'bathroom') { view.setBathroomLocked(1, true); view.setBathroomStock(0, 3, 2); }
   if (c.type === 'supply') view.setShelfStock(10, 12);
+  // ?comforts=lamp,flowers,radio,soap,rail dresses the rooms.
+  const comforts = params.get('comforts');
+  if (comforts) view.setComforts(comforts.split(',') as ComfortKey[]);
   if (platform) view.setDoorOpen(1);
   stage.scene.add(view.group);
 });

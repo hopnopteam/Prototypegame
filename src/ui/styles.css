@@ -29,8 +29,11 @@
   --green-light: #A6DDB0;
   --gem: #3F8FB8;
   --miles: #B07D12;
-  --line: 2.5px solid var(--ink);
-  --drop: 0 3px 0 var(--ink);
+  --line: 3px solid var(--ink);
+  --drop: 0 4px 0 var(--ink);
+  /* Pop: a light top edge and a darker bottom lip inside every chunky element (enamel, not paper). */
+  --bevel: inset 0 -4px 0 rgba(42, 36, 51, 0.16), inset 0 2px 0 rgba(255, 255, 255, 0.65);
+  --outline-text: 0 2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink), 1.5px 1.5px 0 var(--ink), -1.5px 1.5px 0 var(--ink), 1.5px -1.5px 0 var(--ink), -1.5px -1.5px 0 var(--ink);
   --font: 'Jost', 'Futura', 'Century Gothic', 'Trebuchet MS', system-ui, sans-serif;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -75,29 +78,38 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 @keyframes popIn { 0% { transform: scale(0.4); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 .spacer { flex: 1; min-width: 0; }
 .pill {
-  display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 9px 0 4px; border-radius: 15px;
-  background: var(--cream); border: var(--line); box-shadow: var(--drop); font-weight: 700; font-size: clamp(14px, 4.2vw, 16px);
+  display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 10px 0 3px; border-radius: 16px;
+  background: linear-gradient(#FFFDF7, #F3E4C6); border: var(--line); box-shadow: var(--drop), var(--bevel); font-weight: 800; font-size: clamp(15px, 4.4vw, 17px);
   font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; flex: none;
 }
 .pill .val { min-width: 1.2em; }
-.pill.cash { font-size: clamp(17px, 5.2vw, 20px); height: 34px; border-radius: 17px; padding-right: 11px; min-width: 84px; }
-.pill.cash .val { color: var(--green); }
-.pill.gems .val { color: var(--gem); }
+.pill > .ico { filter: drop-shadow(0 2px 0 rgba(42, 36, 51, 0.35)); }
+.pill.cash { font-size: clamp(18px, 5.4vw, 21px); height: 36px; border-radius: 18px; padding-right: 12px; min-width: 84px; }
+.pill.cash > .ico { width: 30px; height: 30px; margin-left: -6px; }
+.pill.cash .val { color: #2F7D50; }
+.pill.gems > .ico { width: 24px; height: 24px; margin-left: -3px; }
+.pill.gems .val { color: #2D78A3; }
 .pill.miles .val { color: var(--miles); }
 .pill.bump { animation: bump 240ms ease-out; }
 @keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.1); } 100% { transform: scale(1); } }
 
-/* Route level: a badge with a progress ring. */
-.level { position: relative; flex: none; width: 42px; height: 42px; padding: 0; cursor: pointer; border-radius: 50%; border: var(--line); box-shadow: var(--drop); background: conic-gradient(var(--mustard) calc(var(--p, 0) * 1turn), var(--paper-2) 0); display: grid; place-items: center; }
-.level .badge { width: 27px; height: 27px; border-radius: 50%; background: var(--navy); color: var(--cream); display: grid; place-items: center; font-weight: 800; font-size: 16px; border: 2px solid var(--ink); font-variant-numeric: tabular-nums; }
-.level .star { position: absolute; right: -6px; bottom: -5px; width: 20px; height: 20px; }
-.level.max { background: var(--mustard); }
-.level.bump { animation: bump 240ms ease-out; }
+/* Route level: a gold star with the number, and the star bar beside it (fills as stars land). */
+.level { position: relative; flex: none; display: flex; align-items: center; height: 42px; padding: 0; cursor: pointer; border: 0; background: none; }
+.level .lv-star { position: relative; z-index: 1; width: 44px; height: 44px; flex: none; display: grid; place-items: center; filter: drop-shadow(0 3px 0 var(--ink)); }
+.level .lv-star::before, .level .lv-star::after { content: ''; position: absolute; clip-path: polygon(50% 0, 62% 33%, 98% 36%, 70% 58%, 80% 94%, 50% 74%, 20% 94%, 30% 58%, 2% 36%, 38% 33%); }
+.level .lv-star::before { inset: 0; background: var(--ink); }
+.level .lv-star::after { inset: 3.5px; background: linear-gradient(#FFE08A, #F2B233 60%, #D89A1E); }
+.level .badge { position: relative; z-index: 1; margin-top: 3px; color: #FFFDF7; font-weight: 800; font-size: 16px; font-variant-numeric: tabular-nums; text-shadow: var(--outline-text); }
+.level .lv-bar { position: relative; margin-left: -12px; height: 24px; width: clamp(66px, 18vw, 78px); border-radius: 0 12px 12px 0; border: var(--line); border-left: 0; background: #3B3045; box-shadow: var(--drop); overflow: hidden; }
+.level .lv-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--p, 0) * 100%); background: linear-gradient(#B6EC9A, #6FC25A); box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.45); transition: width 300ms ease-out; }
+.level .lv-count { position: relative; display: block; padding-left: 11px; line-height: 18px; font-size: 11.5px; letter-spacing: -0.01em; font-weight: 800; color: #FFFDF7; text-align: center; font-variant-numeric: tabular-nums; text-shadow: 0 1px 0 var(--ink), 1px 0 0 var(--ink), -1px 0 0 var(--ink), 0 -1px 0 var(--ink); }
+.level.max .lv-bar i { width: 100%; background: linear-gradient(#FFE08A, #F2B233); }
+.level.bump .lv-star { animation: bump 240ms ease-out; }
 
 /* Route strip: next station, the train on its way, the departure clock at stops. */
 .journey {
-  display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--navy); color: var(--cream);
-  border: var(--line); box-shadow: var(--drop); min-width: 0;
+  display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 15px; background: linear-gradient(#3A5E8C, var(--navy)); color: var(--cream);
+  border: var(--line); box-shadow: var(--drop), inset 0 2px 0 rgba(255, 255, 255, 0.18); min-width: 0; box-sizing: border-box;
 }
 .journey .kicker { font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--powder); flex: none; }
 .journey .name { font-weight: 700; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; max-width: 42%; }
@@ -109,12 +121,34 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .journey.urgent .clock { color: #FFB3A7; animation: pulse 700ms ease-in-out infinite; }
 @keyframes pulse { 50% { transform: scale(1.12); } }
 
+/* ── Objective banner (middle column, shares the ticket's slot) ─── */
+.objective {
+  position: absolute; z-index: 18; top: var(--rail-top); left: var(--middle-left); right: var(--middle-left); margin: 0 auto; max-width: 300px; box-sizing: border-box;
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 6px; border-radius: 14px; background: linear-gradient(#3F679A, var(--navy)); color: var(--cream);
+  border: var(--line); box-shadow: var(--drop), inset 0 2px 0 rgba(255, 255, 255, 0.2); transition: background 200ms;
+}
+.objective .obj-icon { width: 36px; height: 36px; flex: none; border-radius: 10px; display: grid; place-items: center; background: linear-gradient(#FFD266, var(--mustard)); border: 2.5px solid var(--ink); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.15); box-sizing: border-box; }
+.objective .obj-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.objective .obj-text { font-size: 13px; font-weight: 700; line-height: 1.15; text-wrap: balance; }
+.objective .obj-bar { display: flex; align-items: center; gap: 6px; }
+.objective .obj-track { position: relative; flex: 1; height: 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.35); overflow: hidden; }
+.objective .obj-track i { position: absolute; inset: 0; transform-origin: left center; background: linear-gradient(#B6EC9A, #6FC25A); transition: transform 300ms ease-out; }
+.objective .obj-count { font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; flex: none; }
+.objective .obj-reward { flex: none; display: inline-flex; align-items: center; gap: 2px; height: 26px; padding: 0 8px 0 4px; border-radius: 13px; background: var(--cream); color: var(--ink); font-weight: 800; font-size: 13px; border: 2px solid var(--ink); box-sizing: border-box; font-variant-numeric: tabular-nums; }
+.objective .obj-reward:empty { display: none; }
+.objective.done { background: linear-gradient(#6FC25A, #3E9A56); }
+.objective.interactive { cursor: pointer; }
+.objective.interactive .obj-reward::after { content: '›'; margin-left: 4px; font-size: 16px; line-height: 1; }
+.objective.flash { animation: objFlash 520ms cubic-bezier(.2,1.5,.4,1); }
+@keyframes objFlash { 0% { transform: scale(1); } 35% { transform: scale(1.08); } 100% { transform: scale(1); } }
+
 /* ── Right rail ─────────────────────────────────────────── */
 .side { position: absolute; right: var(--gutter); top: var(--rail-top); width: var(--rail-width); display: flex; flex-direction: column; gap: var(--gap); }
 .side button {
-  position: relative; width: var(--rail-width); height: var(--rail-width); border-radius: 13px; border: var(--line); background: var(--cream);
-  box-shadow: var(--drop); display: grid; place-items: center; padding: 0; cursor: pointer;
+  position: relative; width: var(--rail-width); height: var(--rail-width); border-radius: 13px; border: var(--line); background: linear-gradient(#FFFDF7, #F1E2C2);
+  box-shadow: var(--drop), var(--bevel); display: grid; place-items: center; padding: 0; cursor: pointer; box-sizing: border-box;
 }
+.side button > .ico { filter: drop-shadow(0 2px 0 rgba(42, 36, 51, 0.3)); }
 .side button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
 .side .dot { position: absolute; top: -7px; right: -7px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--raspberry); color: var(--cream); font-size: 12px; font-weight: 800; line-height: 17px; border: 2px solid var(--ink); box-sizing: border-box; }
 .side button.glow { animation: glow 1.4s ease-in-out infinite; }
@@ -123,8 +157,8 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 /* ── The one bottom slot: a rewarded offer ─────────────── */
 .offers { position: absolute; left: 12px; right: 12px; bottom: calc(var(--safe-bottom) + 14px); display: flex; justify-content: center; }
 .chip {
-  display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 8px; border-radius: 16px; background: var(--cream);
-  border: var(--line); box-shadow: 0 4px 0 var(--ink); animation: chipIn 320ms cubic-bezier(.2,1.4,.4,1); max-width: 100%; min-width: 0;
+  display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 8px; border-radius: 16px; background: linear-gradient(#FFFDF7, #F3E4C6);
+  border: var(--line); box-shadow: 0 4px 0 var(--ink), var(--bevel); animation: chipIn 320ms cubic-bezier(.2,1.4,.4,1); max-width: 100%; min-width: 0;
 }
 @keyframes chipIn { from { transform: translateY(30px) scale(0.8); opacity: 0; } }
 .chip .txt { display: flex; flex-direction: column; line-height: 1.05; min-width: 0; flex: 1; }
@@ -152,11 +186,14 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .float.gem { color: #9FDBF2; }
 .float.miles { color: #FFD06A; }
 .float.info { color: var(--cream); font-size: 14px; letter-spacing: 0.12em; text-transform: uppercase; }
+/* Soft failure cue: grey and small, noticed but never alarming. */
+.float.miss { color: #D5CFDA; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; }
 .burst { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 4px; font-weight: 800; font-size: 26px; color: var(--green-light); white-space: nowrap; text-shadow: 0 2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink), 1.5px 1.5px 0 var(--ink), -1.5px 1.5px 0 var(--ink), 1.5px -1.5px 0 var(--ink), -1.5px -1.5px 0 var(--ink); font-variant-numeric: tabular-nums; will-change: transform; }
 .burst.out { animation: burstOut 200ms ease-in forwards; }
 @keyframes burstOut { to { opacity: 0; } }
 .flyer { position: absolute; left: 0; top: 0; will-change: transform, opacity; filter: drop-shadow(0 2px 0 #2A243388); }
 .speech { position: absolute; left: 0; top: 0; max-width: 168px; padding: 5px 10px; border-radius: 12px; background: var(--cream); border: 2px solid var(--ink); font-size: 13px; font-weight: 600; line-height: 1.2; box-shadow: 0 2px 0 var(--ink); text-align: center; text-wrap: balance; }
+.speech.bad { background: #F3E1DC; border-color: #6B2E2E; box-shadow: 0 2px 0 #6B2E2E; color: #4A2323; }
 
 /* ── Toasts ─────────────────────────────────────────────── */
 .toasts { position: absolute; z-index: 45; left: var(--middle-left); right: var(--middle-left); bottom: calc(var(--safe-bottom) + 84px); display: flex; flex-direction: column-reverse; align-items: center; gap: 6px; }
@@ -203,6 +240,7 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .ticket .rows .ico { width: 16px; height: 16px; }
 .ticket .rows .bonus { background: var(--mustard); border: 1.5px solid var(--ink); }
 .ticket .note { font-size: 12px; font-weight: 600; opacity: 0.7; }
+.ticket .note.bad { color: #A23B3B; opacity: 1; font-weight: 700; }
 
 /* ── Coach line, tile labels, train map ──────────────── */
 /* Coach line: a label right where the action is, with a tail pointing at it. */
@@ -266,11 +304,11 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .sheet .lead { font-size: 16px; font-weight: 600; text-wrap: balance; }
 .btn {
   height: 48px; border-radius: 14px; border: var(--line); background: var(--cream); font-weight: 800; font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; box-shadow: 0 4px 0 var(--ink); white-space: nowrap; min-width: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; box-shadow: 0 4px 0 var(--ink), var(--bevel); white-space: nowrap; min-width: 0;
 }
 .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
-.btn.primary { background: var(--mustard); }
-.btn.green { background: var(--green-light); }
+.btn.primary { background: linear-gradient(#FFD266, var(--mustard)); }
+.btn.green { background: linear-gradient(#C4EDB5, #8FD57E); }
 .btn.gem { background: var(--powder); }
 .btn.danger { background: var(--pink); }
 .btn:disabled { opacity: 0.45; cursor: default; }

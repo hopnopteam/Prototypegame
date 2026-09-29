@@ -410,11 +410,7 @@ export class Screens {
           style: { height: '44px', fontSize: '16px' },
           disabled: cost === null || g.wallet.get('railMiles') < cost,
           onclick: () => {
-            if (cost === null || !g.wallet.trySpend('railMiles', cost, `conductor:${key}`)) return;
-            g.data.conductor[key]++;
-            g.save.markDirty();
-            g.audio.play('unlock');
-            g.particles.emit('star', g.player.pos.x, 1.8, g.player.pos.z, 12, 0.4);
+            if (!g.buyConductorUpgrade(key)) return;
             close();
             this.upgrades();
           },

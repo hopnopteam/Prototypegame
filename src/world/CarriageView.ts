@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { rect, type CarriageType, type Rect } from '../core/types';
+import type { ComfortKey } from '../config/content';
 import { GeoBuilder, mergePlanes, type PartStyle } from './geo';
 import {
   CARRIAGE_LENGTH,
@@ -205,6 +206,9 @@ export class CarriageView {
   private readonly spinners: THREE.Object3D[] = [];
   private readonly cabinLocks: THREE.Mesh[] = [];
   private readonly bathroomLocks: THREE.Mesh[] = [];
+  /** Comfort props per room (lamps, flowers, radios; soaps, towel rails), rebuilt when one is bought. */
+  private cabinComforts: THREE.Group[] = [];
+  private bathComforts: THREE.Group[] = [];
   /** Each cabin's mess after a guest leaves: pieces that clear away as it is tidied, and floor stains. */
   private readonly mess: { group: THREE.Group; items: THREE.Mesh[]; stains: THREE.Mesh[] }[] = [];
   private readonly doors: THREE.Mesh[] = [];
@@ -237,6 +241,8 @@ export class CarriageView {
     const bed = this.cabinBeds[cabin];
     if (lock) lock.visible = locked;
     if (bed) bed.visible = !locked;
+    const comforts = this.cabinComforts[cabin];
+    if (comforts) comforts.visible = !locked;
     const door = this.roomDoors.find((d) => d.kind === 'cabin' && d.index === cabin);
     if (door) door.locked = locked;
   }
@@ -246,6 +252,8 @@ export class CarriageView {
     const fixtures = this.bathroomFixtures[bathroom];
     if (lock) lock.visible = locked;
     if (fixtures) fixtures.visible = !locked;
+    const comforts = this.bathComforts[bathroom];
+    if (comforts) comforts.visible = !locked;
     const door = this.roomDoors.find((d) => d.kind === 'bath' && d.index === bathroom);
     if (door) door.locked = locked;
   }
@@ -309,6 +317,57 @@ export class CarriageView {
       this.leafMesh.setMatrixAt(door.instance + k, tmpMatrix);
     }
     this.leafMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * Dresses every room with the comforts bought for this carriage and returns one group per room (each
+   * pivots on its cluster of props, so the gameplay layer can pop them in). Locked rooms stay bare.
+   */
+  setComforts(keys: readonly ComfortKey[]): THREE.Group[] {
+    for (const g of [...this.cabinComforts, ...this.bathComforts]) {
+      this.group.remove(g);
+      g.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+    }
+    this.cabinComforts = [];
+    this.bathComforts = [];
+    if (keys.length === 0) return [];
+    const make = (build: (b: GeoBuilder, glow: GeoBuilder) => void, pivot: { x: number; z: number }, visible: boolean): THREE.Group | null => {
+      const b = new GeoBuilder();
+      const glow = new GeoBuilder();
+      build(b, glow);
+      if (b.isEmpty && glow.isEmpty) return null;
+      const group = new THREE.Group();
+      group.position.set(pivot.x, FLOOR_Y, pivot.z);
+      for (const [builder, material] of [[b, MATERIALS.solid], [glow, MATERIALS.lamps]] as const) {
+        if (builder.isEmpty) continue;
+        const geometry = builder.build();
+        geometry.translate(-pivot.x, -FLOOR_Y, -pivot.z);
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.castShadow = material === MATERIALS.solid;
+        mesh.receiveShadow = true;
+        group.add(mesh);
+      }
+      group.visible = visible;
+      this.group.add(group);
+      return group;
+    };
+    const out: THREE.Group[] = [];
+    for (const cabin of this.layout.cabins) {
+      const pivot = { x: cabin.bed.x0 - 0.2, z: cabin.room.z0 + 0.2 };
+      const group = make((b, glow) => buildCabinComforts(b, glow, cabin, keys, this.theme, this.tier), pivot, this.cabinBeds[cabin.index]?.visible ?? true);
+      if (!group) continue;
+      this.cabinComforts[cabin.index] = group;
+      out.push(group);
+    }
+    for (const bath of this.layout.bathrooms) {
+      const fixtures = this.layout.props.filter((p) => (p.kind === 'sink' || p.kind === 'bathtub') && rectInside(p.rect, bath.room));
+      const pivot = { x: 0, z: bath.room.z0 + 0.3 };
+      const group = make((b) => buildBathComforts(b, bath.room, fixtures, keys, this.theme, this.tier), pivot, this.bathroomFixtures[bath.index]?.visible ?? true);
+      if (!group) continue;
+      this.bathComforts[bath.index] = group;
+      out.push(group);
+    }
+    return out;
   }
 
   dispose(): void {
@@ -947,6 +1006,89 @@ const rectInside = (inner: Rect, outer: Rect): boolean => inner.x0 >= outer.x0 -
  * a dented kettle), tier 1 honest wood, tier 2 upholstered, tier 3 velvet and brass. `lamps` collects
  * shades that glow at night.
  */
+
+/**
+ * Cabin comforts, clustered at the head of the bed where the camera sees them: a nightstand with a
+ * reading lamp, a vase of flowers and a picture, a wireless on a wall shelf.
+ */
+function buildCabinComforts(b: GeoBuilder, glow: GeoBuilder, cabin: CabinLayout, keys: readonly ComfortKey[], theme: CarriageTheme, tier: number): void {
+  const y = FLOOR_Y;
+  const wallZ = cabin.room.z0;
+  const wood = tier >= 2 ? PALETTE.walnut : '#A98D6F';
+  const nx1 = cabin.bed.x0 - 0.04;
+  const nx0 = nx1 - 0.28;
+  const nz0 = wallZ + 0.04;
+  const nz1 = nz0 + 0.3;
+  const ncx = (nx0 + nx1) / 2;
+  const nightstand = keys.includes('lamp') || keys.includes('flowers');
+  if (nightstand) {
+    b.slab(rect(nx0, nz0, nx1, nz1), y, y + 0.42, wood, 0, 0, { shade: 0.8 });
+    b.slab(rect(nx0, nz0, nx1, nz1), y + 0.42, y + 0.45, PALETTE.walnutDark, 0, -0.012, FLAT);
+    b.box(ncx, y + 0.27, nz1 + 0.006, 0.2, 0.1, 0.01, shadeHex(wood, 1.1), 0, FLAT);
+    b.sphere(ncx, y + 0.27, nz1 + 0.018, 0.016, PALETTE.brass, 0);
+  }
+  if (keys.includes('lamp')) {
+    const lx = nx0 + 0.09;
+    const lz = nz0 + 0.1;
+    b.cylinder(lx, y + 0.465, lz, 0.04, 0.045, 0.03, PALETTE.brass, 10);
+    b.cylinder(lx, y + 0.56, lz, 0.011, 0.011, 0.16, PALETTE.brass, 6);
+    glow.cylinder(lx, y + 0.68, lz, 0.05, 0.085, 0.1, PALETTE.lampShade, 12, 'y', { shade: 0.9 });
+  }
+  if (keys.includes('flowers')) {
+    const vx = nx1 - 0.08;
+    const vz = nz1 - 0.09;
+    b.cylinder(vx, y + 0.51, vz, 0.03, 0.04, 0.12, theme.deep, 10, 'y', { shade: 0.9 });
+    const blooms = ['#F2A7B5', '#FFD35C', '#F7F2E8'];
+    blooms.forEach((color, i) => {
+      const a = (i / blooms.length) * Math.PI * 2;
+      b.sphere(vx + Math.cos(a) * 0.035, y + 0.62 + (i % 2) * 0.025, vz + Math.sin(a) * 0.035, 0.032, color, 1, 0.9);
+    });
+    b.sphere(vx, y + 0.6, vz + 0.045, 0.022, '#7FA66B', 0, 0.9);
+    // A little picture above, on the wall between the door and the bed.
+    const fx = cabin.room.x0 + 0.24;
+    b.box(fx, y + 0.56, wallZ + 0.012, 0.3, 0.22, 0.02, PALETTE.gold, 0, FLAT);
+    b.box(fx, y + 0.56, wallZ + 0.026, 0.24, 0.16, 0.004, PALETTE.frameCanvas[cabin.index % 4], 0, FLAT);
+  }
+  if (keys.includes('radio')) {
+    // A wall shelf with a wireless, beside the picture.
+    const rx = (cabin.room.x0 + 0.42 + nx0) / 2 + 0.04;
+    b.box(rx, y + 0.47, wallZ + 0.075, 0.3, 0.02, 0.15, PALETTE.walnutDark, 0, FLAT);
+    b.rounded(rx, y + 0.556, wallZ + 0.075, 0.24, 0.15, 0.11, 0.03, tier >= 3 ? PALETTE.walnut : '#B5835A', { shade: 0.9 });
+    b.box(rx - 0.04, y + 0.556, wallZ + 0.132, 0.1, 0.09, 0.006, '#E9D9B0', 0, FLAT);
+    b.cylinder(rx + 0.07, y + 0.556, wallZ + 0.134, 0.022, 0.022, 0.01, PALETTE.brass, 10, 'z');
+  }
+}
+
+/** Washroom comforts: scented soaps by the basin (or on the tub's rim) and a brass towel rail. */
+function buildBathComforts(b: GeoBuilder, room: Rect, fixtures: PropDef[], keys: readonly ComfortKey[], theme: CarriageTheme, tier: number): void {
+  const y = FLOOR_Y;
+  if (keys.includes('soap')) {
+    for (const f of fixtures) {
+      const r = f.rect;
+      const bottles = ['#F2A7B5', '#AFCBA7'];
+      if (f.kind === 'sink') {
+        const d = r.z1 - r.z0;
+        bottles.forEach((color, i) => b.cylinder(r.x1 - 0.08, y + 0.812, r.z0 + d * 0.12 + i * 0.06, 0.022, 0.022, 0.09, color, 10, 'y', { shade: 0.9 }));
+        b.rounded(r.x1 - 0.1, y + 0.772, r.z1 - d * 0.14, 0.1, 0.012, 0.07, 0.02, PALETTE.porcelain, FLAT);
+        b.rounded(r.x1 - 0.1, y + 0.787, r.z1 - d * 0.14, 0.07, 0.02, 0.045, 0.01, theme.blanket, FLAT);
+      } else {
+        bottles.forEach((color, i) => b.cylinder(r.x1 - 0.045, y + 0.55, r.z0 + 0.12 + i * 0.07, 0.02, 0.02, 0.09, color, 10, 'y', { shade: 0.9 }));
+      }
+    }
+  }
+  if (keys.includes('rail')) {
+    const x0 = -0.36;
+    const x1 = 0.26;
+    const z = room.z0 + 0.05;
+    const metal = tier >= 3 ? PALETTE.gold : PALETTE.brass;
+    for (const px of [x0, x1]) b.cylinder(px, y + 0.52, z, 0.014, 0.014, 0.24, metal, 6);
+    for (const py of [0.43, 0.61]) b.cylinder((x0 + x1) / 2, y + py, z, 0.012, 0.012, x1 - x0, metal, 6, 'x');
+    // A towel folded over the top bar, hanging down its front.
+    b.box((x0 + x1) / 2, y + 0.54, z + 0.024, 0.3, 0.16, 0.012, theme.blanket, 0, { shade: 0.95 });
+    b.box((x0 + x1) / 2, y + 0.47, z + 0.035, 0.3, 0.02, 0.01, PALETTE.towelStripe, 0, FLAT);
+  }
+}
+
 export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme: CarriageTheme = CARRIAGE_THEMES.lobby, tier = 1): void {
   const r = prop.rect;
   const cx = (r.x0 + r.x1) / 2;

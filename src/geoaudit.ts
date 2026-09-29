@@ -219,6 +219,8 @@ function scene(tier: number, locked: boolean): THREE.Group {
       view.setDirt(c.index, [true, true, true]);
     });
     layout.bathrooms.forEach((b) => view.setBathroomLocked(b.index, locked));
+    // Every comfort, so their props are checked against every tier's furniture.
+    if (!locked) view.setComforts(['lamp', 'flowers', 'radio', 'soap', 'rail']);
     view.setDoorOpen(1);
     root.add(view.group);
   });

@@ -29,6 +29,9 @@ const timeline = [];
 let lastLevel = 1;
 let lastCarriages = 1;
 let lastStaff = 0;
+// When each tile was bought, to find dry spells (the next unlock should always be 20–60 s away).
+const bought = [];
+const seen = new Set();
 for (let t = 0; t < total; t += chunk) {
   const snap = await page.evaluate((c) => {
     const g = window.nightExpress;
@@ -57,10 +60,13 @@ for (let t = 0; t < total; t += chunk) {
       unlockedIds: g.data.route.unlocked,
       pos: g.player.pos,
       target: g.guidance.bestTarget(true),
+      objective: g.data.objectives.index,
+      prices: Object.fromEntries(g.unlocks.defs.map((d) => [d.id, d.price])),
     };
   }, chunk);
+  for (const id of snap.unlockedIds) if (!seen.has(id)) { seen.add(id); bought.push({ t: snap.t, id, price: snap.prices[id] ?? 0 }); }
   if (snap.level !== lastLevel || snap.carriages !== lastCarriages || snap.staff !== lastStaff || Math.round(t + chunk) % (process.env.EVERY ? Number(process.env.EVERY) : 60) === 0) {
-    timeline.push(`${fmt(snap.t)}  pos ${snap.pos.x.toFixed(1)},${snap.pos.z.toFixed(1)} → ${snap.target ? snap.target.x.toFixed(1) + ',' + snap.target.z.toFixed(1) : '-'}  cash ${snap.cash}  lvl ${snap.level} (${snap.stars}★)  cars ${snap.carriages}  staff ${snap.staff}  unlocks ${snap.unlocked}  stop #${snap.stop} ${snap.phase}  guests ${snap.guests} q${snap.queue} floor$${snap.floorCash}`);
+    timeline.push(`${fmt(snap.t)}  obj ${snap.objective}  pos ${snap.pos.x.toFixed(1)},${snap.pos.z.toFixed(1)} → ${snap.target ? snap.target.x.toFixed(1) + ',' + snap.target.z.toFixed(1) : '-'}  cash ${snap.cash}  lvl ${snap.level} (${snap.stars}★)  cars ${snap.carriages}  staff ${snap.staff}  unlocks ${snap.unlocked}  stop #${snap.stop} ${snap.phase}  guests ${snap.guests} q${snap.queue} floor$${snap.floorCash}`);
     lastLevel = snap.level; lastCarriages = snap.carriages; lastStaff = snap.staff;
   }
   const shotAt = (process.env.SHOTS ?? '').split(',').filter(Boolean).map(Number);
@@ -74,7 +80,16 @@ for (let t = 0; t < total; t += chunk) {
     console.log(timeline.join('\n'));
     console.log('\nFTUE beats (lifetime seconds):');
     for (const [step, sec] of Object.entries(snap.ftue).sort((a, b) => a[1] - b[1])) console.log(`  ${fmt(sec)}  ${step}`);
-    console.log('\nUnlocked:', snap.unlockedIds.join(', '));
+    console.log('\nUnlocks (time, gap since the previous, id, price):');
+    let prev = 0;
+    const gaps = [];
+    for (const b of bought) {
+      gaps.push({ gap: b.t - prev, at: b.t, id: b.id });
+      console.log(`  ${fmt(b.t)}  +${String(b.t - prev).padStart(3)}s  ${b.id} (${b.price})`);
+      prev = b.t;
+    }
+    gaps.sort((a, b) => b.gap - a.gap);
+    console.log('Longest gaps:', gaps.slice(0, 6).map((g) => `${g.gap}s before ${g.id} at ${fmt(g.at)}`).join('; '));
   }
 }
 if (errors.length) console.log('\nERRORS:\n' + [...new Set(errors)].slice(0, 12).join('\n'));

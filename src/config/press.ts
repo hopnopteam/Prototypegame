@@ -17,13 +17,13 @@ export interface Rival {
 
 /** The Countryside League. The player starts at the bottom; overtaking the Orient Belle makes you #1. */
 export const RIVALS: Rival[] = [
-  { name: 'Puffing Billy', reputation: 30, blurb: 'Mostly steam, some train.', livery: '#8C7A6B' },
-  { name: 'Midnight Mail', reputation: 120, blurb: 'Carries letters. Occasionally people.', livery: '#4A4E69' },
-  { name: 'Highland Rambler', reputation: 250, blurb: 'Tartan seats, strong opinions.', livery: '#5E7F5A' },
-  { name: 'Duchess of Dover', reputation: 410, blurb: 'Serves tea at exactly 4 o\'clock.', livery: '#8E6A8C' },
-  { name: 'The Silver Arrow', reputation: 600, blurb: 'Fast, shiny, a little smug.', livery: '#9AA3AD' },
-  { name: 'The Blue Pullman', reputation: 820, blurb: 'Old money on new rails.', livery: '#34507A' },
-  { name: 'Orient Belle', reputation: 1080, blurb: 'Five-time Golden Whistle winner.', livery: '#7A2E3A' },
+  { name: 'Puffing Billy', reputation: 25, blurb: 'Mostly steam, some train.', livery: '#8C7A6B' },
+  { name: 'Midnight Mail', reputation: 100, blurb: 'Carries letters. Occasionally people.', livery: '#4A4E69' },
+  { name: 'Highland Rambler', reputation: 200, blurb: 'Tartan seats, strong opinions.', livery: '#5E7F5A' },
+  { name: 'Duchess of Dover', reputation: 330, blurb: 'Serves tea at exactly 4 o\'clock.', livery: '#8E6A8C' },
+  { name: 'The Silver Arrow', reputation: 480, blurb: 'Fast, shiny, a little smug.', livery: '#9AA3AD' },
+  { name: 'The Blue Pullman', reputation: 640, blurb: 'Old money on new rails.', livery: '#34507A' },
+  { name: 'Orient Belle', reputation: 820, blurb: 'Five-time Golden Whistle winner.', livery: '#7A2E3A' },
 ];
 
 /** Offered on the naming card; the player can type their own. */

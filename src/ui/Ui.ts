@@ -1,3 +1,4 @@
+import type { ObjectiveDef } from '../config/objectives';
 import * as THREE from 'three';
 import type { ProductDef } from '../config/content';
 import type { CeremonyDef, InterviewDef } from '../config/press';
@@ -100,12 +101,13 @@ export class Ui implements GameUi {
   private readonly trainMap: TrainMapUi;
   private readonly hud: {
     top: HTMLElement; cash: HTMLElement; cashVal: HTMLElement; gems: HTMLElement; gemsVal: HTMLElement;
-    level: HTMLButtonElement; levelBadge: HTMLElement;
+    level: HTMLButtonElement; levelBadge: HTMLElement; levelCount: HTMLElement;
     journey: HTMLElement; journeyKicker: HTMLElement; journeyName: HTMLElement; journeyTrain: HTMLElement; journeyTrack: HTMLElement; journeyClock: HTMLElement;
     side: HTMLElement; menu: HTMLButtonElement; menuDot: HTMLElement; shop: HTMLButtonElement; conductor: HTMLButtonElement; conductorDot: HTMLElement;
   };
   private displayedCash = 0;
   private lastCash = 0;
+  private readonly objective: { el: HTMLElement; icon: HTMLElement; text: HTMLElement; fill: HTMLElement; count: HTMLElement; reward: HTMLElement; key: string };
   /** Where the tile label is on screen this frame (other labels keep clear of it). */
   private tileTagBox: { x0: number; x1: number; y0: number; y1: number } | null = null;
   private readonly rushChip: { el: HTMLElement; count: HTMLElement; bar: HTMLElement; streak: number };
@@ -142,8 +144,10 @@ export class Ui implements GameUi {
     const gemsVal = h('span.val', { text: '0' });
     const cash = h('div.pill.cash', { 'aria-label': 'Fares' }, icon('cash', 24), cashVal);
     const gems = h('div.pill.gems', { 'aria-label': 'Gems' }, icon('gem', 20), gemsVal);
+    // MPH-style level: a gold star with the number, and a star bar with the count beside it.
     const levelBadge = h('div.badge', { text: '1' });
-    const level = h('button.level', { title: 'Route level', 'aria-label': 'Route level', onclick: () => this.tap(() => this.screens.progress()) }, levelBadge, icon('star', 20, 'ico star'));
+    const levelCount = h('span.lv-count', { text: '0/0' });
+    const level = h('button.level', { title: 'Route level', 'aria-label': 'Route level', onclick: () => this.tap(() => this.screens.progress()) }, h('div.lv-star', {}, levelBadge), h('div.lv-bar', {}, h('i'), levelCount));
     const journeyKicker = h('span.kicker', { text: 'Next' });
     const journeyName = h('span.name', { text: 'Millbrook' });
     const journeyTrain = h('div.train');
@@ -182,9 +186,18 @@ export class Ui implements GameUi {
     const rushCount = h('b', { text: '' });
     const rushBar = h('i');
     this.rushChip = { el: h('div.rush', { hidden: true, 'aria-hidden': 'true' }, h('span', { text: 'Rush' }), rushCount, h('div.bar', {}, rushBar)), count: rushCount, bar: rushBar, streak: 0 };
-    root.append(this.floatLayer, this.tileTag.el, this.rushChip.el, this.guide.el, top, side, this.trainMap.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
+    const objIcon = h('span.obj-icon');
+    const objText = h('span.obj-text');
+    const objFill = h('i');
+    const objCount = h('span.obj-count');
+    const objReward = h('span.obj-reward');
+    this.objective = {
+      el: h('div.objective', { role: 'status', hidden: true, onclick: () => this.objectiveTapped() }, objIcon, h('div.obj-body', {}, objText, h('div.obj-bar', {}, h('div.obj-track', {}, objFill), objCount)), objReward),
+      icon: objIcon, text: objText, fill: objFill, count: objCount, reward: objReward, key: '',
+    };
+    root.append(this.floatLayer, this.tileTag.el, this.rushChip.el, this.guide.el, top, this.objective.el, side, this.trainMap.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
 
-    this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, journey, journeyKicker, journeyName, journeyTrain, journeyTrack, journeyClock, side, menu, menuDot, shop, conductor, conductorDot };
+    this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyKicker, journeyName, journeyTrain, journeyTrack, journeyClock, side, menu, menuDot, shop, conductor, conductorDot };
     window.addEventListener('resize', () => (this.rectTimer = 0));
   }
 
@@ -222,6 +235,7 @@ export class Ui implements GameUi {
     this.updateGuide();
     this.updateTileTag();
     this.updateRush();
+    this.updateObjective();
     this.trainMap.update(dt);
     if (this.resultEl) {
       this.resultTimer -= dt;
@@ -249,6 +263,9 @@ export class Ui implements GameUi {
     // The station ticket takes the top of the middle column while it is up.
     // Its layout box, not its animated one: measured mid-slide it would read too short for half a second.
     if (this.resultEl) r.top = Math.max(r.top, this.resultEl.offsetTop + this.resultEl.offsetHeight + EDGE);
+    // The objective banner takes the same slot when the ticket is not up.
+    const banner = this.objective.el;
+    if (!banner.hidden) r.top = Math.max(r.top, banner.offsetTop + banner.offsetHeight + EDGE);
     // Toasts sit above the offer slot: world text stays above them.
     const toast = this.toastLayer.lastElementChild?.getBoundingClientRect();
     if (toast && toast.height > 0) r.bottom = Math.min(r.bottom, toast.top - rootRect.top - EDGE);
@@ -278,6 +295,8 @@ export class Ui implements GameUi {
     const p = g.progression;
     const lp = p.levelProgress();
     setText(hud.levelBadge, String(p.level));
+    const shownStars = Math.max(0, Math.round(lp.current - this.pendingStars));
+    setText(hud.levelCount, p.isMaxLevel ? 'Max' : `${Math.min(shownStars, lp.needed)}/${lp.needed}`);
     // The ring fills as the stars land in it (a level-up shows at once, so its card is never ahead of the ring).
     const shown = lp.needed > 0 ? Math.max(0, lp.current - this.pendingStars) / lp.needed : lp.fraction;
     const ring = (Math.round(Math.min(lp.fraction, shown) * 100) / 100).toFixed(2);
@@ -516,7 +535,8 @@ export class Ui implements GameUi {
     if ('hud' in anchor) {
       // Beside the button: the train map on the left, the conductor button on the right.
       const target = (anchor.hud === 'map' ? this.trainMap.el : this.hud.conductor).getBoundingClientRect();
-      if (target.width === 0) {
+      // The station ticket reaches down beside the rail; the line waits until it has gone.
+      if (target.width === 0 || this.resultEl) {
         el.style.opacity = '0';
         return;
       }
@@ -574,6 +594,68 @@ export class Ui implements GameUi {
     this.tileTagBox = { x0: x - half, x1: x + half, y0: this.screen.y - t.el.offsetHeight, y1: this.screen.y + 6 };
     t.el.style.opacity = '1';
     t.el.style.transform = `translate(${x}px, ${this.screen.y}px) translate(-50%, -100%)`;
+  }
+
+  /**
+   * The objective banner (MPH-style task): the current goal, a progress bar and its reward. It shares the
+   * middle column with the station ticket and steps aside while the ticket is up.
+   */
+  private updateObjective(): void {
+    const g = this.game;
+    const o = this.objective;
+    const def = g.objectives.current;
+    const show = !!def && !this.hidden && !this.resultEl && g.data.profile.ftue.first_checkin !== undefined;
+    setVisible(o.el, show);
+    if (!show || !def) return;
+    const done = g.objectives.done;
+    const { progress, target } = g.objectives.shown;
+    const key = `${def.id}|${progress}|${done}`;
+    if (key === o.key) return;
+    const fresh = !o.key.startsWith(`${def.id}|`);
+    o.key = key;
+    o.el.classList.toggle('done', done);
+    o.el.classList.toggle('interactive', def.event === 'conductor' && !done);
+    o.icon.replaceChildren(icon(done ? 'check' : def.icon, 26));
+    setText(o.text, done ? 'Done!' : def.text);
+    o.fill.style.transform = `scaleX(${Math.min(1, progress / target).toFixed(3)})`;
+    setText(o.count, `${Math.min(progress, target)}/${target}`);
+    const r = def.reward;
+    o.reward.replaceChildren(...(r.cash ? [icon('cash', 18), document.createTextNode(String(r.cash))] : r.gems ? [icon('gem', 16), document.createTextNode(String(r.gems))] : r.railMiles ? [icon('miles', 16), document.createTextNode(String(r.railMiles))] : []));
+    if (fresh) {
+      o.el.classList.remove('pop');
+      void o.el.offsetWidth;
+      o.el.classList.add('pop');
+      this.rectTimer = 0;
+    }
+  }
+
+  /** Goals that live in a menu open it when the banner is tapped (the rest just point the way in the world). */
+  private objectiveTapped(): void {
+    const def = this.game.objectives.current;
+    if (!def || this.game.objectives.done) return;
+    if (def.event === 'conductor') this.tap(() => this.screens.upgrades());
+  }
+
+  objectiveDone(def: ObjectiveDef): void {
+    const cash = def.reward.cash ?? 0;
+    const o = this.objective.el;
+    o.classList.remove('flash');
+    void o.offsetWidth;
+    o.classList.add('flash');
+    if (cash <= 0 || o.hidden) return;
+    // The reward flies from the banner's chip into the cash counter (shown as it lands).
+    const rootRect = this.root.getBoundingClientRect();
+    const chip = this.objective.reward.getBoundingClientRect();
+    const count = Math.max(2, Math.min(6, Math.round(cash / 5)));
+    let assigned = 0;
+    for (let i = 0; i < count; i++) {
+      const amount = i === count - 1 ? cash - assigned : Math.floor(cash / count);
+      assigned += amount;
+      const el = icon('cash', 26, 'ico flyer');
+      this.floatLayer.appendChild(el);
+      this.flyers.push({ el, t: 0, delay: 0.25 + i * 0.06, fromX: chip.left + chip.width / 2 - rootRect.left, fromY: chip.top + chip.height / 2 - rootRect.top, amount, to: 'cash' });
+    }
+    this.pendingHud += cash;
   }
 
   /** The Rush chip under the conductor: the streak count and a bar draining toward the lapse. */
@@ -659,10 +741,10 @@ export class Ui implements GameUi {
     return n * FLOAT_STACK_METRES;
   }
 
-  speechLine(text: string, x: number, y: number, z: number): void {
+  speechLine(text: string, x: number, y: number, z: number, tone: 'good' | 'bad' = 'good'): void {
     if (this.sinceSpeech < SPEECH_GAP_SECONDS || this.floats.some((f) => f.speech)) return;
     this.sinceSpeech = 0;
-    const el = h('div.speech', { text });
+    const el = h(tone === 'bad' ? 'div.speech.bad' : 'div.speech', { text });
     this.floatLayer.appendChild(el);
     this.floats.push({ el, pos: new THREE.Vector3(x, y, z), age: 0, life: 2.4, rise: 0.3, speech: true, width: 0 });
   }
@@ -734,13 +816,17 @@ export class Ui implements GameUi {
       result.luggageTotal > 0 ? chip('luggage', `${result.luggageLoaded}/${result.luggageTotal}`) : null,
       result.clean ? chip('chest', `+${formatNumber(result.bonusCash)}`, '.bonus') : null,
     );
-    const note = result.leftBehind > 0
-      ? `${result.leftBehind} left behind: no free beds`
-      : !result.clean && result.waiting > 0 ? `${result.waiting} waiting for the next train` : null;
+    // A missed passenger is named plainly once the soft cues are on (a nudge, never a penalty).
+    const missedCue = !result.clean && result.waiting > 0 && this.game.feedback.cuesOn;
+    const note = missedCue
+      ? `${result.waiting} missed the train`
+      : result.leftBehind > 0
+        ? `${result.leftBehind} left behind: no free beds`
+        : !result.clean && result.waiting > 0 ? `${result.waiting} waiting for the next train` : null;
     const body = h('div.body', {},
       h('div.head', {}, h('h3', { text: result.clean ? 'Perfect stop!' : 'All aboard' })),
       rows,
-      note ? h('div.note', { text: note }) : null,
+      note ? h(missedCue ? 'div.note.bad' : 'div.note', { text: note }) : null,
     );
     const el = h('div.ticket', { role: 'status', 'aria-label': `${result.stationName}: ${result.boarded} boarded, ${result.tips} in tips, ${result.stars} stars`, onclick: () => this.dismissResult() },
       h('div.stub', {}, icon('ticket', 30)),

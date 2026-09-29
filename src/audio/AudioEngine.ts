@@ -3,7 +3,7 @@ import { log } from '../core/log';
 export type Sfx =
   | 'pop' | 'pickup' | 'drop' | 'cash' | 'coin' | 'bell' | 'ding' | 'scrub' | 'sparkle' | 'clunk'
   | 'whistle' | 'whistleShort' | 'fanfare' | 'levelup' | 'punch' | 'whoosh' | 'click' | 'chime'
-  | 'soft' | 'door' | 'chest' | 'unlock' | 'heart' | 'flush';
+  | 'soft' | 'door' | 'chest' | 'unlock' | 'heart' | 'flush' | 'miss' | 'grumble';
 
 /**
  * Every sound in the game, synthesised with WebAudio: no audio files, tiny download, works offline.
@@ -210,6 +210,15 @@ export class AudioEngine {
         break;
       case 'flush':
         this.sweep(t, 0.6, 1800, 300, 0.1 * v);
+        break;
+      case 'miss':
+        // A soft "wah-wah": something slipped by, nothing lost for good.
+        this.tone(t, 392 * p, 370 * p, 0.16, 'triangle', 0.13 * v);
+        this.tone(t + 0.17, 330 * p, 262 * p, 0.3, 'triangle', 0.13 * v);
+        break;
+      case 'grumble':
+        this.tone(t, 150 * p, 132 * p, 0.14, 'sawtooth', 0.035 * v);
+        this.tone(t + 0.12, 140 * p, 118 * p, 0.18, 'sawtooth', 0.03 * v);
         break;
     }
   }

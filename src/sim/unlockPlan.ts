@@ -28,6 +28,7 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
         bathroom: t.bathroom,
         role: t.role,
         tier: t.tier,
+        comfort: t.comfort,
         effect: t.effect,
       });
     }

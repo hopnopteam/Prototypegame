@@ -34,6 +34,7 @@ const auditPage = () => {
     journey: '.hud-top .journey',
     rail: '.side button',
     ticket: '.ticket',
+    objective: '.objective',
     offer: '.offers .chip',
     toast: '.toasts .toast',
     banner: '.banner .sign, .banner .sub',
@@ -72,7 +73,7 @@ const auditPage = () => {
     }
   }
   // Clipped text: anything whose content is wider than its box.
-  const textSelectors = '.livery .buy, .name-chip, .answer .say, .award .info b, .tile-tag b, .masthead .paper-name, .pill .val, .journey .name, .journey .clock, .chip .txt b, .chip .txt span, .chip button, .ticket h3, .ticket .where, .ticket .rows span, .banner .sign, .banner .sub, .celebrate .big, .celebrate .small, .toast, .btn, .sheet header h2, .product .info b, .product .buy, .gem-card, .gem-card small, .quest .info, .quest button, .upgrade .info b, .postcard .label, .day, .toggle';
+  const textSelectors = '.livery .buy, .name-chip, .answer .say, .award .info b, .tile-tag b, .masthead .paper-name, .pill .val, .journey .name, .journey .clock, .chip .txt b, .chip .txt span, .chip button, .ticket h3, .ticket .where, .objective .obj-text, .objective .obj-reward, .level .lv-count, .ticket .rows span, .banner .sign, .banner .sub, .celebrate .big, .celebrate .small, .toast, .btn, .sheet header h2, .product .info b, .product .buy, .gem-card, .gem-card small, .quest .info, .quest button, .upgrade .info b, .postcard .label, .day, .toggle';
   document.querySelectorAll(textSelectors).forEach((el) => {
     if (!visible(el)) return;
     if (el.scrollWidth > el.clientWidth + 1) issues.push(`clipped text in ${el.className || el.tagName}: "${el.textContent.trim().slice(0, 40)}" (${el.scrollWidth}>${el.clientWidth})`);
@@ -199,7 +200,7 @@ const liveCheck = () => {
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.height > 0;
   };
-  const hud = [...document.querySelectorAll('.hud-top .pill, .hud-top .level, .hud-top .journey, .side button, .boost .badge, .trainmap, .ticket, .offers .chip, .toasts .toast')].filter(vis);
+  const hud = [...document.querySelectorAll('.hud-top .pill, .hud-top .level, .hud-top .journey, .side button, .boost .badge, .trainmap, .ticket, .objective, .offers .chip, .toasts .toast')].filter(vis);
   const world = [...document.querySelectorAll('.float, .speech, .guide, .tile-tag, .burst, .rush')].filter(vis);
   const out = [];
   for (const w of world) {

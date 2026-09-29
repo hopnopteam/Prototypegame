@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CARRIAGE_CATALOGUE, MAX_CARRIAGES, type UnlockDef } from '../config/content';
+import { CARRIAGE_CATALOGUE, MAX_CARRIAGES, type ComfortKey, type UnlockDef } from '../config/content';
 import { buildUnlocks, carriageChoices } from '../sim/unlockPlan';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Vec2 } from '../core/types';
@@ -122,6 +122,8 @@ export class TrainState {
   types: CarriageType[] = [];
   /** Refurbishment tier per carriage: 0 second-hand … 3 luxurious. */
   tiers: number[] = [];
+  /** Comforts bought per carriage. */
+  private comfortCounts: number[] = [];
   luggageStored = 0;
   coupling = false;
   /** The chooser is open. */
@@ -274,7 +276,7 @@ export class TrainState {
   }
 
   bathTipMultiplier(bath: Bathroom): number {
-    return 1 + (this.tiers[bath.carriage] ?? 0) * this.w.econ.refurb.bathTipBonusPerTier;
+    return 1 + (this.tiers[bath.carriage] ?? 0) * this.w.econ.refurb.bathTipBonusPerTier + (this.comfortCounts[bath.carriage] ?? 0) * this.w.econ.comfort.bathTipBonus;
   }
 
   /** A smart supply and luggage car lift every tip on the train. */
@@ -341,6 +343,9 @@ export class TrainState {
       case 'exterior':
         this.rebuildExterior();
         if (animate) this.dressUpMoment();
+        break;
+      case 'comfort':
+        this.furnish(def.carriage, animate);
         break;
       default:
         break;
@@ -470,7 +475,7 @@ export class TrainState {
     for (const cl of layout.cabins) {
       const cabin = new Cabin(index, cl, originZ);
       const alwaysOpen = type === 'lobby' && cl.index === 0;
-      cabin.unlocked = alwaysOpen || this.w.unlocks.isUnlocked(`cabin_${index}_${cl.index}`);
+      cabin.unlocked = alwaysOpen || this.roomUnlocked('cabin', index, cl.index);
       view.setCabinLocked(cl.index, !cabin.unlocked);
       this.cabins.push(cabin);
       this.createCabinZones(cabin);
@@ -480,7 +485,7 @@ export class TrainState {
     for (const bl of layout.bathrooms) {
       const saved = facilities.bathrooms[bl.index];
       const bath = new Bathroom(index, bl, originZ, saved?.towel ?? this.w.econ.facilities.bathroomTowelMax, saved?.roll ?? this.w.econ.facilities.bathroomRollMax);
-      bath.unlocked = bl.index === 0 || this.w.unlocks.isUnlocked(`bath_${index}_${bl.index}`);
+      bath.unlocked = bl.index === 0 || this.roomUnlocked('bathroom', index, bl.index);
       view.setBathroomLocked(bl.index, !bath.unlocked);
       this.bathrooms.push(bath);
       this.createBathroomZones(bath);
@@ -491,13 +496,60 @@ export class TrainState {
       if (facilities.supplyRoll < 0) facilities.supplyRoll = this.w.econ.facilities.supplyShelfStart;
     }
     this.createFixtureZones(index, type);
+    this.comfortCounts[index] = this.comfortsOf(index).length;
+    view.setComforts(this.comfortsOf(index));
     if (animate) this.popIn(view.group);
+  }
+
+  /** A comfort arrives in every room of the carriage at once: each one pops in with a sparkle. */
+  private furnish(index: number, animate: boolean): void {
+    const view = this.views[index];
+    if (!view) return;
+    const keys = this.comfortsOf(index);
+    this.comfortCounts[index] = keys.length;
+    const rooms = view.setComforts(keys);
+    if (!animate) return;
+    const w = this.w;
+    const originZ = carriageOriginZ(index);
+    w.audio.play('pop');
+    rooms.forEach((room, i) => {
+      if (!room.visible) return;
+      room.scale.setScalar(0.01);
+      w.tweens.run(0.36, (t) => room.scale.setScalar(Math.max(0.01, t)), {
+        ease: easeOutBack,
+        delay: 0.1 + i * 0.12,
+        complete: () => {
+          room.scale.setScalar(1);
+          w.particles.emit('sparkle', room.position.x, FLOOR_Y + 0.8, originZ + room.position.z, 10, 0.4);
+        },
+      });
+    });
   }
 
   private syncCarriageView(view: CarriageView, index: number, type: CarriageType): void {
     const layout = getLayout(type);
-    for (const cl of layout.cabins) view.setCabinLocked(cl.index, !(this.w.unlocks.isUnlocked(`cabin_${index}_${cl.index}`)));
-    for (const bl of layout.bathrooms) view.setBathroomLocked(bl.index, bl.index !== 0);
+    for (const cl of layout.cabins) view.setCabinLocked(cl.index, !(type === 'lobby' && cl.index === 0) && !this.roomUnlocked('cabin', index, cl.index));
+    for (const bl of layout.bathrooms) view.setBathroomLocked(bl.index, bl.index !== 0 && !this.roomUnlocked('bathroom', index, bl.index));
+    view.setComforts(this.comfortsOf(index));
+  }
+
+  /** Whether the tile that opens this cabin or washroom has been bought (restoring a save). */
+  private roomUnlocked(kind: 'cabin' | 'bathroom', carriage: number, room: number): boolean {
+    const u = this.w.unlocks;
+    return u.defs.some((d) => d.kind === kind && d.carriage === carriage && (kind === 'cabin' ? d.cabin : d.bathroom) === room && u.isUnlocked(d.id));
+  }
+
+  /** The comforts bought for a carriage (lamps, flowers, radios; soaps, towel rails). */
+  comfortsOf(carriage: number): ComfortKey[] {
+    const u = this.w.unlocks;
+    const out: ComfortKey[] = [];
+    for (const d of u.defs) if (d.kind === 'comfort' && d.carriage === carriage && d.comfort && u.isUnlocked(d.id)) out.push(d.comfort);
+    return out;
+  }
+
+  /** Cabin comforts lift the tips guests leave in that carriage. */
+  cabinTipMultiplier(cabin: Cabin): number {
+    return 1 + (this.comfortCounts[cabin.carriage] ?? 0) * this.w.econ.comfort.cabinTipBonus;
   }
 
   private savedTier(index: number): number {
@@ -518,6 +570,7 @@ export class TrainState {
     view.group.position.copy(old.group.position);
     for (const cabin of this.cabins) if (cabin.carriage === index) view.setCabinLocked(cabin.index, !cabin.unlocked);
     for (const bath of this.bathrooms) if (bath.carriage === index) view.setBathroomLocked(bath.layout.index, !bath.unlocked);
+    view.setComforts(this.comfortsOf(index));
     view.setDoorOpen(this.doorAmount);
     this.group.add(view.group);
     this.views[index] = view;

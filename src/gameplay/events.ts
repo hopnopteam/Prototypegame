@@ -26,6 +26,7 @@ export interface GameEvents {
   'journey.lastCall': Record<string, never>;
   'station.result': StationResult;
   'rush.bonus': { streak: number; cash: number };
+  'conductor.upgraded': { key: string; level: number };
   'bathroom.used': { tipped: boolean };
   'bathroom.restocked': Record<string, never>;
   'crate.delivered': Record<string, never>;

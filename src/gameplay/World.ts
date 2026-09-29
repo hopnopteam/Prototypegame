@@ -25,6 +25,7 @@ import type { Livery } from '../world/palette';
 import type { Stage } from '../world/Stage';
 import type { CashPiles } from './CashPiles';
 import type { Demand } from './Demand';
+import type { Feedback } from './Feedback';
 import type { GameEvents } from './events';
 import type { DoubleChoice } from './GameUi';
 import type { Guests } from './Guests';
@@ -79,6 +80,7 @@ export interface World {
   readonly meta: Meta;
   readonly press: Press;
   readonly demand: Demand;
+  readonly feedback: Feedback;
   readonly ui: UiApi;
   /** Game seconds since the page loaded (scaled by dev time scale). */
   readonly time: number;
@@ -99,4 +101,6 @@ export interface World {
   /** The livery the train is wearing now (Paint Shop pick or best earned). */
   currentLivery(): Livery;
   scenerySpanChanged(): void;
+  /** Spends Rail Miles on a conductor upgrade; false if it is maxed or unaffordable. */
+  buyConductorUpgrade(key: 'speed' | 'capacity' | 'fareBonus'): boolean;
 }

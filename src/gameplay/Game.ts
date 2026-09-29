@@ -18,7 +18,7 @@ import { applyOverrides, LocalRemoteConfig } from '../services/remoteConfig';
 import { AdPolicy } from '../sim/AdPolicy';
 import { Autopilot } from './Autopilot';
 import { Journey } from '../sim/Journey';
-import { offlineEarnings } from '../sim/meta';
+import { offlineEarnings, conductorCost } from '../sim/meta';
 import { Progression } from '../sim/Progression';
 import { TrainMap } from '../sim/TrainMap';
 import { UnlockChain } from '../sim/UnlockChain';
@@ -47,6 +47,8 @@ import { Monetization } from './Monetization';
 import { Player } from './Player';
 import { Press } from './Press';
 import { Rush } from './Rush';
+import { Objectives } from './Objectives';
+import { Feedback } from './Feedback';
 import { StaffManager } from './Staff';
 import { Station } from './Station';
 import { Tiles } from './Tiles';
@@ -100,6 +102,8 @@ export class Game implements World {
   readonly meta: Meta;
   readonly press: Press;
   readonly rush: Rush;
+  readonly objectives: Objectives;
+  readonly feedback: Feedback;
   readonly demand: Demand;
   readonly monetization: Monetization;
   readonly input: Input;
@@ -177,6 +181,8 @@ export class Game implements World {
     this.meta = new Meta(this);
     this.press = new Press(this, ui);
     this.rush = new Rush(this);
+    this.objectives = new Objectives(this);
+    this.feedback = new Feedback(this);
     this.input = new Input(canvas.parentElement ?? canvas, overlay);
     this.input.onFirstInteraction = () => this.audio.unlock();
 
@@ -197,6 +203,8 @@ export class Game implements World {
     this.staff.init();
     this.station.init();
     this.rush.init();
+    this.objectives.init();
+    this.feedback.init();
     const door = this.map.doors()[0];
     this.cash.create('bonus', door.inside.x - 0.55, door.inside.z + 0.5);
     this.cash.create('floor', this.map.anchor(0, 'startCash').x, this.map.anchor(0, 'startCash').z);
@@ -340,6 +348,8 @@ export class Game implements World {
     this.monetization.update(dt);
     this.press.update(dt);
     this.rush.update(dt);
+    this.objectives.update(dt);
+    this.feedback.update(dt);
     this.save.update(dt);
     if (this.creativeMode && this.wallet.get('cash') < 5000) this.wallet.add('cash', 5000, 'creative');
     if (this.lifetimeSeconds() > 720) this.ftue('session_12min');
@@ -576,6 +586,18 @@ export class Game implements World {
   }
 
   // ─── Dev tools ──────────────────────────────────────────────────────────────
+
+  /** Spends Rail Miles on the next level of a conductor upgrade (the Conductor sheet and the autopilot). */
+  buyConductorUpgrade(key: 'speed' | 'capacity' | 'fareBonus'): boolean {
+    const cost = conductorCost(this.econ.conductor[key], this.data.conductor[key]);
+    if (cost === null || !this.wallet.trySpend('railMiles', cost, `conductor:${key}`)) return false;
+    this.data.conductor[key]++;
+    this.save.markDirty();
+    this.events.emit('conductor.upgraded', { key, level: this.data.conductor[key] });
+    this.audio.play('unlock');
+    this.particles.emit('star', this.player.pos.x, 1.8, this.player.pos.z, 12, 0.4);
+    return true;
+  }
 
   setAutopilot(on: boolean): void {
     this.autopilot.enabled = on;

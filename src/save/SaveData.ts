@@ -101,6 +101,8 @@ export interface SaveData {
     stories: Record<string, StoryState>;
     perks: { tipBonus: number; fareBonus: number; speedBonus: number };
   };
+  /** The objective chain (config/objectives.ts): which goal is current and how far along it is. */
+  objectives: { index: number; progress: number };
   /** Paint Shop: the chosen livery (null follows reputation) and premium liveries bought with gems. */
   cosmetics: { livery: string | null; owned: string[]; outfit: string; outfits: string[] };
   /** The world noticing your train: its name, the Rail Gazette, interviews, awards. */
@@ -154,6 +156,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
       stories: {},
       perks: { tipBonus: 0, fareBonus: 0, speedBonus: 0 },
     },
+    objectives: { index: 0, progress: 0 },
     cosmetics: { livery: null, owned: [], outfit: 'classic', outfits: [] },
     press: {
       trainName: null,

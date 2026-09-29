@@ -76,21 +76,63 @@ export class ZoneRing {
   }
 }
 
-/** MPH-style unlock tile: a square on the floor showing what it unlocks and what is left to pay. */
+/** How far the tile's pad stands proud of the floor: a physical plate you step on, not a sticker. */
+const PAD_HEIGHT = 0.06;
+/** Lip colours by state (the face's border colour, a shade darker). */
+const LIP = { idle: '#9C7A52', affordable: '#2F7D50', active: '#C8891B', locked: '#8D8478' };
+
+/** A rounded square, as flat geometry lying on the floor (the pad under a tile's face). */
+function roundedPad(size: number, height: number): THREE.BufferGeometry {
+  const half = size / 2;
+  const r = size * (30 / 256);
+  const shape = new THREE.Shape();
+  shape.moveTo(-half + r, -half);
+  shape.lineTo(half - r, -half);
+  shape.quadraticCurveTo(half, -half, half, -half + r);
+  shape.lineTo(half, half - r);
+  shape.quadraticCurveTo(half, half, half - r, half);
+  shape.lineTo(-half + r, half);
+  shape.quadraticCurveTo(-half, half, -half, half - r);
+  shape.lineTo(-half, -half + r);
+  shape.quadraticCurveTo(-half, -half, -half + r, -half);
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false, curveSegments: 4 });
+  geometry.rotateX(-Math.PI / 2);
+  return geometry;
+}
+
+/**
+ * MPH-style unlock tile: a raised, rounded plate on the floor with a bright face showing what it unlocks and
+ * what is left to pay. Its lip takes the state colour (green when you can afford it, gold while paying).
+ */
 export class TileView {
   readonly group = new THREE.Group();
   readonly face = new TileFace();
+  private readonly pad = new THREE.Group();
   private readonly plane: THREE.Mesh;
+  private readonly lip: THREE.Mesh;
+  private readonly lipMaterial = new THREE.MeshLambertMaterial({ color: LIP.idle });
+  private lipState = '';
   private time = Math.random() * 3;
   private popT = 1;
 
-  constructor(size = 1.3) {
-    const material = new THREE.MeshBasicMaterial({ map: this.face.texture, transparent: true, depthWrite: false });
+  constructor(size = 1.3, private readonly locked = false) {
+    const material = new THREE.MeshBasicMaterial({ map: this.face.texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    this.lip = new THREE.Mesh(roundedPad(size * 0.97, PAD_HEIGHT), this.lipMaterial);
+    this.lip.position.y = FLOOR_Y + 0.004;
+    this.lip.receiveShadow = true;
     this.plane = new THREE.Mesh(new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2), material);
-    this.plane.position.y = FLOOR_Y + 0.02;
+    this.plane.position.y = FLOOR_Y + 0.004 + PAD_HEIGHT + 0.008;
     this.plane.renderOrder = 3;
-    this.group.add(this.plane);
+    this.pad.add(this.lip, this.plane);
+    this.group.add(this.pad);
     this.popT = 0;
+    this.setLip(locked ? 'locked' : 'idle');
+  }
+
+  private setLip(state: keyof typeof LIP): void {
+    if (state === this.lipState) return;
+    this.lipState = state;
+    this.lipMaterial.color.set(LIP[state]);
   }
 
   setPosition(x: number, z: number): void {
@@ -102,14 +144,17 @@ export class TileView {
     this.popT = Math.min(1, this.popT + dt * 3);
     const appear = this.popT < 1 ? 0.4 + 0.6 * Math.sin(this.popT * Math.PI * 0.5) * 1.08 : 1;
     const breathe = affordable && !active ? 1 + Math.sin(this.time * 4) * 0.035 : 1;
-    const press = active ? 0.94 : 1;
-    const s = appear * breathe * press;
-    this.plane.scale.set(s, 1, s);
+    const s = appear * breathe;
+    // Stepping on it presses the plate down a little, like a real button.
+    this.pad.scale.set(s, active ? 0.45 : 1, s);
+    if (!this.locked) this.setLip(active ? 'active' : affordable ? 'affordable' : 'idle');
   }
 
   dispose(): void {
     this.face.dispose();
     (this.plane.material as THREE.Material).dispose();
     this.plane.geometry.dispose();
+    this.lip.geometry.dispose();
+    this.lipMaterial.dispose();
   }
 }

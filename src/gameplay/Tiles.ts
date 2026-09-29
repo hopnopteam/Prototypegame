@@ -35,6 +35,7 @@ const ICON_BY_KIND: Record<UnlockDef['kind'], IconName> = {
   bathroom: 'bath',
   refurb: 'paint',
   staffUpgrade: 'plus',
+  comfort: 'heart',
   exterior: 'paint',
   marketing: 'megaphone',
 };
@@ -126,7 +127,7 @@ export class Tiles {
       }
     }
     if (show && !this.preview && next) {
-      const view = new TileView(COUPLE_TILE_SIZE);
+      const view = new TileView(COUPLE_TILE_SIZE, true);
       const pos = w.map.rearDeck().tile;
       view.setPosition(pos.x, pos.z);
       view.face.draw('carriage', next.price, 0, false, false, true);
@@ -329,6 +330,8 @@ export class Tiles {
       case 'staffUpgrade':
         return map.hasAnchor(def.carriage, `tile_up_${def.role}`) ? map.anchor(def.carriage, `tile_up_${def.role}`) : null;
       case 'refurb':
+      case 'comfort':
+        // Refits and comforts share the carriage's one improvement spot (only one is on show at a time).
         return map.hasAnchor(def.carriage, 'tile_refurb') ? map.anchor(def.carriage, 'tile_refurb') : null;
       case 'couple':
         return map.rearDeck().tile;
