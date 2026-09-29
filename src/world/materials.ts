@@ -208,3 +208,37 @@ export function setLivery(body: string, trim: string): void {
   MATERIALS.livery.color.set(body);
   MATERIALS.liveryTrim.color.set(trim);
 }
+
+/**
+ * Temporary clones of the train's shared materials that keep only one side of `plane` (the refurbishment
+ * wipe shows the new carriage on one side of a moving line and the old one on the other). Dispose the
+ * clones when the wipe ends.
+ */
+export function clippedMaterials(plane: THREE.Plane): Map<THREE.Material, THREE.Material> {
+  const map = new Map<THREE.Material, THREE.Material>();
+  const clip = (source: THREE.Material, isPatterned: boolean): void => {
+    const clone = source.clone();
+    if (isPatterned) patterned(clone as THREE.MeshLambertMaterial);
+    clone.clippingPlanes = [plane];
+    map.set(source, clone);
+  };
+  clip(MATERIALS.solid, true);
+  clip(MATERIALS.floor, true);
+  clip(MATERIALS.livery, false);
+  clip(MATERIALS.liveryTrim, false);
+  clip(MATERIALS.windows, false);
+  clip(MATERIALS.lamps, false);
+  clip(MATERIALS.lockedOverlay, false);
+  return map;
+}
+
+/** Swaps every mesh under `root` onto its clipped clone (or back, with `restore`). */
+export function swapMaterials(root: THREE.Object3D, map: Map<THREE.Material, THREE.Material>, restore = false): void {
+  const reverse = restore ? new Map([...map].map(([a, b]) => [b, a] as const)) : map;
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || Array.isArray(mesh.material)) return;
+    const next = reverse.get(mesh.material);
+    if (next) mesh.material = next;
+  });
+}

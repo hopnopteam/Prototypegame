@@ -142,12 +142,12 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
   lobby: {
     type: 'lobby', name: 'Sleeper & Lobby', pitch: 'Where it all began.', max: 1, cabins: 3, inside: 'Reception desk, 3 cabins',
     unlocks: [
-      { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 20, stars: 2, cabin: 1, requires: [], effect: 'Room for one more guest' },
+      { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 30, stars: 2, cabin: 1, requires: [], effect: 'Room for one more guest' },
       { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 35, stars: 2, cabin: 2, requires: ['cabin_1'], effect: 'Room for one more guest' },
       { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 45, stars: 3, role: 'attendant', requires: ['cabin_2'], flags: ['firstCabinCleaned'], effect: 'Cleans cabins for you' },
       { key: 'refurb_1', kind: 'refurb', label: 'Fresh Paint', price: 40, stars: 3, tier: 1, requires: ['hire_attendant'], effect: 'Fares +25% in this carriage' },
       { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 110, stars: 4, tier: 2, requires: ['refurb_1', '@couple_2'], effect: 'Fares +25% more in this carriage' },
-      { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 130, stars: 3, role: 'porter', requires: ['@couple_2'], effect: 'Checks guests in and loads luggage' },
+      { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 110, stars: 3, role: 'porter', requires: ['@couple_2'], effect: 'Checks guests in and loads luggage' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Attendant Training', price: 110, stars: 2, role: 'attendant', requires: ['hire_porter'], effect: 'Attendant +20% speed, +1 carry' },
       { key: 'up_porter', kind: 'staffUpgrade', label: 'Porter Training', price: 300, stars: 2, role: 'porter', requires: ['@couple_4'], effect: 'Porter +20% speed, +1 carry' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 380, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Fares +25% more, and it shows' },
@@ -158,7 +158,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
     unlocks: [
       { key: 'bath_1', kind: 'bathroom', label: 'Washroom 2', price: 50, stars: 2, bathroom: 1, requires: ['couple', '@couple_2'], effect: 'Shorter washroom queues' },
       { key: 'refurb_1', kind: 'refurb', label: 'Scrub & Tile', price: 60, stars: 3, tier: 1, requires: ['couple', '@couple_2'], effect: 'Washroom tips +50%' },
-      { key: 'bath_2', kind: 'bathroom', label: 'Bath Suite', price: 150, stars: 3, bathroom: 2, requires: ['bath_1', '@couple_3'], effect: 'A third washroom, with a tub' },
+      { key: 'bath_2', kind: 'bathroom', label: 'Bath Suite', price: 120, stars: 3, bathroom: 2, requires: ['bath_1', '@couple_3'], effect: 'A third washroom, with a tub' },
       { key: 'refurb_2', kind: 'refurb', label: 'Cosy Washrooms', price: 180, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Washroom tips +50% more' },
       { key: 'refurb_3', kind: 'refurb', label: 'Marble & Brass', price: 340, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Washroom tips +50% more' },
     ],
@@ -213,9 +213,9 @@ export interface CoupleSlot {
 }
 
 export const COUPLE_SLOTS: CoupleSlot[] = [
-  { price: 130, stars: 6, requires: ['c0.hire_attendant'] },
+  { price: 140, stars: 6, requires: ['c0.hire_attendant'] },
   { price: 95, stars: 6, requires: ['couple_1'] },
-  { price: 260, stars: 8, requires: ['couple_2', 'c0.hire_porter'] },
+  { price: 170, stars: 8, requires: ['couple_2'] },
   { price: 400, stars: 8, requires: ['couple_3'] },
 ];
 /** Route 1 holds this many carriages: fewer than the catalogue offers, so every pick is a real choice. */
@@ -243,9 +243,9 @@ export interface StationUpgradeDef {
 export const STATION_UPGRADES: StationUpgradeDef[] = [
   { key: 'posters', kind: 'marketing', label: 'Station Posters', price: 60, stars: 3, requires: ['couple_1'], effect: '+1 traveller at every stop', bonus: { passengers: 1 } },
   { key: 'windowboxes', kind: 'exterior', label: 'Window Boxes', price: 80, stars: 3, requires: ['couple_1'], effect: 'Tips +5% (and flowers!)', bonus: { tips: 0.05 } },
-  { key: 'lamps', kind: 'exterior', label: 'Brass Lamps', price: 150, stars: 3, requires: ['st.windowboxes', 'couple_2'], effect: 'Tips +5% more', bonus: { tips: 0.05 } },
-  { key: 'billboard', kind: 'marketing', label: 'Billboards', price: 180, stars: 3, requires: ['st.posters', 'couple_2'], effect: '+1 traveller, more VIPs', bonus: { passengers: 1, vip: 0.6 } },
-  { key: 'lining', kind: 'exterior', label: 'Gold Lining', price: 220, stars: 4, requires: ['st.lamps', 'couple_3'], effect: 'Fares +5% on the whole train', bonus: { fares: 0.05 } },
+  { key: 'lamps', kind: 'exterior', label: 'Brass Lamps', price: 120, stars: 3, requires: ['st.windowboxes', 'couple_2'], effect: 'Tips +5% more', bonus: { tips: 0.05 } },
+  { key: 'billboard', kind: 'marketing', label: 'Billboards', price: 140, stars: 3, requires: ['st.posters', 'couple_2'], effect: '+1 traveller, more VIPs', bonus: { passengers: 1, vip: 0.6 } },
+  { key: 'lining', kind: 'exterior', label: 'Gold Lining', price: 180, stars: 4, requires: ['st.lamps', 'couple_3'], effect: 'Fares +5% on the whole train', bonus: { fares: 0.05 } },
   { key: 'band', kind: 'marketing', label: 'Brass Band', price: 320, stars: 4, requires: ['st.billboard', 'couple_3'], effect: '+1 traveller, station bonus +50%', bonus: { passengers: 1, stationBonus: 0.5 } },
   { key: 'nameboards', kind: 'exterior', label: 'Name Boards', price: 300, stars: 4, requires: ['st.lining', 'couple_4'], effect: 'Fares +5% more', bonus: { fares: 0.05 } },
   { key: 'redcarpet', kind: 'exterior', label: 'Red Carpet', price: 420, stars: 5, requires: ['st.nameboards'], effect: 'Station bonus +50% more', bonus: { stationBonus: 0.5 } },

@@ -4,7 +4,7 @@ import type { CurrencyKind, ItemKind, JourneyPhase, StaffRole } from '../core/ty
 export interface GameEvents {
   'currency.changed': { kind: CurrencyKind; amount: number; delta: number; source: string };
   'cash.collected': { amount: number; x: number; z: number };
-  'guest.checkedIn': { fare: number; x: number; z: number };
+  'guest.checkedIn': { fare: number; x: number; z: number; byPlayer: boolean };
   'guest.boarded': Record<string, never>;
   'guest.alighted': { tip: number };
   'request.fulfilled': { item: ItemKind; tip: number; x: number; z: number; byPlayer: boolean };
@@ -25,6 +25,7 @@ export interface GameEvents {
   'journey.phase': { phase: JourneyPhase; previous: JourneyPhase; station: number };
   'journey.lastCall': Record<string, never>;
   'station.result': StationResult;
+  'rush.bonus': { streak: number; cash: number };
   'bathroom.used': { tipped: boolean };
   'bathroom.restocked': Record<string, never>;
   'crate.delivered': Record<string, never>;

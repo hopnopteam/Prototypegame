@@ -92,6 +92,7 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .level .badge { width: 27px; height: 27px; border-radius: 50%; background: var(--navy); color: var(--cream); display: grid; place-items: center; font-weight: 800; font-size: 16px; border: 2px solid var(--ink); font-variant-numeric: tabular-nums; }
 .level .star { position: absolute; right: -6px; bottom: -5px; width: 20px; height: 20px; }
 .level.max { background: var(--mustard); }
+.level.bump { animation: bump 240ms ease-out; }
 
 /* Route strip: next station, the train on its way, the departure clock at stops. */
 .journey {
@@ -222,6 +223,15 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .gesture .label { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.06em; color: var(--cream); text-shadow: 0 2px 0 var(--ink), 1.5px 0 0 var(--ink), -1.5px 0 0 var(--ink), 0 -1.5px 0 var(--ink); }
 @keyframes sweep { 0% { transform: translateX(0) rotate(-8deg); } 50% { transform: translateX(76px) rotate(8deg); } 100% { transform: translateX(0) rotate(-8deg); } }
 .has-card .guide, .has-card .tile-tag { opacity: 0 !important; }
+/* Rush: the streak under the conductor's feet, a mustard pill with a draining bar. */
+.rush { position: absolute; left: 0; top: 0; display: flex; align-items: baseline; gap: 4px; padding: 3px 9px 6px; border-radius: 999px; background: var(--mustard); color: var(--ink); border: 2px solid var(--ink); box-shadow: 0 2px 0 var(--ink); pointer-events: none; will-change: transform; }
+.rush span { font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.rush b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rush .bar { position: absolute; left: 8px; right: 8px; bottom: 2px; height: 3px; border-radius: 2px; background: rgba(0,0,0,0.18); overflow: hidden; }
+.rush .bar i { display: block; height: 100%; background: var(--ink); transform-origin: left center; }
+.rush.pop b { animation: bump 240ms ease-out; display: inline-block; }
+.rush.milestone { animation: rushFlash 520ms ease-out; }
+@keyframes rushFlash { 0% { background: var(--cream); } 35% { background: #FFF6D6; box-shadow: 0 0 0 6px rgba(242, 178, 51, 0.45), 0 2px 0 var(--ink); } 100% { background: var(--mustard); } }
 .tile-tag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; max-width: 180px; padding: 4px 10px 5px; border-radius: 10px; background: var(--ink); color: var(--cream); text-align: center; line-height: 1.15; will-change: transform; pointer-events: none; }
 .tile-tag::after { content: ''; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: var(--ink); }
 .tile-tag b { font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }

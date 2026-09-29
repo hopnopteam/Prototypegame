@@ -46,6 +46,7 @@ import { Meta } from './Meta';
 import { Monetization } from './Monetization';
 import { Player } from './Player';
 import { Press } from './Press';
+import { Rush } from './Rush';
 import { StaffManager } from './Staff';
 import { Station } from './Station';
 import { Tiles } from './Tiles';
@@ -56,6 +57,8 @@ import { ZoneSystem } from './Zones';
 
 const SAVE_KEY = 'nightexpress.save';
 const MAX_FRAME = 0.05;
+/** Time scale during a hit-stop. */
+const HIT_STOP_SCALE = 0.25;
 
 /**
  * Composition root and main loop. Builds every system once, owns time (including the dev time scale and
@@ -96,6 +99,7 @@ export class Game implements World {
   readonly guidance: Guidance;
   readonly meta: Meta;
   readonly press: Press;
+  readonly rush: Rush;
   readonly demand: Demand;
   readonly monetization: Monetization;
   readonly input: Input;
@@ -172,6 +176,7 @@ export class Game implements World {
     this.tiles = new Tiles(this);
     this.meta = new Meta(this);
     this.press = new Press(this, ui);
+    this.rush = new Rush(this);
     this.input = new Input(canvas.parentElement ?? canvas, overlay);
     this.input.onFirstInteraction = () => this.audio.unlock();
 
@@ -191,6 +196,7 @@ export class Game implements World {
     this.crowd = new Crowd(this);
     this.staff.init();
     this.station.init();
+    this.rush.init();
     const door = this.map.doors()[0];
     this.cash.create('bonus', door.inside.x - 0.55, door.inside.z + 0.5);
     this.cash.create('floor', this.map.anchor(0, 'startCash').x, this.map.anchor(0, 'startCash').z);
@@ -266,7 +272,8 @@ export class Game implements World {
     const levels = this.progression.addStars(amount);
     this.save.markDirty();
     this.events.emit('stars.added', { amount, source, x: at?.x, z: at?.z });
-    if (at) this.ui.floatText(`+${amount}`, at.x, FLOOR_Y + 1.6, at.z, 'star');
+    // Stars fly into the level ring once it is on screen; before that a small float says what was earned.
+    if (at && !this.ui.flyStars(amount, at.x, FLOOR_Y + 1.6, at.z)) this.ui.floatText(`+${amount}`, at.x, FLOOR_Y + 1.6, at.z, 'star');
     for (const level of levels) this.onLevelUp(level);
   }
 
@@ -294,7 +301,10 @@ export class Game implements World {
   private frame(realDt: number): void {
     if (!this.paused && !this.adPlaying) {
       // Fast-forward (dev) runs several normal-sized steps so nothing tunnels through a zone.
-      let remaining = Math.min(realDt, MAX_FRAME * 4) * this.timeScale;
+      // A hit-stop (a beat of slow motion on a big unlock) gives the moment weight.
+      const slow = this.hitStopTime > 0 ? HIT_STOP_SCALE : 1;
+      this.hitStopTime = Math.max(0, this.hitStopTime - realDt);
+      let remaining = Math.min(realDt, MAX_FRAME * 4) * this.timeScale * slow;
       while (remaining > 1e-6) {
         const dt = Math.min(MAX_FRAME, remaining);
         this.step(dt);
@@ -329,6 +339,7 @@ export class Game implements World {
     this.coach.update(dt);
     this.monetization.update(dt);
     this.press.update(dt);
+    this.rush.update(dt);
     this.save.update(dt);
     if (this.creativeMode && this.wallet.get('cash') < 5000) this.wallet.add('cash', 5000, 'creative');
     if (this.lifetimeSeconds() > 720) this.ftue('session_12min');
@@ -344,6 +355,13 @@ export class Game implements World {
     rig.update(realDt, this.player.pos.x, this.player.pos.z);
     this.ui.update(realDt);
     this.stage.render(realDt);
+  }
+
+  private hitStopTime = 0;
+
+  /** A beat of slow motion (real seconds) for a big moment. Sim-only runs ignore it. */
+  hitStop(seconds: number): void {
+    this.hitStopTime = Math.max(this.hitStopTime, seconds);
   }
 
   private dayCycleOverride: number | null = null;

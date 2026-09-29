@@ -10,6 +10,9 @@ import type { World } from './World';
 import { Zone } from './Zones';
 
 const DWELL_SECONDS = 0.3;
+/** Camera zoom kick and slow-motion beat (real seconds) when a tile completes. */
+const UNLOCK_PUNCH = 0.05;
+const UNLOCK_HIT_STOP = 0.14;
 /** Station upgrades live on the platform and only while the train is in. */
 const isStation = (def: UnlockDef): boolean => def.kind === 'exterior' || def.kind === 'marketing';
 const BILL_INTERVAL = 0.07;
@@ -285,6 +288,9 @@ export class Tiles {
     w.particles.emit('sparkle', entry.pos.x, FLOOR_Y + 0.4, entry.pos.z, 24, 0.6);
     w.particles.emit('star', entry.pos.x, FLOOR_Y + 0.6, entry.pos.z, 10, 0.4);
     w.stage.rig.shake(0.12, 0.2);
+    // Weight: a zoom kick and a beat of slow motion as the new thing pops into existence.
+    w.stage.rig.punch(def.kind === 'couple' ? 0.02 : UNLOCK_PUNCH);
+    if (def.kind !== 'couple' && def.kind !== 'refurb') w.hitStop(UNLOCK_HIT_STOP);
     w.addStars(def.stars, 'unlock', entry.pos);
     w.analytics.log(EVENTS.unlockCompleted, { id: def.id, price: def.price, time: Math.round(w.lifetimeSeconds()) });
     w.analytics.log(EVENTS.currencySpent, { currency: 'cash', amount: def.price, sink: `unlock:${def.kind}` });

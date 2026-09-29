@@ -519,7 +519,7 @@ export class Guests {
       const first = w.econ.guests.firstRequestDelay;
       guest.nextRequestIn = w.rng.range(first[0], first[1]);
     });
-    w.events.emit('guest.checkedIn', { fare, x: guest.pos.x, z: guest.pos.z });
+    w.events.emit('guest.checkedIn', { fare, x: guest.pos.x, z: guest.pos.z, byPlayer: actor.isPlayer });
     if (guest.story) w.meta?.onStoryGuestCheckedIn(guest.story);
   }
 

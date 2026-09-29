@@ -19,6 +19,8 @@ export class CameraRig {
   private distance = BASE_DISTANCE;
   private baseDistance = BASE_DISTANCE;
   private zoom = 1;
+  /** A short zoom-in kick on big moments; decays back to rest. */
+  private punchAmount = 0;
   private shakeTime = 0;
   private shakeStrength = 0;
   private overrideTarget: THREE.Vector3 | null = null;
@@ -45,6 +47,11 @@ export class CameraRig {
   }
 
   /** Look at a point for a while (celebrations), then glide back to the player. */
+  /** A quick zoom-in kick (0.04 = subtle, 0.1 = big) that springs back: weight for a reward moment. */
+  punch(amount: number): void {
+    this.punchAmount = Math.max(this.punchAmount, amount);
+  }
+
   focusOn(target: THREE.Vector3, seconds: number, zoom = 1.25): void {
     this.overrideTarget = target.clone();
     this.overrideTime = seconds;
@@ -84,6 +91,8 @@ export class CameraRig {
     this.focus.x = damp(this.focus.x, tx, FOLLOW_SHARPNESS, dt);
     this.focus.z = damp(this.focus.z, tz, FOLLOW_SHARPNESS, dt);
     this.distance = damp(this.distance, this.baseDistance * zoom, 3, dt);
+    if (this.punchAmount > 0.001) this.punchAmount = damp(this.punchAmount, 0, 6, dt);
+    else this.punchAmount = 0;
 
     let sx = 0;
     let sy = 0;
@@ -96,10 +105,11 @@ export class CameraRig {
     }
 
     const cam = this.camera;
+    const distance = this.distance * (1 - this.punchAmount);
     cam.position.set(
       this.focus.x + sx,
-      Math.sin(PITCH) * this.distance + sy,
-      this.focus.z + Math.cos(PITCH) * this.distance,
+      Math.sin(PITCH) * distance + sy,
+      this.focus.z + Math.cos(PITCH) * distance,
     );
     cam.lookAt(this.focus.x + sx * 0.5, 0, this.focus.z);
   }

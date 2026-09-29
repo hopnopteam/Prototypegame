@@ -34,7 +34,8 @@ describe('Wallet', () => {
 describe('Progression', () => {
   it('levels up at the thresholds and caps at the route max', () => {
     const p = new Progression(ECONOMY.progression, { stars: 0, level: 1 });
-    expect(p.addStars(89)).toEqual([]);
+    const toLevel2 = ECONOMY.progression.levelThresholds[1];
+    expect(p.addStars(toLevel2 - 1)).toEqual([]);
     expect(p.addStars(1)).toEqual([2]);
     expect(p.addStars(10_000)).toEqual([3, 4, 5, 6, 7, 8]);
     expect(p.isMaxLevel).toBe(true);
@@ -46,7 +47,7 @@ describe('Progression', () => {
     p.addStars(22);
     const progress = p.levelProgress();
     expect(progress.current).toBe(22);
-    expect(progress.needed).toBe(90);
+    expect(progress.needed).toBe(ECONOMY.progression.levelThresholds[1]);
   });
 
   it('gates features by level (§9)', () => {
@@ -71,7 +72,7 @@ describe('UnlockChain', () => {
     const chain = makeChain();
     expect(chain.pay('c0.cabin_1', 4)).toBe(4);
     expect(chain.complete('c0.cabin_1')).toBe(false);
-    expect(chain.pay('c0.cabin_1', 100)).toBe(16);
+    expect(chain.pay('c0.cabin_1', 100)).toBe(chain.get('c0.cabin_1')!.price - 4);
     expect(chain.complete('c0.cabin_1')).toBe(true);
     expect(chain.complete('c0.cabin_1')).toBe(false);
     expect(chain.available().map((d) => d.id)).toEqual(['c0.cabin_2']);

@@ -9,7 +9,7 @@ import { ExteriorView } from '../world/ExteriorView';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { GeoBuilder } from '../world/geo';
-import { MATERIALS, PATTERN } from '../world/materials';
+import { clippedMaterials, MATERIALS, PATTERN, swapMaterials } from '../world/materials';
 import { PALETTE, TIER_NAMES } from '../world/palette';
 import { GANGWAY_LENGTH, REAR_DECK_LENGTH } from '../world/layout';
 import type { Actor } from './Actor';
@@ -96,6 +96,10 @@ const SLEEPER_HEAD = 1.02;
 const ROOM_DOOR_REACH = 1.25;
 const ROOM_DOOR_OPEN_RATE = 4;
 const ROOM_DOOR_CLOSE_RATE = 1.6;
+/** How long the refurbishment wipe takes to sweep the carriage (seconds). */
+const MAKEOVER_SECONDS = 1.4;
+const MAKEOVER_BAND_GEOMETRY = new THREE.BoxGeometry(HALF_WIDTH * 2 + 0.3, 1.5, 0.12);
+const MAKEOVER_BAND_MATERIAL = new THREE.MeshBasicMaterial({ color: '#FFF1C4', transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending });
 
 /** The open observation platform behind the last carriage, where new carriages couple on. */
 function buildRearDeck(): THREE.Group {
@@ -487,26 +491,68 @@ export class TrainState {
     for (const cabin of this.cabins) if (cabin.carriage === index) view.setCabinLocked(cabin.index, !cabin.unlocked);
     for (const bath of this.bathrooms) if (bath.carriage === index) view.setBathroomLocked(bath.layout.index, !bath.unlocked);
     view.setDoorOpen(this.doorAmount);
-    this.group.remove(old.group);
-    old.dispose();
     this.group.add(view.group);
     this.views[index] = view;
     this.tiers[index] = tier;
     // Refresh stock visibility this frame rather than next.
     this.update(0);
-    if (!animate) return;
+    if (!animate) {
+      this.group.remove(old.group);
+      old.dispose();
+      return;
+    }
     const w = this.w;
     const originZ = carriageOriginZ(index);
-    w.stage.rig.focusOn(new THREE.Vector3(0, 0, originZ + 7), 2.2, 1.0);
-    w.stage.rig.shake(0.15, 0.3);
+    w.stage.rig.focusOn(new THREE.Vector3(0, 0, originZ + 7), 2.6, 1.0);
     w.audio.play('fanfare');
     w.haptics.success();
-    for (let z = 1; z < 13; z += 1.5) w.particles.emit('sparkle', (z % 3) - 1, FLOOR_Y + 0.9, originZ + z, 6, 0.9);
-    w.particles.emit('confetti', 0, FLOOR_Y + 2.2, originZ + 7, 40, 1.8);
-    view.group.scale.set(1, 0.9, 1);
-    w.tweens.run(0.6, (t) => view.group.scale.set(1, 0.9 + 0.1 * t, 1), { ease: easeOutBack });
-    w.ui.celebrate(this.carriageName(index), TIER_NAMES[tier] ?? 'Refurbished', 'paint');
+    this.makeoverWipe(old, view, originZ, () => {
+      w.stage.rig.shake(0.15, 0.3);
+      w.stage.rig.punch(0.06);
+      w.particles.emit('confetti', 0, FLOOR_Y + 2.2, originZ + 7, 40, 1.8);
+      w.ui.celebrate(this.carriageName(index), TIER_NAMES[tier] ?? 'Refurbished', 'paint');
+    });
     w.events.emit('carriage.refurbished', { index, type, tier });
+  }
+
+  /**
+   * The makeover: a line of sparkle sweeps from the front of the carriage to the back, the refurbished
+   * carriage appearing behind it and the old one still ahead of it, then a flourish.
+   */
+  private makeoverWipe(old: CarriageView, view: CarriageView, originZ: number, done: () => void): void {
+    const w = this.w;
+    const front = new THREE.Plane(new THREE.Vector3(0, 0, -1), originZ);
+    const back = new THREE.Plane(new THREE.Vector3(0, 0, 1), -originZ);
+    const newSide = clippedMaterials(front);
+    const oldSide = clippedMaterials(back);
+    swapMaterials(view.group, newSide);
+    swapMaterials(old.group, oldSide);
+    const z0 = originZ - 0.6;
+    const z1 = originZ + CARRIAGE_LENGTH + 0.6;
+    let sparkle = 0;
+    // A band of warm light rides the cut, like fresh paint catching the sun.
+    const band = new THREE.Mesh(MAKEOVER_BAND_GEOMETRY, MAKEOVER_BAND_MATERIAL);
+    band.position.set(0, FLOOR_Y + 0.7, z0);
+    this.group.add(band);
+    const finish = (): void => {
+      this.group.remove(band);
+      swapMaterials(view.group, newSide, true);
+      this.group.remove(old.group);
+      old.dispose();
+      for (const m of [...newSide.values(), ...oldSide.values()]) m.dispose();
+      done();
+    };
+    w.tweens.run(MAKEOVER_SECONDS, (t) => {
+      const cut = z0 + (z1 - z0) * t;
+      front.constant = cut;
+      back.constant = -cut;
+      band.position.z = cut;
+      sparkle -= 1;
+      if (sparkle <= 0) {
+        sparkle = 2;
+        w.particles.emit('sparkle', -1.4 + Math.random() * 2.8, FLOOR_Y + 0.4 + Math.random() * 0.8, cut, 3, 0.5);
+      }
+    }, { delay: 0.35, complete: finish });
   }
 
   /** Room doors slide open for anyone walking up to them, and close behind. Locked rooms stay shut. */

@@ -90,6 +90,8 @@ export interface World {
   /** Multiplier on fares from conductor upgrades, perks and boosts. */
   fareMultiplier(): number;
   tipMultiplier(): number;
+  /** A beat of slow motion (real seconds) to give a big moment weight. */
+  hitStop(seconds: number): void;
   /** What the station upgrades (exterior and marketing) add: tips, fares, passengers, VIPs, stop bonus. */
   stationPerks(): StationPerks;
   /** Grants a reward once, doubled if the player watched an ad or paid gems for it. */

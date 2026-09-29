@@ -25,6 +25,8 @@ export class Stage {
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: false });
+    // Only the refurbishment wipe uses clipping planes (on temporary material clones).
+    this.renderer.localClippingEnabled = true;
     this.pixelRatio = Math.min(window.devicePixelRatio || 1, ECONOMY.performance.maxPixelRatio);
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.shadowMap.enabled = true;

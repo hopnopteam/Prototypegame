@@ -16,6 +16,8 @@ export type FloatKind = 'cash' | 'star' | 'gem' | 'miles' | 'info';
 /** What gameplay asks of the UI. Implemented by the DOM layer; gameplay never touches the DOM itself. */
 export interface UiApi {
   floatText(text: string, x: number, y: number, z: number, kind: FloatKind): void;
+  /** Stars earned at a world position fly up into the route-level ring. */
+  flyStars(amount: number, x: number, y: number, z: number): boolean;
   toast(text: string, icon?: IconName): void;
   stationBanner(title: string, subtitle: string): void;
   showResult(result: StationResult): void;

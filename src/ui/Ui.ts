@@ -13,7 +13,7 @@ import type { NewsItem } from '../save/SaveData';
 import { h, icon, setText, setVisible } from './dom';
 import type { IconName } from './icons';
 import { PressScreens } from './PressScreens';
-import { Screens } from './Screens';
+import { levelPerks, Screens } from './Screens';
 import { TrainMapUi } from './TrainMapUi';
 
 interface Floating {
@@ -35,6 +35,8 @@ interface Flyer {
   fromX: number;
   fromY: number;
   amount: number;
+  /** Cash notes land on the cash counter, stars in the route-level ring. */
+  to: 'cash' | 'level';
 }
 
 /** The part of the screen the world owns: between the side columns, below the top bar, above the offer. */
@@ -51,6 +53,12 @@ const FLOAT_NEAR = 0.9;
 const FLOAT_LIFE = 1.15;
 const EDGE = 6;
 const FLYER_SECONDS = 0.5;
+/** Stars float a moment where they were earned before flying to the level ring. */
+const STAR_FLY_DELAY = 0.45;
+/** Share of a level's stars at which the next level's reward is teased. */
+const LEVEL_TEASE_AT = 0.75;
+/** The Rush chip sits this far below the conductor's feet (px). */
+const RUSH_CHIP_OFFSET = 14;
 /** The head counter waits this long after the last bill before sending the total to the counter. */
 const BURST_HOLD_SECONDS = 0.35;
 /** Tile labels show for the nearest tile within this many metres, floating this high above it. */
@@ -98,6 +106,11 @@ export class Ui implements GameUi {
   };
   private displayedCash = 0;
   private lastCash = 0;
+  /** Where the tile label is on screen this frame (other labels keep clear of it). */
+  private tileTagBox: { x0: number; x1: number; y0: number; y1: number } | null = null;
+  private readonly rushChip: { el: HTMLElement; count: HTMLElement; bar: HTMLElement; streak: number };
+  /** Stars already earned but still flying to the level ring. */
+  private pendingStars = 0;
   /** Cash already in the wallet but still flying to the counter (shown once it lands). */
   private pendingHud = 0;
   private readonly burst = { el: null as unknown as HTMLElement, value: null as unknown as HTMLElement, total: 0, shown: 0, idle: 0, pop: 0, active: false };
@@ -166,7 +179,10 @@ export class Ui implements GameUi {
     const tagEffect = h('span');
     this.tileTag = { el: h('div.tile-tag', { hidden: true }, tagName, tagEffect), name: tagName, effect: tagEffect, key: '' };
     this.trainMap = new TrainMapUi(() => this.game);
-    root.append(this.floatLayer, this.tileTag.el, this.guide.el, top, side, this.trainMap.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
+    const rushCount = h('b', { text: '' });
+    const rushBar = h('i');
+    this.rushChip = { el: h('div.rush', { hidden: true, 'aria-hidden': 'true' }, h('span', { text: 'Rush' }), rushCount, h('div.bar', {}, rushBar)), count: rushCount, bar: rushBar, streak: 0 };
+    root.append(this.floatLayer, this.tileTag.el, this.rushChip.el, this.guide.el, top, side, this.trainMap.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
 
     this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, journey, journeyKicker, journeyName, journeyTrain, journeyTrack, journeyClock, side, menu, menuDot, shop, conductor, conductorDot };
     window.addEventListener('resize', () => (this.rectTimer = 0));
@@ -205,6 +221,7 @@ export class Ui implements GameUi {
     this.updatePointer();
     this.updateGuide();
     this.updateTileTag();
+    this.updateRush();
     this.trainMap.update(dt);
     if (this.resultEl) {
       this.resultTimer -= dt;
@@ -260,9 +277,17 @@ export class Ui implements GameUi {
     const p = g.progression;
     const lp = p.levelProgress();
     setText(hud.levelBadge, String(p.level));
-    const ring = (Math.round(lp.fraction * 100) / 100).toFixed(2);
+    // The ring fills as the stars land in it (a level-up shows at once, so its card is never ahead of the ring).
+    const shown = lp.needed > 0 ? Math.max(0, lp.current - this.pendingStars) / lp.needed : lp.fraction;
+    const ring = (Math.round(Math.min(lp.fraction, shown) * 100) / 100).toFixed(2);
     if (hud.level.style.getPropertyValue('--p') !== ring) hud.level.style.setProperty('--p', ring);
     hud.level.classList.toggle('max', p.isMaxLevel);
+    // Nearly there: say once what the next level brings, so the last few stars have a goal.
+    if (!p.isMaxLevel && lp.fraction >= LEVEL_TEASE_AT && !g.flag(`tease_${p.level + 1}`)) {
+      g.setFlag(`tease_${p.level + 1}`);
+      const perk = levelPerks(p.level + 1)[0];
+      if (perk) this.toast(`Almost level ${p.level + 1}: ${perk}`, 'star');
+    }
     const label = p.isMaxLevel ? `Route level ${p.level}, max` : `Route level ${p.level}: ${lp.current} of ${lp.needed} stars`;
     if (hud.level.title !== label) {
       hud.level.title = label;
@@ -400,7 +425,7 @@ export class Ui implements GameUi {
       assigned += amount;
       const el = icon('cash', 28, 'ico flyer');
       this.floatLayer.appendChild(el);
-      this.flyers.push({ el, t: 0, delay: i * 0.045, fromX: fromX + (Math.random() - 0.5) * 24, fromY: fromY + (Math.random() - 0.5) * 12, amount });
+      this.flyers.push({ el, t: 0, delay: i * 0.045, fromX: fromX + (Math.random() - 0.5) * 24, fromY: fromY + (Math.random() - 0.5) * 12, amount, to: 'cash' });
     }
     b.active = false;
     b.total = 0;
@@ -416,11 +441,13 @@ export class Ui implements GameUi {
   private updateFlyers(dt: number): void {
     if (this.flyers.length === 0) return;
     const rootRect = this.root.getBoundingClientRect();
-    const target = this.hud.cash.getBoundingClientRect();
-    const tx = target.left + 22 - rootRect.left;
-    const ty = target.top + target.height / 2 - rootRect.top;
+    const cashRect = this.hud.cash.getBoundingClientRect();
+    const levelRect = this.hud.level.getBoundingClientRect();
     for (let i = this.flyers.length - 1; i >= 0; i--) {
       const f = this.flyers[i];
+      const target = f.to === 'cash' ? cashRect : levelRect;
+      const tx = (f.to === 'cash' ? target.left + 22 : target.left + target.width / 2) - rootRect.left;
+      const ty = target.top + target.height / 2 - rootRect.top;
       if (f.delay > 0) {
         f.delay -= dt;
         f.el.style.opacity = '0';
@@ -438,12 +465,17 @@ export class Ui implements GameUi {
       if (t >= 1) {
         f.el.remove();
         this.flyers.splice(i, 1);
-        this.pendingHud = Math.max(0, this.pendingHud - f.amount);
-        const pill = this.hud.cash;
+        const pill = f.to === 'cash' ? this.hud.cash : this.hud.level;
         pill.classList.remove('bump');
         void pill.offsetWidth;
         pill.classList.add('bump');
-        this.game.audio.play('coin', { pitch: 2.4, volume: 0.35 });
+        if (f.to === 'cash') {
+          this.pendingHud = Math.max(0, this.pendingHud - f.amount);
+          this.game.audio.play('coin', { pitch: 2.4, volume: 0.35 });
+        } else {
+          this.pendingStars = Math.max(0, this.pendingStars - f.amount);
+          this.game.audio.play('chime', { pitch: 1.6 + Math.random() * 0.3, volume: 0.25 });
+        }
       }
     }
   }
@@ -528,6 +560,7 @@ export class Ui implements GameUi {
         t.el.classList.toggle('locked', tag.locked);
       }
     }
+    this.tileTagBox = null;
     if (!tag) return;
     this.tmp.set(tag.x, TILE_TAG_HEIGHT, tag.z);
     const r = this.rect;
@@ -537,8 +570,42 @@ export class Ui implements GameUi {
     }
     const half = t.el.offsetWidth / 2;
     const x = Math.min(Math.max(this.screen.x, r.left + half), r.right - half);
+    this.tileTagBox = { x0: x - half, x1: x + half, y0: this.screen.y - t.el.offsetHeight, y1: this.screen.y + 6 };
     t.el.style.opacity = '1';
     t.el.style.transform = `translate(${x}px, ${this.screen.y}px) translate(-50%, -100%)`;
+  }
+
+  /** The Rush chip under the conductor: the streak count and a bar draining toward the lapse. */
+  private updateRush(): void {
+    const g = this.game;
+    const rush = g.rush;
+    const chip = this.rushChip;
+    const on = !this.hidden && !this.screens.isOpen && rush.streak >= 2;
+    setVisible(chip.el, on);
+    if (!on) {
+      chip.streak = 0;
+      return;
+    }
+    if (chip.streak !== rush.streak) {
+      chip.streak = rush.streak;
+      setText(chip.count, `×${rush.streak}`);
+      chip.el.classList.remove('pop', 'milestone');
+      void chip.el.offsetWidth;
+      chip.el.classList.add(rush.lastMilestone === rush.streak ? 'milestone' : 'pop');
+    }
+    chip.bar.style.transform = `scaleX(${rush.fraction.toFixed(3)})`;
+    const p = g.player.pos;
+    this.tmp.set(p.x, 0, p.z);
+    if (!g.stage.project(this.tmp, this.screen)) return;
+    const r = this.rect;
+    const half = chip.el.offsetWidth / 2;
+    const x = Math.min(Math.max(this.screen.x, r.left + half), r.right - half);
+    const y = Math.min(this.screen.y + RUSH_CHIP_OFFSET, r.bottom - chip.el.offsetHeight);
+    // The tile label wins if they would touch (it is what the player is deciding about).
+    const tag = this.tileTagBox;
+    const clash = !!tag && x + half > tag.x0 && x - half < tag.x1 && y + chip.el.offsetHeight > tag.y0 && y < tag.y1;
+    chip.el.style.opacity = clash ? '0' : '1';
+    chip.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, 0)`;
   }
 
   private updatePointer(): void {
@@ -550,6 +617,24 @@ export class Ui implements GameUi {
   }
 
   // ─── UiApi ──────────────────────────────────────────────────────────────────
+
+  /** Stars earned in the world fly up into the route-level ring, which fills as they land. */
+  flyStars(amount: number, x: number, y: number, z: number): boolean {
+    if (this.hidden || this.hud.level.classList.contains('unrevealed')) return false;
+    this.tmp.set(x, y, z);
+    if (!this.game.stage.project(this.tmp, this.screen)) return false;
+    const count = Math.max(1, Math.min(5, amount));
+    let assigned = 0;
+    for (let i = 0; i < count; i++) {
+      const share = i === count - 1 ? amount - assigned : Math.floor(amount / count);
+      assigned += share;
+      const el = icon('star', 24, 'ico flyer');
+      this.floatLayer.appendChild(el);
+      this.flyers.push({ el, t: 0, delay: STAR_FLY_DELAY + i * 0.07, fromX: this.screen.x + (Math.random() - 0.5) * 20, fromY: this.screen.y - 20, amount: share, to: 'level' });
+    }
+    this.pendingStars += amount;
+    return true;
+  }
 
   floatText(text: string, x: number, y: number, z: number, kind: FloatKind): void {
     if (this.floats.length > 24) return;

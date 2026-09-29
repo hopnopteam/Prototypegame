@@ -75,7 +75,7 @@ export const ECONOMY = {
   },
 
   money: {
-    baseFare: 12,
+    baseFare: 15,
     alightTip: 8,
     luggageTip: 4,
     requestTip: 7,
@@ -105,6 +105,19 @@ export const ECONOMY = {
     trainTipBonusPerTier: 0.05,
   },
 
+  /**
+   * Rush: services the conductor does back to back (check-in, requests, cleaning, luggage) build a streak;
+   * milestones pay a cash bonus. Letting it lapse costs nothing (§5: no failure, only bonuses).
+   */
+  rush: {
+    /** Seconds allowed between services before the streak lapses. */
+    window: 8,
+    /** Streak counts that pay a bonus. */
+    milestones: [3, 5, 8, 12, 16, 20, 25, 30],
+    /** Bonus cash per streak step at a milestone (a 5-streak pays 5 × this). */
+    cashPerStep: 2,
+  },
+
   stars: {
     requestFulfilled: 1,
     cabinCleaned: 1,
@@ -114,7 +127,7 @@ export const ECONOMY = {
 
   progression: {
     /** Stars needed to reach each route level (index 0 = level 1). Route 1 maxes at level 8. */
-    levelThresholds: [0, 90, 200, 340, 510, 710, 950, 1250],
+    levelThresholds: [0, 70, 170, 300, 460, 650, 880, 1160],
     levelRailMiles: [0, 3, 4, 5, 6, 8, 10, 12],
     levelCash: [0, 80, 150, 250, 400, 600, 850, 1200],
     /** Feature gates by route level (§9: introduce each layer after the one below is understood). */
