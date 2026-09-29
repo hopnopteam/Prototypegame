@@ -44,8 +44,10 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 
 | What | File |
 |---|---|
-| Every number: journey timers, how much mess a guest leaves, the train's lean, speeds, capacities, fares, tips, refurbishment and comfort bonuses, Rush streak window and bonus, stride and quick-travel speed, camera framing, soft-cue thresholds and chatter rate, fast-service bonus, pickup dwell, cash magnet reach, level thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
+| Every number: journey timers, how much mess a guest leaves, the train's lean, stick response, braking and doorway assist, speeds, capacities, fares, tips, refurbishment and comfort bonuses, Rush streak window and bonus, stride and quick-travel speed, camera framing, soft-cue thresholds and chatter rate, fast-service bonus, pickup dwell, cash magnet reach, level thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
 | The objective chain (goals, rewards) | `src/config/objectives.ts` |
+| The sound mix: which sample each cue plays, levels, pitch spread, overlap limits | `src/config/audio.ts` (samples and credits in `assets/audio/`; rebuild with `scripts/audio/build_sounds.py`) |
+| Floors by tier: broken planks and repairs, parquet, rugs | `src/world/Floors.ts` |
 | What passengers say, by situation | `src/config/chatter.ts` |
 | Content: stations, guest archetypes (with what each leaves behind), the carriage catalogue (each type's tiles incl. comforts, prices, limits and chooser text), coupling slots, station upgrades (exterior and marketing, with their bonuses), refurbishment tiers, stories, quests, products | `src/config/content.ts` |
 | The press: rival trains and their villainous owners (taunts, grumbles, portraits), front-page headlines and rewards per trigger, the Gazette debut interview and Rails Tonight interviews with perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
@@ -67,7 +69,8 @@ src/
   services/   ads, IAP, analytics, remote config: interfaces + mocks
   world/      Three.js: stage, camera, lighting, scenery, ambient life, platform, carriages, train exterior, characters, conductor gear, particles, cash
   gameplay/   Game (composition root), player, zones, tiles, guests, staff, station, train, guidance, coach, objectives, feedback, press, rush, meta, monetization, autopilot
-  audio/      WebAudio synth sfx + music, haptics
+  audio/      WebAudio sample playback (sfx), procedural music, haptics
+assets/audio/ sound samples (MP3) and their credits
   ui/         DOM HUD, sheets, icons, styles
 tests/        vitest unit tests
 scripts/      build, smoke, pacing, UI and geometry audits, screenshots
