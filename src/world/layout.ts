@@ -325,6 +325,8 @@ function buildLobby(): CarriageLayout {
   b.anchor('tile_up_attendant', -0.5, 6.35);
   // The porter's post is at the carriage's back door, out of the busy lobby.
   b.anchor('home_porter', -1.05, CARRIAGE_LENGTH - 0.72);
+  // Between jobs the porter waits behind the desk, like a receptionist, not in the gangway everyone uses.
+  b.anchor('idle_porter', -1.66, 2.15);
   b.anchor('tile_up_porter', -1.05, CARRIAGE_LENGTH - 0.72);
   b.anchor('tile_refurb', 1.05, CARRIAGE_LENGTH - 0.72);
   b.anchor('stackItems', 0.8, 1.2);

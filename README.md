@@ -19,18 +19,19 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 | `npm run build` | Bundles `src/` into `dist/index.html` (full page) and `dist/night-express.html` (artifact fragment) |
 | `npm run dev` | Same, rebuilding on every save |
 | `npm run typecheck` | Strict TypeScript check |
-| `npm test` | Unit tests (vitest): journey phases, ad policy, economy, the generated unlock chain and carriage choice, station upgrades, save/migrations, walkable map, furniture and pad placement |
-| `npm run smoke` | Headless browser run: the autopilot plays the first 13 minutes and checks the §14 beats, the walkthrough, naming and press, a refurbishment, a station upgrade, that every pickup was needed, the ad rules, save/reload, draw calls and console errors |
+| `npm test` | Unit tests (vitest): journey phases, ad policy, economy, the generated unlock chain and carriage choice, comforts, station upgrades, the objective chain, chatter, save/migrations, walkable map, furniture and pad placement |
+| `npm run smoke` | Headless browser run: the autopilot plays the first 13 minutes and checks the §14 beats, the walkthrough, naming and press, a refurbishment, a station upgrade, the objective chain and comforts, that every pickup was needed, the ad rules, save/reload (unlocks and open cabins), draw calls and console errors |
 | `npm run audit:ui` | Stages the busiest HUD moments and every menu at seven phone sizes (320×568 to 430×932), then samples live play, and fails on any overlap, clipped text or off-screen element |
+| `npm run audit:geo` | Builds every carriage at every tier (with all comforts), the locomotive, rear deck, exterior and platform, and fails on any visible coplanar overlap of different surfaces: the source of flicker (z-fighting). Must report 0 |
 | `npm run check` | Typecheck + tests + build |
 
 Tools in `scripts/` (need Chromium via Playwright, pre-installed in the cloud sessions):
-`pacing.mjs [seconds] [shotDir]` prints the first-session timeline for tuning; `ui-shots.mjs <dir>` screenshots
+`pacing.mjs [seconds] [shotDir]` prints the timeline, every purchase with the gap before it and the longest dry spells (try 3600 for a whole route); `ui-shots.mjs <dir>` screenshots
 every screen; `FLOORPLAN_DIR=<dir> npx vitest run tests/placement.test.ts` writes an SVG floor plan of every carriage
 with its furniture, pads and tiles; `shot.mjs` and `play.mjs` are quick visual checks. For art work,
 `ENTRY=src/preview.ts OUT=preview.html node scripts/build.mjs` builds `dist/preview.html`, a static diorama of every
 carriage, character and prop (`?t=0.82` time of day, `&z=` camera position, `&zoom=`, `&platform=1`, `&tier=0..3` or
-`&tiers=0123` refurbishment tiers, `&level=` livery, `&name=` the locomotive's nameplate, `&sleeper=0` hides the sleeper).
+`&tiers=0123` refurbishment tiers, `&level=` livery, `&name=` the locomotive's nameplate, `&sleeper=0` hides the sleeper, `&comforts=lamp,flowers,radio,soap,rail` dresses the rooms).
 
 ## Developer tools
 
@@ -43,8 +44,10 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 
 | What | File |
 |---|---|
-| Every number: journey timers, speeds, capacities, fares, tips, refurbishment bonuses, Rush streak window and bonus, quick-travel speed, fast-service bonus, pickup dwell, cash magnet reach, level thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
-| Content: stations, guest archetypes, the carriage catalogue (each type's tiles, limits and chooser text), coupling slots, station upgrades (exterior and marketing, with their bonuses), refurbishment tiers, stories, quests, products | `src/config/content.ts` |
+| Every number: journey timers, speeds, capacities, fares, tips, refurbishment and comfort bonuses, Rush streak window and bonus, stride and quick-travel speed, camera framing, soft-cue thresholds and chatter rate, fast-service bonus, pickup dwell, cash magnet reach, level thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
+| The objective chain (goals, rewards) | `src/config/objectives.ts` |
+| What passengers say, by situation | `src/config/chatter.ts` |
+| Content: stations, guest archetypes, the carriage catalogue (each type's tiles incl. comforts, prices, limits and chooser text), coupling slots, station upgrades (exterior and marketing, with their bonuses), refurbishment tiers, stories, quests, products | `src/config/content.ts` |
 | The press: rival trains, front-page headlines and rewards per trigger, Rails Tonight interviews and perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
 | Conductor outfits (earned and premium) and shoes by speed level | `src/config/wardrobe.ts` |
 | Walkthrough steps and one-time hints | `src/config/coach.ts` |
@@ -63,11 +66,11 @@ src/
   save/       versioned JSON save (localStorage + backup + migrations)
   services/   ads, IAP, analytics, remote config: interfaces + mocks
   world/      Three.js: stage, camera, lighting, scenery, ambient life, platform, carriages, train exterior, characters, conductor gear, particles, cash
-  gameplay/   Game (composition root), player, zones, tiles, guests, staff, station, train, guidance, coach, press, rush, meta, monetization, autopilot
+  gameplay/   Game (composition root), player, zones, tiles, guests, staff, station, train, guidance, coach, objectives, feedback, press, rush, meta, monetization, autopilot
   audio/      WebAudio synth sfx + music, haptics
   ui/         DOM HUD, sheets, icons, styles
 tests/        vitest unit tests
-scripts/      build, smoke, pacing, screenshots
+scripts/      build, smoke, pacing, UI and geometry audits, screenshots
 ```
 
 The Unity M0 skeleton this project started from is in commit `864b131` if we move to a native engine later.

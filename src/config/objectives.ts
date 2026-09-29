@@ -9,7 +9,7 @@ import type { IconName } from '../ui/icons';
  * `event` is what counts: a check-in, a clean, a request, a stop... counted from when the goal appears. Goals
  * about what you own count everything bought so far: `unlock` (`filter`: a tile kind such as cabin or
  * comfort, or a kind and role such as hire:porter), `refurb` (`filter` is a tier), `coupling` (carriages
- * added) and `station` (station upgrades). `level` goals track the route level.
+ * added), `station` (station upgrades) and `conductor` (upgrade levels bought). `level` goals track the route level.
  */
 export type ObjectiveEvent =
   | 'checkIn' | 'collect' | 'unlock' | 'clean' | 'request' | 'board' | 'luggage' | 'perfectStop'
@@ -52,23 +52,23 @@ export const OBJECTIVES: ObjectiveDef[] = [
   { id: 'couple_2', text: 'Couple on a third carriage', icon: 'carriage', event: 'coupling', target: 2, reward: { cash: 40 }, stars: 3 },
   { id: 'restock_1', text: 'Restock a washroom with towels and rolls', icon: 'towel', event: 'restock', target: 1, reward: { cash: 25 } },
   { id: 'station_shop', text: 'Buy something at the station shop', icon: 'megaphone', event: 'station', target: 1, reward: { cash: 40, gems: 3 } },
-  { id: 'board_20', text: 'Board 20 passengers', icon: 'person', event: 'board', target: 20, reward: { cash: 40 } },
+  { id: 'board_12', text: 'Board 12 passengers', icon: 'person', event: 'board', target: 12, reward: { cash: 40 } },
   { id: 'comforts_3', text: 'Own 3 comforts', icon: 'heart', event: 'unlock', filter: 'comfort', target: 3, reward: { cash: 50 } },
   { id: 'hire_porter', text: 'Hire a Porter for check-in and bags', icon: 'luggage', event: 'unlock', filter: 'hire:porter', target: 1, reward: { cash: 50 }, stars: 2 },
   { id: 'perfect_3', text: 'Make 3 perfect station stops', icon: 'star', event: 'perfectStop', target: 3, reward: { cash: 40, gems: 3 } },
   { id: 'refurb_3x', text: 'Do up your carriages 3 times', icon: 'paint', event: 'refurb', target: 3, reward: { cash: 60 }, stars: 3 },
   { id: 'level_3', text: 'Reach route level 3', icon: 'star', event: 'level', target: 3, reward: { gems: 8 } },
   { id: 'couple_3', text: 'Couple on a fourth carriage', icon: 'carriage', event: 'coupling', target: 3, reward: { cash: 70 }, stars: 4 },
-  { id: 'rush_8', text: 'Build a Rush of 8', icon: 'bolt', event: 'rush', streak: 8, target: 1, reward: { cash: 50 } },
+  { id: 'rush_5', text: 'Build a Rush of 5', icon: 'bolt', event: 'rush', streak: 5, target: 1, reward: { cash: 50 } },
   { id: 'station_3', text: 'Own 3 station upgrades', icon: 'megaphone', event: 'station', target: 3, reward: { cash: 80, gems: 3 } },
-  { id: 'cleans_25', text: 'Tidy 25 cabins', icon: 'broom', event: 'clean', target: 25, reward: { cash: 70 } },
+  { id: 'cleans_15', text: 'Tidy 15 cabins', icon: 'broom', event: 'clean', target: 15, reward: { cash: 70 } },
   { id: 'train_up', text: 'Train one of your staff', icon: 'plus', event: 'unlock', filter: 'staffUpgrade', target: 1, reward: { cash: 60 } },
   { id: 'level_4', text: 'Reach route level 4', icon: 'star', event: 'level', target: 4, reward: { gems: 10 } },
   // The long game: the full train and the top of the league.
   { id: 'couple_4', text: 'Couple on a fifth carriage', icon: 'carriage', event: 'coupling', target: 4, reward: { cash: 120 }, stars: 5 },
   { id: 'comforts_8', text: 'Own 8 comforts', icon: 'heart', event: 'unlock', filter: 'comfort', target: 8, reward: { cash: 150 } },
-  { id: 'checkins_150', text: 'Check in 150 guests', icon: 'ticket', event: 'checkIn', target: 150, reward: { cash: 150, gems: 5 } },
-  { id: 'perfect_10', text: 'Make 10 perfect station stops', icon: 'star', event: 'perfectStop', target: 10, reward: { cash: 120, gems: 5 } },
+  { id: 'checkins_40', text: 'Welcome 40 guests aboard', icon: 'ticket', event: 'checkIn', target: 40, reward: { cash: 150, gems: 5 } },
+  { id: 'perfect_5', text: 'Make 5 perfect station stops', icon: 'star', event: 'perfectStop', target: 5, reward: { cash: 120, gems: 5 } },
   { id: 'level_5', text: 'Reach route level 5', icon: 'star', event: 'level', target: 5, reward: { gems: 12 } },
   { id: 'luxury', text: 'Make a carriage luxurious', icon: 'paint', event: 'refurb', filter: '3', target: 1, reward: { cash: 200, gems: 5 }, stars: 5 },
   { id: 'level_6', text: 'Reach route level 6', icon: 'star', event: 'level', target: 6, reward: { gems: 15 } },

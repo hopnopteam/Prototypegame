@@ -497,6 +497,15 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 .hud-hidden .hud-top, .hud-hidden .side, .hud-hidden .offers, .hud-hidden .boost, .hud-hidden .pointer, .hud-hidden .floats, .hud-hidden .ticket, .hud-hidden .toasts, .hud-hidden .trainmap, .hud-hidden .guide, .hud-hidden .gesture, .hud-hidden .tile-tag { display: none !important; }
 .creative-exit { position: absolute; right: 12px; bottom: calc(var(--safe-bottom) + 12px); pointer-events: auto; opacity: 0.35; }
 
+/* The narrowest phones: the top row tightens so the level bar, cash and gems all fit. */
+@media (max-width: 340px) {
+  .hud-row { gap: 5px; }
+  .level .lv-bar { width: 60px; }
+  .level .lv-count { font-size: 10.5px; padding-left: 10px; }
+  .pill { padding-right: 7px; }
+  .pill.cash { min-width: 72px; padding-right: 9px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
 }

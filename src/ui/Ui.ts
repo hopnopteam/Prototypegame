@@ -548,6 +548,16 @@ export class Ui implements GameUi {
         tail = 'right';
       }
       y = target.top - rootRect.top + target.height / 2;
+      // Only beside a button that is really there and below the top bar (never over the counters, even for
+      // the frame a button is still revealing).
+      const style = getComputedStyle(anchor.hud === 'map' ? this.trainMap.el : this.hud.conductor);
+      // Slide down below the banner if need be, as long as it still sits beside the button.
+      y = Math.max(y, r.top + height / 2);
+      const beside = y - height / 2 < target.bottom - rootRect.top - 6;
+      if (style.visibility === 'hidden' || Number(style.opacity) < 0.5 || !beside || y + height / 2 > r.bottom) {
+        el.style.opacity = '0';
+        return;
+      }
     } else if ('world' in anchor) {
       this.tmp.set(anchor.world.x, GUIDE_HEIGHT, anchor.world.z);
       const onScreen = g.stage.project(this.tmp, this.screen);

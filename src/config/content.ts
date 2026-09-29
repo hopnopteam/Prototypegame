@@ -156,7 +156,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 220, stars: 4, tier: 2, requires: ['refurb_1', '@couple_2'], effect: 'Fares +25% more in this carriage' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Attendant Training', price: 240, stars: 2, role: 'attendant', requires: ['hire_porter', '@couple_3'], effect: 'Attendant +20% speed, +1 carry' },
       { key: 'comfort_radio', kind: 'comfort', label: 'Wireless Radios', price: 320, stars: 2, comfort: 'radio', requires: ['comfort_flowers', '@couple_3'], effect: 'Tips +20% more in these cabins' },
-      { key: 'up_porter', kind: 'staffUpgrade', label: 'Porter Training', price: 420, stars: 2, role: 'porter', requires: ['@couple_4'], effect: 'Porter +20% speed, +1 carry' },
+      { key: 'up_porter', kind: 'staffUpgrade', label: 'Porter Training', price: 420, stars: 2, role: 'porter', requires: ['hire_porter', '@couple_3'], effect: 'Porter +20% speed, +1 carry' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 680, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Fares +25% more, and it shows' },
     ],
   },
@@ -178,7 +178,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'hire_runner', kind: 'hire', label: 'Supply Runner', price: 100, stars: 3, role: 'runner', requires: ['couple'], effect: 'Restocks washrooms for you' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 80, stars: 3, tier: 1, requires: ['hire_runner'], effect: 'Every tip on the train +5%' },
       { key: 'up_runner', kind: 'staffUpgrade', label: 'Runner Training', price: 300, stars: 2, role: 'runner', requires: ['hire_runner', '@couple_4'], effect: 'Runner +20% speed, +1 carry' },
-      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 280, stars: 4, tier: 2, requires: ['refurb_1', '@couple_4'], effect: 'Every tip on the train +5% more' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 280, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Every tip on the train +5% more' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 520, stars: 5, tier: 3, requires: ['refurb_2', '@c0.refurb_3'], effect: 'Every tip on the train +5% more' },
     ],
   },
@@ -204,7 +204,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 290, stars: 4, tier: 2, requires: ['cabin_2', 'refurb_1', '@couple_3'], effect: 'Fares +25% more in this carriage' },
       { key: 'comfort_flowers', kind: 'comfort', label: 'Fresh Flowers', price: 240, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_3'], effect: 'Tips +20% more in these cabins' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Attendant Training', price: 380, stars: 2, role: 'attendant', requires: ['hire_attendant', '@couple_3'], effect: 'Attendant +20% speed, +1 carry' },
-      { key: 'comfort_radio', kind: 'comfort', label: 'Wireless Radios', price: 420, stars: 2, comfort: 'radio', requires: ['comfort_flowers', '@couple_4'], effect: 'Tips +20% more in these cabins' },
+      { key: 'comfort_radio', kind: 'comfort', label: 'Wireless Radios', price: 420, stars: 2, comfort: 'radio', requires: ['comfort_flowers', '@couple_3'], effect: 'Tips +20% more in these cabins' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 720, stars: 5, tier: 3, requires: ['cabin_3', 'refurb_2', '@couple_4'], effect: 'Fares +25% more, and it shows' },
     ],
   },
@@ -227,7 +227,7 @@ export const COUPLE_SLOTS: CoupleSlot[] = [
   { price: 150, stars: 6, requires: ['c0.hire_attendant'] },
   { price: 240, stars: 6, requires: ['couple_1'] },
   { price: 380, stars: 8, requires: ['couple_2'] },
-  { price: 700, stars: 8, requires: ['couple_3'] },
+  { price: 600, stars: 8, requires: ['couple_3'] },
 ];
 /** Route 1 holds this many carriages: fewer than the catalogue offers, so every pick is a real choice. */
 export const MAX_CARRIAGES = COUPLE_SLOTS.length + 1;

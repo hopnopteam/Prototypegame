@@ -38,9 +38,12 @@ export class StaffMember implements Actor {
   private idleTime = 0;
   /** Items this staff member is fetching; source zones only hand these out. */
   wantItems: Partial<Record<ItemKind, number>> = {};
+  /** Where they wait between jobs: their own idle spot if the floor plan has one (out of the walkways), else home. */
+  readonly rest: Vec2;
 
   constructor(readonly w: World, readonly role: StaffRole, readonly carriage: number, readonly home: Vec2) {
     this.pos = { x: home.x, z: home.z };
+    this.rest = w.map.hasAnchor(carriage, `idle_${role}`) ? w.map.anchor(carriage, `idle_${role}`) : home;
     this.view = new CharacterView(STAFF_LOOKS[role]);
     this.stack = new CarryStack(this.view.stackAnchor, w.scene, w.tweens, this.baseCapacity());
     this.mover = new Mover(this.pos, this.baseSpeed());
@@ -99,8 +102,8 @@ export class StaffMember implements Actor {
     } else {
       this.idleTime += dt;
       this.view.showBubble(null);
-      if (!this.mover.isMoving && Math.hypot(this.pos.x - this.home.x, this.pos.z - this.home.z) > 0.2 && this.idleTime > this.w.econ.staff[this.role].homeIdleSeconds) {
-        this.walkTo(this.home);
+      if (!this.mover.isMoving && Math.hypot(this.pos.x - this.rest.x, this.pos.z - this.rest.z) > 0.2 && this.idleTime > this.w.econ.staff[this.role].homeIdleSeconds) {
+        this.walkTo(this.rest);
       }
     }
     this.view.setPosition(this.pos.x, FLOOR_Y, this.pos.z);

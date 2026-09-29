@@ -61,7 +61,7 @@ export class Objectives {
     e.on('carriage.refurbished', () => this.syncTotal());
     e.on('carriage.coupled', () => this.syncTotal());
     e.on('level.up', () => this.syncLevel());
-    e.on('conductor.upgraded', () => this.count('conductor'));
+    e.on('conductor.upgraded', () => this.syncTotal());
     e.on('rush.bonus', ({ streak }) => {
       const def = this.current;
       if (def?.event === 'rush' && streak >= (def.streak ?? 0)) this.count('rush');
@@ -105,6 +105,11 @@ export class Objectives {
     const def = this.current;
     if (!def || !isTotal(def) || this.done) return;
     const u = this.w.unlocks;
+    if (def.event === 'conductor') {
+      const c = this.w.data.conductor;
+      this.settle(def, c.speed + c.capacity + c.fareBonus, false);
+      return;
+    }
     const relevant = u.defs.filter((d) => {
       switch (def.event) {
         case 'refurb': return d.kind === 'refurb' && (!def.filter || String(d.tier) === def.filter);
@@ -114,11 +119,14 @@ export class Objectives {
       }
     });
     const owned = relevant.filter((d) => u.isUnlocked(d.id)).length;
-    if (owned !== this.state.progress) {
+    this.settle(def, owned, this.w.train.count >= MAX_CARRIAGES && relevant.every((d) => u.isUnlocked(d.id)));
+  }
+
+  private settle(def: ObjectiveDef, owned: number, exhausted: boolean): void {
+    if (Math.min(def.target, owned) !== this.state.progress) {
       this.state.progress = Math.min(def.target, owned);
       this.w.save.markDirty();
     }
-    const exhausted = this.w.train.count >= MAX_CARRIAGES && relevant.every((d) => u.isUnlocked(d.id));
     if (owned >= def.target || (exhausted && owned > 0)) this.complete(def);
   }
 
@@ -146,7 +154,7 @@ export class Objectives {
   }
 }
 
-const TOTAL_EVENTS: ObjectiveEvent[] = ['unlock', 'refurb', 'coupling', 'station'];
+const TOTAL_EVENTS: ObjectiveEvent[] = ['unlock', 'refurb', 'coupling', 'station', 'conductor'];
 const isTotal = (def: ObjectiveDef): boolean => TOTAL_EVENTS.includes(def.event);
 
 /** A filter names a tile kind ("comfort") or a kind and its role ("hire:porter"). */

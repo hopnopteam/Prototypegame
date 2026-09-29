@@ -4,7 +4,7 @@ import type { World } from './World';
 
 interface Body {
   pos: Vec2;
-  /** 0 = holds its ground (staff at work); higher steps aside more readily. */
+  /** 0 = holds its ground (staff at a job); higher steps aside more readily. */
   give: number;
   /** Standing guests step aside when bumped, then drift back to where they were waiting. */
   standing: boolean;
@@ -40,7 +40,8 @@ export class Crowd {
     const bodies = this.bodies;
     bodies.length = 0;
     bodies.push({ pos: w.player.pos, give: PLAYER_GIVE, standing: false });
-    for (const m of w.staff.members) bodies.push({ pos: m.pos, give: m.mover.isMoving ? 1 : 0, standing: false });
+    // Staff at work hold their spot; staff waiting between jobs step aside like anyone standing about.
+    for (const m of w.staff.members) bodies.push({ pos: m.pos, give: m.mover.isMoving ? 1 : m.isIdle ? STANDING_GIVE : 0, standing: false });
     const walk = w.map.walk;
     this.seen.clear();
     for (const g of w.guests.list) {

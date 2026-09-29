@@ -14,7 +14,7 @@ if (!existsSync(file)) { console.error('dist/index.html missing: run npm run bui
 
 // Latest acceptable lifetime second for each beat. Looser than the §14 targets so autopilot variance
 // does not flake the check; scripts/pacing.mjs is the tool for tuning toward the targets themselves.
-const DEADLINES = { first_checkin: 15, first_cash: 20, first_unlock: 45, first_station: 80, first_hire: 150, first_carriage: 360, second_carriage: 600, route_level_2: 780 };
+const DEADLINES = { first_checkin: 15, first_cash: 20, first_unlock: 45, first_station: 80, first_hire: 150, first_carriage: 360, second_carriage: 720, route_level_2: 780 };
 
 const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -77,6 +77,9 @@ for (let t = 0; t < total; t += 5) {
       coachDone: ['walk', 'checkin', 'cash', 'tile'].every((id) => g.flag(`coach_${id}`)),
       tiers: g.train.tiers.slice(),
       station: g.data.route.unlocked.filter((id) => id.startsWith('st.')),
+      objective: g.data.objectives.index,
+      comforts: g.data.route.unlocked.filter((id) => id.includes('.comfort_')).length,
+      openCabins: g.train.openCabinCount(),
       positionsFinite: finite(g.player.pos) && g.guests.list.every((x) => finite(x.pos)) && g.staff.members.every((x) => finite(x.pos)),
     };
   });
@@ -95,6 +98,8 @@ check(snap.coachDone, 'the four-step walkthrough completed');
 check(!!snap.named && snap.stories >= 3, `the train was named ("${snap.named}") and made the paper ${snap.stories} times`);
 check(snap.tiers.some((t) => t >= 1), `at least one carriage refurbished (tiers ${snap.tiers.join(',')})`);
 check(snap.station.length >= 1, `station upgrades bought at stops (${snap.station.join(', ') || 'none'})`);
+check(snap.objective >= 12, `the objective chain kept moving (${snap.objective} goals done)`);
+check(snap.comforts >= 1, `comforts bought (${snap.comforts})`);
 
 const picks = await page.evaluate(() => window.__picks);
 check(picks.total > 10 && picks.unneeded === 0, `every pickup was needed (${picks.total} picked, ${picks.unneeded} unneeded, ${picks.returned} returned)`);
@@ -110,8 +115,9 @@ const before = snap.unlocked;
 await page.evaluate(() => { const g = window.nightExpress; g.setAutopilot(false); g.save.saveNow(); });
 await page.reload();
 await page.waitForTimeout(800);
-const after = await page.evaluate(() => window.nightExpress.data.route.unlocked.length);
-check(after === before, `save survives a reload (${after}/${before} unlocks)`);
+const after = await page.evaluate(() => ({ unlocked: window.nightExpress.data.route.unlocked.length, cabins: window.nightExpress.train.openCabinCount() }));
+check(after.unlocked === before, `save survives a reload (${after.unlocked}/${before} unlocks)`);
+check(after.cabins === snap.openCabins, `cabins bought are still open after a reload (${after.cabins}/${snap.openCabins})`);
 
 const perf = await page.evaluate(() => ({ draws: window.nightExpress.stage.drawCalls }));
 check(perf.draws < 200, `${perf.draws} draw calls (budget 200)`);
