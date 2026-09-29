@@ -48,7 +48,7 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | Every number: journey timers, how much mess a guest leaves, the train's lean, stick response, braking and doorway assist, speeds, capacities, fares, tips, refurbishment and comfort bonuses, Rush streak window and bonus, stride and quick-travel speed, camera framing, soft-cue thresholds and chatter rate, fast-service bonus, pickup dwell, cash magnet reach, level thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
 | The objective chain (goals, rewards) | `src/config/objectives.ts` |
 | The sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, the music's night filter | `src/config/audio.ts` |
-| The music (score: chords, melody, strings) | `scripts/audio/build_music.py` renders `assets/audio/music_theme.mp3` from real piano and string recordings (credits in `assets/audio/CREDITS.md`) |
+| The music (score: chords, melody, bass, drums) | `scripts/audio/build_music.py` renders `assets/audio/music_theme.mp3` from real piano, bass, guitar and drum recordings (credits in `assets/audio/CREDITS.md`); to use another track, replace the MP3 and set `loopSeconds` in `src/audio/music.ts` |
 | Floors by tier: broken planks and repairs, parquet, rugs | `src/world/Floors.ts` |
 | What passengers say, by situation | `src/config/chatter.ts` |
 | Content: stations, guest archetypes (with what each leaves behind), the carriage catalogue (each type's tiles incl. comforts, prices, limits and chooser text), coupling slots, station upgrades (exterior and marketing, with their bonuses), refurbishment tiers, stories, quests, products | `src/config/content.ts` |

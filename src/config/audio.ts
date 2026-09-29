@@ -1,12 +1,12 @@
 /**
  * The sound mix. Effects are the warm synthesised set built in AudioEngine (short, round mobile-game cues:
- * no files). Music is the Night Express theme, a jazz waltz for piano and strings rendered from real
- * instrument recordings by scripts/audio/build_music.py (assets/audio/music_theme.mp3, credits in
+ * no files). Music is the Night Express theme, a sunny lo-fi groove (piano, bass, soft drums, clean guitar)
+ * rendered from real instrument recordings by scripts/audio/build_music.py (assets/audio/music_theme.mp3, credits in
  * assets/audio/CREDITS.md). Tune freely: no code changes needed.
  */
 export const AUDIO = {
   /** Bus levels (linear). The theme sits at about −37 dBFS RMS: a bed under the cues, never over them. */
-  mix: { master: 0.66, sfx: 1, music: 0.17, ambience: 0.5 },
+  mix: { master: 0.66, sfx: 1, music: 0.12, ambience: 0.5 },
   /**
    * A safety limiter on the output: it only touches peaks above the threshold (several cues landing at
    * once), so the normal mix is never squashed or pumped. Its automatic make-up gain (about +1.7 dB) is
