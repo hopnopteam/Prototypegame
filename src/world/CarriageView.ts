@@ -14,6 +14,7 @@ import {
   QUEUE_SLOTS,
   REAR_VESTIBULE,
   WALL,
+  type CabinLayout,
   type CarriageLayout,
   type PropDef,
   type WallBox,
@@ -42,6 +43,14 @@ export function windowSpacing(len: number): { count: number; slot: number; width
   return { count, slot, width: Math.min(0.9, slot - 0.45) };
 }
 const FLAT: PartStyle = { shade: 1 };
+/** Each piece of a cabin's mess pops away over this share of the tidying. */
+const MESS_POP = 0.18;
+/** A hex colour lightened (+) or darkened (−). */
+function shadeHex(hex: string, amount: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = (v: number): number => Math.max(0, Math.min(255, v + amount));
+  return `#${((c(n >> 16) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
+}
 /** Trims and rails stop this short of a wall's ends, so their end faces never share a plane with it. */
 const END_INSET = 0.006;
 /** A rect shortened at both ends of its long axis. */
@@ -181,9 +190,12 @@ export class CarriageView {
   readonly cabinBeds: THREE.Group[] = [];
   readonly bathroomFixtures: THREE.Group[] = [];
   readonly roomDoors: RoomDoor[] = [];
+  /** Washing-machine drums: spun by animate() so the laundry is always going. */
+  private readonly spinners: THREE.Object3D[] = [];
   private readonly cabinLocks: THREE.Mesh[] = [];
   private readonly bathroomLocks: THREE.Mesh[] = [];
-  private readonly dirt: THREE.Mesh[][] = [];
+  /** Each cabin's mess after a guest leaves: pieces that clear away as it is tidied, and floor stains. */
+  private readonly mess: { group: THREE.Group; items: THREE.Mesh[]; stains: THREE.Mesh[] }[] = [];
   private readonly doors: THREE.Mesh[] = [];
   private readonly bathroomTowels: StockRack[] = [];
   private readonly bathroomRolls: StockRack[] = [];
@@ -227,18 +239,30 @@ export class CarriageView {
     if (door) door.locked = locked;
   }
 
+  /** A cabin after its guest leaves: an unmade heap on the bed, a pillow on the floor, litter, stains. */
   setDirt(cabin: number, spots: boolean[]): void {
-    const meshes = this.dirt[cabin];
-    if (!meshes) return;
-    for (let i = 0; i < meshes.length; i++) meshes[i].visible = !!spots[i];
+    const mess = this.mess[cabin];
+    if (!mess) return;
+    const dirty = spots.some(Boolean);
+    if (mess.group.visible === dirty) return;
+    mess.group.visible = dirty;
+    if (dirty) this.setDirtFade(cabin, 0, 0);
   }
 
-  /** Scrubbing: the mark fades and shrinks with cleaning progress (0..1). */
-  setDirtFade(cabin: number, spot: number, progress: number): void {
-    const mesh = this.dirt[cabin]?.[spot];
-    if (!mesh) return;
-    (mesh.material as THREE.MeshBasicMaterial).opacity = 1 - 0.85 * progress;
-    mesh.scale.setScalar(1 - 0.35 * progress);
+  /** Tidying (0..1): the pieces go one after another with a little pop, and the stains fade. */
+  setDirtFade(cabin: number, _spot: number, progress: number): void {
+    const mess = this.mess[cabin];
+    if (!mess) return;
+    const n = mess.items.length;
+    mess.items.forEach((item, k) => {
+      const gone = (k + 1) / (n + 1);
+      const t = Math.min(1, Math.max(0, (progress - (gone - MESS_POP)) / MESS_POP));
+      // A quick swell before it vanishes reads as "whisked away".
+      const scale = t <= 0 ? 1 : t < 0.35 ? 1 + t * 0.5 : Math.max(0, (1 - t) / 0.65) * 1.17;
+      item.scale.setScalar(Math.max(0.001, scale));
+      item.visible = scale > 0.01;
+    });
+    for (const stain of mess.stains) (stain.material as THREE.MeshBasicMaterial).opacity = 0.95 * (1 - progress);
   }
 
   setBathroomStock(bathroom: number, towels: number, rolls: number): void {
@@ -337,6 +361,7 @@ export class CarriageView {
     }
     this.buildDecor(s, f, lamps);
     this.buildDoorFrames(s);
+    this.buildSpinners();
 
     const add = (builder: GeoBuilder, material: THREE.Material, cast: boolean, receive: boolean): void => {
       if (builder.isEmpty) return;
@@ -351,6 +376,82 @@ export class CarriageView {
     add(f, MATERIALS.floor, false, true);
     add(glass, MATERIALS.windows, false, false);
     add(lamps, MATERIALS.lamps, false, false);
+  }
+
+  /**
+   * The mess a guest leaves: a crumpled heap of bedding on the bed, the pillow on the floor, yesterday's
+   * paper, a cup on its side, and a couple of stains. Each piece is its own small mesh so it can pop away
+   * as the cabin is tidied; the neat bed underneath is what's left.
+   */
+  private buildMess(cabin: CabinLayout): { group: THREE.Group; items: THREE.Mesh[]; stains: THREE.Mesh[] } {
+    const group = new THREE.Group();
+    group.visible = false;
+    const items: THREE.Mesh[] = [];
+    const heap = shadeHex(this.blanketColor, -26);
+    const bed = cabin.bed;
+    const bx = (bed.x0 + bed.x1) / 2;
+    const bz = (bed.z0 + bed.z1) / 2;
+    const heart = cabin.spots[0] ?? cabin.center;
+    const piece = (build: (b: GeoBuilder) => void, x: number, z: number, ry: number): void => {
+      const b = new GeoBuilder();
+      build(b);
+      const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+      mesh.castShadow = true;
+      mesh.position.set(x, 0, z);
+      mesh.rotation.y = ry;
+      group.add(mesh);
+      items.push(mesh);
+    };
+    const top = FLOOR_Y + BED_TOP + 0.06;
+    // Order = the order they clear: litter first, the bed last (the big reveal).
+    piece((b) => b.box(0, FLOOR_Y + 0.012, 0, 0.36, 0.014, 0.46, '#EFE8D8', 0, { shade: 1 }).box(0.04, FLOOR_Y + 0.021, -0.08, 0.26, 0.004, 0.03, '#8A8378', 0, { shade: 1 }).box(0.04, FLOOR_Y + 0.021, 0.02, 0.26, 0.004, 0.03, '#8A8378', 0, { shade: 1 }), heart.x - 0.28, heart.z + 0.32, 0.6);
+    piece((b) => b.cylinder(0, FLOOR_Y + 0.05, 0, 0.045, 0.036, 0.09, PALETTE.porcelain, 10, 'z').cylinder(0.02, FLOOR_Y + 0.024, 0.09, 0.09, 0.09, 0.006, '#9B6B45', 14, 'y', { shade: 1 }), heart.x + 0.3, heart.z - 0.28, 1.1);
+    piece((b) => b.rounded(0, FLOOR_Y + 0.07, 0, 0.5, 0.13, 0.3, 0.06, PALETTE.pillow, { shade: 0.85 }), bed.x0 - 0.3, bed.z0 + 0.45, 0.35);
+    piece((b) => b
+      .rounded(0, top, 0, (bed.x1 - bed.x0) * 0.8, 0.14, 0.55, 0.07, heap, { shade: 0.85 })
+      .rounded(0.12, top + 0.06, 0.28, (bed.x1 - bed.x0) * 0.55, 0.12, 0.42, 0.06, heap, { shade: 0.9 })
+      .rounded(-0.1, top + 0.04, -0.3, (bed.x1 - bed.x0) * 0.5, 0.1, 0.36, 0.05, PALETTE.linen, { shade: 0.9 }), bx, bz + 0.1, 0.25);
+    const stains: THREE.Mesh[] = [];
+    for (const [dx, dz, size, lift] of [[0.1, -0.05, 0.62, 0.034], [-0.35, 0.45, 0.44, 0.04]]) {
+      const material = new THREE.MeshBasicMaterial({ map: getDirtTexture(), transparent: true, depthWrite: false });
+      const stain = new THREE.Mesh(new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2), material);
+      stain.position.set(heart.x + dx, FLOOR_Y + lift, heart.z + dz);
+      stain.rotation.y = dx * 7 + cabin.index;
+      stain.renderOrder = 1;
+      group.add(stain);
+      stains.push(stain);
+    }
+    this.group.add(group);
+    return { group, items, stains };
+  }
+
+  /** A drum of washing behind each machine's round window, turning slowly. */
+  private buildSpinners(): void {
+    for (const prop of this.layout.props) {
+      if (prop.kind !== 'laundry') continue;
+      const r = prop.rect;
+      const d = r.z1 - r.z0;
+      const w = r.x1 - r.x0;
+      const count = Math.max(1, Math.floor(d / 0.78));
+      const size = Math.min(w - 0.06, 0.62);
+      for (let i = 0; i < count; i++) {
+        const geo = new GeoBuilder()
+          .cylinder(0, 0, 0, size * 0.33, size * 0.33, 0.012, '#6FA3C8', 20, 'y', FLAT)
+          .box(0, 0.009, 0, size * 0.5, 0.008, 0.08, PALETTE.towel, 0, FLAT)
+          .box(0, 0.013, 0, 0.08, 0.008, size * 0.44, '#F4EEE2', 0, FLAT)
+          .build();
+        const drum = new THREE.Mesh(geo, MATERIALS.solid);
+        drum.position.set(r.x1 - size / 2 - 0.03, FLOOR_Y + 0.862, r.z0 + (d / count) * (i + 0.5));
+        drum.rotation.y = i * 1.3;
+        this.group.add(drum);
+        this.spinners.push(drum);
+      }
+    }
+  }
+
+  /** Per-frame life: the laundry turns. */
+  animate(dt: number): void {
+    for (let i = 0; i < this.spinners.length; i++) this.spinners[i].rotation.y += dt * (2.6 + (i % 2) * 0.7);
   }
 
   private frontDepth(): number {
@@ -549,18 +650,7 @@ export class CarriageView {
       this.cabinBeds[cabin.index] = bedGroup;
 
       this.cabinLocks[cabin.index] = this.lockOverlay(cabin.room);
-      this.dirt[cabin.index] = cabin.spots.map((spot, i) => {
-        const size = 0.54 + (i % 2) * 0.08;
-        // Each spot has its own material so it can fade on its own as it is scrubbed.
-        const dirtMaterial = new THREE.MeshBasicMaterial({ map: getDirtTexture(), transparent: true, depthWrite: false });
-        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2), dirtMaterial);
-        mesh.position.set(spot.x, FLOOR_Y + 0.02, spot.z);
-        mesh.rotation.y = i * 1.9 + cabin.index;
-        mesh.visible = false;
-        mesh.renderOrder = 1;
-        this.group.add(mesh);
-        return mesh;
-      });
+      this.mess[cabin.index] = this.buildMess(cabin);
     }
 
     for (const bath of this.layout.bathrooms) {
@@ -582,7 +672,7 @@ export class CarriageView {
 
   private lockOverlay(room: Rect): THREE.Mesh {
     const lock = new THREE.Mesh(new THREE.PlaneGeometry(room.x1 - room.x0 - 0.04, room.z1 - room.z0 - 0.04).rotateX(-Math.PI / 2), MATERIALS.lockedOverlay);
-    lock.position.set((room.x0 + room.x1) / 2, FLOOR_Y + 0.03, (room.z0 + room.z1) / 2);
+    lock.position.set((room.x0 + room.x1) / 2, FLOOR_Y + 0.05, (room.z0 + room.z1) / 2);
     lock.visible = false;
     this.group.add(lock);
     return lock;
@@ -897,5 +987,61 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       b.cylinder(cx, y + 0.8, cz, 0.03, 0.05, 1.6, PALETTE.brass, 6);
       lamps.cylinder(cx, y + 1.6, cz, 0.12, 0.2, 0.22, PALETTE.lampShade, 12);
       break;
+    case 'closet': {
+      // The washroom car's own linen closet: a stepped stand stacked with towels (front half) and loo rolls
+      // (back half), open to the camera, so the car works from day one without the stores.
+      const wallX = prop.facing === 'right' ? r.x0 : r.x1;
+      const out = prop.facing === 'right' ? 1 : -1;
+      const mid = wallX + out * (w / 2);
+      const low = out > 0 ? rect(mid, r.z0, r.x1, r.z1) : rect(r.x0, r.z0, mid, r.z1);
+      const high = out > 0 ? rect(r.x0, r.z0, mid, r.z1) : rect(mid, r.z0, r.x1, r.z1);
+      const body = tier <= 0 ? '#9C8570' : wood;
+      b.slab(low, y, y + SHELF_LOW, body, 0, 0.02, { shade: 0.8 });
+      b.slab(high, y, y + SHELF_HIGH, body, 0, 0.02, { shade: 0.8 });
+      b.slab(low, y + SHELF_LOW - 0.03, y + SHELF_LOW + SHELF_TOP, PALETTE.oak, 0, 0.03, FLAT);
+      b.slab(high, y + SHELF_HIGH - 0.03, y + SHELF_HIGH + SHELF_TOP, PALETTE.oak, 0, 0.03, FLAT);
+      const towel = tier <= 0 ? '#D8CFC2' : PALETTE.towel;
+      const split = r.z0 + d * 0.5;
+      for (const [step, top] of [[low, SHELF_LOW], [high, SHELF_HIGH]] as [Rect, number][]) {
+        const sx = (step.x0 + step.x1) / 2;
+        for (let z = r.z0 + 0.22; z < split - 0.1; z += 0.26) b.rounded(sx, y + top + SHELF_TOP + 0.05, z, step.x1 - step.x0 - 0.12, 0.09, 0.2, 0.03, towel, { shade: 0.9 });
+        for (let z = split + 0.18; z < r.z1 - 0.12; z += 0.22) b.cylinder(sx, y + top + SHELF_TOP + 0.07, z, 0.075, 0.075, 0.13, PALETTE.rollPaper, 10, 'y', { shade: 0.92 });
+      }
+      for (const pz of [r.z0 + 0.03, split, r.z1 - 0.03]) b.box(cx, y + SHELF_HIGH / 2 + 0.05, pz, w, SHELF_HIGH + 0.1, 0.05, body, 0, { shade: 0.85 });
+      break;
+    }
+    case 'laundry': {
+      // Top-loading washing machines against the wall (their drums spin: see CarriageView.spinners).
+      const count = Math.max(1, Math.floor(d / 0.78));
+      const size = Math.min(w - 0.06, 0.62);
+      const shellColour = tier <= 0 ? '#D9D2C2' : tier >= 3 ? '#F4EEE2' : '#EDEAE4';
+      for (let i = 0; i < count; i++) {
+        const mz = r.z0 + (d / count) * (i + 0.5);
+        const mx = r.x1 - size / 2 - 0.03;
+        b.rounded(mx, y + 0.42, mz, size, 0.84, size, 0.06, shellColour, { shade: 0.8 });
+        b.cylinder(mx, y + 0.845, mz, size * 0.36, size * 0.36, 0.012, tier <= 0 ? '#8E969C' : PALETTE.chrome, 20, 'y', FLAT);
+        b.box(mx, y + 0.86, mz - size / 2 + 0.045, size - 0.1, 0.02, 0.05, tier >= 2 ? PALETTE.brass : '#7F8A92', 0, FLAT);
+      }
+      // A basket of towels waiting to go in.
+      if (w > 0.7) b.rounded(r.x0 + 0.22, y + 0.16, r.z1 - 0.25, 0.34, 0.32, 0.34, 0.08, tier <= 0 ? '#B79B73' : '#C9A77A', { shade: 0.8 });
+      break;
+    }
+    case 'table': {
+      b.cylinder(cx, y + 0.34, cz, 0.04, 0.12, 0.68, tier <= 0 ? PALETTE.iron : PALETTE.walnut, 10);
+      b.cylinder(cx, y + 0.7, cz, Math.min(w, d) / 2, Math.min(w, d) / 2, 0.04, tier <= 0 ? '#A98D6F' : PALETTE.oak, 20, 'y', FLAT);
+      b.sphere(cx - 0.06, y + 0.8, cz - 0.08, 0.09, tier >= 2 ? PALETTE.brass : PALETTE.porcelain, 1, 0.85);
+      for (const [dx, dz] of [[0.14, 0.12], [-0.12, 0.16]]) b.cylinder(cx + dx, y + 0.76, cz + dz, 0.04, 0.032, 0.07, PALETTE.porcelain, 10);
+      break;
+    }
+    case 'sofa': {
+      const cushion = tier <= 0 ? '#8E8577' : theme.deep;
+      b.slab(r, y + 0.08, y + 0.3, tier <= 0 ? '#7B6A58' : wood, 0, 0.02, { shade: 0.75 });
+      b.rounded(cx + (prop.facing === 'right' ? 0.05 : -0.05), y + 0.36, cz, w - 0.16, 0.12, d - 0.2, 0.05, cushion, { shade: 0.9 });
+      const backX = prop.facing === 'right' ? r.x0 + 0.09 : r.x1 - 0.09;
+      b.rounded(backX, y + 0.58, cz, 0.16, 0.5, d - 0.04, 0.06, cushion, { shade: 0.85 });
+      for (const az of [r.z0 + 0.08, r.z1 - 0.08]) b.rounded(cx, y + 0.44, az, w - 0.08, 0.3, 0.14, 0.05, cushion, { shade: 0.85 });
+      if (tier >= 2) for (const pz of [cz - d * 0.22, cz + d * 0.22]) b.rounded(cx + (prop.facing === 'right' ? 0.05 : -0.05), y + 0.48, pz, 0.12, 0.18, 0.3, 0.05, PALETTE.pillow, { shade: 0.9 });
+      break;
+    }
   }
 }

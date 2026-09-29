@@ -22,7 +22,8 @@ export class Cabin {
   unlocked = false;
   /** Occupant, or the guest walking to it after check-in. */
   guest: Guest | null = null;
-  readonly dirty = [false, false, false];
+  /** One flag per cleaning spot (a cabin has one: the heart of its walk-in). */
+  readonly dirty: boolean[];
   readonly center: Vec2;
   readonly spots: Vec2[];
   readonly bedPose: Vec2;
@@ -41,6 +42,7 @@ export class Cabin {
     const w = (p: Vec2): Vec2 => ({ x: p.x, z: p.z + originZ });
     this.center = w(layout.center);
     this.spots = layout.spots.map(w);
+    this.dirty = layout.spots.map(() => false);
     this.bedPose = w(layout.bedPose);
     this.sleepPose = { x: this.bedPose.x, z: layout.bed.z0 + originZ + PILLOW_Z + SLEEPER_HEAD };
     this.tipPile = w(layout.tipPile);
@@ -53,7 +55,7 @@ export class Cabin {
   }
 
   get isDirty(): boolean {
-    return this.dirty[0] || this.dirty[1] || this.dirty[2];
+    return this.dirty.some(Boolean);
   }
 
   get isFree(): boolean {
@@ -95,6 +97,8 @@ const SLEEPER_HEAD = 1.02;
 const ROOM_DOOR_REACH = 1.25;
 const ROOM_DOOR_OPEN_RATE = 4;
 const ROOM_DOOR_CLOSE_RATE = 1.6;
+/** A cabin's mess clears away in this many visible steps while it is tidied. */
+const CLEAN_STEPS = 4;
 /** Where the conductor steps to (metres ahead of the old rear) while a new carriage rolls in. */
 const COUPLING_STEP_BACK = 0.8;
 /** How long the refurbishment wipe takes to sweep the carriage (seconds). */
@@ -216,6 +220,28 @@ export class TrainState {
     let capacity = this.w.econ.facilities.lobbyRackCapacity;
     if (this.indexOfType('luggage') !== null) capacity += this.w.econ.facilities.luggageCarCapacity;
     return capacity;
+  }
+
+  /**
+   * Nearest place to pick up towels or rolls: the washroom car's closet (always stocked) or the stores'
+   * shelves while they hold stock.
+   */
+  supplySource(kind: 'towel' | 'roll', from: Vec2): Vec2 | null {
+    const map = this.w.map;
+    const options: Vec2[] = [];
+    const bath = this.indexOfType('bathroom');
+    if (bath !== null && map.hasAnchor(bath, 'closet')) options.push(map.anchor(bath, 'closet'));
+    const supply = this.indexOfType('supply');
+    const stock = kind === 'towel' ? this.supplyTowel : this.supplyRoll;
+    if (supply !== null && stock > 0) options.push(map.anchor(supply, kind === 'towel' ? 'shelf_towel' : 'shelf_roll'));
+    let best: Vec2 | null = null;
+    for (const o of options) if (!best || Math.abs(o.z - from.z) < Math.abs(best.z - from.z)) best = o;
+    return best;
+  }
+
+  /** Towels or rolls can be had somewhere on the train right now. */
+  hasSupply(kind: 'towel' | 'roll'): boolean {
+    return this.indexOfType('bathroom') !== null || (kind === 'towel' ? this.supplyTowel : this.supplyRoll) > 0;
   }
 
   get supplyTowel(): number {
@@ -369,6 +395,8 @@ export class TrainState {
     if (this.pendingChoice && dt > 0) this.requestCoupling(() => w.tiles.refresh());
     const speed = w.journey.speed;
     this.loco.update(dt, speed);
+
+    for (const view of this.views) view.animate(dt);
 
     // Doors slide open at stations.
     if (this.doorAmount !== this.doorTarget) {
@@ -642,21 +670,39 @@ export class TrainState {
       ring: false,
       active: () => cabin.dirty[i] && !cabin.guest,
       stay: (zone, actor, dt) => {
-        zone.progress += (dt / w.econ.zones.cleanSpotSeconds) * actor.workMultiplier;
+        const before = zone.progress;
+        zone.progress += (dt / w.econ.zones.cleanCabinSeconds) * actor.workMultiplier;
         if (zone.progress < 1) {
-          if (Math.random() < dt * 6) w.particles.emit('sparkle', spot.x, FLOOR_Y + 0.1, spot.z, 1, 0.2);
+          // A small scrub: a soft brush sound as each bit of mess goes, a few sparkles, a little hop.
+          const steps = CLEAN_STEPS;
+          if (Math.floor(zone.progress * steps) > Math.floor(before * steps)) {
+            w.audio.play('scrub', { volume: 0.45, pitch: 0.9 + zone.progress * 0.4 });
+            w.particles.emit('sparkle', spot.x, FLOOR_Y + 0.3, spot.z, 3, 0.35);
+            if (actor.isPlayer) w.player.view.bounce(0.25);
+          }
           return true;
         }
         zone.progress = 0;
         cabin.dirty[i] = false;
-        w.audio.play('scrub');
-        w.audio.play('sparkle', { volume: 0.6 });
-        w.particles.emit('sparkle', spot.x, FLOOR_Y + 0.2, spot.z, 10, 0.3);
         w.events.emit('spot.cleaned', { x: spot.x, z: spot.z, byPlayer: actor.isPlayer });
         if (!cabin.isDirty) {
           cabin.cleaner = null;
+          // The after: bed made, floor clear, and a ring of sparkle round the whole room.
+          w.audio.play('sparkle', { volume: 0.7 });
           w.audio.play('ding');
+          const room = cabin.layout.room;
+          const originZ = carriageOriginZ(cabin.carriage);
+          for (let k = 0; k < 10; k++) {
+            const a = (k / 10) * Math.PI * 2;
+            w.particles.emit('sparkle', (room.x0 + room.x1) / 2 + Math.cos(a) * 0.9, FLOOR_Y + 0.5, originZ + (room.z0 + room.z1) / 2 + Math.sin(a) * 0.8, 2, 0.25);
+          }
           w.particles.emit('star', cabin.center.x, FLOOR_Y + 0.8, cabin.center.z, 8, 0.4);
+          const bed = this.views[cabin.carriage]?.cabinBeds[cabin.index];
+          if (bed) {
+            bed.scale.set(1, 0.85, 1);
+            w.tweens.run(0.45, (t) => bed.scale.set(1, 0.85 + 0.15 * t, 1), { ease: easeOutBack });
+          }
+          w.ui.floatText('Spotless!', cabin.center.x, FLOOR_Y + 1.6, cabin.center.z, 'info');
           w.addStars(w.econ.stars.cabinCleaned, 'clean', cabin.center);
           if (actor.isPlayer) w.setFlag('firstCabinCleaned');
           w.events.emit('cabin.cleaned', { byPlayer: actor.isPlayer, x: cabin.center.x, z: cabin.center.z });
@@ -777,6 +823,9 @@ export class TrainState {
       this.sourceZone(`src:tea:${index}`, at('urn'), ['tea']);
       this.sourceZone(`src:linen:${index}`, at('linen'), ['blanket', 'pillow']);
     }
+
+    // The washroom car keeps its own towels and rolls: it works the day it couples on.
+    if (type === 'bathroom') this.sourceZone(`src:closet:${index}`, at('closet'), ['towel', 'roll']);
 
     if (type === 'luggage') this.luggageDropZone('rack:luggage', at('rack'));
   }

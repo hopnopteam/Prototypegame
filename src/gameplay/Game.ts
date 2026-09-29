@@ -511,7 +511,7 @@ export class Game implements World {
     });
     e.on('carriage.coupled', ({ index, type }) => {
       this.ftue('first_carriage');
-      if (type === 'supply') this.ftue('supply_car');
+      if (this.train.count >= 3) this.ftue('second_carriage');
       this.analytics.log(EVENTS.carriageCoupled, { index, type, time: Math.round(this.lifetimeSeconds()) });
       this.scenerySpanChanged();
       this.tiles.refresh();

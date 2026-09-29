@@ -14,7 +14,7 @@ if (!existsSync(file)) { console.error('dist/index.html missing: run npm run bui
 
 // Latest acceptable lifetime second for each beat. Looser than the §14 targets so autopilot variance
 // does not flake the check; scripts/pacing.mjs is the tool for tuning toward the targets themselves.
-const DEADLINES = { first_checkin: 15, first_cash: 20, first_unlock: 45, first_station: 80, first_hire: 150, first_carriage: 360, supply_car: 480, route_level_2: 780 };
+const DEADLINES = { first_checkin: 15, first_cash: 20, first_unlock: 45, first_station: 80, first_hire: 150, first_carriage: 360, second_carriage: 600, route_level_2: 780 };
 
 const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 } });

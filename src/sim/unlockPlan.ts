@@ -68,26 +68,30 @@ export function allowedCarriages(carriages: readonly CarriageType[]): CarriageTy
 }
 
 /**
- * Up to three cards for the chooser, the best pick first: a washroom car before anything else, then the
- * supplies it needs, then beds if guests are being left behind, then racks if bags are.
+ * Up to three cards for the chooser, the best pick first: beds first, then a washroom car, then racks if bags
+ * were left behind, then the stores, then more beds if guests are still being turned away.
  */
 export function carriageChoices(carriages: readonly CarriageType[], signals: ChoiceSignals, limit = 3): CarriageChoice[] {
   const allowed = allowedCarriages(carriages);
   const has = (t: CarriageType): boolean => carriages.includes(t);
   let best: CarriageType | null = null;
   let reason: string | null = null;
-  if (!has('bathroom') && allowed.includes('bathroom')) {
+  if (!has('sleeper') && allowed.includes('sleeper')) {
+    // Beds first: every guest you turn away is a fare you missed.
+    best = 'sleeper';
+    reason = signals.leftBehind > 0 ? `${signals.leftBehind} guest${signals.leftBehind === 1 ? ' was' : 's were'} left behind: you need beds` : 'More beds, more guests';
+  } else if (!has('bathroom') && allowed.includes('bathroom')) {
     best = 'bathroom';
     reason = 'Guests keep asking for a washroom';
-  } else if (has('bathroom') && !has('supply') && allowed.includes('supply')) {
-    best = 'supply';
-    reason = 'The washrooms will need restocking';
-  } else if (signals.leftBehind > 0 && allowed.includes('sleeper')) {
-    best = 'sleeper';
-    reason = `${signals.leftBehind} guest${signals.leftBehind === 1 ? ' was' : 's were'} left behind: you need beds`;
   } else if (signals.luggageLeft > 0 && allowed.includes('luggage')) {
     best = 'luggage';
     reason = `${signals.luggageLeft} bag${signals.luggageLeft === 1 ? '' : 's'} had no room`;
+  } else if (has('bathroom') && !has('supply') && allowed.includes('supply')) {
+    best = 'supply';
+    reason = 'A runner will keep the washrooms stocked';
+  } else if (signals.leftBehind > 0 && allowed.includes('sleeper')) {
+    best = 'sleeper';
+    reason = `${signals.leftBehind} guest${signals.leftBehind === 1 ? ' was' : 's were'} left behind: you need beds`;
   }
   const ordered = best ? [best, ...allowed.filter((t) => t !== best)] : allowed;
   return ordered.slice(0, limit).map((type, i) => ({ type, reason: i === 0 ? reason : null }));

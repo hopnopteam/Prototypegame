@@ -397,21 +397,25 @@ export class StaffManager {
     }
     const threshold = max.bathroomRestockThreshold;
     const bath = w.train.bathrooms.find((b) => b.unlocked && !b.restocker && (b.towels <= threshold || b.rolls <= threshold));
-    if (bath && (facilities.supplyTowel > 0 || facilities.supplyRoll > 0)) {
+    // The stores' shelves first; the washroom car's closet (never empty) when they run dry.
+    const closet = w.train.indexOfType('bathroom') !== null;
+    if (bath && (closet || facilities.supplyTowel > 0 || facilities.supplyRoll > 0)) {
       bath.restocker = m;
-      const needTowels = Math.min(max.bathroomTowelMax - bath.towels, facilities.supplyTowel);
-      const needRolls = Math.min(max.bathroomRollMax - bath.rolls, facilities.supplyRoll);
+      const needTowels = Math.min(max.bathroomTowelMax - bath.towels, closet ? Infinity : facilities.supplyTowel);
+      const needRolls = Math.min(max.bathroomRollMax - bath.rolls, closet ? Infinity : facilities.supplyRoll);
       const cap = m.stack.capacity;
       const towels = Math.min(needTowels, Math.ceil(cap / 2));
       const rolls = Math.min(needRolls, cap - towels);
       const steps: Step[] = [{ kind: 'do', fn: () => (m.wantItems = { towel: towels, roll: rolls }) }];
       if (towels > 0) {
-        steps.push({ kind: 'goto', target: w.map.anchor(m.carriage, 'shelf_towel') });
-        steps.push({ kind: 'stand', until: () => m.stack.countOf('towel') >= towels || facilities.supplyTowel <= 0, timeout: 4 });
+        const at = w.train.supplySource('towel', m.pos) ?? w.map.anchor(m.carriage, 'shelf_towel');
+        steps.push({ kind: 'goto', target: at });
+        steps.push({ kind: 'stand', until: () => m.stack.countOf('towel') >= towels || !w.train.hasSupply('towel'), timeout: 4 });
       }
       if (rolls > 0) {
-        steps.push({ kind: 'goto', target: w.map.anchor(m.carriage, 'shelf_roll') });
-        steps.push({ kind: 'stand', until: () => m.stack.countOf('roll') >= rolls || facilities.supplyRoll <= 0, timeout: 4 });
+        const at = w.train.supplySource('roll', m.pos) ?? w.map.anchor(m.carriage, 'shelf_roll');
+        steps.push({ kind: 'goto', target: at });
+        steps.push({ kind: 'stand', until: () => m.stack.countOf('roll') >= rolls || !w.train.hasSupply('roll'), timeout: 4 });
       }
       steps.push({ kind: 'goto', target: bath.restock, node: bath.node });
       steps.push({ kind: 'stand', until: () => !this.canRestock(m, bath), timeout: 5 });
@@ -451,9 +455,8 @@ export class StaffManager {
       case 'pillow':
         return this.nearestSource(kind, m.carriage);
       case 'towel':
-        return supply !== null ? map.anchor(supply, 'shelf_towel') : null;
       case 'roll':
-        return supply !== null ? map.anchor(supply, 'shelf_roll') : null;
+        return this.w.train.supplySource(kind, m.pos);
       case 'crate':
         return supply !== null ? map.anchor(supply, 'crateDrop') : null;
       case 'luggage':

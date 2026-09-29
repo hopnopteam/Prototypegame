@@ -537,7 +537,7 @@ export class Guests {
     }
     const tipAmount = Math.max(1, Math.round(tip));
     w.cash.add(cabin.pileId, tipAmount, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
-    cabin.dirty[0] = cabin.dirty[1] = cabin.dirty[2] = true;
+    cabin.dirty.fill(true);
     w.station.recordTip(tipAmount);
     guest.request = null;
     this.setState(guest, 'alighting');

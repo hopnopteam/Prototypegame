@@ -38,7 +38,8 @@ export const ECONOMY = {
     binDwellSeconds: 0.45,
     pickupIntervalSeconds: 0.2,
     dropIntervalSeconds: 0.16,
-    cleanSpotSeconds: 1.5,
+    /** Seconds to tidy a cabin, standing on its one spot (the mess clears away piece by piece). */
+    cleanCabinSeconds: 2.6,
     boardIntervalSeconds: 0.75,
     /** Staff work a little slower than the player, so doing it yourself always feels best. */
     staffWorkMultiplier: 0.8,

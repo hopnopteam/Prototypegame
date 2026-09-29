@@ -37,7 +37,7 @@ DEFAULT_TRAIN.map((type) => ({ type })).slice(0, count).forEach((c, i) => {
   const tier = tierParam !== null ? Number(tierParam) : Number(tiers[i] ?? '0');
   const view = new CarriageView(getLayout(c.type), i, tier);
   view.group.position.z = carriageOriginZ(i);
-  if (c.type === 'lobby') { view.setCabinLocked(2, true); view.setDirt(1, [true, true, false]); view.setLuggageCount(3); }
+  if (c.type === 'lobby') { view.setCabinLocked(1, true); view.setDirt(0, [true]); view.setLuggageCount(3); }
   if (c.type === 'bathroom') { view.setBathroomLocked(1, true); view.setBathroomStock(0, 3, 2); }
   if (c.type === 'supply') view.setShelfStock(10, 12);
   if (platform) view.setDoorOpen(1);

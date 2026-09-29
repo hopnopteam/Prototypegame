@@ -163,10 +163,11 @@ export class Guidance {
       return this.because('clean', dirty.spots[i]);
     }
 
-    const supply = w.train.indexOfType('supply');
-    if (supply !== null && !stack.isFull) {
-      if (w.demand.playerWants('towel') > 0 && w.data.facilities.supplyTowel > 0) return this.because('fetch', map.anchor(supply, 'shelf_towel'));
-      if (w.demand.playerWants('roll') > 0 && w.data.facilities.supplyRoll > 0) return this.because('fetch', map.anchor(supply, 'shelf_roll'));
+    if (!stack.isFull) {
+      for (const kind of ['towel', 'roll'] as const) {
+        const source = w.demand.playerWants(kind) > 0 ? w.train.supplySource(kind, w.player.pos) : null;
+        if (source) return this.because('fetch', source);
+      }
     }
 
     if (tile && (forBot || w.player.idleSeconds > IDLE_BEFORE_HINT * 2)) return this.because('save', tile.pos);
@@ -198,8 +199,7 @@ export class Guidance {
   private returnPoint(item: ItemKind): Vec2 | null {
     const w = this.w;
     const map = w.map;
-    const supply = w.train.indexOfType('supply');
-    if (item === 'towel' || item === 'roll') return supply !== null ? map.anchor(supply, item === 'towel' ? 'shelf_towel' : 'shelf_roll') : null;
+    if (item === 'towel' || item === 'roll') return w.train.supplySource(item, w.player.pos);
     if (item === 'tea' || item === 'blanket' || item === 'pillow') {
       const name = item === 'tea' ? 'urn' : item;
       let best: Vec2 | null = null;
@@ -210,6 +210,7 @@ export class Guidance {
       }
       return best;
     }
+    const supply = w.train.indexOfType('supply');
     if (item === 'crate' && supply !== null) return map.anchor(supply, 'crateDrop');
     return map.hasAnchor(0, 'bin') ? map.anchor(0, 'bin') : null;
   }

@@ -75,7 +75,7 @@ describe('UnlockChain', () => {
     expect(chain.pay('c0.cabin_1', 100)).toBe(chain.get('c0.cabin_1')!.price - 4);
     expect(chain.complete('c0.cabin_1')).toBe(true);
     expect(chain.complete('c0.cabin_1')).toBe(false);
-    expect(chain.available().map((d) => d.id)).toEqual(['c0.cabin_2']);
+    expect(chain.available().map((d) => d.id)).not.toContain('c0.cabin_1');
   });
 
   it('waits for gameplay flags (hire after the first manual clean)', () => {
@@ -115,7 +115,7 @@ describe('UnlockChain', () => {
     const chain = new UnlockChain(buildUnlocks(['lobby']), state, () => ({}));
     chain.setDefs(buildUnlocks(['lobby', 'sleeper']));
     expect(chain.isUnlocked('c0.cabin_1')).toBe(true);
-    expect(chain.get('c1.cabin_0')?.label).toBe('Cabin 4');
+    expect(chain.get('c1.cabin_0')?.label).toBe('Cabin 3');
   });
 
   it('refurbishes every carriage one tier at a time, and says what each tile does', () => {
@@ -132,15 +132,17 @@ describe('UnlockChain', () => {
 describe('carriage choice', () => {
   const none = { leftBehind: 0, luggageLeft: 0 };
 
-  it('recommends a washroom car first, then its supplies', () => {
-    expect(carriageChoices(['lobby'], none)[0]).toEqual({ type: 'bathroom', reason: expect.any(String) });
+  it('recommends beds first, then a washroom car, then the stores it can use', () => {
+    expect(carriageChoices(['lobby'], none)[0]).toEqual({ type: 'sleeper', reason: expect.any(String) });
     expect(carriageChoices(['lobby'], none).map((c) => c.type)).not.toContain('supply');
-    expect(carriageChoices(['lobby', 'bathroom'], none)[0].type).toBe('supply');
+    expect(carriageChoices(['lobby', 'sleeper'], none)[0].type).toBe('bathroom');
+    expect(carriageChoices(['lobby', 'sleeper', 'bathroom'], none)[0].type).toBe('supply');
   });
 
-  it('recommends beds when guests were left behind, racks when bags were', () => {
-    expect(carriageChoices(['lobby', 'bathroom', 'supply'], { leftBehind: 3, luggageLeft: 0 })[0].type).toBe('sleeper');
-    expect(carriageChoices(['lobby', 'bathroom', 'supply'], { leftBehind: 0, luggageLeft: 4 })[0].type).toBe('luggage');
+  it('recommends racks when bags were left behind, more beds when guests were', () => {
+    expect(carriageChoices(['lobby', 'sleeper', 'bathroom'], { leftBehind: 0, luggageLeft: 4 })[0].type).toBe('luggage');
+    expect(carriageChoices(['lobby', 'sleeper', 'bathroom', 'supply'], { leftBehind: 3, luggageLeft: 0 })[0].type).toBe('sleeper');
+    expect(carriageChoices(['lobby'], { leftBehind: 2, luggageLeft: 0 })[0].reason).toContain('left behind');
   });
 
   it('respects each type\'s limit and the train length', () => {
