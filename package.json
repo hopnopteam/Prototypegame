@@ -12,7 +12,8 @@
     "smoke": "node scripts/smoke.mjs",
     "check": "npm run typecheck && npm test && npm run build",
     "audit:ui": "node scripts/ui-audit.mjs",
-    "audit:geo": "node scripts/geo-audit.mjs"
+    "audit:geo": "node scripts/geo-audit.mjs",
+    "audit:audio": "node scripts/audio-check.mjs"
   },
   "dependencies": {
     "three": "0.186.1"

@@ -23,6 +23,7 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 | `npm run smoke` | Headless browser run: the autopilot plays the first 13 minutes and checks the §14 beats, the walkthrough, naming, the Gazette debut interview, a Rival Watch taunt and the press, a refurbishment, a station upgrade, the objective chain and comforts, that every pickup was needed, the ad rules, that a doorway shutting never traps the conductor, save/reload (unlocks and open cabins), draw calls and console errors |
 | `npm run audit:ui` | Checks the title screen (logo card, a clear view of the train, the bottom panel; no sheet on top) and the intro caption, stages the busiest HUD moments and every menu at seven phone sizes (320×568 to 430×932), then samples live play, and fails on any overlap, clipped text or off-screen element |
 | `npm run audit:geo` | Builds every carriage at every tier (all comforts, full stock, every guest type's mess and unmade bed), the locomotive, rear deck, exterior and platform, and fails on (1) any visible coplanar overlap of different surfaces (flicker) and (2) any two objects, or an object and a wall, passing through each other (clipping). Both must report 0 |
+| `npm run audit:audio` | Plays the built game with sound on, records the real output and fails if the theme does not decode, the next pass of the music is not queued exactly one loop apart, the output clips or audio logs an error; writes the recording to `dist/audio-check.wav` |
 | `npm run check` | Typecheck + tests + build |
 
 Tools in `scripts/` (need Chromium via Playwright, pre-installed in the cloud sessions):
@@ -46,7 +47,8 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 |---|---|
 | Every number: journey timers, how much mess a guest leaves, the train's lean, stick response, braking and doorway assist, speeds, capacities, fares, tips, refurbishment and comfort bonuses, Rush streak window and bonus, stride and quick-travel speed, camera framing, soft-cue thresholds and chatter rate, fast-service bonus, pickup dwell, cash magnet reach, level thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
 | The objective chain (goals, rewards) | `src/config/objectives.ts` |
-| The sound mix: which sample each cue plays, levels, pitch spread, overlap limits | `src/config/audio.ts` (samples and credits in `assets/audio/`; rebuild with `scripts/audio/build_sounds.py`) |
+| The sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, the music's night filter | `src/config/audio.ts` |
+| The music (score: chords, melody, strings) | `scripts/audio/build_music.py` renders `assets/audio/music_theme.mp3` from real piano and string recordings (credits in `assets/audio/CREDITS.md`) |
 | Floors by tier: broken planks and repairs, parquet, rugs | `src/world/Floors.ts` |
 | What passengers say, by situation | `src/config/chatter.ts` |
 | Content: stations, guest archetypes (with what each leaves behind), the carriage catalogue (each type's tiles incl. comforts, prices, limits and chooser text), coupling slots, station upgrades (exterior and marketing, with their bonuses), refurbishment tiers, stories, quests, products | `src/config/content.ts` |
@@ -69,11 +71,11 @@ src/
   services/   ads, IAP, analytics, remote config: interfaces + mocks
   world/      Three.js: stage, camera, lighting, scenery, ambient life, platform, carriages, train exterior, characters, conductor gear, particles, cash
   gameplay/   Game (composition root), player, zones, tiles, guests, staff, station, train, guidance, coach, objectives, feedback, press, rush, meta, monetization, autopilot
-  audio/      WebAudio sample playback (sfx), procedural music, haptics
-assets/audio/ sound samples (MP3) and their credits
+  audio/      WebAudio: synthesised effects, the music loop, haptics
   ui/         DOM HUD, sheets, icons, styles
+assets/audio/ the music (MP3) and its credits
 tests/        vitest unit tests
-scripts/      build, smoke, pacing, UI and geometry audits, screenshots
+scripts/      build, smoke, pacing, UI, geometry and audio audits, screenshots, the music renderer
 ```
 
 The Unity M0 skeleton this project started from is in commit `864b131` if we move to a native engine later.

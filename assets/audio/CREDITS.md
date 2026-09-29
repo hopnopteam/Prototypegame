@@ -1,13 +1,16 @@
-# Sound credits
+# Sound and music credits
 
-Every file here is free to use in a commercial game. Rebuild with `python3 scripts/audio/build_sounds.py <uisfx package> <kenney clones>`
-(trims leading silence, fades, normalises to −1 dBFS, encodes mono MP3).
+**Sound effects** are synthesised in `src/audio/AudioEngine.ts` (no files).
 
-| Files | Source | Licence |
+**Music:** `music_theme.mp3` is the Night Express theme, an original jazz waltz in F for piano and strings
+written for this game. Its score lives in `scripts/audio/build_music.py`, which renders it from these
+recordings (all free to use in a commercial game with attribution):
+
+| Instrument | Source | Licence |
 |---|---|---|
-| `ui_*.mp3` | [uisfx](https://www.npmjs.com/package/uisfx) 0.4.0, Soft and Glass packs (press, snap, drop, notification, reaction, invalid-drop, blocked, swipe, success, check, reward, unlock, level-up, achievement, purchase, streak) | Audio CC0-1.0 (code MIT) |
-| `k_coin.mp3` | Kenney, [Starter Kit 3D Platformer](https://github.com/KenneyNL/Starter-Kit-3D-Platformer) `sounds/coin.ogg` | CC0 |
-| `k_place_a–d.mp3` | Kenney, [Starter Kit City Builder](https://github.com/KenneyNL/Starter-Kit-City-Builder) `sounds/placement-*.ogg` | CC0 |
-| `r_*.mp3` | Rendered for Night Express by `scripts/audio/build_sounds.py`: steam whistle (long, short), rail clacks, coupling clunk, desk bell, sliding door, broom swishes, washroom flush, station chime, footsteps on boards, old-floorboard creaks | Ours |
+| Piano | Salamander Grand Piano V3 by Alexander Holm, via npm [`@audio-samples/piano-mp3-velocity6`](https://www.npmjs.com/package/@audio-samples/piano-mp3-velocity6) and [`-velocity8`](https://www.npmjs.com/package/@audio-samples/piano-mp3-velocity8) | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
+| Contrabass, cello, violin, harp | [tonejs-instruments](https://github.com/nbrosowsky/tonejs-instruments) by Nicholaus Brosowsky (edited from public-domain recordings), via npm `tonejs-instrument-*-mp3` | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
 
-Which game cue plays which file, and at what level, is set in `src/config/audio.ts`.
+To change the music, edit the score (chords, melody, strings) in the script and re-render:
+`python3 scripts/audio/build_music.py <dir of unpacked npm packages> [--preview out.wav]` (usage in the file).
+Its level in the game is `mix.music` in `src/config/audio.ts`.

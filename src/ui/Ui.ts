@@ -501,7 +501,7 @@ export class Ui implements GameUi {
           this.game.audio.play('coin', { pitch: 2.4, volume: 0.35 });
         } else {
           this.pendingStars = Math.max(0, this.pendingStars - f.amount);
-          this.game.audio.play('star', { pitch: 1 + Math.random() * 0.2 });
+          this.game.audio.play('chime', { pitch: 1.6 + Math.random() * 0.3, volume: 0.25 });
         }
       }
     }

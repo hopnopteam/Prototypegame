@@ -33,9 +33,6 @@ export const ECONOMY = {
     stickCurve: 1.3,
     /** Walking into a wall within this far of an opening slides you into it (doorways, gangways, props). */
     doorAssist: 0.38,
-    /** Metres per footstep sound, and the chance an old (run-down) floorboard creaks underfoot. */
-    stepLength: 0.62,
-    creakChance: 0.1,
     radius: 0.3,
     baseCarryCapacity: 3,
     /** Quick travel (tap a carriage on the train map) walks the route this much faster… */
