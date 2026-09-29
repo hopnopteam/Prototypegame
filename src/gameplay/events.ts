@@ -7,7 +7,7 @@ export interface GameEvents {
   'guest.checkedIn': { fare: number; x: number; z: number; byPlayer: boolean };
   'guest.boarded': Record<string, never>;
   'guest.alighted': { tip: number };
-  'request.fulfilled': { item: ItemKind; tip: number; x: number; z: number; byPlayer: boolean };
+  'request.fulfilled': { item: ItemKind; tip: number; x: number; z: number; byPlayer: boolean; speedy: boolean };
   'cabin.cleaned': { byPlayer: boolean; x: number; z: number };
   'spot.cleaned': { x: number; z: number; byPlayer: boolean };
   'item.picked': { item: ItemKind; byPlayer: boolean };

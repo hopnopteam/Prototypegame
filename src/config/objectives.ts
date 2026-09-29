@@ -13,7 +13,7 @@ import type { IconName } from '../ui/icons';
  */
 export type ObjectiveEvent =
   | 'checkIn' | 'collect' | 'unlock' | 'clean' | 'request' | 'board' | 'luggage' | 'perfectStop'
-  | 'restock' | 'coupling' | 'refurb' | 'level' | 'conductor' | 'rush' | 'station';
+  | 'restock' | 'coupling' | 'refurb' | 'level' | 'conductor' | 'rush' | 'station' | 'speedy';
 
 export interface ObjectiveDef {
   id: string;
@@ -55,11 +55,11 @@ export const OBJECTIVES: ObjectiveDef[] = [
   { id: 'board_12', text: 'Board 12 passengers', icon: 'person', event: 'board', target: 12, reward: { cash: 40 } },
   { id: 'comforts_3', text: 'Own 3 comforts', icon: 'heart', event: 'unlock', filter: 'comfort', target: 3, reward: { cash: 50 } },
   { id: 'hire_porter', text: 'Hire a Porter for check-in and bags', icon: 'luggage', event: 'unlock', filter: 'hire:porter', target: 1, reward: { cash: 50 }, stars: 2 },
-  { id: 'perfect_3', text: 'Make 3 perfect station stops', icon: 'star', event: 'perfectStop', target: 3, reward: { cash: 40, gems: 3 } },
+  { id: 'perfect_2', text: 'Make 2 more perfect stops', icon: 'star', event: 'perfectStop', target: 2, reward: { cash: 40, gems: 3 } },
   { id: 'refurb_3x', text: 'Do up your carriages 3 times', icon: 'paint', event: 'refurb', target: 3, reward: { cash: 60 }, stars: 3 },
   { id: 'level_3', text: 'Reach route level 3', icon: 'star', event: 'level', target: 3, reward: { gems: 8 } },
   { id: 'couple_3', text: 'Couple on a fourth carriage', icon: 'carriage', event: 'coupling', target: 3, reward: { cash: 70 }, stars: 4 },
-  { id: 'rush_5', text: 'Build a Rush of 5', icon: 'bolt', event: 'rush', streak: 5, target: 1, reward: { cash: 50 } },
+  { id: 'speedy_3', text: 'Bring 3 things in a flash (Speedy!)', icon: 'bolt', event: 'speedy', target: 3, reward: { cash: 50 } },
   { id: 'station_3', text: 'Own 3 station upgrades', icon: 'megaphone', event: 'station', target: 3, reward: { cash: 80, gems: 3 } },
   { id: 'cleans_15', text: 'Tidy 15 cabins', icon: 'broom', event: 'clean', target: 15, reward: { cash: 70 } },
   { id: 'train_up', text: 'Train one of your staff', icon: 'plus', event: 'unlock', filter: 'staffUpgrade', target: 1, reward: { cash: 60 } },

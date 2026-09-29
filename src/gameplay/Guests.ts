@@ -426,7 +426,7 @@ export class Guests {
     guest.view.bounce(1);
     guest.happyTime = HAPPY_SECONDS;
     guest.slow = false;
-    w.events.emit('request.fulfilled', { item, tip, x: guest.pos.x, z: guest.pos.z, byPlayer });
+    w.events.emit('request.fulfilled', { item, tip, x: guest.pos.x, z: guest.pos.z, byPlayer, speedy: speed >= service.speedyTipMultiplier });
     if (guest.story) w.meta?.onStoryRequestDone(guest.story, item);
     w.feedback.onRequestServed(guest, elapsed, byPlayer);
   }

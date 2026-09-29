@@ -53,7 +53,10 @@ export class Objectives {
       this.syncTotal();
     });
     e.on('cabin.cleaned', () => this.count('clean'));
-    e.on('request.fulfilled', () => this.count('request'));
+    e.on('request.fulfilled', ({ byPlayer, speedy }) => {
+      this.count('request');
+      if (byPlayer && speedy) this.count('speedy');
+    });
     e.on('guest.boarded', () => this.count('board'));
     e.on('luggage.loaded', () => this.count('luggage'));
     e.on('station.result', (r) => r.clean && this.count('perfectStop'));
