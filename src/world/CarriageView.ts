@@ -42,12 +42,17 @@ export function windowSpacing(len: number): { count: number; slot: number; width
   return { count, slot, width: Math.min(0.9, slot - 0.45) };
 }
 const FLAT: PartStyle = { shade: 1 };
+/** Trims and rails stop this short of a wall's ends, so their end faces never share a plane with it. */
+const END_INSET = 0.006;
+/** A rect shortened at both ends of its long axis. */
+const shortenEnds = (r: Rect, by: number): Rect => (r.z1 - r.z0 >= r.x1 - r.x0 ? rect(r.x0, r.z0 + by, r.x1, r.z1 - by) : rect(r.x0 + by, r.z0, r.x1 - by, r.z1));
 /** Supply stand steps: stock sits on these. */
 const SHELF_LOW = 0.3;
 const SHELF_HIGH = 0.62;
+const SHELF_TOP = 0.012;
 /** Room door leaves: height, and each leaf's offset from the partition centre (they pass inside it). */
 const LEAF_HEIGHT = 0.66;
-const LEAF_GAP = 0.022;
+const LEAF_GAP = 0.04;
 
 /** How a carriage looks at a refurbishment tier: the whole rags-to-riches story in one table. */
 interface Finish {
@@ -292,7 +297,7 @@ export class CarriageView {
 
     // Chassis: a skirt in the livery with a trim line, dark bogies below.
     liv.box(0, 0.46, L / 2, HALF_WIDTH * 2 - 0.06, 0.16, L - 0.12, '#FFFFFF', 0, { shade: 0.8 });
-    trim.box(0, 0.535, L / 2, HALF_WIDTH * 2 - 0.04, 0.025, L - 0.1, '#FFFFFF', 0, FLAT);
+    trim.box(0, 0.525, L / 2, HALF_WIDTH * 2 - 0.02, 0.025, L - 0.1, '#FFFFFF', 0, FLAT);
     s.box(0, 0.28, L / 2, HALF_WIDTH * 2 - 0.6, 0.2, L - 0.8, PALETTE.undercarriage);
     for (const z of [2.3, L - 2.3]) {
       s.box(0, 0.2, z, 2.4, 0.18, 2.2, PALETTE.wheel);
@@ -368,7 +373,7 @@ export class CarriageView {
     const low = Math.min(y1, FLOOR_Y + WAINSCOT);
     if (low > y0) s.slab(r, y0, low, fin.panelled ? PALETTE.walnut : fin.wallLow, 0, 0, { shade: 0.82 });
     if (y1 > low) s.slab(r, Math.max(y0, low), y1, fin.wall, 0, 0, { shade: 0.96 });
-    if (fin.panelled && y0 <= FLOOR_Y + WAINSCOT && y1 >= FLOOR_Y + WAINSCOT) s.slab(rail, FLOOR_Y + WAINSCOT - 0.012, FLOOR_Y + WAINSCOT + 0.018, PALETTE.brass, 0, 0, FLAT);
+    if (fin.panelled && y0 <= FLOOR_Y + WAINSCOT && y1 >= FLOOR_Y + WAINSCOT) s.slab(shortenEnds(rail, END_INSET), FLOOR_Y + WAINSCOT - 0.012, FLOOR_Y + WAINSCOT + 0.018, PALETTE.brass, 0, 0, FLAT);
   }
 
   /** Interior wall: the finish on both faces and a clean wooden cap. */
@@ -400,7 +405,7 @@ export class CarriageView {
     this.innerFinish(s, inner, FLOOR_Y + WINDOW_Y1, FLOOR_Y + h, rail);
     liv.slab(outer, 0.38, FLOOR_Y + WINDOW_Y0, white, 0, 0, { shade: 0.85 });
     liv.slab(outer, FLOOR_Y + WINDOW_Y1, FLOOR_Y + h, white, 0, 0, FLAT);
-    trim.slab(rect(outer.x0 - (left ? 0.004 : 0), r.z0, outer.x1 + (left ? 0 : 0.004), r.z1), FLOOR_Y + 0.28, FLOOR_Y + 0.32, white, 0, 0, FLAT);
+    trim.slab(rect(outer.x0 - (left ? 0.004 : 0), r.z0 + END_INSET, outer.x1 + (left ? 0 : 0.004), r.z1 - END_INSET), FLOOR_Y + 0.28, FLOOR_Y + 0.32, white, 0, 0, FLAT);
 
     const { count, slot, width } = windowSpacing(len);
     if (count === 0) {
@@ -418,7 +423,7 @@ export class CarriageView {
         s.box(innerFace + inward * 0.025, FLOOR_Y + WINDOW_Y0 + 0.012, zc, 0.05, 0.024, width + 0.06, fin.cap, 0, FLAT);
         if (fin.curtains) {
           for (const side of [-1, 1]) {
-            s.box(innerFace + inward * 0.03, FLOOR_Y + (WINDOW_Y0 + WINDOW_Y1) / 2 + 0.03, zc + side * (width / 2 - 0.02), 0.03, WINDOW_Y1 - WINDOW_Y0 + 0.06, 0.1, this.theme.curtain, 0, { shade: 0.82 });
+            s.box(innerFace + inward * 0.03, FLOOR_Y + (WINDOW_Y0 + WINDOW_Y1) / 2 + 0.03, zc + side * (width / 2 - 0.02), 0.03, WINDOW_Y1 - WINDOW_Y0 + 0.06, 0.08, this.theme.curtain, 0, { shade: 0.82 });
           }
         }
         // Lamps between windows: a bare bulb in the old carriage, proper sconces once refurbished.
@@ -477,8 +482,8 @@ export class CarriageView {
         const kx = -INNER + 0.05;
         s.box(kx, FLOOR_Y + 0.62, 2.8, 0.08, 0.4, 1.0, PALETTE.walnut, 0, { shade: 0.9 });
         for (let row = 0; row < 2; row++) for (let col = 0; col < 5; col++) {
-          s.box(kx + 0.042, FLOOR_Y + 0.52 + row * 0.18, 2.38 + col * 0.21, 0.008, 0.12, 0.16, PALETTE.walnutDark, 0, FLAT);
-          if ((row + col) % 2 === 0) s.box(kx + 0.05, FLOOR_Y + 0.5 + row * 0.18, 2.38 + col * 0.21, 0.01, 0.04, 0.02, PALETTE.brass, 0, FLAT);
+          s.box(kx + 0.042, FLOOR_Y + 0.52 + row * 0.18, 2.4 + col * 0.2, 0.008, 0.12, 0.16, PALETTE.walnutDark, 0, FLAT);
+          if ((row + col) % 2 === 0) s.box(kx + 0.05, FLOOR_Y + 0.5 + row * 0.18, 2.4 + col * 0.2, 0.01, 0.04, 0.02, PALETTE.brass, 0, FLAT);
         }
       }
     }
@@ -576,8 +581,8 @@ export class CarriageView {
   }
 
   private lockOverlay(room: Rect): THREE.Mesh {
-    const lock = new THREE.Mesh(new THREE.PlaneGeometry(room.x1 - room.x0, room.z1 - room.z0).rotateX(-Math.PI / 2), MATERIALS.lockedOverlay);
-    lock.position.set((room.x0 + room.x1) / 2, FLOOR_Y + 0.018, (room.z0 + room.z1) / 2);
+    const lock = new THREE.Mesh(new THREE.PlaneGeometry(room.x1 - room.x0 - 0.04, room.z1 - room.z0 - 0.04).rotateX(-Math.PI / 2), MATERIALS.lockedOverlay);
+    lock.position.set((room.x0 + room.x1) / 2, FLOOR_Y + 0.03, (room.z0 + room.z1) / 2);
     lock.visible = false;
     this.group.add(lock);
     return lock;
@@ -600,10 +605,11 @@ export class CarriageView {
     const colour = this.tier <= 0 ? '#A48B72' : this.theme.deep;
     const metal = this.doorMetal();
     const leaf = new GeoBuilder()
+      // Glass, rail and handle stand a clear 1 cm proud of the panel (a hair's breadth would flicker).
       .box(0, 0, 0, 0.035, LEAF_HEIGHT, leafLength - 0.01, colour, 0, { shade: 0.85 })
-      .box(0, 0.12, 0, 0.04, 0.22, leafLength * 0.6, this.tier <= 0 ? '#C2B29C' : '#E4EEF0', 0, FLAT)
-      .box(0, LEAF_HEIGHT / 2 + 0.005, 0, 0.04, 0.012, leafLength - 0.01, metal, 0, FLAT)
-      .box(0, -0.04, leafLength * 0.34, 0.05, 0.06, 0.025, metal, 0, FLAT)
+      .box(0, 0.12, 0, 0.055, 0.22, leafLength * 0.6, this.tier <= 0 ? '#C2B29C' : '#E4EEF0', 0, FLAT)
+      .box(0, LEAF_HEIGHT / 2 + 0.005, 0, 0.055, 0.012, leafLength - 0.01, metal, 0, FLAT)
+      .box(0, -0.04, leafLength * 0.34, 0.075, 0.06, 0.025, metal, 0, FLAT)
       .build();
     const mesh = new THREE.InstancedMesh(leaf, MATERIALS.solid, doors.length * 2);
     mesh.castShadow = true;
@@ -725,7 +731,7 @@ export class CarriageView {
       const col = i % perStep;
       slots.push({
         x: cx + (high ? wallSide : -wallSide) * quarter,
-        y: FLOOR_Y + (high ? SHELF_HIGH : SHELF_LOW) + 0.06,
+        y: FLOOR_Y + (high ? SHELF_HIGH : SHELF_LOW) + SHELF_TOP + 0.06,
         z: r.z0 + 0.35 + (col + 0.5) * ((r.z1 - r.z0 - 0.7) / perStep),
       });
     }
@@ -871,8 +877,9 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       const high = wallSide < 0 ? rect(r.x0, r.z0, mid, r.z1) : rect(mid, r.z0, r.x1, r.z1);
       b.slab(low, y, y + SHELF_LOW, wood, 0, 0.02, { shade: 0.8 });
       b.slab(high, y, y + SHELF_HIGH, wood, 0, 0.02, { shade: 0.8 });
-      b.slab(low, y + SHELF_LOW - 0.03, y + SHELF_LOW, PALETTE.oak, 0, 0.03, FLAT);
-      b.slab(high, y + SHELF_HIGH - 0.03, y + SHELF_HIGH, PALETTE.oak, 0, 0.03, FLAT);
+      // The oak tops sit a clear centimetre proud of the stand (a shared top face flickered).
+      b.slab(low, y + SHELF_LOW - 0.03, y + SHELF_LOW + SHELF_TOP, PALETTE.oak, 0, 0.03, FLAT);
+      b.slab(high, y + SHELF_HIGH - 0.03, y + SHELF_HIGH + SHELF_TOP, PALETTE.oak, 0, 0.03, FLAT);
       for (const pz of [r.z0 + 0.03, r.z1 - 0.03]) b.box(cx, y + SHELF_HIGH / 2 + 0.05, pz, w, SHELF_HIGH + 0.1, 0.05, wood, 0, { shade: 0.85 });
       break;
     }
@@ -883,7 +890,7 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       break;
     case 'bench':
       b.slab(r, y + 0.1, y + 0.36, wood, 0, 0.05, { shade: 0.75 });
-      if (tier >= 2) b.rounded(cx, y + 0.4, cz, w - 0.1, 0.08, d - 0.1, 0.04, theme.deep, { shade: 0.9 });
+      if (tier >= 2) b.rounded(cx, y + 0.4, cz, w - 0.1, 0.08, d - 0.16, 0.04, theme.deep, { shade: 0.9 });
       b.box(r.x0 + 0.1, y + 0.62, cz, 0.08, 0.44, d - 0.1, wood, 0, { shade: 0.85 });
       break;
     case 'lamp':

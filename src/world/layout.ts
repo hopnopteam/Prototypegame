@@ -199,8 +199,10 @@ class LayoutBuilder {
     const doorGaps: [number, number][] = options.doors ? [[DOOR_Z0, DOOR_Z1]] : [];
     this.wallAlongZ(-HALF_WIDTH, -INNER, 0, L, [], 'exterior');
     this.wallAlongZ(INNER, HALF_WIDTH, 0, L, doorGaps, 'exterior');
-    this.wallAlongX(0, WALL, -HALF_WIDTH, HALF_WIDTH, options.frontGangway ? [[-GANGWAY_HALF, GANGWAY_HALF]] : [], 'exterior');
-    this.wallAlongX(L - WALL, L, -HALF_WIDTH, HALF_WIDTH, [[-GANGWAY_HALF, GANGWAY_HALF]], 'exterior');
+    // End walls run between the side walls: the corners belong to the side walls alone (overlapping shells
+    // would put two coplanar faces at every corner, which flicker).
+    this.wallAlongX(0, WALL, -INNER, INNER, options.frontGangway ? [[-GANGWAY_HALF, GANGWAY_HALF]] : [], 'exterior');
+    this.wallAlongX(L - WALL, L, -INNER, INNER, [[-GANGWAY_HALF, GANGWAY_HALF]], 'exterior');
 
     if (options.doors) {
       const doorZ = (DOOR_Z0 + DOOR_Z1) / 2;

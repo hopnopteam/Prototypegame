@@ -33,6 +33,8 @@ const FLAT_PART = 0.1;
  */
 export class GeoBuilder {
   private readonly parts: THREE.BufferGeometry[] = [];
+  /** Each part's paint (colour, second colour, pattern), kept for the geometry audit. */
+  private readonly looks: string[] = [];
 
   add(geometry: THREE.BufferGeometry, color: string, x: number, y: number, z: number, rotX = 0, rotY = 0, rotZ = 0, style: PartStyle = {}): this {
     const g = geometry.index ? geometry.toNonIndexed() : geometry;
@@ -77,6 +79,7 @@ export class GeoBuilder {
     g.setAttribute('aColor2', new THREE.BufferAttribute(colors2, 3));
     g.setAttribute('aPattern', new THREE.BufferAttribute(pattern, 2));
     this.parts.push(g);
+    this.looks.push(`${color}|${style.color2 ?? ''}|${type}`);
     return this;
   }
 
@@ -157,8 +160,18 @@ export class GeoBuilder {
   build(): THREE.BufferGeometry {
     if (this.parts.length === 0) return new THREE.BufferGeometry();
     const merged = mergeGeometries(this.parts, false);
+    // Where each part starts (in vertices), so the geometry audit can tell parts of one mesh apart.
+    const starts: number[] = [];
+    let offset = 0;
+    for (const part of this.parts) {
+      starts.push(offset);
+      offset += part.getAttribute('position').count;
+    }
+    merged.userData.partStarts = starts;
+    merged.userData.partLooks = this.looks.slice();
     for (const part of this.parts) part.dispose();
     this.parts.length = 0;
+    this.looks.length = 0;
     merged.computeBoundingSphere();
     merged.computeBoundingBox();
     return merged;

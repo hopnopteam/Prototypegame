@@ -8,13 +8,17 @@ const BASE_DISTANCE = 20;
 const MIN_VISIBLE_WIDTH = 8.4;
 const LOOK_AHEAD = 1.2;
 const FOLLOW_SHARPNESS = 5;
+const CAMERA_NEAR = 6;
+const CAMERA_FAR = 160;
 
 /**
  * Portrait follow camera tilted ~55°, damped so it glides behind the player. Supports screen shake (coupling
  * clunk) and a temporary focus override (the new carriage rolling in).
  */
 export class CameraRig {
-  readonly camera = new THREE.PerspectiveCamera(FOV, 9 / 16, 0.5, 220);
+  // A deep near plane buys depth precision: phones with 16-bit depth buffers otherwise flicker on surfaces
+  // a few millimetres apart. Nothing is ever within 6 m of the camera (it hangs 18 m+ above the train).
+  readonly camera = new THREE.PerspectiveCamera(FOV, 9 / 16, CAMERA_NEAR, CAMERA_FAR);
   private readonly focus = new THREE.Vector3();
   private distance = BASE_DISTANCE;
   private baseDistance = BASE_DISTANCE;

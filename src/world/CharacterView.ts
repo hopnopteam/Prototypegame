@@ -61,7 +61,8 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
     for (const side of [-1, 1]) b.add(new THREE.SphereGeometry(0.05, 10, 6).scale(1.3, 0.5, 0.6), look.hair, side * 0.045, HEAD_Y - 0.075, 0.232, 0, 0, side * -0.25, { shade: 1 });
   }
   const hatted = look.hat === 'conductor' || look.hat === 'boater' || look.hat === 'cap' || look.hat === 'beanie' || look.hat === 'pillbox';
-  b.sphere(0, HEAD_Y + (hatted ? 0.03 : 0.07), -0.05, 0.255, look.hair, 2, 0.95, { shade: 0.85 });
+  // Hair sits clearly outside the head where they overlap (near-coincident spheres flicker at the hairline).
+  b.sphere(0, HEAD_Y + (hatted ? 0.03 : 0.07), -0.05, 0.268, look.hair, 2, 0.95, { shade: 0.85 });
 
   switch (look.hat) {
     case 'conductor': {

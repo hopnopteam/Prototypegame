@@ -185,7 +185,7 @@ export class PlatformView {
     // Luggage trolley near where suitcases wait.
     const luggageZ = luggageCarIndex !== null ? carriageOriginZ(luggageCarIndex) + DOOR_Z0 + 3.2 : DOOR_Z0 + 3.2;
     b.box(x0 + 1.6, FLOOR_Y + 0.2, luggageZ, 1.3, 0.06, 1.8, PALETTE.oak, 0, { pattern: PATTERN.stripesX, color2: PALETTE.walnut, scale: 0.12, shade: 1 });
-    b.box(x0 + 1.6, FLOOR_Y + 0.5, luggageZ - 0.88, 1.3, 0.6, 0.05, PALETTE.navy, 0, { shade: 0.9 });
+    b.box(x0 + 1.6, FLOOR_Y + 0.5, luggageZ - 0.88, 1.26, 0.6, 0.05, PALETTE.navy, 0, { shade: 0.9 });
     for (const dx of [-0.5, 0.5]) for (const dz of [-0.7, 0.7]) b.cylinder(x0 + 1.6 + dx, FLOOR_Y + 0.1, luggageZ + dz, 0.1, 0.1, 0.06, PALETTE.ink, 10, 'x');
 
     this.staticMesh = new THREE.Mesh(b.build(), MATERIALS.solid);
@@ -353,7 +353,7 @@ function buildInstrument(kind: 'tuba' | 'drum' | 'trumpet'): THREE.Mesh {
 function buildFlag(): THREE.Mesh {
   const b = new GeoBuilder();
   b.cylinder(0, -0.25, 0, 0.014, 0.014, 0.62, PALETTE.walnut, 6, 'y', { shade: 1 });
-  b.box(0, -0.44, 0.18, 0.02, 0.26, 0.36, '#3E9B5A', 0, { shade: 1 });
+  b.box(0, -0.44, 0.2, 0.02, 0.26, 0.36, '#3E9B5A', 0, { shade: 1 });
   const mesh = new THREE.Mesh(b.build(), MATERIALS.character);
   mesh.castShadow = true;
   return mesh;

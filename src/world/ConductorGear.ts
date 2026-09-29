@@ -17,6 +17,8 @@ export interface GearState {
   scooter: boolean;
   /** Double fares at this stop. */
   doubled: boolean;
+  /** Something is on the stack (the tray only appears under a load, never on its own). */
+  carrying: boolean;
 }
 
 const RING_COLOURS = { normal: new THREE.Color('#F2B233'), skating: new THREE.Color('#5FC6E0'), doubled: new THREE.Color('#FFD35C') };
@@ -46,11 +48,13 @@ export class ConductorGear {
     this.ring.renderOrder = 2;
     view.root.add(this.ring);
 
-    // A silver tray under whatever the conductor carries.
+    // A silver tray under whatever the conductor carries (shown only with a load on it): silver on top,
+    // a thin brass edge below, so from above it reads as a tray and not a gold disc.
     this.tray = new THREE.Mesh(new GeoBuilder()
-      .cylinder(0, 0, 0, 0.26, 0.24, 0.025, '#DADFE4', 20, 'y', { shade: 1 })
-      .cylinder(0, 0.018, 0, 0.27, 0.27, 0.012, PALETTE.brass, 20, 'y', { shade: 1 })
+      .cylinder(0, 0.012, 0, 0.2, 0.19, 0.02, '#DADFE4', 20, 'y', { shade: 1 })
+      .cylinder(0, -0.002, 0, 0.215, 0.215, 0.012, PALETTE.brass, 20, 'y', { shade: 1 })
       .build(), MATERIALS.character);
+    this.tray.visible = false;
     this.tray.position.set(0, -0.06, 0);
     view.stackAnchor.add(this.tray);
 
@@ -111,7 +115,6 @@ export class ConductorGear {
         bandColor: o.bandColor,
         shoe: SHOES_BY_SPEED[Math.min(SHOES_BY_SPEED.length - 1, state.speedLevel)],
       });
-      this.tray.visible = state.capacityLevel >= 1;
       this.tray.scale.setScalar(1 + Math.min(4, state.capacityLevel) * 0.08);
       this.chest.visible = state.charmLevel >= 1;
       this.epaulettes.visible = state.charmLevel >= 3;
@@ -120,6 +123,7 @@ export class ConductorGear {
       this.view.riding = state.scooter;
       this.view.body.position.y = 0;
     }
+    this.tray.visible = state.carrying && state.capacityLevel >= 1;
     if (state.scooter) this.view.body.position.y = SCOOTER_LIFT;
     // The ring breathes; it glows cyan on skates and brighter gold with double fares.
     const colour = state.skating ? RING_COLOURS.skating : state.doubled ? RING_COLOURS.doubled : RING_COLOURS.normal;

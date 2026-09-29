@@ -4,14 +4,13 @@ import { buildUnlocks, carriageChoices } from '../sim/unlockPlan';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Vec2 } from '../core/types';
 import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
-import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, ZONE_RADIUS, type BathroomLayout, type CabinLayout } from '../world/layout';
+import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, GANGWAY_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, ZONE_RADIUS, type BathroomLayout, type CabinLayout } from '../world/layout';
 import { ExteriorView } from '../world/ExteriorView';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
 import { LocomotiveView } from '../world/LocomotiveView';
-import { GeoBuilder } from '../world/geo';
-import { clippedMaterials, MATERIALS, PATTERN, swapMaterials } from '../world/materials';
-import { PALETTE, TIER_NAMES } from '../world/palette';
-import { GANGWAY_LENGTH, REAR_DECK_LENGTH } from '../world/layout';
+import { buildRearDeck } from '../world/RearDeck';
+import { clippedMaterials, swapMaterials } from '../world/materials';
+import { TIER_NAMES } from '../world/palette';
 import type { Actor } from './Actor';
 import type { Guest } from './Guests';
 import { sourceActive, sourceStay, type SourceSpec } from './Pickup';
@@ -96,37 +95,13 @@ const SLEEPER_HEAD = 1.02;
 const ROOM_DOOR_REACH = 1.25;
 const ROOM_DOOR_OPEN_RATE = 4;
 const ROOM_DOOR_CLOSE_RATE = 1.6;
+/** Where the conductor steps to (metres ahead of the old rear) while a new carriage rolls in. */
+const COUPLING_STEP_BACK = 0.8;
 /** How long the refurbishment wipe takes to sweep the carriage (seconds). */
 const MAKEOVER_SECONDS = 1.4;
 const MAKEOVER_BAND_GEOMETRY = new THREE.BoxGeometry(HALF_WIDTH * 2 + 0.3, 1.5, 0.12);
 const MAKEOVER_BAND_MATERIAL = new THREE.MeshBasicMaterial({ color: '#FFF1C4', transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending });
 
-/** The open observation platform behind the last carriage, where new carriages couple on. */
-function buildRearDeck(): THREE.Group {
-  const b = new GeoBuilder();
-  const y = FLOOR_Y;
-  const z0 = GANGWAY_LENGTH;
-  const z1 = GANGWAY_LENGTH + REAR_DECK_LENGTH;
-  const zc = (z0 + z1) / 2;
-  const liv = new GeoBuilder().box(0, (0.38 + y) / 2, zc, 2.8, y - 0.38, REAR_DECK_LENGTH, '#FFFFFF', 0, { shade: 0.85 });
-  b.box(0, y - 0.02, zc, 2.7, 0.04, REAR_DECK_LENGTH - 0.1, PALETTE.oak, 0, { pattern: PATTERN.planks, color2: PALETTE.walnut, scale: 0.22, shade: 1 });
-  // Brass railing with balusters, a gate rail at the back.
-  for (const x of [-1.35, 1.35]) b.box(x, y + 0.5, zc, 0.05, 0.05, REAR_DECK_LENGTH, PALETTE.brass, 0, { shade: 1 });
-  b.box(0, y + 0.5, z1 - 0.03, 2.75, 0.05, 0.05, PALETTE.brass, 0, { shade: 1 });
-  for (let z = z0 + 0.1; z <= z1; z += 0.3) for (const x of [-1.35, 1.35]) b.box(x, y + 0.25, z, 0.03, 0.5, 0.03, PALETTE.brass, 0, { shade: 0.85 });
-  for (let x = -1.2; x <= 1.21; x += 0.3) b.box(x, y + 0.25, z1 - 0.03, 0.03, 0.5, 0.03, PALETTE.brass, 0, { shade: 0.85 });
-  b.cylinder(1.2, y + 0.9, z1 - 0.1, 0.035, 0.05, 0.9, PALETTE.navy, 8);
-  const group = new THREE.Group();
-  const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  group.add(mesh, new THREE.Mesh(liv.build(), MATERIALS.livery));
-  const lamp = new GeoBuilder().cylinder(0, 0, 0, 0.07, 0.1, 0.18, PALETTE.lampShade, 10, 'y', { shade: 0.9 }).build();
-  const lampMesh = new THREE.Mesh(lamp, MATERIALS.lamps);
-  lampMesh.position.set(1.2, y + 1.42, z1 - 0.1);
-  group.add(lampMesh);
-  return group;
-}
 
 /**
  * The train: carriages and their views, cabins, bathrooms, supplies and luggage storage, every fixture's
@@ -347,10 +322,23 @@ export class TrainState {
     this.group.add(view.group);
     this.syncCarriageView(view, index, plan.type);
     const w = this.w;
+    // The observation deck rides in on the back of the new carriage (it never sits where the carriage will
+    // stop), and the conductor steps off it into the last carriage so nothing rolls through them.
+    const deckStays = MAX_CARRIAGES > index + 1;
+    w.particles.emit('dust', 0, FLOOR_Y + 0.3, w.map.rearZ + GANGWAY_LENGTH + 1, 14, 0.8);
+    this.deck.visible = deckStays;
+    this.deck.position.z = startZ + CARRIAGE_LENGTH;
+    const p = w.player.pos;
+    if (p.z > w.map.rearZ - 0.2) {
+      p.x = 0;
+      p.z = w.map.rearZ - COUPLING_STEP_BACK;
+      w.player.view.bounce(1);
+    }
     w.stage.rig.focusOn(new THREE.Vector3(0, 0, targetZ + 2), 3.6, 1.3);
     w.audio.play('whistleShort');
     w.tweens.run(2.3, (t) => {
       view.group.position.z = startZ + (targetZ - startZ) * t;
+      this.deck.position.z = view.group.position.z + CARRIAGE_LENGTH;
     }, {
       ease: easeOutCubic,
       delay: 0.5,

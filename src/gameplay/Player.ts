@@ -116,6 +116,7 @@ export class Player implements Actor {
       skating: this.boosted,
       scooter: w.iap.isOwned('conductor_scooter'),
       doubled: m.doubleFaresStop !== null && m.doubleFaresStop >= w.journey.stopSerial && m.doubleFaresStop <= w.journey.stopSerial + 1,
+      carrying: !this.stack.isEmpty,
     });
     this.stack.update(dt, moving, w.time);
 

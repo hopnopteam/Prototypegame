@@ -156,7 +156,7 @@ function buildCarpet(parent: THREE.Group): THREE.Mesh {
   const z1 = DOOR_Z1 - 0.04;
   const zc = (z0 + z1) / 2;
   b.box(CARPET_LENGTH / 2, FLOOR_Y + 0.006, zc, CARPET_LENGTH, 0.012, z1 - z0, CARPET_EDGE, 0, FLAT);
-  b.box(CARPET_LENGTH / 2 - 0.04, FLOOR_Y + 0.014, zc, CARPET_LENGTH - 0.08, 0.008, z1 - z0 - 0.12, CARPET_RED, 0, FLAT);
+  b.box(CARPET_LENGTH / 2, FLOOR_Y + 0.018, zc, CARPET_LENGTH - 0.12, 0.012, z1 - z0 - 0.12, CARPET_RED, 0, FLAT);
   // Brass posts at the far end, clear of the guests' path through the middle.
   for (const z of [z0 - 0.08, z1 + 0.08]) {
     b.cylinder(CARPET_LENGTH - 0.1, FLOOR_Y + 0.3, z, 0.03, 0.05, 0.6, PALETTE.brass, 8, 'y', FLAT);
