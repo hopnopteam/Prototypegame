@@ -43,6 +43,7 @@ const auditPage = () => {
     guide: '.guide',
     tiletag: '.tile-tag',
     gesture: '.gesture',
+    rush: '.rush',
   };
   const boxes = [];
   for (const [group, selector] of Object.entries(groups)) {
@@ -64,7 +65,7 @@ const auditPage = () => {
       const b = boxes[j];
       if (a.group === 'banner' && b.group === 'banner') continue;
       // World labels may cross each other; they must never cross the HUD.
-      const world = ['guide', 'tiletag', 'gesture'];
+      const world = ['guide', 'tiletag', 'gesture', 'rush'];
       if (world.includes(a.group) && world.includes(b.group)) continue;
       const overlap = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left) > pad && Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top) > pad;
       if (overlap) issues.push(`${a.name} overlaps ${b.name}`);
@@ -137,6 +138,9 @@ for (const [width, height] of SIZES) {
     document.getElementById('ui').classList.remove('has-ticket');
     g.coach.enabled = false;
     g.coach.current = { id: 'audit', icon: 'towel', text: 'Towels and rolls come from here', anchor: { world: { x: 0, z: 8 } } };
+    // A long Rush streak under the conductor.
+    g.rush.streak = 25;
+    g.rush.timeLeft = 30;
   });
   await page.waitForTimeout(400);
   report('coach', await page.evaluate(auditPage));
@@ -173,6 +177,11 @@ for (const [width, height] of SIZES) {
       new Function(s)();
     }, script);
     await page.waitForTimeout(label === 'ceremony' ? 3000 : label === 'front page' ? 1200 : 350);
+    // Let entrance animations settle (a slow frame can leave a sheet mid-slide).
+    await page.evaluate(() => Promise.race([
+      Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))),
+      new Promise((r) => setTimeout(r, 2000)),
+    ]));
     report(label, await page.evaluate(auditPage));
     await page.evaluate(() => { for (const b of document.querySelectorAll('.sheet .close')) b.click(); for (const s of document.querySelectorAll('.scrim')) s.remove(); });
   }
@@ -191,7 +200,7 @@ const liveCheck = () => {
     return r.width > 0 && r.height > 0;
   };
   const hud = [...document.querySelectorAll('.hud-top .pill, .hud-top .level, .hud-top .journey, .side button, .boost .badge, .trainmap, .ticket, .offers .chip, .toasts .toast')].filter(vis);
-  const world = [...document.querySelectorAll('.float, .speech, .guide, .tile-tag, .burst')].filter(vis);
+  const world = [...document.querySelectorAll('.float, .speech, .guide, .tile-tag, .burst, .rush')].filter(vis);
   const out = [];
   for (const w of world) {
     // Fading in or out at the edge is fine: only count clearly visible text.

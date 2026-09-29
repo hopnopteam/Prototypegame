@@ -229,7 +229,7 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .rush b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .rush .bar { position: absolute; left: 8px; right: 8px; bottom: 2px; height: 3px; border-radius: 2px; background: rgba(0,0,0,0.18); overflow: hidden; }
 .rush .bar i { display: block; height: 100%; background: var(--ink); transform-origin: left center; }
-.rush.pop b { animation: bump 240ms ease-out; display: inline-block; }
+.rush.tick b { animation: bump 240ms ease-out; display: inline-block; }
 .rush.milestone { animation: rushFlash 520ms ease-out; }
 @keyframes rushFlash { 0% { background: var(--cream); } 35% { background: #FFF6D6; box-shadow: 0 0 0 6px rgba(242, 178, 51, 0.45), 0 2px 0 var(--ink); } 100% { background: var(--mustard); } }
 .tile-tag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; max-width: 180px; padding: 4px 10px 5px; border-radius: 10px; background: var(--ink); color: var(--cream); text-align: center; line-height: 1.15; will-change: transform; pointer-events: none; }

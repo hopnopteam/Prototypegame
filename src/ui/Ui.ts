@@ -247,7 +247,8 @@ export class Ui implements GameUi {
     r.right = (side.width > 0 ? side.left - rootRect.left : rootRect.width) - EDGE;
     r.bottom = (offer.height > 0 ? offer.top - rootRect.top : rootRect.height - 80) - EDGE;
     // The station ticket takes the top of the middle column while it is up.
-    if (this.resultEl) r.top = Math.max(r.top, this.resultEl.getBoundingClientRect().bottom - rootRect.top + EDGE);
+    // Its layout box, not its animated one: measured mid-slide it would read too short for half a second.
+    if (this.resultEl) r.top = Math.max(r.top, this.resultEl.offsetTop + this.resultEl.offsetHeight + EDGE);
     // Toasts sit above the offer slot: world text stays above them.
     const toast = this.toastLayer.lastElementChild?.getBoundingClientRect();
     if (toast && toast.height > 0) r.bottom = Math.min(r.bottom, toast.top - rootRect.top - EDGE);
@@ -581,6 +582,7 @@ export class Ui implements GameUi {
     const rush = g.rush;
     const chip = this.rushChip;
     const on = !this.hidden && !this.screens.isOpen && rush.streak >= 2;
+    if (on && chip.el.hidden) chip.el.style.opacity = '0';
     setVisible(chip.el, on);
     if (!on) {
       chip.streak = 0;
@@ -589,15 +591,20 @@ export class Ui implements GameUi {
     if (chip.streak !== rush.streak) {
       chip.streak = rush.streak;
       setText(chip.count, `×${rush.streak}`);
-      chip.el.classList.remove('pop', 'milestone');
+      // Not '.pop': that class is the HUD reveal animation, which animates transform.
+      chip.el.classList.remove('tick', 'milestone');
       void chip.el.offsetWidth;
-      chip.el.classList.add(rush.lastMilestone === rush.streak ? 'milestone' : 'pop');
+      chip.el.classList.add(rush.lastMilestone === rush.streak ? 'milestone' : 'tick');
     }
     chip.bar.style.transform = `scaleX(${rush.fraction.toFixed(3)})`;
     const p = g.player.pos;
     this.tmp.set(p.x, 0, p.z);
-    if (!g.stage.project(this.tmp, this.screen)) return;
     const r = this.rect;
+    // Only under the conductor, inside the play area: never parked at a corner or over the HUD.
+    if (!g.stage.project(this.tmp, this.screen) || this.screen.y < r.top || this.screen.y > r.bottom) {
+      chip.el.style.opacity = '0';
+      return;
+    }
     const half = chip.el.offsetWidth / 2;
     const x = Math.min(Math.max(this.screen.x, r.left + half), r.right - half);
     const y = Math.min(this.screen.y + RUSH_CHIP_OFFSET, r.bottom - chip.el.offsetHeight);
