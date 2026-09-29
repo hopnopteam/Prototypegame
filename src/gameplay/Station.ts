@@ -245,6 +245,17 @@ export class Station {
       player.view.bounce(1);
     }
     w.map.setDoorsOpen(false);
+    // Anyone standing in a doorway as it shut steps inside onto open floor (never left inside the wall).
+    const walk = w.map.walk;
+    const rescue = (pos: { x: number; z: number }): void => {
+      if (walk.isWalkable(pos.x, pos.z)) return;
+      const free = walk.nearestWalkable(pos.x, pos.z);
+      pos.x = free.x;
+      pos.z = free.z;
+    };
+    rescue(player.pos);
+    for (const m of w.staff.members) rescue(m.pos);
+    for (const g of w.guests.list) if (g.aboard) rescue(g.pos);
     w.train.setDoors(false);
     w.audio.setStationAmbience(false);
     w.audio.play('whistle');

@@ -118,11 +118,13 @@ export class TileView {
   constructor(size = 1.3, private readonly locked = false) {
     const material = new THREE.MeshBasicMaterial({ map: this.face.texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
     this.lip = new THREE.Mesh(roundedPad(size * 0.97, PAD_HEIGHT), this.lipMaterial);
-    this.lip.position.y = FLOOR_Y + 0.004;
+    this.lip.position.y = 0.004;
     this.lip.receiveShadow = true;
     this.plane = new THREE.Mesh(new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2), material);
-    this.plane.position.y = FLOOR_Y + 0.004 + PAD_HEIGHT + 0.008;
+    this.plane.position.y = 0.004 + PAD_HEIGHT + 0.008;
     this.plane.renderOrder = 3;
+    // The pad pivots on the floor, so pressing it squashes the plate down onto the floor, never through it.
+    this.pad.position.y = FLOOR_Y;
     this.pad.add(this.lip, this.plane);
     this.group.add(this.pad);
     this.popT = 0;

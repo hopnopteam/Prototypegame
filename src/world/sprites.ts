@@ -132,9 +132,10 @@ export class TileFace {
       ctx.arcTo(x, y, x + size, y, r);
       ctx.closePath();
     };
-    // A bright enamel face: green when you can afford it, gold while paying, sand while saving up.
-    const face = locked ? ['#E4DCCD', '#CFC5B4'] : highlight ? ['#FFD978', '#F2B233'] : affordable ? ['#8FD57E', '#4FAE5F'] : ['#FFF6E4', '#EBD8B4'];
-    const rim = locked ? 'rgba(90, 80, 70, 0.5)' : highlight ? '#C8891B' : affordable ? '#2F7D50' : '#B98D5C';
+    // A cream enamel face whose rim says the state (green: you can afford it, gold: paying, sand: saving
+    // up). While you pay, a green fill rises from the bottom: the money going in, clearly visible.
+    const face = locked ? ['#E4DCCD', '#CFC5B4'] : ['#FFFBF1', '#F1E3C6'];
+    const rim = locked ? 'rgba(90, 80, 70, 0.5)' : highlight ? '#E0A020' : affordable ? '#3E9A56' : '#B98D5C';
     path(10);
     const gradient = ctx.createLinearGradient(0, 10, 0, 246);
     gradient.addColorStop(0, face[0]);
@@ -143,14 +144,25 @@ export class TileFace {
     ctx.globalAlpha = locked ? 0.7 : 1;
     ctx.fill();
     ctx.globalAlpha = 1;
+    if (affordable && !highlight && progress <= 0 && !locked) {
+      // Ready to buy: a soft green wash so it reads from across the carriage.
+      path(10);
+      ctx.fillStyle = 'rgba(111, 194, 90, 0.28)';
+      ctx.fill();
+    }
     if (progress > 0) {
-      // Paid so far fills from the bottom in gold.
       ctx.save();
       path(10);
       ctx.clip();
-      ctx.fillStyle = 'rgba(242, 178, 51, 0.9)';
-      const h = 236 * progress;
+      const h = 236 * Math.min(1, progress);
+      const fill = ctx.createLinearGradient(0, 246 - h, 0, 246);
+      fill.addColorStop(0, '#8FD57E');
+      fill.addColorStop(1, '#4FAE5F');
+      ctx.fillStyle = fill;
       ctx.fillRect(10, 246 - h, 236, h);
+      // The rising edge: a bright line so the level reads at a glance.
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.fillRect(10, 246 - h - 3, 236, 6);
       ctx.restore();
     }
     // A light top edge inside the rim: the enamel catches the light.
@@ -222,31 +234,6 @@ export function signTexture(text: string, background: string, foreground: string
     x += ctx.measureText(ch).width + spacing();
   }
   return finishTexture(c);
-}
-
-/** What a guest leaves behind: a tea ring and a scatter of crumbs. */
-let dirtTexture: THREE.CanvasTexture | null = null;
-export function getDirtTexture(): THREE.CanvasTexture {
-  if (dirtTexture) return dirtTexture;
-  const [c, ctx] = canvas(128);
-  ctx.strokeStyle = 'rgba(122, 84, 48, 0.75)';
-  ctx.lineWidth = 9;
-  ctx.beginPath();
-  ctx.arc(60, 62, 30, 0.3, Math.PI * 1.85);
-  ctx.stroke();
-  ctx.fillStyle = 'rgba(140, 98, 58, 0.35)';
-  ctx.beginPath();
-  ctx.arc(60, 62, 26, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(110, 74, 40, 0.85)';
-  const crumbs = [[98, 30, 5], [104, 48, 4], [92, 96, 6], [26, 100, 4], [20, 40, 5], [36, 18, 3], [108, 84, 3], [70, 112, 4]];
-  for (const [x, y, r] of crumbs) {
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  dirtTexture = finishTexture(c);
-  return dirtTexture;
 }
 
 function fitFont(ctx: CanvasRenderingContext2D, text: string, weight: number, start: number, maxWidth: number, min = 14): number {
@@ -458,63 +445,3 @@ export function headlineTexture(text: string): THREE.CanvasTexture {
   return finishTexture(c);
 }
 
-/** Years of grime on an old floor: soft irregular blotches and scuffs (tier 0 carriages). */
-let grimeTexture: THREE.CanvasTexture | null = null;
-export function getGrimeTexture(): THREE.CanvasTexture {
-  if (grimeTexture) return grimeTexture;
-  const [c, ctx] = canvas(128);
-  const blot = (x: number, y: number, r: number, alpha: number): void => {
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, `rgba(88, 70, 52, ${alpha})`);
-    g.addColorStop(1, 'rgba(88, 70, 52, 0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  };
-  blot(64, 64, 58, 0.45);
-  blot(38, 44, 30, 0.35);
-  blot(90, 82, 26, 0.4);
-  blot(70, 30, 18, 0.3);
-  ctx.strokeStyle = 'rgba(70, 55, 40, 0.35)';
-  ctx.lineWidth = 2;
-  for (const [x0, y0, x1, y1] of [[30, 80, 60, 92], [70, 60, 100, 52], [44, 30, 58, 22]]) {
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
-    ctx.stroke();
-  }
-  grimeTexture = finishTexture(c);
-  return grimeTexture;
-}
-
-/** A cobweb for a dusty corner: radial threads and sagging rings (tier 0 carriages). */
-let cobwebTexture: THREE.CanvasTexture | null = null;
-export function getCobwebTexture(): THREE.CanvasTexture {
-  if (cobwebTexture) return cobwebTexture;
-  const [c, ctx] = canvas(128);
-  ctx.strokeStyle = 'rgba(250, 250, 245, 0.85)';
-  ctx.lineWidth = 1.6;
-  // Anchored in the top-left corner (the room corner), spreading into the quarter circle.
-  for (let i = 0; i <= 5; i++) {
-    const a = (i / 5) * (Math.PI / 2);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(a) * 124, Math.sin(a) * 124);
-    ctx.stroke();
-  }
-  for (const r of [28, 52, 78, 104]) {
-    ctx.beginPath();
-    for (let i = 0; i <= 5; i++) {
-      const a = (i / 5) * (Math.PI / 2);
-      const sag = i > 0 && i < 5 ? 0.9 : 1;
-      const x = Math.cos(a) * r * sag;
-      const y = Math.sin(a) * r * sag;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  }
-  cobwebTexture = finishTexture(c);
-  return cobwebTexture;
-}

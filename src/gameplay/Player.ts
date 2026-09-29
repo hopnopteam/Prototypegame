@@ -129,6 +129,14 @@ export class Player implements Actor {
     const accel = w.econ.player.acceleration * dt;
     this.vx = approach(this.vx, tx, accel);
     this.vz = approach(this.vz, tz, accel);
+    // Safety net: if the floor ever closed around the conductor (a door shutting on them, a carriage
+    // re-laid under them), step onto the nearest open floor instead of being stuck in a wall.
+    const walk = w.map.walk;
+    if (!walk.isWalkable(this.pos.x, this.pos.z)) {
+      const free = walk.nearestWalkable(this.pos.x, this.pos.z);
+      this.pos.x = free.x;
+      this.pos.z = free.z;
+    }
     const moving = Math.hypot(this.vx, this.vz) > 0.05;
     if (moving) {
       const before = { x: this.pos.x, z: this.pos.z };

@@ -28,6 +28,8 @@ const check = (ok, message) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${message
 await page.goto(`file://${file}`);
 await page.waitForTimeout(800);
 await page.mouse.click(195, 700);
+// Tests drive the game themselves: skip the intro so it cannot unpause the game halfway through.
+await page.evaluate(() => window.nightExpress.skipIntro?.());
 await page.waitForTimeout(400);
 check(await page.evaluate(() => !!window.nightExpress && !document.querySelector('.splash')), 'boots and the title card starts the game');
 
@@ -109,6 +111,23 @@ const minLife = 600;
 check(ads.every((a) => a.phase === 'departing'), `every interstitial in the Departing phase (${ads.length} shown)`);
 check(ads.every((a) => a.life >= minLife), 'no interstitial before minute 10 of lifetime play');
 check(ads.every((a, i) => i === 0 || a.life - ads[i - 1].life >= 180), 'interstitials at least 3 minutes apart');
+
+// Standing in a doorway as the doors shut must never trap the conductor inside the wall.
+const door = await page.evaluate(() => {
+  const g = window.nightExpress;
+  g.paused = true;
+  g.setAutopilot(false);
+  for (let i = 0; i < 800 && g.journey.phase !== 'stationStop'; i++) g.simulate(0.5);
+  const d = g.map.doors()[0];
+  for (let i = 0; i < 400 && g.journey.phase === 'stationStop'; i++) { g.player.pos.x = 2.15; g.player.pos.z = d.inside.z; g.simulate(0.25); }
+  g.simulate(1);
+  const before = { x: g.player.pos.x, z: g.player.pos.z };
+  g.input.override = { x: -1, y: 0 };
+  g.simulate(1);
+  g.input.override = null;
+  return { walkable: g.map.walk.isWalkable(g.player.pos.x, g.player.pos.z), moved: Math.hypot(g.player.pos.x - before.x, g.player.pos.z - before.z) };
+});
+check(door.walkable && door.moved > 0.5, `a doorway shutting never traps the conductor (walked ${door.moved.toFixed(2)} m after)`);
 
 // The save must survive a reload with progress intact.
 const before = snap.unlocked;

@@ -23,9 +23,9 @@ const BAND_LOOK: CharacterLook = { body: '#C0485C', accent: '#E2B04A', skin: '#F
 const BAND_SKIN = ['#F1C7A6', '#C98E66', '#8D5A3C'];
 /** Where the band stands (between the waiting guests and the workshop pads) and what each one plays. */
 const BAND: { x: number; z: number; instrument: 'tuba' | 'drum' | 'trumpet' }[] = [
-  { x: PLATFORM_X0 + 2.75, z: 4.6, instrument: 'trumpet' },
-  { x: PLATFORM_X0 + 3.4, z: 4.3, instrument: 'tuba' },
-  { x: PLATFORM_X0 + 4.05, z: 4.6, instrument: 'drum' },
+  { x: PLATFORM_X0 + 2.3, z: 4.95, instrument: 'trumpet' },
+  { x: PLATFORM_X0 + 3.3, z: 4.2, instrument: 'tuba' },
+  { x: PLATFORM_X0 + 4.3, z: 4.95, instrument: 'drum' },
 ];
 const BEAT_SECONDS = 0.5;
 /** The station master stands by the front of the train and waves the green flag at departure. */
@@ -69,11 +69,14 @@ export class PlatformView {
     this.group.add(sign);
 
     this.master = new CharacterView(MASTER_LOOK);
+    this.master.root.userData.object = 'character:master';
     this.master.setPosition(MASTER_POS.x, FLOOR_Y, MASTER_POS.z);
     this.master.setFacing(-Math.PI / 2 + 0.6);
     this.master.holdInRightHand(buildFlag());
     this.group.add(this.master.root);
-    this.group.add(buildKiosk(this.headlineMaterial));
+    const kiosk = buildKiosk(this.headlineMaterial);
+    kiosk.userData.object = 'platform:newsstand';
+    this.group.add(kiosk);
     this.group.visible = false;
   }
 
@@ -141,8 +144,10 @@ export class PlatformView {
     b.box(canopyX + 0.4, FLOOR_Y + 3.02, zc, 2.4, 0.1, this.length - 2, PALETTE.canopy, 0, { pattern: PATTERN.stripesZ, color2: PALETTE.stationTrim, scale: 0.5, shade: 1 });
     for (let z = this.z0 + 1.2; z < this.z1 - 1; z += 0.5) b.cylinder(canopyX - 0.8, FLOOR_Y + 2.93, z, 0.24, 0.24, 0.04, PALETTE.canopyDark, 10, 'x', { shade: 1 });
     for (let z = this.z0 + 3; z < this.z1 - 2; z += 6) {
+      b.object('platform:canopyPost');
       b.cylinder(x1 - 0.5, FLOOR_Y + 1.5, z, 0.07, 0.09, 3.0, PALETTE.navy, 10, 'y', { shade: 0.85 });
       b.box(x1 - 0.5, FLOOR_Y + 2.95, z, 0.2, 0.1, 0.2, PALETTE.gold, 0, { shade: 1 });
+      b.object('platform:canopyLamp');
       lamps.sphere(x1 - 0.9, FLOOR_Y + 2.55, z, 0.16, PALETTE.lampShade, 1);
       b.box(x1 - 0.72, FLOOR_Y + 2.72, z, 0.36, 0.03, 0.03, PALETTE.navy, 0, { shade: 1 });
       const glow = new THREE.Sprite(new THREE.SpriteMaterial({ color: PALETTE.lampGlow, transparent: true, opacity: 0, depthWrite: false }));
@@ -150,42 +155,58 @@ export class PlatformView {
       glow.position.set(x1 - 0.9, FLOOR_Y + 2.55, z);
       this.group.add(glow);
       this.glows.push(glow);
+      b.endObject();
     }
 
     // Benches and flower planters.
     for (let z = this.z0 + 6; z < this.z1 - 3; z += 11) {
+      b.object('platform:bench');
       b.box(x1 - 1.1, FLOOR_Y + 0.36, z, 0.5, 0.07, 1.6, PALETTE.oak, 0, { pattern: PATTERN.stripesZ, color2: PALETTE.walnut, scale: 0.1, shade: 1 });
       b.box(x1 - 0.88, FLOOR_Y + 0.6, z, 0.06, 0.4, 1.6, PALETTE.oak, 0, { pattern: PATTERN.stripesZ, color2: PALETTE.walnut, scale: 0.1, shade: 1 });
       for (const dz of [-0.7, 0.7]) b.box(x1 - 1.1, FLOOR_Y + 0.17, z + dz, 0.42, 0.34, 0.06, PALETTE.navy, 0, { shade: 0.85 });
+      b.object('platform:planter');
       b.box(x1 - 1.0, FLOOR_Y + 0.25, z + 2.4, 0.6, 0.5, 0.6, PALETTE.stationTrim, 0, { shade: 0.8 });
       b.sphere(x1 - 1.08, FLOOR_Y + 0.62, z + 2.3, 0.2, PALETTE.blossom, 1);
       b.sphere(x1 - 0.92, FLOOR_Y + 0.6, z + 2.52, 0.18, PALETTE.mustard, 1);
       b.sphere(x1 - 1.0, FLOOR_Y + 0.66, z + 2.46, 0.15, PALETTE.hedge, 1);
+      b.endObject();
     }
 
     // A row of lamp posts with flower tubs between them, behind where guests wait.
     const rowX = x1 - 2.05;
+    // The row makes way for the stores vendor's stall.
+    const vendorZ = supplyCarIndex !== null ? PlatformView.vendorPosition(supplyCarIndex).z : null;
+    const clear = (z: number): boolean => vendorZ === null || Math.abs(z - vendorZ) > 1.7;
     deck.box(rowX, FLOOR_Y + 0.003, zc, 1.1, 0.01, this.length - 1, PALETTE.stationPink, 0, { pattern: PATTERN.stripesZ, color2: '#EAA5A2', scale: 0.45, shade: 1 });
     for (let z = this.z0 + 5; z < this.z1 - 3; z += 8) {
-      b.cylinder(rowX, FLOOR_Y + 0.08, z, 0.14, 0.18, 0.16, PALETTE.navy, 12, 'y', { shade: 0.8 });
-      b.cylinder(rowX, FLOOR_Y + 1.2, z, 0.04, 0.06, 2.2, PALETTE.navy, 10, 'y', { shade: 0.85 });
-      b.box(rowX, FLOOR_Y + 2.2, z, 0.5, 0.04, 0.04, PALETTE.navy, 0, { shade: 1 });
-      for (const dz of [-0.25, 0.25]) lamps.sphere(rowX, FLOOR_Y + 2.12, z + dz, 0.11, PALETTE.lampShade, 1);
+      if (clear(z)) {
+        b.object('platform:lampPost');
+        b.cylinder(rowX, FLOOR_Y + 0.08, z, 0.14, 0.18, 0.16, PALETTE.navy, 12, 'y', { shade: 0.8 });
+        b.cylinder(rowX, FLOOR_Y + 1.2, z, 0.04, 0.06, 2.2, PALETTE.navy, 10, 'y', { shade: 0.85 });
+        b.box(rowX, FLOOR_Y + 2.2, z, 0.5, 0.04, 0.04, PALETTE.navy, 0, { shade: 1 });
+        for (const dz of [-0.25, 0.25]) lamps.sphere(rowX, FLOOR_Y + 2.12, z + dz, 0.11, PALETTE.lampShade, 1);
+      }
       const tubZ = z + 4;
+      if (!clear(tubZ)) continue;
+      b.object('platform:tub');
       b.rounded(rowX, FLOOR_Y + 0.2, tubZ, 0.7, 0.4, 0.7, 0.12, PALETTE.canopy, { shade: 0.75 });
       b.sphere(rowX - 0.12, FLOOR_Y + 0.52, tubZ - 0.1, 0.2, PALETTE.blossom, 1);
       b.sphere(rowX + 0.14, FLOOR_Y + 0.5, tubZ + 0.12, 0.18, PALETTE.linen, 1);
       b.sphere(rowX, FLOOR_Y + 0.56, tubZ + 0.05, 0.14, PALETTE.hedge, 1);
     }
+    b.endObject();
 
     // Sign posts under the name board.
-    for (const dz of [-1.5, 1.5]) b.box(x0 + 4.2 + dz * 0.7, FLOOR_Y + 1.0, -1.2, 0.07, 2.0, 0.07, PALETTE.navy, 0, { shade: 0.9 });
+    for (const dz of [-1.5, 1.5]) b.object('platform:signPost').box(x0 + 4.2 + dz * 0.7, FLOOR_Y + 1.0, -1.2, 0.07, 2.0, 0.07, PALETTE.navy, 0, { shade: 0.9 });
+    b.endObject();
 
     // Luggage trolley near where suitcases wait.
     const luggageZ = luggageCarIndex !== null ? carriageOriginZ(luggageCarIndex) + DOOR_Z0 + 3.2 : DOOR_Z0 + 3.2;
+    b.object('platform:trolley');
     b.box(x0 + 1.6, FLOOR_Y + 0.2, luggageZ, 1.3, 0.06, 1.8, PALETTE.oak, 0, { pattern: PATTERN.stripesX, color2: PALETTE.walnut, scale: 0.12, shade: 1 });
     b.box(x0 + 1.6, FLOOR_Y + 0.5, luggageZ - 0.88, 1.26, 0.6, 0.05, PALETTE.navy, 0, { shade: 0.9 });
     for (const dx of [-0.5, 0.5]) for (const dz of [-0.7, 0.7]) b.cylinder(x0 + 1.6 + dx, FLOOR_Y + 0.1, luggageZ + dz, 0.1, 0.1, 0.06, PALETTE.ink, 10, 'x');
+    b.endObject();
 
     this.staticMesh = new THREE.Mesh(b.build(), MATERIALS.solid);
     this.staticMesh.castShadow = true;
@@ -197,7 +218,10 @@ export class PlatformView {
     this.lampMesh = new THREE.Mesh(lamps.build(), MATERIALS.lamps);
     this.group.add(this.lampMesh);
 
-    if (supplyCarIndex !== null) this.vendor = buildVendor(carriageOriginZ(supplyCarIndex));
+    if (supplyCarIndex !== null) {
+      this.vendor = buildVendor(carriageOriginZ(supplyCarIndex));
+      this.vendor.userData.object = 'platform:vendor';
+    }
     if (this.vendor) this.group.add(this.vendor);
     this.buildPosters();
   }
@@ -220,6 +244,7 @@ export class PlatformView {
         view.setFacing(-Math.PI / 4);
         view.setCarrying(spot.instrument !== 'tuba');
         view.body.add(buildInstrument(spot.instrument));
+        view.root.userData.object = `character:band${i}`;
         this.group.add(view.root);
         this.band.push(view);
       });
@@ -269,6 +294,7 @@ export class PlatformView {
     for (const z of spots) {
       const y0 = FLOOR_Y + 0.5;
       // A navy A-board with brass caps; the poster leans back a little so it reads from above.
+      frame.object('platform:poster');
       for (const dx of [-POSTER_W / 2 - 0.05, POSTER_W / 2 + 0.05]) {
         frame.box(rowX + dx, FLOOR_Y + (POSTER_H + 0.5) / 2, z, 0.06, POSTER_H + 0.5, 0.06, PALETTE.navy, 0, { shade: 0.9 });
         frame.sphere(rowX + dx, FLOOR_Y + POSTER_H + 0.55, z, 0.05, PALETTE.brass, 0);

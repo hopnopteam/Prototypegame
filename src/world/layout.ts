@@ -39,7 +39,7 @@ export const QUEUE_SLOTS: Vec2[] = [
 
 export type PropKind =
   | 'bed' | 'desk' | 'urn' | 'linen' | 'rack' | 'bin' | 'toilet' | 'sink' | 'bathtub'
-  | 'shelfTowel' | 'shelfRoll' | 'crateBay' | 'bench' | 'luggageRack' | 'plant' | 'lamp'
+  | 'shelfTowel' | 'shelfRoll' | 'crateBay' | 'bench' | 'luggageRack' | 'plant' | 'lamp' | 'washShelf'
   | 'closet' | 'laundry' | 'table' | 'sofa';
 
 export interface PropDef {
@@ -416,6 +416,8 @@ function buildBathroom(): CarriageLayout {
     b.room(PARTITION_X1, z0 + 0.06, INNER, z1 - 0.06);
     b.connector(PARTITION_X0 - 0.45, doorZ0, PARTITION_X1 + 0.45, doorZ1, 'x');
     b.prop('toilet', INNER - 0.62, z0 + 0.22, INNER, z0 + 0.87, 'left');
+    // The washroom's own towels and rolls, on an open stand against the front wall.
+    b.prop('washShelf', PARTITION_X1 + 0.08, z0 + 0.08, PARTITION_X1 + 0.68, z0 + 0.38, 'rear');
     if (index < count - 1) b.prop('sink', INNER - 0.5, z1 - 0.82, INNER, z1 - 0.22, 'left');
     else b.prop('bathtub', 0.62, z1 - 1.12, INNER, z1 - 0.14, 'left');
     const corridorNode = b.node(`corr_${index}`, (-INNER + PARTITION_X0) / 2, doorZ);

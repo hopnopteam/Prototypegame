@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import { DEFAULT_TRAIN } from './config/content';
 import type { CarriageType } from './core/types';
-import { CarriageView } from './world/CarriageView';
+import { CarriageView, FLOOR_Y } from './world/CarriageView';
 import { ExteriorView } from './world/ExteriorView';
 import { carriageOriginZ, getLayout, trainRearZ } from './world/layout';
 import { LocomotiveView } from './world/LocomotiveView';
@@ -205,8 +205,120 @@ export function audit(root: THREE.Object3D): AuditIssue[] {
   return [...issues.values()].sort((x, y) => y.area - x.area);
 }
 
+/** Two objects clip when they overlap by more than this along both floor axes... */
+const CLIP_XZ = 0.01;
+/** ...and more than this in height (resting contact, a pillow sinking into a mattress, is fine). */
+const CLIP_Y = 0.03;
+
+export interface ClipIssue {
+  a: string;
+  b: string;
+  carriage: string;
+  at: [number, number, number];
+  overlap: [number, number, number];
+}
+
+interface ObjBox {
+  label: string;
+  box: THREE.Box3;
+}
+
+const visibleInTree = (o: THREE.Object3D | null): boolean => {
+  for (let n = o; n; n = n.parent) if (!n.visible) return false;
+  return true;
+};
+
+/**
+ * Object clipping: every tagged object in a carriage (furniture, fixtures, stock, mess, comforts, decor)
+ * as a world box, checked against every other object and every wall. Boxes are conservative for round
+ * things, so a finding is either a real intersection or two things placed too tight to read cleanly.
+ */
+export function objectAudit(view: CarriageView): ClipIssue[] {
+  const walls: ObjBox[] = view.layout.walls.map((w) => ({
+    label: `wall(${w.kind} ${w.x0.toFixed(2)},${w.z0.toFixed(2)})`,
+    box: new THREE.Box3(new THREE.Vector3(w.x0, FLOOR_Y, w.z0), new THREE.Vector3(w.x1, FLOOR_Y + w.height, w.z1)).applyMatrix4(view.group.matrixWorld),
+  }));
+  return groupAudit(view.group, walls);
+}
+
+/** The same check for any group of tagged objects (the platform, the exterior). */
+export function groupAudit(group: THREE.Object3D, walls: ObjBox[] = []): ClipIssue[] {
+  group.updateMatrixWorld(true);
+  const objects: ObjBox[] = [];
+  const v = new THREE.Vector3();
+  const m = new THREE.Matrix4();
+  const walk = (o: THREE.Object3D): void => {
+    if (!o.visible) return;
+    // A tagged group (a character, a kiosk) is one object, whatever it is made of.
+    if (typeof o.userData.object === 'string' && !(o as THREE.Mesh).isMesh) {
+      objects.push({ label: o.userData.object, box: new THREE.Box3().setFromObject(o) });
+      return;
+    }
+    visit(o);
+    for (const child of o.children) walk(child);
+  };
+  const visit = (o: THREE.Object3D): void => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || !visibleInTree(mesh)) return;
+    const geometry = mesh.geometry;
+    const ranges = geometry.userData.objects as { label: string; start: number; end: number }[] | undefined;
+    const position = geometry.getAttribute('position');
+    if (ranges && position) {
+      for (const r of ranges) {
+        const box = new THREE.Box3();
+        for (let i = r.start; i < r.end; i++) box.expandByPoint(v.fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld));
+        objects.push({ label: r.label, box });
+      }
+    } else if (typeof mesh.userData.object === 'string') {
+      objects.push({ label: mesh.userData.object, box: new THREE.Box3().setFromObject(mesh) });
+    }
+    const inst = o as THREE.InstancedMesh;
+    if (inst.isInstancedMesh && typeof inst.userData.stock === 'string') {
+      if (!geometry.boundingBox) geometry.computeBoundingBox();
+      for (let i = 0; i < inst.count; i++) {
+        inst.getMatrixAt(i, m);
+        m.premultiply(inst.matrixWorld);
+        objects.push({ label: `${inst.userData.stock}#${i}`, box: geometry.boundingBox!.clone().applyMatrix4(m) });
+      }
+    }
+  };
+  walk(group);
+  const issues: ClipIssue[] = [];
+  const check = (a: ObjBox, b: ObjBox): void => {
+    const ox = Math.min(a.box.max.x, b.box.max.x) - Math.max(a.box.min.x, b.box.min.x);
+    const oy = Math.min(a.box.max.y, b.box.max.y) - Math.max(a.box.min.y, b.box.min.y);
+    const oz = Math.min(a.box.max.z, b.box.max.z) - Math.max(a.box.min.z, b.box.min.z);
+    if (ox <= CLIP_XZ || oz <= CLIP_XZ || oy <= CLIP_Y) return;
+    const c = new THREE.Vector3();
+    a.box.getCenter(c);
+    issues.push({ a: a.label, b: b.label, carriage: group.name, at: [+c.x.toFixed(2), +c.y.toFixed(2), +(c.z - group.position.z).toFixed(2)], overlap: [+ox.toFixed(3), +oy.toFixed(3), +oz.toFixed(3)] });
+  };
+  for (let i = 0; i < objects.length; i++) {
+    for (let j = i + 1; j < objects.length; j++) {
+      // Stock of one kind stacks by design (a towel on a towel), and a rack or shelf holds its own stock.
+      if (objects[i].label.split('#')[0] === objects[j].label.split('#')[0] && objects[i].label.includes('#')) continue;
+      if (holds(objects[i].label, objects[j].label) || holds(objects[j].label, objects[i].label)) continue;
+      // A lamp's glowing shade is built in the lamp material but is part of the same lamp.
+      if (objects[i].label.replace('~glow', '') === objects[j].label.replace('~glow', '') && objects[i].box.getCenter(v).distanceTo(objects[j].box.getCenter(new THREE.Vector3())) < 0.6) continue;
+      check(objects[i], objects[j]);
+    }
+    for (const w of walls) check(objects[i], w);
+  }
+  return issues;
+}
+
+/** Containers and what they are built to hold (their stock sits inside their box on purpose). */
+const HOLDS: Record<string, string[]> = {
+  'prop:rack': ['stock:luggage'],
+  'prop:luggageRack': ['stock:luggage'],
+  'prop:shelfTowel': ['stock:shelfTowel'],
+  'prop:shelfRoll': ['stock:shelfRoll'],
+  'prop:washShelf': ['stock:towel', 'stock:roll'],
+};
+const holds = (container: string, item: string): boolean => (HOLDS[container] ?? []).includes(item.split('#')[0]);
+
 /** The whole train at one tier, every exterior upgrade, a platform with its marketing. */
-function scene(tier: number, locked: boolean): THREE.Group {
+function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras: THREE.Object3D[] = []): THREE.Group {
   const root = new THREE.Group();
   const types: CarriageType[] = [...DEFAULT_TRAIN];
   types.forEach((type, i) => {
@@ -221,7 +333,12 @@ function scene(tier: number, locked: boolean): THREE.Group {
     layout.bathrooms.forEach((b) => view.setBathroomLocked(b.index, locked));
     // Every comfort, so their props are checked against every tier's furniture.
     if (!locked) view.setComforts(['lamp', 'flowers', 'radio', 'soap', 'rail']);
+    // Full stock everywhere: the busiest the rooms ever look.
+    layout.bathrooms.forEach((b) => view.setBathroomStock(b.index, 99, 99));
+    view.setShelfStock(99, 99);
+    view.setLuggageCount(99);
     view.setDoorOpen(1);
+    views.push(view);
     root.add(view.group);
   });
   const loco = new LocomotiveView();
@@ -242,12 +359,19 @@ function scene(tier: number, locked: boolean): THREE.Group {
   platform.setMarketing({ posters: true, band: true }, 'The Night Owl', '#5E8A6A', '#EFE6D2');
   platform.group.visible = true;
   root.add(platform.group);
+  extras.push(platform.group);
   return root;
 }
 
 const results: Record<string, AuditIssue[]> = {};
+const clips: Record<string, ClipIssue[]> = {};
 for (const [tier, locked] of [[0, true], [0, false], [1, false], [2, false], [3, false]] as [number, boolean][]) {
-  results[`tier${tier}${locked ? '-locked' : ''}`] = audit(scene(tier, locked));
+  const key = `tier${tier}${locked ? '-locked' : ''}`;
+  const views: CarriageView[] = [];
+  const extras: THREE.Object3D[] = [];
+  results[key] = audit(scene(tier, locked, views, extras));
+  clips[key] = [...views.flatMap((view) => objectAudit(view)), ...extras.flatMap((g) => groupAudit(g))];
 }
 (window as unknown as { geoAudit: typeof results }).geoAudit = results;
+(window as unknown as { clipAudit: typeof clips }).clipAudit = clips;
 document.body.dataset.done = '1';

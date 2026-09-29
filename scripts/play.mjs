@@ -17,6 +17,8 @@ page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}\n${e.stack}`));
 await page.goto(`file://${resolve('dist/index.html')}`);
 await page.waitForTimeout(800);
 await page.mouse.click(195, 700);
+// Tests drive the game themselves: skip the intro so it cannot unpause the game halfway through.
+await page.evaluate(() => window.nightExpress.skipIntro?.());
 const shot = async (name) => { await page.screenshot({ path: `${outDir}/${name}.png` }); console.log('shot', name); };
 const evalGame = (fn, arg) => page.evaluate(fn, arg);
 const scenarios = {

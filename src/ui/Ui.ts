@@ -96,6 +96,8 @@ export class Ui implements GameUi {
   private readonly boostLayer: HTMLElement;
   private readonly pointerEl: HTMLElement;
   private readonly guide: { el: HTMLElement; icon: HTMLElement; text: HTMLElement; key: string };
+  /** The intro's caption card and its Skip button. */
+  private readonly caption: { el: HTMLElement; kicker: HTMLElement; text: HTMLElement; skip: HTMLElement };
   private readonly gesture: HTMLElement;
   private readonly tileTag: { el: HTMLElement; name: HTMLElement; effect: HTMLElement; key: string };
   private readonly trainMap: TrainMapUi;
@@ -195,6 +197,11 @@ export class Ui implements GameUi {
       el: h('div.objective', { role: 'status', hidden: true, onclick: () => this.objectiveTapped() }, objIcon, h('div.obj-body', {}, objText, h('div.obj-bar', {}, h('div.obj-track', {}, objFill), objCount)), objReward),
       icon: objIcon, text: objText, fill: objFill, count: objCount, reward: objReward, key: '',
     };
+    const captionKicker = h('div.cine-kicker');
+    const captionText = h('div.cine-text');
+    const skip = h('button.cine-skip', { hidden: true, onclick: () => this.game?.skipIntro() }, 'Skip ›');
+    this.caption = { el: h('div.cine-caption', { hidden: true, role: 'status' }, captionKicker, captionText), kicker: captionKicker, text: captionText, skip };
+    root.append(this.caption.el, skip);
     root.append(this.floatLayer, this.tileTag.el, this.rushChip.el, this.guide.el, top, this.objective.el, side, this.trainMap.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
 
     this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyKicker, journeyName, journeyTrain, journeyTrack, journeyClock, side, menu, menuDot, shop, conductor, conductorDot };
@@ -749,6 +756,19 @@ export class Ui implements GameUi {
       if (f.age < f.life * 0.45 && Math.abs(f.pos.x - x) < FLOAT_NEAR && Math.abs(f.pos.z - z) < FLOAT_NEAR) n++;
     }
     return n * FLOAT_STACK_METRES;
+  }
+
+  showCaption(caption: { kicker?: string; text: string } | null): void {
+    const c = this.caption;
+    setVisible(c.el, !!caption);
+    setVisible(c.skip, !!caption);
+    if (!caption) return;
+    setVisible(c.kicker, !!caption.kicker);
+    c.kicker.textContent = caption.kicker ?? '';
+    c.text.textContent = caption.text;
+    c.el.classList.remove('in');
+    void c.el.offsetWidth;
+    c.el.classList.add('in');
   }
 
   speechLine(text: string, x: number, y: number, z: number, tone: 'good' | 'bad' = 'good'): void {

@@ -42,6 +42,24 @@ export const COACH_GUIDANCE_LINES: Record<string, CoachLineDef> = {
   luggage: { id: 'g_luggage', icon: 'luggage', text: 'Load their luggage' },
 };
 
+/**
+ * The intro a brand-new player sees after pressing Play: three camera beats with one caption each, then the
+ * HUD appears and the train pulls out. Skippable. `focus` picks the shot; `zoom` > 1 is wider.
+ */
+export interface IntroBeat {
+  focus: 'locomotive' | 'lobby' | 'desk';
+  seconds: number;
+  zoom: number;
+  kicker?: string;
+  text: string;
+}
+
+export const INTRO_BEATS: IntroBeat[] = [
+  { focus: 'locomotive', seconds: 2.6, zoom: 1.4, kicker: 'Millbrook · 6:00 am', text: 'Your first shift on the Countryside Local' },
+  { focus: 'lobby', seconds: 2.3, zoom: 1.05, text: 'One tired old carriage…' },
+  { focus: 'desk', seconds: 2.3, zoom: 0.92, text: '…and a guest at the desk. Let’s get to work!' },
+];
+
 /** Seconds a hint stays up (at least the minimum, even if it resolves at once). */
 export const COACH_HINT_SECONDS = 5;
 export const COACH_HINT_MIN_SECONDS = 2.5;

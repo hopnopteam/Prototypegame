@@ -31,6 +31,8 @@ export class CameraRig {
   private overrideTarget: THREE.Vector3 | null = null;
   private overrideTime = 0;
   private overrideZoom = 1;
+  /** How briskly the camera glides to an override (slower for the intro's cinematic moves). */
+  private overrideSharpness = FOLLOW_SHARPNESS;
   private initialised = false;
   /** Context framing (rooms, platform, stride): targets, and the smoothed values actually used. */
   private readonly context = { zoom: 1, x: 0, z: 0 };
@@ -60,10 +62,11 @@ export class CameraRig {
     this.punchAmount = Math.max(this.punchAmount, amount);
   }
 
-  focusOn(target: THREE.Vector3, seconds: number, zoom = 1.25): void {
+  focusOn(target: THREE.Vector3, seconds: number, zoom = 1.25, sharpness = FOLLOW_SHARPNESS): void {
     this.overrideTarget = target.clone();
     this.overrideTime = seconds;
     this.overrideZoom = zoom;
+    this.overrideSharpness = sharpness;
   }
 
   setZoom(zoom: number): void {
@@ -96,11 +99,13 @@ export class CameraRig {
     let tx = Math.min(this.clampX[1], Math.max(this.clampX[0], followX * 0.75 + c.x));
     let tz = followZ - LOOK_AHEAD + c.z;
     let zoom = this.zoom * c.zoom;
+    let sharpness = FOLLOW_SHARPNESS;
     if (this.overrideTarget && this.overrideTime > 0) {
       this.overrideTime -= dt;
       tx = this.overrideTarget.x;
       tz = this.overrideTarget.z;
       zoom *= this.overrideZoom;
+      sharpness = this.overrideSharpness;
       if (this.overrideTime <= 0) this.overrideTarget = null;
     }
     if (!this.initialised) {
@@ -108,9 +113,9 @@ export class CameraRig {
       this.distance = this.baseDistance * zoom;
       this.initialised = true;
     }
-    this.focus.x = damp(this.focus.x, tx, FOLLOW_SHARPNESS, dt);
-    this.focus.z = damp(this.focus.z, tz, FOLLOW_SHARPNESS, dt);
-    this.distance = damp(this.distance, this.baseDistance * zoom, 3, dt);
+    this.focus.x = damp(this.focus.x, tx, sharpness, dt);
+    this.focus.z = damp(this.focus.z, tz, sharpness, dt);
+    this.distance = damp(this.distance, this.baseDistance * zoom, Math.min(3, sharpness), dt);
     if (this.punchAmount > 0.001) this.punchAmount = damp(this.punchAmount, 0, 6, dt);
     else this.punchAmount = 0;
 

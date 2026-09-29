@@ -101,14 +101,31 @@ for (const [width, height] of SIZES) {
 
   // Title screen.
   report('title', await page.evaluate(() => {
-    const plate = document.querySelector('.splash .plate')?.getBoundingClientRect();
-    const tap = document.querySelector('.splash .tap')?.getBoundingClientRect();
+    const logo = document.querySelector('.splash .logo')?.getBoundingClientRect();
+    const play = document.querySelector('.splash .title-play')?.getBoundingClientRect();
+    const foot = document.querySelector('.splash .foot')?.getBoundingClientRect();
     const out = [];
-    if (plate && tap && plate.bottom > tap.top) out.push('title plate overlaps the tap button');
-    if (plate && (plate.left < 0 || plate.right > innerWidth)) out.push('title plate leaves the screen');
+    if (!logo || !play) out.push('title logo or play button missing');
+    if (logo && play && logo.bottom > play.top) out.push('title logo overlaps the play button');
+    if (play && foot && play.bottom > foot.top) out.push('play button overlaps the footer');
+    for (const [name, r] of [['logo', logo], ['play', play], ['foot', foot]]) if (r && (r.left < 0 || r.right > innerWidth || r.top < 0 || r.bottom > innerHeight)) out.push(`title ${name} leaves the screen`);
     return out;
   }));
   await page.mouse.click(width / 2, height - 60);
+  // The intro: its caption card and Skip button must fit too, then skip it.
+  await page.waitForFunction(() => { const c = document.querySelector('.cine-caption'); return c && !c.hidden; }, null, { timeout: 4000 }).catch(() => undefined);
+  await page.waitForTimeout(500);
+  report('intro', await page.evaluate(() => {
+    const cap = document.querySelector('.cine-caption')?.getBoundingClientRect();
+    const skip = document.querySelector('.cine-skip')?.getBoundingClientRect();
+    const out = [];
+    if (!cap || cap.width === 0) out.push('intro caption missing');
+    for (const [name, r] of [['caption', cap], ['skip', skip]]) if (r && r.width > 0 && (r.left < 0 || r.right > innerWidth || r.top < 0 || r.bottom > innerHeight)) out.push(`intro ${name} leaves the screen`);
+    const text = document.querySelector('.cine-text');
+    if (text && text.scrollWidth > text.clientWidth + 1) out.push('intro caption text clipped');
+    return out;
+  }));
+  await page.evaluate(() => window.nightExpress.skipIntro?.());
   await page.waitForTimeout(300);
 
   // Busiest HUD: maxed numbers, longest station name, everything that can share the screen at once.

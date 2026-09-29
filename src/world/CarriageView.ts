@@ -1,13 +1,11 @@
 import * as THREE from 'three';
 import { rect, type CarriageType, type Rect } from '../core/types';
 import type { ComfortKey } from '../config/content';
-import { GeoBuilder, mergePlanes, type PartStyle } from './geo';
+import { GeoBuilder, type PartStyle } from './geo';
 import {
   CARRIAGE_LENGTH,
   DOOR_Z0,
   DOOR_Z1,
-  EXTERIOR_WALL_HEIGHT,
-  GANGWAY_HALF,
   GANGWAY_LENGTH,
   HALF_WIDTH,
   INNER,
@@ -24,7 +22,6 @@ import {
 } from './layout';
 import { MATERIALS, PATTERN } from './materials';
 import { CARRIAGE_THEMES, PALETTE, type CarriageTheme } from './palette';
-import { getCobwebTexture, getDirtTexture, getGrimeTexture } from './sprites';
 
 /** Height of every walkable floor (train and platform); the ground is at y = 0. */
 export const FLOOR_Y = 0.55;
@@ -46,14 +43,10 @@ export function windowSpacing(len: number): { count: number; slot: number; width
   return { count, slot, width: Math.min(0.9, slot - 0.45) };
 }
 const FLAT: PartStyle = { shade: 1 };
-/** Missing-board slots sit this far above the floor, clear of the room overlays (no shared planes). */
-const DAMAGE_LIFT = 0.018;
 /**
  * Heights (above the floor) of everything lying flat on it, each in its own layer at least 4 mm from the
- * next: rooms 0–6 mm, queue marks to 11, runners 12, board gaps 15–21, puddle 22–26, cabin spills to 29,
- * grime 30–33, stains 34/40, papers 37–57.
+ * next: rooms 0–6 mm, queue marks to 11, runners 12, cabin mess from 40.
  */
-const FLOOR_LAYER = { puddle: 0.024, grime: 0.03, litter: 0.04 } as const;
 /** Each piece of a cabin's mess pops away over this share of the tidying. */
 const MESS_POP = 0.18;
 /** A hex colour lightened (+) or darkened (−). */
@@ -70,6 +63,8 @@ const shortenEnds = (r: Rect, by: number): Rect => (r.z1 - r.z0 >= r.x1 - r.x0 ?
 const SHELF_LOW = 0.3;
 const SHELF_HIGH = 0.62;
 const SHELF_TOP = 0.012;
+/** The washroom stock stand: panel width, board tops and overall height (metres above the floor). */
+const WASH_SHELF = { side: 0.03, middle: 0.33, top: 0.6, height: 0.64 };
 /** Room door leaves: height, and each leaf's offset from the partition centre (they pass inside it). */
 const LEAF_HEIGHT = 0.66;
 const LEAF_GAP = 0.04;
@@ -101,16 +96,16 @@ function finishFor(type: CarriageType, tier: number, t: CarriageTheme): Finish {
   if (tier <= 0) {
     return {
       wall: PALETTE.wallWorn, wallLow: PALETTE.wallWornLow, panelled: false, cap: '#9DAFA3',
-      floor: PALETTE.plankWorn, floorSeam: PALETTE.plankWornSeam, floorPattern: PATTERN.planks, floorScale: 0.34,
-      room: PALETTE.plankWorn, roomSeam: PALETTE.plankWornSeam, roomPattern: PATTERN.planks, roomScale: 0.34,
+      floor: PALETTE.plankWorn, floorSeam: PALETTE.plankWornSeam, floorPattern: PATTERN.boards, floorScale: 0.3,
+      room: PALETTE.plankWorn, roomSeam: PALETTE.plankWornSeam, roomPattern: PATTERN.boards, roomScale: 0.3,
       runner: null, curtains: false, lamps: 0, decor: false,
     };
   }
-  const oakRoom = tiled ? { room: '#F4F1EA', roomSeam: '#E6EAE4', roomPattern: PATTERN.checker, roomScale: 0.3 } : { room: PALETTE.oak, roomSeam: PALETTE.oakMid, roomPattern: PATTERN.planks, roomScale: 0.3 };
+  const oakRoom = tiled ? { room: '#F4F1EA', roomSeam: '#DCE3E0', roomPattern: PATTERN.checker, roomScale: 0.3 } : { room: PALETTE.boards, roomSeam: PALETTE.boardsSeam, roomPattern: PATTERN.boards, roomScale: 0.3 };
   const carpetRoom = tiled ? oakRoom : { room: t.carpet, roomSeam: t.carpet, roomPattern: PATTERN.none, roomScale: 1 };
   const base = {
     wall: t.wall, wallLow: t.wallLow, panelled: tier >= 3, cap: PALETTE.walnut,
-    floor: PALETTE.oak, floorSeam: PALETTE.oakMid, floorPattern: PATTERN.planks, floorScale: 0.3,
+    floor: PALETTE.boards, floorSeam: PALETTE.boardsSeam, floorPattern: PATTERN.boards, floorScale: 0.3,
   };
   // Repaired: sound, clean and plain (neutral paint); the carriage's own colours arrive at Cosy.
   if (tier === 1) return { ...base, wall: '#EFEADF', wallLow: '#D8D0C0', ...oakRoom, runner: null, curtains: false, lamps: 1, decor: false };
@@ -139,11 +134,13 @@ class StockRack {
   private readonly meshes: THREE.InstancedMesh[];
   private shown = -1;
 
-  constructor(parent: THREE.Group, geometries: THREE.BufferGeometry[], slots: Slot[], castShadow = false) {
+  constructor(parent: THREE.Group, geometries: THREE.BufferGeometry[], slots: Slot[], castShadow = false, label = 'stock') {
     const looks = geometries.length;
     this.meshes = geometries.map((geometry, k) => {
       const capacity = Math.max(1, Math.ceil((slots.length - k) / looks));
       const mesh = new THREE.InstancedMesh(geometry, MATERIALS.solid, capacity);
+      // Each instance is an object for the clipping audit.
+      mesh.userData.stock = label;
       mesh.castShadow = castShadow;
       mesh.receiveShadow = true;
       mesh.userData.shared = true;
@@ -425,14 +422,17 @@ export class CarriageView {
 
     for (const wall of this.layout.walls) this.buildWall(s, liv, trim, glass, lamps, wall);
     for (const prop of this.layout.props) {
-      if (prop.kind === 'bed' || prop.kind === 'toilet' || prop.kind === 'sink' || prop.kind === 'bathtub') continue;
+      if (prop.kind === 'bed' || prop.kind === 'toilet' || prop.kind === 'sink' || prop.kind === 'bathtub' || prop.kind === 'washShelf') continue;
       if (prop.kind === 'plant' && this.tier < 2) continue;
+      s.object(`prop:${prop.kind}`);
+      lamps.object(`prop:${prop.kind}~glow`);
       buildProp(s, lamps, prop, this.theme, this.tier);
+      s.endObject();
+      lamps.endObject();
     }
     this.buildDecor(s, f, lamps);
     this.buildDoorFrames(s);
     this.buildSpinners();
-    if (this.tier <= 0) this.buildDamage(s);
 
     const add = (builder: GeoBuilder, material: THREE.Material, cast: boolean, receive: boolean): void => {
       if (builder.isEmpty) return;
@@ -463,10 +463,11 @@ export class CarriageView {
     const bx = (bed.x0 + bed.x1) / 2;
     const bz = (bed.z0 + bed.z1) / 2;
     const heart = cabin.spots[0] ?? cabin.center;
-    const piece = (build: (b: GeoBuilder) => void, x: number, z: number, ry: number): void => {
+    const piece = (build: (b: GeoBuilder) => void, x: number, z: number, ry: number, name = 'piece'): void => {
       const b = new GeoBuilder();
       build(b);
       const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+      mesh.userData.object = `mess:${name}`;
       mesh.castShadow = true;
       mesh.position.set(x, 0, z);
       mesh.rotation.y = ry;
@@ -475,122 +476,16 @@ export class CarriageView {
     };
     const top = FLOOR_Y + BED_TOP + 0.06;
     // Order = the order they clear: litter first, the bed last (the big reveal).
-    piece((b) => b.box(0, FLOOR_Y + 0.044, 0, 0.36, 0.008, 0.46, '#EFE8D8', 0, { shade: 1 }).box(0.04, FLOOR_Y + 0.051, -0.08, 0.26, 0.004, 0.03, '#8A8378', 0, { shade: 1 }).box(0.04, FLOOR_Y + 0.051, 0.02, 0.26, 0.004, 0.03, '#8A8378', 0, { shade: 1 }), heart.x - 0.28, heart.z + 0.32, 0.6);
-    piece((b) => b.cylinder(0, FLOOR_Y + 0.05, 0, 0.045, 0.036, 0.09, PALETTE.porcelain, 10, 'z').cylinder(0.02, FLOOR_Y + 0.024, 0.09, 0.09, 0.09, 0.006, '#9B6B45', 14, 'y', { shade: 1 }), heart.x + 0.3, heart.z - 0.28, 1.1);
-    piece((b) => b.rounded(0, FLOOR_Y + 0.07, 0, 0.5, 0.13, 0.3, 0.06, PALETTE.pillow, { shade: 0.85 }), bed.x0 - 0.3, bed.z0 + 0.45, 0.35);
+    piece((b) => b.box(0, FLOOR_Y + 0.044, 0, 0.36, 0.008, 0.46, '#EFE8D8', 0, { shade: 1 }).box(0.04, FLOOR_Y + 0.051, -0.08, 0.26, 0.004, 0.03, '#8A8378', 0, { shade: 1 }).box(0.04, FLOOR_Y + 0.051, 0.02, 0.26, 0.004, 0.03, '#8A8378', 0, { shade: 1 }), heart.x - 0.28, heart.z + 0.32, 0.6, 'newspaper');
+    piece((b) => b.cylinder(0, FLOOR_Y + 0.05, 0, 0.045, 0.036, 0.09, PALETTE.porcelain, 10, 'z').cylinder(0.02, FLOOR_Y + 0.024, 0.09, 0.09, 0.09, 0.006, '#9B6B45', 14, 'y', { shade: 1 }), heart.x + 0.3, heart.z - 0.28, 1.1, 'cup');
     piece((b) => b
       .rounded(0, top, 0, (bed.x1 - bed.x0) * 0.8, 0.14, 0.55, 0.07, heap, { shade: 0.85 })
       .rounded(0.12, top + 0.06, 0.28, (bed.x1 - bed.x0) * 0.55, 0.12, 0.42, 0.06, heap, { shade: 0.9 })
-      .rounded(-0.1, top + 0.04, -0.3, (bed.x1 - bed.x0) * 0.5, 0.1, 0.36, 0.05, PALETTE.linen, { shade: 0.9 }), bx, bz + 0.1, 0.25);
+      .rounded(-0.1, top + 0.04, -0.3, (bed.x1 - bed.x0) * 0.5, 0.1, 0.36, 0.05, PALETTE.linen, { shade: 0.9 }), bx, bz + 0.1, 0.25, 'bedding');
+    // Three clear things to tidy, no muddy decals: the room reads dirty at a glance and clean after.
     const stains: THREE.Mesh[] = [];
-    for (const [dx, dz, size, lift] of [[0.1, -0.05, 0.62, 0.034], [-0.35, 0.45, 0.44, 0.04]]) {
-      const material = new THREE.MeshBasicMaterial({ map: getDirtTexture(), transparent: true, depthWrite: false });
-      const stain = new THREE.Mesh(new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2), material);
-      stain.position.set(heart.x + dx, FLOOR_Y + lift, heart.z + dz);
-      stain.rotation.y = dx * 7 + cabin.index;
-      stain.renderOrder = 1;
-      group.add(stain);
-      stains.push(stain);
-    }
     this.group.add(group);
     return { group, items, stains };
-  }
-
-  /**
-   * A carriage that has seen better days (tier 0 only; the first refurbishment repairs all of it): grime
-   * on the floor, gaps where planks are missing and one lifting, cobwebs in the corners, peeling patches on
-   * the end walls, and rust along the roof edge you see from above.
-   */
-  private buildDamage(s: GeoBuilder): void {
-    const L = CARRIAGE_LENGTH;
-    const seed = this.layout.type.length * 7 + this.index * 13;
-    const rand = (k: number): number => {
-      const x = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453;
-      return x - Math.floor(x);
-    };
-    // Missing floorboards: dark slots along the corridor and open floors, and one board lifting.
-    const floors = this.layout.rooms.filter((r) => r.x1 - r.x0 > 0.9 && r.z1 - r.z0 > 1.2);
-    for (let k = 0; k < 6 && floors.length > 0; k++) {
-      const r = floors[k % floors.length];
-      const len = 0.6 + rand(k) * 0.8;
-      const x = r.x0 + 0.3 + rand(k + 10) * Math.max(0.1, r.x1 - r.x0 - 0.6);
-      const z = r.z0 + 0.4 + rand(k + 20) * Math.max(0.1, r.z1 - r.z0 - len - 0.8);
-      s.box(x, FLOOR_Y + DAMAGE_LIFT, z + len / 2, 0.11, 0.006, len, '#34291F', 0, FLAT);
-      s.box(x + 0.02, FLOOR_Y + DAMAGE_LIFT, z + len + 0.04, 0.07, 0.006, 0.08, '#34291F', 0.4, FLAT);
-    }
-    // A leak in the roof: a tin bucket against the corridor wall catching drips, a puddle round it.
-    const corridor = this.layout.rooms.find((r) => r.x0 <= -INNER + 0.01 && r.z1 - r.z0 > 3) ?? floors[0];
-    if (corridor) {
-      const bz = corridor.z0 + (corridor.z1 - corridor.z0) * (0.3 + rand(120) * 0.4);
-      const bx = corridor.x0 + 0.22;
-      s.cylinder(bx, FLOOR_Y + 0.13, bz, 0.13, 0.1, 0.26, '#8D949A', 12, 'y', { shade: 0.8 });
-      s.cylinder(bx, FLOOR_Y + 0.25, bz, 0.115, 0.115, 0.012, '#6F9BB8', 12, 'y', FLAT);
-      s.cylinder(bx + 0.18, FLOOR_Y + FLOOR_LAYER.puddle, bz + 0.1, 0.3, 0.3, 0.004, '#9DB9CC', 18, 'y', FLAT);
-    }
-    // Litter: yesterday's papers drifting along the corridors (cabins have their own mess).
-    const cabinRooms = new Set(this.layout.cabins.map((c) => `${c.room.x0},${c.room.z0}`));
-    const open = floors.filter((r) => !cabinRooms.has(`${r.x0},${r.z0}`));
-    for (let k = 0; k < 3 && open.length > 0; k++) {
-      const r = open[(k + 2) % open.length];
-      const x = r.x0 + 0.25 + rand(k + 130) * Math.max(0.1, r.x1 - r.x0 - 0.5);
-      const z = r.z0 + 0.3 + rand(k + 140) * Math.max(0.1, r.z1 - r.z0 - 0.6);
-      s.add(new THREE.BoxGeometry(0.28, 0.006, 0.36), '#E7E0CF', x, FLOOR_Y + FLOOR_LAYER.litter + k * 0.006, z, 0, rand(k + 150) * 3, 0, FLAT);
-    }
-    if (floors.length > 0) {
-      const r = floors[0];
-      s.add(new THREE.BoxGeometry(0.13, 0.03, 0.9), '#B9A98E', r.x0 + 0.35, FLOOR_Y + 0.06, r.z0 + 0.9, 0.09, 0.2, 0, { shade: 0.9 });
-    }
-    // Peeling patches and a water stain on the front wall's inside face (it faces the camera).
-    const faceZ = WALL + 0.008;
-    let layer = 0;
-    for (let k = 0; k < 3; k++) {
-      const x = -INNER + 0.4 + rand(k + 30) * (INNER * 2 - 0.8);
-      if (Math.abs(x) < GANGWAY_HALF + 0.25) continue;
-      const w = 0.22 + rand(k + 40) * 0.25;
-      const h = 0.14 + rand(k + 50) * 0.2;
-      const y = FLOOR_Y + 0.5 + rand(k + 60) * 0.35;
-      // Each patch a little further out than the last, so overlapping patches never share a plane.
-      s.box(x, y, faceZ + layer * 0.006, w, h, 0.005, k === 0 ? '#B8B09A' : '#F3F0E6', 0, FLAT);
-      s.box(x + w * 0.2, y - h * 0.45, faceZ + layer * 0.006 + 0.004, w * 0.5, 0.02, 0.005, '#8E8674', 0, FLAT);
-      layer += 2;
-    }
-    // Rust along the roof edge on both sides.
-    for (const side of [-1, 1]) {
-      for (let k = 0; k < 5; k++) {
-        const z = 0.8 + rand(k * 3 + side + 70) * (L - 1.6);
-        const len = 0.25 + rand(k + 80) * 0.5;
-        s.box(side * (HALF_WIDTH - 0.06), FLOOR_Y + EXTERIOR_WALL_HEIGHT + 0.056 + k * 0.005, z, 0.1 - k * 0.006, 0.006, len, k % 2 ? '#8A5A3C' : '#A0673F', 0, FLAT);
-      }
-    }
-    // Grime on the floor and cobwebs in the corners: two transparent meshes for the whole carriage.
-    const grime: THREE.BufferGeometry[] = [];
-    for (let k = 0; k < 7 && open.length > 0; k++) {
-      const r = open[(k + 1) % open.length];
-      const size = 0.6 + rand(k + 90) * 0.7;
-      const plane = new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2).rotateY(rand(k + 95) * 6);
-      plane.translate(r.x0 + 0.3 + rand(k + 100) * Math.max(0.1, r.x1 - r.x0 - 0.6), FLOOR_Y + FLOOR_LAYER.grime + k * 0.0005, r.z0 + 0.3 + rand(k + 110) * Math.max(0.1, r.z1 - r.z0 - 0.6));
-      grime.push(plane);
-    }
-    if (grime.length > 0) {
-      const mesh = new THREE.Mesh(mergePlanes(grime), new THREE.MeshBasicMaterial({ map: getGrimeTexture(), transparent: true, depthWrite: false }));
-      mesh.renderOrder = 1;
-      this.group.add(mesh);
-      for (const g of grime) g.dispose();
-    }
-    const webs: THREE.BufferGeometry[] = [];
-    const webY = FLOOR_Y + EXTERIOR_WALL_HEIGHT - 0.12;
-    for (const [cx, cz, rot] of [[-INNER, WALL, 0], [INNER, WALL, -Math.PI / 2], [-INNER, L - WALL, Math.PI / 2], [INNER, L - WALL, Math.PI]] as [number, number, number][]) {
-      // The texture's corner is the web's anchor: turn each so it sits in its own corner.
-      const plane = new THREE.PlaneGeometry(0.55, 0.55).rotateX(-Math.PI / 2);
-      plane.translate(0.275, 0, 0.275);
-      plane.rotateY(rot);
-      plane.translate(cx, webY, cz);
-      webs.push(plane);
-    }
-    const webMesh = new THREE.Mesh(mergePlanes(webs), new THREE.MeshBasicMaterial({ map: getCobwebTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide }));
-    webMesh.renderOrder = 2;
-    this.group.add(webMesh);
-    for (const g of webs) g.dispose();
   }
 
   /** A drum of washing behind each machine's round window, turning slowly. */
@@ -700,10 +595,9 @@ export class CarriageView {
         if (i < count - 1 && i % lampEvery === 0) {
           const pz = zc + slot / 2;
           if (fin.lamps === 0) {
-            // Bare bulbs on a flex, every other one blown.
+            // Bare bulbs on a flex: plain, not yet shaded.
             s.box(innerFace + inward * 0.02, FLOOR_Y + 0.9, pz, 0.02, 0.1, 0.02, PALETTE.ink, 0, FLAT);
-            if (i % 4 === 0) lamps.sphere(innerFace + inward * 0.05, FLOOR_Y + 0.82, pz, 0.035, PALETTE.lampShade, 0, 1, FLAT);
-            else s.sphere(innerFace + inward * 0.05, FLOOR_Y + 0.82, pz, 0.035, '#8C8A84', 0, 1, FLAT);
+            lamps.sphere(innerFace + inward * 0.05, FLOOR_Y + 0.82, pz, 0.035, PALETTE.lampShade, 0, 1, FLAT);
           } else {
             s.box(innerFace + inward * 0.035, FLOOR_Y + 0.72, pz, 0.07, 0.025, 0.025, fin.lamps >= 3 ? PALETTE.brass : fin.cap, 0, FLAT);
             lamps.cylinder(innerFace + inward * 0.09, FLOOR_Y + 0.78, pz, 0.04, 0.065, 0.09, PALETTE.lampShade, 10, 'y', { shade: 0.9 });
@@ -739,23 +633,29 @@ export class CarriageView {
     const fin = this.finish;
     const frontWallZ = WALL + 0.012;
     const frame = (x: number, y: number, w: number, hgt: number, canvas: string): void => {
+      s.object('decor:frame');
       s.box(x, FLOOR_Y + y, frontWallZ, w, hgt, 0.02, PALETTE.gold, 0, FLAT);
       s.box(x, FLOOR_Y + y, frontWallZ + 0.011, w - 0.06, hgt - 0.06, 0.004, canvas, 0, FLAT);
+      s.endObject();
     };
 
     if (type === 'lobby' && this.tier >= 1) {
       // A clock above the counter, and (once cosy) the pigeon-hole key rack behind the desk.
+      s.object('decor:clock');
       s.cylinder(1.2, FLOOR_Y + 0.74, frontWallZ + 0.01, 0.16, 0.16, 0.03, this.tier >= 3 ? PALETTE.gold : PALETTE.walnut, 18, 'z', FLAT);
       s.cylinder(1.2, FLOOR_Y + 0.74, frontWallZ + 0.026, 0.13, 0.13, 0.01, PALETTE.linen, 18, 'z', FLAT);
       s.box(1.2, FLOOR_Y + 0.78, frontWallZ + 0.034, 0.012, 0.08, 0.004, PALETTE.ink, 0, FLAT);
       s.box(1.235, FLOOR_Y + 0.74, frontWallZ + 0.034, 0.07, 0.012, 0.004, PALETTE.ink, 0, FLAT);
+      s.endObject();
       if (this.tier >= 2) {
         const kx = -INNER + 0.05;
+        s.object('decor:keyrack');
         s.box(kx, FLOOR_Y + 0.62, 2.8, 0.08, 0.4, 1.0, PALETTE.walnut, 0, { shade: 0.9 });
         for (let row = 0; row < 2; row++) for (let col = 0; col < 5; col++) {
           s.box(kx + 0.042, FLOOR_Y + 0.52 + row * 0.18, 2.4 + col * 0.2, 0.008, 0.12, 0.16, PALETTE.walnutDark, 0, FLAT);
           if ((row + col) % 2 === 0) s.box(kx + 0.05, FLOOR_Y + 0.5 + row * 0.18, 2.4 + col * 0.2, 0.01, 0.04, 0.02, PALETTE.brass, 0, FLAT);
         }
+        s.endObject();
       }
     }
     if (type === 'lobby') {
@@ -774,8 +674,10 @@ export class CarriageView {
       });
     }
     if (fin.decor && type !== 'lobby') {
-      frame(-1.35, 0.66, 0.44, 0.32, PALETTE.frameCanvas[this.index % 4]);
-      frame(1.35, 0.66, 0.44, 0.32, PALETTE.frameCanvas[(this.index + 1) % 4]);
+      // Pictures only where nothing already stands against the front wall.
+      const wallFree = (x: number, w: number): boolean => !this.layout.props.some((p) => p.rect.z0 < 0.8 && p.rect.x0 < x + w / 2 && p.rect.x1 > x - w / 2);
+      if (wallFree(-1.35, 0.44)) frame(-1.35, 0.66, 0.44, 0.32, PALETTE.frameCanvas[this.index % 4]);
+      if (wallFree(1.35, 0.44)) frame(1.35, 0.66, 0.44, 0.32, PALETTE.frameCanvas[(this.index + 1) % 4]);
     }
 
     for (const cabin of this.layout.cabins) {
@@ -805,6 +707,7 @@ export class CarriageView {
     for (const cabin of this.layout.cabins) {
       const bed = new GeoBuilder();
       const bedLamps = new GeoBuilder();
+      bed.object('bed');
       buildProp(bed, bedLamps, { kind: 'bed', rect: cabin.bed }, this.theme, this.tier);
       const bedGroup = new THREE.Group();
       const centerX = (cabin.bed.x0 + cabin.bed.x1) / 2;
@@ -827,7 +730,10 @@ export class CarriageView {
       const builder = new GeoBuilder();
       const bathLamps = new GeoBuilder();
       for (const prop of this.layout.props) {
-        if ((prop.kind === 'toilet' || prop.kind === 'sink' || prop.kind === 'bathtub') && rectInside(prop.rect, bath.room)) buildProp(builder, bathLamps, prop, this.theme, this.tier);
+        if ((prop.kind === 'toilet' || prop.kind === 'sink' || prop.kind === 'bathtub' || prop.kind === 'washShelf') && rectInside(prop.rect, bath.room)) {
+          builder.object(prop.kind === 'washShelf' ? 'prop:washShelf' : `fixture:${prop.kind}`);
+          buildProp(builder, bathLamps, prop, this.theme, this.tier);
+        }
       }
       const group = new THREE.Group();
       const mesh = new THREE.Mesh(builder.build(), MATERIALS.solid);
@@ -926,40 +832,42 @@ export class CarriageView {
   }
 
   private buildStock(): void {
+    // Trims stand a clear centimetre proud of what they wrap (flush trims flicker).
     const towelGeo = new GeoBuilder()
       .rounded(0, 0, 0, 0.26, 0.09, 0.2, 0.03, PALETTE.towel)
-      .box(0, 0.006, 0.07, 0.265, 0.07, 0.03, PALETTE.towelStripe, 0, FLAT)
+      .box(0, 0.006, 0.07, 0.28, 0.07, 0.03, PALETTE.towelStripe, 0, FLAT)
       .build();
-    const rollGeo = new GeoBuilder().cylinder(0, 0, 0, 0.07, 0.07, 0.14, PALETTE.rollPaper, 12, 'x', { shade: 0.9 }).build();
+    const rollGeo = new GeoBuilder().cylinder(0, 0, 0, 0.065, 0.065, 0.12, PALETTE.rollPaper, 12, 'x', { shade: 0.9 }).build();
     const suitcaseGeos = ['#C98A5E', '#5E7FA0', '#D9B45E', '#6E9C86'].map((color) =>
       new GeoBuilder()
         .rounded(0, 0, 0, 0.42, 0.26, 0.3, 0.05, color)
         .box(0, 0.14, 0, 0.14, 0.04, 0.05, PALETTE.ink, 0, FLAT)
-        .box(-0.11, 0, 0, 0.03, 0.265, 0.305, PALETTE.creamBand, 0, FLAT)
-        .box(0.11, 0, 0, 0.03, 0.265, 0.305, PALETTE.creamBand, 0, FLAT)
+        .box(-0.11, 0, 0, 0.03, 0.28, 0.32, PALETTE.creamBand, 0, FLAT)
+        .box(0.11, 0, 0, 0.03, 0.28, 0.32, PALETTE.creamBand, 0, FLAT)
         .build(),
     );
 
-    const shelves = new GeoBuilder();
+    // Each washroom's stock lives on its own open shelf by the door: towels on top, rolls below.
     for (const bath of this.layout.bathrooms) {
-      const anchorZ = bath.room.z0 + 1.35;
+      const shelf = this.layout.props.find((p) => p.kind === 'washShelf' && rectInside(p.rect, bath.room));
+      if (!shelf) continue;
+      const r = shelf.rect;
+      const cz = (r.z0 + r.z1) / 2;
+      const inner = r.x0 + WASH_SHELF.side;
       const towels: Slot[] = [];
       const rolls: Slot[] = [];
       for (let i = 0; i < 4; i++) {
-        towels.push({ x: INNER - 0.16, y: FLOOR_Y + 0.62 + (i % 2) * 0.1, z: anchorZ + Math.floor(i / 2) * 0.24 });
-        rolls.push({ x: INNER - 0.12, y: FLOOR_Y + 0.42 + (i % 2) * 0.15, z: bath.room.z0 + 1.05 + Math.floor(i / 2) * 0.17 });
+        towels.push({ x: inner + 0.135 + (i % 2) * 0.27, y: FLOOR_Y + WASH_SHELF.top + 0.045 + Math.floor(i / 2) * 0.09, z: cz });
+        rolls.push({ x: inner + 0.07 + i * 0.135, y: FLOOR_Y + WASH_SHELF.middle + 0.065, z: cz });
       }
-      // A little shelf for them.
-      shelves.box(INNER - 0.14, FLOOR_Y + 0.56, anchorZ + 0.12, 0.26, 0.03, 0.62, PALETTE.oak, 0, FLAT);
-      this.bathroomTowels[bath.index] = new StockRack(this.group, [towelGeo], towels);
-      this.bathroomRolls[bath.index] = new StockRack(this.group, [rollGeo], rolls);
+      this.bathroomTowels[bath.index] = new StockRack(this.group, [towelGeo], towels, false, 'stock:towel');
+      this.bathroomRolls[bath.index] = new StockRack(this.group, [rollGeo], rolls, false, 'stock:roll');
     }
-    if (!shelves.isEmpty) this.group.add(new THREE.Mesh(shelves.build(), MATERIALS.solid));
 
     const towelShelf = this.layout.props.find((p) => p.kind === 'shelfTowel');
     const rollShelf = this.layout.props.find((p) => p.kind === 'shelfRoll');
-    if (towelShelf) this.shelfTowels = new StockRack(this.group, [towelGeo], this.shelfSlots(towelShelf.rect, 16, -1));
-    if (rollShelf) this.shelfRolls = new StockRack(this.group, [rollGeo], this.shelfSlots(rollShelf.rect, 16, 1));
+    if (towelShelf) this.shelfTowels = new StockRack(this.group, [towelGeo], this.shelfSlots(towelShelf.rect, 16, -1), false, 'stock:shelfTowel');
+    if (rollShelf) this.shelfRolls = new StockRack(this.group, [rollGeo], this.shelfSlots(rollShelf.rect, 16, 1), false, 'stock:shelfRoll');
 
     const racks = this.layout.props.filter((p) => p.kind === 'rack' || p.kind === 'luggageRack');
     const cases: Slot[] = [];
@@ -977,7 +885,7 @@ export class CarriageView {
         cases.push({ x, y: FLOOR_Y + 0.86 + layer * 0.28, z, ry: Math.PI / 2 });
       }
     }
-    if (cases.length > 0) this.luggage = new StockRack(this.group, suitcaseGeos, cases, true);
+    if (cases.length > 0) this.luggage = new StockRack(this.group, suitcaseGeos, cases, true, 'stock:luggage');
   }
 
   /** Stock positions on a stepped supply stand: the low step (by the aisle) fills first. */
@@ -1022,29 +930,35 @@ function buildCabinComforts(b: GeoBuilder, glow: GeoBuilder, cabin: CabinLayout,
   const ncx = (nx0 + nx1) / 2;
   const nightstand = keys.includes('lamp') || keys.includes('flowers');
   if (nightstand) {
+    b.object('comfort:nightstand');
     b.slab(rect(nx0, nz0, nx1, nz1), y, y + 0.42, wood, 0, 0, { shade: 0.8 });
     b.slab(rect(nx0, nz0, nx1, nz1), y + 0.42, y + 0.45, PALETTE.walnutDark, 0, -0.012, FLAT);
     b.box(ncx, y + 0.27, nz1 + 0.006, 0.2, 0.1, 0.01, shadeHex(wood, 1.1), 0, FLAT);
     b.sphere(ncx, y + 0.27, nz1 + 0.018, 0.016, PALETTE.brass, 0);
   }
   if (keys.includes('lamp')) {
-    const lx = nx0 + 0.09;
-    const lz = nz0 + 0.1;
+    b.object('comfort:lamp');
+    glow.object('comfort:lamp~glow');
+    // Back corner, the vase in the front one: they never touch.
+    const lx = nx0 + 0.085;
+    const lz = nz0 + 0.085;
     b.cylinder(lx, y + 0.465, lz, 0.04, 0.045, 0.03, PALETTE.brass, 10);
     b.cylinder(lx, y + 0.56, lz, 0.011, 0.011, 0.16, PALETTE.brass, 6);
     glow.cylinder(lx, y + 0.68, lz, 0.05, 0.085, 0.1, PALETTE.lampShade, 12, 'y', { shade: 0.9 });
   }
   if (keys.includes('flowers')) {
-    const vx = nx1 - 0.08;
-    const vz = nz1 - 0.09;
+    b.object('comfort:flowers');
+    const vx = nx1 - 0.065;
+    const vz = nz1 - 0.065;
     b.cylinder(vx, y + 0.51, vz, 0.03, 0.04, 0.12, theme.deep, 10, 'y', { shade: 0.9 });
     const blooms = ['#F2A7B5', '#FFD35C', '#F7F2E8'];
     blooms.forEach((color, i) => {
       const a = (i / blooms.length) * Math.PI * 2;
-      b.sphere(vx + Math.cos(a) * 0.035, y + 0.62 + (i % 2) * 0.025, vz + Math.sin(a) * 0.035, 0.032, color, 1, 0.9);
+      b.sphere(vx + Math.cos(a) * 0.026, y + 0.62 + (i % 2) * 0.025, vz + Math.sin(a) * 0.026, 0.028, color, 1, 0.9);
     });
-    b.sphere(vx, y + 0.6, vz + 0.045, 0.022, '#7FA66B', 0, 0.9);
+    b.sphere(vx, y + 0.6, vz + 0.03, 0.02, '#7FA66B', 0, 0.9);
     // A little picture above, on the wall between the door and the bed.
+    b.object('comfort:picture');
     const fx = cabin.room.x0 + 0.24;
     b.box(fx, y + 0.56, wallZ + 0.012, 0.3, 0.22, 0.02, PALETTE.gold, 0, FLAT);
     b.box(fx, y + 0.56, wallZ + 0.026, 0.24, 0.16, 0.004, PALETTE.frameCanvas[cabin.index % 4], 0, FLAT);
@@ -1052,6 +966,7 @@ function buildCabinComforts(b: GeoBuilder, glow: GeoBuilder, cabin: CabinLayout,
   if (keys.includes('radio')) {
     // A wall shelf with a wireless, beside the picture.
     const rx = (cabin.room.x0 + 0.42 + nx0) / 2 + 0.04;
+    b.object('comfort:radio');
     b.box(rx, y + 0.47, wallZ + 0.075, 0.3, 0.02, 0.15, PALETTE.walnutDark, 0, FLAT);
     b.rounded(rx, y + 0.556, wallZ + 0.075, 0.24, 0.15, 0.11, 0.03, tier >= 3 ? PALETTE.walnut : '#B5835A', { shade: 0.9 });
     b.box(rx - 0.04, y + 0.556, wallZ + 0.132, 0.1, 0.09, 0.006, '#E9D9B0', 0, FLAT);
@@ -1064,21 +979,23 @@ function buildBathComforts(b: GeoBuilder, room: Rect, fixtures: PropDef[], keys:
   const y = FLOOR_Y;
   if (keys.includes('soap')) {
     for (const f of fixtures) {
+      b.object(`comfort:soap@${f.kind}`);
       const r = f.rect;
       const bottles = ['#F2A7B5', '#AFCBA7'];
       if (f.kind === 'sink') {
-        const d = r.z1 - r.z0;
-        bottles.forEach((color, i) => b.cylinder(r.x1 - 0.08, y + 0.812, r.z0 + d * 0.12 + i * 0.06, 0.022, 0.022, 0.09, color, 10, 'y', { shade: 0.9 }));
-        b.rounded(r.x1 - 0.1, y + 0.772, r.z1 - d * 0.14, 0.1, 0.012, 0.07, 0.02, PALETTE.porcelain, FLAT);
-        b.rounded(r.x1 - 0.1, y + 0.787, r.z1 - d * 0.14, 0.07, 0.02, 0.045, 0.01, theme.blanket, FLAT);
+        // Together on the front corner of the counter, clear of the basin and the tap.
+        bottles.forEach((color, i) => b.cylinder(r.x1 - 0.07, y + 0.812, r.z0 + 0.07 + i * 0.055, 0.022, 0.022, 0.09, color, 10, 'y', { shade: 0.9 }));
+        b.rounded(r.x1 - 0.16, y + 0.776, r.z0 + 0.075, 0.07, 0.02, 0.045, 0.01, theme.blanket, FLAT);
       } else {
         bottles.forEach((color, i) => b.cylinder(r.x1 - 0.045, y + 0.55, r.z0 + 0.12 + i * 0.07, 0.02, 0.02, 0.09, color, 10, 'y', { shade: 0.9 }));
       }
     }
   }
   if (keys.includes('rail')) {
-    const x0 = -0.36;
-    const x1 = 0.26;
+    b.object('comfort:rail');
+    // On the front wall between the stock shelf and the toilet.
+    const x0 = 0.2;
+    const x1 = 0.82;
     const z = room.z0 + 0.05;
     const metal = tier >= 3 ? PALETTE.gold : PALETTE.brass;
     for (const px of [x0, x1]) b.cylinder(px, y + 0.52, z, 0.014, 0.014, 0.24, metal, 6);
@@ -1121,7 +1038,7 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       // Headboard: low and plain at tier 1, taller with a rounded rail from tier 2.
       const hb = tier >= 2 ? 0.62 : 0.4;
       b.box(cx, y + hb / 2 + 0.2, r.z0 + 0.04, w, hb, 0.08, wood, 0, { shade: 0.82 });
-      if (tier >= 2) b.cylinder(cx, y + hb + 0.2, r.z0 + 0.04, 0.05, 0.05, w + 0.03, PALETTE.walnutDark, 10, 'x', FLAT);
+      if (tier >= 2) b.cylinder(cx, y + hb + 0.2, r.z0 + 0.04, 0.05, 0.05, w - 0.02, PALETTE.walnutDark, 10, 'x', FLAT);
       break;
     }
     case 'desk': {
@@ -1186,11 +1103,22 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       b.cylinder(cx, y + 0.53, cz, Math.min(w, d) * 0.46, Math.min(w, d) * 0.46, 0.03, tier >= 2 ? PALETTE.brass : PALETTE.chrome, 14, 'y', FLAT);
       break;
     case 'plant': {
-      b.cylinder(cx, y + 0.2, cz, 0.16, 0.12, 0.4, PALETTE.coral, 12, 'y', { shade: 0.78 });
+      // Pot and leaves stay inside the plant's own footprint, so nothing reaches into a wall.
+      const half = Math.min(w, d) / 2;
+      b.cylinder(cx, y + 0.2, cz, half * 0.72, half * 0.55, 0.4, PALETTE.coral, 12, 'y', { shade: 0.78 });
       for (let i = 0; i < 6; i++) {
         const a = (i / 6) * Math.PI * 2;
-        b.add(new THREE.SphereGeometry(0.26, 8, 6).scale(0.3, 0.08, 1), i % 2 ? PALETTE.treeGreen : PALETTE.cypress, cx + Math.sin(a) * 0.18, y + 0.68, cz + Math.cos(a) * 0.18, 0.5, a, 0, { shade: 0.85 });
+        b.add(new THREE.SphereGeometry(half * 0.55, 8, 6).scale(0.3, 0.08, 1), i % 2 ? PALETTE.treeGreen : PALETTE.cypress, cx + Math.sin(a) * half * 0.4, y + 0.62, cz + Math.cos(a) * half * 0.4, 0.5, a, 0, { shade: 0.85 });
       }
+      break;
+    }
+    case 'washShelf': {
+      // An open stand against the wall: side panels and three boards, the stock sits on the top two.
+      const wood2 = tier <= 0 ? '#A99A86' : wood;
+      const side = WASH_SHELF.side;
+      for (const sx of [r.x0 + side / 2, r.x1 - side / 2]) b.box(sx, y + WASH_SHELF.height / 2, cz, side, WASH_SHELF.height, d, wood2, 0, { shade: 0.8 });
+      const board = rect(r.x0 + side, r.z0, r.x1 - side, r.z1);
+      for (const top of [0.07, WASH_SHELF.middle, WASH_SHELF.top]) b.slab(board, y + top - 0.03, y + top, wood2, 0, 0, FLAT);
       break;
     }
     case 'toilet':
@@ -1202,6 +1130,7 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       b.cylinder(cx, y + 0.34, cz, 0.07, 0.11, 0.68, PALETTE.porcelain, 12, 'y', { shade: 0.78 });
       b.rounded(cx - 0.02, y + 0.72, cz, w, 0.09, d * 0.85, 0.08, PALETTE.porcelain, { shade: 0.92 });
       b.rounded(cx - 0.02, y + 0.77, cz, w * 0.64, 0.02, d * 0.54, 0.06, '#B4DCEA', FLAT);
+      b.object('fixture:tap');
       b.cylinder(r.x1 - 0.1, y + 0.82, cz, 0.016, 0.016, 0.08, tier >= 3 ? PALETTE.brass : PALETTE.chrome, 6);
       break;
     case 'bathtub': {

@@ -26,6 +26,8 @@ export interface UiApi {
   showResult(result: StationResult): void;
   /** A passenger's one-liner; 'bad' lines (grumbles, bad reviews) get a sterner bubble. */
   speechLine(text: string, x: number, y: number, z: number, tone?: 'good' | 'bad'): void;
+  /** A cinematic caption (the intro): a small kicker line and one sentence; null hides it. */
+  showCaption(caption: { kicker?: string; text: string } | null): void;
   celebrate(title: string, subtitle: string, icon: IconName): void;
   /** A coupling is paid for: offer the carriages that may join (recommended first). */
   showCarriageChoice(choices: CarriageChoiceView[], onPick: (type: CarriageType) => void): void;

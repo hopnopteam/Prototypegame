@@ -13,6 +13,7 @@ page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(`file://${resolve('dist/geoaudit.html')}`);
 await page.waitForFunction(() => document.body.dataset.done === '1' || window.__failed, null, { timeout: 900000 }).catch(() => undefined);
 const results = await page.evaluate(() => window.geoAudit);
+const clips = await page.evaluate(() => window.clipAudit);
 if (process.env.AUDIT_JSON) (await import('node:fs')).writeFileSync(process.env.AUDIT_JSON, JSON.stringify(results));
 await browser.close();
 if (errors.length) { console.log('page errors:', errors); process.exit(1); }
@@ -38,4 +39,20 @@ const byNormal = {};
 for (const i of seen.values()) byNormal[i.normal.join(',')] = (byNormal[i.normal.join(',')] ?? 0) + 1;
 console.log('by normal:', JSON.stringify(byNormal));
 console.log(results ? `${seen.size} coplanar overlap(s) (${total} across scenes).` : 'audit did not finish');
-process.exit(results && seen.size === 0 ? 0 : 1);
+
+// Object clipping: two objects (or an object and a wall) passing through each other.
+const clipSeen = new Map();
+for (const [scene, issues] of Object.entries(clips ?? {})) {
+  for (const i of issues) {
+    const key = `${i.carriage.split('@')[0]} ${i.a.replace(/#\d+/, '#n')} × ${i.b.replace(/#\d+/, '#n')}`;
+    if (!clipSeen.has(key)) clipSeen.set(key, { ...i, scenes: new Set([scene]) });
+    else clipSeen.get(key).scenes.add(scene);
+  }
+}
+let clipShown = 0;
+for (const [key, i] of clipSeen) {
+  if (!verbose && clipShown++ >= 80) break;
+  console.log(`CLIP ${key}  at (${i.at})  overlap (${i.overlap})  [${[...i.scenes].join(',')}]`);
+}
+console.log(clips ? `${clipSeen.size} object clipping(s).` : 'clip audit did not finish');
+process.exit(results && seen.size === 0 && clips && clipSeen.size === 0 ? 0 : 1);

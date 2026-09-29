@@ -23,6 +23,11 @@ export const PATTERN = {
   pinstripe: 8,
   /** Floorboard seams running along z. */
   planks: 9,
+  /**
+   * MPH-style floorboards along z: long planks, each its own tone (a random share of the second colour),
+   * soft seams and staggered end joints. `scale` is the plank width.
+   */
+  boards: 10,
 } as const;
 
 const PATTERN_VERTEX_HEAD = /* glsl */ `
@@ -57,6 +62,9 @@ float thin(float v, float width) {
   float w = fwidth(v) * 2.0 + 1e-5;
   return clamp((t - (1.0 - width)) / w + 0.5, 0.0, 1.0);
 }
+float hash21(vec2 q) {
+  return fract(sin(dot(q, vec2(12.9898, 78.233))) * 43758.5453);
+}
 float patternMask(vec3 pos, vec3 n, vec2 pat) {
   float type = pat.x;
   vec2 p = pos.xz / pat.y;
@@ -74,7 +82,13 @@ float patternMask(vec3 pos, vec3 n, vec2 pat) {
   if (type < 6.5) { float d = length(fract(p) - 0.5); float w = fwidth(d) + 1e-5; return 1.0 - smoothstep(0.17 - w, 0.17 + w, d); }
   if (type < 7.5) return sqw(h * 0.5);
   if (type < 8.5) return thin(h, 0.14);
-  return thin(p.x, 0.08) + thin(p.y * 0.23 + floor(p.x) * 0.37, 0.03);
+  if (type < 9.5) return thin(p.x, 0.08) + thin(p.y * 0.23 + floor(p.x) * 0.37, 0.03);
+  // Boards: plank index across, a staggered segment index along; each board gets its own tone.
+  float ix = floor(p.x);
+  float along = p.y * 0.2 + hash21(vec2(ix, 3.1)) * 5.0;
+  float tone = hash21(vec2(ix, floor(along)));
+  float seam = max(thin(p.x, 0.06), thin(along, 0.02));
+  return max(seam * 0.9, tone * 0.32);
 }
 `;
 
@@ -153,7 +167,8 @@ export function createZoneMaterial(color: string): THREE.ShaderMaterial {
     depthWrite: false,
     uniforms: {
       uColor: { value: new THREE.Color(color) },
-      uFill: { value: new THREE.Color(PALETTE.zoneActive) },
+      uFill: { value: new THREE.Color(PALETTE.zoneWorking) },
+      uLitColor: { value: new THREE.Color(PALETTE.zoneActive) },
       uProgress: { value: 0 },
       uPulse: { value: 0 },
       uOpacity: { value: 1 },
@@ -170,6 +185,7 @@ export function createZoneMaterial(color: string): THREE.ShaderMaterial {
     fragmentShader: /* glsl */ `
       uniform vec3 uColor;
       uniform vec3 uFill;
+      uniform vec3 uLitColor;
       uniform float uProgress;
       uniform float uPulse;
       uniform float uOpacity;
@@ -188,15 +204,19 @@ export function createZoneMaterial(color: string): THREE.ShaderMaterial {
         float aa = fwidth(d) * 1.2;
         float inside = 1.0 - smoothstep(-aa, aa, d);
         if (inside <= 0.0) discard;
-        float border = smoothstep(-0.13 - aa, -0.13 + aa, d) * inside;
+        // A game marking, never furniture: a bold white border with a thin dark outline (reads on any floor),
+        // a light wash inside, a green sweep while it works, gold when it wants you.
+        float outline = smoothstep(-0.05 - aa, -0.05 + aa, d) * inside;
+        float border = smoothstep(-0.2 - aa, -0.2 + aa, d) * inside;
         float angle = atan(p.x, p.y);
         float a = (angle + PI) / (2.0 * PI);
         float filled = step(a, uProgress) * step(0.001, uProgress);
         float breathe = 0.5 + 0.5 * sin(uTime * 4.0);
-        vec3 edge = mix(uColor, uFill, max(uLit, step(0.001, uProgress)));
-        vec3 color = mix(vec3(1.0, 0.99, 0.96), uFill, filled * 0.85 + uLit * 0.25);
+        vec3 edge = mix(mix(uColor, uLitColor, uLit), uFill, step(0.001, uProgress));
+        vec3 color = mix(mix(vec3(1.0, 0.99, 0.96), uLitColor, uLit * 0.2), uFill, filled * 0.9);
         color = mix(color, edge, border);
-        float alpha = inside * (0.34 + 0.2 * uLit * breathe + 0.4 * filled + 0.1 * uPulse) + border * 0.62;
+        color = mix(color, vec3(0.17, 0.15, 0.21), outline * 0.5);
+        float alpha = inside * (0.2 + 0.2 * uLit * breathe + 0.6 * filled + 0.1 * uPulse) + border * 0.85;
         gl_FragColor = vec4(color, min(1.0, alpha) * uOpacity);
       }
     `,

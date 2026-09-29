@@ -1,3 +1,4 @@
+import { INTRO_BEATS } from '../config/coach';
 import * as THREE from 'three';
 import { AudioEngine } from '../audio/AudioEngine';
 import { Haptics } from '../audio/Haptics';
@@ -363,6 +364,7 @@ export class Game implements World {
     const rig = this.stage.rig;
     rig.clampX = this.journey.doorsOpen ? [-1.5, 6.5] : [-1.2, 1.6];
     this.frameCamera();
+    this.updateCinematic(realDt);
     rig.update(realDt, this.player.pos.x, this.player.pos.z);
     this.ui.update(realDt);
     this.stage.render(realDt);
@@ -571,11 +573,75 @@ export class Game implements World {
    * First tap on a brand-new game: the camera starts wide on the train pulling out of Millbrook, whistle
    * blowing, then glides down to the conductor. This is also the first second of every ad creative.
    */
-  playOpening(): void {
-    const brandNew = this.data.route.stopsCompleted === 0 && this.lifetimeSeconds() < 2;
-    if (!brandNew) return;
-    this.stage.rig.focusOn(new THREE.Vector3(1.6, 0, 3.5), 1.6, 1.75);
+  /** A brand-new player gets the intro; anyone returning goes straight back to their train. */
+  get isBrandNew(): boolean {
+    return this.data.route.stopsCompleted === 0 && this.lifetimeSeconds() < 2;
+  }
+
+  private cinematic: { index: number; t: number; done: () => void } | null = null;
+  private attractTime = -1;
+
+  /** Title screen: a slow, wide drift over the train at its first station (the game is paused). */
+  setAttract(on: boolean): void {
+    this.attractTime = on ? 0 : -1;
+  }
+
+  /**
+   * The intro (config/coach.ts INTRO_BEATS): the camera opens on the locomotive at Millbrook, glides into
+   * the lobby, settles on the desk, one caption per beat. The game stays paused until it ends (or is
+   * skipped), so the first minute of play is untouched.
+   */
+  playIntro(done: () => void): void {
+    this.paused = true;
+    this.cinematic = { index: -1, t: 0, done };
     this.audio.play('whistle');
+  }
+
+  skipIntro(): void {
+    if (!this.cinematic) return;
+    this.finishIntro();
+  }
+
+  get inIntro(): boolean {
+    return this.cinematic !== null;
+  }
+
+  private finishIntro(): void {
+    const c = this.cinematic;
+    if (!c) return;
+    this.cinematic = null;
+    this.ui.showCaption(null);
+    // Back to the conductor with a short glide, then play.
+    this.stage.rig.focusOn(new THREE.Vector3(this.player.pos.x, 0, this.player.pos.z), 0.01, 1);
+    this.paused = false;
+    c.done();
+  }
+
+  private updateCinematic(realDt: number): void {
+    if (this.attractTime >= 0) {
+      this.attractTime += realDt;
+      const drift = Math.sin(this.attractTime * 0.25) * 2.2;
+      this.stage.rig.focusOn(new THREE.Vector3(2.4, 0, -1.5 + drift), 1, 1.55, 1.2);
+    }
+    const c = this.cinematic;
+    if (!c) return;
+    c.t += realDt;
+    const beat = INTRO_BEATS[c.index];
+    if (beat && c.t < beat.seconds) return;
+    c.index++;
+    c.t = 0;
+    const next = INTRO_BEATS[c.index];
+    if (!next) {
+      this.finishIntro();
+      return;
+    }
+    const target = next.focus === 'locomotive'
+      ? new THREE.Vector3(1.6, 0, -4.2)
+      : next.focus === 'lobby'
+        ? new THREE.Vector3(0.3, 0, 5.2)
+        : new THREE.Vector3(this.player.pos.x, 0, this.player.pos.z - 0.6);
+    this.stage.rig.focusOn(target, next.seconds + 0.6, next.zoom, 1.5);
+    this.ui.showCaption({ kicker: next.kicker, text: next.text });
   }
 
   /** Train map tap: dash to what that carriage needs, or to its middle. */

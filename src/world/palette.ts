@@ -56,8 +56,12 @@ export const PALETTE = {
   walnutDark: '#6E5140',
   oak: '#E6CFA6',
   oakMid: '#D9BE91',
-  plankWorn: '#CFC1A6',
-  plankWornSeam: '#B9AA8C',
+  /** Floorboards (MPH-style): honey planks, each a little darker or lighter, with soft seams. */
+  boards: '#E9C895',
+  boardsSeam: '#C29A66',
+  /** Run-down floorboards: the same boards, weathered grey. */
+  plankWorn: '#CFC4B2',
+  plankWornSeam: '#A2968A',
   iron: '#7A8591',
   wallWorn: '#D9DAC9',
   wallWornLow: '#B6BCA7',
@@ -116,8 +120,10 @@ export const PALETTE = {
   cash: '#7CC47F',
   cashEdge: '#3F8A4C',
   cashBand: '#F4EBC8',
-  zone: '#56708F',
+  zone: '#FFFFFF',
   zoneActive: '#F2B233',
+  /** A zone doing its job (checking in, tidying, handing over): the same green as a tile filling. */
+  zoneWorking: '#6FC25A',
 };
 
 /**

@@ -35,6 +35,24 @@ export class GeoBuilder {
   private readonly parts: THREE.BufferGeometry[] = [];
   /** Each part's paint (colour, second colour, pattern), kept for the geometry audit. */
   private readonly looks: string[] = [];
+  /** Named objects (a bed, a sink, a towel stack) as part ranges, kept for the clipping audit. */
+  private readonly marks: { label: string; from: number; to: number }[] = [];
+
+  /**
+   * Starts a named object: every part added until the next `object` or `endObject` belongs to it. The
+   * clipping audit checks that no two objects (or an object and a wall) pass through each other.
+   */
+  object(label: string): this {
+    this.endObject();
+    this.marks.push({ label, from: this.parts.length, to: -1 });
+    return this;
+  }
+
+  endObject(): this {
+    const open = this.marks[this.marks.length - 1];
+    if (open && open.to < 0) open.to = this.parts.length;
+    return this;
+  }
 
   add(geometry: THREE.BufferGeometry, color: string, x: number, y: number, z: number, rotX = 0, rotY = 0, rotZ = 0, style: PartStyle = {}): this {
     const g = geometry.index ? geometry.toNonIndexed() : geometry;
@@ -169,9 +187,15 @@ export class GeoBuilder {
     }
     merged.userData.partStarts = starts;
     merged.userData.partLooks = this.looks.slice();
+    this.endObject();
+    // Objects as vertex ranges [start, end).
+    merged.userData.objects = this.marks
+      .filter((m) => m.to > m.from)
+      .map((m) => ({ label: m.label, start: starts[m.from], end: m.to < starts.length ? starts[m.to] : offset }));
     for (const part of this.parts) part.dispose();
     this.parts.length = 0;
     this.looks.length = 0;
+    this.marks.length = 0;
     merged.computeBoundingSphere();
     merged.computeBoundingBox();
     return merged;
