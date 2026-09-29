@@ -192,6 +192,9 @@ export class Scenery {
     }
   }
 
+  /** True where the platform (or the river) is: ambient life stays out of those places too. */
+  readonly isHiddenAt = (x: number, z: number): boolean => this.isHidden(x, z);
+
   private isHidden(x: number, z: number): boolean {
     const r = this.hideRegion;
     if (r && x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) return true;

@@ -31,6 +31,7 @@ import { LIVERIES, liveryFor, type Livery } from '../world/palette';
 import { CashView } from '../world/CashView';
 import { Particles } from '../world/Particles';
 import { Scenery } from '../world/Scenery';
+import { Ambient } from '../world/Ambient';
 import { Stage } from '../world/Stage';
 import { CashPiles } from './CashPiles';
 import { Coach } from './Coach';
@@ -84,6 +85,7 @@ export class Game implements World {
   readonly unlocks: UnlockChain;
   readonly journey: Journey;
   readonly scenery = new Scenery();
+  readonly ambient = new Ambient();
   readonly train: TrainState;
   readonly cash: CashPiles;
   readonly tiles: Tiles;
@@ -127,7 +129,7 @@ export class Game implements World {
 
     this.stage = new Stage(canvas);
     this.scene = this.stage.scene;
-    this.scene.add(this.scenery.group, this.particles.points, this.cashView.mesh);
+    this.scene.add(this.scenery.group, this.ambient.group, this.particles.points, this.cashView.mesh);
     this.stage.attachParticles(this.particles);
 
     this.analytics = new MockAnalyticsService(80);
@@ -270,6 +272,7 @@ export class Game implements World {
 
   scenerySpanChanged(): void {
     this.scenery.setSpan(this.map.rearZ);
+    this.ambient.setSpan(this.map.rearZ);
   }
 
   // ─── Main loop ──────────────────────────────────────────────────────────────
@@ -310,6 +313,7 @@ export class Game implements World {
     this.journey.update(dt);
     this.station.update(dt);
     this.scenery.update(dt, this.journey.speed);
+    this.ambient.update(dt, this.journey.speed, this.stage.rig.target, this.stage.lighting.night, this.scenery.isHiddenAt);
     this.player.update(dt);
     this.zones.update(dt, [this.player, ...this.staff.members]);
     this.guests.update(dt);

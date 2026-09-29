@@ -399,3 +399,47 @@ export function billboardTexture(name: string, body: string, trim: string): THRE
   ctx.strokeRect(5, 5, 502, 246);
   return finishTexture(c);
 }
+
+/** The newsstand board: the Rail Gazette masthead over today's headline. */
+export function headlineTexture(text: string): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 320;
+  c.height = 200;
+  const ctx = c.getContext('2d');
+  if (!ctx) throw new Error('2D canvas unavailable');
+  ctx.fillStyle = '#FBF4E2';
+  ctx.fillRect(0, 0, 320, 200);
+  ctx.fillStyle = '#26324F';
+  ctx.fillRect(0, 0, 320, 48);
+  ctx.fillStyle = '#FBF4E2';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `800 26px ${TILE_FONT}`;
+  ctx.fillText('RAIL GAZETTE', 160, 26);
+  ctx.fillStyle = '#26324F';
+  // Wrap the headline onto up to three lines, as big as fits.
+  const words = text.toUpperCase().split(/\s+/);
+  let size = 34;
+  let lines: string[] = [];
+  for (; size >= 16; size -= 2) {
+    ctx.font = `800 ${size}px ${TILE_FONT}`;
+    lines = [];
+    let line = '';
+    for (const word of words) {
+      const next = line ? `${line} ${word}` : word;
+      if (ctx.measureText(next).width > 290 && line) {
+        lines.push(line);
+        line = word;
+      } else line = next;
+    }
+    if (line) lines.push(line);
+    if (lines.length <= 3 && lines.every((l) => ctx.measureText(l).width <= 290)) break;
+  }
+  const lineHeight = size * 1.1;
+  const top = 124 - ((lines.length - 1) * lineHeight) / 2;
+  lines.forEach((l, i) => ctx.fillText(l, 160, top + i * lineHeight));
+  ctx.strokeStyle = '#26324F';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(3, 3, 314, 194);
+  return finishTexture(c);
+}

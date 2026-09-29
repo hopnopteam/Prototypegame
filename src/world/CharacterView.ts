@@ -270,6 +270,15 @@ export class CharacterView {
 
   /** Hide the walk cycle (riding a scooter): legs straight, no bob. */
   riding = false;
+  /** Right arm up, waving (onlookers by the line, the station master's flag). */
+  waving = false;
+  private waveTime = Math.random() * 10;
+
+  /** Puts something in the right hand (a flag, a balloon); it follows the arm, waving included. */
+  holdInRightHand(object: THREE.Object3D): void {
+    object.position.y += -0.33;
+    this.arms[1].add(object);
+  }
 
   setPosition(x: number, y: number, z: number): void {
     this.root.position.set(x, y, z);
@@ -384,8 +393,14 @@ export class CharacterView {
 
     for (let i = 0; i < 2; i++) {
       const arm = this.arms[i];
-      const target = this.carrying ? -1.35 : (i === 0 ? -s : s) * swing * 0.8;
+      const target = this.waving && i === 1 ? -2.75 : this.carrying ? -1.35 : (i === 0 ? -s : s) * swing * 0.8;
       arm.rotation.x += (target - arm.rotation.x) * Math.min(1, dt * 14);
+    }
+    if (this.waving) {
+      this.waveTime += dt;
+      this.arms[1].rotation.z = 0.25 + Math.sin(this.waveTime * 9) * 0.4;
+    } else if (this.arms[1].rotation.z !== 0.1) {
+      this.arms[1].rotation.z = 0.1;
     }
 
     if (this.squash > 0) {

@@ -55,6 +55,11 @@ export class CameraRig {
     this.zoom = zoom;
   }
 
+  /** Where the camera is looking (ground level); ambient life stages itself around it. */
+  get target(): THREE.Vector3 {
+    return this.focus;
+  }
+
   snapTo(x: number, z: number): void {
     this.focus.set(x, 0, z - LOOK_AHEAD);
     this.initialised = false;

@@ -69,6 +69,11 @@ export class Station {
     return STATIONS[this.w.journey.stationIndex % STATIONS.length];
   }
 
+  /** The station the platform being prepared belongs to (the current one while stopped or approaching). */
+  private nextStation(): (typeof STATIONS)[number] {
+    return this.currentStation();
+  }
+
   boardingPoint(): Vec2 {
     return { x: this.boardingZone.x, z: this.boardingZone.z };
   }
@@ -145,9 +150,11 @@ export class Station {
       w.audio.setStationAmbience(true);
       w.ftue('first_station');
     } else if (phase === 'departing' && previous === 'stationStop') {
+      this.view.setFlag(true);
       this.closeDoors();
       this.finishStop();
     } else if (phase === 'onTheMove' && previous === 'departing') {
+      this.view.setFlag(false);
       w.journey.stationIndex = (w.journey.stationIndex + 1) % STATIONS.length;
       w.data.route.stationIndex = w.journey.stationIndex;
       w.data.route.legsCompleted = w.journey.legsCompleted;
@@ -193,6 +200,9 @@ export class Station {
     const w = this.w;
     this.spawnedForStop = stopSerial;
     w.guests.removePlatformGuests();
+    // The newsstand carries the latest story about your train (or the paper's own welcome).
+    const latest = w.data.press.items[0];
+    this.view.setHeadline(latest ? latest.headline : `${this.nextStation().name} awaits the night train`);
     const econ = w.econ.guests;
     // Enough travellers to fill every free bed, plus one or two more who will have to wait for the next
     // train: visible demand that says "build more cabins".

@@ -654,6 +654,8 @@ export class Ui implements GameUi {
       h('div.stub', {}, icon('ticket', 30)),
       body,
     );
+    // The ticket replaces this stop's arrival banner if it is somehow still up (they share the middle column).
+    this.root.querySelectorAll('.banner').forEach((b) => b.remove());
     this.root.appendChild(el);
     this.root.classList.add('has-ticket');
     this.resultEl = el;

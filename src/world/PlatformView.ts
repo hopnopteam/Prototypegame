@@ -6,7 +6,7 @@ import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
 import { CharacterView, type CharacterLook } from './CharacterView';
 import { mergePlanes } from './ExteriorView';
-import { posterTexture, signTexture } from './sprites';
+import { headlineTexture, posterTexture, signTexture } from './sprites';
 
 /** Marketing bought at the station workshop that shows on every platform. */
 export interface MarketingState {
@@ -29,6 +29,11 @@ const BAND: { x: number; z: number; instrument: 'tuba' | 'drum' | 'trumpet' }[] 
   { x: PLATFORM_X0 + 4.05, z: 4.6, instrument: 'drum' },
 ];
 const BEAT_SECONDS = 0.5;
+/** The station master stands by the front of the train and waves the green flag at departure. */
+const MASTER_POS = { x: PLATFORM_X0 + 0.95, z: -1.0 };
+const MASTER_LOOK: CharacterLook = { body: '#2F3E5C', accent: '#E2B04A', skin: '#E8B894', hair: '#8A8A8A', pants: '#2A3248', hat: 'conductor', hatColor: '#2F3E5C', bandColor: '#C0485C', arms: true, moustache: true };
+/** The newsstand ahead of the lobby: today's Rail Gazette headline on a board. */
+const KIOSK_POS = { x: PLATFORM_X0 + 2.0, z: -4.2 };
 
 /**
  * The station platform on the right of the train: a tiled deck, a pink station house with a clock, a mint
@@ -50,6 +55,9 @@ export class PlatformView {
   private readonly band: CharacterView[] = [];
   private beat = 0;
   private marketing: MarketingState = { posters: false, band: false };
+  private readonly master: CharacterView;
+  private readonly headlineMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
+  private headline = '';
   length = 0;
   z0 = 0;
   z1 = 0;
@@ -60,6 +68,13 @@ export class PlatformView {
     sign.rotation.x = -0.9;
     sign.name = 'sign';
     this.group.add(sign);
+
+    this.master = new CharacterView(MASTER_LOOK);
+    this.master.setPosition(MASTER_POS.x, FLOOR_Y, MASTER_POS.z);
+    this.master.setFacing(-Math.PI / 2 + 0.6);
+    this.master.holdInRightHand(buildFlag());
+    this.group.add(this.master.root);
+    this.group.add(buildKiosk(this.headlineMaterial));
     this.group.visible = false;
   }
 
@@ -213,8 +228,23 @@ export class PlatformView {
     for (const view of this.band) view.root.visible = state.band;
   }
 
+  /** The station master's green flag: up and waving while the train departs. */
+  setFlag(up: boolean): void {
+    this.master.waving = up;
+  }
+
+  /** Today's front page on the newsstand (the latest story about your train, or the paper's own). */
+  setHeadline(text: string): void {
+    if (text === this.headline) return;
+    this.headline = text;
+    this.headlineMaterial.map?.dispose();
+    this.headlineMaterial.map = headlineTexture(text);
+    this.headlineMaterial.needsUpdate = true;
+  }
+
   /** The band plays while the platform is on screen: a little hop on every beat. */
   animate(dt: number): void {
+    this.master.update(dt, 0);
     if (!this.marketing.band || this.band.length === 0) return;
     this.beat += dt;
     const onBeat = this.beat >= BEAT_SECONDS;
@@ -317,4 +347,35 @@ function buildInstrument(kind: 'tuba' | 'drum' | 'trumpet'): THREE.Mesh {
   const mesh = new THREE.Mesh(b.build(), MATERIALS.character);
   mesh.castShadow = true;
   return mesh;
+}
+
+/** A green flag on a short stick, held in the station master's hand. */
+function buildFlag(): THREE.Mesh {
+  const b = new GeoBuilder();
+  b.cylinder(0, -0.25, 0, 0.014, 0.014, 0.62, PALETTE.walnut, 6, 'y', { shade: 1 });
+  b.box(0, -0.44, 0.18, 0.02, 0.26, 0.36, '#3E9B5A', 0, { shade: 1 });
+  const mesh = new THREE.Mesh(b.build(), MATERIALS.character);
+  mesh.castShadow = true;
+  return mesh;
+}
+
+/** A little green newsstand with a striped awning and the day's headline on a board facing the train. */
+function buildKiosk(headline: THREE.Material): THREE.Group {
+  const group = new THREE.Group();
+  const b = new GeoBuilder();
+  const { x, z } = KIOSK_POS;
+  b.rounded(x, FLOOR_Y + 0.55, z, 1.1, 1.1, 0.9, 0.06, '#3F7A5E', { shade: 0.8 });
+  b.box(x, FLOOR_Y + 1.12, z + 0.2, 1.14, 0.05, 0.6, PALETTE.oak, 0, { shade: 1 });
+  for (let i = 0; i < 4; i++) b.box(x - 0.36 + i * 0.24, FLOOR_Y + 1.17, z + 0.2, 0.16, 0.03, 0.22, i % 2 ? '#F4EEE2' : '#E8DCC4', 0, { shade: 1 });
+  for (const dx of [-0.5, 0.5]) b.cylinder(x + dx, FLOOR_Y + 1.5, z + 0.42, 0.025, 0.025, 0.8, PALETTE.navy, 6);
+  b.box(x, FLOOR_Y + 1.92, z + 0.2, 1.3, 0.05, 0.9, '#3F7A5E', 0, { pattern: PATTERN.stripesX, color2: '#F4EEE2', scale: 0.22, shade: 1 });
+  const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  group.add(mesh);
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.62), headline);
+  board.position.set(x, FLOOR_Y + 2.35, z + 0.45);
+  board.rotation.x = -0.35;
+  group.add(board);
+  return group;
 }
