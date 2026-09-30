@@ -93,12 +93,9 @@ export class Stage {
     const s = tierSettings(tier);
     this.pixelRatio = Math.min(window.devicePixelRatio || 1, s.pixelRatio);
     this.renderer.setPixelRatio(this.pixelRatio);
-    const soft = s.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
-    if (this.renderer.shadowMap.type !== soft) {
-      this.renderer.shadowMap.type = soft;
-      this.renderer.shadowMap.needsUpdate = true;
-    }
-    this.lighting.setShadows(true, s.shadowMap);
+    // PCF filtering throughout; the soft tiers sample a wider radius (this three.js has no separate soft type).
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.lighting.setShadows(true, s.shadowMap, s.softShadows ? 5 : 2);
     this.lighting.setLampCount(s.lamps);
     this.lighting.setEnvironmentEnabled(s.pbr);
     const swap = setMaterialQuality(s.pbr, s.lamps);

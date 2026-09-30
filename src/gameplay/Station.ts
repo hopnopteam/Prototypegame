@@ -192,9 +192,17 @@ export class Station {
     this.view.setOffset(this.platformOffset);
     if (visible) this.view.animate(_dt);
     this.view.setNight(w.stage.lighting.night);
+    // The platform's lamps light the train and the waiting guests as it slides in.
+    const lamps = w.stage.lighting.lamps;
+    if (visible !== this.lampsShown) {
+      this.lampsShown = visible;
+      lamps.set('platform', visible ? this.view.lampAnchors : null, this.platformOffset);
+    } else if (visible) lamps.offset('platform', this.platformOffset);
     const zOffset = this.platformOffset;
     w.scenery.setHiddenRegion(visible ? { x0: PLATFORM_X0 - 0.2, x1: PLATFORM_X0 + 16, z0: this.view.z0 + zOffset - 2, z1: this.view.z1 + zOffset + 2 } : null);
   }
+
+  private lampsShown = false;
 
   private prepareStop(stopSerial: number): void {
     const w = this.w;

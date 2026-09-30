@@ -5,6 +5,43 @@ import { GANGWAY_LENGTH, LOCOMOTIVE_LENGTH } from './layout';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
 import { signTexture } from './sprites';
+import { REFLECT_LAYER } from './Water';
+
+/** How far the headlight's beam dips toward the track (radians). */
+const HEADLIGHT_TILT = -0.09;
+
+/** A cone of light 10 m long along -z from its apex, fading toward the far end. */
+const BEAM_GEOMETRY = (() => {
+  const g = new THREE.ConeGeometry(1.5, 10, 20, 1, true);
+  g.rotateX(-Math.PI / 2);
+  g.translate(0, 0, -5);
+  const pos = g.getAttribute('position');
+  const colors = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const t = 1 - Math.min(1, -pos.getZ(i) / 10);
+    colors.set([t, t * 0.9, t * 0.7], i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return g;
+})();
+const POOL_GEOMETRY = new THREE.PlaneGeometry(2.8, 7.5).rotateX(-Math.PI / 2);
+
+/** A soft oval of warm light for the track ahead of the headlamp. */
+function poolTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 128;
+  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+  const g = ctx.createRadialGradient(32, 80, 2, 32, 70, 62);
+  g.addColorStop(0, 'rgba(255, 226, 170, 0.9)');
+  g.addColorStop(0.5, 'rgba(255, 210, 150, 0.35)');
+  g.addColorStop(1, 'rgba(255, 200, 140, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 
 /** Steam locomotive at the head of the train (top of the screen). Faces -z. Navy, gold and signal red. */
 export class LocomotiveView {
@@ -15,6 +52,9 @@ export class LocomotiveView {
   /** The brass nameplate on the tender, facing the train: the player's name for her. */
   private readonly nameplate: THREE.Mesh;
   private name = '';
+  private readonly lampMaterial = new THREE.MeshBasicMaterial({ color: '#FFE3A8' });
+  private readonly beam = new THREE.Mesh(BEAM_GEOMETRY, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+  private readonly pool = new THREE.Mesh(POOL_GEOMETRY, new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
 
   constructor() {
     const back = -GANGWAY_LENGTH;
@@ -84,9 +124,14 @@ export class LocomotiveView {
     for (const x of [-1.52, 1.52]) windows.box(x, 2.0, cabMid, 0.02, 0.5, 0.8, PALETTE.windowDay);
     windows.box(0, 2.1, cabFront - 0.01, 1.8, 0.45, 0.02, PALETTE.windowDay);
     this.group.add(new THREE.Mesh(windows.build(), MATERIALS.windows));
-    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.25, 14).rotateX(Math.PI / 2), MATERIALS.lamp);
+    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.25, 14).rotateX(Math.PI / 2), this.lampMaterial);
     lamp.position.set(0, 1.55, front + 0.5);
     this.group.add(lamp);
+    // The headlight at night: a soft cone of light down the line and a warm pool where it lands on the track.
+    this.beam.position.set(0, 1.55, front + 0.35);
+    this.beam.rotation.x = HEADLIGHT_TILT;
+    this.pool.position.set(0, 0.3, front - 5.2);
+    this.group.add(this.beam, this.pool);
 
     // Driving wheels spin with train speed: red with gold hubs.
     const wheelGeo = new GeoBuilder()
@@ -105,6 +150,7 @@ export class LocomotiveView {
     }
 
     this.chimneyTop.set(0, 3.4, chimneyZ);
+    this.group.traverse((o) => o.layers.enable(REFLECT_LAYER));
 
     this.nameplate = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.3), new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false }));
     this.nameplate.position.set(0, 0.86, back + 0.03);
@@ -127,6 +173,13 @@ export class LocomotiveView {
     const name = this.name;
     this.name = '';
     this.setName(name);
+  }
+
+  /** 0 day, 1 night: the headlamp glows (and blooms) and throws its beam at night. */
+  setNight(night: number): void {
+    this.lampMaterial.color.set('#FFE3A8').multiplyScalar(1 + 3 * night);
+    (this.beam.material as THREE.MeshBasicMaterial).opacity = 0.14 * night;
+    (this.pool.material as THREE.MeshBasicMaterial).opacity = 0.55 * night;
   }
 
   update(dt: number, speed: number): void {

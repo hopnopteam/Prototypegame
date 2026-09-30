@@ -60,31 +60,38 @@ export interface LampAnchor {
  * the edge of the chosen set so nothing pops as the view moves.
  */
 class LampField {
-  private readonly sources = new Map<string, LampAnchor[]>();
-  private all: LampAnchor[] = [];
+  private readonly sources = new Map<string, { anchors: LampAnchor[]; dz: number }>();
+  private readonly flat: { anchor: LampAnchor; source: { dz: number } }[] = [];
   private dirty = true;
   private readonly distances: number[] = [];
   private readonly order: number[] = [];
   private readonly tmp = new THREE.Vector3();
 
-  set(key: string, anchors: LampAnchor[] | null): void {
-    if (anchors && anchors.length > 0) this.sources.set(key, anchors);
+  set(key: string, anchors: LampAnchor[] | null, dz = 0): void {
+    if (anchors && anchors.length > 0) this.sources.set(key, { anchors, dz });
     else this.sources.delete(key);
     this.dirty = true;
   }
 
+  /** Slides a source along the line (the platform arriving and leaving) without rebuilding it. */
+  offset(key: string, dz: number): void {
+    const source = this.sources.get(key);
+    if (source) source.dz = dz;
+  }
+
   update(focus: THREE.Vector3, view: THREE.Matrix4, count: number, strength: number): void {
     if (this.dirty) {
-      this.all = [...this.sources.values()].flat();
+      this.flat.length = 0;
+      for (const source of this.sources.values()) for (const anchor of source.anchors) this.flat.push({ anchor, source });
       this.dirty = false;
     }
     const lamps = LIGHT_UNIFORMS.uNxLamps.value;
-    const n = this.all.length;
+    const n = this.flat.length;
     this.distances.length = n;
     this.order.length = n;
     for (let i = 0; i < n; i++) {
-      const l = this.all[i];
-      this.distances[i] = Math.hypot(l.x - focus.x, l.z - focus.z);
+      const { anchor, source } = this.flat[i];
+      this.distances[i] = Math.hypot(anchor.x - focus.x, anchor.z + source.dz - focus.z);
       this.order[i] = i;
     }
     this.order.sort((i, j) => this.distances[i] - this.distances[j]);
@@ -98,11 +105,11 @@ class LampField {
         v.w = 0;
         continue;
       }
-      const l = this.all[this.order[k]];
+      const { anchor, source } = this.flat[this.order[k]];
       const d = this.distances[this.order[k]];
       const w = Number.isFinite(edge) ? clamp01((edge - d) / fade) : 1;
-      this.tmp.set(l.x, l.y, l.z).applyMatrix4(view);
-      v.set(this.tmp.x, this.tmp.y, this.tmp.z, l.strength * w * strength);
+      this.tmp.set(anchor.x, anchor.y, anchor.z + source.dz).applyMatrix4(view);
+      v.set(this.tmp.x, this.tmp.y, this.tmp.z, anchor.strength * w * strength);
     }
   }
 }
@@ -167,9 +174,10 @@ export class Lighting {
     this.lampCount = count;
   }
 
-  /** Shadows on or off, the map size, and soft (PCF soft) edges. */
-  setShadows(enabled: boolean, size = 1024): void {
+  /** Shadows on or off, the map size, and how soft their edges are (PCF sampling radius in texels). */
+  setShadows(enabled: boolean, size = 1024, radius = 2): void {
     this.sun.castShadow = enabled;
+    this.sun.shadow.radius = radius;
     if (this.sun.shadow.mapSize.x !== size) {
       this.sun.shadow.mapSize.set(size, size);
       this.sun.shadow.map?.dispose();

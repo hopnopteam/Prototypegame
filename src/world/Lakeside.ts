@@ -306,12 +306,14 @@ export function buildPiece(kind: PieceKind, seed: number): PieceBuild {
       const lakeShore = shoreline(SHORE_BASE, 0.4, rng);
       shore = (z) => (z > g0 - 1 && z < g1 + 1 ? -TRACK_EDGE - 0.2 : lakeShore(z));
       base.object('scenery:bridge');
+      // Parapets stand just clear of the carriages (their bodies are 2.2 m either side of the line).
       for (const side of [-1, 1]) {
-        base.box(side * 2.06, 0.3, (g0 + g1) / 2, 0.22, 0.62, g1 - g0 + 2.2, C.stone, 0, { pattern: PATTERN.stripesZ, color2: C.stoneDark, scale: 0.5, shade: 0.8, surface: 'stone' });
-        base.box(side * 2.06, 0.64, (g0 + g1) / 2, 0.3, 0.06, g1 - g0 + 2.4, C.stoneDark, 0, { surface: 'stone' });
+        base.box(side * 2.42, 0.28, (g0 + g1) / 2, 0.22, 0.56, g1 - g0 + 2.2, C.stone, 0, { pattern: PATTERN.stripesZ, color2: C.stoneDark, scale: 0.5, shade: 0.8, surface: 'stone' });
+        base.box(side * 2.42, 0.58, (g0 + g1) / 2, 0.3, 0.05, g1 - g0 + 2.4, C.stoneDark, 0, { surface: 'stone' });
+        base.box(side * 2.2, 0.05, (g0 + g1) / 2, 0.24, 0.1, g1 - g0 + 2.2, C.stoneDark, 0, { surface: 'stone' });
       }
-      // The causeway's face on the land side, with arches (the side the camera sees).
-      base.box(2.0, -0.3, (g0 + g1) / 2, 0.14, 1.0, g1 - g0, C.stoneDark, 0, { surface: 'stone' });
+      // The causeway's face on the land side (the side the camera sees), dropping into the water.
+      base.box(2.5, -0.35, (g0 + g1) / 2, 0.1, 0.9, g1 - g0 + 2.2, C.stoneDark, 0, { pattern: PATTERN.stripesZ, color2: C.stone, scale: 0.6, surface: 'stone' });
       base.endObject();
       for (const z of [g0 - 0.2, g1 + 0.2]) for (let i = 0; i < 3; i++) rock(lake, rng.range(2.6, 4.2), 0.05, z + rng.range(-0.6, 0.6), rng.range(0.25, 0.5), rng);
       landClear.push({ x: 8, z: (g0 + g1) / 2, r: 9 });
@@ -321,11 +323,12 @@ export function buildPiece(kind: PieceKind, seed: number): PieceBuild {
       const houses = rng.int(3, 5);
       for (let i = 0; i < houses; i++) {
         const z = 3 + (i + rng.range(0.1, 0.6)) * ((CHUNK - 6) / houses);
-        const x = rng.range(7, 13) + (i % 2) * 2.5;
+        // Close enough to the line to be seen, low enough never to hide the train.
+        const x = rng.range(5.0, 6.4) + (i % 2) * 2.2;
         cottage(out.land, out.landGlow, x, z, rng.range(2.4, 3.0), rng.range(3.0, 3.8), rng);
-        landClear.push({ x, z, r: 3.2 });
+        landClear.push({ x, z, r: 2.6 });
       }
-      for (const z of [4, 12, 20]) lampPost(out.land, out.landGlow, 3.6, z + rng.range(-1, 1));
+      for (const z of [2.5, 12, 21.5]) lampPost(out.land, out.landGlow, 3.4, z + rng.range(-0.5, 0.5));
       landClear.push({ x: 4, z: 12, r: 2.5 });
       landDensity = 0.06;
       broadleaf = 0.35;
@@ -411,11 +414,11 @@ export function treeGeometries(): THREE.BufferGeometry[] {
   };
   const pine = new GeoBuilder();
   pine.cylinder(0, 0.4, 0, 0.1, 0.14, 0.8, '#5B4535', 6, 'y', { surface: 'wood' });
-  const tiers: [number, number, number, string][] = [[1.25, 1.6, 1.05, '#2C473C'], [2.05, 1.35, 0.85, '#33524A'], [2.8, 1.1, 0.62, '#3E6153']];
+  const tiers: [number, number, number, string][] = [[1.25, 1.6, 1.05, '#34523F'], [2.05, 1.35, 0.85, '#3C5E4C'], [2.8, 1.1, 0.62, '#4A7058']];
   for (const [y, h, r, color] of tiers) pine.add(flat(new THREE.ConeGeometry(r, h, 7)), color, 0, y, 0, 0, 0, 0, { shade: 0.62, surface: 'foliage' });
   const spruce = new GeoBuilder();
   spruce.cylinder(0, 0.35, 0, 0.08, 0.12, 0.7, '#5B4535', 6, 'y', { surface: 'wood' });
-  const tiers2: [number, number, number, string][] = [[1.3, 1.9, 0.78, '#284236'], [2.35, 1.6, 0.6, '#2F4D40'], [3.25, 1.3, 0.42, '#3A5C4E']];
+  const tiers2: [number, number, number, string][] = [[1.3, 1.9, 0.78, '#2F4B3C'], [2.35, 1.6, 0.6, '#375848'], [3.25, 1.3, 0.42, '#446A56']];
   for (const [y, h, r, color] of tiers2) spruce.add(flat(new THREE.ConeGeometry(r, h, 6)), color, 0, y, 0, 0, 0, 0, { shade: 0.6, surface: 'foliage' });
   const broad = new GeoBuilder();
   broad.cylinder(0, 0.6, 0, 0.1, 0.14, 1.2, '#6B5646', 6, 'y', { surface: 'wood' });

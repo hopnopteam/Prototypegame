@@ -70,14 +70,15 @@ void main() {
   vec3 color = mix(uShallow, uDeep, deep);
 
   // The sky (or, on high tiers, the real mirror image of the shore and the train) in the water.
-  vec3 sky = uSky;
+  // Seen from this high a camera the real fresnel would all but hide it, so the mirror is held up a little.
+  color = mix(color, uSky, 0.18 + 0.7 * fresnel);
   if (uReflect > 0.5) {
     vec4 r = vReflect;
-    r.xy += normal.xz * 0.35 * r.w;
-    vec3 mirror = texture2DProj(uReflection, r).rgb;
-    sky = mix(uSky, mirror, 0.85);
+    // Low, slow wobble only: glowing windows reflect as soft warm streaks rather than a jagged line.
+    r.xy += vec2(cos(p.x * 0.9 + uTime * 0.8), cos(p.y * 0.7 - uTime * 0.6)) * 0.012 * r.w;
+    vec4 mirror = texture2DProj(uReflection, r);
+    color = mix(color, mirror.rgb, mirror.a * (0.5 + 0.4 * fresnel));
   }
-  color = mix(color, sky, 0.18 + 0.7 * fresnel);
 
   // The moon path: a narrow column under the moon made of short horizontal glints (wave crests catching
   // the light), in screen space so they always lie level whatever the camera angle.
@@ -178,6 +179,7 @@ export class PlanarReflection implements PreRender {
   private readonly q = new THREE.Vector4();
   private readonly tmp = new THREE.Vector3();
   private readonly target3 = new THREE.Vector3();
+  private readonly clearColor = new THREE.Color();
 
   constructor(private readonly water: Water, private scale: number) {
     this.target = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 0 });
@@ -240,9 +242,19 @@ export class PlanarReflection implements PreRender {
     const current = renderer.getRenderTarget();
     const autoShadow = renderer.shadowMap.autoUpdate;
     renderer.shadowMap.autoUpdate = false;
+    // Clear to transparent: only mirrored objects cover the water, the rest keeps its own sky tint.
+    const background = scene.background;
+    const fog = scene.fog;
+    scene.background = null;
+    renderer.getClearColor(this.clearColor);
+    const clearAlpha = renderer.getClearAlpha();
+    renderer.setClearColor(0x000000, 0);
     renderer.setRenderTarget(this.target);
     renderer.clear();
     renderer.render(scene, m);
+    renderer.setClearColor(this.clearColor, clearAlpha);
+    scene.background = background;
+    scene.fog = fog;
     renderer.setRenderTarget(current);
     renderer.shadowMap.autoUpdate = autoShadow;
     this.water.mesh.visible = visible;

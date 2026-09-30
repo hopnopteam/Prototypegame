@@ -365,6 +365,11 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .gem-card .price { margin-top: 4px; padding: 2px 10px; border-radius: 10px; background: var(--green-light); border: 2px solid var(--ink); font-size: 14px; }
 .section-title { font-weight: 800; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.65; margin-top: 4px; }
 
+.toggle.quality { flex-direction: column; align-items: stretch; }
+.toggle.quality .quality-now { font-weight: 600; opacity: 0.6; font-size: 13px; }
+.segmented { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.segmented .seg { font: inherit; font-size: 12px; font-weight: 700; padding: 7px 0; border-radius: 9px; border: 2px solid var(--ink); background: #fff; color: var(--ink); }
+.segmented .seg.on { background: var(--gold, #F2B233); }
 .toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--cream); border: 2px solid var(--ink); font-weight: 700; font-size: 15px; }
 .switch { position: relative; width: 52px; height: 30px; border-radius: 15px; border: var(--line); background: var(--paper-2); cursor: pointer; padding: 0; flex: none; }
 .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 21px; height: 21px; border-radius: 50%; background: var(--cream); border: 2px solid var(--ink); transition: left 150ms; }

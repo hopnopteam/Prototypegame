@@ -6,6 +6,7 @@ import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
 import { CharacterView, type CharacterLook } from './CharacterView';
 import { headlineTexture, posterTexture, signTexture } from './sprites';
+import type { LampAnchor } from './Lighting';
 
 /** Marketing bought at the station workshop that shows on every platform. */
 export interface MarketingState {
@@ -60,6 +61,8 @@ export class PlatformView {
   length = 0;
   z0 = 0;
   z1 = 0;
+  /** The platform's lamps for the lamp pools (local coordinates; the game slides them with the platform). */
+  readonly lampAnchors: LampAnchor[] = [];
 
   constructor() {
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 0.85), this.signMaterial);
@@ -99,6 +102,7 @@ export class PlatformView {
     if (this.vendor) this.group.remove(this.vendor);
     this.vendor = null;
 
+    this.lampAnchors.length = 0;
     this.z0 = -LOCOMOTIVE_LENGTH - 4;
     this.z1 = trainRearZ + 8;
     this.length = this.z1 - this.z0;
@@ -150,6 +154,7 @@ export class PlatformView {
       b.box(x1 - 0.5, FLOOR_Y + 2.95, z, 0.2, 0.1, 0.2, PALETTE.gold, 0, { shade: 1 });
       b.object('platform:canopyLamp');
       lamps.sphere(x1 - 0.9, FLOOR_Y + 2.55, z, 0.16, PALETTE.lampShade, 1);
+      this.lampAnchors.push({ x: x1 - 1.1, y: FLOOR_Y + 2.3, z, strength: 1 });
       b.box(x1 - 0.72, FLOOR_Y + 2.72, z, 0.36, 0.03, 0.03, PALETTE.navy, 0, { shade: 1 });
       const glow = new THREE.Sprite(new THREE.SpriteMaterial({ color: PALETTE.lampGlow, transparent: true, opacity: 0, depthWrite: false }));
       glow.scale.set(1.8, 1.8, 1);
@@ -186,6 +191,7 @@ export class PlatformView {
         b.cylinder(rowX, FLOOR_Y + 1.2, z, 0.04, 0.06, 2.2, PALETTE.navy, 10, 'y', { shade: 0.85 });
         b.box(rowX, FLOOR_Y + 2.2, z, 0.5, 0.04, 0.04, PALETTE.navy, 0, { shade: 1 });
         for (const dz of [-0.25, 0.25]) lamps.sphere(rowX, FLOOR_Y + 2.12, z + dz, 0.11, PALETTE.lampShade, 1);
+        this.lampAnchors.push({ x: rowX - 0.6, y: FLOOR_Y + 2.0, z, strength: 1 });
       }
       const tubZ = z + 4;
       if (!clear(tubZ)) continue;

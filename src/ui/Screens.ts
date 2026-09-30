@@ -7,6 +7,7 @@ import { CARRIAGE_THEMES, LIVERIES, liveryFor } from '../world/palette';
 import { OUTFITS, type OutfitDef } from '../config/wardrobe';
 import type { CarriageChoiceView } from '../gameplay/UiApi';
 import type { CarriageType } from '../core/types';
+import { QUALITY_TIERS, VISUALS } from '../config/visuals';
 import { h, icon } from './dom';
 import type { IconName } from './icons';
 import type { Ui } from './Ui';
@@ -585,6 +586,7 @@ export class Screens {
       toggle('Sound', s.sound, (v) => (s.sound = v)),
       toggle('Music', s.music, (v) => (s.music = v)),
       toggle('Vibration', s.haptics, (v) => (s.haptics = v)),
+      this.qualityPicker(),
       toggle('Developer tools', s.devTools, (v) => (s.devTools = v)),
       s.devTools ? h('button.btn.primary', { onclick: () => { close(); this.devPanel(); } }, icon('wrench', 24), 'Open developer tools') : null,
       h('button.btn', {
@@ -597,6 +599,32 @@ export class Screens {
       confirmReset,
       h('p', { style: { fontSize: '13px', opacity: '0.7' }, text: `Night Express prototype · Session ${g.data.profile.sessionCount} · ${formatDuration(g.lifetimeSeconds())} played` }),
     ]);
+  }
+
+  /** Graphics: Auto (the device's best, stepping down if it struggles) or a fixed tier. */
+  private qualityPicker(): HTMLElement {
+    const g = this.game;
+    const s = g.data.settings;
+    const options: { value: typeof s.quality; label: string }[] = [
+      { value: 'auto', label: 'Auto' },
+      ...QUALITY_TIERS.map((t) => ({ value: t, label: VISUALS.quality.tiers[t].label })),
+    ];
+    const note = h('span.quality-now', { text: s.quality === 'auto' ? g.stage.tierLabel : '' });
+    const buttons = options.map((o) => {
+      const b = h(`button.seg${s.quality === o.value ? '.on' : ''}` as 'button', { 'aria-pressed': String(s.quality === o.value) }, o.label);
+      b.addEventListener('click', () => {
+        s.quality = o.value;
+        g.stage.setQuality(o.value, s.qualityAuto);
+        g.save.markDirty();
+        for (const other of buttons) {
+          other.classList.toggle('on', other === b);
+          other.setAttribute('aria-pressed', String(other === b));
+        }
+        note.textContent = o.value === 'auto' ? g.stage.tierLabel : '';
+      });
+      return b;
+    });
+    return h('div.toggle.quality', {}, h('span', {}, 'Graphics ', note), h('div.segmented', {}, ...buttons));
   }
 
   devPanel(): void {

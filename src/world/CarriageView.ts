@@ -25,6 +25,7 @@ import { MATERIALS, PATTERN } from './materials';
 import { CARRIAGE_THEMES, PALETTE, type CarriageTheme } from './palette';
 import { buildCobwebs, buildFloor, type FloorResult } from './Floors';
 import type { LampAnchor } from './Lighting';
+import { REFLECT_LAYER } from './Water';
 
 /** Metres between ceiling lights along a room or corridor (lamp pools). */
 const LAMP_SPACING = 3.2;
@@ -536,19 +537,21 @@ export class CarriageView {
     this.buildDoorFrames(s);
     this.buildSpinners();
 
-    const add = (builder: GeoBuilder, material: THREE.Material, cast: boolean, receive: boolean): void => {
+    const add = (builder: GeoBuilder, material: THREE.Material, cast: boolean, receive: boolean, reflect = false): void => {
       if (builder.isEmpty) return;
       const mesh = new THREE.Mesh(builder.build(), material);
       mesh.castShadow = cast;
       mesh.receiveShadow = receive;
+      // The outside of the train (paint, glowing windows) is mirrored in the lake on the high tiers.
+      if (reflect) mesh.layers.enable(REFLECT_LAYER);
       this.group.add(mesh);
     };
     add(s, MATERIALS.solid, true, true);
-    add(liv, MATERIALS.livery, true, true);
-    add(trim, MATERIALS.liveryTrim, false, true);
+    add(liv, MATERIALS.livery, true, true, true);
+    add(trim, MATERIALS.liveryTrim, false, true, true);
     add(f, MATERIALS.floor, false, true);
-    add(glass, MATERIALS.windows, false, false);
-    add(lamps, MATERIALS.lamps, false, false);
+    add(glass, MATERIALS.windows, false, false, true);
+    add(lamps, MATERIALS.lamps, false, false, true);
   }
 
   /**

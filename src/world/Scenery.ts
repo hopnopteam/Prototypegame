@@ -323,8 +323,19 @@ export class Scenery {
     return choice;
   }
 
-  private assign(chunk: Chunk): void {
-    const { template: index, mirrored } = this.pick();
+  /** Dev and Creative Mode: puts a piece of this kind beside the camera (for screenshots and QA). */
+  devShowPiece(kind: PieceKind, focusZ: number, variant = 0): void {
+    const matches = this.templates.map((t, i) => ({ t, i })).filter(({ t }) => t.kind === kind);
+    const match = matches[variant % Math.max(1, matches.length)];
+    if (!match) return;
+    for (const chunk of this.chunks) {
+      const z0 = chunk.z + this.scroll;
+      if (focusZ >= z0 - CHUNK * 0.5 && focusZ < z0 + CHUNK * 1.2) this.assign(chunk, { template: match.i, mirrored: false });
+    }
+  }
+
+  private assign(chunk: Chunk, forced?: { template: number; mirrored: boolean }): void {
+    const { template: index, mirrored } = forced ?? this.pick();
     const t = this.templates[index];
     chunk.template = t;
     chunk.mirrored = mirrored;

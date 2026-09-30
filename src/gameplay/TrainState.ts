@@ -419,6 +419,7 @@ export class TrainState {
     if (this.pendingChoice && dt > 0) this.requestCoupling(() => w.tiles.refresh());
     const speed = w.journey.speed;
     this.loco.update(dt, speed);
+    this.loco.setNight(w.stage.lighting.night);
 
     for (const view of this.views) view.animate(dt);
     this.publishLamps();
