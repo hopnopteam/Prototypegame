@@ -39,6 +39,7 @@ export class Player implements Actor {
   /** Quick travel (tap a carriage on the train map): walks the route at dash speed until you touch the stick. */
   readonly travel: PathFollower;
   private dashTrail = 0;
+  private readonly ground = { x: 0, y: 0 };
 
   constructor(private readonly w: World, private readonly input: Input, spawn: Vec2) {
     this.pos = { x: spawn.x, z: spawn.z };
@@ -81,11 +82,14 @@ export class Player implements Actor {
     const p = w.econ.player;
     this.stack.capacity = this.capacity();
     let stick = this.input.read();
-    // Shape the thumb: slow and precise near the centre, full speed a little before the rim.
-    const throwLength = Math.hypot(stick.x, stick.y);
-    if (throwLength > 1e-4 && !this.input.override) {
-      const shaped = Math.pow(Math.min(1, throwLength / p.fullSpeedAt), p.stickCurve);
-      stick = { x: (stick.x / throwLength) * shaped, y: (stick.y / throwLength) * shaped };
+    // The thumb is read on screen; the autopilot already steers in train coordinates.
+    if (!this.input.override) {
+      // Shape the thumb: slow and precise near the centre, full speed a little before the rim.
+      const throwLength = Math.hypot(stick.x, stick.y);
+      if (throwLength > 1e-4) {
+        const shaped = Math.pow(Math.min(1, throwLength / p.fullSpeedAt), p.stickCurve);
+        stick = w.stage.rig.screenToGround((stick.x / throwLength) * shaped, (stick.y / throwLength) * shaped, this.ground);
+      }
     }
     let max = this.speed();
     if (this.travel.active) {
@@ -129,7 +133,7 @@ export class Player implements Actor {
         w.particles.emit('dust', this.pos.x, FLOOR_Y + 0.05, this.pos.z, 1, 0.12);
       }
     }
-    // Screen up is world -z; screen right is world +x (the camera looks up the train).
+    // `stick` is now a walking direction in train coordinates (x across, y along the train).
     const tx = stick.x * max;
     const tz = stick.y * max;
     // Firmer when stopping or turning back than when setting off: you stop where you let go.

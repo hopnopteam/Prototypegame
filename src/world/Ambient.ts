@@ -3,7 +3,6 @@ import { Rng } from '../core/Rng';
 import { CharacterView, type CharacterLook } from './CharacterView';
 import { GeoBuilder } from './geo';
 import { MATERIALS } from './materials';
-import { PALETTE } from './palette';
 
 /** People who come out to watch the train go by: farmers, children, a grandmother with a hat. */
 const ONLOOKER_LOOKS: { look: CharacterLook; scale: number }[] = [
@@ -13,16 +12,11 @@ const ONLOOKER_LOOKS: { look: CharacterLook; scale: number }[] = [
   { look: { body: '#E07A7A', accent: '#FFFFFF', skin: '#8D5A3C', hair: '#1F1A18', pants: '#3E5C4A', hat: 'none', arms: true }, scale: 0.7 },
   { look: { body: '#7FB48A', accent: '#FFFFFF', skin: '#F1C7A6', hair: '#A0522D', pants: '#6B5A4A', hat: 'beanie', hatColor: '#C0485C', arms: true }, scale: 0.78 },
 ];
-/** Onlookers stand just beyond the ballast, close enough to wave at the windows. */
-const ONLOOKER_X: [number, number] = [2.75, 3.15];
-/** Birds cross the view now and then (never at night). */
-const FLOCK_SIZE = 7;
-const FLOCK_GAP: [number, number] = [14, 26];
-const FLOCK_SPEED = 3.2;
-const BIRD_Y = 4.2;
-/** Windmills stand where the top corners of the view catch them. */
-const WINDMILL_X: [number, number] = [4.5, 5.0];
-const WINDMILL_SAIL_SPEED = 0.9;
+/** Onlookers stand on the grass just beyond the verge on the land side, close enough to wave at the windows. */
+const ONLOOKER_X: [number, number] = [3.0, 3.4];
+/** Lantern boats drift on the lake, out between the bank and the mist. */
+const BOAT_X: [number, number] = [-5.2, -7.2];
+const BOAT_DRIFT = 0.25;
 
 interface Onlooker {
   view: CharacterView;
@@ -31,29 +25,23 @@ interface Onlooker {
   hop: number;
 }
 
-interface Windmill {
+interface Boat {
   group: THREE.Group;
-  sails: THREE.Object3D;
   z: number;
+  bob: number;
 }
 
 /**
  * Life around the line: people by the track who wave as the train goes past (and hop if they are small),
- * a flock of birds crossing overhead, and windmills turning in the fields.
- * Everything scrolls with the countryside (the train is stationary) and hides where the platform is.
+ * and little boats with lanterns drifting on the lake. Everything scrolls with the scenery (the train is
+ * stationary) and hides where the platform is.
  */
 export class Ambient {
   readonly group = new THREE.Group();
   private readonly rng = new Rng(4011);
   private readonly onlookers: Onlooker[] = [];
-  private readonly birds: THREE.InstancedMesh;
-  private readonly flock: { x: number; z: number; dx: number; dz: number }[] = [];
-  private flockActive = false;
-  private flockTimer = 6;
-  private flockTime = 0;
-  private readonly windmills: Windmill[] = [];
+  private readonly boats: Boat[] = [];
   private readonly span = { zMin: -75, zMax: 60 };
-  private readonly dummy = new THREE.Object3D();
 
   constructor() {
     ONLOOKER_LOOKS.forEach(({ look, scale }) => {
@@ -63,20 +51,10 @@ export class Ambient {
       this.onlookers.push({ view, x: 0, z: 0, hop: this.rng.range(0, 2) });
     });
 
-    const bird = new GeoBuilder();
-    // A swept-back chevron (how a bird reads from above); the wingspan narrows and widens as it flaps.
-    for (const side of [-1, 1]) bird.box(side * 0.17, 0, -0.04, 0.34, 0.02, 0.08, '#4A4E69', side * 0.5, { shade: 1 });
-    bird.box(0, 0, 0.0, 0.06, 0.05, 0.16, '#4A4E69', 0, { shade: 1 });
-    this.birds = new THREE.InstancedMesh(bird.build(), MATERIALS.scenery, FLOCK_SIZE);
-    this.birds.frustumCulled = false;
-    this.birds.visible = false;
-    this.group.add(this.birds);
-    for (let i = 0; i < FLOCK_SIZE; i++) this.flock.push({ x: 0, z: 0, dx: 0, dz: 0 });
-
     for (let i = 0; i < 2; i++) {
-      const { group, sails } = buildWindmill();
+      const group = buildBoat();
       this.group.add(group);
-      this.windmills.push({ group, sails, z: 0 });
+      this.boats.push({ group, z: 0, bob: this.rng.range(0, 6) });
     }
     this.setSpan(14);
   }
@@ -85,10 +63,10 @@ export class Ambient {
     this.span.zMax = trainRearZ + 45;
     const length = this.span.zMax - this.span.zMin;
     this.onlookers.forEach((o, i) => this.placeOnlooker(o, this.span.zMin + ((i + this.rng.range(0.2, 0.8)) / this.onlookers.length) * length));
-    this.windmills.forEach((m, i) => this.placeWindmill(m, this.span.zMin + (i + 0.4) * (length / this.windmills.length)));
+    this.boats.forEach((b, i) => this.placeBoat(b, this.span.zMin + (i + 0.4) * (length / this.boats.length)));
   }
 
-  update(dt: number, speed: number, focus: THREE.Vector3, night: number, hidden: (x: number, z: number) => boolean): void {
+  update(dt: number, speed: number, focus: THREE.Vector3, _night: number, hidden: (x: number, z: number) => boolean): void {
     const dz = speed * dt;
     const length = this.span.zMax - this.span.zMin;
     const moving = speed > 0.5;
@@ -96,7 +74,7 @@ export class Ambient {
     for (const o of this.onlookers) {
       o.z += dz;
       if (o.z > this.span.zMax) this.placeOnlooker(o, o.z - length);
-      const hide = hidden(o.x, o.z) || night > 0.85;
+      const hide = hidden(o.x, o.z);
       o.view.root.visible = !hide;
       if (hide) continue;
       // Wave while the train rolls by (the small ones hop too); stand and watch at a stop.
@@ -110,93 +88,38 @@ export class Ambient {
       o.view.update(dt, 0);
     }
 
-    for (const m of this.windmills) {
-      m.z += dz;
-      if (m.z > this.span.zMax) this.placeWindmill(m, m.z - length);
-      m.group.position.z = m.z;
-      m.group.visible = !hidden(m.group.position.x, m.z);
-      m.sails.rotation.z += dt * WINDMILL_SAIL_SPEED;
-    }
-
-    this.updateFlock(dt, focus, night);
-  }
-
-  private updateFlock(dt: number, focus: THREE.Vector3, night: number): void {
-    this.flockTime += dt;
-    if (!this.flockActive) {
-      this.flockTimer -= dt;
-      if (this.flockTimer > 0 || night > 0.5) return;
-      // A loose V from one side of the view to the other, drifting slightly up the screen.
-      this.flockActive = true;
-      const dir = this.rng.chance(0.5) ? 1 : -1;
-      const x0 = focus.x - dir * 9;
-      const z0 = focus.z + this.rng.range(-4, 1);
-      this.flock.forEach((b, i) => {
-        const rank = Math.ceil(i / 2) * (i % 2 === 0 ? 1 : -1);
-        b.x = x0 - dir * Math.abs(rank) * 0.55;
-        b.z = z0 + rank * 0.5;
-        b.dx = dir * FLOCK_SPEED * this.rng.range(0.95, 1.05);
-        b.dz = -0.6;
-      });
-      this.birds.visible = true;
-    }
-    let anyOnScreen = false;
-    this.flock.forEach((b, i) => {
-      b.x += b.dx * dt;
-      b.z += b.dz * dt;
-      if (Math.abs(b.x - focus.x) < 12) anyOnScreen = true;
-      const flap = 0.7 + Math.abs(Math.sin(this.flockTime * 7 + i)) * 0.35;
-      this.dummy.position.set(b.x, BIRD_Y + Math.sin(this.flockTime * 2 + i) * 0.1, b.z);
-      this.dummy.rotation.set(0, b.dx > 0 ? Math.PI / 2 : -Math.PI / 2, 0);
-      this.dummy.scale.set(flap, 1, 1);
-      this.dummy.updateMatrix();
-      this.birds.setMatrixAt(i, this.dummy.matrix);
-    });
-    this.birds.instanceMatrix.needsUpdate = true;
-    if (!anyOnScreen) {
-      this.flockActive = false;
-      this.birds.visible = false;
-      this.flockTimer = this.rng.range(FLOCK_GAP[0], FLOCK_GAP[1]);
+    for (const b of this.boats) {
+      b.z += dz + BOAT_DRIFT * dt;
+      if (b.z > this.span.zMax) this.placeBoat(b, b.z - length);
+      b.bob += dt;
+      b.group.position.set(b.group.position.x, Math.sin(b.bob * 1.3) * 0.03, b.z);
+      b.group.rotation.z = Math.sin(b.bob * 1.1) * 0.05;
     }
   }
 
   private placeOnlooker(o: Onlooker, z: number): void {
-    const side = this.rng.chance(0.55) ? -1 : 1;
-    o.x = side * this.rng.range(ONLOOKER_X[0], ONLOOKER_X[1]);
+    o.x = this.rng.range(ONLOOKER_X[0], ONLOOKER_X[1]);
     o.z = z;
     // Facing the train, turned a little toward the camera so the wave reads.
-    o.view.setFacing(side < 0 ? Math.PI / 2 - 0.5 : -Math.PI / 2 + 0.5);
+    o.view.setFacing(-Math.PI / 2 + 0.5);
     o.view.setPosition(o.x, 0, o.z);
   }
 
-  private placeWindmill(m: Windmill, z: number): void {
-    const side = this.rng.chance(0.5) ? -1 : 1;
-    m.group.position.x = side * this.rng.range(WINDMILL_X[0], WINDMILL_X[1]);
-    m.z = z;
-    m.group.position.z = z;
+  private placeBoat(b: Boat, z: number): void {
+    b.group.position.x = this.rng.range(BOAT_X[0], BOAT_X[1]);
+    b.z = z;
+    b.group.rotation.y = this.rng.range(-0.6, 0.6);
   }
 }
 
-function buildWindmill(): { group: THREE.Group; sails: THREE.Object3D } {
+/** A little rowing boat with a lantern on a pole. */
+function buildBoat(): THREE.Group {
   const b = new GeoBuilder();
-  b.cylinder(0, 1.6, 0, 0.55, 0.85, 3.2, PALETTE.linen, 12, 'y', { shade: 0.85 });
-  b.cone(0, 3.55, 0, 0.72, 0.9, PALETTE.roofTerracotta, 12);
-  b.box(0, 0.45, 0.8, 0.4, 0.7, 0.06, PALETTE.walnut, 0, { shade: 1 });
-  b.box(0, 2.2, 0.76, 0.3, 0.3, 0.06, PALETTE.windowDay, 0, { shade: 1 });
+  b.add(new THREE.CylinderGeometry(0.36, 0.3, 1.6, 8, 1, false, 0, Math.PI).rotateZ(Math.PI / 2).rotateY(Math.PI / 2).scale(1, 0.55, 1), '#8E5642', 0, 0.2, 0, 0, 0, 0, { shade: 0.8, surface: 'wood' });
+  b.box(0, 0.18, 0, 0.6, 0.04, 0.16, '#6E5240', 0, { shade: 1 });
+  b.cylinder(0, 0.55, 0.62, 0.02, 0.02, 0.8, '#3A3440', 6);
+  const glow = new GeoBuilder().box(0, 0.98, 0.62, 0.12, 0.16, 0.12, '#FFD08A', 0, { shade: 1 });
   const group = new THREE.Group();
-  const tower = new THREE.Mesh(b.build(), MATERIALS.scenery);
-  group.add(tower);
-  const s = new GeoBuilder();
-  s.cylinder(0, 0, 0, 0.1, 0.1, 0.2, PALETTE.walnut, 8, 'z');
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2;
-    const cx = Math.cos(a) * 0.95;
-    const cy = Math.sin(a) * 0.95;
-    s.add(new THREE.BoxGeometry(1.7, 0.34, 0.04), PALETTE.stationTrim, cx, cy, 0.05, 0, 0, a, { shade: 1 });
-  }
-  const sails = new THREE.Mesh(s.build(), MATERIALS.scenery);
-  sails.position.set(0, 3.1, 0.95);
-  group.add(sails);
-  group.scale.setScalar(0.9);
-  return { group, sails };
+  group.add(new THREE.Mesh(b.build(), MATERIALS.scenery), new THREE.Mesh(glow.build(), MATERIALS.lamps));
+  return group;
 }

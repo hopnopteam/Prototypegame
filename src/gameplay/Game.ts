@@ -27,7 +27,8 @@ import { buildUnlocks, stationPerks, type StationPerks } from '../sim/unlockPlan
 import { Wallet } from '../sim/Wallet';
 import { FLOOR_Y } from '../world/CarriageView';
 import { CharacterView } from '../world/CharacterView';
-import { carriageOriginZ, HALF_WIDTH } from '../world/layout';
+import { carriageOriginZ, GANGWAY_LENGTH, HALF_WIDTH, LOCOMOTIVE_LENGTH, REAR_DECK_LENGTH } from '../world/layout';
+import { VISUALS, type TierSettings } from '../config/visuals';
 import { setLivery } from '../world/materials';
 import { LIVERIES, liveryFor, type Livery } from '../world/palette';
 import { CashView } from '../world/CashView';
@@ -35,6 +36,7 @@ import { Particles } from '../world/Particles';
 import { Scenery } from '../world/Scenery';
 import { Ambient } from '../world/Ambient';
 import { Stage } from '../world/Stage';
+import { isTier } from '../world/Quality';
 import { CashPiles } from './CashPiles';
 import { Coach } from './Coach';
 import { Crowd } from './Crowd';
@@ -61,6 +63,8 @@ import { ZoneSystem } from './Zones';
 
 const SAVE_KEY = 'nightexpress.save';
 const MAX_FRAME = 0.05;
+/** Where in the day cycle the held night sits (the middle of the night key). */
+const NIGHT_TIME = 0.82;
 /** Time scale during a hit-stop. */
 const HIT_STOP_SCALE = 0.25;
 
@@ -138,7 +142,15 @@ export class Game implements World {
     this.save.load();
     log.setVerbose(this.data.settings.devTools);
 
-    this.stage = new Stage(canvas);
+    const settings = this.data.settings;
+    // A ?quality= link forces a tier for this visit only (screenshots, comparisons); it is not saved.
+    const forced = new URLSearchParams(location.search).get('quality');
+    const quality = isTier(forced) ? forced : isTier(settings.quality) ? settings.quality : 'auto';
+    this.stage = new Stage(canvas, quality, isTier(settings.qualityAuto) ? settings.qualityAuto : null);
+    this.stage.onAutoTier = (tier) => {
+      this.data.settings.qualityAuto = tier;
+      this.save.markDirty();
+    };
     this.scene = this.stage.scene;
     this.scene.add(this.scenery.group, this.ambient.group, this.particles.points, this.cashView.mesh);
     this.stage.attachParticles(this.particles);
@@ -218,6 +230,12 @@ export class Game implements World {
     }
     this.scenerySpanChanged();
     this.stage.rig.snapTo(spawn.x, spawn.z);
+    // Everything built before the quality tier was applied moves onto the tier's materials.
+    this.stage.syncMaterials();
+    // Real lake reflections on the tiers that afford them.
+    const reflections = (tier: TierSettings): void => this.stage.setPreRender(this.scenery.setReflections(tier.reflections));
+    this.stage.tierListeners.push(reflections);
+    reflections(this.stage.settings);
 
     this.wireEvents();
     this.applySettings();
@@ -376,9 +394,13 @@ export class Game implements World {
     this.audio.update(realDt);
     const rig = this.stage.rig;
     rig.clampX = this.journey.doorsOpen ? [-1.5, 6.5] : [-1.2, 1.6];
+    rig.clampZ[0] = -GANGWAY_LENGTH - LOCOMOTIVE_LENGTH + VISUALS.camera.endMargin;
+    rig.clampZ[1] = this.map.rearZ + REAR_DECK_LENGTH - VISUALS.camera.endMargin * 0.5;
     this.frameCamera();
     this.updateCinematic(realDt);
     rig.update(realDt, this.player.pos.x, this.player.pos.z);
+    this.scenery.present(realDt, rig.focusPoint, night, this.stage.size, rig.zoomNow);
+    this.particles.setNight(night);
     this.ui.update(realDt);
     this.stage.render(realDt);
   }
@@ -433,7 +455,12 @@ export class Game implements World {
     else if (j.phase === 'arriving') fraction = 0.78 + 0.04 * (j.time / j.duration);
     else if (j.phase === 'stationStop') fraction = 0.82 + 0.14 * (j.time / j.duration);
     else fraction = 0.96 + 0.04 * (j.time / j.duration);
-    const t = this.dayCycleOverride ?? ((j.legsCompleted + fraction) / legs + 0.08) % 1;
+    // Night is the hero look: held unless the cycle is switched on (and even then, the first session stays night).
+    const time = VISUALS.time;
+    const holdNight = time.mode === 'night' || (time.firstSessionNight && this.data.profile.sessionCount <= 1);
+    const t = this.dayCycleOverride ?? (holdNight ? NIGHT_TIME : ((j.legsCompleted + fraction) / legs + 0.08) % 1);
+    // In a rock cutting the moon is hidden and the train's lamps take over.
+    this.stage.lighting.darkness = this.scenery.darknessAt(this.stage.rig.focusPoint.z);
     this.stage.lighting.setTime(t);
     return this.stage.lighting.night;
   }
@@ -582,23 +609,12 @@ export class Game implements World {
     log.setVerbose(s.devTools);
   }
 
-  /**
-   * First tap on a brand-new game: the camera starts wide on the train pulling out of Millbrook, whistle
-   * blowing, then glides down to the conductor. This is also the first second of every ad creative.
-   */
   /** A brand-new player gets the intro; anyone returning goes straight back to their train. */
   get isBrandNew(): boolean {
     return this.data.route.stopsCompleted === 0 && this.lifetimeSeconds() < 2;
   }
 
   private cinematic: { index: number; t: number; done: () => void } | null = null;
-  private attractTime = -1;
-
-  /** Title screen: a slow, wide drift over the train at its first station (the game is paused). */
-  setAttract(on: boolean): void {
-    this.attractTime = on ? 0 : -1;
-    this.stage.rig.showWorldUi(!on && !this.cinematic);
-  }
 
   /**
    * The intro (config/coach.ts INTRO_BEATS): the camera opens on the locomotive at Millbrook, glides into
@@ -634,11 +650,6 @@ export class Game implements World {
   }
 
   private updateCinematic(realDt: number): void {
-    if (this.attractTime >= 0) {
-      this.attractTime += realDt;
-      const drift = Math.sin(this.attractTime * 0.25) * 2.2;
-      this.stage.rig.focusOn(new THREE.Vector3(2.4, 0, -1.5 + drift), 1, 1.55, 1.2);
-    }
     const c = this.cinematic;
     if (!c) return;
     c.t += realDt;

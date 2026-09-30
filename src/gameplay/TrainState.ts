@@ -9,7 +9,7 @@ import { ExteriorView } from '../world/ExteriorView';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { buildRearDeck } from '../world/RearDeck';
-import { clippedMaterials, swapMaterials } from '../world/materials';
+import { clippedMaterials, LIGHT_UNIFORMS, swapMaterials } from '../world/materials';
 import { TIER_NAMES } from '../world/palette';
 import type { Actor } from './Actor';
 import type { Guest } from './Guests';
@@ -421,6 +421,7 @@ export class TrainState {
     this.loco.update(dt, speed);
 
     for (const view of this.views) view.animate(dt);
+    this.publishLamps();
 
     // Doors slide open at stations.
     if (this.doorAmount !== this.doorTarget) {
@@ -558,6 +559,21 @@ export class TrainState {
   /** Cabin comforts lift the tips guests leave in that carriage. */
   cabinTipMultiplier(cabin: Cabin): number {
     return 1 + (this.comfortCounts[cabin.carriage] ?? 0) * this.w.econ.comfort.cabinTipBonus;
+  }
+
+  /** Views whose lamps the lamp pools know about; re-sent when a carriage is added or rebuilt. */
+  private readonly lampViews: CarriageView[] = [];
+
+  private publishLamps(): void {
+    const lamps = this.w.stage.lighting.lamps;
+    for (let i = 0; i < Math.max(this.views.length, this.lampViews.length); i++) {
+      const view = this.views[i];
+      if (this.lampViews[i] === view) continue;
+      lamps.set(`car:${i}`, view ? view.lampAnchors(carriageOriginZ(i)) : null);
+      if (view) this.lampViews[i] = view;
+      else this.lampViews.length = i;
+    }
+    LIGHT_UNIFORMS.uNxTrainZ.value.set(-0.1, this.w.map.rearZ + 0.1);
   }
 
   private savedTier(index: number): number {

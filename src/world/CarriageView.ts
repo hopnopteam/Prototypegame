@@ -24,6 +24,10 @@ import {
 import { MATERIALS, PATTERN } from './materials';
 import { CARRIAGE_THEMES, PALETTE, type CarriageTheme } from './palette';
 import { buildCobwebs, buildFloor, type FloorResult } from './Floors';
+import type { LampAnchor } from './Lighting';
+
+/** Metres between ceiling lights along a room or corridor (lamp pools). */
+const LAMP_SPACING = 3.2;
 
 /** Height of every walkable floor (train and platform); the ground is at y = 0. */
 export const FLOOR_Y = 0.55;
@@ -423,6 +427,34 @@ export class CarriageView {
       if (!group) continue;
       this.bathComforts[bath.index] = group;
       out.push(group);
+    }
+    return out;
+  }
+
+  /**
+   * Where this carriage's light comes from, for the lamp pools (carriage-local): a ceiling light every few
+   * metres along each room and the corridor, like the lamps of a real sleeper, just above the cut-away walls.
+   */
+  lampAnchors(originZ: number): LampAnchor[] {
+    const out: LampAnchor[] = [];
+    const y = FLOOR_Y + 1.25;
+    for (const room of this.layout.rooms) {
+      const w = room.x1 - room.x0;
+      const d = room.z1 - room.z0;
+      if (w < 0.6 || d < 0.6) continue;
+      const alongZ = d >= w;
+      const length = alongZ ? d : w;
+      const count = Math.max(1, Math.round(length / LAMP_SPACING));
+      const strength = Math.min(1, 0.55 + (w * d) / 10);
+      for (let k = 0; k < count; k++) {
+        const t = (k + 0.5) / count;
+        out.push({
+          x: alongZ ? (room.x0 + room.x1) / 2 : room.x0 + w * t,
+          y,
+          z: originZ + (alongZ ? room.z0 + d * t : (room.z0 + room.z1) / 2),
+          strength,
+        });
+      }
     }
     return out;
   }

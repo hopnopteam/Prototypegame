@@ -607,7 +607,7 @@ export class Screens {
     const refresh = (): void => {
       const j = g.journey;
       stats.textContent = [
-        `${Math.round(g.stage.smoothedFps)} fps · ${g.stage.drawCalls} draw calls · ${g.stage.isLowQuality ? 'low' : 'full'} res`,
+        `${Math.round(g.stage.smoothedFps)} fps · ${g.stage.drawCalls} draw calls · ${g.stage.tierLabel}`,
         `Lifetime ${formatDuration(g.lifetimeSeconds())} · session ${g.data.profile.sessionCount}`,
         `Phase ${j.phase} (${Math.ceil(j.timeLeft)}s left) · stop #${j.stopSerial} · legs ${j.legsCompleted}`,
         `Last interstitial check: ${g.monetization.lastVerdict}`,

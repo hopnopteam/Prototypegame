@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Rect } from '../core/types';
+import { inferSurface, SURFACES, type Surface, type SurfaceName } from './surfaces';
 
 const tmpColor = new THREE.Color();
 const tmpColor2 = new THREE.Color();
@@ -21,6 +22,8 @@ export interface PartStyle {
    * gentle gradient on anything taller than a few centimetres, so objects sit on the floor.
    */
   shade?: number;
+  /** What it is made of (physically based tiers): a preset name or explicit values; inferred when absent. */
+  surface?: SurfaceName | Surface;
 }
 
 const DEFAULT_SHADE = 0.8;
@@ -79,8 +82,15 @@ export class GeoBuilder {
     const colors = new Float32Array(count * 3);
     const colors2 = new Float32Array(count * 3);
     const pattern = new Float32Array(count * 2);
+    const surfaceAttr = new Float32Array(count * 4);
     const type = style.pattern ?? 0;
     const scale = style.scale ?? 0.4;
+    const surface = typeof style.surface === 'string' ? SURFACES[style.surface] : style.surface ?? inferSurface(color, type);
+    // Stored as (smoothness, metalness, glow, 1 - sheen): a mesh without the attribute reads (0,0,0,1), matte.
+    const smooth = 1 - surface.roughness;
+    const metal = surface.metalness;
+    const glow = surface.glow ?? 0;
+    const sheen = surface.sheen ?? 0;
     for (let i = 0; i < count; i++) {
       const t = height > 1e-6 ? (position.getY(i) - minY) / height : 1;
       const k = shade + (1 - shade) * t;
@@ -92,10 +102,15 @@ export class GeoBuilder {
       colors2[i * 3 + 2] = tmpColor2.b * k;
       pattern[i * 2] = type;
       pattern[i * 2 + 1] = scale;
+      surfaceAttr[i * 4] = smooth;
+      surfaceAttr[i * 4 + 1] = metal;
+      surfaceAttr[i * 4 + 2] = glow;
+      surfaceAttr[i * 4 + 3] = 1 - sheen;
     }
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     g.setAttribute('aColor2', new THREE.BufferAttribute(colors2, 3));
     g.setAttribute('aPattern', new THREE.BufferAttribute(pattern, 2));
+    g.setAttribute('aSurface', new THREE.BufferAttribute(surfaceAttr, 4));
     this.parts.push(g);
     this.looks.push(`${color}|${style.color2 ?? ''}|${type}`);
     return this;

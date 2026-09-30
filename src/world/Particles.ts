@@ -12,16 +12,17 @@ interface KindSpec {
   gravity: number;
   drag: number;
   grow: number;
-  shape: 0 | 1 | 2;
+  /** 0 soft round, 1 star, 2 card, 3 a soft puff lit by the moon at night (smoke, steam, dust). */
+  shape: 0 | 1 | 2 | 3;
   alpha: number;
 }
 
 const SPECS: Record<ParticleKind, KindSpec> = {
-  dust: { colors: ['#E3D3B0', '#CDB88E', '#F2E6C9'], size: [0.5, 0.9], life: [0.6, 1.0], speed: [1.5, 3.5], up: [0.5, 1.5], gravity: -0.5, drag: 3, grow: 0.8, shape: 0, alpha: 0.8 },
+  dust: { colors: ['#E3D3B0', '#CDB88E', '#F2E6C9'], size: [0.5, 0.9], life: [0.6, 1.0], speed: [1.5, 3.5], up: [0.5, 1.5], gravity: -0.5, drag: 3, grow: 0.8, shape: 3, alpha: 0.7 },
   sparkle: { colors: ['#FFE08A', '#FFFFFF', '#FFD35C'], size: [0.22, 0.4], life: [0.5, 0.8], speed: [0.6, 1.6], up: [1.2, 2.4], gravity: 1.5, drag: 1.5, grow: -0.2, shape: 1, alpha: 1 },
   confetti: { colors: ['#F4B8C0', '#F2B233', '#8CC4D6', '#BFE5D3', '#C0485C', '#FBF6EC', '#2C4A6E'], size: [0.08, 0.13], life: [1.1, 1.7], speed: [1.5, 3.6], up: [3, 5.5], gravity: 7, drag: 1.4, grow: 0, shape: 2, alpha: 1 },
-  smoke: { colors: ['#EDEAE4', '#D8D4CC', '#FFFFFF'], size: [0.55, 0.85], life: [1.6, 2.2], speed: [0.1, 0.3], up: [1.0, 1.5], gravity: -0.2, drag: 0.6, grow: 1.2, shape: 0, alpha: 0.42 },
-  steam: { colors: ['#FFFFFF', '#F0F0F0'], size: [0.4, 0.7], life: [1.0, 1.6], speed: [0.2, 0.6], up: [0.8, 1.4], gravity: -0.3, drag: 1, grow: 0.9, shape: 0, alpha: 0.5 },
+  smoke: { colors: ['#EDEAE4', '#D8D4CC', '#FFFFFF'], size: [0.55, 0.85], life: [1.6, 2.2], speed: [0.1, 0.3], up: [1.0, 1.5], gravity: -0.2, drag: 0.6, grow: 1.2, shape: 3, alpha: 0.5 },
+  steam: { colors: ['#FFFFFF', '#F0F0F0'], size: [0.4, 0.7], life: [1.0, 1.6], speed: [0.2, 0.6], up: [0.8, 1.4], gravity: -0.3, drag: 1, grow: 0.9, shape: 3, alpha: 0.5 },
   star: { colors: ['#FFD35C', '#FFE9A8'], size: [0.35, 0.6], life: [0.8, 1.2], speed: [2, 4], up: [2, 4], gravity: 4, drag: 1.4, grow: -0.1, shape: 1, alpha: 1 },
   cash: { colors: ['#7CC47F', '#A6DDB0'], size: [0.12, 0.18], life: [0.6, 0.9], speed: [1.5, 3], up: [2, 3.5], gravity: 8, drag: 0.8, grow: 0, shape: 2, alpha: 1 },
   heart: { colors: ['#E8577A', '#F28CA5'], size: [0.3, 0.45], life: [0.9, 1.3], speed: [0.2, 0.6], up: [1.0, 1.6], gravity: -0.4, drag: 1, grow: 0.1, shape: 0, alpha: 1 },
@@ -76,7 +77,7 @@ export class Particles {
     this.material = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
-      uniforms: { uScale: { value: 400 } },
+      uniforms: { uScale: { value: 400 }, uNight: { value: 0 } },
       vertexShader: /* glsl */ `
         attribute vec3 aColor;
         attribute float aSize;
@@ -96,13 +97,24 @@ export class Particles {
         }
       `,
       fragmentShader: /* glsl */ `
+        uniform float uNight;
         varying vec3 vColor;
         varying float vAlpha;
         varying float vShape;
+        #include <common>
         void main() {
           vec2 p = gl_PointCoord * 2.0 - 1.0;
           float a = 1.0;
-          if (vShape < 0.5) {
+          vec3 color = vColor;
+          if (vShape > 2.5) {
+            // A soft ball of smoke: at night, bright on the side facing the moon (upper left), deep blue below.
+            float r = length(p);
+            a = 1.0 - smoothstep(0.5, 1.0, r);
+            vec3 n = vec3(p.x, -p.y, sqrt(max(0.0, 1.0 - r * r)));
+            float lit = max(dot(n, normalize(vec3(-0.55, 0.65, 0.5))), 0.0);
+            vec3 moonlit = vColor * mix(vec3(0.22, 0.26, 0.38), vec3(0.78, 0.84, 1.0), lit);
+            color = mix(vColor, moonlit, uNight);
+          } else if (vShape < 0.5) {
             a = 1.0 - smoothstep(0.55, 1.0, length(p));
           } else if (vShape < 1.5) {
             float ang = atan(p.y, p.x);
@@ -113,13 +125,20 @@ export class Particles {
             a = step(abs(p.x), 0.8) * step(abs(p.y), 0.55);
           }
           if (a * vAlpha < 0.02) discard;
-          gl_FragColor = vec4(vColor, a * vAlpha);
+          gl_FragColor = vec4(color, a * vAlpha);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
         }
       `,
     });
     this.points = new THREE.Points(geometry, this.material);
     this.points.frustumCulled = false;
     this.points.renderOrder = 20;
+  }
+
+  /** 0 day, 1 night: smoke and dust are lit by the moon at night. */
+  setNight(night: number): void {
+    this.material.uniforms.uNight.value = night;
   }
 
   /** Pixels-per-metre scale: viewport height / (2·tan(fov/2)). */

@@ -15,8 +15,9 @@ import { setLivery } from './world/materials';
 import { liveryFor } from './world/palette';
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
-const stage = new Stage(canvas);
 const params = new URLSearchParams(location.search);
+const quality = params.get('quality');
+const stage = new Stage(canvas, quality === 'low' || quality === 'medium' || quality === 'high' || quality === 'ultra' ? quality : 'auto', null);
 const time = Number(params.get('t') ?? '0.2');
 const camZ = Number(params.get('z') ?? '4');
 const camX = Number(params.get('x') ?? '0');

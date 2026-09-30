@@ -54,6 +54,10 @@ export interface SaveData {
     music: boolean;
     haptics: boolean;
     devTools: boolean;
+    /** Graphics quality: a tier, or 'auto' (picked from the device, stepping down if the frame rate is low). */
+    quality: 'auto' | 'low' | 'medium' | 'high' | 'ultra';
+    /** The tier auto settled on last time (null until it has had to step down). */
+    qualityAuto: 'low' | 'medium' | 'high' | 'ultra' | null;
   };
   wallet: {
     cash: number;
@@ -131,7 +135,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     createdAt: now,
     lastActiveAt: now,
     profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {} },
-    settings: { sound: true, music: true, haptics: true, devTools: false },
+    settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null },
     wallet: { cash: 0, gems: 0, railMiles: 0 },
     route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0 },
     staff: {},
