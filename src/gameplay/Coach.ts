@@ -6,7 +6,7 @@ import type { World } from './World';
 const THINK_SECONDS = 0.25;
 /** Walking this far from the spawn point completes the first step. */
 const WALK_METRES = 1.2;
-/** Height of the "Nice!" over a finished step. */
+/** Height of the tick over a finished step. */
 const PRAISE_HEIGHT = 1.9;
 
 /** Where a coach line is shown: over a spot in the world, by a HUD element, or as the walk gesture. */
@@ -58,7 +58,7 @@ export class Coach {
     this.w.setFlag(`coach_${id}`);
   }
 
-  /** The player did it: praise it where it happened, then rest before the next line. */
+  /** The player did it: a tick where it happened, then a rest before the next line. */
   learn(id: string): void {
     if (this.done(id)) return;
     this.finish(id);
@@ -70,7 +70,7 @@ export class Coach {
   private praise(line: CoachLine): void {
     const w = this.w;
     const at = 'world' in line.anchor ? line.anchor.world : w.player.pos;
-    w.ui.floatText('Nice!', at.x, FLOOR_Y + PRAISE_HEIGHT, at.z, 'info');
+    w.ui.floatIcon('check', at.x, FLOOR_Y + PRAISE_HEIGHT, at.z, 'info');
     w.audio.play('ding', { volume: 0.6 });
     this.current = null;
     this.rest = COACH_REST_SECONDS;

@@ -21,6 +21,8 @@ export class AudioEngine {
   private musicBus!: GainNode;
   private musicFilter!: BiquadFilterNode;
   private ambience!: GainNode;
+  /** Send into the room tail that celebration and reward cues ring out through. */
+  private tail!: GainNode;
   private noiseBuffer!: AudioBuffer;
   private soundOn = true;
   private musicOn = true;
@@ -37,6 +39,10 @@ export class AudioEngine {
   private readonly ringing = new Map<Sfx, number[]>();
   /** Latest end time scheduled by the cue being built. */
   private cueEnd = 0;
+  /** Nesting of play() calls (a cue that plays another, like the level-up's sparkle). */
+  private depth = 0;
+  /** Until this audio time a celebration owns the moment (small cues stay quiet). */
+  private celebrationUntil = 0;
   private theme: AudioBuffer | null = null;
   private nextPassAt = 0;
   private readonly passes: { source: AudioBufferSourceNode; gain: GainNode; at: number }[] = [];
@@ -73,6 +79,11 @@ export class AudioEngine {
         this.musicFilter.connect(this.musicBus).connect(this.master);
         this.ambience = ctx.createGain();
         this.ambience.connect(this.master);
+        const room = ctx.createConvolver();
+        room.buffer = this.makeRoom();
+        this.tail = ctx.createGain();
+        this.tail.gain.value = AUDIO.tail.wet;
+        this.tail.connect(room).connect(this.sfx);
         this.noiseBuffer = this.makeNoise();
         this.applyToggles();
         void this.decodeTheme(ctx);
@@ -161,10 +172,20 @@ export class AudioEngine {
     if (!ends) this.ringing.set(name, (ends = []));
     for (let i = ends.length - 1; i >= 0; i--) if (ends[i] <= now) ends.splice(i, 1);
     if (ends.length >= (AUDIO.voicesByCue[name] ?? AUDIO.voices)) return;
+    if (this.depth === 0) {
+      const c = AUDIO.celebration;
+      if (c.cues.includes(name)) this.celebrationUntil = now + c.holdOff;
+      else if (now < this.celebrationUntil && c.quiet.includes(name)) return;
+    }
     this.lastPlay.set(name, now);
     const outerEnd = this.cueEnd;
     this.cueEnd = now;
-    this.build(name, now + 0.005, options.pitch ?? 1, options.volume ?? 1);
+    this.depth++;
+    try {
+      this.build(name, now + 0.005, options.pitch ?? 1, options.volume ?? 1);
+    } finally {
+      this.depth--;
+    }
     ends.push(this.cueEnd);
     this.cueEnd = Math.max(outerEnd, this.cueEnd);
   }
@@ -182,12 +203,12 @@ export class AudioEngine {
         this.tone(t, 540 * p, 360 * p, 0.09, 'triangle', 0.22 * v);
         break;
       case 'cash':
-        // Register "ka-ching": a drawer thunk, a bright noise flick, then two ringing bells.
+        // Register "ka-ching": a drawer thunk, a bright noise flick, then two bells that ring out.
         this.tone(t, 180, 120, 0.06, 'triangle', 0.12 * v);
         this.noise(t, 0.04, 'highpass', 5000, 0.1 * v);
-        this.tone(t + 0.05, 2093 * p, 2093 * p, 0.42, 'sine', 0.13 * v, 0.002);
+        this.ring(t + 0.05, 2093 * p, 'sine', 0.13 * v, 0.04, 0.8);
         this.tone(t + 0.05, 5776 * p, 5776 * p, 0.12, 'sine', 0.03 * v, 0.002);
-        this.tone(t + 0.1, 2637 * p, 2637 * p, 0.5, 'sine', 0.11 * v, 0.002);
+        this.ring(t + 0.1, 2637 * p, 'sine', 0.11 * v, 0.06, 0.9);
         break;
       case 'coin':
         // A small bell "ting": fundamental plus an inharmonic partial, like a struck coin.
@@ -195,18 +216,18 @@ export class AudioEngine {
         this.tone(t, 4327 * p, 4327 * p, 0.07, 'sine', 0.035 * v, 0.002);
         break;
       case 'bell':
-        this.tone(t, 1760 * p, 1760 * p, 0.9, 'sine', 0.18 * v, 0.002);
-        this.tone(t, 2637 * p, 2637 * p, 0.6, 'sine', 0.08 * v, 0.002);
+        this.tone(t, 1760 * p, 1760 * p, 0.9, 'sine', 0.18 * v, 0.002, this.sfx, true);
+        this.tone(t, 2637 * p, 2637 * p, 0.6, 'sine', 0.08 * v, 0.002, this.sfx, true);
         break;
       case 'ding':
-        this.tone(t, 1046 * p, 1046 * p, 0.45, 'sine', 0.2 * v, 0.002);
+        this.tone(t, 1046 * p, 1046 * p, 0.45, 'sine', 0.2 * v, 0.002, this.sfx, true);
         break;
       case 'scrub':
         this.noise(t, 0.12, 'bandpass', 1400 * p, 0.14 * v);
         this.noise(t + 0.13, 0.1, 'bandpass', 1100 * p, 0.1 * v);
         break;
       case 'sparkle':
-        [2093, 2637, 3136].forEach((f, i) => this.tone(t + i * 0.05, f * p, f * p, 0.18, 'sine', 0.07 * v, 0.002));
+        [2093, 2637, 3136].forEach((f, i) => this.tone(t + i * 0.05, f * p, f * p, 0.3, 'sine', 0.07 * v, 0.002, this.sfx, true));
         break;
       case 'clunk':
         this.tone(t, 110, 48, 0.35, 'sine', 0.6 * v);
@@ -219,14 +240,22 @@ export class AudioEngine {
       case 'whistleShort':
         this.whistle(t, 0.5, v * 0.8);
         break;
-      case 'fanfare':
-        [523, 659, 784, 1046].forEach((f, i) => this.tone(t + i * 0.11, f, f, i === 3 ? 0.7 : 0.16, 'triangle', 0.2 * v, 0.004));
-        [1046, 1318].forEach((f) => this.tone(t + 0.44, f, f, 0.8, 'sine', 0.08 * v, 0.004));
+      case 'fanfare': {
+        // Three quick steps up, then the top chord holds and rings out (never a clipped "ta").
+        const tail = AUDIO.tail;
+        [523, 659, 784].forEach((f, i) => this.tone(t + i * 0.11, f, f, 0.16, 'triangle', 0.2 * v, 0.004, this.sfx, true));
+        this.ring(t + 0.33, 1046, 'triangle', 0.13 * v, tail.hold, tail.release);
+        [1318, 784].forEach((f, i) => this.ring(t + 0.44, f, 'sine', (i === 1 ? 0.035 : 0.05) * v, tail.hold, tail.release * 1.1));
         break;
-      case 'levelup':
-        [392, 523, 659, 784, 1046, 1318].forEach((f, i) => this.tone(t + i * 0.07, f, f, i === 5 ? 0.9 : 0.14, 'triangle', 0.18 * v, 0.003));
+      }
+      case 'levelup': {
+        const tail = AUDIO.tail;
+        [392, 523, 659, 784, 1046].forEach((f, i) => this.tone(t + i * 0.07, f, f, 0.14, 'triangle', 0.18 * v, 0.003, this.sfx, true));
+        this.ring(t + 0.35, 1318, 'triangle', 0.13 * v, tail.hold, tail.release);
+        this.ring(t + 0.4, 1568, 'sine', 0.04 * v, tail.hold, tail.release * 1.1);
         this.play('sparkle', { volume: v });
         break;
+      }
       case 'punch':
         this.noise(t, 0.025, 'highpass', 3000, 0.2 * v);
         this.tone(t, 1200 * p, 900 * p, 0.04, 'square', 0.06 * v);
@@ -238,7 +267,7 @@ export class AudioEngine {
         this.tone(t, 900, 900, 0.025, 'sine', 0.12 * v);
         break;
       case 'chime':
-        [1318, 1046, 784].forEach((f, i) => this.tone(t + i * 0.22, f * p, f * p, 0.6, 'sine', 0.15 * v, 0.002));
+        [1318, 1046, 784].forEach((f, i) => (i === 2 ? this.ring(t + i * 0.22, f * p, 'sine', 0.15 * v, 0.05, 0.9) : this.tone(t + i * 0.22, f * p, f * p, 0.6, 'sine', 0.15 * v, 0.002, this.sfx, true)));
         break;
       case 'soft':
         this.tone(t, 330, 280, 0.12, 'triangle', 0.12 * v);
@@ -248,17 +277,20 @@ export class AudioEngine {
         this.tone(t, 160, 120, 0.25, 'sine', 0.12 * v);
         break;
       case 'chest':
+        // A reward: the pop and sparkle, then a small bell chord that rings out.
         this.play('pop', { pitch: 0.8, volume: v });
         this.play('sparkle', { volume: v });
+        [1568, 2093].forEach((f, i) => this.ring(t + 0.16 + i * 0.05, f, 'sine', 0.06 * v, 0.05, 0.85));
         break;
       case 'unlock':
-        this.tone(t, 440 * p, 880 * p, 0.12, 'triangle', 0.25 * v);
-        this.tone(t + 0.1, 880 * p, 1320 * p, 0.18, 'triangle', 0.2 * v);
+        this.tone(t, 440 * p, 880 * p, 0.12, 'triangle', 0.25 * v, 0.008, this.sfx, true);
+        this.tone(t + 0.1, 880 * p, 1320 * p, 0.18, 'triangle', 0.2 * v, 0.008, this.sfx, true);
+        this.ring(t + 0.26, 1320 * p, 'sine', 0.06 * v, 0.04, 0.6);
         this.noise(t + 0.08, 0.2, 'highpass', 4000, 0.06 * v);
         break;
       case 'heart':
-        this.tone(t, 784 * p, 988 * p, 0.12, 'sine', 0.14 * v);
-        this.tone(t + 0.1, 1175 * p, 1175 * p, 0.2, 'sine', 0.12 * v);
+        this.tone(t, 784 * p, 988 * p, 0.12, 'sine', 0.14 * v, 0.008, this.sfx, true);
+        this.tone(t + 0.1, 1175 * p, 1175 * p, 0.2, 'sine', 0.12 * v, 0.008, this.sfx, true);
         break;
       case 'flush':
         this.sweep(t, 0.6, 1800, 300, 0.1 * v);
@@ -381,7 +413,8 @@ export class AudioEngine {
     return buffer;
   }
 
-  private tone(t: number, f0: number, f1: number, duration: number, type: OscillatorType, gain: number, attack = 0.008, out: AudioNode = this.sfx): void {
+  /** `wet` also sends the note into the room tail, so it rings out instead of stopping dry. */
+  private tone(t: number, f0: number, f1: number, duration: number, type: OscillatorType, gain: number, attack = 0.008, out: AudioNode = this.sfx, wet = false): void {
     const ctx = this.ctx!;
     const osc = ctx.createOscillator();
     osc.type = type;
@@ -392,6 +425,7 @@ export class AudioEngine {
     g.gain.exponentialRampToValueAtTime(gain, t + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
     osc.connect(g).connect(out);
+    if (wet) g.connect(this.tail);
     osc.onended = () => {
       osc.disconnect();
       g.disconnect();
@@ -399,6 +433,47 @@ export class AudioEngine {
     osc.start(t);
     osc.stop(t + duration + 0.02);
     this.cueEnd = Math.max(this.cueEnd, t + duration);
+  }
+
+  /** A held note that rings out: it sustains for `hold`, then fades over `release`, through the room tail. */
+  private ring(t: number, f: number, type: OscillatorType, gain: number, hold: number, release: number): void {
+    const ctx = this.ctx!;
+    const osc = ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.value = f;
+    const g = ctx.createGain();
+    const attack = 0.004;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + attack);
+    g.gain.setTargetAtTime(gain * 0.7, t + attack, hold);
+    const end = t + attack + hold + release;
+    g.gain.setTargetAtTime(0.0001, t + attack + hold, release / 6);
+    osc.connect(g).connect(this.sfx);
+    g.connect(this.tail);
+    osc.onended = () => {
+      osc.disconnect();
+      g.disconnect();
+    };
+    osc.start(t);
+    osc.stop(end + 0.05);
+    this.cueEnd = Math.max(this.cueEnd, end);
+  }
+
+  /** A soft, darkened room for the tail: decaying noise, two channels for a little width. */
+  private makeRoom(): AudioBuffer {
+    const ctx = this.ctx!;
+    const cfg = AUDIO.tail;
+    const n = Math.floor(ctx.sampleRate * cfg.seconds);
+    const buffer = ctx.createBuffer(2, n, ctx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const data = buffer.getChannelData(c);
+      let low = 0;
+      for (let i = 0; i < n; i++) {
+        low += (Math.random() * 2 - 1 - low) * cfg.damping;
+        data[i] = low * Math.exp((-6.9 * i) / n) * Math.min(1, i / (0.004 * ctx.sampleRate));
+      }
+    }
+    return buffer;
   }
 
   private noise(t: number, duration: number, filterType: BiquadFilterType, freq: number, gain: number, out: AudioNode = this.sfx): void {

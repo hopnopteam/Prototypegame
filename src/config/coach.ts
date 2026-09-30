@@ -1,11 +1,11 @@
 import type { IconName } from '../ui/icons';
 
 /**
- * The coach: a short walkthrough and one lesson per mechanic, one short line each (§11: no walls of text).
- * Lines appear right where the action is (a label over the spot, or by the button), never as a banner.
- * Nothing moves on by itself: each step waits until the player has actually done it, says "Nice!", and
- * takes a breath before the next one. A lesson whose moment passes (the train leaves, a guest is served by
- * someone else) hides and comes back the next time; once a job is automated its lesson is retired.
+ * The coach: a short walkthrough and one cue per mechanic (§11, session 11: show, don't tell). The guide
+ * arrow and the glowing spot are the instruction; a cue adds an icon and at most three words, which fold
+ * away after a few seconds (Ui.ts), leaving just the icon. Nothing moves on by itself: each step waits
+ * until the player has done it, gets a tick, and takes a breath before the next. A lesson whose moment
+ * passes hides and comes back the next time; once a job is automated its lesson is retired.
  */
 export interface CoachLineDef {
   id: string;
@@ -14,36 +14,36 @@ export interface CoachLineDef {
 }
 
 export const COACH_STEPS: CoachLineDef[] = [
-  { id: 'walk', icon: 'hand', text: 'Drag anywhere to walk' },
-  { id: 'checkin', icon: 'ticket', text: 'Stand here to check in' },
-  { id: 'cash', icon: 'cash', text: 'Walk over cash to collect' },
-  { id: 'tile', icon: 'bed', text: 'Stand here to build' },
+  { id: 'walk', icon: 'hand', text: 'Drag to walk' },
+  { id: 'checkin', icon: 'ticket', text: 'Check in' },
+  { id: 'cash', icon: 'cash', text: 'Grab it' },
+  { id: 'tile', icon: 'bed', text: 'Build' },
 ];
 
 export const COACH_HINTS: CoachLineDef[] = [
-  { id: 'request', icon: 'tea', text: 'Bring what the guest asks for' },
-  { id: 'request_fetch', icon: 'tea', text: 'Pick it up here' },
-  { id: 'request_deliver', icon: 'heart', text: 'Now bring it to the guest' },
-  { id: 'dirty', icon: 'broom', text: 'Walk over the mess to clean' },
-  { id: 'station', icon: 'ticket', text: 'Board the guests before the train leaves' },
-  { id: 'hire', icon: 'person', text: 'Hire help: they do the chores' },
-  { id: 'couple', icon: 'carriage', text: 'Buy a carriage, then choose which' },
-  { id: 'refurb', icon: 'paint', text: 'Refurbish: nicer cars earn more' },
-  { id: 'workshop', icon: 'megaphone', text: 'Station shop: dress up the train, bring more guests' },
-  { id: 'washroom', icon: 'towel', text: 'Towels and rolls come from here' },
-  { id: 'map', icon: 'dash', text: 'Tap a carriage to dash there' },
-  { id: 'miles', icon: 'miles', text: 'Spend Rail Miles on yourself' },
+  { id: 'request', icon: 'tea', text: 'Serve' },
+  { id: 'request_fetch', icon: 'tea', text: 'Pick up' },
+  { id: 'request_deliver', icon: 'heart', text: 'Deliver' },
+  { id: 'dirty', icon: 'broom', text: 'Tidy up' },
+  { id: 'station', icon: 'ticket', text: 'All aboard' },
+  { id: 'hire', icon: 'person', text: 'Hire help' },
+  { id: 'couple', icon: 'carriage', text: 'New carriage' },
+  { id: 'refurb', icon: 'paint', text: 'Refurbish' },
+  { id: 'workshop', icon: 'megaphone', text: 'Station shop' },
+  { id: 'washroom', icon: 'towel', text: 'Restock' },
+  { id: 'map', icon: 'dash', text: 'Tap to dash' },
+  { id: 'miles', icon: 'miles', text: 'Upgrades' },
 ];
 
-/** While the walkthrough waits for enough cash to build, the coach says what the arrow is pointing at. */
+/** While the walkthrough waits for enough cash to build, the coach names what the arrow points at. */
 export const COACH_GUIDANCE_LINES: Record<string, CoachLineDef> = {
-  desk: { id: 'g_desk', icon: 'ticket', text: 'Check in the next guest' },
-  cash: { id: 'g_cash', icon: 'cash', text: 'Collect your cash' },
-  clean: { id: 'g_clean', icon: 'broom', text: 'Walk over the mess to clean' },
-  fetch: { id: 'g_fetch', icon: 'tea', text: 'Grab what the guest wants' },
-  deliver: { id: 'g_deliver', icon: 'heart', text: 'Bring it to the guest' },
-  board: { id: 'g_board', icon: 'ticket', text: 'Board the passengers' },
-  luggage: { id: 'g_luggage', icon: 'luggage', text: 'Load their luggage' },
+  desk: { id: 'g_desk', icon: 'ticket', text: 'Check in' },
+  cash: { id: 'g_cash', icon: 'cash', text: 'Grab it' },
+  clean: { id: 'g_clean', icon: 'broom', text: 'Tidy up' },
+  fetch: { id: 'g_fetch', icon: 'tea', text: 'Pick up' },
+  deliver: { id: 'g_deliver', icon: 'heart', text: 'Deliver' },
+  board: { id: 'g_board', icon: 'ticket', text: 'All aboard' },
+  luggage: { id: 'g_luggage', icon: 'luggage', text: 'Load bags' },
 };
 
 /**
@@ -59,12 +59,12 @@ export interface IntroBeat {
 }
 
 export const INTRO_BEATS: IntroBeat[] = [
-  { focus: 'locomotive', seconds: 2.6, zoom: 1.4, kicker: 'Millbrook · 6:00 am', text: 'Your first shift on the Countryside Local' },
+  { focus: 'locomotive', seconds: 2.6, zoom: 1.4, kicker: 'Millbrook · 6:00 am', text: 'Your first shift' },
   { focus: 'lobby', seconds: 2.3, zoom: 1.05, text: 'One tired old carriage…' },
-  { focus: 'desk', seconds: 2.3, zoom: 0.92, text: '…and a guest at the desk. Let’s get to work!' },
+  { focus: 'desk', seconds: 2.3, zoom: 0.92, text: '…and a guest waiting!' },
 ];
 
-/** Seconds between one step being done and the next line appearing (a breath, and the "Nice!"). */
+/** Seconds between one step being done and the next cue appearing (a breath, and the tick). */
 export const COACH_REST_SECONDS = 2.2;
 /** Lessons about optional conveniences (the train map, Rail Miles) retire after this long on screen. */
 export const COACH_OPTIONAL_SECONDS = 8;

@@ -33,6 +33,7 @@ const auditPage = () => {
     level: '.hud-top .level',
     journey: '.hud-top .journey',
     rail: '.side button',
+    menu: '.hud-row .menu-btn',
     ticket: '.ticket',
     objective: '.objective',
     offer: '.offers .chip',
@@ -73,7 +74,7 @@ const auditPage = () => {
     }
   }
   // Clipped text: anything whose content is wider than its box.
-  const textSelectors = '.livery .buy, .name-chip, .answer .say, .award .info b, .tile-tag b, .masthead .paper-name, .pill .val, .journey .name, .journey .clock, .chip .txt b, .chip .txt span, .chip button, .ticket h3, .ticket .where, .objective .obj-text, .objective .obj-reward, .level .lv-count, .ticket .rows span, .banner .sign, .banner .sub, .celebrate .big, .celebrate .small, .toast, .btn, .sheet header h2, .product .info b, .product .buy, .gem-card, .gem-card small, .quest .info, .quest button, .upgrade .info b, .postcard .label, .day, .toggle';
+  const textSelectors = '.livery .buy, .name-chip, .answer .say, .award .info b, .tile-tag b, .masthead .paper-name, .pill .val, .journey .clock, .chip .val, .chip button, .ticket h3, .objective .obj-text, .objective .obj-reward, .objective .obj-count, .ticket .rows span, .banner .sign, .celebrate .big, .celebrate .small, .toast, .btn, .sheet header h2, .product .info b, .product .buy, .gem-card, .gem-card small, .quest .info, .quest button, .upgrade .info b, .postcard .label, .day, .toggle';
   document.querySelectorAll(textSelectors).forEach((el) => {
     if (!visible(el)) return;
     if (el.scrollWidth > el.clientWidth + 1) issues.push(`clipped text in ${el.className || el.tagName}: "${el.textContent.trim().slice(0, 40)}" (${el.scrollWidth}>${el.clientWidth})`);
@@ -154,8 +155,8 @@ for (const [width, height] of SIZES) {
     g.data.monetization.doubleFaresStop = g.journey.stopSerial + 1;
     g.monetization.offers = [{ id: 'holdTheTrain', icon: 'hold', label: '+15s', detail: 'Hold the train', gemCost: 5 }];
     g.ui.showResult({ stationName: 'Larkspur Halt', boarded: 7, waiting: 0, alighted: 6, tips: 1234, luggageLoaded: 12, luggageTotal: 12, stars: 99, clean: true, bonusCash: 999 });
-    g.ui.toast('Quest complete: Perfect station stops', 'quest');
-    g.ui.stationBanner('Larkspur Halt', 'All aboard · New postcard');
+    g.ui.toast('Quest done', 'quest');
+    g.ui.stationBanner('Larkspur Halt', 'album');
     // A long train so the train map is up.
     for (const type of ['bathroom', 'supply', 'luggage', 'sleeper']) { g.train.coupleNext(type); g.simulate(3.5); }
   });
@@ -167,17 +168,17 @@ for (const [width, height] of SIZES) {
     for (const el of document.querySelectorAll('.ticket')) el.remove();
     document.getElementById('ui').classList.remove('has-ticket');
     g.coach.enabled = false;
-    g.coach.current = { id: 'audit', icon: 'towel', text: 'Towels and rolls come from here', anchor: { world: { x: 0, z: 8 } } };
+    g.coach.current = { id: 'audit', icon: 'towel', text: 'Restock', anchor: { world: { x: 0, z: 8 } } };
     // A long Rush streak under the conductor.
     g.rush.streak = 25;
     g.rush.timeLeft = 30;
   });
   await page.waitForTimeout(400);
   report('coach', await page.evaluate(auditPage));
-  await page.evaluate(() => window.nightExpress.ui.celebrate('Sleeper Car II', 'Coupled!', 'carriage'));
+  await page.evaluate(() => window.nightExpress.ui.celebrate('Sleeper Car II', null, 'carriage'));
   await page.waitForTimeout(3000);
   report('celebration with the train map', await page.evaluate(auditPage));
-  await page.evaluate(() => { for (const el of document.querySelectorAll('.banner')) el.remove(); window.nightExpress.ui.celebrate('Sleeper Car II', 'Coupled!', 'carriage'); });
+  await page.evaluate(() => { for (const el of document.querySelectorAll('.banner')) el.remove(); window.nightExpress.ui.celebrate('Sleeper Car II', null, 'carriage'); });
   await page.waitForTimeout(3000);
   report('celebration', await page.evaluate(auditPage));
 
@@ -187,7 +188,7 @@ for (const [width, height] of SIZES) {
     ['settings', 'window.nightExpress.ui.screens.settings()'],
     ['menu', 'window.nightExpress.ui.screens.menu()'],
     ['front page', "const g = window.nightExpress; g.data.press.trainName = 'The Moonlight Limited'; const item = g.press.print('refurb3', { carriage: 'Sleeper Car II' }); g.ui.showFrontPage(item, { cash: 0, gems: 10, railMiles: 2 }, 10, () => {})"],
-    ['chooser', "window.nightExpress.ui.showCarriageChoice([{ type: 'sleeper', name: 'Sleeper Car', pitch: 'Five more cabins: more guests, more fares.', inside: '5 cabins and a linen nook', reason: '3 guests were left behind: you need beds' }, { type: 'luggage', name: 'Luggage Car', pitch: 'Room for 16 more suitcases: every bag tips.', inside: 'Racks for 16 bags, a porter', reason: null }, { type: 'bathroom', name: 'Bathroom Car', pitch: 'Every guest tips for a fresh washroom.', inside: 'Up to 3 washrooms', reason: null }], () => {})"],
+    ['chooser', "window.nightExpress.ui.showCarriageChoice([{ type: 'sleeper', name: 'Sleeper Car', pitch: '+4 cabins', inside: '', reason: 'Guests need beds' }, { type: 'luggage', name: 'Luggage Car', pitch: '+16 bag racks', inside: '', reason: null }, { type: 'bathroom', name: 'Washroom Car', pitch: '+3 washrooms', inside: '', reason: null }], () => {})"],
     ['upgrades', 'window.nightExpress.ui.screens.upgrades()'],
     ['daily', 'window.nightExpress.ui.screens.daily()'],
     ['album', 'window.nightExpress.ui.screens.album()'],
@@ -231,7 +232,7 @@ const liveCheck = () => {
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.height > 0;
   };
-  const hud = [...document.querySelectorAll('.hud-top .pill, .hud-top .level, .hud-top .journey, .side button, .boost .badge, .trainmap, .ticket, .objective, .offers .chip, .toasts .toast')].filter(vis);
+  const hud = [...document.querySelectorAll('.hud-top .pill, .hud-top .level, .hud-top .journey, .hud-row .menu-btn, .side button, .boost .badge, .trainmap, .ticket, .objective, .offers .chip, .toasts .toast')].filter(vis);
   const world = [...document.querySelectorAll('.float, .speech, .guide, .tile-tag, .burst, .rush')].filter(vis);
   const out = [];
   for (const w of world) {
@@ -247,6 +248,33 @@ const liveCheck = () => {
   }
   return out;
 };
+// Text budget (session 11: show, don't tell): words of two or more letters visible during play, cards
+// excluded (a card is a deliberate pause). Numbers and icons are free.
+const TEXT_BUDGET = { average: 3, max: 8 };
+const wordsOnScreen = () => {
+  if (document.querySelector('.scrim, .splash')) return null;
+  const vis = (el) => {
+    for (let p = el; p && p !== document.body; p = p.parentElement) {
+      const st = getComputedStyle(p);
+      if (st.display === 'none' || st.visibility === 'hidden' || Number(st.opacity) < 0.05) return false;
+    }
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight;
+  };
+  let words = 0;
+  const texts = [];
+  const walker = document.createTreeWalker(document.getElementById('ui'), NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const t = walker.currentNode.textContent.trim();
+    const el = walker.currentNode.parentElement;
+    if (!t || !el || !vis(el)) continue;
+    const n = (t.match(/[A-Za-z][A-Za-z'’]+/g) ?? []).length;
+    if (n) texts.push(t);
+    words += n;
+  }
+  return { words, texts };
+};
+const budget = { samples: 0, total: 0, max: 0, worst: [] };
 for (const [width, height] of [[337, 600], [390, 844]]) {
   const page = await browser.newPage({ viewport: { width, height } });
   await page.goto(`file://${file}`);
@@ -262,12 +290,25 @@ for (const [width, height] of [[337, 600], [390, 844]]) {
       else for (const b of document.querySelectorAll('.scrim .btn')) if (/^(Collect|Maybe later|Claim)$/.test(b.textContent.trim())) { b.click(); break; }
     });
     for (const issue of await page.evaluate(liveCheck)) seen.add(issue);
+    const sample = await page.evaluate(wordsOnScreen);
+    if (sample) {
+      budget.samples++;
+      budget.total += sample.words;
+      if (sample.words > budget.max) {
+        budget.max = sample.words;
+        budget.worst = sample.texts;
+      }
+    }
   }
   for (const issue of seen) problems.push(`${width}×${height} live play: ${issue}`);
   await page.close();
 }
 
 await browser.close();
+const average = budget.total / Math.max(1, budget.samples);
+console.log(`Words on screen in play: ${average.toFixed(1)} on average, ${budget.max} at most (budget ${TEXT_BUDGET.average} / ${TEXT_BUDGET.max}; ${budget.samples} samples).`);
+if (average > TEXT_BUDGET.average) problems.push(`too much text in play: ${average.toFixed(1)} words on average (budget ${TEXT_BUDGET.average})`);
+if (budget.max > TEXT_BUDGET.max) problems.push(`too much text at once: ${budget.max} words (${budget.worst.join(' | ')})`);
 if (problems.length) {
   console.log(`${problems.length} layout problem(s):\n  ${[...new Set(problems)].join('\n  ')}`);
   process.exit(1);

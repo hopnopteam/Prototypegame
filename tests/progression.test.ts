@@ -142,7 +142,7 @@ describe('carriage choice', () => {
   it('recommends racks when bags were left behind, more beds when guests were', () => {
     expect(carriageChoices(['lobby', 'sleeper', 'bathroom'], { leftBehind: 0, luggageLeft: 4 })[0].type).toBe('luggage');
     expect(carriageChoices(['lobby', 'sleeper', 'bathroom', 'supply'], { leftBehind: 3, luggageLeft: 0 })[0].type).toBe('sleeper');
-    expect(carriageChoices(['lobby'], { leftBehind: 2, luggageLeft: 0 })[0].reason).toContain('left behind');
+    expect(carriageChoices(['lobby'], { leftBehind: 2, luggageLeft: 0 })[0].reason).toContain('beds');
   });
 
   it('respects each type\'s limit and the train length', () => {

@@ -535,11 +535,11 @@ export class Game implements World {
         this.events.emit('livery.changed', { name: earned.name, level });
         for (let i = 0; i < this.train.count; i++) this.particles.emit('sparkle', 0, FLOOR_Y + 1.2, carriageOriginZ(i) + 7, 14, 2.2);
       } else {
-        this.ui.toast(`New livery earned: ${earned.name} (Paint Shop)`, 'paint');
+        this.ui.toast('New livery', 'paint');
       }
     }
     const outfit = OUTFITS.find((o) => o.minLevel === level);
-    if (outfit && level > 1) this.ui.toast(`New outfit: ${outfit.name} · Conductor`, 'conductor');
+    if (outfit && level > 1) this.ui.toast('New outfit', 'conductor');
     const reward = this.progression.rewardFor(level);
     this.analytics.log(EVENTS.routeLevelUp, { level, time: Math.round(this.lifetimeSeconds()) });
     this.events.emit('level.up', { level });

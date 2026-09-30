@@ -1,4 +1,5 @@
 import type { CarriageType, ItemKind, StaffRole } from '../core/types';
+import type { IconName } from '../ui/icons';
 
 /**
  * Content pack for route 1, Countryside Local. Routes, carriages, guests, stories and offers are data so
@@ -39,7 +40,8 @@ export interface ArchetypeDef {
   accessory: 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'child' | 'furcoat';
   /** What they tend to ask for: personality you can learn and plan around. */
   requests: Partial<Record<'tea' | 'blanket' | 'pillow', number>>;
-  lines: string[];
+  /** Their signature reaction now and then during the ride (an icon in a bubble, never a sentence). */
+  mood: IconName;
   /** What they leave behind in the cabin (a few are picked each time; see MESS in economy.ts). */
   mess: MessPiece[];
 }
@@ -57,37 +59,37 @@ export const ARCHETYPES: ArchetypeDef[] = [
   {
     id: 'businessman', label: 'Businessman', weight: 3, fareMultiplier: 1, tipMultiplier: 1, speedMultiplier: 1.08, minCarriages: 1,
     colors: { body: '#5B6C85', accent: '#C0485C', skin: '#F1C7A5', hair: '#3A2E28' }, accessory: 'briefcase', requests: { tea: 4, pillow: 1, blanket: 1 },
-    lines: ['Tea. Urgently.', 'Is the Wi-Fi steam powered?', 'Wake me at the meeting.'],
+    mood: 'tea',
     mess: ['newspaper', 'papers', 'cup', 'paperBalls'],
   },
   {
     id: 'backpacker', label: 'Backpacker', weight: 3, fareMultiplier: 0.9, tipMultiplier: 0.8, speedMultiplier: 1.12, minCarriages: 1,
     colors: { body: '#6FA36B', accent: '#EE8F4A', skin: '#D9A07A', hair: '#8C5A32' }, accessory: 'backpack', requests: { pillow: 4, tea: 1, blanket: 1 },
-    lines: ['Best hostel ever!', 'Do you have a spare pillow? Asking for me.', 'I packed light. Mostly snacks.'],
+    mood: 'camera',
     mess: ['map', 'wrappers', 'socks', 'bottle'],
   },
   {
     id: 'grandma', label: 'Grandma', weight: 2, fareMultiplier: 1, tipMultiplier: 1.25, speedMultiplier: 0.82, minCarriages: 1,
     colors: { body: '#B39BD1', accent: '#FBF6EC', skin: '#F2CFB3', hair: '#EFEFEF' }, accessory: 'handbag', requests: { blanket: 4, tea: 2, pillow: 1 },
-    lines: ['Lovely train, dear.', 'A blanket would be heaven.', 'In my day trains had fewer buttons.'],
+    mood: 'blanket',
     mess: ['yarn', 'book', 'cup', 'newspaper'],
   },
   {
     id: 'newlyweds', label: 'Newlyweds', weight: 1.2, fareMultiplier: 1.1, tipMultiplier: 1.35, speedMultiplier: 1, minCarriages: 1,
     colors: { body: '#FBF3E4', accent: '#E8849A', skin: '#EDBE9A', hair: '#5A3B2A' }, accessory: 'flower', requests: { tea: 3, pillow: 2, blanket: 1 },
-    lines: ['Just married!', 'Two teas, one straw.', 'Our first trip together!'],
+    mood: 'heart',
     mess: ['petals', 'champagne', 'cards', 'cup'],
   },
   {
     id: 'family', label: 'Family', weight: 1.5, fareMultiplier: 1.2, tipMultiplier: 1.1, speedMultiplier: 0.95, minCarriages: 2,
     colors: { body: '#4F86B8', accent: '#F2C94C', skin: '#E3AE87', hair: '#2F2520' }, accessory: 'child', requests: { blanket: 2, pillow: 2, tea: 1 },
-    lines: ['Are we there yet?', 'She wants the top bunk.', 'Snacks for the small one?'],
+    mood: 'smile',
     mess: ['teddy', 'toyTrain', 'appleCore', 'wrappers'],
   },
   {
     id: 'vip', label: 'VIP', weight: 0.6, fareMultiplier: 1.6, tipMultiplier: 2.4, speedMultiplier: 0.9, minCarriages: 3,
     colors: { body: '#C8A27A', accent: '#E3B352', skin: '#F0C6A2', hair: '#1E1A18' }, accessory: 'furcoat', requests: { tea: 2, pillow: 2, blanket: 2 },
-    lines: ['Darling, is this first class?', 'I tip in the currency of joy. And cash.', 'The fur is faux. The tips are real.'],
+    mood: 'gem',
     mess: ['boa', 'champagne', 'cards', 'petals'],
   },
 ];
@@ -147,7 +149,7 @@ export interface UnlockTemplate {
 export interface CarriageDef {
   type: CarriageType;
   name: string;
-  /** One line for the chooser card: why you would want it. */
+  /** What it gives, for the chooser card (three words or fewer). */
   pitch: string;
   /** How many a route-1 train may have. */
   max: number;
@@ -162,67 +164,67 @@ export interface CarriageDef {
 
 export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
   lobby: {
-    type: 'lobby', name: 'Sleeper & Lobby', pitch: 'Where it all began.', max: 1, cabins: 2, inside: 'Reception desk, 2 cabins',
+    type: 'lobby', name: 'Sleeper & Lobby', pitch: 'Desk, 2 cabins', max: 1, cabins: 2, inside: 'Reception desk, 2 cabins',
     unlocks: [
-      { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 30, stars: 2, cabin: 1, requires: [], effect: 'Room for one more guest' },
-      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 45, stars: 3, role: 'attendant', requires: ['cabin_1'], flags: ['firstCabinCleaned'], effect: 'Cleans cabins for you' },
-      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 60, stars: 3, tier: 1, requires: ['hire_attendant'], effect: 'Fares +25% in this carriage' },
-      { key: 'comfort_lamp', kind: 'comfort', label: 'Reading Lamps', price: 85, stars: 2, comfort: 'lamp', requires: ['refurb_1', '@couple_1'], effect: 'Tips +20% in these cabins' },
-      { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 160, stars: 3, role: 'porter', requires: ['@couple_2'], effect: 'Checks guests in and loads luggage' },
-      { key: 'comfort_flowers', kind: 'comfort', label: 'Fresh Flowers', price: 150, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_2'], effect: 'Tips +20% more in these cabins' },
-      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 220, stars: 4, tier: 2, requires: ['refurb_1', '@couple_2'], effect: 'Fares +25% more in this carriage' },
-      { key: 'up_attendant', kind: 'staffUpgrade', label: 'Attendant Training', price: 240, stars: 2, role: 'attendant', requires: ['hire_porter', '@couple_3'], effect: 'Attendant +20% speed, +1 carry' },
-      { key: 'comfort_radio', kind: 'comfort', label: 'Wireless Radios', price: 320, stars: 2, comfort: 'radio', requires: ['comfort_flowers', '@couple_3'], effect: 'Tips +20% more in these cabins' },
-      { key: 'up_porter', kind: 'staffUpgrade', label: 'Porter Training', price: 420, stars: 2, role: 'porter', requires: ['hire_porter', '@couple_3'], effect: 'Porter +20% speed, +1 carry' },
-      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 680, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Fares +25% more, and it shows' },
+      { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 30, stars: 2, cabin: 1, requires: [], effect: '+1 guest' },
+      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 45, stars: 3, role: 'attendant', requires: ['cabin_1'], flags: ['firstCabinCleaned'], effect: 'Cleans cabins' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 60, stars: 3, tier: 1, requires: ['hire_attendant'], effect: 'Fares +25%' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 180, stars: 4, tier: 2, requires: ['refurb_1', '@couple_1'], effect: 'Fares +25%' },
+      { key: 'comfort_lamp', kind: 'comfort', label: 'Reading Lamps', price: 85, stars: 2, comfort: 'lamp', requires: ['refurb_1', '@couple_1'], effect: 'Tips +20%' },
+      { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 160, stars: 3, role: 'porter', requires: ['@couple_2'], effect: 'Check-in & bags' },
+      { key: 'comfort_flowers', kind: 'comfort', label: 'Fresh Flowers', price: 150, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_2'], effect: 'Tips +20%' },
+      { key: 'up_attendant', kind: 'staffUpgrade', label: 'Attendant Training', price: 240, stars: 2, role: 'attendant', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
+      { key: 'comfort_radio', kind: 'comfort', label: 'Wireless Radios', price: 320, stars: 2, comfort: 'radio', requires: ['comfort_flowers', '@couple_3'], effect: 'Tips +20%' },
+      { key: 'up_porter', kind: 'staffUpgrade', label: 'Porter Training', price: 420, stars: 2, role: 'porter', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 680, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Fares +25%' },
     ],
   },
   bathroom: {
-    type: 'bathroom', name: 'Washroom Car', pitch: 'Guests tip for a fresh washroom. Its own closet keeps it stocked.', max: 1, cabins: 0, inside: '3 washrooms, a linen closet, the laundry',
+    type: 'bathroom', name: 'Washroom Car', pitch: '+3 washrooms', max: 1, cabins: 0, inside: '3 washrooms, a linen closet, the laundry',
     unlocks: [
-      { key: 'refurb_1', kind: 'refurb', label: 'Repairs & Tiles', price: 70, stars: 3, tier: 1, requires: ['couple', '@couple_2'], effect: 'Washroom tips +50%' },
-      { key: 'bath_1', kind: 'bathroom', label: 'Washroom 2', price: 90, stars: 2, bathroom: 1, requires: ['couple', '@couple_2'], effect: 'Shorter washroom queues' },
-      { key: 'comfort_soap', kind: 'comfort', label: 'Scented Soaps', price: 110, stars: 2, comfort: 'soap', requires: ['refurb_1'], effect: 'Washroom tips +25%' },
-      { key: 'bath_2', kind: 'bathroom', label: 'Bath Suite', price: 200, stars: 3, bathroom: 2, requires: ['bath_1', '@couple_3'], effect: 'A third washroom, with a tub' },
-      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Washrooms', price: 260, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Washroom tips +50% more' },
-      { key: 'comfort_rail', kind: 'comfort', label: 'Warm Towel Rails', price: 240, stars: 2, comfort: 'rail', requires: ['comfort_soap', '@couple_3'], effect: 'Washroom tips +25% more' },
-      { key: 'refurb_3', kind: 'refurb', label: 'Marble & Brass', price: 520, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Washroom tips +50% more' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs & Tiles', price: 70, stars: 3, tier: 1, requires: ['couple', '@couple_2'], effect: 'Tips +50%' },
+      { key: 'bath_1', kind: 'bathroom', label: 'Washroom 2', price: 90, stars: 2, bathroom: 1, requires: ['couple', '@couple_2'], effect: '+1 washroom' },
+      { key: 'comfort_soap', kind: 'comfort', label: 'Scented Soaps', price: 110, stars: 2, comfort: 'soap', requires: ['refurb_1'], effect: 'Tips +25%' },
+      { key: 'bath_2', kind: 'bathroom', label: 'Bath Suite', price: 200, stars: 3, bathroom: 2, requires: ['bath_1', '@couple_3'], effect: '+1 washroom' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Washrooms', price: 260, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Tips +50%' },
+      { key: 'comfort_rail', kind: 'comfort', label: 'Warm Towel Rails', price: 240, stars: 2, comfort: 'rail', requires: ['comfort_soap', '@couple_3'], effect: 'Tips +25%' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Marble & Brass', price: 520, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Tips +50%' },
     ],
   },
   supply: {
-    type: 'supply', name: 'Stores Car', pitch: 'A runner keeps every washroom stocked for you.', max: 1, needs: ['bathroom'], cabins: 0, inside: 'Stores, crate bay, a staff room, a runner',
+    type: 'supply', name: 'Stores Car', pitch: 'Runner, stores', max: 1, needs: ['bathroom'], cabins: 0, inside: 'Stores, crate bay, a staff room, a runner',
     unlocks: [
-      { key: 'hire_runner', kind: 'hire', label: 'Supply Runner', price: 100, stars: 3, role: 'runner', requires: ['couple'], effect: 'Restocks washrooms for you' },
-      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 80, stars: 3, tier: 1, requires: ['hire_runner'], effect: 'Every tip on the train +5%' },
-      { key: 'up_runner', kind: 'staffUpgrade', label: 'Runner Training', price: 300, stars: 2, role: 'runner', requires: ['hire_runner', '@couple_4'], effect: 'Runner +20% speed, +1 carry' },
-      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 280, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Every tip on the train +5% more' },
-      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 520, stars: 5, tier: 3, requires: ['refurb_2', '@c0.refurb_3'], effect: 'Every tip on the train +5% more' },
+      { key: 'hire_runner', kind: 'hire', label: 'Supply Runner', price: 100, stars: 3, role: 'runner', requires: ['couple'], effect: 'Restocks towels' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 80, stars: 3, tier: 1, requires: ['hire_runner'], effect: 'All tips +5%' },
+      { key: 'up_runner', kind: 'staffUpgrade', label: 'Runner Training', price: 300, stars: 2, role: 'runner', requires: ['hire_runner', '@couple_4'], effect: 'Faster, +1 carry' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 280, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'All tips +5%' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 520, stars: 5, tier: 3, requires: ['refurb_2', '@c0.refurb_3'], effect: 'All tips +5%' },
     ],
   },
   luggage: {
-    type: 'luggage', name: 'Luggage Car', pitch: 'Room for 16 more suitcases: every bag tips.', max: 1, cabins: 0, inside: 'Racks for 16 bags, a porter',
+    type: 'luggage', name: 'Luggage Car', pitch: '+16 bag racks', max: 1, cabins: 0, inside: 'Racks for 16 bags, a porter',
     unlocks: [
-      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 100, stars: 3, tier: 1, requires: ['couple'], effect: 'Every tip on the train +5%' },
-      { key: 'hire_porter', kind: 'hire', label: 'Luggage Porter', price: 220, stars: 3, role: 'porter', requires: ['couple'], effect: 'Carries luggage to the back' },
-      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 300, stars: 4, tier: 2, requires: ['refurb_1', '@couple_4'], effect: 'Every tip on the train +5% more' },
-      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 520, stars: 5, tier: 3, requires: ['refurb_2', '@c0.refurb_3'], effect: 'Every tip on the train +5% more' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 100, stars: 3, tier: 1, requires: ['couple'], effect: 'All tips +5%' },
+      { key: 'hire_porter', kind: 'hire', label: 'Luggage Porter', price: 220, stars: 3, role: 'porter', requires: ['couple'], effect: 'Carries bags' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 300, stars: 4, tier: 2, requires: ['refurb_1', '@couple_4'], effect: 'All tips +5%' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 520, stars: 5, tier: 3, requires: ['refurb_2', '@c0.refurb_3'], effect: 'All tips +5%' },
     ],
   },
   sleeper: {
-    type: 'sleeper', name: 'Sleeper Car', pitch: 'Four more cabins: more guests, more fares.', max: 2, cabins: 4, inside: '4 cabins and a tea and linen nook',
+    type: 'sleeper', name: 'Sleeper Car', pitch: '+4 cabins', max: 2, cabins: 4, inside: '4 cabins and a tea and linen nook',
     unlocks: [
-      { key: 'cabin_0', kind: 'cabin', label: 'Cabin {n}', price: 60, stars: 2, cabin: 0, requires: ['couple'], effect: 'Room for one more guest' },
-      { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 90, stars: 2, cabin: 1, requires: ['cabin_0'], effect: 'Room for one more guest' },
-      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 120, stars: 3, tier: 1, requires: ['cabin_0'], effect: 'Fares +25% in this carriage' },
-      { key: 'comfort_lamp', kind: 'comfort', label: 'Reading Lamps', price: 130, stars: 2, comfort: 'lamp', requires: ['refurb_1'], effect: 'Tips +20% in these cabins' },
-      { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 150, stars: 2, cabin: 2, requires: ['cabin_1'], effect: 'Room for one more guest' },
-      { key: 'cabin_3', kind: 'cabin', label: 'Cabin {n}', price: 200, stars: 2, cabin: 3, requires: ['cabin_2', '@couple_2'], effect: 'Room for one more guest' },
-      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 240, stars: 3, role: 'attendant', requires: ['cabin_1', '@couple_2'], effect: "Cleans this car's cabins" },
-      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 290, stars: 4, tier: 2, requires: ['cabin_2', 'refurb_1', '@couple_3'], effect: 'Fares +25% more in this carriage' },
-      { key: 'comfort_flowers', kind: 'comfort', label: 'Fresh Flowers', price: 240, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_3'], effect: 'Tips +20% more in these cabins' },
-      { key: 'up_attendant', kind: 'staffUpgrade', label: 'Attendant Training', price: 380, stars: 2, role: 'attendant', requires: ['hire_attendant', '@couple_3'], effect: 'Attendant +20% speed, +1 carry' },
-      { key: 'comfort_radio', kind: 'comfort', label: 'Wireless Radios', price: 420, stars: 2, comfort: 'radio', requires: ['comfort_flowers', '@couple_3'], effect: 'Tips +20% more in these cabins' },
-      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 720, stars: 5, tier: 3, requires: ['cabin_3', 'refurb_2', '@couple_4'], effect: 'Fares +25% more, and it shows' },
+      { key: 'cabin_0', kind: 'cabin', label: 'Cabin {n}', price: 60, stars: 2, cabin: 0, requires: ['couple'], effect: '+1 guest' },
+      { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 90, stars: 2, cabin: 1, requires: ['cabin_0'], effect: '+1 guest' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 120, stars: 3, tier: 1, requires: ['cabin_0'], effect: 'Fares +25%' },
+      { key: 'comfort_lamp', kind: 'comfort', label: 'Reading Lamps', price: 130, stars: 2, comfort: 'lamp', requires: ['refurb_1'], effect: 'Tips +20%' },
+      { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 150, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 260, stars: 4, tier: 2, requires: ['cabin_1', 'refurb_1', '@couple_2'], effect: 'Fares +25%' },
+      { key: 'cabin_3', kind: 'cabin', label: 'Cabin {n}', price: 200, stars: 2, cabin: 3, requires: ['cabin_2', '@couple_2'], effect: '+1 guest' },
+      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 240, stars: 3, role: 'attendant', requires: ['cabin_1', '@couple_2'], effect: 'Cleans cabins' },
+      { key: 'comfort_flowers', kind: 'comfort', label: 'Fresh Flowers', price: 240, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_3'], effect: 'Tips +20%' },
+      { key: 'up_attendant', kind: 'staffUpgrade', label: 'Attendant Training', price: 380, stars: 2, role: 'attendant', requires: ['hire_attendant', '@couple_3'], effect: 'Faster, +1 carry' },
+      { key: 'comfort_radio', kind: 'comfort', label: 'Wireless Radios', price: 420, stars: 2, comfort: 'radio', requires: ['comfort_flowers', '@couple_3'], effect: 'Tips +20%' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 720, stars: 5, tier: 3, requires: ['cabin_3', 'refurb_2', '@couple_4'], effect: 'Fares +25%' },
     ],
   },
 };
@@ -269,14 +271,14 @@ export interface StationUpgradeDef {
 }
 
 export const STATION_UPGRADES: StationUpgradeDef[] = [
-  { key: 'posters', kind: 'marketing', label: 'Station Posters', price: 80, stars: 3, requires: ['couple_1'], effect: '+1 traveller at every stop', bonus: { passengers: 1 } },
-  { key: 'windowboxes', kind: 'exterior', label: 'Window Boxes', price: 110, stars: 3, requires: ['couple_1'], effect: 'Tips +5% (and flowers!)', bonus: { tips: 0.05 } },
-  { key: 'lamps', kind: 'exterior', label: 'Brass Lamps', price: 200, stars: 3, requires: ['st.windowboxes', 'couple_2'], effect: 'Tips +5% more', bonus: { tips: 0.05 } },
-  { key: 'billboard', kind: 'marketing', label: 'Billboards', price: 240, stars: 3, requires: ['st.posters', 'couple_2'], effect: '+1 traveller, more VIPs', bonus: { passengers: 1, vip: 0.6 } },
-  { key: 'lining', kind: 'exterior', label: 'Gold Lining', price: 340, stars: 4, requires: ['st.lamps', 'couple_3'], effect: 'Fares +5% on the whole train', bonus: { fares: 0.05 } },
-  { key: 'band', kind: 'marketing', label: 'Brass Band', price: 460, stars: 4, requires: ['st.billboard', 'couple_3'], effect: '+1 traveller, station bonus +50%', bonus: { passengers: 1, stationBonus: 0.5 } },
-  { key: 'nameboards', kind: 'exterior', label: 'Name Boards', price: 520, stars: 4, requires: ['st.lining', 'couple_4'], effect: 'Fares +5% more', bonus: { fares: 0.05 } },
-  { key: 'redcarpet', kind: 'exterior', label: 'Red Carpet', price: 700, stars: 5, requires: ['st.nameboards'], effect: 'Station bonus +50% more', bonus: { stationBonus: 0.5 } },
+  { key: 'posters', kind: 'marketing', label: 'Station Posters', price: 80, stars: 3, requires: ['couple_1'], effect: '+1 traveller', bonus: { passengers: 1 } },
+  { key: 'windowboxes', kind: 'exterior', label: 'Window Boxes', price: 110, stars: 3, requires: ['couple_1'], effect: 'Tips +5%', bonus: { tips: 0.05 } },
+  { key: 'lamps', kind: 'exterior', label: 'Brass Lamps', price: 200, stars: 3, requires: ['st.windowboxes', 'couple_2'], effect: 'Tips +5%', bonus: { tips: 0.05 } },
+  { key: 'billboard', kind: 'marketing', label: 'Billboards', price: 240, stars: 3, requires: ['st.posters', 'couple_2'], effect: '+1 traveller, VIPs', bonus: { passengers: 1, vip: 0.6 } },
+  { key: 'lining', kind: 'exterior', label: 'Gold Lining', price: 340, stars: 4, requires: ['st.lamps', 'couple_3'], effect: 'Fares +5%', bonus: { fares: 0.05 } },
+  { key: 'band', kind: 'marketing', label: 'Brass Band', price: 460, stars: 4, requires: ['st.billboard', 'couple_3'], effect: '+1 traveller', bonus: { passengers: 1, stationBonus: 0.5 } },
+  { key: 'nameboards', kind: 'exterior', label: 'Name Boards', price: 520, stars: 4, requires: ['st.lining', 'couple_4'], effect: 'Fares +5%', bonus: { fares: 0.05 } },
+  { key: 'redcarpet', kind: 'exterior', label: 'Red Carpet', price: 700, stars: 5, requires: ['st.nameboards'], effect: 'Stop bonus +50%', bonus: { stationBonus: 0.5 } },
 ];
 
 /** Pre-v3 saves grew in this fixed order; the migration maps their ids onto carriage slots. */

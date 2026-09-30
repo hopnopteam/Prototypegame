@@ -5,7 +5,6 @@ import {
   DEFAULT_TRAIN_NAME,
   FRONT_PAGE_REWARDS,
   HEADLINES,
-  INTERVIEW_HOSTS,
   INTERVIEWS,
   PRESS_ARCHIVE,
   RIVALS,
@@ -246,7 +245,7 @@ export class Press {
     const standing = this.standing;
     const last = passed[passed.length - 1];
     this.w.audio.play('sparkle', { pitch: 1.2 });
-    this.w.ui.toast(`Overtook ${last.name} · now #${standing.rank}`, 'trophy');
+    this.w.ui.toast(`#${standing.rank}`, 'trophy');
     // The big overtakes are front-page news, with the loser's grumble as the quote.
     if (standing.rank === 1) {
       if (!p.fired.champion) {
@@ -377,7 +376,7 @@ export class Press {
       w.data.meta.perks[answer.perk.kind] += answer.perk.amount;
       w.save.markDirty();
       w.audio.play('unlock');
-      w.ui.toast(`${INTERVIEW_HOSTS[def.show].title}: ${answer.perk.label}, for good`, 'mic');
+      w.ui.toast(answer.perk.label, 'mic');
       if (level === DEBUT_INTERVIEW) {
         this.print('named', { quote: answer.text });
         this.checkRivalTarget();

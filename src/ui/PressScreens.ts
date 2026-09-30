@@ -43,7 +43,7 @@ export class PressScreens {
     ], { closable: false, center: true, className: 'naming' });
   }
 
-  interview(def: InterviewDef, trainName: string, onAnswer: (index: number) => void): void {
+  interview(def: InterviewDef, _trainName: string, onAnswer: (index: number) => void): void {
     let close: () => void = () => undefined;
     const answers = def.answers.map((answer, i) => h('button.answer', {
       'data-default': i === 0 ? '' : undefined,
@@ -57,10 +57,9 @@ export class PressScreens {
     close = this.screens.sheet(host.title, gazette ? 'news' : 'mic', [
       h(`div.tv${gazette ? '.gazette' : ''}` as 'div', {},
         h('div.onair', { text: host.badge }),
-        h('div.host', {}, icon(gazette ? 'news' : 'mic', 30), h('div', {}, h('b', { text: host.host }), h('span', { text: `with the conductor of ${trainName}` }))),
+        h('div.host', {}, icon(gazette ? 'news' : 'mic', 30), h('div', {}, h('b', { text: host.host }))),
         h('p.question', { text: `“${def.question}”` }),
       ),
-      h('div.section-title', { text: 'Your answer (every answer helps, for good)' }),
       ...answers,
     ], { closable: false, center: true, className: 'interview' });
   }
@@ -108,10 +107,9 @@ export class PressScreens {
       onCollect(choice);
     };
     const paper = h('article.frontpage', { role: 'dialog', 'aria-label': `The Rail Gazette: ${item.headline}` },
-      h('div.masthead', {}, h('div.paper-name', { text: 'The Rail Gazette' }), h('div.edition', { text: `Extra! · No. ${item.id}` })),
+      h('div.masthead', {}, h('div.paper-name', { text: 'The Rail Gazette' }), h('div.edition', { text: 'Extra!' })),
       photo,
       h('h3', { text: item.headline }),
-      h('p', { text: item.body }),
       chips.length > 0 ? h('div.reward', {}, ...chips) : null,
       h('div.btn-row', {},
         h('button.btn.primary', { onclick: () => finish('ad') }, icon('ad', 22), '×2 Free'),
@@ -151,28 +149,26 @@ export class PressScreens {
       this.screens.release();
       onDone();
     };
-    const fill = (text: string): string => text.replace(/\{train\}/g, watch.trainName);
     const paper = h('article.frontpage.rival', { role: 'dialog', 'aria-label': `Rival Watch: ${owner.name}` },
       h('div.masthead', {}, h('div.paper-name', { text: 'The Rail Gazette' }), h('div.edition', { text: 'Rival Watch' })),
       watch.humbled
         ? h('div.humbled', {}, portrait(watch.humbled, 40), h('div', {},
-          h('b', { text: `Overtaken: ${watch.humbled.name}` }),
-          h('span', { text: `“${watch.humbled.owner.humbled}” ${watch.humbled.owner.name}` })))
+          h('b', { text: 'Overtaken' }),
+          h('span', { text: `“${watch.humbled.owner.humbled}”` })))
         : null,
       h('div.owner', {}, portrait(rival, 84), h('div', {},
-        h('span.kicker', { text: `#${watch.rank} in the league` }),
+        h('span.kicker', {}, icon('trophy', 14), ` #${watch.rank}`),
         h('b', { text: owner.name }),
-        h('span', { text: `${owner.title}, ${rival.name}` }))),
+        h('span', { text: rival.name }))),
       h('h3', { text: owner.taunt.headline }),
       photo,
-      h('p', { text: fill(owner.taunt.body) }),
       h('div.tape', {},
         h('div.tape-side', {}, h('span', { text: rival.name }), h('b', {}, icon('star', 16), formatNumber(rival.reputation))),
         h('div.vs', { text: 'vs' }),
         h('div.tape-side.you', {}, h('span', { text: watch.trainName }), h('b', {}, icon('star', 16), formatNumber(watch.stars))),
       ),
       h('div.bar.tape-bar', {}, h('i', { style: { width: `${pct}%` } })),
-      h('p.small.center', { text: `${formatNumber(gap)} more stars to overtake ${rival.name}.` }),
+      h('p.small.center', {}, icon('star', 16), ` ${formatNumber(gap)} to go`),
       h('button.btn.primary', { 'data-default': '', onclick: finish }, 'Challenge accepted!'),
     );
     const scrim = h('div.scrim.center.press-scrim.rival-scrim', {}, h('div.rays'), paper);

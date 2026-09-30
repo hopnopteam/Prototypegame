@@ -7,7 +7,7 @@ export type IconName =
   | 'star' | 'cash' | 'gem' | 'miles' | 'bath' | 'clock' | 'ad' | 'lock' | 'plus' | 'carriage' | 'zzz'
   | 'heart' | 'bolt' | 'bag' | 'gear' | 'album' | 'calendar' | 'quest' | 'ticket' | 'check' | 'camera'
   | 'wrench' | 'skate' | 'hold' | 'chest' | 'noroom' | 'double' | 'box' | 'paint' | 'news' | 'trophy'
-  | 'mic' | 'dash' | 'hand' | 'menu' | 'conductor' | 'linen' | 'megaphone';
+  | 'mic' | 'dash' | 'hand' | 'menu' | 'conductor' | 'linen' | 'megaphone' | 'smile' | 'frown';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -337,6 +337,43 @@ const ICONS: Record<IconName, Draw> = {
     c.font = 'bold 30px sans-serif';
     c.strokeText('z', 66, 34);
     c.fillText('z', 66, 34);
+  },
+  smile: (c) => {
+    c.beginPath();
+    c.arc(50, 50, 38, 0, Math.PI * 2);
+    fillStroke(c, '#FFD35C');
+    c.fillStyle = INK;
+    c.beginPath();
+    c.arc(37, 42, 5.5, 0, Math.PI * 2);
+    c.arc(63, 42, 5.5, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = INK;
+    c.lineWidth = 6;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.arc(50, 52, 18, 0.18 * Math.PI, 0.82 * Math.PI);
+    c.stroke();
+    c.fillStyle = '#F29BA8';
+    c.beginPath();
+    c.arc(28, 58, 6, 0, Math.PI * 2);
+    c.arc(72, 58, 6, 0, Math.PI * 2);
+    c.fill();
+  },
+  frown: (c) => {
+    c.beginPath();
+    c.arc(50, 50, 38, 0, Math.PI * 2);
+    fillStroke(c, '#C9D3E0');
+    c.fillStyle = INK;
+    c.beginPath();
+    c.arc(37, 44, 5.5, 0, Math.PI * 2);
+    c.arc(63, 44, 5.5, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = INK;
+    c.lineWidth = 6;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.arc(50, 78, 16, 1.2 * Math.PI, 1.8 * Math.PI);
+    c.stroke();
   },
   heart: (c) => {
     c.beginPath();

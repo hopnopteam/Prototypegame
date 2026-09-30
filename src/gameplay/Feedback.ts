@@ -1,4 +1,4 @@
-import { CHATTER, type ChatterSituation } from '../config/chatter';
+import { REACTIONS, type ChatterSituation, type Reaction } from '../config/chatter';
 import { FLOOR_Y } from '../world/CarriageView';
 import type { Guest } from './Guests';
 import type { World } from './World';
@@ -96,11 +96,11 @@ export class Feedback {
     }
     if (elapsed >= f.slowRequestSeconds && this.cuesOn) {
       this.nudge(f.mood.slow);
-      w.ui.floatText('Slow service', guest.pos.x, FLOOR_Y + FLOAT_HEIGHT, guest.pos.z, 'miss');
+      w.ui.floatIcon('clock', guest.pos.x, FLOOR_Y + FLOAT_HEIGHT, guest.pos.z, 'miss');
       this.maybeSay('slowService', guest, 0.7);
       return;
     }
-    if (w.rng.chance(w.econ.feedback.chatterChance)) this.say(w.rng.pick(guest.archetype.lines), guest, false);
+    if (w.rng.chance(w.econ.feedback.chatterChance)) this.say({ icon: guest.archetype.mood }, guest, false);
   }
 
   onAlight(guest: Guest): void {
@@ -114,7 +114,7 @@ export class Feedback {
     const w = this.w;
     this.nudge(w.econ.feedback.mood.emptyWashroom);
     w.audio.play('grumble');
-    w.ui.floatText(missing === 'towel' ? 'No towels' : 'No loo roll', guest.pos.x, FLOOR_Y + FLOAT_HEIGHT, guest.pos.z, 'miss');
+    w.ui.floatIcon(missing === 'towel' ? 'towel' : 'roll', guest.pos.x, FLOOR_Y + FLOAT_HEIGHT, guest.pos.z, 'miss', true);
     this.maybeSay('emptyWashroom', guest, 0.8);
   }
 
@@ -129,7 +129,7 @@ export class Feedback {
       this.nudge(w.econ.feedback.mood.missed * Math.min(3, missed.length));
       for (const guest of missed) {
         guest.view.showBubble('clock', 'alert');
-        w.ui.floatText('Missed', guest.pos.x, FLOOR_Y + FLOAT_HEIGHT, guest.pos.z, 'miss');
+        w.ui.floatIcon('person', guest.pos.x, FLOOR_Y + FLOAT_HEIGHT, guest.pos.z, 'miss', true);
       }
       this.maybeSay('missedTrain', missed[0], 1);
     } else if (noBed.length > 0) {
@@ -192,13 +192,13 @@ export class Feedback {
     if (last !== undefined && w.time - last < f.sameLineSeconds) return false;
     if (!w.rng.chance(chance)) return false;
     this.lastSaid.set(situation, w.time);
-    return this.say(w.rng.pick(CHATTER[situation]), guest, isCritical(situation));
+    return this.say(REACTIONS[situation], guest, isCritical(situation));
   }
 
-  private say(text: string, guest: Guest, critical: boolean): boolean {
+  private say(reaction: Reaction, guest: Guest, critical: boolean): boolean {
     if (!guest.view.root.visible) return false;
     this.sinceChatter = 0;
-    this.w.ui.speechLine(text, guest.pos.x, FLOOR_Y + SPEECH_HEIGHT, guest.pos.z, critical ? 'bad' : 'good');
+    this.w.ui.reaction(reaction.icon, guest.pos.x, FLOOR_Y + SPEECH_HEIGHT, guest.pos.z, critical ? 'bad' : 'good', reaction.crossed);
     return true;
   }
 

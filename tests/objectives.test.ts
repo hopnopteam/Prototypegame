@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHATTER } from '../src/config/chatter';
+import { REACTIONS } from '../src/config/chatter';
 import { DEFAULT_TRAIN } from '../src/config/content';
 import { OBJECTIVES } from '../src/config/objectives';
 import { buildUnlocks } from '../src/sim/unlockPlan';
@@ -49,11 +49,8 @@ describe('comforts', () => {
   });
 });
 
-describe('chatter', () => {
-  it('has a few short lines for every situation', () => {
-    for (const [situation, lines] of Object.entries(CHATTER)) {
-      expect(lines.length, situation).toBeGreaterThanOrEqual(2);
-      for (const line of lines) expect(line.length, line).toBeLessThanOrEqual(38);
-    }
+describe('reactions', () => {
+  it('gives every situation an icon (pictures, not sentences)', () => {
+    for (const [situation, reaction] of Object.entries(REACTIONS)) expect(typeof reaction.icon, situation).toBe('string');
   });
 });

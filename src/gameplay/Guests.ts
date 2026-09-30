@@ -453,7 +453,7 @@ export class Guests {
     const tip = Math.max(1, Math.round(w.econ.money.requestTip * guest.archetype.tipMultiplier * w.tipMultiplier() * comfort * speed));
     w.cash.add(guest.cabin.pileId, tip, this.tmp.set(guest.pos.x, FLOOR_Y + 1.1, guest.pos.z));
     if (byPlayer && speed > 1) {
-      w.ui.floatText(speed >= service.speedyTipMultiplier ? 'Speedy!' : 'Quick!', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'info');
+      w.ui.floatIcon('bolt', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, speed >= service.speedyTipMultiplier ? 'star' : 'info');
       w.audio.play('sparkle', { pitch: speed >= service.speedyTipMultiplier ? 1.25 : 1 });
     }
     w.addStars(w.econ.stars.requestFulfilled, 'request', guest.pos);

@@ -89,22 +89,39 @@ export class Tiles {
       const pos = this.positionFor(couple);
       if (pos) this.addEntry(couple, pos);
     }
+    // A carriage's next refit is a big, visible goal: it takes the improvement spot as soon as it is
+    // available (one refit at a time, cheapest first), outside the cap and ahead of that carriage's comforts,
+    // so its price is always in view.
+    if (![...this.entries.values()].some((e) => e.def.kind === 'refurb')) {
+      const refit = eligible.filter((d) => d.kind === 'refurb').sort((a, b) => w.unlocks.remaining(a.id) - w.unlocks.remaining(b.id))[0];
+      const occupant = refit && [...this.entries.values()].find((e) => e.def.carriage === refit.carriage && e.def.kind === 'comfort');
+      if (refit && (!occupant || w.unlocks.paid(occupant.def.id) === 0)) {
+        const pos = this.positionFor(refit);
+        if (pos) {
+          if (occupant) this.removeEntry(occupant.def.id, occupant);
+          this.addEntry(refit, pos);
+        }
+      }
+    }
+    const regular = (d: UnlockDef): boolean => d.kind !== 'couple' && d.kind !== 'refurb' && !isStation(d);
     const cap = w.data.profile.ftue.first_unlock === undefined ? 1 : w.econ.tiles.maxVisible;
-    let shown = [...this.entries.values()].filter((e) => e.def.kind !== 'couple' && !isStation(e.def)).length;
+    let shown = [...this.entries.values()].filter((e) => regular(e.def)).length;
     if (shown >= cap) {
       this.refreshPreview();
       return;
     }
+    const refitSpot = new Set([...this.entries.values()].filter((e) => e.def.kind === 'refurb').map((e) => e.def.carriage));
     // One candidate per carriage (the first in its designed order), then the cheapest of those.
     const firstPerCarriage = new Map<number, UnlockDef>();
     for (const def of eligible) {
-      if (def.kind === 'couple' || this.entries.has(def.id)) continue;
-      if ([...this.entries.values()].some((e) => e.def.carriage === def.carriage && e.def.kind !== 'couple' && !isStation(e.def))) continue;
+      if (!regular(def) || this.entries.has(def.id)) continue;
+      if (def.kind === 'comfort' && refitSpot.has(def.carriage)) continue;
+      if ([...this.entries.values()].some((e) => e.def.carriage === def.carriage && regular(e.def))) continue;
       if (!firstPerCarriage.has(def.carriage)) firstPerCarriage.set(def.carriage, def);
     }
     const candidates = [...firstPerCarriage.values()].sort((a, b) => w.unlocks.remaining(a.id) - w.unlocks.remaining(b.id));
     // Anything already part-paid comes first: a tile you have put money into never disappears.
-    for (const def of eligible) if (def.kind !== 'couple' && !this.entries.has(def.id) && w.unlocks.paid(def.id) > 0 && !candidates.includes(def)) candidates.unshift(def);
+    for (const def of eligible) if (regular(def) && !this.entries.has(def.id) && w.unlocks.paid(def.id) > 0 && !candidates.includes(def) && !(def.kind === 'comfort' && refitSpot.has(def.carriage))) candidates.unshift(def);
     for (const def of candidates) {
       if (shown >= cap) break;
       const pos = this.positionFor(def);
@@ -194,7 +211,7 @@ export class Tiles {
         const defs = this.w.unlocks.defs;
         const def = defs.find((u) => u.id === this.preview!.id);
         const waiting = def?.requires.map((id) => defs.find((u) => u.id === id)).find((u) => u && !this.w.unlocks.isUnlocked(u.id));
-        if (def) return { label: def.label, effect: waiting ? `Unlocks after ${waiting.label}` : def.effect, x: pos.x, z: pos.z, locked: true };
+        if (def) return { label: def.label, effect: waiting ? `After ${waiting.label}` : def.effect, x: pos.x, z: pos.z, locked: true };
       }
     }
     return null;
@@ -298,8 +315,7 @@ export class Tiles {
     w.analytics.log(EVENTS.unlockCompleted, { id: def.id, price: def.price, time: Math.round(w.lifetimeSeconds()) });
     w.analytics.log(EVENTS.currencySpent, { currency: 'cash', amount: def.price, sink: `unlock:${def.kind}` });
     w.events.emit('unlock.completed', { id: def.id, price: def.price, x: entry.pos.x, z: entry.pos.z });
-    // Say what you just bought, right where it happened (the big moments get their own card instead).
-    if (def.kind !== 'couple' && def.kind !== 'refurb') w.ui.floatText(`${def.label}!`, entry.pos.x, FLOOR_Y + 2.1, entry.pos.z, 'info');
+    // What was bought pops into existence right there: the moment speaks for itself (no caption).
 
     if (def.kind === 'hire' && def.role) {
       w.staff.hire(def.role, def.carriage);

@@ -406,7 +406,7 @@ export class TrainState {
         const cz = targetZ - 0.6;
         w.particles.emit('dust', 0, FLOOR_Y + 0.3, cz, 28, 1.2);
         w.particles.emit('confetti', 0, FLOOR_Y + 2.5, targetZ + 2, 60, 1.5);
-        w.ui.celebrate(this.carriageName(index), 'Coupled!', 'carriage');
+        w.ui.celebrate(this.carriageName(index), null, 'carriage');
         w.events.emit('carriage.coupled', { index, type: plan.type });
         this.coupling = false;
         onDone?.();
@@ -599,7 +599,7 @@ export class TrainState {
       w.stage.rig.shake(0.15, 0.3);
       w.stage.rig.punch(0.06);
       w.particles.emit('confetti', 0, FLOOR_Y + 2.2, originZ + 7, 40, 1.8);
-      w.ui.celebrate(this.carriageName(index), TIER_NAMES[tier] ?? 'Refurbished', 'paint');
+      w.ui.celebrate(TIER_NAMES[tier] ?? this.carriageName(index), null, 'paint');
     });
     w.events.emit('carriage.refurbished', { index, type, tier });
   }
@@ -785,7 +785,7 @@ export class TrainState {
             bed.scale.set(1, 0.85, 1);
             w.tweens.run(0.45, (t) => bed.scale.set(1, 0.85 + 0.15 * t, 1), { ease: easeOutBack });
           }
-          w.ui.floatText('Spotless!', cabin.center.x, FLOOR_Y + 1.6, cabin.center.z, 'info');
+          w.ui.floatIcon('check', cabin.center.x, FLOOR_Y + 1.6, cabin.center.z, 'info');
           w.addStars(w.econ.stars.cabinCleaned, 'clean', cabin.center);
           if (actor.isPlayer) w.setFlag('firstCabinCleaned');
           w.events.emit('cabin.cleaned', { byPlayer: actor.isPlayer, x: cabin.center.x, z: cabin.center.z });

@@ -146,16 +146,13 @@ export class Screens {
       },
         h('div.art', { style: { background: theme.wall } }, h('span.disc', { style: { background: theme.deep } }, icon(icons[c.type], 40))),
         h('div.info', {},
-          i === 0 && c.reason ? h('span.ribbon', { text: 'Recommended' }) : null,
           h('b', { text: c.name }),
           h('span.pitch', { text: c.pitch }),
-          h('span.inside', { text: c.inside }),
-          i === 0 && c.reason ? h('span.reason', { text: c.reason }) : null,
+          i === 0 && c.reason ? h('span.ribbon', {}, icon('star', 14), c.reason) : null,
         ),
       );
     });
-    close = this.sheet('Choose your next carriage', 'carriage', [
-      h('p.lead', { text: 'Your train, your design. Which carriage joins next?' }),
+    close = this.sheet('Next carriage', 'carriage', [
       h('div.carriage-cards', {}, ...cards),
     ], { closable: false, center: true, className: 'chooser' });
   }

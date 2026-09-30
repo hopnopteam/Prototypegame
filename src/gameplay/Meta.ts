@@ -74,7 +74,7 @@ export class Meta {
   private progress(kind: string): void {
     if (!this.questsUnlocked()) return;
     const done = progressQuests(this.quests(), kind);
-    for (const quest of done) this.w.ui.toast(`Quest complete: ${quest.label}`, 'quest');
+    for (const _quest of done) this.w.ui.toast('Quest done', 'quest');
     this.w.save.markDirty();
   }
 

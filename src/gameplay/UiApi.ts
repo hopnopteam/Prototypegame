@@ -16,19 +16,24 @@ export type FloatKind = 'cash' | 'star' | 'gem' | 'miles' | 'info' | 'miss';
 
 /** What gameplay asks of the UI. Implemented by the DOM layer; gameplay never touches the DOM itself. */
 export interface UiApi {
+  /** A number (or a word, rarely) rising from a spot in the world. */
   floatText(text: string, x: number, y: number, z: number, kind: FloatKind): void;
+  /** An icon rising from a spot in the world (a check, a bolt, a crossed-out towel): feedback without words. */
+  floatIcon(icon: IconName, x: number, y: number, z: number, kind: FloatKind, crossed?: boolean): void;
   /** Stars earned at a world position fly up into the route-level ring. */
   flyStars(amount: number, x: number, y: number, z: number): boolean;
   /** An objective was just completed: the banner celebrates and its reward flies to the counters. */
   objectiveDone(def: ObjectiveDef): void;
   toast(text: string, icon?: IconName): void;
-  stationBanner(title: string, subtitle: string): void;
+  /** The station's name on arrival; an optional icon beside it (a new postcard). */
+  stationBanner(title: string, extra?: IconName): void;
   showResult(result: StationResult): void;
-  /** A passenger's one-liner; 'bad' lines (grumbles, bad reviews) get a sterner bubble. */
-  speechLine(text: string, x: number, y: number, z: number, tone?: 'good' | 'bad'): void;
+  /** A passenger's reaction, as an icon in a speech bubble; 'bad' ones (grumbles) get a sterner bubble. */
+  reaction(icon: IconName, x: number, y: number, z: number, tone?: 'good' | 'bad', crossed?: boolean): void;
   /** A cinematic caption (the intro): a small kicker line and one sentence; null hides it. */
   showCaption(caption: { kicker?: string; text: string } | null): void;
-  celebrate(title: string, subtitle: string, icon: IconName): void;
+  /** A big centred card: a name and an icon (a subtitle only where it says something the icon cannot). */
+  celebrate(title: string, subtitle: string | null, icon: IconName): void;
   /** A coupling is paid for: offer the carriages that may join (recommended first). */
   showCarriageChoice(choices: CarriageChoiceView[], onPick: (type: CarriageType) => void): void;
   /** The player scooped cash: count it up over their head, then send it to the counter. */

@@ -80,19 +80,19 @@ export function carriageChoices(carriages: readonly CarriageType[], signals: Cho
   if (!has('sleeper') && allowed.includes('sleeper')) {
     // Beds first: every guest you turn away is a fare you missed.
     best = 'sleeper';
-    reason = signals.leftBehind > 0 ? `${signals.leftBehind} guest${signals.leftBehind === 1 ? ' was' : 's were'} left behind: you need beds` : 'More beds, more guests';
+    reason = signals.leftBehind > 0 ? 'Guests need beds' : 'More beds';
   } else if (!has('bathroom') && allowed.includes('bathroom')) {
     best = 'bathroom';
-    reason = 'Guests keep asking for a washroom';
+    reason = 'Guests want a loo';
   } else if (signals.luggageLeft > 0 && allowed.includes('luggage')) {
     best = 'luggage';
-    reason = `${signals.luggageLeft} bag${signals.luggageLeft === 1 ? '' : 's'} had no room`;
+    reason = 'Bags need racks';
   } else if (has('bathroom') && !has('supply') && allowed.includes('supply')) {
     best = 'supply';
-    reason = 'A runner will keep the washrooms stocked';
+    reason = 'Keeps towels stocked';
   } else if (signals.leftBehind > 0 && allowed.includes('sleeper')) {
     best = 'sleeper';
-    reason = `${signals.leftBehind} guest${signals.leftBehind === 1 ? ' was' : 's were'} left behind: you need beds`;
+    reason = 'Guests need beds';
   }
   const ordered = best ? [best, ...allowed.filter((t) => t !== best)] : allowed;
   return ordered.slice(0, limit).map((type, i) => ({ type, reason: i === 0 ? reason : null }));

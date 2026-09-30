@@ -96,13 +96,13 @@ export class Monetization {
     const toStop = j.distanceToStop;
     const nextStop = j.stopSerial + 1;
     if (j.phase === 'onTheMove' && toStop !== null && toStop < r.doubleFares.offerSecondsBeforeArrival * w.econ.journey.cruiseSpeed && nextStop % r.doubleFares.everyNthStation === 0 && m.doubleFaresStop !== nextStop && w.flag('firstStationDone')) {
-      out.push({ id: 'doubleFares', icon: 'double', label: 'Next stop', detail: 'Double fares', gemCost: r.doubleFares.gemCost });
+      out.push({ id: 'doubleFares', icon: 'double', label: '', detail: 'Double fares at the next stop', gemCost: r.doubleFares.gemCost });
     }
     if ((j.phase === 'arriving' || (j.phase === 'stationStop' && j.time < 6)) && w.staff.count('porter') === 0 && !w.staff.members.some((s) => s.temporary) && w.flag('firstStationDone')) {
-      out.push({ id: 'tempPorter', icon: 'person', label: 'This stop', detail: 'Temporary porter', gemCost: r.tempPorter.gemCost });
+      out.push({ id: 'tempPorter', icon: 'person', label: '+1', detail: 'A porter for this stop', gemCost: r.tempPorter.gemCost });
     }
     if (w.train.hasSupplyCar() && w.data.facilities.supplyTowel <= 0 && w.data.facilities.supplyRoll <= 0 && w.train.bathrooms.some((b) => b.unlocked && !b.stocked)) {
-      out.push({ id: 'supplyDelivery', icon: 'crate', label: 'Refill', detail: 'Supply delivery', gemCost: r.supplyDelivery.gemCost });
+      out.push({ id: 'supplyDelivery', icon: 'crate', label: '+', detail: 'Supply delivery', gemCost: r.supplyDelivery.gemCost });
     }
     // One bottom slot: the most time-critical, most relevant offer first.
     out.sort((a, b) => OFFER_PRIORITY.indexOf(a.id) - OFFER_PRIORITY.indexOf(b.id));
@@ -173,7 +173,7 @@ export class Monetization {
       }
       case 'holdTheTrain':
         if (w.journey.holdTrain()) {
-          w.ui.toast(`Holding the train: +${w.econ.journey.holdTheTrainSeconds}s`, 'hold');
+          w.ui.toast(`+${w.econ.journey.holdTheTrainSeconds}s`, 'hold');
           w.audio.play('whistleShort');
         }
         break;
@@ -181,21 +181,20 @@ export class Monetization {
         m.speedBoostUntil = Date.now() + w.econ.rewarded.speedBoost.durationSeconds * 1000;
         m.lastSpeedOfferAt = life;
         w.events.emit('boost.changed', {});
-        w.ui.toast('Roller skates on!', 'skate');
         break;
       case 'doubleFares':
         m.doubleFaresStop = w.journey.stopSerial + 1;
-        w.ui.toast('Double fares at the next station', 'double');
+        w.ui.toast('×2', 'double');
         break;
       case 'tempPorter':
         w.staff.hireTemporaryPorter();
-        w.ui.toast('A porter joins for this stop', 'person');
+        w.ui.toast('+1', 'person');
         break;
       case 'supplyDelivery': {
         const max = w.econ.facilities.supplyShelfMax;
         w.data.facilities.supplyTowel = max;
         w.data.facilities.supplyRoll = max;
-        w.ui.toast('Supplies delivered!', 'crate');
+        w.ui.toast('+', 'crate');
         break;
       }
     }

@@ -20,6 +20,16 @@ export const AUDIO = {
   /** At most this many copies of one cue ring at once; one more is skipped rather than cutting another. */
   voices: 4,
   voicesByCue: { coin: 6, pop: 5, pickup: 5 } as Partial<Record<string, number>>,
+  /**
+   * Celebration and reward cues ring out instead of stopping dead: their last chord holds, then fades over
+   * `release` seconds, through a soft room tail (a short generated reverb, `wet` of the dry level).
+   */
+  tail: { seconds: 1.6, damping: 0.3, wet: 0.3, hold: 0.28, release: 1.15 },
+  /**
+   * A celebration owns the moment: for `holdOff` seconds after one of `cues` starts, the small cues in
+   * `quiet` are skipped so nothing steps on the fanfare (the coach's ding, an objective's chime, coins).
+   */
+  celebration: { cues: ['fanfare', 'levelup'], holdOff: 1.4, quiet: ['ding', 'chest', 'heart', 'unlock', 'chime', 'coin', 'pop', 'sparkle', 'bell'] },
   music: {
     /** Seconds to fade the theme in at the start (and after it is switched back on) and out when switched off. */
     fadeIn: 2.5,
