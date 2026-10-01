@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Rng } from '../core/Rng';
 import { GeoBuilder } from './geo';
-import { buildChunk, CHUNK, FILL_KINDS, FILL_SLOTS, fillGeometries, LAND_DECK, SHORE_DECK, type ChunkBuild, type DeckEntry, type FillKind, type LandKind, type PieceKind, type ShoreKind } from './Lakeside';
+import { CHUNK, chunkSteps, FILL_KINDS, FILL_SLOTS, fillGeometries, LAND_DECK, runSteps, SHORE_DECK, type ChunkBuild, type DeckEntry, type FillKind, type LandKind, type PieceKind, type ShoreKind } from './Lakeside';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
 import { groundHeight, TRACK_HALF } from './terrain';
@@ -16,6 +16,11 @@ const SPAN_MIN = -96;
 const SPAN_MAX = 150;
 /** No stretch of the same kind comes back within this many (about a minute at cruising speed). */
 const NO_REPEAT = 4;
+/**
+ * Milliseconds per frame spent building the next stretch ahead of time. A whole stretch costs several
+ * milliseconds (many more on a phone): built in slices it never shows as a hitch.
+ */
+const BUILD_BUDGET_MS = 1.5;
 
 interface Chunk {
   group: THREE.Group;
@@ -36,8 +41,28 @@ interface Chunk {
   landHidden: boolean;
 }
 
+/** A stretch's finished geometry, ready to swap in. */
+interface Prepared {
+  build: ChunkBuild;
+  lake: THREE.BufferGeometry | null;
+  land: THREE.BufferGeometry | null;
+  lakeGlow: THREE.BufferGeometry | null;
+  landGlow: THREE.BufferGeometry | null;
+  lakePools: THREE.BufferGeometry | null;
+  landPools: THREE.BufferGeometry | null;
+}
+
+/** The next stretch to come round, being built ahead of time. */
+interface Pending {
+  chunk: Chunk;
+  z: number;
+  steps: Generator<void, Prepared>;
+  ready: Prepared | null;
+}
+
 const dummy = new THREE.Object3D();
 const EMPTY = new THREE.BufferGeometry();
+const built = (b: GeoBuilder): THREE.BufferGeometry | null => (b.isEmpty ? null : b.build());
 
 /** A soft round pool of lamplight on the ground (additive decal), drawn once. */
 function poolTexture(): THREE.Texture {
@@ -121,6 +146,7 @@ export class Scenery {
   private readonly billboards: THREE.Group[] = [];
   private readonly billboardMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
   private time = 0;
+  private pending: Pending | null = null;
 
   constructor() {
     // The lake covers everything on the lake side, far beyond the view; the ground lies over it where it rises.
@@ -181,17 +207,14 @@ export class Scenery {
     const dz = speed * dt;
     this.scroll += dz;
     this.scrollRoot.position.z = this.scroll;
-    // Stretches that have passed behind the train go round to the front with new pieces.
-    for (const chunk of this.chunks) {
-      if (chunk.z + this.scroll > SPAN_MAX) {
-        chunk.z -= this.chunks.length * CHUNK;
-        this.assign(chunk);
-      }
-    }
+    // Stretches that have passed behind the train go round to the front with new pieces (built ahead of time).
+    for (const chunk of this.chunks) if (chunk.z + this.scroll > SPAN_MAX) this.recycle(chunk);
+    this.prebuild();
     this.updateHidden();
     if (dz !== 0) {
+      // The sleepers move as one row (their spacing repeats every 0.7 m): no per-sleeper writes.
       this.sleeperOffset = (this.sleeperOffset + dz) % 0.7;
-      this.writeSleepers();
+      this.sleepers.position.z = this.sleeperOffset;
     }
     const span = SPAN_MAX - SPAN_MIN;
     for (const board of this.billboards) {
@@ -336,34 +359,81 @@ export class Scenery {
     this.forced = null;
   }
 
+  /** Builds a stretch now, in one go (start-up and the dev tools). */
   private assign(chunk: Chunk): void {
+    this.install(chunk, chunk.z, runSteps(this.prepare(chunk.z)));
+  }
+
+  /** Sends a stretch that has passed behind the train round to the front, with the stretch built for it. */
+  private recycle(chunk: Chunk): void {
+    const z = chunk.z - this.chunks.length * CHUNK;
+    const pending = this.pending && this.pending.chunk === chunk && this.pending.z === z ? this.pending : null;
+    this.pending = null;
+    this.install(chunk, z, pending ? pending.ready ?? runSteps(pending.steps) : runSteps(this.prepare(z)));
+  }
+
+  /** Builds the next stretch to come round a slice at a time, within the frame's budget. */
+  private prebuild(): void {
+    if (!this.pending) {
+      let next: Chunk | null = null;
+      for (const chunk of this.chunks) if (!next || chunk.z > next.z) next = chunk;
+      if (!next) return;
+      const z = next.z - this.chunks.length * CHUNK;
+      this.pending = { chunk: next, z, steps: this.prepare(z), ready: null };
+    }
+    const p = this.pending;
+    if (p.ready) return;
+    const start = performance.now();
+    do {
+      const r = p.steps.next();
+      if (r.done) {
+        p.ready = r.value;
+        return;
+      }
+    } while (performance.now() - start < BUILD_BUDGET_MS);
+  }
+
+  /** A stretch's pieces and geometry, step by step (the deck cards are drawn when it starts). */
+  private *prepare(z: number): Generator<void, Prepared> {
     const shore = this.forced?.shore ?? this.draw(SHORE_DECK, this.recentShore, this.lastShore);
     const land = this.forced?.land ?? this.draw(LAND_DECK, this.recentLand, this.lastLand);
     this.placed++;
     // Seeded by where the stretch is, so the same stretch always looks the same.
-    const build = buildChunk(chunk.z, shore, land, Math.abs(Math.round(chunk.z * 7.31)) + 17);
-    const old = chunk.build;
+    const build = yield* chunkSteps(z, shore, land, Math.abs(Math.round(z * 7.31)) + 17);
+    yield;
+    const lake = built(build.lake);
+    yield;
+    const landProps = built(build.landProps);
+    yield;
+    const lakeGlow = built(build.lakeGlow);
+    const landGlow = built(build.landGlow);
+    const lakePools = poolGeometry(build.pools, false, z);
+    const landPools = poolGeometry(build.pools, true, z);
+    return { build, lake, land: landProps, lakeGlow, landGlow, lakePools, landPools };
+  }
+
+  private install(chunk: Chunk, z: number, prepared: Prepared): void {
+    const build = prepared.build;
+    chunk.z = z;
     chunk.build = build;
-    chunk.group.position.z = chunk.z;
+    chunk.group.position.z = z;
     const set = (mesh: THREE.Mesh, geometry: THREE.BufferGeometry | null): void => {
       if (mesh.geometry !== EMPTY && mesh.geometry !== SAILS_GEOMETRY) mesh.geometry.dispose();
       mesh.geometry = geometry ?? EMPTY;
       mesh.visible = geometry !== null;
     };
-    const geo = (b: GeoBuilder): THREE.BufferGeometry | null => (b.isEmpty ? null : b.build());
     set(chunk.terrain, build.terrain);
-    set(chunk.lake, geo(build.lake));
-    set(chunk.land, geo(build.landProps));
-    set(chunk.lakeGlow, geo(build.lakeGlow));
-    set(chunk.landGlow, geo(build.landGlow));
-    set(chunk.lakePools, poolGeometry(build.pools, false, chunk.z));
-    set(chunk.landPools, poolGeometry(build.pools, true, chunk.z));
+    set(chunk.lake, prepared.lake);
+    set(chunk.land, prepared.land);
+    set(chunk.lakeGlow, prepared.lakeGlow);
+    set(chunk.landGlow, prepared.landGlow);
+    set(chunk.lakePools, prepared.lakePools);
+    set(chunk.landPools, prepared.landPools);
     chunk.beam.visible = build.beacon !== null;
     if (build.beacon) chunk.beam.position.copy(build.beacon);
     chunk.sails.visible = build.windmill !== null;
     if (build.windmill) chunk.sails.position.copy(build.windmill);
     chunk.landHidden = false;
-    void old;
     this.writeFill(chunk);
   }
 
@@ -419,7 +489,7 @@ export class Scenery {
   private writeSleepers(): void {
     const count = this.sleepers.count;
     for (let i = 0; i < count; i++) {
-      dummy.position.set(0, 0, SPAN_MIN - 20 + i * 0.7 + this.sleeperOffset);
+      dummy.position.set(0, 0, SPAN_MIN - 20 + i * 0.7);
       dummy.rotation.set(0, 0, 0);
       dummy.scale.set(1, 1, 1);
       dummy.updateMatrix();

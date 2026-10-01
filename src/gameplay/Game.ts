@@ -8,6 +8,7 @@ import { ECONOMY, type Economy } from '../config/economy';
 import { EventBus } from '../core/EventBus';
 import { log } from '../core/log';
 import { Rng } from '../core/Rng';
+import { Background } from '../core/Background';
 import { Tweens } from '../core/Tween';
 import type { SaveData } from '../save/SaveData';
 import { BrowserSaveStorage } from '../save/SaveStorage';
@@ -61,6 +62,8 @@ import { TrainState } from './TrainState';
 import type { World } from './World';
 import { ZoneSystem } from './Zones';
 
+/** Milliseconds of each frame given to rebuilds spread over frames (see core/Background). */
+const BACKGROUND_BUDGET_MS = 2;
 const SAVE_KEY = 'nightexpress.save';
 const MAX_FRAME = 0.05;
 /** Where in the day cycle the held night sits (the middle of the night key). */
@@ -78,6 +81,7 @@ export class Game implements World {
   readonly save: SaveSystem;
   readonly rng = new Rng();
   readonly tweens = new Tweens();
+  readonly background = new Background();
   readonly stage: Stage;
   readonly scene: THREE.Scene;
   readonly particles = new Particles();
@@ -406,6 +410,8 @@ export class Game implements World {
     this.scenery.present(realDt, rig.focusPoint, night, this.stage.size, rig.zoomNow);
     this.particles.setNight(night);
     this.ui.update(realDt);
+    // Rebuilds in progress get a slice of every frame, never a whole frame.
+    this.background.run(BACKGROUND_BUDGET_MS);
     this.stage.render(realDt);
   }
 
@@ -712,6 +718,7 @@ export class Game implements World {
     const steps = Math.round(seconds / dt);
     for (let i = 0; i < steps; i++) {
       this.step(dt);
+      this.background.run(BACKGROUND_BUDGET_MS);
       this.data.profile.lifetimePlaySeconds += dt;
     }
     return steps * dt;

@@ -863,7 +863,7 @@ const ICONS: Record<IconName, Draw> = {
   },
 };
 
-const urlCache = new Map<string, string>();
+const canvasCache = new Map<string, HTMLCanvasElement>();
 
 export function drawIcon(ctx: CanvasRenderingContext2D, name: IconName, x: number, y: number, size: number): void {
   ctx.save();
@@ -875,20 +875,18 @@ export function drawIcon(ctx: CanvasRenderingContext2D, name: IconName, x: numbe
   ctx.restore();
 }
 
-/** Icon as a data URL for <img> tags. Cached per name and size. */
-export function iconUrl(name: IconName, size = 64): string {
-  const key = `${name}@${size}`;
-  const cached = urlCache.get(key);
-  if (cached) return cached;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
+/** An icon drawn once into an offscreen canvas per name and pixel size; `icon()` blits from it. */
+export function iconCanvas(name: IconName, px = 64): HTMLCanvasElement {
+  const key = `${name}@${px}`;
+  let canvas = canvasCache.get(key);
+  if (canvas) return canvas;
+  canvas = document.createElement('canvas');
+  canvas.width = px;
+  canvas.height = px;
   const ctx = canvas.getContext('2d');
-  if (!ctx) return '';
-  drawIcon(ctx, name, 0, 0, size);
-  const url = canvas.toDataURL('image/png');
-  urlCache.set(key, url);
-  return url;
+  if (ctx) drawIcon(ctx, name, 0, 0, px);
+  canvasCache.set(key, canvas);
+  return canvas;
 }
 
 export const ITEM_ICON: Record<string, IconName> = {

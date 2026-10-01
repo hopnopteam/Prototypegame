@@ -74,6 +74,8 @@ export class Stage {
     this.renderer.toneMappingExposure = VISUALS.night.exposure;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
+    // Shadows are redrawn on the tier's cadence (see `shadowInterval`), never again by the reflection pass.
+    this.renderer.shadowMap.autoUpdate = false;
     this.lighting = new Lighting(this.scene);
     this.scene.add(this.rig.camera);
     this.applyTier(this.tier);
@@ -108,6 +110,7 @@ export class Stage {
     // PCF filtering throughout; the soft tiers sample a wider radius (this three.js has no separate soft type).
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.lighting.setShadows(true, s.shadowMap, s.softShadows ? 4 : 1.5);
+    this.renderer.shadowMap.needsUpdate = true;
     this.fx?.dispose();
     this.fx = null;
     // Post-processing when the tier blooms or antialiases offscreen; a canvas that cannot antialias itself
@@ -178,8 +181,13 @@ export class Stage {
     return true;
   }
 
+  private frameNo = 0;
+
   render(dt: number): void {
     this.trackFps(dt);
+    this.lightMap.update();
+    this.frameNo++;
+    if (this.frameNo % tierSettings(this.tier).shadowInterval === 0) this.renderer.shadowMap.needsUpdate = true;
     const cam = this.rig.camera;
     cam.updateMatrixWorld();
     this.lighting.follow(this.rig.focusPoint, this.rig.viewDirection);

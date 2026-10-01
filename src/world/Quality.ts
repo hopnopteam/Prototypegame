@@ -15,9 +15,10 @@ export function gpuName(renderer: THREE.WebGLRenderer): string {
 }
 
 /**
- * A starting tier for this device. Deliberately cautious on phones (the 3 GB mid-range target gets MEDIUM):
- * `auto` also steps down on its own if the frame rate stays low, but never up, so a guess that is too high
- * costs a few seconds while one that is too low would cost the look for good.
+ * A starting tier for this device. Phones start at MEDIUM at most (session 14: iPhones reported "Apple GPU"
+ * and got HIGH, whose multisampling, soft shadows and second reflection pass cost frames for almost no visible
+ * difference; every tier looks the same by design). HIGH and ULTRA stay one tap away in Settings. `auto` also
+ * steps down on its own if the frame rate stays low, but never up.
  */
 export function detectTier(renderer: THREE.WebGLRenderer): QualityTier {
   const gpu = gpuName(renderer);
@@ -28,10 +29,9 @@ export function detectTier(renderer: THREE.WebGLRenderer): QualityTier {
   const touch = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches);
   const maxTexture = renderer.capabilities.maxTextureSize;
   if (touch) {
-    if (memory <= 2 || cores <= 4 || maxTexture < 4096) return 'low';
-    // Apple GPUs and recent Adreno / Mali / Xclipse chips handle reflections and soft shadows.
-    if (/Apple/i.test(gpu) && memory >= 4) return 'high';
-    if (/Adreno \(TM\) (7\d\d|8\d\d)|Adreno \(TM\) 6[6-9]\d|Mali-G(7[1-9]|[89]\d|7\d\d)|Immortalis|Xclipse/i.test(gpu)) return 'high';
+    // Safari reports a capped core count and no memory on every iPhone, so those say nothing about Apple chips.
+    const apple = /iPhone|iPad|iPod/i.test(navigator.userAgent) || /Apple/i.test(gpu);
+    if (memory <= 2 || maxTexture < 4096 || (!apple && cores <= 4)) return 'low';
     return 'medium';
   }
   // Desktops: integrated graphics get HIGH, anything else ULTRA.

@@ -11,7 +11,7 @@ import type { OfferView } from '../gameplay/Monetization';
 import type { CeremonyResult, FrontPageReward, RivalWatch } from '../gameplay/Press';
 import type { CarriageChoiceView, FloatKind } from '../gameplay/UiApi';
 import type { NewsItem } from '../save/SaveData';
-import { h, icon, setText, setVisible } from './dom';
+import { forgetSize, h, icon, replayClass, setText, setVisible, sizeOf } from './dom';
 import type { IconName } from './icons';
 import { PressScreens } from './PressScreens';
 import { Screens } from './Screens';
@@ -49,6 +49,8 @@ interface PlayRect {
 }
 
 /** Floats spawned close together (same place, same moment) stack upward instead of overprinting. */
+/** A zero box until the first frame is measured. */
+const EMPTY_RECT: DOMRect = typeof DOMRect === 'function' ? new DOMRect() : ({ left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0, x: 0, y: 0 } as DOMRect);
 const FLOAT_STACK_METRES = 0.34;
 const FLOAT_NEAR = 0.9;
 const FLOAT_LIFE = 1.15;
@@ -226,18 +228,33 @@ export class Ui implements GameUi {
     this.lastCash = this.displayedCash;
     game.events.on('currency.changed', ({ kind, delta }) => {
       if (delta <= 0 || kind === 'railMiles') return;
-      const el = kind === 'cash' ? this.hud.cash : this.hud.gems;
-      el.classList.remove('bump');
-      void el.offsetWidth;
-      el.classList.add('bump');
+      replayClass(kind === 'cash' ? this.hud.cash : this.hud.gems, ['bump']);
     });
   }
 
   // ─── Per-frame ──────────────────────────────────────────────────────────────
 
+  /**
+   * Where the HUD pieces are this frame, read once before anything is written (reading positions after
+   * writing styles forces the browser to lay the page out again, several times a frame on a phone).
+   */
+  private readonly frame = { root: EMPTY_RECT, cash: EMPTY_RECT, level: EMPTY_RECT, conductor: EMPTY_RECT, map: EMPTY_RECT, reward: EMPTY_RECT, burst: EMPTY_RECT };
+
+  private snapshot(): void {
+    const f = this.frame;
+    f.root = this.root.getBoundingClientRect();
+    f.cash = this.hud.cash.getBoundingClientRect();
+    f.level = this.hud.level.getBoundingClientRect();
+    f.conductor = this.hud.conductor.getBoundingClientRect();
+    f.map = this.trainMap.el.getBoundingClientRect();
+    f.reward = this.objective.reward.getBoundingClientRect();
+    f.burst = this.burst.el.getBoundingClientRect();
+  }
+
   update(dt: number): void {
     const g = this.game;
     if (!g) return;
+    this.snapshot();
     this.sinceSpeech += dt;
     this.rectTimer -= dt;
     if (this.rectTimer <= 0) this.measure();
@@ -360,9 +377,7 @@ export class Ui implements GameUi {
     if (show === shown) return;
     el.classList.toggle('unrevealed', !show);
     if (show) {
-      el.classList.remove('pop');
-      void el.offsetWidth;
-      el.classList.add('pop');
+      replayClass(el, ['pop']);
       this.rectTimer = 0;
     }
   }
@@ -395,6 +410,7 @@ export class Ui implements GameUi {
       const t = f.age / f.life;
       if (t >= 1) {
         f.el.remove();
+        forgetSize(f.el);
         this.floats.splice(i, 1);
         continue;
       }
@@ -404,8 +420,7 @@ export class Ui implements GameUi {
         f.el.style.opacity = '0';
         continue;
       }
-      if (f.width === 0) f.width = f.el.offsetWidth;
-      const half = f.width / 2 + EDGE;
+      const half = sizeOf(f.el).w / 2 + EDGE;
       // Kept whole inside the play rect; anything that would drift under the HUD fades out instead.
       const x = Math.min(Math.max(this.screen.x, r.left + half), r.right - half);
       const y = this.screen.y;
@@ -444,8 +459,8 @@ export class Ui implements GameUi {
     const b = this.burst;
     const total = b.total;
     const count = Math.max(3, Math.min(8, Math.round(total / 5)));
-    const rootRect = this.root.getBoundingClientRect();
-    const start = b.el.getBoundingClientRect();
+    const rootRect = this.frame.root;
+    const start = this.frame.burst;
     const fromX = start.left + start.width / 2 - rootRect.left;
     const fromY = start.top + start.height / 2 - rootRect.top;
     let assigned = 0;
@@ -469,9 +484,9 @@ export class Ui implements GameUi {
 
   private updateFlyers(dt: number): void {
     if (this.flyers.length === 0) return;
-    const rootRect = this.root.getBoundingClientRect();
-    const cashRect = this.hud.cash.getBoundingClientRect();
-    const levelRect = this.hud.level.getBoundingClientRect();
+    const rootRect = this.frame.root;
+    const cashRect = this.frame.cash;
+    const levelRect = this.frame.level;
     for (let i = this.flyers.length - 1; i >= 0; i--) {
       const f = this.flyers[i];
       const target = f.to === 'cash' ? cashRect : levelRect;
@@ -494,10 +509,7 @@ export class Ui implements GameUi {
       if (t >= 1) {
         f.el.remove();
         this.flyers.splice(i, 1);
-        const pill = f.to === 'cash' ? this.hud.cash : this.hud.level;
-        pill.classList.remove('bump');
-        void pill.offsetWidth;
-        pill.classList.add('bump');
+        replayClass(f.to === 'cash' ? this.hud.cash : this.hud.level, ['bump']);
         if (f.to === 'cash') {
           this.pendingHud = Math.max(0, this.pendingHud - f.amount);
           this.game.audio.play('coin', { pitch: 2.4, volume: 0.35 });
@@ -530,9 +542,7 @@ export class Ui implements GameUi {
       if (labelled) {
         this.guide.icon.replaceChildren(icon(labelled.icon, 22));
         this.guide.text.textContent = labelled.text;
-        this.guide.el.classList.remove('in', 'compact');
-        void this.guide.el.offsetWidth;
-        this.guide.el.classList.add('in');
+        replayClass(this.guide.el, ['in'], ['in', 'compact']);
       }
     }
     if (!labelled) return;
@@ -543,16 +553,15 @@ export class Ui implements GameUi {
     if (compact !== this.guide.el.classList.contains('compact')) this.guide.el.classList.toggle('compact', compact);
     const el = this.guide.el;
     const r = this.rect;
-    const rootRect = this.root.getBoundingClientRect();
-    const width = el.offsetWidth;
-    const height = el.offsetHeight;
+    const rootRect = this.frame.root;
+    const { w: width, h: height } = sizeOf(el);
     let x = 0;
     let y = 0;
     let tail = 'down';
     const anchor = labelled.anchor;
     if ('hud' in anchor) {
       // Beside the button: the train map on the left, the conductor button on the right.
-      const target = (anchor.hud === 'map' ? this.trainMap.el : this.hud.conductor).getBoundingClientRect();
+      const target = anchor.hud === 'map' ? this.frame.map : this.frame.conductor;
       // The station ticket reaches down beside the rail; the line waits until it has gone.
       if (target.width === 0 || this.resultEl) {
         el.style.opacity = '0';
@@ -613,13 +622,14 @@ export class Ui implements GameUi {
     if (!tag) return;
     this.tmp.set(tag.x, TILE_TAG_HEIGHT, tag.z);
     const r = this.rect;
-    if (!g.stage.project(this.tmp, this.screen) || this.screen.y - t.el.offsetHeight < r.top || this.screen.y > r.bottom) {
+    const size = sizeOf(t.el);
+    if (!g.stage.project(this.tmp, this.screen) || this.screen.y - size.h < r.top || this.screen.y > r.bottom) {
       t.el.style.opacity = '0';
       return;
     }
-    const half = t.el.offsetWidth / 2;
+    const half = size.w / 2;
     const x = Math.min(Math.max(this.screen.x, r.left + half), r.right - half);
-    this.tileTagBox = { x0: x - half, x1: x + half, y0: this.screen.y - t.el.offsetHeight, y1: this.screen.y + 6 };
+    this.tileTagBox = { x0: x - half, x1: x + half, y0: this.screen.y - size.h, y1: this.screen.y + 6 };
     t.el.style.opacity = '1';
     t.el.style.transform = `translate(${x}px, ${this.screen.y}px) translate(-50%, -100%)`;
   }
@@ -658,9 +668,7 @@ export class Ui implements GameUi {
     const r = def.reward;
     o.reward.replaceChildren(...(r.cash ? [icon('cash', 18), document.createTextNode(String(r.cash))] : r.gems ? [icon('gem', 16), document.createTextNode(String(r.gems))] : r.railMiles ? [icon('miles', 16), document.createTextNode(String(r.railMiles))] : []));
     if (fresh) {
-      o.el.classList.remove('pop');
-      void o.el.offsetWidth;
-      o.el.classList.add('pop', 'open');
+      replayClass(o.el, ['pop', 'open'], ['pop']);
       o.words = GOAL_WORDS_SECONDS;
       this.rectTimer = 0;
     }
@@ -683,13 +691,11 @@ export class Ui implements GameUi {
   objectiveDone(def: ObjectiveDef): void {
     const cash = def.reward.cash ?? 0;
     const o = this.objective.el;
-    o.classList.remove('flash');
-    void o.offsetWidth;
-    o.classList.add('flash');
+    replayClass(o, ['flash']);
     if (cash <= 0 || o.hidden) return;
     // The reward flies from the banner's chip into the cash counter (shown as it lands).
-    const rootRect = this.root.getBoundingClientRect();
-    const chip = this.objective.reward.getBoundingClientRect();
+    const rootRect = this.frame.root;
+    const chip = this.frame.reward;
     const count = Math.max(2, Math.min(6, Math.round(cash / 5)));
     let assigned = 0;
     for (let i = 0; i < count; i++) {
@@ -718,9 +724,7 @@ export class Ui implements GameUi {
       chip.streak = rush.streak;
       setText(chip.count, `×${rush.streak}`);
       // Not '.pop': that class is the HUD reveal animation, which animates transform.
-      chip.el.classList.remove('tick', 'milestone');
-      void chip.el.offsetWidth;
-      chip.el.classList.add(rush.lastMilestone === rush.streak ? 'milestone' : 'tick');
+      replayClass(chip.el, [rush.lastMilestone === rush.streak ? 'milestone' : 'tick'], ['tick', 'milestone']);
     }
     chip.bar.style.transform = `scaleX(${rush.fraction.toFixed(3)})`;
     const p = g.player.pos;
@@ -731,12 +735,13 @@ export class Ui implements GameUi {
       chip.el.style.opacity = '0';
       return;
     }
-    const half = chip.el.offsetWidth / 2;
+    const size = sizeOf(chip.el);
+    const half = size.w / 2;
     const x = Math.min(Math.max(this.screen.x, r.left + half), r.right - half);
-    const y = Math.min(this.screen.y + RUSH_CHIP_OFFSET, r.bottom - chip.el.offsetHeight);
+    const y = Math.min(this.screen.y + RUSH_CHIP_OFFSET, r.bottom - size.h);
     // The tile label wins if they would touch (it is what the player is deciding about).
     const tag = this.tileTagBox;
-    const clash = !!tag && x + half > tag.x0 && x - half < tag.x1 && y + chip.el.offsetHeight > tag.y0 && y < tag.y1;
+    const clash = !!tag && x + half > tag.x0 && x - half < tag.x1 && y + size.h > tag.y0 && y < tag.y1;
     chip.el.style.opacity = clash ? '0' : '1';
     chip.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, 0)`;
   }
@@ -800,9 +805,7 @@ export class Ui implements GameUi {
     setVisible(c.kicker, !!caption.kicker);
     c.kicker.textContent = caption.kicker ?? '';
     c.text.textContent = caption.text;
-    c.el.classList.remove('in');
-    void c.el.offsetWidth;
-    c.el.classList.add('in');
+    replayClass(c.el, ['in']);
   }
 
   reaction(name: IconName, x: number, y: number, z: number, tone: 'good' | 'bad' = 'good', crossed = false): void {

@@ -632,17 +632,25 @@ function buildTerrain(s0: number, land: LandKind): THREE.BufferGeometry {
 }
 
 /** Builds one stretch (scroll-space start `s0`) with its two pieces. */
-export function buildChunk(s0: number, shore: ShoreKind, land: LandKind, seed: number): ChunkBuild {
+/**
+ * A stretch built in steps (yielding between them), so the scenery can build the next stretch a slice per
+ * frame instead of stalling one frame for all of it.
+ */
+export function* chunkSteps(s0: number, shore: ShoreKind, land: LandKind, seed: number): Generator<void, ChunkBuild> {
   const st = new Stretch(s0, new Rng(seed));
   buildShore(st, shore);
+  yield;
   buildLand(st, land);
+  yield;
   // Verge flowers and the odd rock everywhere, so no stretch is bare.
   st.scatter('flower', 4, -TRACK_HALF - 1.0, -TRACK_HALF - 0.25, [0.8, 1.1], false, 0.14);
   st.scatter('rock', 2, 2.8, 3.8, [0.35, 0.6], true, 0.3);
+  yield;
+  const terrain = buildTerrain(s0, land);
   return {
     shore,
     land,
-    terrain: buildTerrain(s0, land),
+    terrain,
     lake: st.lake,
     landProps: st.landProps,
     lakeGlow: st.lakeGlow,
@@ -652,6 +660,19 @@ export function buildChunk(s0: number, shore: ShoreKind, land: LandKind, seed: n
     beacon: st.beacon,
     windmill: st.windmill,
   };
+}
+
+/** A whole stretch at once (tests, tools, the first stretches at start-up). */
+export function buildChunk(s0: number, shore: ShoreKind, land: LandKind, seed: number): ChunkBuild {
+  return runSteps(chunkSteps(s0, shore, land, seed));
+}
+
+/** Runs a stepped build to the end. */
+export function runSteps<T>(steps: Generator<void, T>): T {
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+  }
 }
 
 /** Smooth-shaded geometry (soft, diorama-like) from an indexed primitive. */

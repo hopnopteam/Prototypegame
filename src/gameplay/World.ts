@@ -4,6 +4,7 @@ import type { Haptics } from '../audio/Haptics';
 import type { Economy } from '../config/economy';
 import type { EventBus } from '../core/EventBus';
 import type { Rng } from '../core/Rng';
+import type { Background } from '../core/Background';
 import type { Tweens } from '../core/Tween';
 import type { SaveData } from '../save/SaveData';
 import type { SaveSystem } from '../save/SaveSystem';
@@ -51,6 +52,8 @@ export interface World {
   readonly data: SaveData;
   readonly rng: Rng;
   readonly tweens: Tweens;
+  /** Heavy rebuilds spread over frames (a small budget each frame). */
+  readonly background: Background;
   readonly stage: Stage;
   readonly scene: THREE.Scene;
   readonly particles: Particles;

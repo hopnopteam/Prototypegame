@@ -17,6 +17,8 @@ import { Zone } from './Zones';
 
 const APPROACH_MARGIN = 40;
 const DEPART_HIDE_DISTANCE = 70;
+/** Seconds after the train changes before the platform is rebuilt (unless it comes into view first). */
+const PLATFORM_REBUILD_DELAY = 1.2;
 /** Roadside billboards once the billboard campaign is bought. */
 /** A copy of `items` in random order. */
 function shuffled<T>(items: readonly T[], rng: { next(): number }): T[] {
@@ -124,13 +126,38 @@ export class Station {
     }
   }
   private billboardKey = '';
+  private platformBuilt = false;
+  /** When a deferred platform rebuild is due (sim time), or null. */
+  private platformBuildAt: number | null = null;
+  private buildPlatform(): void {
+    const train = this.w.train;
+    this.w.background.cancel('platform');
+    this.view.build(this.w.map.rearZ, train.indexOfType('supply'), train.indexOfType('luggage'));
+    this.platformBuilt = true;
+    this.platformBuildAt = null;
+  }
 
-  /** Train grew: platform geometry, luggage pile and vendor move to match. */
+  /** Queues a due rebuild as background work; finishes it at once if the platform must show now. */
+  private stepPlatformBuild(visible: boolean): void {
+    const bg = this.w.background;
+    if (this.platformBuildAt !== null && (visible || this.w.time >= this.platformBuildAt)) {
+      const train = this.w.train;
+      this.platformBuildAt = null;
+      bg.add('platform', this.view.buildSteps(this.w.map.rearZ, train.indexOfType('supply'), train.indexOfType('luggage')));
+    }
+    if (visible) bg.finish('platform');
+  }
+
+  /**
+   * Train grew: the luggage pile and vendor move to match now, and the platform is rebuilt a moment later (or
+   * as it comes into view), so its geometry never lands in the same frame as the new carriage's.
+   */
   onTrainChanged(): void {
     const train = this.w.train;
     const supply = train.indexOfType('supply');
     const luggage = train.indexOfType('luggage');
-    this.view.build(this.w.map.rearZ, supply, luggage);
+    if (!this.platformBuilt) this.buildPlatform();
+    else this.platformBuildAt = this.w.time + PLATFORM_REBUILD_DELAY;
     if (!this.luggageZone) return;
     const pile = PlatformView.luggagePilePosition(luggage);
     this.luggageZone.moveTo(pile.x, pile.z);
@@ -200,6 +227,7 @@ export class Station {
       if (this.view.group.visible) this.clearPlatform();
       this.platformOffset = 1e6;
     }
+    this.stepPlatformBuild(visible);
     this.view.group.visible = visible;
     this.view.setOffset(this.platformOffset);
     if (visible) this.view.animate(_dt);

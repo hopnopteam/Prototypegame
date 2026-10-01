@@ -50,18 +50,22 @@ export class ExteriorView {
     this.group.add(this.carpet);
   }
 
+  /** Rebuilds the dressing for the whole train at once. */
   build(types: readonly CarriageType[], state: ExteriorState, trainName: string): void {
-    for (const mesh of [this.solid, this.lamps, this.boards]) {
-      if (!mesh) continue;
-      this.group.remove(mesh);
-      mesh.geometry.dispose();
+    const steps = this.buildSteps(types, state, trainName);
+    while (!steps.next().done) {
+      // keep going
     }
-    this.solid = this.lamps = this.boards = null;
+  }
+
+  /** The same rebuild a carriage at a time (it yields between them); the old dressing stays until the swap. */
+  *buildSteps(types: readonly CarriageType[], state: ExteriorState, trainName: string): Generator<void, void> {
     const s = new GeoBuilder();
     const lamps = new GeoBuilder();
     const boardGeos: THREE.BufferGeometry[] = [];
 
-    types.forEach((type, index) => {
+    for (let index = 0; index < types.length; index++) {
+      const type = types[index];
       const oz = carriageOriginZ(index);
       const layout = getLayout(type);
       let longest: { z0: number; z1: number; face: number; top: number } | null = null;
@@ -110,15 +114,25 @@ export class ExteriorView {
         // Two brass brackets hold it to the roof edge.
         for (const dz of [-length / 2 + 0.3, length / 2 - 0.3]) s.box(longest.face + 0.06, longest.top + 0.08, zc + dz, 0.12, 0.16, 0.04, PALETTE.brass, 0, FLAT);
       }
-    });
+      yield;
+    }
+    const solidGeo = s.isEmpty ? null : s.build();
+    yield;
+    const lampGeo = lamps.isEmpty ? null : lamps.build();
 
-    if (!s.isEmpty) {
-      this.solid = new THREE.Mesh(s.build(), MATERIALS.solid);
+    for (const mesh of [this.solid, this.lamps, this.boards]) {
+      if (!mesh) continue;
+      this.group.remove(mesh);
+      mesh.geometry.dispose();
+    }
+    this.solid = this.lamps = this.boards = null;
+    if (solidGeo) {
+      this.solid = new THREE.Mesh(solidGeo, MATERIALS.solid);
       this.solid.castShadow = true;
       this.group.add(this.solid);
     }
-    if (!lamps.isEmpty) {
-      this.lamps = new THREE.Mesh(lamps.build(), MATERIALS.lamps);
+    if (lampGeo) {
+      this.lamps = new THREE.Mesh(lampGeo, MATERIALS.lamps);
       this.group.add(this.lamps);
     }
     if (boardGeos.length > 0) {

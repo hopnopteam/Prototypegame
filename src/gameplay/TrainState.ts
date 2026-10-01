@@ -179,10 +179,18 @@ export class TrainState {
   }
 
   /** Re-dresses the outside of the train from the exterior upgrades bought so far. */
-  rebuildExterior(): void {
+  /**
+   * Rebuilds the train's outside dressing. `spread`: a carriage per frame over the next few frames (after a
+   * coupling, so it never lands in the same frame as the new carriage), the old dressing showing meanwhile.
+   */
+  rebuildExterior(spread = false): void {
     const has = (key: string): boolean => this.w.unlocks.isUnlocked(`st.${key}`);
     const name = this.w.data.press.trainName ?? DEFAULT_TRAIN_NAME;
-    this.exterior.build(this.types, { windowboxes: has('windowboxes'), lamps: has('lamps'), lining: has('lining'), nameboards: has('nameboards'), redcarpet: has('redcarpet') }, name);
+    const state = { windowboxes: has('windowboxes'), lamps: has('lamps'), lining: has('lining'), nameboards: has('nameboards'), redcarpet: has('redcarpet') };
+    const bg = this.w.background;
+    bg.cancel('exterior');
+    if (spread) bg.add('exterior', this.exterior.buildSteps(this.types, state, name));
+    else this.exterior.build(this.types, state, name);
   }
 
   /** Display name: the catalogue name, numbered when the train has more than one of a kind. */
@@ -444,7 +452,7 @@ export class TrainState {
         this.group.remove(view.group);
         this.addCarriage(plan.type, true, view);
         this.rebuildMap();
-        this.rebuildExterior();
+        this.rebuildExterior(true);
         w.audio.play('clunk');
         w.audio.play('fanfare');
         w.haptics.heavy();

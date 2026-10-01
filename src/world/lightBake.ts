@@ -76,7 +76,23 @@ export interface BakedLight {
 /** Edge texels are left neutral, so sampling past the map (clamped) reads as no light and no shade. */
 const BORDER = 1;
 
+/** A whole bake at once (start-up, tests, tools). */
 export function bakeLight(input: BakeInput): BakedLight {
+  const steps = bakeSteps(input);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+  }
+}
+
+/** Rows of texels per slice in the long passes, between yields. */
+const ROWS_PER_SLICE = 48;
+
+/**
+ * The bake in slices (it yields between them), so a new carriage or a refit re-bakes over a few frames
+ * while the old map stays on screen, instead of stalling one frame.
+ */
+export function* bakeSteps(input: BakeInput): Generator<void, BakedLight> {
   const { box, texel } = input;
   const width = Math.max(2 * BORDER + 1, Math.ceil((box.x1 - box.x0) / texel) + 1);
   const height = Math.max(2 * BORDER + 1, Math.ceil((box.z1 - box.z0) / texel) + 1);
@@ -107,6 +123,7 @@ export function bakeLight(input: BakeInput): BakedLight {
       }
     }
   });
+  yield;
 
   // Lamps: a soft pool, full in the lamp's own room, a little through the doors into the next.
   for (const lamp of input.lamps) {
@@ -134,14 +151,44 @@ export function bakeLight(input: BakeInput): BakedLight {
         light[t * 3 + 2] += lamp.color[2] * k;
       }
     }
+    yield;
   }
 
   // Walls and other solid texels take the light of the rooms beside them, so wall faces are lit from inside.
+  // Only texels within two of a room can take any (most of the map is outside the hull): find those first.
+  const near = new Uint8Array(n);
+  for (let j = 0; j < height; j++) {
+    let last = -1000;
+    for (let i = 0; i < width; i++) {
+      if (room[j * width + i] >= 0) last = i;
+      if (i - last <= 2) near[j * width + i] = 1;
+    }
+    last = 1000000;
+    for (let i = width - 1; i >= 0; i--) {
+      if (room[j * width + i] >= 0) last = i;
+      if (last - i <= 2) near[j * width + i] = 1;
+    }
+  }
+  const nearBoth = new Uint8Array(n);
+  for (let i = 0; i < width; i++) {
+    let last = -1000;
+    for (let j = 0; j < height; j++) {
+      if (near[j * width + i]) last = j;
+      if (j - last <= 2) nearBoth[j * width + i] = 1;
+    }
+    last = 1000000;
+    for (let j = height - 1; j >= 0; j--) {
+      if (near[j * width + i]) last = j;
+      if (last - j <= 2) nearBoth[j * width + i] = 1;
+    }
+  }
+  yield;
   const lit = light.slice();
   for (let j = BORDER; j < height - BORDER; j++) {
+    if (j % ROWS_PER_SLICE === 0) yield;
     for (let i = BORDER; i < width - BORDER; i++) {
       const t = j * width + i;
-      if (room[t] >= 0) continue;
+      if (room[t] >= 0 || !nearBoth[t]) continue;
       let r = 0;
       let g = 0;
       let b = 0;
@@ -167,6 +214,7 @@ export function bakeLight(input: BakeInput): BakedLight {
     }
   }
   light.set(lit);
+  yield;
 
   // Window spill: warm light laid on whatever is outside the window, fading with distance and spreading.
   for (const s of input.spills) {
@@ -192,6 +240,7 @@ export function bakeLight(input: BakeInput): BakedLight {
         light[t * 3 + 2] += s.color[2] * k;
       }
     }
+    yield;
   }
 
   // Contact shading: darker where the floor meets a wall or tucks under furniture.
@@ -213,10 +262,12 @@ export function bakeLight(input: BakeInput): BakedLight {
         ao[t] *= 1 - shade;
       }
     }
+    yield;
   }
 
   const data = new Float32Array(n * 4);
   for (let t = 0; t < n; t++) {
+    if (t % (width * ROWS_PER_SLICE * 2) === 0) yield;
     const j = Math.floor(t / width);
     const i = t - j * width;
     const edge = i < BORDER || j < BORDER || i >= width - BORDER || j >= height - BORDER;

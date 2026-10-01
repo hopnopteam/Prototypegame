@@ -44,18 +44,19 @@ export const VISUALS = {
    * shading, window spill), the same palette. Higher tiers only add resolution, softer shadows, bloom,
    * antialiasing, real lake reflections and (Ultra) screen-space ambient occlusion. `auto` picks a tier from
    * the device; while playing, the render scale drops first if the frame rate sags (dynamic resolution), and
-   * only then the tier.
+   * only then the tier. `shadowInterval`: the moon's shadow map is redrawn every this many frames (the train
+   * stands still and people walk slowly, so every other frame looks the same and halves that pass on phones).
    */
   quality: {
     tiers: {
       /** Old or weak phones: no post-processing (glows are geometry, so the look holds), hard shadows. */
-      low: { label: 'Low', pixelRatio: 1.25, maxMegapixels: 1.0, shadowMap: 1024, softShadows: false, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false },
+      low: { label: 'Low', pixelRatio: 1.25, maxMegapixels: 1.0, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false },
       /** The 3 GB mid-range target: bloom at a reduced size, FXAA (no multisampling). */
-      medium: { label: 'Medium', pixelRatio: 1.6, maxMegapixels: 1.8, shadowMap: 1024, softShadows: false, bloom: 0.4, msaa: 0, fxaa: true, reflections: 0, ssao: false },
+      medium: { label: 'Medium', pixelRatio: 1.6, maxMegapixels: 1.8, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0.4, msaa: 0, fxaa: true, reflections: 0, ssao: false },
       /** Recent phones: soft shadows, real lake reflections. */
-      high: { label: 'High', pixelRatio: 2, maxMegapixels: 3.2, shadowMap: 2048, softShadows: true, bloom: 0.5, msaa: 4, fxaa: false, reflections: 0.4, ssao: false },
+      high: { label: 'High', pixelRatio: 2, maxMegapixels: 3.2, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.5, msaa: 4, fxaa: false, reflections: 0.4, ssao: false },
       /** Desktops and flagships: sharper reflections and screen-space ambient occlusion on top. */
-      ultra: { label: 'Ultra', pixelRatio: 2.5, maxMegapixels: 5.5, shadowMap: 2048, softShadows: true, bloom: 0.75, msaa: 4, fxaa: false, reflections: 0.6, ssao: true },
+      ultra: { label: 'Ultra', pixelRatio: 2.5, maxMegapixels: 5.5, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.75, msaa: 4, fxaa: false, reflections: 0.6, ssao: true },
     },
     /** Dynamic resolution: below `targetFps` the render scale steps down to `minScale`, and creeps back up. */
     dynamicResolution: { targetFps: 52, minScale: 0.62, stepDown: 0.1, stepUp: 0.05, settleSeconds: 1.5, recoverSeconds: 6 },
