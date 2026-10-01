@@ -297,7 +297,7 @@ class LayoutBuilder {
         // A grand piano in the far corner, its keys (and the stool) toward the room.
         this.prop('grandPiano', PARTITION_X1 + 0.04, cz1 - 2.0, PARTITION_X1 + 1.0, cz1 - 0.1, 'front');
         // A tall armoire on the corridor wall between the writing desk and the piano.
-        this.prop('wardrobe', PARTITION_X1 + 0.02, cz1 - 4.9, PARTITION_X1 + 0.46, cz1 - 3.8, 'right');
+        this.prop('wardrobe', PARTITION_X1 + 0.02, cz1 - 3.6, PARTITION_X1 + 0.46, cz1 - 2.5, 'right');
       }
 
       const corridorNode = this.node(`corr_${c}`, (-INNER + PARTITION_X0) / 2, doorZ);
