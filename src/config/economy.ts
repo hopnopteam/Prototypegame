@@ -33,6 +33,11 @@ export const ECONOMY = {
     stickCurve: 1.3,
     /** Walking into a wall within this far of an opening slides you into it (doorways, gangways, props). */
     doorAssist: 0.38,
+    /**
+     * Gliding along a wall keeps pace: a push up to ~50° off the wall slides along it at full speed (more
+     * than that slows gradually), so corridors on the diagonal train never feel sticky. 1 = plain sliding.
+     */
+    wallGlide: 1.6,
     radius: 0.3,
     baseCarryCapacity: 3,
     /** Quick travel (tap a carriage on the train map) walks the route this much faster… */
@@ -51,7 +56,7 @@ export const ECONOMY = {
    * The camera eases in when you step into a cabin or washroom (framing the room), out on the platform
    * and a touch out while you stride down the train, leading the way you are going.
    */
-  camera: { roomZoom: 0.82, roomBias: 0.4, platformZoom: 1.12, strideZoom: 0.08, travelZoom: 1.1, lead: 1.3 },
+  camera: { roomZoom: 0.86, roomBias: 0.22, platformZoom: 1.12, strideZoom: 0.08, travelZoom: 1.1, lead: 1.0 },
 
   zones: {
     checkInSeconds: 0.9,

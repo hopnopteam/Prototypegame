@@ -27,7 +27,7 @@ import { buildUnlocks, stationPerks, type StationPerks } from '../sim/unlockPlan
 import { Wallet } from '../sim/Wallet';
 import { FLOOR_Y } from '../world/CarriageView';
 import { CharacterView } from '../world/CharacterView';
-import { carriageOriginZ, GANGWAY_LENGTH, HALF_WIDTH, LOCOMOTIVE_LENGTH, REAR_DECK_LENGTH } from '../world/layout';
+import { carriageOriginZ, GANGWAY_LENGTH, HALF_WIDTH, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0, REAR_DECK_LENGTH } from '../world/layout';
 import { VISUALS, type TierSettings } from '../config/visuals';
 import { setLivery } from '../world/materials';
 import { LIVERIES, liveryFor, type Livery } from '../world/palette';
@@ -395,7 +395,8 @@ export class Game implements World {
     this.audio.setNight(night);
     this.audio.update(realDt);
     const rig = this.stage.rig;
-    rig.clampX = this.journey.doorsOpen ? [-1.5, 6.5] : [-1.2, 1.6];
+    // A clamp only keeps the view on the world (the train, and the platform while the doors are open).
+    rig.clampX = this.journey.doorsOpen ? [-HALF_WIDTH, PLATFORM_X0 + PLATFORM_WIDTH - 1] : [-HALF_WIDTH, HALF_WIDTH];
     rig.clampZ[0] = -GANGWAY_LENGTH - LOCOMOTIVE_LENGTH + VISUALS.camera.endMargin;
     rig.clampZ[1] = this.map.rearZ + REAR_DECK_LENGTH - VISUALS.camera.endMargin * 0.5;
     this.frameCamera();
@@ -437,7 +438,8 @@ export class Game implements World {
     const pace = p.travel.active ? 1 : p.strideAmount;
     if (pace > 0 && speed > 0.5) {
       zoom *= p.travel.active ? cam.travelZoom : 1 + cam.strideZoom * pace;
-      ox += (v.x / speed) * cam.lead * pace * 0.4;
+      // The lead follows the direction of travel evenly, so the view moves the way the conductor does.
+      ox += (v.x / speed) * cam.lead * pace;
       oz += (v.z / speed) * cam.lead * pace;
     }
     this.stage.rig.setContext(zoom, ox, oz);

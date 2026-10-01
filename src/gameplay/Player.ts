@@ -152,9 +152,13 @@ export class Player implements Actor {
     const moving = Math.hypot(this.vx, this.vz) > 0.05;
     if (moving) {
       const before = { x: this.pos.x, z: this.pos.z };
-      w.map.walk.move(this.pos, this.vx * dt, this.vz * dt, this.travel.active ? 0 : p.doorAssist);
-      this.speedNow = Math.hypot(this.pos.x - before.x, this.pos.z - before.z) / Math.max(1e-4, dt);
-      if (Math.hypot(tx, tz) > 0.1) this.facing = dampAngle(this.facing, Math.atan2(tx, tz), 14, dt);
+      w.map.walk.move(this.pos, this.vx * dt, this.vz * dt, this.travel.active ? 0 : p.doorAssist, this.travel.active ? 1 : p.wallGlide);
+      const mx = this.pos.x - before.x;
+      const mz = this.pos.z - before.z;
+      this.speedNow = Math.hypot(mx, mz) / Math.max(1e-4, dt);
+      // Face the way the conductor actually goes (gliding along a wall included), never into the wall.
+      if (this.speedNow > 0.4) this.facing = dampAngle(this.facing, Math.atan2(mx, mz), 14, dt);
+      else if (Math.hypot(tx, tz) > 0.1) this.facing = dampAngle(this.facing, Math.atan2(tx, tz), 14, dt);
       this.idleSeconds = 0;
     } else {
       this.speedNow = 0;

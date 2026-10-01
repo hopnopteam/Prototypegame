@@ -34,7 +34,7 @@ export const VISUALS = {
      * Walking: the stick is read on screen (push up, walk up the screen). Directions within this many degrees
      * of the train's length or width snap onto it, so corridors and doorways are easy to walk straight along.
      */
-    axisSnapDeg: 9,
+    axisSnapDeg: 12,
     /** Metres of the world beyond the train's ends the view may show (scenery always covers more). */
     endMargin: 4,
   },

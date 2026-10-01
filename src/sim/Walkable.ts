@@ -75,24 +75,34 @@ export class Walkable {
    * Moves `pos` by (dx, dz), sliding along walls. Sub-steps so fast movers never skip a thin wall. With
    * `assist` (metres), walking into a wall close beside an opening slides you into the opening.
    */
-  move(pos: Vec2, dx: number, dz: number, assist = 0): void {
+  /**
+   * Moves by (dx, dz), sliding along walls. `assist` funnels a head-on push into a nearby opening; `glide`
+   * (> 1) keeps pace while sliding: the slid component is scaled up by it, never past the full step.
+   */
+  move(pos: Vec2, dx: number, dz: number, assist = 0, glide = 1): void {
     const length = Math.hypot(dx, dz);
     const steps = Math.max(1, Math.ceil(length / STEP));
     const sx = dx / steps;
     const sz = dz / steps;
+    const step = length / steps;
     for (let i = 0; i < steps; i++) {
       const nx = pos.x + sx;
       const nz = pos.z + sz;
       if (this.isWalkable(nx, nz)) {
         pos.x = nx;
         pos.z = nz;
-      } else if (sx !== 0 && this.isWalkable(nx, pos.z)) {
-        pos.x = nx;
-      } else if (sz !== 0 && this.isWalkable(pos.x, nz)) {
-        pos.z = nz;
-      } else if (!(assist > 0 && this.funnel(pos, sx, sz, assist))) {
-        break;
+        continue;
       }
+      const gx = pos.x + Math.sign(sx) * Math.min(step, Math.abs(sx) * glide);
+      const gz = pos.z + Math.sign(sz) * Math.min(step, Math.abs(sz) * glide);
+      // Slide along whichever wall lets the push through, the larger component first.
+      const xFirst = Math.abs(sx) >= Math.abs(sz);
+      if (xFirst && sx !== 0 && this.isWalkable(gx, pos.z)) pos.x = gx;
+      else if (sz !== 0 && this.isWalkable(pos.x, gz)) pos.z = gz;
+      else if (!xFirst && sx !== 0 && this.isWalkable(gx, pos.z)) pos.x = gx;
+      else if (sx !== 0 && this.isWalkable(nx, pos.z)) pos.x = nx;
+      else if (sz !== 0 && this.isWalkable(pos.x, nz)) pos.z = nz;
+      else if (!(assist > 0 && this.funnel(pos, sx, sz, assist))) break;
     }
   }
 

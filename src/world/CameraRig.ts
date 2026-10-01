@@ -116,8 +116,10 @@ export class CameraRig {
       const angle = Math.atan2(gx, gz);
       const axis = Math.round(angle / (Math.PI / 2)) * (Math.PI / 2);
       const delta = angle - axis;
-      const span = Math.PI / 4;
-      const bent = Math.abs(delta) <= snap ? 0 : Math.sign(delta) * ((Math.abs(delta) - snap) * span) / (span - snap);
+      // Within `snap` of an axis: exactly on it. From snap to 2×snap: easing back. Beyond: exactly where the
+      // thumb points (a remap of the whole circle would bend every direction toward the train's axes).
+      const ad = Math.abs(delta);
+      const bent = ad <= snap ? 0 : ad >= 2 * snap ? delta : Math.sign(delta) * (ad - snap) * 2;
       gx = Math.sin(axis + bent);
       gz = Math.cos(axis + bent);
     }
@@ -173,7 +175,9 @@ export class CameraRig {
     c.zoom = damp(c.zoom, this.context.zoom, cfg.contextSharpness, dt);
     c.x = damp(c.x, this.context.x, cfg.contextSharpness, dt);
     c.z = damp(c.z, this.context.z, cfg.contextSharpness, dt);
-    let tx = Math.min(this.clampX[1], Math.max(this.clampX[0], followX * 0.75 + c.x)) - cfg.lakeBias;
+    // Follow the conductor fully on both axes: on a diagonal train anything less makes them drift across
+    // the screen in a different direction from the stick (session 13).
+    let tx = Math.min(this.clampX[1], Math.max(this.clampX[0], followX + c.x)) - cfg.lakeBias;
     // Lead along the train toward the locomotive, never past either end of the world.
     let tz = Math.min(this.clampZ[1], Math.max(this.clampZ[0], followZ - cfg.lookAhead + c.z));
     let zoom = this.zoom * c.zoom;
