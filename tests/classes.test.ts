@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BASIC_REPAIRED_FARE, CLASSES, classFare, classOfTier, classStartingAt, isPassengerType, maxTier } from '../src/config/classes';
 import { ARCHETYPES, CARRIAGE_CATALOGUE, DEFAULT_TRAIN } from '../src/config/content';
 import { buildUnlocks, refitMatches } from '../src/sim/unlockPlan';
+import { getLayout, roomsAt } from '../src/world/layout';
 
 describe('carriage classes', () => {
   it('climb in order: tiers, levels, fares, tips and stars never go down', () => {
@@ -21,7 +22,20 @@ describe('carriage classes', () => {
     expect(classStartingAt(4)?.id).toBe('first');
     expect(classFare(0)).toBe(1);
     expect(classFare(1)).toBe(BASIC_REPAIRED_FARE);
-    expect(classFare(5)).toBe(15);
+    expect(classFare(5)).toBe(40);
+  });
+
+  it('earns clearly more per carriage with every class, though the rooms get fewer and bigger', () => {
+    for (const type of ['lobby', 'sleeper'] as const) {
+      let last = 0;
+      for (let tier = 1; tier <= 5; tier++) {
+        const perRide = roomsAt(type, tier) * classFare(tier);
+        expect(perRide, `${type} tier ${tier}`).toBeGreaterThan(last * 1.3);
+        expect(getLayout(type, tier).cabins.length, `${type} tier ${tier}`).toBe(roomsAt(type, tier));
+        last = perRide;
+      }
+      expect(roomsAt(type, 5)).toBe(1);
+    }
   });
 
   it('gives passenger carriages five classes and service cars four tiers', () => {

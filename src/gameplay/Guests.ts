@@ -854,6 +854,47 @@ export class Guests {
     if (i >= 0) this.list.splice(i, 1);
   }
 
+  /**
+   * A carriage was rebuilt to a new floor plan (a class refit): everyone who had a room there gets one in the
+   * new plan, then any free room of their class elsewhere, then any free room; anyone left over (a Basic carriage
+   * of six berths becoming four cabins, every other room full) is thanked with a generous tip and set down at
+   * the next stop off-screen. Guests keep what they were doing; sleepers stay asleep, in their new bed.
+   */
+  rehome(oldCabins: readonly Cabin[], fresh: readonly Cabin[]): void {
+    const w = this.w;
+    const moving = this.list.filter((g) => g.cabin && oldCabins.includes(g.cabin));
+    // Those already in bed first, so the sleepers are the ones who keep a room in this carriage.
+    moving.sort((a, b) => Number(b.inCabin) - Number(a.inCabin));
+    for (const guest of moving) {
+      const from = guest.cabin as Cabin;
+      if (from.guest === guest) from.guest = null;
+      const room = fresh.find((c) => c.isFree) ?? w.train.freeCabin(guest.cls) ?? w.train.cabins.find((c) => c.isFree) ?? null;
+      if (!room) {
+        // No room anywhere: a thank-you tip where they were, and they slip away.
+        const tip = Math.round(w.econ.money.alightTip * 2 * w.train.fareMultiplier(from));
+        const pile = fresh[0]?.pileId;
+        if (pile) w.cash.add(pile, tip, new THREE.Vector3(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
+        w.particles.emit('sparkle', guest.pos.x, FLOOR_Y + 0.8, guest.pos.z, 10, 0.4);
+        guest.cabin = null;
+        this.destroy(guest);
+        continue;
+      }
+      room.guest = guest;
+      guest.cabin = room;
+      if (guest.inCabin) {
+        guest.pos.x = room.bedSide.x;
+        guest.pos.z = room.bedSide.z;
+        guest.mover.stop();
+      } else if (guest.state === 'toCabin') {
+        const path = w.map.nav.findPath(w.map.nearestNode(guest.pos.x, guest.pos.z) ?? room.node, room.node);
+        guest.mover.go([...(path ?? []), room.bedSide], () => {
+          this.setState(guest, 'settling');
+          guest.settleFor = w.econ.guests.settleSeconds;
+        });
+      }
+    }
+  }
+
   /** Guests (of one class, or all) who will still be aboard after this stop (for sizing the platform crowd). */
   stayingPast(stopSerial: number, cls?: ClassId): number {
     let n = 0;

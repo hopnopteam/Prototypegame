@@ -44,7 +44,7 @@ export const QUEUE_SLOTS: Vec2[] = [
 export type PropKind =
   | 'bed' | 'desk' | 'urn' | 'linen' | 'rack' | 'bin' | 'toilet' | 'sink' | 'bathtub'
   | 'shelfTowel' | 'shelfRoll' | 'crateBay' | 'bench' | 'luggageRack' | 'plant' | 'lamp' | 'washShelf'
-  | 'closet' | 'laundry' | 'table' | 'sofa' | 'bureau';
+  | 'closet' | 'laundry' | 'table' | 'sofa' | 'bureau' | 'armchair' | 'wardrobe' | 'grandPiano' | 'dining';
 
 export interface PropDef {
   kind: PropKind;
@@ -66,8 +66,16 @@ export interface Connector {
   door?: boolean;
 }
 
+/**
+ * How a room is furnished, by class: a Basic berth (a narrow cot in a short room), a Comfort cabin, a Business
+ * cabin (a double bed and an armchair), a First Class suite (a grand bed and a lounge), the Royal Suite (a
+ * four-poster, a lounge, a piano and a dining table: the whole carriage).
+ */
+export type RoomStyle = 'berth' | 'cabin' | 'business' | 'first' | 'royal';
+
 export interface CabinLayout {
   index: number;
+  style: RoomStyle;
   room: Rect;
   doorZ: number;
   /** The doorway in the partition (z range); a sliding door fills it when nobody is near. */
@@ -236,8 +244,11 @@ class LayoutBuilder {
     this.connector(-GANGWAY_HALF, L - 0.8, GANGWAY_HALF, L + GANGWAY_LENGTH + 0.8, 'z');
   }
 
-  /** Sleeper cabins on the right of a corridor, between z0 and z1. */
-  cabins(z0: number, z1: number, count: number, corridorEntryNode: string): void {
+  /**
+   * Rooms on the right of a corridor, between z0 and z1, furnished in a class's style. The corridor stays on
+   * the left whatever the class (it is the way through the train); fewer, longer rooms as the class rises.
+   */
+  rooms(z0: number, z1: number, count: number, corridorEntryNode: string, style: RoomStyle): void {
     const len = (z1 - z0) / count;
     const partitionGaps: [number, number][] = [];
     this.connector(-INNER, z0 - 0.5, PARTITION_X0, z1 + 0.55, 'z');
@@ -250,7 +261,7 @@ class LayoutBuilder {
       const doorZ = (doorZ0 + doorZ1) / 2;
       partitionGaps.push([doorZ0, doorZ1]);
 
-      // Divider wall at the front of each cabin (the last cabin also gets one at its rear).
+      // Divider wall at the front of each room (the last room also gets one at its rear).
       this.wall(PARTITION_X1, cz0 - 0.06, INNER, cz0 + 0.06);
       if (c === count - 1) this.wall(PARTITION_X1, cz1 - 0.06, INNER, cz1 + 0.06);
 
@@ -258,22 +269,60 @@ class LayoutBuilder {
       this.room(room.x0, room.z0, room.x1, room.z1);
       this.connector(PARTITION_X0 - 0.45, doorZ0, PARTITION_X1 + 0.45, doorZ1, 'x');
 
-      const bed = rect(INNER - 1.05, cz0 + 0.18, INNER, cz0 + 0.18 + Math.min(1.85, len - 0.4));
+      // The bed against the outer wall: wider and grander with each class.
+      const bedWidth = { berth: 0.92, cabin: 1.05, business: 1.35, first: 1.45, royal: 1.62 }[style];
+      const bedLength = style === 'berth' ? Math.min(1.72, len - 0.22) : style === 'cabin' ? Math.min(1.85, len - 0.4) : 1.95;
+      const bedStart = style === 'royal' && len > 6 ? cz0 + 0.45 : cz0 + (style === 'berth' ? 0.1 : 0.18);
+      const bed = rect(INNER - bedWidth, bedStart, INNER, bedStart + bedLength);
       this.prop('bed', bed.x0, bed.z0, bed.x1, bed.z1, 'front');
+
+      // What each class keeps at the foot of the bed (a bench, a minibar, an ottoman, a slipper bath: drawn
+      // by the carriage view) is solid too, so nobody walks through it.
+      const footZ0 = bed.z1 + 0.05;
+      const footZ1 = Math.min(cz1 - 0.04, footZ0 + 0.62);
+      if (footZ1 - footZ0 >= 0.3) this.layout.blocked.push(rect(bed.x0 + 0.06, footZ0, INNER, footZ1));
+
+      // The bigger rooms get a lounge beyond the bed (kept off the walk from the door to the room's heart).
+      if (style === 'business' && len > 3.2) this.prop('armchair', INNER - 0.72, cz1 - 0.92, INNER - 0.04, cz1 - 0.2, 'left');
+      if ((style === 'first' || style === 'royal') && len > 5) {
+        const sofa = rect(INNER - 0.62, cz1 - 2.5, INNER - 0.04, cz1 - 0.95);
+        const table = rect(INNER - 1.38, cz1 - 2.05, INNER - 0.86, cz1 - 1.4);
+        this.prop('sofa', sofa.x0, sofa.z0, sofa.x1, sofa.z1, 'left');
+        this.prop('table', table.x0, table.z0, table.x1, table.z1);
+      }
+      if (style === 'royal' && len > 9) {
+        // The grand suite: a dining table for two near the middle and a piano against the partition.
+        const dining = rect(0.55, cz0 + len * 0.5 - 0.55, 1.55, cz0 + len * 0.5 + 0.55);
+        this.prop('dining', dining.x0, dining.z0, dining.x1, dining.z1);
+        // A grand piano in the far corner, its keys (and the stool) toward the room.
+        this.prop('grandPiano', PARTITION_X1 + 0.04, cz1 - 2.0, PARTITION_X1 + 1.0, cz1 - 0.1, 'front');
+        // A tall armoire on the corridor wall between the writing desk and the piano.
+        this.prop('wardrobe', PARTITION_X1 + 0.02, cz1 - 4.9, PARTITION_X1 + 0.46, cz1 - 3.8, 'right');
+      }
 
       const corridorNode = this.node(`corr_${c}`, (-INNER + PARTITION_X0) / 2, doorZ);
       const cabinNode = this.node(`cabin_${c}`, 0.22, doorZ + 0.1);
       this.chain(previousCorridor, corridorNode);
       this.edge(corridorNode, cabinNode);
       previousCorridor = corridorNode;
+      if (len > 4) {
+        // A suite is long: a waypoint in the lane beside the foot of the bed, so a walk from the door to the
+        // bedside (or the tips left by its head) goes round the bed, not through the wall.
+        const laneX = (PARTITION_X1 + 0.06 + bed.x0) / 2;
+        this.edge(cabinNode, this.node(`bed_${c}`, laneX, bed.z1 + 0.14));
+      }
 
-      // The walk-in beside the bed: one spot in its middle is where you clean, deliver and build (a room
-      // is small enough that tidying it from one place reads better than walking a circuit of it).
+      // The walk-in beside the bed: one spot in its middle is where you clean, deliver and build. In a long
+      // suite it is just inside the door, where the walk from the corridor ends.
       const openX0 = PARTITION_X1 + 0.32;
       const openX1 = bed.x0 - 0.42;
-      const heart = { x: (openX0 + openX1) / 2, z: cz0 + len * 0.52 };
+      const heartZ = len > 4 ? doorZ : cz0 + len * 0.52;
+      const heart = { x: Math.min((openX0 + openX1) / 2, 0.05), z: heartZ };
+      // Tips: the far corner of a small room; in a suite, by the head of the bed (the heart is at the door).
+      const tipZ = style === 'berth' ? cz1 - 0.38 : len > 4 ? bed.z0 + 0.62 : cz1 - 0.42;
       this.layout.cabins.push({
         index: c,
+        style,
         room,
         doorZ,
         door: [doorZ0, doorZ1],
@@ -281,7 +330,7 @@ class LayoutBuilder {
         spots: [{ ...heart }],
         center: { ...heart },
         bedPose: { x: (bed.x0 + bed.x1) / 2, z: (bed.z0 + bed.z1) / 2 },
-        tipPile: { x: openX1, z: cz1 - 0.42 },
+        tipPile: { x: len > 4 ? bed.x0 - 0.36 : Math.max(openX0 + 0.1, Math.min(openX1, bed.x0 - 0.42)), z: tipZ },
         corridorNode,
         node: cabinNode,
       });
@@ -294,7 +343,18 @@ class LayoutBuilder {
   }
 }
 
-function buildLobby(): CarriageLayout {
+/** Rooms per passenger carriage and their style, by class (refit tier 0–1 Basic … 5 Royal Suite). */
+const LOBBY_ROOMS: [number, RoomStyle][] = [[3, 'berth'], [3, 'berth'], [2, 'cabin'], [2, 'business'], [2, 'first'], [1, 'royal']];
+const SLEEPER_ROOMS: [number, RoomStyle][] = [[6, 'berth'], [6, 'berth'], [4, 'cabin'], [3, 'business'], [2, 'first'], [1, 'royal']];
+
+/** How many rooms a passenger carriage has at a refit tier (the economy and the tiles use this). */
+export function roomsAt(type: CarriageType, tier: number): number {
+  const table = type === 'lobby' ? LOBBY_ROOMS : type === 'sleeper' ? SLEEPER_ROOMS : null;
+  if (!table) return 0;
+  return table[Math.min(table.length - 1, Math.max(0, tier))][0];
+}
+
+function buildLobby(tier: number): CarriageLayout {
   const b = new LayoutBuilder('lobby');
   // A generous reception (7.4 m) and two proper cabins behind it.
   const lobbyEnd = 7.4;
@@ -354,11 +414,12 @@ function buildLobby(): CarriageLayout {
   b.chain('lobby_front', 'lobby_rear', 'rack');
   b.edge('lobby_rl', 'lobby_rear');
 
-  b.cabins(lobbyEnd, cabinsEnd, 2, 'corr_in');
+  const [count, style] = LOBBY_ROOMS[Math.min(LOBBY_ROOMS.length - 1, Math.max(0, tier))];
+  b.rooms(lobbyEnd, cabinsEnd, count, 'corr_in', style);
   return b.layout;
 }
 
-function buildSleeper(): CarriageLayout {
+function buildSleeper(tier: number): CarriageLayout {
   const b = new LayoutBuilder('sleeper');
   const front = 1.6;
   b.shell({ frontGangway: true, doors: false });
@@ -377,7 +438,8 @@ function buildSleeper(): CarriageLayout {
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, front - 0.1);
   b.node('nook', 0, 1.05);
   b.chain('vest_front', 'nook', 'corr_in');
-  b.cabins(front, INTERIOR_END, 4, 'corr_in');
+  const [count, style] = SLEEPER_ROOMS[Math.min(SLEEPER_ROOMS.length - 1, Math.max(0, tier))];
+  b.rooms(front, INTERIOR_END, count, 'corr_in', style);
   return b.layout;
 }
 
@@ -497,7 +559,7 @@ function buildLuggage(): CarriageLayout {
   return b.layout;
 }
 
-const BUILDERS: Record<CarriageType, () => CarriageLayout> = {
+const BUILDERS: Record<CarriageType, (tier: number) => CarriageLayout> = {
   lobby: buildLobby,
   sleeper: buildSleeper,
   bathroom: buildBathroom,
@@ -505,13 +567,22 @@ const BUILDERS: Record<CarriageType, () => CarriageLayout> = {
   luggage: buildLuggage,
 };
 
-const cache = new Map<CarriageType, CarriageLayout>();
+const cache = new Map<string, CarriageLayout>();
 
-export function getLayout(type: CarriageType): CarriageLayout {
-  let layout = cache.get(type);
+/** Which floor plan a carriage uses at a refit tier: passenger carriages change plan with their class. */
+export function layoutKey(type: CarriageType, tier = 0): string {
+  if (type !== 'lobby' && type !== 'sleeper') return type;
+  const t = Math.min(5, Math.max(0, tier));
+  return `${type}:${t <= 1 ? 0 : t}`;
+}
+
+/** The floor plan of a carriage type (passenger carriages: at a refit tier, which sets their class). */
+export function getLayout(type: CarriageType, tier = 0): CarriageLayout {
+  const key = layoutKey(type, tier);
+  let layout = cache.get(key);
   if (!layout) {
-    layout = BUILDERS[type]();
-    cache.set(type, layout);
+    layout = BUILDERS[type](tier);
+    cache.set(key, layout);
   }
   return layout;
 }

@@ -68,6 +68,7 @@ export class Tiles {
    */
   refresh(): void {
     const w = this.w;
+    w.train.retireBerthTiles();
     const available = w.unlocks.available();
     const availableIds = new Set(available.map((d) => d.id));
     for (const [id, entry] of this.entries) {

@@ -34,10 +34,11 @@ export class TrainMap {
     this.walk = new Walkable(radius);
   }
 
-  rebuild(types: CarriageType[], doorsOpen = this.doorsOpen, rearDeckEnabled = this.rearDeckEnabled): void {
+  /** `tiers` picks each passenger carriage's floor plan (its class); service cars have one plan. */
+  rebuild(types: CarriageType[], doorsOpen = this.doorsOpen, rearDeckEnabled = this.rearDeckEnabled, tiers: readonly number[] = []): void {
     this.doorsOpen = doorsOpen;
     this.rearDeckEnabled = rearDeckEnabled;
-    this.carriages = types.map((type, index) => ({ index, type, layout: getLayout(type), originZ: carriageOriginZ(index) }));
+    this.carriages = types.map((type, index) => ({ index, type, layout: getLayout(type, tiers[index] ?? 0), originZ: carriageOriginZ(index) }));
     this.buildNav();
     this.buildWalkable();
   }

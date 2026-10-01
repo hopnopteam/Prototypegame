@@ -37,9 +37,9 @@ const liv = liveryFor(Number(params.get('level') ?? '1'));
 setLivery(liv.body, liv.trim);
 DEFAULT_TRAIN.map((type) => ({ type })).slice(0, count).forEach((c, i) => {
   const tier = tierParam !== null ? Number(tierParam) : Number(tiers[i] ?? '0');
-  const view = new CarriageView(getLayout(c.type), i, tier);
+  const view = new CarriageView(getLayout(c.type, tier), i, tier);
   view.group.position.z = carriageOriginZ(i);
-  if (c.type === 'lobby') { view.setCabinLocked(1, true); view.setDirt(0, [true]); view.setLuggageCount(3); }
+  if (c.type === 'lobby') { if (tier <= 1) view.setCabinLocked(1, true); view.setDirt(0, [true]); view.setLuggageCount(3); }
   if (c.type === 'bathroom') { view.setBathroomLocked(1, true); view.setBathroomStock(0, 3, 2); }
   if (c.type === 'supply') view.setShelfStock(10, 12);
   // ?comforts=lamp,flowers,radio,soap,rail dresses the rooms.
@@ -58,7 +58,7 @@ if (platform) {
 }
 // A sleeper in the lobby's first cabin.
 if (params.get('sleeper') !== '0') {
-  const cabin = getLayout('lobby').cabins[0];
+  const cabin = getLayout('lobby', tierParam !== null ? Number(tierParam) : Number(tiers[0] ?? '0')).cabins[0];
   const sleeper = new CharacterView({ ...ARCHETYPES[0].colors, accessory: 'none' });
   sleeper.setPose('sleep', '#7D9CBB');
   sleeper.setPosition((cabin.bed.x0 + cabin.bed.x1) / 2, FLOOR_Y + BED_TOP, cabin.bed.z0 + 0.27 + 1.02);

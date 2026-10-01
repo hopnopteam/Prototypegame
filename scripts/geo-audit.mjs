@@ -10,7 +10,8 @@ const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshad
 const page = await browser.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.goto(`file://${resolve('dist/geoaudit.html')}`);
+// The audit runs while the page loads (several minutes under SwiftShader), so don't wait for 'load' here.
+await page.goto(`file://${resolve('dist/geoaudit.html')}`, { waitUntil: 'commit' });
 await page.waitForFunction(() => document.body.dataset.done === '1' || window.__failed, null, { timeout: 900000 }).catch(() => undefined);
 const results = await page.evaluate(() => window.geoAudit);
 const clips = await page.evaluate(() => window.clipAudit);

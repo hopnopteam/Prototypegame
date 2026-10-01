@@ -118,7 +118,7 @@ describe('UnlockChain', () => {
     const chain = new UnlockChain(buildUnlocks(['lobby']), state, () => ({}));
     chain.setDefs(buildUnlocks(['lobby', 'sleeper']));
     expect(chain.isUnlocked('c0.cabin_1')).toBe(true);
-    expect(chain.get('c1.cabin_0')?.label).toBe('Cabin 3');
+    expect(chain.get('c1.cabin_0')?.label).toBe('Cabin 4');
   });
 
   it('refurbishes every carriage one tier at a time, and says what each tile does', () => {

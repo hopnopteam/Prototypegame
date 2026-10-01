@@ -6,7 +6,7 @@ import { ClassChips } from '../world/ClassChips';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Vec2 } from '../core/types';
 import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
-import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, GANGWAY_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, ZONE_RADIUS, type BathroomLayout, type CabinLayout } from '../world/layout';
+import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, GANGWAY_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, layoutKey, ZONE_RADIUS, type BathroomLayout, type CabinLayout } from '../world/layout';
 import { ExteriorView } from '../world/ExteriorView';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
 import { LocomotiveView } from '../world/LocomotiveView';
@@ -412,7 +412,7 @@ export class TrainState {
     if (this.coupling) return;
     this.coupling = true;
     const plan = { type, name: '' };
-    const view = new CarriageView(getLayout(plan.type), index, this.savedTier(index));
+    const view = new CarriageView(getLayout(plan.type, this.savedTier(index)), index, this.savedTier(index));
     const targetZ = carriageOriginZ(index);
     const startZ = targetZ + 48;
     view.group.position.z = startZ;
@@ -521,19 +521,19 @@ export class TrainState {
 
   private addCarriage(type: CarriageType, animate: boolean, existingView?: CarriageView): void {
     const index = this.types.length;
-    const view = existingView ?? new CarriageView(getLayout(type), index, this.savedTier(index));
+    const tier = existingView?.tier ?? this.savedTier(index);
+    const view = existingView ?? new CarriageView(getLayout(type, tier), index, tier);
     view.group.position.z = carriageOriginZ(index);
     this.group.add(view.group);
     this.views.push(view);
     this.types.push(type);
     this.tiers[index] = view.tier;
-    const layout = getLayout(type);
+    const layout = view.layout;
     const originZ = carriageOriginZ(index);
 
     for (const cl of layout.cabins) {
       const cabin = new Cabin(index, cl, originZ);
-      const alwaysOpen = type === 'lobby' && cl.index === 0;
-      cabin.unlocked = alwaysOpen || this.roomUnlocked('cabin', index, cl.index);
+      cabin.unlocked = this.cabinOpen(type, index, cl.index, view.tier);
       view.setCabinLocked(cl.index, !cabin.unlocked);
       this.cabins.push(cabin);
       this.createCabinZones(cabin);
@@ -585,10 +585,20 @@ export class TrainState {
   }
 
   private syncCarriageView(view: CarriageView, index: number, type: CarriageType): void {
-    const layout = getLayout(type);
-    for (const cl of layout.cabins) view.setCabinLocked(cl.index, !(type === 'lobby' && cl.index === 0) && !this.roomUnlocked('cabin', index, cl.index));
+    const layout = view.layout;
+    for (const cl of layout.cabins) view.setCabinLocked(cl.index, !this.cabinOpen(type, index, cl.index, view.tier));
     for (const bl of layout.bathrooms) view.setBathroomLocked(bl.index, bl.index !== 0 && !this.roomUnlocked('bathroom', index, bl.index));
     view.setComforts(this.comfortsOf(index));
+  }
+
+  /**
+   * Whether a room is open: the lobby's first berth always is; Basic berths open one tile at a time; from
+   * Comfort up, a class refit rebuilds the carriage with every room open.
+   */
+  private cabinOpen(type: CarriageType, carriage: number, room: number, tier: number): boolean {
+    if (tier >= 2) return true;
+    if (type === 'lobby' && room === 0) return true;
+    return this.roomUnlocked('cabin', carriage, room);
   }
 
   /** Whether the tile that opens this cabin or washroom has been bought (restoring a save). */
@@ -638,15 +648,22 @@ export class TrainState {
     const old = this.views[index];
     const type = this.types[index];
     if (!old || type === undefined || tier <= old.tier) return;
-    const view = new CarriageView(getLayout(type), index, tier);
+    // A new class can mean a new floor plan: fewer, bigger, grander rooms.
+    const relayout = layoutKey(type, old.tier) !== layoutKey(type, tier);
+    const view = new CarriageView(getLayout(type, tier), index, tier);
     view.group.position.copy(old.group.position);
-    for (const cabin of this.cabins) if (cabin.carriage === index) view.setCabinLocked(cabin.index, !cabin.unlocked);
+    if (!relayout) for (const cabin of this.cabins) if (cabin.carriage === index) view.setCabinLocked(cabin.index, !cabin.unlocked);
     for (const bath of this.bathrooms) if (bath.carriage === index) view.setBathroomLocked(bath.layout.index, !bath.unlocked);
     view.setComforts(this.comfortsOf(index));
     view.setDoorOpen(this.doorAmount);
     this.group.add(view.group);
     this.views[index] = view;
     this.tiers[index] = tier;
+    if (relayout) {
+      this.relayoutCabins(index, view);
+      this.rebuildMap();
+      this.retireBerthTiles();
+    }
     // Refresh stock visibility this frame rather than next.
     this.update(0);
     if (!animate) {
@@ -666,13 +683,61 @@ export class TrainState {
       const cls = isPassengerType(type) ? classStartingAt(tier) : null;
       if (cls) {
         // A new class: its name and emblem, and a shimmer along the fresh paint outside.
-        w.ui.celebrate(cls.name, null, cls.icon);
+        // What the class is worth, in one line: the payoff of the refit you just watched.
+        w.ui.celebrate(cls.name, `Fares ×${cls.fare}`, cls.icon);
         for (let k = 0; k < 5; k++) w.particles.emit('sparkle', HALF_WIDTH + 0.15, FLOOR_Y + 0.9, originZ + 1.5 + k * 2.6, 8, 0.6);
         w.audio.play('levelup');
       } else w.ui.celebrate(TIER_NAMES[tier] ?? this.carriageName(index), null, 'paint');
     });
     w.events.emit('carriage.refurbished', { index, type, tier });
     if (isPassengerType(type) && classStartingAt(tier)) w.events.emit('carriage.classUp', { index, cls: classOfTier(tier).id });
+  }
+
+  /**
+   * From Comfort up a passenger carriage has its own floor plan with every room open, so its Basic berth
+   * tiles are done with: they are settled (no stars, nothing more to buy) and anything put into one comes back.
+   * Also settles them for saves from before class floor plans.
+   */
+  retireBerthTiles(): void {
+    const u = this.w.unlocks;
+    for (const d of u.defs) {
+      if (d.kind !== 'cabin' || (this.tiers[d.carriage] ?? 0) < 2 || u.isUnlocked(d.id)) continue;
+      const paid = u.paid(d.id);
+      u.forceComplete(d.id);
+      if (paid > 0) this.w.wallet.add('cash', paid, 'refund:berth');
+    }
+  }
+
+  /**
+   * The carriage was rebuilt to a new class's floor plan: its rooms are replaced (all open, freshly made up),
+   * uncollected tips move to the new rooms, staff re-plan, and every guest aboard is shown to a room: theirs
+   * in the new plan, another free one on the train, or (no room anywhere) they are sent on their way with a
+   * thank-you, nothing lost.
+   */
+  private relayoutCabins(index: number, view: CarriageView): void {
+    const w = this.w;
+    const old = this.cabins.filter((c) => c.carriage === index);
+    let at = this.cabins.findIndex((c) => c.carriage >= index);
+    if (at < 0) at = this.cabins.length;
+    let cash = 0;
+    for (const c of old) {
+      w.zones.remove(c.requestZone);
+      for (const z of c.spotZones) w.zones.remove(z);
+      cash += w.cash.valueOf(c.pileId);
+      w.cash.remove(c.pileId);
+    }
+    const originZ = carriageOriginZ(index);
+    const fresh = view.layout.cabins.map((cl) => {
+      const cabin = new Cabin(index, cl, originZ);
+      cabin.unlocked = true;
+      view.setCabinLocked(cl.index, false);
+      return cabin;
+    });
+    this.cabins.splice(at, old.length, ...fresh);
+    for (const cabin of fresh) this.createCabinZones(cabin);
+    if (cash > 0 && fresh[0]) w.cash.add(fresh[0].pileId, cash);
+    for (const m of w.staff.members) m.abort();
+    w.guests.rehome(old, fresh);
   }
 
   /**
@@ -751,7 +816,7 @@ export class TrainState {
   rebuildMap(): void {
     const w = this.w;
     const moreToCome = MAX_CARRIAGES > this.types.length;
-    w.map.rebuild(this.types, w.journey.doorsOpen, moreToCome);
+    w.map.rebuild(this.types, w.journey.doorsOpen, moreToCome, this.tiers);
     this.deck.visible = moreToCome;
     this.deck.position.z = w.map.rearZ;
     w.station?.onTrainChanged();
@@ -911,7 +976,7 @@ export class TrainState {
   private createFixtureZones(index: number, type: CarriageType): void {
     const w = this.w;
     const map = w.map;
-    const layout = getLayout(type);
+    const layout = getLayout(type, this.tiers[index] ?? 0);
     const originZ = carriageOriginZ(index);
     const at = (name: string): Vec2 => ({ x: layout.anchors[name].x, z: layout.anchors[name].z + originZ });
     void map;

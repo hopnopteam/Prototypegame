@@ -330,10 +330,10 @@ function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras
   types.forEach((type, i) => {
     // Passenger carriages climb to the Royal Suite (5); service cars stop at Luxurious (3).
     const t = Math.min(tier, maxTier(type));
-    const view = new CarriageView(getLayout(type), i, t);
+    const view = new CarriageView(getLayout(type, t), i, t);
     view.group.name = `${type}@t${t}`;
     view.group.position.z = carriageOriginZ(i);
-    const layout = getLayout(type);
+    const layout = getLayout(type, t);
     layout.cabins.forEach((c) => {
       view.setCabinLocked(c.index, locked);
       view.setDirt(c.index, [true, true, true]);

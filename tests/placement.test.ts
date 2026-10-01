@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { CarriageType, Rect } from '../src/core/types';
 import { Walkable } from '../src/sim/Walkable';
-import { footprints, getLayout, HALF_WIDTH, CARRIAGE_LENGTH, QUEUE_SLOTS, type Footprint } from '../src/world/layout';
+import { footprints, getLayout, HALF_WIDTH, CARRIAGE_LENGTH, layoutKey, QUEUE_SLOTS, type Footprint } from '../src/world/layout';
 
 const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper'];
+/** Every floor plan there is: passenger carriages have one per class (refit tiers 0–5). */
+const VARIANTS: { type: CarriageType; tier: number; name: string }[] = [];
+for (const type of TYPES) {
+  const seen = new Set<string>();
+  for (let tier = 0; tier <= 5; tier++) {
+    const key = layoutKey(type, tier);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    VARIANTS.push({ type, tier, name: key });
+  }
+}
 const PLAYER_RADIUS = 0.3;
 
 /** How far a footprint reaches into a rect (0 when clear). Tiles are squares, the rest circles. */
@@ -20,8 +31,8 @@ function overlap(a: Footprint, b: Footprint): number {
 }
 
 describe('placement: everything you walk over sits cleanly on the floor', () => {
-  for (const type of TYPES) {
-    const layout = getLayout(type);
+  for (const { type: kind, tier, name: type } of VARIANTS) {
+    const layout = getLayout(kind, tier);
     const walk = new Walkable(PLAYER_RADIUS);
     walk.rebuild([{ layout, originZ: 0 }], { doorsOpen: false, platform: null, rearDeck: null });
     const items = footprints(layout);
@@ -87,8 +98,8 @@ describe('placement: everything you walk over sits cleanly on the floor', () => 
     const W = HALF_WIDTH * 2 * S;
     const H = CARRIAGE_LENGTH * S;
     const parts: string[] = [];
-    TYPES.forEach((type, i) => {
-      const layout = getLayout(type);
+    VARIANTS.forEach(({ type: kind, tier, name: type }, i) => {
+      const layout = getLayout(kind, tier);
       const ox = 20 + i * (W + 40);
       const X = (x: number): number => ox + (x + HALF_WIDTH) * S;
       const Z = (z: number): number => 30 + z * S;
@@ -97,7 +108,7 @@ describe('placement: everything you walk over sits cleanly on the floor', () => 
       for (const r of layout.rooms) parts.push(rectSvg(r, '#F4EFE4'));
       for (const c of layout.connectors) parts.push(rectSvg(c.rect, '#E8F0E0'));
       for (const w of layout.walls) parts.push(rectSvg(w, w.kind === 'exterior' ? '#5B6B78' : '#9C8F7D'));
-      const propColors: Record<string, string> = { bed: '#C9B8E0', desk: '#B08A68', urn: '#A0A7B0', linen: '#D9C7A6', rack: '#8E7A68', luggageRack: '#8E7A68', bin: '#7F8A92', toilet: '#E6EEF2', sink: '#DCE8EE', bathtub: '#CDE0EA', shelfTowel: '#E6B0B8', shelfRoll: '#EEEEEE', crateBay: '#C8A878', bench: '#B7A07F', plant: '#8FB47A', lamp: '#EAD9A0' };
+      const propColors: Record<string, string> = { bed: '#C9B8E0', desk: '#B08A68', urn: '#A0A7B0', linen: '#D9C7A6', rack: '#8E7A68', luggageRack: '#8E7A68', bin: '#7F8A92', toilet: '#E6EEF2', sink: '#DCE8EE', bathtub: '#CDE0EA', shelfTowel: '#E6B0B8', shelfRoll: '#EEEEEE', crateBay: '#C8A878', bench: '#B7A07F', plant: '#8FB47A', lamp: '#EAD9A0', wardrobe: '#6A4A30', sofa: '#B57A8A', table: '#C9A77A', armchair: '#9A6A7A', grandPiano: '#333', dining: '#E8E0D0', bureau: '#8A6A50' };
       for (const p of layout.props) parts.push(rectSvg(p.rect, propColors[p.kind] ?? '#CCC', 'stroke="#555" stroke-width="1"'));
       for (const q of QUEUE_SLOTS) if (type === 'lobby') parts.push(`<circle cx="${X(q.x)}" cy="${Z(q.z)}" r="${0.22 * S}" fill="none" stroke="#B9707A" stroke-width="2" stroke-dasharray="4 3"/>`);
       for (const n of layout.nodes) parts.push(`<circle cx="${X(n.x)}" cy="${Z(n.z)}" r="2.5" fill="#3A7"/>`);
@@ -108,7 +119,7 @@ describe('placement: everything you walk over sits cleanly on the floor', () => 
         parts.push(`<text x="${X(f.x)}" y="${Z(f.z) + 3}" font-size="9" text-anchor="middle" font-family="sans-serif" fill="#222">${f.id}</text>`);
       }
     });
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${20 + TYPES.length * (W + 40)}" height="${H + 60}" style="background:#fff">${parts.join('')}</svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${20 + VARIANTS.length * (W + 40)}" height="${H + 60}" style="background:#fff">${parts.join('')}</svg>`;
     writeFileSync(`${dir}/floorplans.svg`, svg);
   });
 });

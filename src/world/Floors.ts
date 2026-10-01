@@ -341,6 +341,24 @@ export function buildFloor(f: GeoBuilder, layout: CarriageLayout, tier: number, 
     else if (tier >= 3) parquetRoom(f, cabin.room);
     else f.slab(cabin.room, FLOOR_Y, FLOOR_Y + ROOM_LIFT, PALETTE.boardsPolished, 0, 0, { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1 });
   }
+  // A suite's lounge and dining table stand on rugs (never near the door, where the cleaning spot and the
+  // mess are).
+  for (const cabin of layout.cabins) {
+    const room = cabin.room;
+    const inRoom = layout.props.filter((p) => p.rect.z0 >= room.z0 && p.rect.z1 <= room.z1 && p.rect.x0 >= room.x0);
+    const sofa = inRoom.find((p) => p.kind === 'sofa');
+    const table = inRoom.find((p) => p.kind === 'table');
+    const dining = inRoom.find((p) => p.kind === 'dining');
+    const base = FLOOR_Y + ROOM_LIFT;
+    const layers = (gold: boolean): { color: string; inset: number; pattern?: PartStyle }[] => [
+      { color: gold ? PALETTE.gold : theme.deep, inset: 0 },
+      { color: theme.deep, inset: 0.035 },
+      { color: '#F1E7D4', inset: 0.1 },
+      { color: theme.deep, inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: shade(theme.deep, 20), scale: 0.2, shade: 1 } },
+    ];
+    if (sofa && table) rug(f, rect(table.rect.x0 - 0.22, sofa.rect.z0 + 0.04, sofa.rect.x1 - 0.02, sofa.rect.z1 - 0.04), base, layers(tier >= 5));
+    if (dining) rug(f, rect(dining.rect.x0 - 0.06, dining.rect.z0 - 0.06, dining.rect.x1 + 0.06, dining.rect.z1 + 0.06), base, layers(true));
+  }
   for (const bath of layout.bathrooms) {
     const style = tier >= 3
       ? { pattern: PATTERN.diamond, color2: '#D9DEE3', scale: 0.24, shade: 1 }

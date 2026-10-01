@@ -561,7 +561,7 @@ export class CarriageView {
       lamps.endObject();
     }
     this.buildDecor(s, f, lamps);
-    if (this.cls) for (const cabin of this.layout.cabins) buildClassDressing(s, lamps, cabin, this.tier, this.theme);
+    if (this.cls) for (const cabin of this.layout.cabins) buildClassDressing(s, lamps, cabin, this.tier, this.theme, this.layout.props);
     this.buildDoorFrames(s);
     this.buildSpinners();
 
@@ -636,7 +636,9 @@ export class CarriageView {
       mess.items.push(mesh);
     };
     // Slots in a shuffled order, so the same pieces never sit in the same places twice.
-    const slots = MESS_SLOTS.map((o) => ({ x: heart.x + o.x, z: heart.z + o.z })).sort(() => rand() - 0.5);
+    // A berth is short: its slots tuck in closer so nothing meets the walls.
+    const reach = Math.min(1, ((cabin.room.z1 - cabin.room.z0) / 2 - 0.32) / 0.82);
+    const slots = MESS_SLOTS.map((o) => ({ x: heart.x + o.x, z: heart.z + o.z * reach })).sort(() => rand() - 0.5);
     pieces.slice(0, slots.length).forEach((piece, i) => {
       const slot = slots[i];
       // Quarter turns only: a piece's square cell stays a square cell.
@@ -756,10 +758,10 @@ export class CarriageView {
         const y1 = FLOOR_Y + WINDOW_Y1;
         glass.paneX(outerFace - out * 0.035, y0, y1, w0, w1, out as 1 | -1, false, fin.curtains ? this.theme.curtain : '#FFFFFF');
         glass.paneX(innerFace - inward * 0.022, y0, y1, w0, w1, inward as 1 | -1, true);
-        const fx = outerFace + out * 0.004;
-        trim.box(fx, y0 - 0.016, zc, 0.07, 0.032, width + 0.1, white, 0, FLAT);
-        trim.box(fx, y1 + 0.014, zc, 0.06, 0.028, width + 0.1, white, 0, FLAT);
-        for (const pz of [w0 - 0.016, w1 + 0.016]) trim.box(fx, (y0 + y1) / 2, pz, 0.05, y1 - y0 - 0.004, 0.032, white, 0, FLAT);
+        // The frame stands proud of the outer face (never sharing a face with the panels round it).
+        trim.box(outerFace + out * 0.035, y0 - 0.016, zc, 0.07, 0.032, width + 0.1, white, 0, FLAT);
+        trim.box(outerFace + out * 0.03, y1 + 0.014, zc, 0.06, 0.028, width + 0.1, white, 0, FLAT);
+        for (const pz of [w0 - 0.016, w1 + 0.016]) trim.box(outerFace + out * 0.025, (y0 + y1) / 2, pz, 0.05, y1 - y0 - 0.004, 0.032, white, 0, FLAT);
         trim.box(outerFace - out * 0.026, y0 + (y1 - y0) * 0.64, zc, 0.012, 0.022, width - 0.004, white, 0, FLAT);
         s.box(innerFace + inward * 0.025, FLOOR_Y + WINDOW_Y0 + 0.012, zc, 0.05, 0.024, width + 0.06, fin.cap, 0, FLAT);
         if (fin.curtains) {
@@ -1420,6 +1422,103 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       if (tier >= 2) for (const pz of [cz - d * 0.22, cz + d * 0.22]) b.rounded(cx + (prop.facing === 'right' ? 0.05 : -0.05), y + 0.48, pz, 0.12, 0.18, 0.3, 0.05, PALETTE.pillow, { shade: 0.9 });
       break;
     }
+    case 'armchair': {
+      // A Business Class wingback: buttoned leather in the carriage's colour on turned walnut feet.
+      const cover = theme.deep;
+      const back = prop.facing === 'right' ? r.x0 + 0.1 : r.x1 - 0.1;
+      const seat = prop.facing === 'right' ? 0.05 : -0.05;
+      for (const fx of [r.x0 + 0.1, r.x1 - 0.1]) for (const fz of [r.z0 + 0.1, r.z1 - 0.1]) b.cylinder(fx, y + 0.06, fz, 0.025, 0.018, 0.12, PALETTE.walnutDark, 8, 'y', { surface: 'varnish' });
+      b.rounded(cx, y + 0.22, cz, w - 0.06, 0.2, d - 0.06, 0.05, cover, { shade: 0.8, surface: 'leather' });
+      b.rounded(cx + seat, y + 0.37, cz, w - 0.26, 0.1, d - 0.26, 0.05, shadeHex(cover, 1.12), { shade: 0.95, surface: 'leather' });
+      b.rounded(back, y + 0.62, cz, 0.18, 0.62, d - 0.04, 0.07, cover, { shade: 0.85, surface: 'leather' });
+      // Wings and arms.
+      for (const az of [r.z0 + 0.08, r.z1 - 0.08]) {
+        b.rounded(cx, y + 0.44, az, w - 0.08, 0.26, 0.15, 0.06, cover, { shade: 0.85, surface: 'leather' });
+        b.rounded(back + (prop.facing === 'right' ? 0.08 : -0.08), y + 0.78, az, 0.16, 0.3, 0.12, 0.05, cover, { shade: 0.85, surface: 'leather' });
+      }
+      for (let i = 0; i < 3; i++) b.sphere(back + (prop.facing === 'right' ? 0.092 : -0.092), y + 0.56 + (i % 2) * 0.14, cz - 0.16 + i * 0.16, 0.014, PALETTE.brass, 0, 1, { shade: 1, surface: 'brass' });
+      b.rounded(cx + seat, y + 0.47, cz, 0.12, 0.16, 0.26, 0.05, PALETTE.pillow, { shade: 0.9, surface: 'fabric' });
+      break;
+    }
+    case 'grandPiano': {
+      // Black lacquer, a gold harp and strings under the open case, keys toward the room (−z), a velvet stool.
+      const black = '#17151B';
+      const lacquer = { shade: 0.9, surface: 'varnish' as const };
+      const kz = r.z0 + 0.42;
+      const stoolZ = r.z0 + 0.17;
+      const x0 = r.x0 + 0.02;
+      const width = w - 0.04;
+      // The case: one smooth outline (a straight spine on the wall side, the bentside curving in to a round
+      // tail), the lid closed, a gold band just under it.
+      const len = r.z1 - 0.04 - kz;
+      b.add(grandPianoGeometry(width + 0.03, len + 0.03, 0.03), PALETTE.gold, x0 - 0.015, y + 0.905, kz - 0.015, 0, 0, 0, { shade: 1, surface: 'brass' });
+      b.add(grandPianoGeometry(width, len, 0.3), black, x0, y + 0.95, kz, 0, 0, 0, lacquer);
+      // Keyboard and its cheeks.
+      b.box(x0 + width / 2, y + 0.72, kz - 0.09, width, 0.1, 0.18, black, 0, lacquer);
+      b.box(x0 + width / 2, y + 0.776, kz - 0.1, width - 0.14, 0.012, 0.13, '#F7F4EC', 0, FLAT);
+      for (let k = 0; k < 9; k++) b.box(x0 + 0.1 + k * ((width - 0.2) / 8), y + 0.786, kz - 0.07, 0.03, 0.01, 0.07, '#1A1A1A', 0, FLAT);
+      b.box(x0 + width / 2, y + 0.86, kz + 0.02, width - 0.14, 0.12, 0.02, black, 0, lacquer);
+      b.box(x0 + width / 2, y + 0.9, kz + 0.035, 0.3, 0.14, 0.01, '#F4EEDC', 0, FLAT);
+      // Three legs with gold castors.
+      for (const [lx, lz] of [[x0 + 0.08, kz], [x0 + width - 0.08, kz], [x0 + width * 0.3, r.z1 - 0.2]] as [number, number][]) {
+        b.cylinder(lx, y + 0.33, lz, 0.035, 0.028, 0.6, black, 8, 'y', lacquer);
+        b.sphere(lx, y + 0.025, lz, 0.028, PALETTE.gold, 0, 1, { shade: 1, surface: 'brass' });
+      }
+      b.cylinder(x0 + width * 0.45, y + 0.45, kz + 0.25, 0.02, 0.02, 0.5, black, 6, 'y', lacquer);
+      // The stool.
+      b.rounded(x0 + width / 2, y + 0.46, stoolZ, 0.5, 0.08, 0.28, 0.04, theme.deep, { shade: 0.9, surface: 'velvet' });
+      for (const dx of [-0.2, 0.2]) for (const dz of [-0.1, 0.1]) b.cylinder(x0 + width / 2 + dx, y + 0.21, stoolZ + dz, 0.018, 0.014, 0.42, PALETTE.gold, 6, 'y', { surface: 'brass' });
+      // A candelabra on the case.
+      b.cylinder(x0 + 0.14, y + 0.975, kz + 0.2, 0.04, 0.05, 0.04, PALETTE.gold, 8, 'y', { surface: 'brass' });
+      for (const dz of [0.12, 0.2, 0.28]) {
+        b.cylinder(x0 + 0.14, y + 1.035, kz + dz, 0.012, 0.012, 0.08, PALETTE.gold, 6, 'y', { surface: 'brass' });
+        lamps.cylinder(x0 + 0.14, y + 1.115, kz + dz, 0.011, 0.011, 0.08, '#FFF1D0', 6);
+      }
+      break;
+    }
+    case 'wardrobe': {
+      // The Royal armoire: walnut with gilt mouldings, a mirror in each door, a crown of carving on top.
+      const face = prop.facing === 'right' ? r.x1 : r.x0;
+      const out = prop.facing === 'right' ? 1 : -1;
+      b.box(cx, y + 0.04, cz, w, 0.08, d, PALETTE.walnutDark, 0, { shade: 0.8, surface: 'varnish' });
+      b.box(cx - out * 0.01, y + 0.74, cz, w - 0.02, 1.32, d - 0.04, PALETTE.walnut, 0, { shade: 0.82, surface: 'varnish' });
+      b.box(cx, y + 1.44, cz, w + 0.04, 0.08, d + 0.04, PALETTE.walnutDark, 0, { shade: 0.9, surface: 'varnish' });
+      b.box(cx, y + 1.5, cz, w * 0.5, 0.06, d * 0.5, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+      for (const side of [-1, 1]) {
+        const dz = cz + side * d * 0.245;
+        b.box(face - out * 0.012, y + 0.76, dz, 0.012, 1.16, d * 0.44, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+        b.box(face - out * 0.003, y + 0.8, dz, 0.012, 0.86, d * 0.34, '#C9D6E2', 0, { shade: 1, surface: 'glass' });
+        b.sphere(face + out * 0.012, y + 0.74, cz + side * 0.04, 0.018, PALETTE.gold, 0, 1, { shade: 1, surface: 'brass' });
+      }
+      break;
+    }
+    case 'dining': {
+      // The Royal Suite's dinner for two: a round table under a white cloth, gilt chairs, a candle and roses.
+      const radius = Math.min(w, d) * 0.32;
+      b.cylinder(cx, y + 0.36, cz, 0.05, 0.16, 0.72, PALETTE.walnutDark, 12, 'y', { surface: 'varnish' });
+      b.cylinder(cx, y + 0.74, cz, radius, radius, 0.03, PALETTE.walnut, 24, 'y', { surface: 'varnish' });
+      b.cylinder(cx, y + 0.66, cz, radius + 0.03, radius + 0.06, 0.15, '#F7F3EA', 24, 'y', { shade: 0.95, surface: 'fabric' });
+      b.cylinder(cx, y + 0.757, cz, radius + 0.03, radius + 0.03, 0.006, '#F7F3EA', 24, 'y', FLAT);
+      for (const side of [-1, 1]) {
+        // Place settings: a gold-rimmed plate, a glass.
+        const pz = cz + side * radius * 0.55;
+        b.cylinder(cx, y + 0.764, pz, 0.085, 0.085, 0.008, '#FBF8F2', 16, 'y', { surface: 'ceramic' });
+        b.cylinder(cx, y + 0.769, pz, 0.06, 0.06, 0.004, PALETTE.gold, 16, 'y', { shade: 1, surface: 'brass' });
+        b.cylinder(cx + 0.11, y + 0.81, pz - side * 0.06, 0.022, 0.016, 0.09, '#E8EEF2', 8, 'y', { surface: 'glass' });
+        // The chair, set back from the table.
+        const chz = cz + side * (radius + 0.2);
+        b.rounded(cx, y + 0.42, chz, 0.38, 0.06, 0.34, 0.03, theme.deep, { shade: 0.9, surface: 'velvet' });
+        for (const fx of [cx - 0.15, cx + 0.15]) for (const fz of [chz - 0.13, chz + 0.13]) b.cylinder(fx, y + 0.2, fz, 0.016, 0.014, 0.4, PALETTE.gold, 6, 'y', { surface: 'brass' });
+        const backZ = chz + side * 0.15;
+        b.rounded(cx, y + 0.68, backZ, 0.36, 0.46, 0.05, 0.05, PALETTE.gold, { shade: 1, surface: 'brass' });
+        b.rounded(cx, y + 0.68, backZ - side * 0.03, 0.28, 0.36, 0.03, 0.05, theme.deep, { shade: 0.9, surface: 'velvet' });
+      }
+      b.cylinder(cx - 0.08, y + 0.8, cz, 0.03, 0.04, 0.08, PALETTE.gold, 8, 'y', { surface: 'brass' });
+      lamps.cylinder(cx - 0.08, y + 0.89, cz, 0.012, 0.012, 0.1, '#FFF1D0', 6);
+      b.cylinder(cx + 0.06, y + 0.82, cz, 0.025, 0.035, 0.12, '#E8EEF2', 8, 'y', { surface: 'glass' });
+      for (let i = 0; i < 3; i++) b.sphere(cx + 0.06 + (i - 1) * 0.03, y + 0.9 + (i % 2) * 0.02, cz + (i - 1) * 0.015, 0.025, '#C0485C', 1, 0.9);
+      break;
+    }
   }
 }
 
@@ -1526,7 +1625,17 @@ function buildBureau(b: GeoBuilder, lamps: GeoBuilder, r: Rect, tier: number): v
     lamps.cylinder(cx, y + 1.0, r.z0 + 0.3, 0.07, 0.1, 0.06, '#3F8A5E', 12, 'y', { shade: 0.9 });
     return;
   }
-  // An upright piano: black lacquer (ivory and gold in the Royal Suite), keys toward the room.
+  buildPiano(b, lamps, r, tier);
+}
+
+/** An upright piano: black lacquer (ivory and gold in the Royal Suite), its keys toward +x (the room). */
+function buildPiano(b: GeoBuilder, lamps: GeoBuilder, r: Rect, tier: number): void {
+  const y = FLOOR_Y;
+  const cx = (r.x0 + r.x1) / 2;
+  const cz = (r.z0 + r.z1) / 2;
+  const w = r.x1 - r.x0;
+  const d = r.z1 - r.z0;
+  const face = r.x1;
   const body = tier >= 5 ? '#F2EDE4' : '#1C1A20';
   const trim = PALETTE.gold;
   b.box(cx, y + 0.62, cz, w, 1.24, d - 0.1, body, 0, { shade: 0.85, surface: 'varnish' });
@@ -1551,43 +1660,25 @@ function buildBureau(b: GeoBuilder, lamps: GeoBuilder, r: Rect, tier: number): v
  * desk on the corridor wall past the door (Business and up), and at the foot of the bed a stool (Basic), a
  * minibar (Business), a velvet ottoman and champagne on ice (First) or a slipper bath (Royal).
  */
-function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout, tier: number, theme: CarriageTheme): void {
+function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout, tier: number, theme: CarriageTheme, props: readonly PropDef[]): void {
   const y = FLOOR_Y;
   const room = cabin.room;
   const bed = cabin.bed;
   const heart = cabin.center;
-  // Hanging light, just toward the corridor side of the walk-in, high above everyone's heads.
-  const hx = PARTITION_X1 + 0.42;
-  const hz = heart.z;
-  const hang = y + 1.5;
-  b.object('class:pendant');
-  lamps.object('class:pendant~glow');
-  b.cylinder(hx, (hang + y + 2.1) / 2, hz, 0.006, 0.006, y + 2.1 - hang, PALETTE.ink, 4);
-  if (tier <= 1) lamps.sphere(hx, hang - 0.05, hz, 0.05, PALETTE.lampShade, 1);
-  else if (tier === 2) {
-    b.cone(hx, hang - 0.06, hz, 0.15, 0.13, theme.curtain, 12, { shade: 0.9, surface: 'fabric' });
-    lamps.sphere(hx, hang - 0.12, hz, 0.045, PALETTE.lampShade, 1);
-  } else if (tier <= 4) {
-    b.cylinder(hx, hang, hz, 0.03, 0.05, 0.05, PALETTE.brass, 10, 'y', { surface: 'brass' });
-    lamps.sphere(hx, hang - 0.1, hz, tier >= 4 ? 0.1 : 0.08, tier >= 4 ? '#FFF4D8' : PALETTE.lampShade, 1);
-  } else {
-    // The chandelier: a gilt ring of candle bulbs round crystal drops.
-    b.cylinder(hx, hang, hz, 0.16, 0.16, 0.025, PALETTE.gold, 18, 'y', { surface: 'brass' });
-    b.cylinder(hx, hang + 0.08, hz, 0.02, 0.05, 0.16, PALETTE.gold, 8, 'y', { surface: 'brass' });
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      lamps.cylinder(hx + Math.cos(a) * 0.16, hang + 0.05, hz + Math.sin(a) * 0.16, 0.012, 0.012, 0.07, '#FFF1D0', 6);
-      b.sphere(hx + Math.cos(a + 0.5) * 0.09, hang - 0.07, hz + Math.sin(a + 0.5) * 0.09, 0.022, '#E8F2FF', 1, 1.6, { shade: 1, surface: 'crystal' });
-    }
-    lamps.sphere(hx, hang - 0.12, hz, 0.04, '#FFF4D8', 1);
-  }
-  b.endObject();
-  lamps.endObject();
+  // Hanging light, just toward the corridor side of the walk-in, high above everyone's heads; a suite also
+  // hangs one over each table in it.
+  buildPendant(b, lamps, PARTITION_X1 + 0.42, heart.z, tier, theme, 'class:pendant');
+  props.forEach((p, i) => {
+    if (p.kind !== 'table' && p.kind !== 'dining') return;
+    if (p.rect.z0 < room.z0 || p.rect.z1 > room.z1 || p.rect.x0 < room.x0 || p.rect.x1 > room.x1) return;
+    buildPendant(b, lamps, (p.rect.x0 + p.rect.x1) / 2, (p.rect.z0 + p.rect.z1) / 2, tier, theme, `class:pendant${i}`);
+  });
 
-  // Business and up: a writing desk on the corridor wall, past the door, with a reading lamp.
+  // Business and up: a writing desk on the corridor wall, past the door, with a reading lamp (never longer
+  // than a desk, however long the suite).
   if (tier >= 3) {
     const z0 = cabin.door[1] + 0.06;
-    const z1 = room.z1 - 0.05;
+    const z1 = Math.min(room.z1 - 0.05, z0 + 0.95);
     if (z1 - z0 > 0.3) {
       const x0 = PARTITION_X1 + 0.005;
       const x1 = x0 + 0.26;
@@ -1604,9 +1695,9 @@ function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout
     }
   }
 
-  // At the foot of the bed.
+  // At the foot of the bed (in a suite, just there: the lounge is further on).
   const fz0 = bed.z1 + 0.05;
-  const fz1 = room.z1 - 0.04;
+  const fz1 = Math.min(room.z1 - 0.04, fz0 + 0.62);
   if (fz1 - fz0 < 0.3) return;
   const fzc = (fz0 + fz1) / 2;
   const fd = fz1 - fz0;
@@ -1674,4 +1765,52 @@ function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout
   b.cylinder(tx1 - 0.08, y + 0.62, fzc, 0.016, 0.016, 0.2, PALETTE.gold, 6, 'y', { surface: 'brass' });
   b.box(tx0 + 0.18, y + 0.53, fzc, 0.24, 0.05, 0.16, theme.blanket, 0, { shade: 0.95, surface: 'fabric' });
   b.endObject();
+}
+
+/** A ceiling light by class: a bare bulb, a fabric shade, brass, a glass globe, a chandelier. */
+function buildPendant(b: GeoBuilder, lamps: GeoBuilder, hx: number, hz: number, tier: number, theme: CarriageTheme, label: string): void {
+  const y = FLOOR_Y;
+  const hang = y + 1.5;
+  b.object(label);
+  lamps.object(`${label}~glow`);
+  b.cylinder(hx, (hang + y + 2.1) / 2, hz, 0.006, 0.006, y + 2.1 - hang, PALETTE.ink, 4);
+  if (tier <= 1) lamps.sphere(hx, hang - 0.05, hz, 0.05, PALETTE.lampShade, 1);
+  else if (tier === 2) {
+    b.cone(hx, hang - 0.06, hz, 0.15, 0.13, theme.curtain, 12, { shade: 0.9, surface: 'fabric' });
+    lamps.sphere(hx, hang - 0.12, hz, 0.045, PALETTE.lampShade, 1);
+  } else if (tier <= 4) {
+    b.cylinder(hx, hang, hz, 0.03, 0.05, 0.05, PALETTE.brass, 10, 'y', { surface: 'brass' });
+    lamps.sphere(hx, hang - 0.1, hz, tier >= 4 ? 0.1 : 0.08, tier >= 4 ? '#FFF4D8' : PALETTE.lampShade, 1);
+  } else {
+    // The chandelier: a gilt ring of candle bulbs round crystal drops.
+    b.cylinder(hx, hang, hz, 0.16, 0.16, 0.025, PALETTE.gold, 18, 'y', { surface: 'brass' });
+    b.cylinder(hx, hang + 0.08, hz, 0.02, 0.05, 0.16, PALETTE.gold, 8, 'y', { surface: 'brass' });
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      lamps.cylinder(hx + Math.cos(a) * 0.16, hang + 0.05, hz + Math.sin(a) * 0.16, 0.012, 0.012, 0.07, '#FFF1D0', 6);
+      b.sphere(hx + Math.cos(a + 0.5) * 0.09, hang - 0.07, hz + Math.sin(a + 0.5) * 0.09, 0.022, '#E8F2FF', 1, 1.6, { shade: 1, surface: 'crystal' });
+    }
+    lamps.sphere(hx, hang - 0.12, hz, 0.04, '#FFF4D8', 1);
+  }
+  b.endObject();
+  lamps.endObject();
+}
+
+/**
+ * A grand piano's case seen from above: x 0..w across (the spine at 0), z 0..l from the keyboard to the
+ * tail, top at y 0 and `h` deep below it. A fresh geometry each call (GeoBuilder.add bakes it in place).
+ */
+function grandPianoGeometry(w: number, l: number, h: number): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  shape.lineTo(0, l * 0.9);
+  shape.quadraticCurveTo(0, l, w * 0.18, l);
+  shape.bezierCurveTo(w * 0.42, l, w * 0.48, l * 0.72, w * 0.62, l * 0.55);
+  shape.bezierCurveTo(w * 0.78, l * 0.38, w, l * 0.38, w, l * 0.22);
+  shape.lineTo(w, 0);
+  shape.lineTo(0, 0);
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false, curveSegments: 14 });
+  // Shape (u, v) → floor (x, z); the extrusion runs downward from y 0.
+  geometry.rotateX(Math.PI / 2);
+  return geometry;
 }

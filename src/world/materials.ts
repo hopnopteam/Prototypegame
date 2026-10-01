@@ -220,6 +220,9 @@ vec4 nxSurface() {
  * The baked light as soft fill (lamps and window spill near the floor, fading high up) and its contact shading
  * (strongest at floor level, gone by knee height), then a soft rim on velvet and wool.
  */
+/** The brightest a specular highlight may get (linear), kept under the bloom threshold. */
+const SPECULAR_MAX = Math.min(0.9, VISUALS.night.bloom.threshold * 0.9);
+
 const LIT_LIGHTS = /* glsl */ `
 #if defined( RE_IndirectSpecular )
 {
@@ -241,6 +244,14 @@ float nxAo = 1.0;
 }
 #endif
 #include <lights_fragment_end>
+{
+  // Highlights glint but never bloom: only lamps and glowing things pass the bloom threshold, so a gold rail
+  // catching the moon stays a gleam instead of a smear (scaled as a whole, so gold stays gold).
+  float nxDs = max(max(reflectedLight.directSpecular.r, reflectedLight.directSpecular.g), reflectedLight.directSpecular.b);
+  reflectedLight.directSpecular *= min(1.0, ${SPECULAR_MAX.toFixed(2)} / max(nxDs, 1e-4));
+  float nxIs = max(max(reflectedLight.indirectSpecular.r, reflectedLight.indirectSpecular.g), reflectedLight.indirectSpecular.b);
+  reflectedLight.indirectSpecular *= min(1.0, ${SPECULAR_MAX.toFixed(2)} / max(nxIs, 1e-4));
+}
 #ifdef NX_LIGHT
 reflectedLight.indirectDiffuse *= nxAo;
 reflectedLight.directDiffuse *= mix(1.0, nxAo, 0.55);

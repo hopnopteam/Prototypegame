@@ -127,6 +127,25 @@ describe('TrainMap', () => {
     expect(pos.x).toBeGreaterThan(-0.3);
   });
 
+  it('reaches every room, spot and anchor in every class floor plan', () => {
+    // Tiers 0–1 share the Basic plan tested above.
+    for (let tier = 2; tier <= 5; tier++) {
+      const m = new TrainMap(ECONOMY.player.radius);
+      m.rebuild(FULL_TRAIN, false, true, FULL_TRAIN.map(() => tier));
+      const reach = reachable(m, m.anchor(0, 'playerSpawn'));
+      const from = m.doors()[0].insideNode;
+      for (const c of m.carriages) {
+        for (const name of Object.keys(c.layout.anchors)) expect(reach(m.anchor(c.index, name)), `tier ${tier}: carriage ${c.index} anchor ${name}`).toBe(true);
+        for (const cabin of c.layout.cabins) {
+          expect(reach(m.toWorld(c.index, cabin.center)), `tier ${tier}: cabin ${c.index}/${cabin.index}`).toBe(true);
+          expect(reach(m.toWorld(c.index, { x: cabin.bed.x0 - 0.24, z: cabin.bedPose.z }), 0.35), `tier ${tier}: bedside ${c.index}/${cabin.index}`).toBe(true);
+          expect(reach(m.toWorld(c.index, cabin.tipPile), 0.35), `tier ${tier}: tips ${c.index}/${cabin.index}`).toBe(true);
+          expect(m.nav.findPath(from, m.nodeId(c.index, cabin.node)), `tier ${tier}: route to ${c.index}/${cabin.index}`).not.toBeNull();
+        }
+      }
+    }
+  }, 30000);
+
   it('snaps a stranded point back onto walkable floor', () => {
     const p = map.walk.nearestWalkable(5, 1.5);
     expect(map.walk.isWalkable(p.x, p.z)).toBe(true);

@@ -3,9 +3,11 @@ import type { IconName } from '../ui/icons';
 
 /**
  * Carriage luxury classes: every passenger carriage (the lobby car and the sleepers) climbs from Basic to
- * Royal Suite, one cash upgrade at a time. The class sets who travels in it, what they pay and tip, what
- * they ask for, how it looks inside and the colour it is painted outside, so the train reads as a mix of
- * liveries. Service cars (washrooms, stores, luggage) keep their own four-step refits and the route livery.
+ * Royal Suite, one cash upgrade at a time. The class sets the floor plan (fewer, bigger, grander rooms: a
+ * sleeper goes 6 berths → 4 cabins → 3 → 2 suites → one grand suite; see `layout.ts`), who travels in it,
+ * what they pay and tip, what they ask for, how it looks inside and the colour it is painted outside, so the
+ * train reads as a mix of liveries. Fares rise faster than the rooms fall, so every class earns clearly more
+ * per carriage (a full sleeper: 6, 10, 15, 28, 40 fares). Service cars keep their own four-step refits.
  */
 export type ClassId = 'basic' | 'comfort' | 'business' | 'first' | 'royal';
 
@@ -30,7 +32,10 @@ export interface ClassDef {
   /** Multipliers on fares and on every tip left in this class. */
   fare: number;
   tip: number;
-  /** Stars per request served and per cabin tidied: famous guests spread the word further. */
+  /**
+   * Stars per request served and per cabin tidied: famous guests spread the word further (and there are fewer
+   * of them per carriage as the rooms grow, so a classier carriage still climbs the league faster).
+   */
   stars: number;
   /** What its guests ask for (weights), on top of the tidy cabin everyone expects. */
   requests: Partial<Record<ServiceNeed, number>>;
@@ -52,22 +57,22 @@ export const CLASSES: ClassDef[] = [
   {
     id: 'comfort', name: 'Comfort', chip: 'COMFORT', tier: 2, level: 2,
     livery: { body: '#2C7A76', trim: '#EAD9B0' }, color: '#2F8F89', ink: '#FFFFFF',
-    fare: 2, tip: 1.6, stars: 1, requests: { towel: 3, tea: 2, blanket: 2, pillow: 1 }, turndown: false, butler: false, adds: 'towel', icon: 'towel',
+    fare: 2.5, tip: 2, stars: 2, requests: { towel: 3, tea: 2, blanket: 2, pillow: 1 }, turndown: false, butler: false, adds: 'towel', icon: 'towel',
   },
   {
     id: 'business', name: 'Business', chip: 'BUSINESS', tier: 3, level: 4,
     livery: { body: '#233A5E', trim: '#C9D2DC' }, color: '#2D4C7C', ink: '#FFFFFF',
-    fare: 4, tip: 2.6, stars: 2, requests: { coffee: 4, towel: 1, tea: 1 }, turndown: false, butler: false, adds: 'coffee', icon: 'coffee',
+    fare: 5, tip: 3.5, stars: 3, requests: { coffee: 4, towel: 1, tea: 1 }, turndown: false, butler: false, adds: 'coffee', icon: 'coffee',
   },
   {
     id: 'first', name: 'First Class', chip: 'FIRST CLASS', tier: 4, level: 6,
     livery: { body: '#243F7E', trim: '#E2B653' }, color: '#2B4FA0', ink: '#FFE2A0',
-    fare: 8, tip: 4.2, stars: 2, requests: { champagne: 4, coffee: 1, towel: 1 }, turndown: true, butler: false, adds: 'champagne', icon: 'champagne',
+    fare: 14, tip: 7, stars: 5, requests: { champagne: 4, coffee: 1, towel: 1 }, turndown: true, butler: false, adds: 'champagne', icon: 'champagne',
   },
   {
     id: 'royal', name: 'Royal Suite', chip: 'ROYAL SUITE', tier: 5, level: 8,
     livery: { body: '#6A1E2E', trim: '#E2B653' }, color: '#8A2A3E', ink: '#FFE2A0',
-    fare: 15, tip: 7, stars: 3, requests: { champagne: 3, coffee: 2, tea: 1, towel: 1 }, turndown: true, butler: true, adds: 'butler', icon: 'crown',
+    fare: 40, tip: 18, stars: 10, requests: { champagne: 3, coffee: 2, tea: 1, towel: 1 }, turndown: true, butler: true, adds: 'butler', icon: 'crown',
   },
 ];
 
