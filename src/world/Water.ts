@@ -1,11 +1,10 @@
 import * as THREE from 'three';
+import { LIGHT_UNIFORMS } from './materials';
 import type { PreRender } from './Stage';
+import { SHORE_GLSL, WORLD_PERIOD } from './terrain';
 
 /** Objects on this layer are mirrored in the lake (the train's lake side, shore trees, lighthouse, pier). */
 export const REFLECT_LAYER = 2;
-
-/** Where the moon hangs in the painted sky (screen space, 0..1 from the top left); the moon path lies under it. */
-export const MOON_UV = new THREE.Vector2(0.14, 0.055);
 
 const WATER_VERTEX = /* glsl */ `
 uniform mat4 uReflectMatrix;
@@ -27,78 +26,103 @@ uniform float uTime;
 uniform float uScroll;
 uniform vec3 uDeep;
 uniform vec3 uShallow;
-uniform vec3 uSky;
-uniform vec3 uMist;
-uniform vec2 uMistX;
-uniform vec3 uMoon;
-uniform vec2 uMoonUv;
-uniform vec2 uResolution;
+uniform vec3 uBed;
+uniform vec3 uFoam;
+uniform vec3 uHaze;
 uniform float uNight;
 uniform sampler2D uReflection;
 uniform float uReflect;
+uniform sampler2D uNxLightMap;
+uniform vec4 uNxLightBox;
+uniform sampler2D uNxPlatMap;
+uniform vec4 uNxPlatBox;
+uniform float uNxLightOn;
+uniform vec3 uNxSkyZenith;
+uniform vec3 uNxSkyHorizon;
+uniform vec3 uNxSkyGround;
+uniform vec3 uNxMoonDir;
+uniform vec3 uNxMoonColor;
 varying vec3 vWorld;
 varying vec4 vReflect;
 #include <common>
 #include <fog_pars_fragment>
+${SHORE_GLSL}
 
-// Small ripples that drift past the train (the water is still; the train moves).
-vec2 ripples(vec2 p, float t) {
-  vec2 g = vec2(0.0);
-  g += vec2(cos(p.x * 1.7 + t * 1.1), cos(p.y * 1.3 - t * 0.9)) * 0.5;
-  g += vec2(cos(p.x * 3.1 - p.y * 1.9 + t * 1.7), cos(p.y * 2.7 + p.x * 1.2 + t * 1.3)) * 0.28;
-  g += vec2(cos(p.x * 6.3 + p.y * 4.1 - t * 2.3), cos(p.y * 5.9 - p.x * 3.7 + t * 2.9)) * 0.14;
-  return g;
-}
-
-float hash2(vec2 q) { return fract(sin(dot(q, vec2(41.3, 289.1))) * 43758.5453); }
-float valueNoise(vec2 q) {
+// Noise that repeats every "period" cells along y, so it stays seamless when the scroll wraps.
+float hash2(vec2 q, float period) { q.y = mod(q.y, period); return fract(sin(dot(q, vec2(41.3, 289.1))) * 43758.5453); }
+float valueNoise(vec2 q, float period) {
   vec2 i = floor(q);
   vec2 f = fract(q);
   vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash2(i), hash2(i + vec2(1.0, 0.0)), u.x), mix(hash2(i + vec2(0.0, 1.0)), hash2(i + vec2(1.0, 1.0)), u.x), u.y);
+  return mix(mix(hash2(i, period), hash2(i + vec2(1.0, 0.0), period), u.x), mix(hash2(i + vec2(0.0, 1.0), period), hash2(i + vec2(1.0, 1.0), period), u.x), u.y);
+}
+// Wave numbers along the line are whole cycles per world period (see terrain.ts).
+#define NX_KZ(n) (6.2831853 * (n) / ${WORLD_PERIOD.toFixed(1)})
+
+// Small waves: a few directional swells (in scroll space, so they pass with the scenery) plus a fine chop.
+vec2 waveGrad(vec2 p, float t) {
+  vec2 g = vec2(0.0);
+  vec2 k1 = vec2(1.28, NX_KZ(367.0));
+  vec2 k2 = vec2(-1.35, NX_KZ(889.0));
+  vec2 k3 = vec2(1.07, -NX_KZ(1593.0));
+  g += normalize(k1) * cos(dot(p, k1) + t * 1.2) * 0.035;
+  g += normalize(k2) * cos(dot(p, k2) - t * 1.6) * 0.025;
+  g += normalize(k3) * cos(dot(p, k3) + t * 2.1) * 0.018;
+  vec2 q = p * 2.2 + vec2(t * 0.35, 0.0);
+  float period = ${(WORLD_PERIOD * 2.2).toFixed(1)};
+  float n0 = valueNoise(q, period);
+  g += (vec2(valueNoise(q + vec2(0.4, 0.0), period), valueNoise(q + vec2(0.0, 0.4), period)) - n0) * 0.07;
+  return g;
+}
+
+vec3 nightSky(vec3 r) {
+  vec3 sky = mix(uNxSkyHorizon, uNxSkyZenith, smoothstep(0.05, 0.85, r.y));
+  return mix(uNxSkyGround, sky, smoothstep(-0.25, 0.04, r.y));
 }
 
 void main() {
   vec2 p = vec2(vWorld.x, vWorld.z - uScroll);
-  vec2 g = ripples(p, uTime);
-  vec3 normal = normalize(vec3(-g.x * 0.12, 1.0, -g.y * 0.12));
+  // How far out from the bank (metres): the same shoreline the ground was built from.
+  float depth = nxShoreX(p.y) - vWorld.x;
+  vec2 g = waveGrad(p, uTime);
+  vec3 n = normalize(vec3(-g.x, 1.0, -g.y));
   vec3 view = normalize(cameraPosition - vWorld);
-  float fresnel = pow(1.0 - clamp(dot(normal, view), 0.0, 1.0), 4.0);
+  float fresnel = 0.02 + 0.98 * pow(1.0 - clamp(dot(n, view), 0.0, 1.0), 5.0);
 
-  // Shallow and a little lighter near the banks, deep out in the lake.
-  float deep = smoothstep(-3.0, -7.5, vWorld.x) * 0.8 + 0.2;
-  vec3 color = mix(uShallow, uDeep, deep);
+  // The bed shows through the shallows; the lake deepens to ink a few metres out.
+  vec3 water = mix(uShallow, uDeep, smoothstep(0.4, 7.0, depth));
+  vec3 color = mix(uBed, water, 1.0 - exp(-max(depth, 0.0) * 1.1));
 
-  // The sky (or, on high tiers, the real mirror image of the shore and the train) in the water.
-  // Seen from this high a camera the real fresnel would all but hide it, so the mirror is held up a little.
-  color = mix(color, uSky, 0.18 + 0.7 * fresnel);
+  // The night sky in the water (a little held up: from this high the true fresnel would all but hide it).
+  vec3 r = reflect(-view, n);
+  color = mix(color, nightSky(r), clamp(0.1 + fresnel * 0.9, 0.0, 1.0));
   if (uReflect > 0.5) {
-    vec4 r = vReflect;
-    // Low, slow wobble only: glowing windows reflect as soft warm streaks rather than a jagged line.
-    r.xy += vec2(cos(p.x * 0.9 + uTime * 0.8), cos(p.y * 0.7 - uTime * 0.6)) * 0.012 * r.w;
-    vec4 mirror = texture2DProj(uReflection, r);
-    color = mix(color, mirror.rgb, mirror.a * (0.5 + 0.4 * fresnel));
+    vec4 rp = vReflect;
+    rp.xy += g * 0.06 * rp.w;
+    vec4 mirror = texture2DProj(uReflection, rp);
+    color = mix(color, mirror.rgb, mirror.a * (0.45 + 0.45 * fresnel));
   }
 
-  // The moon path: a narrow column under the moon made of short horizontal glints (wave crests catching
-  // the light), in screen space so they always lie level whatever the camera angle.
-  vec2 uv = gl_FragCoord.xy / uResolution;
-  uv.y = 1.0 - uv.y;
-  float below = uv.y - uMoonUv.y;
-  if (below > 0.0) {
-    float aspect = uResolution.x / uResolution.y;
-    float width = 0.006 + below * 0.05;
-    float across = (uv.x - uMoonUv.x + g.x * 0.006) * aspect;
-    float column = exp(-(across * across) / (width * width));
-    float along = smoothstep(0.03, 0.14, below) * (1.0 - smoothstep(0.3, 0.62, below));
-    vec2 q = vec2(uv.x * 70.0, uv.y * 360.0) + vec2(uTime * 0.7, uTime * 2.2) + g * 1.5;
-    float dash = smoothstep(0.7, 0.95, valueNoise(q));
-    color += uMoon * column * along * (0.12 + 1.3 * dash) * uNight;
-  }
+  // Moonlight glittering on the wave faces that tilt toward it: where it lands follows the real moon.
+  // A soft broad sheen where the moon reflects, and fine sparkles riding the wave crests inside it.
+  float facing = max(dot(r, uNxMoonDir), 0.0);
+  float sheen = pow(facing, 24.0) * 0.22;
+  float sparkle = smoothstep(0.72, 0.98, valueNoise(p * 7.0 + vec2(uTime * 1.3, 0.0), ${(WORLD_PERIOD * 7).toFixed(1)}));
+  float glint = pow(facing, 160.0) * (0.4 + 2.2 * sparkle);
+  color += uNxMoonColor * (sheen + glint) * uNight;
 
-  // Mist over the far water: it melts into the painted distance behind.
-  float mist = smoothstep(uMistX.x, uMistX.y, -vWorld.x);
-  color = mix(color, uMist, mist);
+  // The train's warm windows and the platform lamps, rippling on the surface (the baked light map).
+  vec2 q = vWorld.xz + g * vec2(1.6, 0.6);
+  vec3 spill = texture2D(uNxLightMap, q * uNxLightBox.xz + uNxLightBox.yw).rgb + texture2D(uNxPlatMap, q * uNxPlatBox.xz + uNxPlatBox.yw).rgb;
+  color += spill * uNxLightOn * (0.7 + 0.6 * sparkle);
+
+  // A soft line of foam where the water meets the bank.
+  float lap = 0.5 + 0.5 * sin(uTime * 1.4 + p.y * NX_KZ(344.0));
+  float foam = (1.0 - smoothstep(0.0, 0.32 + lap * 0.12, depth)) * (0.45 + 0.55 * valueNoise(p * 5.0 + vec2(uTime * 0.6, 0.0), ${(WORLD_PERIOD * 5).toFixed(1)}));
+  color = mix(color, uFoam, foam * 0.55);
+
+  // Far out, the lake softens into the night haze (it goes on beyond what the camera can see).
+  color = mix(color, uHaze, smoothstep(9.0, 26.0, depth) * 0.55);
   gl_FragColor = vec4(color, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -107,36 +131,43 @@ void main() {
 `;
 
 /**
- * The lake: one big still plane under everything (land covers it where there is land). Ripples drift with
- * the scenery, the sky (or a real mirror image on HIGH and ULTRA) shows at grazing angles, the moon lays a
- * path of sparkles across it, and mist swallows the far side where the painted backdrop takes over.
+ * The lake: one big plane under everything (the ground covers it where there is land), stretching far past
+ * anything the camera can see so it never ends. Depth comes from the same shoreline the ground is built
+ * from (terrain.ts), so the shallows, the foam and the deep water always line up with the bank.
  */
 export class Water {
   readonly mesh: THREE.Mesh;
   readonly material: THREE.ShaderMaterial;
 
   constructor(x0: number, x1: number, z0: number, z1: number) {
+    const u = LIGHT_UNIFORMS;
     this.material = new THREE.ShaderMaterial({
       fog: true,
-      uniforms: THREE.UniformsUtils.merge([
-        THREE.UniformsLib.fog,
-        {
-          uTime: { value: 0 },
-          uScroll: { value: 0 },
-          uDeep: { value: new THREE.Color('#0B1A36') },
-          uShallow: { value: new THREE.Color('#1B3152') },
-          uSky: { value: new THREE.Color('#34507F') },
-          uMist: { value: new THREE.Color('#26375E') },
-          uMistX: { value: new THREE.Vector2(6.2, 8.4) },
-          uMoon: { value: new THREE.Color('#DCE6FF').multiplyScalar(1.6) },
-          uMoonUv: { value: MOON_UV.clone() },
-          uResolution: { value: new THREE.Vector2(390, 844) },
-          uNight: { value: 1 },
-          uReflection: { value: null },
-          uReflect: { value: 0 },
-          uReflectMatrix: { value: new THREE.Matrix4() },
-        },
-      ]),
+      uniforms: {
+        ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+        uTime: { value: 0 },
+        uScroll: { value: 0 },
+        uDeep: { value: new THREE.Color('#18234E') },
+        uShallow: { value: new THREE.Color('#2E6380') },
+        uBed: { value: new THREE.Color('#6F7C76') },
+        uFoam: { value: new THREE.Color('#B9C6D8') },
+        uHaze: { value: new THREE.Color('#3A4178') },
+        uNight: { value: 1 },
+        uReflection: { value: null },
+        uReflect: { value: 0 },
+        uReflectMatrix: { value: new THREE.Matrix4() },
+        // Shared with every lit material (the same objects), so the water always sees the current light.
+        uNxLightMap: u.uNxLightMap,
+        uNxLightBox: u.uNxLightBox,
+        uNxPlatMap: u.uNxPlatMap,
+        uNxPlatBox: u.uNxPlatBox,
+        uNxLightOn: u.uNxLightOn,
+        uNxSkyZenith: u.uNxSkyZenith,
+        uNxSkyHorizon: u.uNxSkyHorizon,
+        uNxSkyGround: u.uNxSkyGround,
+        uNxMoonDir: u.uNxMoonDir,
+        uNxMoonColor: u.uNxMoonColor,
+      },
       vertexShader: WATER_VERTEX,
       fragmentShader: WATER_FRAGMENT,
     });
@@ -144,24 +175,16 @@ export class Water {
     geometry.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
     this.mesh = new THREE.Mesh(geometry, this.material);
     this.mesh.frustumCulled = false;
+    this.mesh.receiveShadow = false;
     this.mesh.userData.object = 'scenery:water';
   }
 
-  update(dt: number, scroll: number, night: number, resolution: { width: number; height: number }): void {
+  update(dt: number, scroll: number, night: number): void {
     const u = this.material.uniforms;
     u.uTime.value = (u.uTime.value + dt) % 1000;
-    u.uScroll.value = scroll % 2000;
+    // Wrapped for float precision; everything along the line repeats every WORLD_PERIOD, so no jump shows.
+    u.uScroll.value = ((scroll % WORLD_PERIOD) + WORLD_PERIOD) % WORLD_PERIOD;
     u.uNight.value = night;
-    u.uResolution.value.set(resolution.width, resolution.height);
-  }
-
-  /** Day or night colours (the cycle), mixed by the night amount. */
-  setColors(deep: THREE.Color, shallow: THREE.Color, sky: THREE.Color, mist: THREE.Color): void {
-    const u = this.material.uniforms;
-    u.uDeep.value.copy(deep);
-    u.uShallow.value.copy(shallow);
-    u.uSky.value.copy(sky);
-    u.uMist.value.copy(mist);
   }
 }
 

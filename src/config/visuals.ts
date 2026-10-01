@@ -71,11 +71,13 @@ export const VISUALS = {
   night: {
     exposure: 1.0,
     /** The moon: the one shadow-casting light, from high over the lake (upper left, a little ahead). */
-    moon: { color: '#A9BEFF', intensity: 1.35 },
-    /** Sky and ground fill. */
-    hemi: { sky: '#3D5590', ground: '#1A1F30', intensity: 1.1 },
+    moon: { color: '#BCC4FF', intensity: 2.0 },
+    /** Sky and ground fill: a soft lavender night (the reference dioramas), never black. */
+    hemi: { sky: '#5E64AE', ground: '#33294A', intensity: 1.55 },
     /** Moonlight bouncing back from the camera's side, so liveries and faces toward the camera read. */
-    fill: 0.75,
+    fill: 0.95,
+    /** The night sky polished surfaces and the lake reflect (analytic; see nxSky). */
+    sky: { zenith: '#161C44', horizon: '#4A4F8E', ground: '#1A1830' },
     /** How much the night sky and the lamps are reflected by metal and polish (brass, varnish, water). */
     environment: 0.35,
     /**
@@ -98,7 +100,7 @@ export const VISUALS = {
     window: { glow: 0.62, nightGlass: '#1B2440' },
     /** Lamp shades glow (linear HDR; bloom catches what is above the threshold). */
     lampGlow: 2.6,
-    fog: { color: '#1E2A4A', density: 0.0085 },
+    fog: { color: '#2A2C52', density: 0.0085 },
     bloom: { strength: 0.42, radius: 0.5, threshold: 1.0 },
     /**
      * Colour grade (MEDIUM and up): lifted blue shadows, warm highlights, a touch of contrast and saturation,

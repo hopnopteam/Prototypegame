@@ -145,12 +145,13 @@ export class Lighting {
     this.night = lerp(k0.night, k1.night, f);
     // The sky that polished surfaces reflect (analytic: see nxSky in materials.ts).
     const u = LIGHT_UNIFORMS;
+    const sky = VISUALS.night.sky;
     a.set('#7FA6D6');
-    u.uNxSkyZenith.value.set('#0B1330').lerp(a, 1 - this.night);
+    u.uNxSkyZenith.value.set(sky.zenith).lerp(a, 1 - this.night);
     a.set('#E8EEF2');
-    u.uNxSkyHorizon.value.set('#2E4478').lerp(a, 1 - this.night);
+    u.uNxSkyHorizon.value.set(sky.horizon).lerp(a, 1 - this.night);
     a.set('#8A9278');
-    u.uNxSkyGround.value.set('#0A0C14').lerp(a, 1 - this.night);
+    u.uNxSkyGround.value.set(sky.ground).lerp(a, 1 - this.night);
     u.uNxMoonColor.value.copy(this.sun.color).multiplyScalar(this.night > 0.5 ? 1.2 : 1.6);
     u.uNxSkyAmount.value = lerp(k0.env, k1.env, f);
     setNightAmount(this.night);

@@ -1,105 +1,138 @@
 import * as THREE from 'three';
 import { Rng } from '../core/Rng';
-import { Backdrop } from './Backdrop';
 import { GeoBuilder } from './geo';
-import { buildPiece, CHUNK, PIECES, treeGeometries, WATER_EDGE_X, type PieceBuild, type PieceKind, type TreeSpot } from './Lakeside';
+import { buildChunk, CHUNK, FILL_KINDS, FILL_SLOTS, fillGeometries, LAND_DECK, SHORE_DECK, type ChunkBuild, type DeckEntry, type FillKind, type LandKind, type PieceKind, type ShoreKind } from './Lakeside';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
+import { groundHeight, TRACK_HALF } from './terrain';
 import { PlanarReflection, REFLECT_LAYER, Water } from './Water';
 
 /** Billboards stand just beyond the ballast on the land side, where the camera always catches them. */
 const BILLBOARD_X = 3.75;
 const BILLBOARD_W = 2.3;
 const BILLBOARD_H = 1.2;
-/** The world the pieces tile: from well ahead of the locomotive to well behind the longest train. */
+/** The world the stretches tile: from well ahead of the locomotive to well behind the longest train. */
 const SPAN_MIN = -96;
 const SPAN_MAX = 150;
-/** Instanced tree slots per piece, by shape. */
-const TREE_SLOTS = [30, 14, 8];
-/** No piece variant (with its mirror image) comes back within this many pieces: 60 s at cruising speed. */
-const NO_REPEAT = 36;
-/** Metres at each end of a cutting over which the moonlight fades out and back. */
-const DARK_FADE = 6;
-/** The painted horizon's height on screen (0 top, 1 bottom) at the default framing. */
-const HORIZON = 0.23;
-
-interface Template {
-  kind: PieceKind;
-  variant: number;
-  base: THREE.BufferGeometry;
-  lake: THREE.BufferGeometry | null;
-  land: THREE.BufferGeometry | null;
-  lakeGlow: THREE.BufferGeometry | null;
-  landGlow: THREE.BufferGeometry | null;
-  trees: TreeSpot[];
-  beacon: THREE.Vector3 | null;
-  dark: boolean;
-}
+/** No stretch of the same kind comes back within this many (about a minute at cruising speed). */
+const NO_REPEAT = 4;
 
 interface Chunk {
   group: THREE.Group;
-  base: THREE.Mesh;
+  terrain: THREE.Mesh;
   lake: THREE.Mesh;
   land: THREE.Mesh;
   lakeGlow: THREE.Mesh;
   landGlow: THREE.Mesh;
+  lakePools: THREE.Mesh;
+  landPools: THREE.Mesh;
   beam: THREE.Mesh;
-  /** Scroll-space position of the chunk's start (z); world z = this + scroll offset. */
+  sails: THREE.Mesh;
+  /** Scroll-space position of the stretch's start (z); world z = this + scroll. */
   z: number;
-  template: Template | null;
-  mirrored: boolean;
-  /** First instance of this chunk in each tree mesh. */
-  treeStart: number[];
+  build: ChunkBuild | null;
+  /** This stretch's instanced fill (one mesh per kind, culled with the stretch). */
+  fill: Record<FillKind, THREE.InstancedMesh>;
   landHidden: boolean;
 }
 
 const dummy = new THREE.Object3D();
 const EMPTY = new THREE.BufferGeometry();
 
+/** A soft round pool of lamplight on the ground (additive decal), drawn once. */
+function poolTexture(): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,190,120,0.55)');
+  g.addColorStop(0.45, 'rgba(255,170,105,0.22)');
+  g.addColorStop(1, 'rgba(255,160,100,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const POOL_MATERIAL = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+
+function poolGeometry(pools: ChunkBuild['pools'], land: boolean, s0: number): THREE.BufferGeometry | null {
+  const list = pools.filter((p) => p.land === land);
+  if (list.length === 0) return null;
+  const pos: number[] = [];
+  const uv: number[] = [];
+  for (const p of list) {
+    const y = groundHeight(p.x, s0 + p.z) + 0.025;
+    const r = p.r;
+    const quad = [[-r, -r, 0, 0], [r, -r, 1, 0], [r, r, 1, 1], [-r, -r, 0, 0], [r, r, 1, 1], [-r, r, 0, 1]];
+    for (const [dx, dz, u, v] of quad) {
+      pos.push(p.x + dx, y, p.z + dz);
+      uv.push(u, v);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeBoundingSphere();
+  return g;
+}
+
+/** Windmill sails: four lattice blades round a hub, facing the line. */
+const SAILS_GEOMETRY = (() => {
+  const b = new GeoBuilder();
+  b.cylinder(0, 0, 0, 0.12, 0.12, 0.25, '#4E4038', 8, 'x');
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2;
+    const g = new THREE.BoxGeometry(0.04, 2.4, 0.42);
+    g.translate(0, 1.35, 0.12);
+    g.rotateX(a);
+    b.add(g, '#E8DFCC', 0.08, 0, 0, 0, 0, 0, { pattern: PATTERN.stripesZ, color2: '#8A7A66', scale: 0.12, shade: 1 });
+  }
+  return b.build();
+})();
+
 /**
- * The moonlit lakeside that scrolls past the (stationary) train: the lake and its painted distance on the
- * upper left, pine forest and villages on the right, one set piece after another (coves, a pier, a
- * lighthouse point, bridges over inlets, a village, a rock cutting) drawn from a shuffled deck so none comes
- * back within a minute. Everything moves by one speed value, so the platform and the scenery never drift
- * apart. Pieces are built once as templates and reused; trees are instanced; the whole lot moves by one
- * group offset each frame.
+ * The moonlit lakeside that scrolls past the (stationary) train. Built from continuous functions (terrain.ts)
+ * one stretch at a time, so the bank, the lake and the fields never break at a seam; the lake runs on far past
+ * anything the camera can see. Each stretch pairs a lake-side and a land-side piece from shuffled decks, so
+ * nothing repeats within a minute. Trees, reeds, rocks, lilies and flowers are instanced; everything moves by
+ * one group offset each frame.
  */
 export class Scenery {
   readonly group = new THREE.Group();
   readonly water: Water;
-  readonly backdrop = new Backdrop();
   private readonly scrollRoot = new THREE.Group();
   private scroll = 0;
   private readonly sleepers: THREE.InstancedMesh;
   private sleeperOffset = 0;
-  private readonly rng = new Rng(20260930);
-  private readonly templates: Template[] = [];
+  private readonly rng = new Rng(20261001);
   private readonly chunks: Chunk[] = [];
-  private readonly trees: THREE.InstancedMesh[] = [];
-  /** Recent picks (template index * 2 + mirror) and the last piece index of each kind. */
-  private readonly recent: number[] = [];
-  private readonly lastOfKind = new Map<PieceKind, number>();
+  private readonly shapes = fillGeometries();
+  private readonly recentShore: ShoreKind[] = [];
+  private readonly recentLand: LandKind[] = [];
+  private readonly lastShore = new Map<ShoreKind, number>();
+  private readonly lastLand = new Map<LandKind, number>();
   private placed = 0;
+  private forced: { shore?: ShoreKind; land?: LandKind } | null = null;
   private hideRegion: { x0: number; x1: number; z0: number; z1: number } | null = null;
   private hideKey = '';
   private reflection: PlanarReflection | null = null;
   /** Roadside billboards for the player's train (a marketing upgrade), scrolling with the countryside. */
   private readonly billboards: THREE.Group[] = [];
   private readonly billboardMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
-  private beamTime = 0;
-  private dz = 0;
+  private time = 0;
 
   constructor() {
-    this.water = new Water(WATER_EDGE_X, 40, SPAN_MIN - 40, SPAN_MAX + 40);
-    this.water.mesh.position.y = 0;
-    this.group.add(this.backdrop.mesh, this.water.mesh, this.scrollRoot);
+    // The lake covers everything on the lake side, far beyond the view; the ground lies over it where it rises.
+    this.water = new Water(-260, -1.9, SPAN_MIN - 90, SPAN_MAX + 90);
+    this.group.add(this.water.mesh, this.scrollRoot);
 
     // Track bed and rails. Rails are uniform along z, so they stay put while the sleepers scroll.
     const bed = new GeoBuilder();
     bed.box(0, 0.05, (SPAN_MIN + SPAN_MAX) / 2, 3.96, 0.1, SPAN_MAX - SPAN_MIN + 60, '#7E7B76', 0, { pattern: PATTERN.dots, color2: '#6E6B66', scale: 0.12, shade: 1, surface: 'stone' });
     for (const x of [-0.72, 0.72]) {
-      bed.box(x, 0.22, (SPAN_MIN + SPAN_MAX) / 2, 0.1, 0.12, SPAN_MAX - SPAN_MIN + 60, PALETTE.rail, 0, { shade: 0.8 });
-      bed.box(x, 0.285, (SPAN_MIN + SPAN_MAX) / 2, 0.07, 0.012, SPAN_MAX - SPAN_MIN + 60, PALETTE.railTop, 0, { shade: 1 });
+      bed.box(x, 0.22, (SPAN_MIN + SPAN_MAX) / 2, 0.1, 0.12, SPAN_MAX - SPAN_MIN + 60, PALETTE.rail, 0, { shade: 0.8, surface: 'iron' });
+      bed.box(x, 0.285, (SPAN_MIN + SPAN_MAX) / 2, 0.07, 0.012, SPAN_MAX - SPAN_MIN + 60, PALETTE.railTop, 0, { shade: 1, surface: { roughness: 0.55, metalness: 0.4 } });
     }
     const bedMesh = new THREE.Mesh(bed.build(), MATERIALS.scenery);
     bedMesh.receiveShadow = true;
@@ -112,20 +145,7 @@ export class Scenery {
     this.sleepers.receiveShadow = true;
     this.group.add(this.sleepers);
 
-    PIECES.forEach((def) => {
-      for (let v = 0; v < def.variants; v++) this.templates.push(this.makeTemplate(buildPiece(def.kind, v + 1), v));
-    });
-
     const count = Math.ceil((SPAN_MAX - SPAN_MIN) / CHUNK) + 1;
-    treeGeometries().forEach((geometry, k) => {
-      const mesh = new THREE.InstancedMesh(geometry, MATERIALS.scenery, TREE_SLOTS[k] * count);
-      mesh.frustumCulled = false;
-      mesh.castShadow = false;
-      mesh.receiveShadow = true;
-      mesh.layers.enable(REFLECT_LAYER);
-      this.trees.push(mesh);
-      this.scrollRoot.add(mesh);
-    });
     for (let i = 0; i < count; i++) {
       const chunk = this.makeChunk(i);
       chunk.z = SPAN_MIN + i * CHUNK;
@@ -135,7 +155,7 @@ export class Scenery {
     this.writeSleepers();
   }
 
-  /** Called when the train grows. The pieces already cover the longest train, so only the billboards move. */
+  /** Called when the train grows. The stretches already cover the longest train. */
   setSpan(_trainRearZ: number): void {
     this.writeSleepers();
   }
@@ -159,10 +179,9 @@ export class Scenery {
 
   update(dt: number, speed: number): void {
     const dz = speed * dt;
-    this.dz += dz;
     this.scroll += dz;
     this.scrollRoot.position.z = this.scroll;
-    // Pieces that have passed behind the train go round to the front with a new look.
+    // Stretches that have passed behind the train go round to the front with new pieces.
     for (const chunk of this.chunks) {
       if (chunk.z + this.scroll > SPAN_MAX) {
         chunk.z -= this.chunks.length * CHUNK;
@@ -180,33 +199,22 @@ export class Scenery {
       if (board.position.z > SPAN_MAX) board.position.z -= span;
       board.visible = !this.isHidden(board.position.x, board.position.z) && !this.isHidden(board.position.x, board.position.z - 1.5);
     }
-    // Lighthouse beams sweep round.
-    this.beamTime += dt;
-    for (const chunk of this.chunks) if (chunk.beam.visible) chunk.beam.rotation.y = this.beamTime * 0.9 * (chunk.mirrored ? -1 : 1);
-  }
-
-  /** Per-frame look: the painted distance follows the camera, the water ripples and catches the moon. */
-  present(dt: number, focus: THREE.Vector3, night: number, resolution: { width: number; height: number }, zoom: number): void {
-    this.water.update(dt, this.scroll, night, resolution);
-    // The painted horizon sits where the far water's mist is on screen: lower as the view zooms out.
-    this.backdrop.update(dt, this.dz, focus, night, resolution, HORIZON * Math.min(1.3, Math.max(0.7, zoom)));
-    this.dz = 0;
-  }
-
-  /**
-   * How dark it is at the camera (0 open sky, 1 deep in a rock cutting), so the moonlight can dim there and
-   * the train's lamps take over.
-   */
-  darknessAt(z: number): number {
-    let dark = 0;
+    // Lighthouse beams sweep round; windmill sails turn.
+    this.time += dt;
     for (const chunk of this.chunks) {
-      if (!chunk.template?.dark) continue;
-      const z0 = chunk.z + this.scroll;
-      const z1 = z0 + CHUNK;
-      const inside = Math.min(z - z0, z1 - z) / DARK_FADE;
-      dark = Math.max(dark, Math.min(1, Math.max(0, inside + 0.5)));
+      if (chunk.beam.visible) chunk.beam.rotation.y = this.time * 0.9;
+      if (chunk.sails.visible) chunk.sails.rotation.x = this.time * 0.6;
     }
-    return dark;
+  }
+
+  /** Per-frame look: the water ripples, catches the moon and the train's windows. */
+  present(dt: number, _focus: THREE.Vector3, night: number, _resolution: { width: number; height: number }, _zoom: number): void {
+    this.water.update(dt, this.scroll, night);
+  }
+
+  /** No more rock cuttings (they hid the train): the moon always shines. Kept for the lighting hook. */
+  darknessAt(_z: number): number {
+    return 0;
   }
 
   /** Shows `count` billboards with this poster (null removes them), on the land side. */
@@ -230,36 +238,20 @@ export class Scenery {
     }
   }
 
-  /** True where the platform (or a cutting's cliffs) is: ambient life stays out of those places too. */
-  readonly isHiddenAt = (x: number, z: number): boolean => this.isHidden(x, z) || (x > 0 && this.darknessAt(z) > 0.3);
+  /** True where the platform is: ambient life stays out of it too. */
+  readonly isHiddenAt = (x: number, z: number): boolean => this.isHidden(x, z);
 
   private isHidden(x: number, z: number): boolean {
     const r = this.hideRegion;
     return !!r && x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1;
   }
 
-  private makeTemplate(p: PieceBuild, variant: number): Template {
-    const geo = (b: GeoBuilder): THREE.BufferGeometry | null => (b.isEmpty ? null : b.build());
-    return {
-      kind: p.kind,
-      variant,
-      base: p.base.build(),
-      lake: geo(p.lake),
-      land: geo(p.land),
-      lakeGlow: geo(p.lakeGlow),
-      landGlow: geo(p.landGlow),
-      trees: p.trees,
-      beacon: p.beacon,
-      dark: p.dark,
-    };
-  }
-
   private makeChunk(index: number): Chunk {
     const group = new THREE.Group();
-    const mesh = (material: THREE.Material, cast: boolean, reflect: boolean): THREE.Mesh => {
+    const mesh = (material: THREE.Material, cast: boolean, reflect: boolean, receive = true): THREE.Mesh => {
       const m = new THREE.Mesh(EMPTY, material);
       m.castShadow = cast;
-      m.receiveShadow = true;
+      m.receiveShadow = receive;
       if (reflect) m.layers.enable(REFLECT_LAYER);
       group.add(m);
       return m;
@@ -268,125 +260,142 @@ export class Scenery {
     beam.visible = false;
     beam.layers.enable(REFLECT_LAYER);
     group.add(beam);
+    const sails = new THREE.Mesh(SAILS_GEOMETRY, MATERIALS.scenery);
+    sails.visible = false;
+    sails.castShadow = true;
+    group.add(sails);
     this.scrollRoot.add(group);
+    void index;
+    const fill = {} as Record<FillKind, THREE.InstancedMesh>;
+    for (const kind of FILL_KINDS) {
+      const m = new THREE.InstancedMesh(this.shapes[kind], MATERIALS.scenery, FILL_SLOTS[kind]);
+      m.count = 0;
+      m.castShadow = kind === 'pine' || kind === 'spruce' || kind === 'broadleaf';
+      m.receiveShadow = true;
+      m.layers.enable(REFLECT_LAYER);
+      group.add(m);
+      fill[kind] = m;
+    }
+    const pools = (): THREE.Mesh => {
+      const m = new THREE.Mesh(EMPTY, POOL_MATERIAL);
+      m.renderOrder = 2;
+      group.add(m);
+      return m;
+    };
     return {
       group,
-      base: mesh(MATERIALS.scenery, false, false),
-      lake: mesh(MATERIALS.scenery, false, true),
-      land: mesh(MATERIALS.scenery, false, true),
-      lakeGlow: mesh(MATERIALS.lamps, false, true),
-      landGlow: mesh(MATERIALS.lamps, false, true),
+      terrain: mesh(MATERIALS.scenery, false, false),
+      lake: mesh(MATERIALS.scenery, true, true),
+      land: mesh(MATERIALS.scenery, true, false),
+      lakeGlow: mesh(MATERIALS.lamps, false, true, false),
+      landGlow: mesh(MATERIALS.lamps, false, false, false),
+      lakePools: pools(),
+      landPools: pools(),
       beam,
+      sails,
       z: 0,
-      template: null,
-      mirrored: false,
-      treeStart: TREE_SLOTS.map((slots) => index * slots),
+      build: null,
+      fill,
       landHidden: false,
     };
   }
 
-  /** The next piece from the deck: weighted by kind, never a kind too soon, never a look seen in the last minute. */
-  private pick(): { template: number; mirrored: boolean } {
-    const n = this.placed++;
-    const options: { template: number; mirrored: boolean; weight: number }[] = [];
-    this.templates.forEach((t, i) => {
-      const def = PIECES.find((p) => p.kind === t.kind);
-      if (!def) return;
-      const last = this.lastOfKind.get(t.kind);
-      if (last !== undefined && n - last <= def.gap) return;
-      for (const mirrored of [false, true]) {
-        if (this.recent.includes(i * 2 + (mirrored ? 1 : 0))) continue;
-        options.push({ template: i, mirrored, weight: def.weight / def.variants / 2 });
-      }
-    });
-    let choice: { template: number; mirrored: boolean };
-    if (options.length === 0) {
-      // Everything is on cooldown: the plainest piece, least recently seen.
-      const shore = this.templates.findIndex((t) => t.kind === 'shore');
-      choice = { template: shore, mirrored: n % 2 === 1 };
-    } else {
-      let total = 0;
-      for (const o of options) total += o.weight;
-      let roll = this.rng.next() * total;
-      choice = options[options.length - 1];
-      for (const o of options) {
-        roll -= o.weight;
-        if (roll <= 0) {
-          choice = o;
-          break;
-        }
+  /** The next card from a deck: weighted, never a kind within its gap, never one of the last few. */
+  private draw<K extends string>(deck: DeckEntry<K>[], recent: K[], last: Map<K, number>): K {
+    const n = this.placed;
+    const options = deck.filter((d) => !recent.includes(d.kind) && (last.get(d.kind) === undefined || n - (last.get(d.kind) as number) > d.gap));
+    const pool = options.length > 0 ? options : deck.slice(0, 1);
+    let total = 0;
+    for (const o of pool) total += o.weight;
+    let roll = this.rng.next() * total;
+    let kind = pool[pool.length - 1].kind;
+    for (const o of pool) {
+      roll -= o.weight;
+      if (roll <= 0) {
+        kind = o.kind;
+        break;
       }
     }
-    this.lastOfKind.set(this.templates[choice.template].kind, n);
-    this.recent.push(choice.template * 2 + (choice.mirrored ? 1 : 0));
-    if (this.recent.length > NO_REPEAT) this.recent.shift();
-    return choice;
+    last.set(kind, n);
+    recent.push(kind);
+    if (recent.length > NO_REPEAT) recent.shift();
+    return kind;
   }
 
   /** Dev and Creative Mode: puts a piece of this kind beside the camera (for screenshots and QA). */
-  devShowPiece(kind: PieceKind, focusZ: number, variant = 0): void {
-    const matches = this.templates.map((t, i) => ({ t, i })).filter(({ t }) => t.kind === kind);
-    const match = matches[variant % Math.max(1, matches.length)];
-    if (!match) return;
+  devShowPiece(kind: PieceKind, focusZ: number): void {
+    const shore = SHORE_DECK.some((d) => d.kind === kind) ? (kind as ShoreKind) : undefined;
+    const land = LAND_DECK.some((d) => d.kind === kind) ? (kind as LandKind) : undefined;
     for (const chunk of this.chunks) {
       const z0 = chunk.z + this.scroll;
-      if (focusZ >= z0 - CHUNK * 0.5 && focusZ < z0 + CHUNK * 1.2) this.assign(chunk, { template: match.i, mirrored: false });
+      if (focusZ >= z0 - CHUNK * 0.5 && focusZ < z0 + CHUNK * 1.2) {
+        this.forced = { shore, land };
+        this.assign(chunk);
+      }
     }
+    this.forced = null;
   }
 
-  private assign(chunk: Chunk, forced?: { template: number; mirrored: boolean }): void {
-    const { template: index, mirrored } = forced ?? this.pick();
-    const t = this.templates[index];
-    chunk.template = t;
-    chunk.mirrored = mirrored;
-    chunk.group.position.z = chunk.z + (mirrored ? CHUNK : 0);
-    chunk.group.scale.z = mirrored ? -1 : 1;
+  private assign(chunk: Chunk): void {
+    const shore = this.forced?.shore ?? this.draw(SHORE_DECK, this.recentShore, this.lastShore);
+    const land = this.forced?.land ?? this.draw(LAND_DECK, this.recentLand, this.lastLand);
+    this.placed++;
+    // Seeded by where the stretch is, so the same stretch always looks the same.
+    const build = buildChunk(chunk.z, shore, land, Math.abs(Math.round(chunk.z * 7.31)) + 17);
+    const old = chunk.build;
+    chunk.build = build;
+    chunk.group.position.z = chunk.z;
     const set = (mesh: THREE.Mesh, geometry: THREE.BufferGeometry | null): void => {
+      if (mesh.geometry !== EMPTY && mesh.geometry !== SAILS_GEOMETRY) mesh.geometry.dispose();
       mesh.geometry = geometry ?? EMPTY;
       mesh.visible = geometry !== null;
     };
-    set(chunk.base, t.base);
-    set(chunk.lake, t.lake);
-    set(chunk.land, t.land);
-    set(chunk.lakeGlow, t.lakeGlow);
-    set(chunk.landGlow, t.landGlow);
-    chunk.beam.visible = t.beacon !== null;
-    if (t.beacon) chunk.beam.position.copy(t.beacon);
+    const geo = (b: GeoBuilder): THREE.BufferGeometry | null => (b.isEmpty ? null : b.build());
+    set(chunk.terrain, build.terrain);
+    set(chunk.lake, geo(build.lake));
+    set(chunk.land, geo(build.landProps));
+    set(chunk.lakeGlow, geo(build.lakeGlow));
+    set(chunk.landGlow, geo(build.landGlow));
+    set(chunk.lakePools, poolGeometry(build.pools, false, chunk.z));
+    set(chunk.landPools, poolGeometry(build.pools, true, chunk.z));
+    chunk.beam.visible = build.beacon !== null;
+    if (build.beacon) chunk.beam.position.copy(build.beacon);
+    chunk.sails.visible = build.windmill !== null;
+    if (build.windmill) chunk.sails.position.copy(build.windmill);
     chunk.landHidden = false;
-    this.writeTrees(chunk);
+    void old;
+    this.writeFill(chunk);
   }
 
-  /** Writes a chunk's trees into the instanced meshes (hidden ones, and unused slots, at zero scale). */
-  private writeTrees(chunk: Chunk): void {
-    const t = chunk.template;
-    const used = [0, 0, 0];
-    const worldOffset = this.scroll;
-    if (t) {
-      for (const spot of t.trees) {
-        const k = spot.kind;
-        if (used[k] >= TREE_SLOTS[k]) continue;
-        const z = chunk.z + (chunk.mirrored ? CHUNK - spot.z : spot.z);
-        const hidden = spot.land && this.isHidden(spot.x, z + worldOffset);
-        const s = hidden ? 0 : spot.scale;
-        dummy.position.set(spot.x, 0, z);
+  /** Writes a stretch's fill into its instanced meshes (only what shows: hidden land-side fill is left out). */
+  private writeFill(chunk: Chunk): void {
+    const used: Record<string, number> = {};
+    const build = chunk.build;
+    if (build) {
+      for (const spot of build.fill) {
+        const slot = used[spot.kind] ?? 0;
+        if (slot >= FILL_SLOTS[spot.kind]) continue;
+        if (spot.land && this.isHidden(spot.x, chunk.z + spot.z + this.scroll)) continue;
+        dummy.position.set(spot.x, spot.y, spot.z);
         dummy.rotation.set(0, spot.rot, 0);
-        dummy.scale.set(s, s * (k === 1 ? 1.1 : 1), s);
+        dummy.scale.set(spot.scale, spot.scale, spot.scale);
         dummy.updateMatrix();
-        this.trees[k].setMatrixAt(chunk.treeStart[k] + used[k], dummy.matrix);
-        used[k]++;
+        chunk.fill[spot.kind].setMatrixAt(slot, dummy.matrix);
+        used[spot.kind] = slot + 1;
       }
     }
-    dummy.scale.set(0, 0, 0);
-    dummy.updateMatrix();
-    for (let k = 0; k < this.trees.length; k++) {
-      for (let i = used[k]; i < TREE_SLOTS[k]; i++) this.trees[k].setMatrixAt(chunk.treeStart[k] + i, dummy.matrix);
-      this.trees[k].instanceMatrix.needsUpdate = true;
+    for (const kind of FILL_KINDS) {
+      const mesh = chunk.fill[kind];
+      mesh.count = used[kind] ?? 0;
+      mesh.visible = mesh.count > 0;
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.count > 0) mesh.computeBoundingSphere();
     }
   }
 
   /**
-   * The platform's region moves with the scenery, so which pieces it covers only changes when it is first
-   * set (far ahead, off screen) or cleared: re-check then, and when a piece comes round.
+   * The platform's region moves with the scenery, so which stretches it covers only changes when it is first
+   * set (far ahead, off screen) or cleared: re-check then, and when a stretch comes round.
    */
   private updateHidden(): void {
     const r = this.hideRegion;
@@ -398,9 +407,12 @@ export class Scenery {
       const hide = !!r && z0 < r.z1 && z0 + CHUNK > r.z0;
       if (hide === chunk.landHidden && !changed) continue;
       chunk.landHidden = hide;
-      chunk.land.visible = !hide && chunk.template?.land !== null;
-      chunk.landGlow.visible = !hide && chunk.template?.landGlow !== null;
-      this.writeTrees(chunk);
+      const has = (m: THREE.Mesh): boolean => m.geometry !== EMPTY;
+      chunk.land.visible = !hide && has(chunk.land);
+      chunk.landGlow.visible = !hide && has(chunk.landGlow);
+      chunk.landPools.visible = !hide && has(chunk.landPools);
+      chunk.sails.visible = !hide && chunk.build?.windmill !== null && chunk.build !== null;
+      this.writeFill(chunk);
     }
   }
 
@@ -416,6 +428,9 @@ export class Scenery {
     this.sleepers.instanceMatrix.needsUpdate = true;
   }
 }
+
+/** Kept clear of everything: the track bed (scenery never enters it). */
+export const SCENERY_TRACK_HALF = TRACK_HALF;
 
 /** The lighthouse's sweeping beam: a long, faint cone of light, brightest at the lamp. */
 const BEAM_GEOMETRY = (() => {
