@@ -8,7 +8,7 @@ import { groundHeight, TRACK_HALF } from './terrain';
 import { PlanarReflection, REFLECT_LAYER, Water } from './Water';
 
 /** Billboards stand just beyond the ballast on the land side, where the camera always catches them. */
-const BILLBOARD_X = 3.75;
+const BILLBOARD_X = 4.25;
 const BILLBOARD_W = 2.3;
 const BILLBOARD_H = 1.2;
 /** The world the stretches tile: from well ahead of the locomotive to well behind the longest train. */
@@ -150,12 +150,12 @@ export class Scenery {
 
   constructor() {
     // The lake covers everything on the lake side, far beyond the view; the ground lies over it where it rises.
-    this.water = new Water(-260, -1.9, SPAN_MIN - 90, SPAN_MAX + 90);
+    this.water = new Water(-260, -2.4, SPAN_MIN - 90, SPAN_MAX + 90);
     this.group.add(this.water.mesh, this.scrollRoot);
 
     // Track bed and rails. Rails are uniform along z, so they stay put while the sleepers scroll.
     const bed = new GeoBuilder();
-    bed.box(0, 0.05, (SPAN_MIN + SPAN_MAX) / 2, 3.96, 0.1, SPAN_MAX - SPAN_MIN + 60, '#7E7B76', 0, { pattern: PATTERN.dots, color2: '#6E6B66', scale: 0.12, shade: 1, surface: 'stone' });
+    bed.box(0, 0.05, (SPAN_MIN + SPAN_MAX) / 2, (TRACK_HALF - 0.52) * 2, 0.1, SPAN_MAX - SPAN_MIN + 60, '#7E7B76', 0, { pattern: PATTERN.dots, color2: '#6E6B66', scale: 0.12, shade: 1, surface: 'stone' });
     for (const x of [-0.72, 0.72]) {
       bed.box(x, 0.22, (SPAN_MIN + SPAN_MAX) / 2, 0.1, 0.12, SPAN_MAX - SPAN_MIN + 60, PALETTE.rail, 0, { shade: 0.8, surface: 'iron' });
       bed.box(x, 0.285, (SPAN_MIN + SPAN_MAX) / 2, 0.07, 0.012, SPAN_MAX - SPAN_MIN + 60, PALETTE.railTop, 0, { shade: 1, surface: { roughness: 0.55, metalness: 0.4 } });

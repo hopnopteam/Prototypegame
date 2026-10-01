@@ -14,15 +14,15 @@ import { groundColor, groundHeight, shoreX, TRACK_HALF, VERGE_Y, WATER_Y } from 
  * Rules that keep it clean:
  * - Nothing enters the track bed (|x| < TRACK_HALF).
  * - Land side (between the camera and the train): nothing near the line is tall enough to hide the train;
- *   heights stay under (x − 2.4) / 0.45 m, so tall things (trees, houses) stand from x ≈ 7.
+ *   heights stay under (x − 2.9) / 0.45 m, so tall things (trees, houses) stand from x ≈ 7.5.
  * - Lake side: static things stay between the bank and x = −9.8; −10.5 to −13.8 is the boats' lane (Ambient);
- *   islands lie beyond −14.5. Every placed thing claims its footprint, and fill (trees, reeds, flowers)
+ *   islands lie beyond −15. Every placed thing claims its footprint, and fill (trees, reeds, flowers)
  *   never lands on a claimed spot.
  */
 
 export const CHUNK = 24;
 /** The boats' lane on the lake (Ambient keeps its boats and swans in here). */
-export const BOAT_LANE: [number, number] = [-10.5, -13.8];
+export const BOAT_LANE: [number, number] = [-11.0, -14.3];
 
 export type ShoreKind = 'reeds' | 'beach' | 'jetty' | 'boathouse' | 'lilies' | 'promenade' | 'lighthouse' | 'fishing' | 'island';
 export type LandKind = 'forest' | 'meadow' | 'village' | 'farm' | 'orchard' | 'lane' | 'windmill' | 'chapel' | 'camp';
@@ -280,12 +280,12 @@ function buildShore(st: Stretch, kind: ShoreKind): void {
     case 'beach': {
       // Boats pulled up on the sand, lying along the shore (never reaching the ballast).
       const z = rng.range(7, 16);
-      const x = Math.min(st.shore(z) + 0.45, -3.55);
+      const x = Math.min(st.shore(z) + 0.45, -4.05);
       rowingBoat(b, x, st.ground(x, z), z, rng.range(-0.15, 0.15), rng.chance(0.5) ? C.boat : C.boatBlue);
       st.claim(x - 0.6, z - 1.1, x + 0.6, z + 1.1);
       if (rng.chance(0.6)) {
         const z2 = z + rng.pick([-3.2, 3.4]);
-        const x2 = Math.min(st.shore(z2) + 0.45, -3.55);
+        const x2 = Math.min(st.shore(z2) + 0.45, -4.05);
         rowingBoat(b, x2, st.ground(x2, z2), z2, rng.range(-0.15, 0.15), C.boatBlue);
         st.claim(x2 - 0.6, z2 - 1.1, x2 + 0.6, z2 + 1.1);
       }
@@ -297,7 +297,7 @@ function buildShore(st: Stretch, kind: ShoreKind): void {
     case 'jetty': {
       const z = rng.range(8, 15);
       const x0 = st.shore(z) + 0.6;
-      const x1 = Math.max(-9.8, st.shore(z) - 3.0);
+      const x1 = Math.max(-10.3, st.shore(z) - 3.0);
       const w = 1.1;
       b.object('scenery:jetty');
       b.box((x0 + x1) / 2, WATER_Y + 0.32, z, x0 - x1, 0.06, w, C.wood, 0, { pattern: PATTERN.stripesX, color2: C.woodDark, scale: 0.22, shade: 1, surface: 'wood' });
@@ -353,7 +353,7 @@ function buildShore(st: Stretch, kind: ShoreKind): void {
     case 'lighthouse': {
       const z = rng.range(9, 15);
       // Kept short of the boats' lane (BOAT_LANE).
-      const x = Math.max(st.shore(z) - 3.0, -8.3);
+      const x = Math.max(st.shore(z) - 3.0, -8.8);
       // A rocky islet with a little lighthouse, banded white and red, its lamp lit.
       for (let k = 0; k < 7; k++) st.put('rock', x + rng.range(-1.1, 1.1), z + rng.range(-1.1, 1.1), rng.range(1.0, 1.7), false, WATER_Y - 0.2, 0.5);
       b.object('scenery:lighthouse');
@@ -397,7 +397,7 @@ function buildShore(st: Stretch, kind: ShoreKind): void {
     }
     case 'island': {
       const z = rng.range(8, 16);
-      const x = -17 - rng.range(0, 1.5);
+      const x = -17.5 - rng.range(0, 1.5);
       // A wooded island out on the lake, with a cottage window lit.
       b.object('scenery:island');
       b.add(new THREE.SphereGeometry(3.0, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.18, 0.75), '#4C6B54', x, WATER_Y - 0.1, z, 0, 0, 0, { shade: 0.85, surface: 'foliage' });
@@ -573,8 +573,8 @@ function columns(x0: number, x1: number, fine: [number, number], step: number, c
   return out;
 }
 
-const LAKE_COLS = columns(-14, -2.0, [-11, -2.0], 0.35, 1.5);
-const LAND_COLS = columns(2.0, 46, [2.0, 12], 0.5, 2.5);
+const LAKE_COLS = columns(-14.5, -2.5, [-11.5, -2.5], 0.35, 1.5);
+const LAND_COLS = columns(2.5, 46, [2.5, 12], 0.5, 2.5);
 const ROW_STEP = 0.75;
 
 /** The ground of one stretch as a vertex-coloured grid (two strips: the lake bank and the land). */

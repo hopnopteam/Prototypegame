@@ -512,8 +512,9 @@ export class CarriageView {
     for (const side of [-1, 1]) {
       liv.box(side * (skirtW / 2 - rim / 2), 0.46, L / 2, rim, 0.16, skirtL, '#FFFFFF', 0, { shade: 0.8 });
       liv.box(0, 0.46, L / 2 + side * (skirtL / 2 - rim / 2), skirtW - rim * 2 - 0.004, 0.16, rim, '#FFFFFF', 0, { shade: 0.8 });
-      trim.box(side * (HALF_WIDTH - 0.01 - rim / 2), 0.525, L / 2, rim, 0.025, L - 0.1, '#FFFFFF', 0, FLAT);
-      trim.box(0, 0.525, L / 2 + side * ((L - 0.1) / 2 - rim / 2), HALF_WIDTH * 2 - 0.02 - rim * 2 - 0.004, 0.025, rim, '#FFFFFF', 0, FLAT);
+      // The trim line stands 2 cm proud of the floor's ends (its end faces never flush with a board's).
+      trim.box(side * (HALF_WIDTH - 0.01 - rim / 2), 0.525, L / 2, rim, 0.025, L - 0.08, '#FFFFFF', 0, FLAT);
+      trim.box(0, 0.525, L / 2 + side * ((L - 0.08) / 2 - rim / 2), HALF_WIDTH * 2 - 0.02 - rim * 2 - 0.004, 0.025, rim, '#FFFFFF', 0, FLAT);
     }
     s.box(0, 0.28, L / 2, HALF_WIDTH * 2 - 0.6, 0.2, L - 0.8, PALETTE.undercarriage);
     for (const z of [2.3, L - 2.3]) {

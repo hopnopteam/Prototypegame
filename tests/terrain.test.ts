@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BOAT_LANE, buildChunk, CHUNK, LAND_DECK, SHORE_DECK, type FillKind } from '../src/world/Lakeside';
-import { groundHeight, shoreX, TRACK_HALF, WORLD_PERIOD } from '../src/world/terrain';
+import { groundHeight, SHORE_MID, SHORE_NEAREST, shoreX, TRACK_HALF, WORLD_PERIOD } from '../src/world/terrain';
 
 /** Rough heights of the fill shapes at scale 1 (metres). */
 const FILL_HEIGHT: Record<FillKind, number> = { pine: 3.4, spruce: 3.95, broadleaf: 2.8, bush: 0.6, reed: 1.0, rock: 0.35, lily: 0.05, flower: 0.27 };
@@ -12,8 +12,8 @@ describe('the lakeside ground', () => {
     let previous = shoreX(0);
     for (let s = 0; s < WORLD_PERIOD; s += 0.25) {
       const x = shoreX(s);
-      expect(x).toBeLessThanOrEqual(-3.5);
-      expect(x).toBeGreaterThan(-7);
+      expect(x).toBeLessThanOrEqual(SHORE_NEAREST);
+      expect(x).toBeGreaterThan(SHORE_MID - 2);
       expect(Math.abs(x - previous)).toBeLessThan(0.08);
       previous = x;
     }
@@ -54,7 +54,7 @@ describe('the lakeside pieces', () => {
       for (const f of b.fill) {
         if (f.x <= 0) continue;
         const height = FILL_HEIGHT[f.kind] * f.scale;
-        expect(height, `${b.land} ${f.kind} at x ${f.x.toFixed(2)}`).toBeLessThan((f.x - 2.4) / HIDE_SLOPE);
+        expect(height, `${b.land} ${f.kind} at x ${f.x.toFixed(2)}`).toBeLessThan((f.x - 2.9) / HIDE_SLOPE);
       }
     }
   });

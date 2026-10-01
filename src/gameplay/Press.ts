@@ -48,6 +48,8 @@ export interface PressUi {
   showRivalWatch(watch: RivalWatch, onDone: () => void): void;
   /** A sheet is open; big moments wait. */
   readonly busy: boolean;
+  /** The station's result ticket is on screen; press cards wait until it has gone. */
+  readonly ticketUp: boolean;
 }
 
 export interface RivalWatch {
@@ -63,13 +65,22 @@ export interface RivalWatch {
   carriages: number;
 }
 
-/** After a departure, this many seconds are a calm beat for interviews and ceremonies. */
+/** After a departure, this many seconds are the calm beat when a press card may come (one per breather). */
 const CALM_SECONDS = 25;
-/** A front page waits this long after its moment (so the coupling card and camera finish first). */
-const FRONT_PAGE_DELAY = 3.2;
 const GUESTS_NEWS = 100;
-/** Seconds between press cards (the debut chain aside), so news never arrives in a pile. */
-const PRESS_GAP = 15;
+/**
+ * Seconds of play between press cards (about one leg of the journey), so the press is a steady thread
+ * through the run rather than a pile of cards (session 14, owner: "they come very quickly all at once").
+ */
+const PRESS_GAP = 150;
+/** Seconds of quiet after any other sheet (a level-up, a chooser) before a press card. */
+const AFTER_SHEET = 6;
+/** Front pages waiting at most; beyond this the least important pays out with a toast instead. */
+const MAX_WAITING_FRONT_PAGES = 2;
+/** How much each kind of news matters when several wait for the same breather. */
+const NEWS_WEIGHT: Record<PressTrigger, number> = {
+  named: 10, royal: 9, champion: 9, firstClass: 8, topThree: 7, coupling: 6, story: 5, refurb3: 5, livery: 4, guests100: 4,
+};
 
 /**
  * The world noticing your train (the answer to "what am I working towards?"): you name her, the league
@@ -80,8 +91,8 @@ const PRESS_GAP = 15;
  */
 export class Press {
   private calm = 0;
-  private sinceMoment = 99;
-  private sinceShown = 99;
+  private sinceShown = PRESS_GAP;
+  private quiet = AFTER_SHEET;
 
   constructor(private readonly w: World, private readonly ui: PressUi) {
     const p = this.state;
@@ -146,35 +157,60 @@ export class Press {
   }
 
   update(dt: number): void {
-    this.sinceMoment += dt;
     this.sinceShown += dt;
     if (this.calm > 0) this.calm -= dt;
+    this.quiet = this.ui.busy ? 0 : this.quiet + dt;
     const p = this.state;
     if (p.pending.length === 0 || this.ui.busy || this.w.train.coupling) return;
-    const phase = this.w.journey.phase;
-    if (phase === 'arriving' || phase === 'stationStop') return;
-    // The first moment that is ready goes next, so a taunt waiting for its breather never holds up news.
-    const index = p.pending.findIndex((key) => this.ready(key));
-    if (index >= 0) this.showNext(index);
+    // One card per breather after a departure, once the ticket has gone and the screen has been quiet a
+    // moment, and a leg of the journey since the last card: the press is a steady thread, never a pile.
+    if (this.calm <= 0 || this.ui.ticketUp || this.quiet < AFTER_SHEET || this.sinceShown < PRESS_GAP) return;
+    let best = -1;
+    for (let i = 0; i < p.pending.length; i++) if (best < 0 || this.weight(p.pending[i]) > this.weight(p.pending[best])) best = i;
+    if (best >= 0) this.showNext(best);
+  }
+
+  /** Which waiting card goes first: the debut in order, then the biggest news, ceremonies, interviews, taunts. */
+  private weight(key: string): number {
+    if (key === 'name') return 100;
+    if (key === `interview:${DEBUT_INTERVIEW}`) return 90;
+    if (key.startsWith('front:')) {
+      const trigger = this.itemFor(key)?.trigger as PressTrigger | undefined;
+      return trigger === 'named' ? 85 : 40 + (trigger ? NEWS_WEIGHT[trigger] ?? 0 : 0);
+    }
+    if (key.startsWith('ceremony:')) return 45;
+    if (key.startsWith('interview:')) return 44;
+    // The first rival's taunt comes right after the debut: someone to beat is the hook.
+    if (key.startsWith('rival:') && this.state.rivals.taunted.length === 0) return 60;
+    return 20;
+  }
+
+  private itemFor(key: string): NewsItem | undefined {
+    const id = Number(key.split(':')[1]);
+    return this.state.items.find((i) => i.id === id);
   }
 
   /**
-   * Interviews, ceremonies and rival taunts are for the breather after a station (one per breather); the
-   * rest just need a quiet moment. Cards keep a gap between them, except the debut (name, interview, front
-   * page), which is one moment: meet the new train.
+   * At most a couple of front pages wait for their breather: beyond that, the least important one is paid
+   * now with a small toast (nothing is lost; there is simply no card for it).
    */
-  private ready(key: string): boolean {
-    if (this.isDebut(key)) return this.sinceMoment >= FRONT_PAGE_DELAY;
-    if (this.sinceShown < PRESS_GAP) return false;
-    const needsBreather = key.startsWith('interview:') || key.startsWith('ceremony:') || key.startsWith('rival:');
-    return needsBreather ? this.calm > 0 : this.sinceMoment >= FRONT_PAGE_DELAY;
-  }
-
-  private isDebut(key: string): boolean {
-    if (key === 'name' || key === `interview:${DEBUT_INTERVIEW}`) return true;
-    if (!key.startsWith('front:')) return false;
-    const id = Number(key.split(':')[1]);
-    return this.state.items.find((i) => i.id === id)?.trigger === 'named';
+  private foldFrontPages(): void {
+    const p = this.state;
+    for (;;) {
+      const fronts = p.pending.filter((k) => k.startsWith('front:') && this.itemFor(k)?.trigger !== 'named');
+      if (fronts.length <= MAX_WAITING_FRONT_PAGES) return;
+      let least = fronts[0];
+      for (const k of fronts) if (this.weight(k) < this.weight(least)) least = k;
+      p.pending.splice(p.pending.indexOf(least), 1);
+      const item = this.itemFor(least);
+      if (!item) continue;
+      const reward = this.rewardFor(item);
+      const w = this.w;
+      if (reward.cash > 0) w.wallet.add('cash', reward.cash, 'press');
+      if (reward.gems > 0) w.wallet.add('gems', reward.gems, 'press');
+      if (reward.railMiles > 0) w.wallet.add('railMiles', reward.railMiles, 'press');
+      if (reward.cash > 0) w.ui.toast(`+${reward.cash}`, 'news');
+    }
   }
 
   /** Dev: show whatever is pending now. */
@@ -211,8 +247,8 @@ export class Press {
     };
     p.items.unshift(item);
     if (p.items.length > PRESS_ARCHIVE) p.items.length = PRESS_ARCHIVE;
-    this.sinceMoment = 0;
     this.queue(`front:${item.id}`);
+    this.foldFrontPages();
     w.analytics.log('press_printed', { trigger, level: item.level });
     return item;
   }
@@ -344,9 +380,8 @@ export class Press {
     const [key] = p.pending.splice(index, 1);
     this.w.save.markDirty();
     if (!key) return;
-    // One big moment per breather; front pages do not use it up.
-    if (!key.startsWith('front:')) this.calm = 0;
-    this.sinceMoment = 0;
+    // One card per breather, then a leg of the journey before the next.
+    this.calm = 0;
     this.sinceShown = 0;
     if (key === 'name') this.showNaming();
     else if (key.startsWith('front:')) this.showFrontPage(Number(key.split(':')[1]));

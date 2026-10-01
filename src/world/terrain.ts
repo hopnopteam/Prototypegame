@@ -9,18 +9,18 @@
  */
 
 /** The track bed's half-width (ballast); nothing of the scenery comes inside it. */
-export const TRACK_HALF = 2.5;
+export const TRACK_HALF = 3.0;
 /** The water's surface. */
 export const WATER_Y = 0;
 /** Height of the grass verges beside the ballast. */
 export const VERGE_Y = 0.12;
 
 /** The gravel footpath along the land side. */
-export const PATH_X = 3.2;
+export const PATH_X = 3.7;
 
 /** The shoreline wanders between these (x), never nearer the track than SHORE_NEAREST. */
-export const SHORE_NEAREST = -3.5;
-export const SHORE_MID = -5.0;
+export const SHORE_NEAREST = -4.0;
+export const SHORE_MID = -5.5;
 
 /**
  * Everything that varies along the line repeats exactly every WORLD_PERIOD metres (whole numbers of waves fit
@@ -32,7 +32,7 @@ const K2 = (Math.PI * 2 * 42) / WORLD_PERIOD;
 const K3 = (Math.PI * 2 * 103) / WORLD_PERIOD;
 
 /**
- * Where the lake begins at `s`: a slow wander and two quicker ripples, kept between about −3.5 and −6.6, so
+ * Where the lake begins at `s`: a slow wander and two quicker ripples, kept between about −4.0 and −7.1, so
  * the bank is never straight and never the same twice in a minute.
  */
 export function shoreX(s: number): number {

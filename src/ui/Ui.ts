@@ -908,6 +908,7 @@ export class Ui implements GameUi {
     this.root.classList.add('has-ticket');
     this.resultEl = el;
     this.resultTimer = RESULT_SECONDS;
+    this.resultUntil = (this.game?.time ?? 0) + RESULT_SECONDS;
     this.rectTimer = 0;
   }
 
@@ -949,6 +950,13 @@ export class Ui implements GameUi {
   get busy(): boolean {
     return this.screens.isOpen;
   }
+
+  /** The ticket's time on screen in game time (so the press waits for it the same in play and in simulation). */
+  get ticketUp(): boolean {
+    return this.resultEl !== null && (this.game?.time ?? 0) < this.resultUntil;
+  }
+
+  private resultUntil = 0;
 
   showNaming(suggestions: string[], onDone: (name: string) => void): void {
     this.pressScreens.naming(suggestions, onDone);

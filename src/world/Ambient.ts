@@ -14,7 +14,7 @@ const ONLOOKER_LOOKS: { look: CharacterLook; scale: number }[] = [
   { look: { body: '#7FB48A', accent: '#FFFFFF', skin: '#F1C7A6', hair: '#A0522D', pants: '#6B5A4A', hat: 'beanie', hatColor: '#C0485C', arms: true }, scale: 0.78 },
 ];
 /** Onlookers stand on the grass just beyond the verge on the land side, close enough to wave at the windows. */
-const ONLOOKER_X: [number, number] = [3.0, 3.4];
+const ONLOOKER_X: [number, number] = [3.5, 3.9];
 /**
  * Lantern boats and swans keep to the open-water lane (beyond every jetty and islet, short of the islands),
  * so nothing on the water ever passes through anything else.
