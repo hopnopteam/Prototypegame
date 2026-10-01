@@ -26,13 +26,12 @@ const failures = [];
 const check = (ok, message) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${message}`); if (!ok) failures.push(message); };
 
 await page.goto(`file://${file}`);
-await page.waitForTimeout(800);
-await page.mouse.click(195, 700);
+await page.waitForFunction(() => !!window.nightExpress?.data, null, { timeout: 15000 }).catch(() => undefined);
+await page.waitForTimeout(300);
+// No title screen (session 12): a new player boots straight into the intro over the train.
+check(await page.evaluate(() => !!window.nightExpress && !document.querySelector('.splash')), 'boots straight into the game (no title screen)');
 // Tests drive the game themselves: skip the intro so it cannot unpause the game halfway through.
 await page.evaluate(() => window.nightExpress.skipIntro?.());
-// The title fades out over ~0.4 s; wait for it to leave rather than racing the fade.
-await page.waitForFunction(() => !document.querySelector('.splash'), null, { timeout: 3000 }).catch(() => undefined);
-check(await page.evaluate(() => !!window.nightExpress && !document.querySelector('.splash')), 'boots and the title card starts the game');
 
 // Record the journey phase and lifetime at every interstitial, so the §12 rules can be verified after.
 await page.evaluate(() => {
@@ -138,7 +137,8 @@ check(door.walkable && door.moved > 0.5, `a doorway shutting never traps the con
 // Counted at the moment of saving: the doorway test above runs more of the sim, and a tile can finish in it.
 const before = await page.evaluate(() => { const g = window.nightExpress; g.setAutopilot(false); g.save.saveNow(); return g.data.route.unlocked.length; });
 await page.reload();
-await page.waitForTimeout(800);
+await page.waitForFunction(() => !!window.nightExpress?.data, null, { timeout: 15000 });
+await page.waitForTimeout(300);
 const after = await page.evaluate(() => ({ unlocked: window.nightExpress.data.route.unlocked.length, cabins: window.nightExpress.train.openCabinCount() }));
 check(after.unlocked === before, `save survives a reload (${after.unlocked}/${before} unlocks)`);
 check(after.cabins === snap.openCabins, `cabins bought are still open after a reload (${after.cabins}/${snap.openCabins})`);

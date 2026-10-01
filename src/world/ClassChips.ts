@@ -7,16 +7,22 @@ import { CARRIAGE_LENGTH, HALF_WIDTH } from './layout';
 import { TILE_FONT } from './sprites';
 
 /** Where a chip floats: over the lake side of its carriage, just above the wall tops. */
-const CHIP_X = -(HALF_WIDTH + 0.55);
-const CHIP_Y = FLOOR_Y + 1.95;
-/** World height of a chip (its width follows the label). */
-const CHIP_HEIGHT = 0.46;
+const CHIP_X = -(HALF_WIDTH + 1.2);
+const CHIP_Y = FLOOR_Y + 2.1;
+/** World height of a chip at the default zoom (its width follows the label); about 26 px of pill on a phone. */
+const CHIP_HEIGHT = 0.82;
+/** How much of the camera's pull-back the chip makes up for (1 = constant on screen), so it stays readable. */
+const ZOOM_FOLLOW = 0.7;
+/** The chips' navy enamel (the mockup's), with the class colour carried by the emblem disc. */
+const CHIP_NAVY = '#1E2B4D';
+const CHIP_NAVY_TOP = '#2D3F6B';
 
 const cache = new Map<string, { texture: THREE.CanvasTexture; aspect: number }>();
 
 /**
- * A class chip: a pill in the class's colour with its emblem and name, and a pointer down to the carriage.
- * Drawn once per class (and again once the display font has loaded).
+ * A class chip: a navy pill with the class emblem on a disc of its colour, the class name, and a pointer
+ * down to the carriage; First and Royal get a gold rim. Drawn once per class (and again once the display
+ * font has loaded).
  */
 function chipTexture(cls: ClassDef): { texture: THREE.CanvasTexture; aspect: number } {
   const key = `${cls.id}:${document.fonts?.check?.(`800 40px ${TILE_FONT}`) ? 'font' : 'fallback'}`;
@@ -24,14 +30,15 @@ function chipTexture(cls: ClassDef): { texture: THREE.CanvasTexture; aspect: num
   if (cached) return cached;
   const h = 104;
   const measure = document.createElement('canvas').getContext('2d') as CanvasRenderingContext2D;
-  measure.font = `800 40px ${TILE_FONT}`;
+  measure.font = `800 38px ${TILE_FONT}`;
   const textWidth = measure.measureText(cls.chip).width;
-  const w = Math.ceil(24 + 52 + 12 + textWidth + 28);
+  const pillH = 70;
+  const disc = pillH - 14;
+  const w = Math.ceil(8 + 7 + disc + 14 + textWidth + 26);
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
   const ctx = c.getContext('2d') as CanvasRenderingContext2D;
-  const pillH = 70;
   const r = pillH / 2;
   const x0 = 4;
   const y0 = 4;
@@ -48,22 +55,30 @@ function chipTexture(cls: ClassDef): { texture: THREE.CanvasTexture; aspect: num
   ctx.lineTo(x0 + r, y1);
   ctx.arc(x0 + r, y0 + r, r, Math.PI / 2, Math.PI * 1.5);
   ctx.closePath();
+  const enamel = ctx.createLinearGradient(0, y0, 0, y1);
+  enamel.addColorStop(0, CHIP_NAVY_TOP);
+  enamel.addColorStop(1, CHIP_NAVY);
+  ctx.fillStyle = enamel;
+  ctx.fill();
+  const gold = cls.tier >= 4;
+  ctx.lineWidth = gold ? 6 : 5;
+  ctx.strokeStyle = gold ? '#E2B653' : INK;
+  ctx.stroke();
+  // The emblem on a disc of the class colour: the colour code at a glance.
+  const cx = x0 + 7 + disc / 2;
+  const cy = y0 + pillH / 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, disc / 2, 0, Math.PI * 2);
   ctx.fillStyle = cls.color;
   ctx.fill();
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = INK;
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
   ctx.stroke();
-  // A soft highlight along the top: enamel, like the HUD's counters.
-  ctx.save();
-  ctx.clip();
-  ctx.fillStyle = 'rgba(255,255,255,0.16)';
-  ctx.fillRect(0, y0, w, pillH * 0.42);
-  ctx.restore();
-  drawIcon(ctx, cls.icon, x0 + 16, y0 + 9, 52);
-  ctx.font = `800 40px ${TILE_FONT}`;
+  drawIcon(ctx, cls.icon, cx - disc * 0.36, cy - disc * 0.36, disc * 0.72);
+  ctx.font = `800 38px ${TILE_FONT}`;
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = cls.ink;
-  ctx.fillText(cls.chip, x0 + 16 + 52 + 12, y0 + pillH / 2 + 2);
+  ctx.fillStyle = gold ? '#FFE2A0' : '#FFFFFF';
+  ctx.fillText(cls.chip, x0 + 7 + disc + 14, cy + 2);
   const texture = new THREE.CanvasTexture(c);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
@@ -92,7 +107,7 @@ export class ClassChips {
   }
 
   /** Keeps one chip per passenger carriage, showing its class (null for service cars). */
-  sync(classes: readonly (ClassDef | null)[], originZ: (i: number) => number, dt: number): void {
+  sync(classes: readonly (ClassDef | null)[], originZ: (i: number) => number, dt: number, zoom = 1): void {
     const redraw = this.fontReady;
     if (redraw) this.fontReady = false;
     for (let i = 0; i < Math.max(classes.length, this.chips.length); i++) {
@@ -125,7 +140,7 @@ export class ClassChips {
         chip.sprite.userData.aspect = aspect;
       }
       chip.pop = Math.max(0, chip.pop - dt * 1.6);
-      const bounce = 1 + Math.sin(chip.pop * Math.PI) * 0.35;
+      const bounce = (1 + Math.sin(chip.pop * Math.PI) * 0.35) * (1 + (zoom - 1) * ZOOM_FOLLOW);
       const aspect = (chip.sprite.userData.aspect as number) ?? 3;
       chip.sprite.scale.set(CHIP_HEIGHT * aspect * bounce, CHIP_HEIGHT * bounce, 1);
       chip.sprite.position.set(CHIP_X, CHIP_Y, originZ(i) + CARRIAGE_LENGTH / 2);

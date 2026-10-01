@@ -29,6 +29,8 @@ export const COACH_HINTS: CoachLineDef[] = [
   { id: 'hire', icon: 'person', text: 'Hire help' },
   { id: 'couple', icon: 'carriage', text: 'New carriage' },
   { id: 'refurb', icon: 'paint', text: 'Refurbish' },
+  { id: 'class', icon: 'crown', text: 'Upgrade class' },
+  { id: 'turndown', icon: 'turndown', text: 'Turn down' },
   { id: 'workshop', icon: 'megaphone', text: 'Station shop' },
   { id: 'washroom', icon: 'towel', text: 'Restock' },
   { id: 'map', icon: 'dash', text: 'Tap to dash' },
@@ -59,7 +61,7 @@ export interface IntroBeat {
 }
 
 export const INTRO_BEATS: IntroBeat[] = [
-  { focus: 'locomotive', seconds: 2.6, zoom: 1.4, kicker: 'Millbrook · 6:00 am', text: 'Your first shift' },
+  { focus: 'locomotive', seconds: 2.6, zoom: 1.4, kicker: 'Millbrook · 11:40 pm', text: 'The night shift' },
   { focus: 'lobby', seconds: 2.3, zoom: 1.05, text: 'One tired old carriage…' },
   { focus: 'desk', seconds: 2.3, zoom: 0.92, text: '…and a guest waiting!' },
 ];

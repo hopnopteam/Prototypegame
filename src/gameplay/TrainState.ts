@@ -469,7 +469,7 @@ export class TrainState {
 
     for (const view of this.views) view.animate(dt);
     this.publishLamps();
-    this.chips.sync(this.views.map((v) => v.cls), (i) => this.views[i]?.group.position.z ?? carriageOriginZ(i), dt);
+    this.chips.sync(this.views.map((v) => v.cls), (i) => this.views[i]?.group.position.z ?? carriageOriginZ(i), dt, this.w.stage.rig.zoomNow);
 
     // Doors slide open at stations.
     if (this.doorAmount !== this.doorTarget) {

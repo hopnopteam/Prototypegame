@@ -8,6 +8,7 @@
  */
 import * as THREE from 'three';
 import { DEFAULT_TRAIN } from './config/content';
+import { maxTier } from './config/classes';
 import type { CarriageType } from './core/types';
 import { CarriageView, FLOOR_Y } from './world/CarriageView';
 import { ExteriorView } from './world/ExteriorView';
@@ -322,13 +323,15 @@ const holds = (container: string, item: string): boolean => (HOLDS[container] ??
 
 let messTurn = 0;
 
-/** The whole train at one tier, every exterior upgrade, a platform with its marketing. */
+/** The whole train at one tier (passenger carriages up to the Royal Suite), every exterior upgrade, a platform with its marketing. */
 function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras: THREE.Object3D[] = []): THREE.Group {
   const root = new THREE.Group();
   const types: CarriageType[] = [...DEFAULT_TRAIN];
   types.forEach((type, i) => {
-    const view = new CarriageView(getLayout(type), i, tier);
-    view.group.name = `${type}@t${tier}`;
+    // Passenger carriages climb to the Royal Suite (5); service cars stop at Luxurious (3).
+    const t = Math.min(tier, maxTier(type));
+    const view = new CarriageView(getLayout(type), i, t);
+    view.group.name = `${type}@t${t}`;
     view.group.position.z = carriageOriginZ(i);
     const layout = getLayout(type);
     layout.cabins.forEach((c) => {
@@ -374,7 +377,7 @@ function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras
 
 const results: Record<string, AuditIssue[]> = {};
 const clips: Record<string, ClipIssue[]> = {};
-for (const [tier, locked] of [[0, true], [0, false], [1, false], [2, false], [3, false]] as [number, boolean][]) {
+for (const [tier, locked] of [[0, true], [0, false], [1, false], [2, false], [3, false], [4, false], [5, false]] as [number, boolean][]) {
   const key = `tier${tier}${locked ? '-locked' : ''}`;
   const views: CarriageView[] = [];
   const extras: THREE.Object3D[] = [];

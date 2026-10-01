@@ -90,18 +90,20 @@ export class Tiles {
       if (pos) this.addEntry(couple, pos);
     }
     // A carriage's next refit is a big, visible goal: it takes the improvement spot as soon as it is
-    // available (one refit at a time, cheapest first), outside the cap and ahead of that carriage's comforts,
-    // so its price is always in view.
-    if (![...this.entries.values()].some((e) => e.def.kind === 'refurb')) {
-      const refit = eligible.filter((d) => d.kind === 'refurb').sort((a, b) => w.unlocks.remaining(a.id) - w.unlocks.remaining(b.id))[0];
-      const occupant = refit && [...this.entries.values()].find((e) => e.def.carriage === refit.carriage && e.def.kind === 'comfort');
-      if (refit && (!occupant || w.unlocks.paid(occupant.def.id) === 0)) {
-        const pos = this.positionFor(refit);
-        if (pos) {
-          if (occupant) this.removeEntry(occupant.def.id, occupant);
-          this.addEntry(refit, pos);
-        }
-      }
+    // available (cheapest first, at most `maxRefits` on show, each on its own carriage), outside the cap and
+    // ahead of that carriage's comforts, so its price is always in view. Two at once means a dear class
+    // upgrade on one carriage never hides the next class on another (session 12).
+    const refits = eligible.filter((d) => d.kind === 'refurb').sort((a, b) => w.unlocks.remaining(a.id) - w.unlocks.remaining(b.id));
+    for (const refit of refits) {
+      const showing = [...this.entries.values()].filter((e) => e.def.kind === 'refurb');
+      if (showing.length >= w.econ.tiles.maxRefits) break;
+      if (showing.some((e) => e.def.carriage === refit.carriage)) continue;
+      const occupant = [...this.entries.values()].find((e) => e.def.carriage === refit.carriage && e.def.kind === 'comfort');
+      if (occupant && w.unlocks.paid(occupant.def.id) > 0) continue;
+      const pos = this.positionFor(refit);
+      if (!pos) continue;
+      if (occupant) this.removeEntry(occupant.def.id, occupant);
+      this.addEntry(refit, pos);
     }
     const regular = (d: UnlockDef): boolean => d.kind !== 'couple' && d.kind !== 'refurb' && !isStation(d);
     const cap = w.data.profile.ftue.first_unlock === undefined ? 1 : w.econ.tiles.maxVisible;

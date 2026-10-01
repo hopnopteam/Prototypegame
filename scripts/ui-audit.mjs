@@ -100,31 +100,14 @@ for (const [width, height] of SIZES) {
   await page.waitForTimeout(700);
   const report = (label, issues) => { for (const issue of issues) problems.push(`${width}×${height} ${label}: ${issue}`); };
 
-  // Title screen: logo card at the top, a clear view of the train, one panel at the bottom; nothing overlaps,
-  // nothing leaves the screen, the view keeps at least a fifth of the height, and no sheet opens on top.
-  // Measured once the cards have slid in.
-  await page.evaluate(() => Promise.race([
-    Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))),
-    new Promise((r) => setTimeout(r, 2000)),
-  ]));
-  report('title', await page.evaluate(() => {
-    const box = (sel) => document.querySelector(sel)?.getBoundingClientRect();
-    const card = box('.splash .title-card');
-    const kicker = box('.splash .title-card .kicker');
-    const view = box('.splash .title-view');
-    const panel = box('.splash .title-panel');
-    const play = box('.splash .title-play');
-    const foot = box('.splash .foot');
+  // Boot (session 12: no title screen): a brand-new player goes straight into the intro over the train,
+  // with no splash and no sheet on top.
+  report('boot', await page.evaluate(() => {
     const out = [];
-    if (!card || !play || !panel) out.push('title card, panel or play button missing');
-    if (card && panel && card.bottom > panel.top) out.push('title card overlaps the bottom panel');
-    if (play && foot && play.bottom > foot.top) out.push('play button overlaps the footer');
-    if (view && view.height < innerHeight * 0.2) out.push(`the train view is only ${Math.round(view.height)} px tall`);
-    if (document.querySelector('.scrim')) out.push('a sheet opened over the title');
-    for (const [name, r] of [['card', card], ['kicker', kicker], ['panel', panel], ['play', play], ['foot', foot]]) if (r && (r.left < 0 || r.right > innerWidth || r.top < 0 || r.bottom > innerHeight)) out.push(`title ${name} leaves the screen`);
+    if (document.querySelector('.splash')) out.push('a title screen is showing');
+    if (document.querySelector('.scrim')) out.push('a sheet opened over the intro');
     return out;
   }));
-  await page.mouse.click(width / 2, height - 60);
   // The intro: its caption card and Skip button must fit too, then skip it.
   await page.waitForFunction(() => { const c = document.querySelector('.cine-caption'); return c && !c.hidden; }, null, { timeout: 4000 }).catch(() => undefined);
   await page.waitForTimeout(500);
@@ -279,7 +262,7 @@ for (const [width, height] of [[337, 600], [390, 844]]) {
   const page = await browser.newPage({ viewport: { width, height } });
   await page.goto(`file://${file}`);
   await page.waitForTimeout(700);
-  await page.mouse.click(width / 2, height - 60);
+  await page.evaluate(() => window.nightExpress.skipIntro?.());
   await page.evaluate(() => { const g = window.nightExpress; g.setAutopilot(true); g.timeScale = 3; });
   const seen = new Set();
   for (let i = 0; i < 90; i++) {

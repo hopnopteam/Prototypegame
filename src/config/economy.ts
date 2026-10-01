@@ -139,6 +139,8 @@ export const ECONOMY = {
   tiles: {
     /** Unlock tiles on show at once besides the coupling (fewer choices, clearer next goal). */
     maxVisible: 2,
+    /** Refit (class) tiles on show at once, each on its own carriage, outside `maxVisible`. */
+    maxRefits: 2,
   },
 
   /** Carriage refurbishment (rags to riches): what each tier is worth, by carriage type. */

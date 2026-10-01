@@ -1,4 +1,5 @@
 import { COACH_GESTURE_DELAY, COACH_GUIDANCE_LINES, COACH_HINTS, COACH_OPTIONAL_SECONDS, COACH_REST_SECONDS, COACH_STEPS, type CoachLineDef } from '../config/coach';
+import { classStartingAt, isPassengerType } from '../config/classes';
 import type { StaffRole, Vec2 } from '../core/types';
 import { FLOOR_Y } from '../world/CarriageView';
 import type { World } from './World';
@@ -46,6 +47,8 @@ export class Coach {
     e.on('staff.hired', () => this.learn('hire'));
     e.on('carriage.coupled', () => this.learn('couple'));
     e.on('carriage.refurbished', () => this.learn('refurb'));
+    e.on('carriage.classUp', () => this.learn('class'));
+    e.on('request.fulfilled', ({ item, byPlayer }) => byPlayer && item === 'turndown' && this.learn('turndown'));
     e.on('conductor.upgraded', () => this.learn('miles'));
     e.on('unlock.completed', ({ id }) => id.startsWith('st.') && this.learn('workshop'));
   }
@@ -225,6 +228,12 @@ export class Coach {
         return world(w.tiles.list.find((t) => t.def.kind === 'couple')?.pos);
       case 'refurb':
         return world(w.tiles.list.find((t) => t.def.kind === 'refurb')?.pos);
+      case 'class':
+        return world(this.classTile()?.pos);
+      case 'turndown': {
+        const guest = w.guests.openRequests().find((g) => g.request === 'turndown' && !w.staff.isHandled(g));
+        return world(guest?.cabin?.center);
+      }
       case 'workshop':
         return world(w.tiles.list.find((t) => (t.def.kind === 'exterior' || t.def.kind === 'marketing') && t.view.group.visible)?.pos);
       case 'washroom':
@@ -236,6 +245,15 @@ export class Coach {
       default:
         return null;
     }
+  }
+
+  /** A visible tile that moves a passenger carriage up a class (Comfort and above). */
+  private classTile(): { pos: Vec2 } | null {
+    const w = this.w;
+    return w.tiles.list.find((t) => {
+      const type = w.train.types[t.def.carriage];
+      return t.def.kind === 'refurb' && type !== undefined && isPassengerType(type) && classStartingAt(t.def.tier ?? 0) !== null && (t.def.tier ?? 0) >= 2;
+    }) ?? null;
   }
 
   private hintActive(id: string): boolean {
@@ -253,6 +271,10 @@ export class Coach {
         return w.tiles.list.some((t) => t.def.kind === 'couple');
       case 'refurb':
         return w.tiles.list.some((t) => t.def.kind === 'refurb');
+      case 'class':
+        return this.classTile() !== null;
+      case 'turndown':
+        return w.guests.openRequests().some((g) => g.request === 'turndown' && !w.staff.isHandled(g));
       case 'workshop':
         return w.journey.phase === 'stationStop' && !w.guests.canBoard() && w.tiles.list.some((t) => (t.def.kind === 'exterior' || t.def.kind === 'marketing') && t.view.group.visible);
       case 'washroom':

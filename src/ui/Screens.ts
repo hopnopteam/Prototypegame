@@ -1,4 +1,5 @@
 import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, type ProductDef } from '../config/content';
+import { CLASSES } from '../config/classes';
 import { formatDuration, formatNumber } from '../core/math';
 import type { DoubleChoice } from '../gameplay/GameUi';
 import { CEREMONIES, INTERVIEWS, NOMINATION_LEVEL, RIVALS } from '../config/press';
@@ -761,6 +762,9 @@ export function levelPerks(level: number): string[] {
     5: 'Regular passengers with stories',
   };
   if (features[level]) perks.push(features[level]);
+  // A new carriage class to upgrade to (Basic is where every carriage starts).
+  const cls = CLASSES.find((c) => c.level === level && c.tier > 0);
+  if (cls) perks.push(`${cls.name} carriages`);
   const livery = LIVERIES.find((l) => l.minLevel === level);
   if (livery && level > 1) perks.push(`New livery: ${livery.name}`);
   const outfit = OUTFITS.find((o) => o.minLevel === level);

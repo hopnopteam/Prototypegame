@@ -1448,11 +1448,11 @@ function buildGrandBed(b: GeoBuilder, r: Rect, theme: CarriageTheme, tier: numbe
     if (along) {
       const vx = x0 + (x0 < cx ? inset : -inset);
       b.box(vx, top - 0.13, (z0 + z1) / 2, 0.012, 0.18, Math.abs(z1 - z0) - 0.1, theme.deep, 0, { shade: 0.9, surface: 'velvet' });
-      b.box(vx, top - 0.225, (z0 + z1) / 2, 0.014, 0.018, Math.abs(z1 - z0) - 0.1, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+      b.box(vx, top - 0.229, (z0 + z1) / 2, 0.022, 0.018, Math.abs(z1 - z0) - 0.1, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
     } else {
       const vz = z0 + (z0 < cz ? inset : -inset);
       b.box((x0 + x1) / 2, top - 0.13, vz, Math.abs(x1 - x0) - 0.1, 0.18, 0.012, theme.deep, 0, { shade: 0.9, surface: 'velvet' });
-      b.box((x0 + x1) / 2, top - 0.225, vz, Math.abs(x1 - x0) - 0.1, 0.018, 0.014, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+      b.box((x0 + x1) / 2, top - 0.229, vz, Math.abs(x1 - x0) - 0.1, 0.018, 0.022, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
     }
   };
   rail(r.x0 + 0.04, r.z0 + 0.04, r.x0 + 0.04, r.z1 - 0.04);
@@ -1515,7 +1515,7 @@ function buildBureau(b: GeoBuilder, lamps: GeoBuilder, r: Rect, tier: number): v
   b.box(cx, y + 0.62, cz, w, 1.24, d - 0.1, body, 0, { shade: 0.85, surface: 'varnish' });
   // The keyboard stands only 10 cm proud of the case: the path from the desk to the cabins runs past it.
   b.box(face + 0.05, y + 0.72, cz, 0.1, 0.06, d - 0.14, body, 0, { shade: 1, surface: 'varnish' });
-  b.box(face + 0.07, y + 0.755, cz, 0.06, 0.012, d - 0.2, '#F7F4EC', 0, FLAT);
+  b.box(face + 0.065, y + 0.755, cz, 0.06, 0.012, d - 0.2, '#F7F4EC', 0, FLAT);
   for (let i = 0; i < 7; i++) b.box(face + 0.06, y + 0.768, r.z0 + 0.2 + i * ((d - 0.4) / 6), 0.04, 0.012, 0.03, '#1A1A1A', 0, FLAT);
   b.box(face + 0.006, y + 1.1, cz, 0.012, 0.03, d - 0.12, trim, 0, { shade: 1, surface: 'brass' });
   b.box(face + 0.006, y + 0.35, cz, 0.012, 0.03, d - 0.12, trim, 0, { shade: 1, surface: 'brass' });
@@ -1604,6 +1604,20 @@ function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout
     b.endObject();
     return;
   }
+  if (tier === 2) {
+    // A luggage bench: oak slats on brass legs, with a little case in the carriage's colour.
+    const lx0 = bed.x0 + 0.1;
+    const lx1 = Math.min(bed.x1 - 0.1, lx0 + 0.8);
+    const ld = Math.min(fd, 0.34);
+    b.object('class:bench');
+    b.box((lx0 + lx1) / 2, y + 0.38, fzc, lx1 - lx0, 0.04, ld, PALETTE.oakMid, 0, { shade: 0.9, surface: 'varnish' });
+    for (const lx of [lx0 + 0.05, lx1 - 0.05]) for (const dz of [-ld / 2 + 0.05, ld / 2 - 0.05]) b.cylinder(lx, y + 0.18, fzc + dz, 0.016, 0.016, 0.36, PALETTE.brass, 6, 'y', { surface: 'brass' });
+    const cx = lx0 + 0.3;
+    b.rounded(cx, y + 0.511, fzc, 0.44, 0.22, ld - 0.08, 0.04, theme.deep, { shade: 0.9, surface: 'leather' });
+    b.box(cx, y + 0.635, fzc, 0.12, 0.025, 0.03, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
+    b.endObject();
+    return;
+  }
   if (tier === 3) {
     // A minibar: a little walnut fridge with a bottle and glasses on top.
     const mx0 = bed.x0 + 0.12;
@@ -1638,7 +1652,7 @@ function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout
   const td = Math.min(fd, 0.46);
   b.rounded(tcx, y + 0.3, fzc, tx1 - tx0, 0.4, td, 0.2, '#F7F4EE', { shade: 0.85, surface: 'ceramic' });
   b.rounded(tcx, y + 0.505, fzc, tx1 - tx0 - 0.02, 0.03, td - 0.02, 0.19, PALETTE.gold, { shade: 1, surface: 'brass' });
-  b.rounded(tcx, y + 0.51, fzc, tx1 - tx0 - 0.14, 0.02, td - 0.14, 0.14, '#BFE0EC', { shade: 1, surface: 'glass' });
+  b.rounded(tcx, y + 0.525, fzc, tx1 - tx0 - 0.14, 0.02, td - 0.14, 0.14, '#BFE0EC', { shade: 1, surface: 'glass' });
   for (const fx of [tx0 + 0.12, tx1 - 0.12]) for (const dz of [-td / 2 + 0.1, td / 2 - 0.1]) b.sphere(fx, y + 0.05, fzc + dz, 0.045, PALETTE.gold, 0, 1, { shade: 1, surface: 'brass' });
   b.cylinder(tx1 - 0.08, y + 0.62, fzc, 0.016, 0.016, 0.2, PALETTE.gold, 6, 'y', { surface: 'brass' });
   b.box(tx0 + 0.18, y + 0.53, fzc, 0.24, 0.05, 0.16, theme.blanket, 0, { shade: 0.95, surface: 'fabric' });

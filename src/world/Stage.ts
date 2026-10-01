@@ -57,6 +57,8 @@ export class Stage {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.contextAntialias, powerPreference: 'high-performance', preserveDrawingBuffer: false });
     // Only the refurbishment wipe uses clipping planes (on temporary material clones).
     this.renderer.localClippingEnabled = true;
+    // Stats cover the whole frame (the reflection, the scene and every post pass), not just the last pass.
+    this.renderer.info.autoReset = false;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = VISUALS.night.exposure;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -165,13 +167,20 @@ export class Stage {
     cam.updateMatrixWorld();
     this.lighting.follow(this.rig.focusPoint, this.rig.viewDirection, cam);
     this.fx?.setNight(this.lighting.night);
+    this.renderer.info.reset();
     this.preRender?.render(this.renderer, this.scene, cam);
     if (this.fx) this.fx.render(dt);
     else this.renderer.render(this.scene, cam);
   }
 
+  /** Draw calls in the last frame, all passes included. */
   get drawCalls(): number {
     return this.renderer.info.render.calls;
+  }
+
+  /** Triangles drawn in the last frame, all passes included. */
+  get triangles(): number {
+    return this.renderer.info.render.triangles;
   }
 
   private trackFps(dt: number): void {
