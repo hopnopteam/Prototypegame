@@ -520,7 +520,8 @@ export class Ui implements GameUi {
     const busyCentre = this.root.classList.contains('has-card') || this.toastLayer.childElementCount > 0;
     const gestureOn = !!line && 'gesture' in line.anchor && !busyCentre;
     setVisible(this.gesture, gestureOn);
-    const labelled = line && !gestureOn ? line : null;
+    // A walk-gesture line has no spot to point at: while the gesture gives way it waits (never a label in a corner).
+    const labelled = line && !('gesture' in line.anchor) ? line : null;
     const key = labelled ? `${labelled.id}` : '';
     if (key !== this.guide.key) {
       this.guide.key = key;

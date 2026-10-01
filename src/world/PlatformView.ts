@@ -116,7 +116,7 @@ export class PlatformView {
     // Deck: stone base, a tiled top, the yellow safety line and a coping stone along the edge.
     b.box((x0 + x1) / 2, FLOOR_Y / 2 - 0.02, zc, x1 - x0, FLOOR_Y - 0.04, this.length, '#D9CCB4', 0, { shade: 0.75 });
     deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, this.length, PALETTE.platformTile, 0, { pattern: PATTERN.diamond, color2: PALETTE.platformTile2, scale: 0.7, shade: 1 });
-    deck.box(x0 + 0.2, FLOOR_Y - 0.008, zc, 0.4, 0.024, this.length, '#F4EEE2', 0, { shade: 1 });
+    deck.box(x0 + 0.2, FLOOR_Y - 0.008, zc, 0.4, 0.024, this.length, '#D3C9B8', 0, { shade: 1 });
     deck.box(x0 + 0.34, FLOOR_Y + 0.006, zc, 0.12, 0.004, this.length, PALETTE.platformEdge, 0, { shade: 1 });
 
     // Back railing: navy with brass caps.
@@ -183,7 +183,7 @@ export class PlatformView {
     // The row makes way for the stores vendor's stall.
     const vendorZ = supplyCarIndex !== null ? PlatformView.vendorPosition(supplyCarIndex).z : null;
     const clear = (z: number): boolean => vendorZ === null || Math.abs(z - vendorZ) > 1.7;
-    deck.box(rowX, FLOOR_Y + 0.003, zc, 1.1, 0.01, this.length - 1, PALETTE.stationPink, 0, { pattern: PATTERN.stripesZ, color2: '#EAA5A2', scale: 0.45, shade: 1 });
+    deck.box(rowX, FLOOR_Y + 0.003, zc, 1.1, 0.01, this.length - 1, '#C99B92', 0, { pattern: PATTERN.stripesZ, color2: '#B9827C', scale: 0.45, shade: 1 });
     for (let z = this.z0 + 5; z < this.z1 - 3; z += 8) {
       if (clear(z)) {
         b.object('platform:lampPost');

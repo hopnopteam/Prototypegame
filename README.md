@@ -10,12 +10,13 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   play (no title screen).
 - **The classic version** (before the session 12 lakeside, night look and carriage classes) is kept in
   [`archive/classic-v1/`](archive/classic-v1/README.md): a playable copy and the commit to return to.
-- **Graphics:** Settings has Auto / Low / Medium / High / Ultra; add `?quality=low|medium|high|ultra` to the URL to
-  force one.
+- **Graphics:** Settings has Auto / Low / Medium / High / Ultra (every tier shades the same way; the higher ones add
+  resolution, softer shadows, bloom, antialiasing and lake reflections). Auto lowers the render scale before it ever
+  drops a tier; add `?quality=low|medium|high|ultra` to the URL to force one (no dynamic resolution then).
 - **Locally:** `npm install && npm run build`, then open `dist/index.html` in a browser. It works offline from
   disk; for a phone, serve the folder (`npx serve dist`) and open it on the same Wi-Fi, or copy the file over.
-- **Controls:** touch and drag anywhere for the floating joystick, read on screen: push up to walk up the screen
-  (mouse drag, or WASD / arrow keys on desktop).
+- **Controls:** touch and drag anywhere for the floating joystick, read on screen: push up and the conductor walks
+  straight up the screen, whatever the angle of the train (mouse drag, or WASD / arrow keys on desktop).
   Everything else is walk-over: stand in a zone and it acts.
 
 ## Develop
@@ -25,10 +26,10 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 | `npm run build` | Bundles `src/` into `dist/index.html` (full page) and `dist/night-express.html` (artifact fragment) |
 | `npm run dev` | Same, rebuilding on every save |
 | `npm run typecheck` | Strict TypeScript check |
-| `npm test` | Unit tests (vitest): journey phases, ad policy, economy, the generated unlock chain and carriage choice, comforts, station upgrades, the objective chain, chatter, save/migrations, walkable map, furniture and pad placement |
+| `npm test` | Unit tests (vitest): journey phases, ad policy, economy, the generated unlock chain and carriage choice, carriage classes (each class earns more per carriage), comforts, station upgrades, the objective chain, chatter, save/migrations, walkable map and routes in every class floor plan, furniture and pad placement, the light bake, the lakeside terrain (a continuous shoreline, nothing in the track bed or the boat lane) |
 | `npm run smoke` | Headless browser run: the autopilot plays the first 13 minutes and checks the §14 beats, the walkthrough, naming, the Gazette debut interview, a Rival Watch taunt and the press, a refurbishment, a station upgrade, the objective chain and comforts, that every pickup was needed, the ad rules, that a doorway shutting never traps the conductor, save/reload (unlocks and open cabins), draw calls and console errors |
 | `npm run audit:ui` | Checks the boot (no title screen, no sheet over the intro) and the intro caption, stages the busiest HUD moments and every menu at seven phone sizes (320×568 to 430×932), then samples live play, and fails on any overlap, clipped text or off-screen element, or on too much text in play (more than 3 words on screen on average or 8 at once, cards excluded) |
-| `npm run audit:geo` | Builds every carriage at every tier (passenger carriages through the Royal Suite with their class furniture; all comforts, full stock, every guest type's mess and unmade bed), the locomotive, rear deck, exterior and platform, and fails on (1) any visible coplanar overlap of different surfaces (flicker) and (2) any two objects, or an object and a wall, passing through each other (clipping). Both must report 0 |
+| `npm run audit:geo` | Builds every carriage at every tier (passenger carriages in each class's own floor plan through the Royal Suite, with their class furniture; all comforts, full stock, every guest type's mess and unmade bed), the locomotive, rear deck, exterior and platform, and fails on (1) any visible coplanar overlap of different surfaces (flicker) and (2) any two objects, or an object and a wall, passing through each other (clipping). Both must report 0 |
 | `npm run audit:audio` | Plays the built game with sound on, records the real output and fails if the theme does not decode, the next pass of the music is not queued exactly one loop apart, the output clips, goes silent once the theme is in, or audio logs an error; writes the recording to `dist/audio-check.wav` |
 | `npm run check` | Typecheck + tests + build |
 
@@ -52,8 +53,8 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | What | File |
 |---|---|
 | Every number: journey timers, how much mess a guest leaves, the train's lean, stick response, braking and doorway assist, speeds, capacities, fares, tips, refurbishment and comfort bonuses, Rush streak window and bonus, stride and quick-travel speed, camera framing, soft-cue thresholds and chatter rate, fast-service bonus, pickup dwell, cash magnet reach, level thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
-| The camera (train angle, tilt, lens, framing, stick snapping), the graphics tiers and the night look (moon, lamps, glow, fog, bloom, grade) | `src/config/visuals.ts` |
-| Carriage classes (Basic to Royal Suite): liveries, chip colours, fare/tip/star multipliers, what each class asks for | `src/config/classes.ts` (class refit prices and level gates in `CARRIAGE_CATALOGUE`, aspirants and turndown in `economy.ts`) |
+| The camera (train angle, tilt, lens, framing, stick snapping), the graphics tiers and dynamic resolution, and the night look (moon, sky, the baked lamp and window light (`night.light`), window glass, glow, fog, bloom, grade) | `src/config/visuals.ts` |
+| Carriage classes (Basic to Royal Suite): liveries, chip colours, fare/tip/star multipliers, what each class asks for | `src/config/classes.ts` (class refit prices and level gates in `CARRIAGE_CATALOGUE`, aspirants and turndown in `economy.ts`, rooms per class in `LOBBY_ROOMS`/`SLEEPER_ROOMS` in `src/world/layout.ts`) |
 | The objective chain (goals, rewards) | `src/config/objectives.ts` |
 | The sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, how celebrations ring out and keep the stage, the music's night filter | `src/config/audio.ts` |
 | The music (score: chords, melody, bass, drums) | `scripts/audio/build_music.py` renders `assets/audio/music_theme.mp3` from real piano, bass, guitar and drum recordings (credits in `assets/audio/CREDITS.md`); to use another track, replace the MP3 and set `loopSeconds` in `src/audio/music.ts` |
@@ -63,7 +64,8 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | The press: rival trains and their villainous owners (taunts, grumbles, portraits), front-page headlines and rewards per trigger, the Gazette debut interview and Rails Tonight interviews with perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
 | Conductor outfits (earned and premium) and shoes by speed level | `src/config/wardrobe.ts` |
 | Walkthrough steps, one-time hints and the intro's camera beats and captions | `src/config/coach.ts` |
-| Carriage floor plans | `src/world/layout.ts` |
+| Carriage floor plans (passenger carriages: one per class, from six berths to one Royal Suite) | `src/world/layout.ts` |
+| The lakeside: shoreline, ground height and colour (continuous functions, mirrored in the water shader), which set pieces pass and how they are dressed | `src/world/terrain.ts`, `src/world/Lakeside.ts` |
 | Colours: liveries (earned and premium), each carriage's pastel identity and the class themes (`CLASS_THEMES`), tier names | `src/world/palette.ts`; the lakeside set pieces: `src/world/Lakeside.ts`; material recipes: `src/world/surfaces.ts`; what each refurbishment tier looks like: `finishFor` and `buildProp` in `src/world/CarriageView.ts` |
 | UI colours and type | `src/ui/styles.css` (tokens at the top; Jost is embedded from `@fontsource-variable/jost`) |
 | Remote-config overrides (mock) | `src/services/remoteConfig.ts` |
@@ -77,7 +79,7 @@ src/
   sim/        pure logic, unit tested: Journey, AdPolicy, UnlockChain, Wallet, Progression, Walkable, NavGraph, TrainMap, meta, press
   save/       versioned JSON save (localStorage + backup + migrations)
   services/   ads, IAP, analytics, remote config: interfaces + mocks
-  world/      Three.js: stage with quality tiers and post-processing, camera, lighting and lamp pools, the lakeside (scenery, water, reflections, backdrop), ambient life, platform, carriages and class chips, train exterior, characters, conductor gear, particles, cash
+  world/      Three.js: stage with quality tiers, dynamic resolution and post-processing, camera, lighting, the baked light map (lamp pools, window spill, contact shading), the lakeside (terrain, set pieces, water, reflections), ambient life, platform, carriages and class chips, train exterior, characters, conductor gear, particles, cash
   gameplay/   Game (composition root), player, zones, tiles, guests, staff, station, train, guidance, coach, objectives, feedback, press, rush, meta, monetization, autopilot
   audio/      WebAudio: synthesised effects, the music loop, haptics
   ui/         DOM HUD, sheets, icons, styles

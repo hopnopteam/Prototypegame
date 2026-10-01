@@ -95,8 +95,9 @@ export const PALETTE = {
   frameCanvas: ['#9DB8CF', '#E6C0B4', '#AFCBA7', '#E6D39A'] as string[],
 
   // Station
-  platformTile: '#EEE7DA',
-  platformTile2: '#E7DFD1',
+  // Mid-tone paving, so the canopy lamps' warm pools read on it at night (a cream deck glared under the moon).
+  platformTile: '#B4A893',
+  platformTile2: '#A99C86',
   platformEdge: '#EDC75A',
   stationPink: '#F1E4CF',
   stationTrim: '#FFFDF8',

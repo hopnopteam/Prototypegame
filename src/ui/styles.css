@@ -95,7 +95,8 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .pill.gems .val { color: #2D78A3; }
 .pill.miles .val { color: var(--miles); }
 .pill.bump { animation: bump 240ms ease-out; }
-@keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.1); } 100% { transform: scale(1); } }
+/* Small enough that two counters bumping at once never touch (they sit 6 px apart). */
+@keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.06); } 100% { transform: scale(1); } }
 
 /* Route level: a gold star with the number, and the star bar beside it (fills as stars land). */
 .level { position: relative; flex: none; display: flex; align-items: center; height: 42px; padding: 0; cursor: pointer; border: 0; background: none; }
