@@ -247,3 +247,65 @@ export function mergePlanes(planes: THREE.BufferGeometry[]): THREE.BufferGeometr
   geometry.computeBoundingSphere();
   return geometry;
 }
+
+/**
+ * Window panes: single vertical quads with their own uvs (the pane material paints the glow, the gradient
+ * and the curtains) and a tint (the curtains' colour; white for none). A pane facing the room carries
+ * uv.y in 1..2, so one material draws lamplit glass from outside and night glass from inside. No top or
+ * edge faces, so nothing glows when seen from above.
+ */
+export class PaneBuilder {
+  private readonly position: number[] = [];
+  private readonly uv: number[] = [];
+  private readonly color: number[] = [];
+  private readonly normal: number[] = [];
+
+  /** A pane spanning z0..z1 and y0..y1 in the plane x = `x`, facing +x (dir 1) or −x (dir −1). */
+  paneX(x: number, y0: number, y1: number, z0: number, z1: number, dir: 1 | -1, inside: boolean, tint = '#FFFFFF'): this {
+    const v = inside ? 1 : 0;
+    const a = [x, y0, z0, 0, v];
+    const b = [x, y0, z1, 1, v];
+    const c = [x, y1, z1, 1, v + 1];
+    const d = [x, y1, z0, 0, v + 1];
+    // Counter-clockwise seen from the side the pane faces.
+    const tris = dir > 0 ? [a, c, b, a, d, c] : [a, b, c, a, c, d];
+    return this.push(tris, [dir, 0, 0], tint);
+  }
+
+  /** A pane spanning x0..x1 and y0..y1 in the plane z = `z`, facing +z (dir 1) or −z. */
+  paneZ(z: number, y0: number, y1: number, x0: number, x1: number, dir: 1 | -1, inside: boolean, tint = '#FFFFFF'): this {
+    const v = inside ? 1 : 0;
+    const a = [x0, y0, z, 0, v];
+    const b = [x1, y0, z, 1, v];
+    const c = [x1, y1, z, 1, v + 1];
+    const d = [x0, y1, z, 0, v + 1];
+    const tris = dir > 0 ? [a, b, c, a, c, d] : [a, c, b, a, d, c];
+    return this.push(tris, [0, 0, dir], tint);
+  }
+
+  private push(tris: number[][], n: number[], tint: string): this {
+    tmpColor.set(tint);
+    for (const t of tris) {
+      this.position.push(t[0], t[1], t[2]);
+      this.uv.push(t[3], t[4]);
+      this.color.push(tmpColor.r, tmpColor.g, tmpColor.b);
+      this.normal.push(n[0], n[1], n[2]);
+    }
+    return this;
+  }
+
+  get isEmpty(): boolean {
+    return this.position.length === 0;
+  }
+
+  build(): THREE.BufferGeometry {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.position, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(this.color, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(this.normal, 3));
+    g.computeBoundingSphere();
+    g.computeBoundingBox();
+    return g;
+  }
+}

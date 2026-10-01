@@ -147,6 +147,7 @@ export class Game implements World {
     const forced = new URLSearchParams(location.search).get('quality');
     const quality = isTier(forced) ? forced : isTier(settings.quality) ? settings.quality : 'auto';
     this.stage = new Stage(canvas, quality, isTier(settings.qualityAuto) ? settings.qualityAuto : null);
+    this.stage.dynamicResolution = !isTier(forced);
     this.stage.onAutoTier = (tier) => {
       this.data.settings.qualityAuto = tier;
       this.save.markDirty();

@@ -111,40 +111,48 @@ const PATTERN_FRAGMENT_BODY = /* glsl */ `
 if (vPattern.x > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vColor2, clamp(patternMask(vObjPos, vObjNormal, vPattern), 0.0, 1.0));
 `;
 
-/** Most lamp pools a material can take (the tier picks how many are used). */
-export const MAX_LAMPS = 24;
-
 /**
- * Shared by every lit train material, updated once a frame by Lighting: warm pools from the lamps nearest the
- * camera (view space, w = strength), the warm ambient inside the carriages, and the night's glow on
- * self-lit parts. One object, referenced by every compiled program, so one write updates them all.
+ * Shared by every lit material: the baked light maps (world/LightMap.ts) of the train and of the platform
+ * (which slides in and out with its own offset), how strongly they show (the night amount), and the night's
+ * glow on self-lit parts. One object referenced by every compiled program, so one write updates them all.
+ *
+ * A map's box packs the world → texture mapping: uv = xz * (box.x, box.z) + (box.y, box.w).
  */
 export const LIGHT_UNIFORMS = {
-  uNxLamps: { value: Array.from({ length: MAX_LAMPS }, () => new THREE.Vector4()) },
-  uNxLampColor: { value: new THREE.Color('#FFAE5C') },
-  uNxLampRadius: { value: 2.4 },
-  /** Interior ambient, already scaled by intensity and the night amount. */
-  uNxInterior: { value: new THREE.Color(0, 0, 0) },
-  /** The train's extent along z (front, rear): the interior warmth only applies inside it. */
-  uNxTrainZ: { value: new THREE.Vector2(-1.2, 16) },
+  uNxLightMap: { value: null as THREE.Texture | null },
+  uNxLightBox: { value: new THREE.Vector4(0, -10, 0, -10) },
+  uNxPlatMap: { value: null as THREE.Texture | null },
+  uNxPlatBox: { value: new THREE.Vector4(0, -10, 0, -10) },
+  uNxLightOn: { value: 1 },
   /** Night amount scaling per-vertex glow (lamps, crystal). */
   uNxGlow: { value: 0 },
+  /**
+   * The night sky that brass, varnish, glass and water reflect: an analytic gradient (zenith, horizon, ground)
+   * and a moon glint, instead of a pre-filtered environment map (a fraction of the cost on a phone, and the
+   * same on every tier). World space; written by Lighting.
+   */
+  uNxSkyZenith: { value: new THREE.Color('#0B1330') },
+  uNxSkyHorizon: { value: new THREE.Color('#2E4478') },
+  uNxSkyGround: { value: new THREE.Color('#0A0C14') },
+  uNxMoonDir: { value: new THREE.Vector3(-0.45, 0.8, -0.3).normalize() },
+  uNxMoonColor: { value: new THREE.Color('#E6EEFF') },
+  uNxSkyAmount: { value: 0.35 },
 };
 
-/** Inner half-width of the carriages (the warm interior stops at the inside of the side walls). */
-const INTERIOR_HALF = 2.06;
+/** Heights in the light map are measured from the train's floor. */
+const LIGHT_FLOOR_Y = 0.55;
 
 interface LitOptions {
   /** Painted patterns (aColor2 / aPattern). */
   pattern?: boolean;
   /** Per-vertex surfaces (aSurface) or one surface for the whole material. */
   surface?: 'vertex' | Surface;
-  /** Lamp pools and interior warmth. */
+  /** Reads the baked light (lamps, window spill, contact shading). */
   light?: boolean;
 }
 
 interface Recipe {
-  kind: 'lit' | 'glass' | 'glow';
+  kind: 'lit' | 'glow';
   params: THREE.MeshStandardMaterialParameters;
   options: LitOptions;
 }
@@ -171,13 +179,34 @@ varying vec4 vNxSurface;
 varying vec3 vNxWorld;
 uniform vec4 uNxFixedSurface;
 #ifdef NX_LIGHT
-uniform vec4 uNxLamps[NX_LAMPS];
-uniform vec3 uNxLampColor;
-uniform float uNxLampRadius;
-uniform vec3 uNxInterior;
-uniform vec2 uNxTrainZ;
+uniform sampler2D uNxLightMap;
+uniform vec4 uNxLightBox;
+uniform sampler2D uNxPlatMap;
+uniform vec4 uNxPlatBox;
+uniform float uNxLightOn;
+vec4 nxBaked(vec3 p) {
+  vec4 a = texture2D(uNxLightMap, p.xz * uNxLightBox.xz + uNxLightBox.yw);
+  vec4 b = texture2D(uNxPlatMap, p.xz * uNxPlatBox.xz + uNxPlatBox.yw);
+  return vec4(a.rgb + b.rgb, a.a * b.a);
+}
 #endif
 uniform float uNxGlow;
+uniform vec3 uNxSkyZenith;
+uniform vec3 uNxSkyHorizon;
+uniform vec3 uNxSkyGround;
+uniform vec3 uNxMoonDir;
+uniform vec3 uNxMoonColor;
+uniform float uNxSkyAmount;
+/** The night sky seen along a world direction, blurred toward its average as the surface gets rougher. */
+vec3 nxSky(vec3 r, float rough) {
+  float up = r.y;
+  vec3 sky = mix(uNxSkyHorizon, uNxSkyZenith, smoothstep(0.05, 0.85, up));
+  sky = mix(uNxSkyGround, sky, smoothstep(-0.25, 0.04, up));
+  vec3 avg = (uNxSkyZenith + uNxSkyHorizon * 2.0 + uNxSkyGround) * 0.25;
+  float shine = mix(900.0, 6.0, rough);
+  float glint = pow(max(dot(r, uNxMoonDir), 0.0), shine) * (shine + 2.0) * 0.012;
+  return mix(sky, avg, rough * rough) + uNxMoonColor * glint;
+}
 vec4 nxSurface() {
   #ifdef NX_VERTEX_SURFACE
   return vNxSurface;
@@ -187,29 +216,36 @@ vec4 nxSurface() {
 }
 `;
 
-/** Lamp pools through three's own lighting equations (diffuse and, on PBR, GGX highlights), plus warmth. */
+/**
+ * The baked light as soft fill (lamps and window spill near the floor, fading high up) and its contact shading
+ * (strongest at floor level, gone by knee height), then a soft rim on velvet and wool.
+ */
 const LIT_LIGHTS = /* glsl */ `
-#ifdef NX_LIGHT
+#if defined( RE_IndirectSpecular )
 {
-  float nxInside = step(abs(vNxWorld.x), ${INTERIOR_HALF.toFixed(2)}) * step(vNxWorld.z, uNxTrainZ.y) * step(uNxTrainZ.x, vNxWorld.z) * step(vNxWorld.y, 2.2);
-  irradiance += uNxInterior * nxInside;
-  float nxR2 = uNxLampRadius * uNxLampRadius;
-  for (int i = 0; i < NX_LAMPS; i++) {
-    vec4 nxLamp = uNxLamps[i];
-    if (nxLamp.w <= 0.0) continue;
-    vec3 nxToLamp = nxLamp.xyz - geometryPosition;
-    float nxD2 = dot(nxToLamp, nxToLamp);
-    if (nxD2 >= nxR2) continue;
-    float nxFall = 1.0 - nxD2 / nxR2;
-    IncidentLight nxLight;
-    nxLight.direction = nxToLamp * inversesqrt(max(nxD2, 1e-4));
-    nxLight.color = uNxLampColor * (nxLamp.w * nxFall * nxFall);
-    nxLight.visible = true;
-    RE_Direct(nxLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight);
-  }
+  // Sky reflections (world space) through three's own split-sum: fresnel, roughness and metalness apply.
+  vec3 nxN = inverseTransformDirection(geometryNormal, viewMatrix);
+  vec3 nxV = inverseTransformDirection(geometryViewDir, viewMatrix);
+  vec3 nxR = reflect(-nxV, nxN);
+  radiance += nxSky(nxR, roughnessFactor) * uNxSkyAmount;
+  iblIrradiance += nxSky(nxN, 1.0) * (uNxSkyAmount * PI);
+}
+#endif
+#ifdef NX_LIGHT
+float nxAo = 1.0;
+{
+  vec4 nxB = nxBaked(vNxWorld);
+  float nxH = vNxWorld.y - ${LIGHT_FLOOR_Y.toFixed(2)};
+  irradiance += nxB.rgb * (uNxLightOn * (1.0 - smoothstep(1.3, 2.6, nxH)));
+  nxAo = mix(nxB.a, 1.0, smoothstep(0.06, 0.85, nxH));
 }
 #endif
 #include <lights_fragment_end>
+#ifdef NX_LIGHT
+reflectedLight.indirectDiffuse *= nxAo;
+reflectedLight.directDiffuse *= mix(1.0, nxAo, 0.55);
+reflectedLight.indirectSpecular *= nxAo;
+#endif
 {
   // Velvet and wool catch a soft rim of light at grazing angles.
   float nxSheen = 1.0 - nxSurface().w;
@@ -221,17 +257,13 @@ const LIT_LIGHTS = /* glsl */ `
 }
 `;
 
-/** Adds patterns, per-vertex surfaces, lamp pools, interior warmth and glow to a Lambert or Standard material. */
-function patchLit(material: THREE.MeshLambertMaterial | THREE.MeshStandardMaterial, options: LitOptions, lamps: number): void {
-  const pbr = (material as THREE.MeshStandardMaterial).isMeshStandardMaterial === true;
+/** Adds patterns, per-vertex surfaces, the baked light and glow to a physically based material. */
+function patchLit(material: THREE.MeshStandardMaterial, options: LitOptions): void {
   const fixed = typeof options.surface === 'object' ? options.surface : SURFACES.matte;
   const fixedSurface = new THREE.Vector4(1 - fixed.roughness, fixed.metalness, fixed.glow ?? 0, 1 - (fixed.sheen ?? 0));
   const defines: Record<string, string | number> = {};
   if (options.surface === 'vertex') defines.NX_VERTEX_SURFACE = '';
-  if (options.light) {
-    defines.NX_LIGHT = '';
-    defines.NX_LAMPS = Math.max(1, lamps);
-  }
+  if (options.light) defines.NX_LIGHT = '';
   material.defines = { ...(material.defines ?? {}), ...defines };
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uNxFixedSurface = { value: fixedSurface };
@@ -243,40 +275,31 @@ function patchLit(material: THREE.MeshLambertMaterial | THREE.MeshStandardMateri
       vs = PATTERN_VERTEX_HEAD + vs.replace('#include <begin_vertex>', `#include <begin_vertex>\n${PATTERN_VERTEX_BODY}`);
       fs = PATTERN_FRAGMENT_HEAD + fs.replace('#include <color_fragment>', PATTERN_FRAGMENT_BODY);
     }
-    if (pbr) {
-      fs = fs
-        .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = 1.0 - nxSurface().x;')
-        .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = nxSurface().y;');
-    }
     fs = fs
+      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = 1.0 - nxSurface().x;')
+      .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = nxSurface().y;')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * nxSurface().z * uNxGlow;')
       .replace('#include <lights_fragment_end>', LIT_LIGHTS);
     shader.vertexShader = vs;
     shader.fragmentShader = fs;
   };
-  const key = `nx|${pbr ? 'pbr' : 'lam'}|${options.pattern ? 'p' : ''}|${options.surface === 'vertex' ? 'v' : 'f'}|${options.light ? `l${lamps}` : ''}`;
+  const key = `nx|${options.pattern ? 'p' : ''}|${options.surface === 'vertex' ? 'v' : 'f'}|${options.light ? 'l' : ''}`;
   material.customProgramCacheKey = () => key;
 }
 
-let pbrNow = false;
-let lampsNow = 6;
 let nightNow = 0;
 const recipes = new Map<THREE.Material, Recipe>();
 
 function build(recipe: Recipe): THREE.Material {
   const p = recipe.params;
-  let material: THREE.Material;
+  let material: THREE.MeshStandardMaterial;
   if (recipe.kind === 'lit') {
-    const m = pbrNow ? new THREE.MeshStandardMaterial(p) : new THREE.MeshLambertMaterial(p as THREE.MeshLambertMaterialParameters);
-    patchLit(m, recipe.options, lampsNow);
-    material = m;
-  } else if (recipe.kind === 'glass') {
-    material = pbrNow ? new THREE.MeshStandardMaterial({ ...p, roughness: 0.08, metalness: 0 }) : new THREE.MeshLambertMaterial(p as THREE.MeshLambertMaterialParameters);
+    material = new THREE.MeshStandardMaterial(p);
+    patchLit(material, recipe.options);
   } else {
     // Lamp shades and bulbs: self-lit, so they read (and bloom) whatever the tier.
-    const m = pbrNow ? new THREE.MeshStandardMaterial({ ...p, roughness: 0.6, metalness: 0 }) : new THREE.MeshLambertMaterial(p as THREE.MeshLambertMaterialParameters);
-    patchLit(m, { surface: SURFACES.matte }, lampsNow);
-    material = m;
+    material = new THREE.MeshStandardMaterial({ ...p, roughness: 0.6, metalness: 0 });
+    patchLit(material, { surface: SURFACES.matte });
   }
   recipes.set(material, recipe);
   return material;
@@ -285,10 +308,81 @@ function build(recipe: Recipe): THREE.Material {
 const lit = (params: THREE.MeshStandardMaterialParameters, options: LitOptions): THREE.Material => build({ kind: 'lit', params, options });
 
 /**
- * Shared materials. Static geometry is merged and vertex-coloured, with painted patterns and a baked
- * floor-level gradient (ambient occlusion). The cheapest tier shades with Lambert; the others are physically
- * based (roughness and metalness per part: brass, varnish, velvet). Night light comes from the moon, the
- * lamp pools and the interior warmth, all shared through LIGHT_UNIFORMS.
+ * Window panes, seen from outside (warm, framed, below the bloom threshold) or from inside (night glass):
+ * unlit, a soft vertical gradient (brighter toward the sill, where the reading lamps are) and drawn curtain
+ * edges, tinted per vertex (each class has its curtains). The outside and inside faces are separate quads
+ * and carry their side in uv.y > 1 (inside) so one material draws both.
+ */
+function paneMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    vertexColors: true,
+    fog: true,
+    clipping: true,
+    uniforms: {
+      ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+      uGlow: { value: 0 },
+      uNight: { value: 1 },
+      uGlass: { value: new THREE.Color(VISUALS.night.window.nightGlass) },
+      uDay: { value: new THREE.Color(PALETTE.windowDay) },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      varying vec3 vTint;
+      #include <fog_pars_vertex>
+      #include <clipping_planes_pars_vertex>
+      void main() {
+        vUv = uv;
+        vTint = color;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        #include <clipping_planes_vertex>
+        #include <fog_vertex>
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform float uGlow;
+      uniform float uNight;
+      uniform vec3 uGlass;
+      uniform vec3 uDay;
+      varying vec2 vUv;
+      varying vec3 vTint;
+      #include <fog_pars_fragment>
+      #include <clipping_planes_pars_fragment>
+      void main() {
+        #include <clipping_planes_fragment>
+        bool inside = vUv.y > 1.0;
+        vec2 p = vec2(vUv.x, fract(vUv.y));
+        vec3 day = uDay * (0.82 + 0.18 * p.y);
+        vec3 color;
+        if (inside) {
+          // Night glass from inside: deep blue, a faint cool sheen across the top, the curtains at the sides.
+          float sheen = smoothstep(0.55, 1.0, p.y) * 0.16;
+          color = mix(day, uGlass * (1.0 + sheen) + vec3(0.04, 0.05, 0.09) * sheen, uNight);
+        } else {
+          // Lamplit from inside: warm, brightest low (the lamps), a little cooler near the top.
+          vec3 warm = mix(vec3(1.0, 0.62, 0.3), vec3(1.0, 0.8, 0.52), p.y);
+          float body = 0.72 + 0.28 * (1.0 - p.y);
+          color = mix(day, warm * body * uGlow, uNight);
+        }
+        // Curtains drawn at both sides (tinted per class), with a soft fold.
+        float edge = min(p.x, 1.0 - p.x);
+        float curtain = 1.0 - smoothstep(0.1, 0.16, edge);
+        float fold = 0.85 + 0.15 * sin(p.x * 60.0);
+        vec3 cloth = vTint * fold * mix(0.95, inside ? 0.55 : 0.75 * uGlow, uNight);
+        color = mix(color, cloth, curtain * step(0.01, length(vTint - vec3(1.0))));
+        gl_FragColor = vec4(color, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+      }
+    `,
+  });
+}
+
+/**
+ * Shared materials. Static geometry is merged and vertex-coloured, with painted patterns, per-part surfaces
+ * (brass, varnish, velvet) and the baked light. Every quality tier uses these same materials, so the game
+ * looks the same everywhere; tiers only change resolution and effects.
  */
 export const MATERIALS = {
   /** The train, platform and props. */
@@ -296,13 +390,13 @@ export const MATERIALS = {
   /** The train's paint job (body and trim): enamel, tinted by the livery colour. */
   livery: lit({ vertexColors: true, color: '#9A7462' }, { surface: SURFACES.paint, light: true }),
   liveryTrim: lit({ vertexColors: true, color: '#7A6D66' }, { surface: SURFACES.paint, light: true }),
-  /** Everything outside the train (moonlit, never lamplit). */
-  scenery: lit({ vertexColors: true }, { pattern: true, surface: 'vertex' }),
+  /** Everything outside the train: moonlit, and warmed by the train's window spill where it passes. */
+  scenery: lit({ vertexColors: true }, { pattern: true, surface: 'vertex', light: true }),
   /** The ground's own texture is painted by Scenery. */
-  ground: lit({}, { surface: SURFACES.stone }),
+  ground: lit({}, { surface: SURFACES.stone, light: true }),
   /** Interior floors. */
   floor: lit({ vertexColors: true }, { pattern: true, surface: 'vertex', light: true }),
-  windows: build({ kind: 'glass', params: { color: PALETTE.windowDay, emissive: new THREE.Color(PALETTE.windowNight), emissiveIntensity: 0 }, options: {} }),
+  windows: paneMaterial() as THREE.Material,
   /** Lamp shades and bulbs: lit from within at night. */
   lamps: build({ kind: 'glow', params: { vertexColors: true, emissive: new THREE.Color('#FFD68A'), emissiveIntensity: 0.05 }, options: {} }),
   lamp: new THREE.MeshBasicMaterial({ color: PALETTE.lampGlow }) as THREE.Material,
@@ -311,12 +405,10 @@ export const MATERIALS = {
   lockedOverlay: new THREE.MeshBasicMaterial({ color: '#3C4A63', transparent: true, opacity: 0.32, depthWrite: false }) as THREE.Material,
 };
 
-type MaterialKey = keyof typeof MATERIALS;
-
-/** Extra lit materials made at runtime (per-class liveries), rebuilt with the rest on a quality change. */
+/** Extra lit materials made at runtime (per-class liveries). */
 const extras = new Map<string, THREE.Material>();
 
-/** A lit material made once per key (per-class liveries); follows quality changes like the shared ones. */
+/** A lit material made once per key (per-class liveries). */
 export function litMaterial(key: string, params: THREE.MeshStandardMaterialParameters, options: LitOptions): THREE.Material {
   let m = extras.get(key);
   if (!m) {
@@ -327,49 +419,8 @@ export function litMaterial(key: string, params: THREE.MeshStandardMaterialParam
 }
 
 /**
- * Switches every recipe-built material between Lambert and physically based shading and sets how many lamp
- * pools they take. Returns old → new so the scene can be swapped over (see swapMaterials); MATERIALS and
- * the runtime extras already point at the new ones, so anything built later uses them too.
- */
-export function setMaterialQuality(pbr: boolean, lamps: number): Map<THREE.Material, THREE.Material> {
-  const map = new Map<THREE.Material, THREE.Material>();
-  const count = Math.max(1, Math.min(MAX_LAMPS, lamps));
-  if (pbr === pbrNow && count === lampsNow) return map;
-  pbrNow = pbr;
-  lampsNow = count;
-  const rebuild = (old: THREE.Material): THREE.Material => {
-    const recipe = recipes.get(old);
-    if (!recipe) return old;
-    const next = build(recipe);
-    copyState(old, next);
-    recipes.delete(old);
-    map.set(old, next);
-    return next;
-  };
-  for (const key of Object.keys(MATERIALS) as MaterialKey[]) MATERIALS[key] = rebuild(MATERIALS[key]);
-  for (const [key, m] of extras) extras.set(key, rebuild(m));
-  applyNight();
-  return map;
-}
-
-/** Carries what the game changes at runtime (colours, emissive strength, textures) onto a rebuilt material. */
-function copyState(from: THREE.Material, to: THREE.Material): void {
-  const a = from as THREE.MeshStandardMaterial;
-  const b = to as THREE.MeshStandardMaterial;
-  if (a.color && b.color) b.color.copy(a.color);
-  if (a.emissive && b.emissive) b.emissive.copy(a.emissive);
-  if (a.emissiveIntensity !== undefined) b.emissiveIntensity = a.emissiveIntensity;
-  if (a.map) b.map = a.map;
-  from.dispose();
-}
-
-export function isPbr(): boolean {
-  return pbrNow;
-}
-
-/**
- * 0 = day, 1 = full night. Lights do the staging now (moon, lamps, warmth inside the train); this sets what
- * glows: windows, lamp shades and any self-lit part.
+ * 0 = day, 1 = full night. Lights do the staging (moon, baked lamplight); this sets what glows: windows, lamp
+ * shades and any self-lit part.
  */
 export function setNightAmount(amount: number): void {
   nightNow = amount;
@@ -379,11 +430,12 @@ export function setNightAmount(amount: number): void {
 function applyNight(): void {
   const n = nightNow;
   const night = VISUALS.night;
-  const win = MATERIALS.windows as THREE.MeshStandardMaterial;
-  win.emissiveIntensity = night.windowGlow * n;
-  win.color.set(n > 0.5 ? '#3A3430' : PALETTE.windowDay);
+  const pane = MATERIALS.windows as THREE.ShaderMaterial;
+  pane.uniforms.uGlow.value = night.window.glow;
+  pane.uniforms.uNight.value = n;
   (MATERIALS.lamps as THREE.MeshStandardMaterial).emissiveIntensity = 0.08 + night.lampGlow * n;
   LIGHT_UNIFORMS.uNxGlow.value = n * 2.5;
+  LIGHT_UNIFORMS.uNxLightOn.value = 0.25 + 0.75 * n;
 }
 
 /** Soft round contact shadow under characters (the sun shadow does the rest). */
@@ -474,7 +526,8 @@ export function clippedMaterials(plane: THREE.Plane, extra: THREE.Material[] = [
     if (map.has(source)) return;
     const clone = source.clone();
     const recipe = recipes.get(source);
-    if (recipe && recipe.kind !== 'glass') patchLit(clone as THREE.MeshStandardMaterial, recipe.kind === 'glow' ? { surface: SURFACES.matte } : recipe.options, lampsNow);
+    if (recipe) patchLit(clone as THREE.MeshStandardMaterial, recipe.kind === 'glow' ? { surface: SURFACES.matte } : recipe.options);
+    else if ((source as THREE.ShaderMaterial).isShaderMaterial) (clone as THREE.ShaderMaterial).uniforms = (source as THREE.ShaderMaterial).uniforms;
     clone.clippingPlanes = [plane];
     map.set(source, clone);
   };

@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { VISUALS, type QualityTier, type TierSettings } from '../config/visuals';
 import { CameraRig } from './CameraRig';
 import { Lighting } from './Lighting';
-import { setMaterialQuality } from './materials';
+import { LightMap } from './LightMap';
+import { installGradedToneMapping } from './toneMap';
 import type { Particles } from './Particles';
 import { PostFx } from './PostFx';
 import { detectTier, lowerTier, tierSettings, type QualitySetting } from './Quality';
@@ -13,15 +14,21 @@ export interface PreRender {
 }
 
 /**
- * Renderer, scene, camera and the quality tier. The tier sets shading (Lambert or physically based), lamp
- * pools, shadows, bloom, reflections and ambient occlusion; `auto` starts from the device's best guess and
- * steps down one tier whenever the smoothed frame rate stays low.
+ * Renderer, scene, camera and the quality tier. Every tier shades the same (same materials, same baked
+ * light); the tier sets resolution, shadow softness, bloom, antialiasing, reflections and ambient occlusion.
+ * While playing, the render scale steps down when the frame rate sags (dynamic resolution) and creeps back
+ * up; `auto` drops a tier only once the scale is at its floor and it is still slow.
  */
 export class Stage {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
   readonly rig = new CameraRig();
   readonly lighting: Lighting;
+  readonly lightMap = new LightMap();
+  /** Dynamic resolution: a share of the tier's pixel ratio (1 = full). */
+  renderScale = 1;
+  /** Off when a tier is forced for tools and screenshots (a software renderer is always "slow"). */
+  dynamicResolution = true;
   /** What the player picked ('auto' by default) and the tier in use. */
   setting: QualitySetting;
   tier: QualityTier;
@@ -37,6 +44,8 @@ export class Stage {
   private fpsAccumulator = 0;
   private fpsFrames = 0;
   private slowSeconds = 0;
+  private fastSeconds = 0;
+  private floorSeconds = 0;
   private particles: Particles | null = null;
   private width = 1;
   private height = 1;
@@ -53,18 +62,19 @@ export class Stage {
     probe.dispose();
     probe.forceContextLoss();
     this.tier = setting === 'auto' ? remembered ?? detected : setting;
-    this.contextAntialias = tierSettings(this.tier).msaa === 0;
+    // Without post-processing (Low) the canvas antialiases itself.
+    const first = tierSettings(this.tier);
+    this.contextAntialias = first.msaa === 0 && first.bloom === 0 && !first.fxaa;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.contextAntialias, powerPreference: 'high-performance', preserveDrawingBuffer: false });
     // Only the refurbishment wipe uses clipping planes (on temporary material clones).
     this.renderer.localClippingEnabled = true;
     // Stats cover the whole frame (the reflection, the scene and every post pass), not just the last pass.
     this.renderer.info.autoReset = false;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    installGradedToneMapping(this.renderer);
     this.renderer.toneMappingExposure = VISUALS.night.exposure;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.lighting = new Lighting(this.scene);
-    this.lighting.buildEnvironment(this.renderer);
     this.scene.add(this.rig.camera);
     this.applyTier(this.tier);
     this.resize();
@@ -93,25 +103,31 @@ export class Stage {
   private applyTier(tier: QualityTier): void {
     this.tier = tier;
     const s = tierSettings(tier);
-    this.pixelRatio = Math.min(window.devicePixelRatio || 1, s.pixelRatio);
-    this.renderer.setPixelRatio(this.pixelRatio);
+    this.renderScale = 1;
+    this.updatePixelRatio();
     // PCF filtering throughout; the soft tiers sample a wider radius (this three.js has no separate soft type).
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
-    this.lighting.setShadows(true, s.shadowMap, s.softShadows ? 5 : 2);
-    this.lighting.setLampCount(s.lamps);
-    this.lighting.setEnvironmentEnabled(s.pbr);
-    const swap = setMaterialQuality(s.pbr, s.lamps);
-    for (const [from, to] of swap) this.replaced.set(from, to);
-    this.syncMaterials();
+    this.lighting.setShadows(true, s.shadowMap, s.softShadows ? 4 : 1.5);
     this.fx?.dispose();
     this.fx = null;
-    // Post-processing on the physically based tiers, or whenever the canvas itself cannot antialias.
-    if (s.pbr || (!this.contextAntialias && s.msaa === 0)) {
-      const tierForFx = s.pbr ? s : { ...s, msaa: 4 };
+    // Post-processing when the tier blooms or antialiases offscreen; a canvas that cannot antialias itself
+    // (it was created for a post-processed tier) always gets it.
+    if (s.bloom > 0 || s.msaa > 0 || s.fxaa || !this.contextAntialias) {
+      const tierForFx = s.msaa > 0 || s.fxaa ? s : { ...s, fxaa: true };
       this.fx = new PostFx(this.renderer, this.scene, this.rig.camera, tierForFx, this.width, this.height, this.pixelRatio);
     }
     for (const listen of this.tierListeners) listen(s);
     this.resize();
+  }
+
+  /** The tier's pixel ratio, capped by its pixel budget for this screen, times the dynamic render scale. */
+  private updatePixelRatio(): void {
+    const s = tierSettings(this.tier);
+    const dpr = window.devicePixelRatio || 1;
+    const css = Math.max(1, this.width * this.height);
+    const budget = Math.sqrt((s.maxMegapixels * 1e6) / css);
+    this.pixelRatio = Math.max(0.5, Math.min(dpr, s.pixelRatio, budget) * this.renderScale);
+    this.renderer.setPixelRatio(this.pixelRatio);
   }
 
   /**
@@ -142,6 +158,7 @@ export class Stage {
     const rect = this.canvas.parentElement?.getBoundingClientRect();
     this.width = Math.max(1, Math.floor(rect?.width ?? window.innerWidth));
     this.height = Math.max(1, Math.floor(rect?.height ?? window.innerHeight));
+    this.updatePixelRatio();
     this.renderer.setSize(this.width, this.height, false);
     this.fx?.setSize(this.width, this.height, this.pixelRatio);
     this.rig.resize(this.width / this.height);
@@ -165,7 +182,7 @@ export class Stage {
     this.trackFps(dt);
     const cam = this.rig.camera;
     cam.updateMatrixWorld();
-    this.lighting.follow(this.rig.focusPoint, this.rig.viewDirection, cam);
+    this.lighting.follow(this.rig.focusPoint, this.rig.viewDirection);
     this.fx?.setNight(this.lighting.night);
     this.renderer.info.reset();
     this.preRender?.render(this.renderer, this.scene, cam);
@@ -192,16 +209,37 @@ export class Stage {
     const elapsed = this.fpsAccumulator;
     this.fpsAccumulator = 0;
     this.fpsFrames = 0;
-    // Auto steps down (never up) when the frame rate stays low for a few seconds.
-    if (this.setting !== 'auto' || this.tier === 'low') return;
-    this.slowSeconds = this.smoothedFps < VISUALS.quality.downgradeFps ? this.slowSeconds + elapsed : 0;
-    if (this.slowSeconds >= VISUALS.quality.downgradeSeconds) {
+    if (!this.dynamicResolution) return;
+    // Dynamic resolution first: a lower render scale is invisible next to a stutter.
+    const dr = VISUALS.quality.dynamicResolution;
+    this.slowSeconds = this.smoothedFps < dr.targetFps ? this.slowSeconds + elapsed : 0;
+    this.fastSeconds = this.smoothedFps > dr.targetFps + 6 ? this.fastSeconds + elapsed : 0;
+    if (this.slowSeconds >= dr.settleSeconds && this.renderScale > dr.minScale + 1e-3) {
       this.slowSeconds = 0;
+      this.setRenderScale(Math.max(dr.minScale, this.renderScale - dr.stepDown));
+    } else if (this.fastSeconds >= dr.recoverSeconds && this.renderScale < 1) {
+      this.fastSeconds = 0;
+      this.setRenderScale(Math.min(1, this.renderScale + dr.stepUp));
+    }
+    // Auto steps down a tier (never up) only when even the lowest scale stays slow.
+    if (this.setting !== 'auto' || this.tier === 'low') return;
+    const atFloor = this.renderScale <= dr.minScale + 1e-3;
+    this.floorSeconds = atFloor && this.smoothedFps < VISUALS.quality.downgradeFps ? this.floorSeconds + elapsed : 0;
+    if (this.floorSeconds >= VISUALS.quality.downgradeSeconds) {
+      this.floorSeconds = 0;
       this.smoothedFps = 60;
       const next = lowerTier(this.tier);
       this.applyTier(next);
       this.onAutoTier?.(next);
     }
+  }
+
+  private setRenderScale(scale: number): void {
+    this.renderScale = scale;
+    this.updatePixelRatio();
+    this.renderer.setSize(this.width, this.height, false);
+    this.fx?.setSize(this.width, this.height, this.pixelRatio);
+    this.updateParticleScale();
   }
 
   private updateParticleScale(): void {

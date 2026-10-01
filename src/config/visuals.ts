@@ -40,22 +40,26 @@ export const VISUALS = {
   },
 
   /**
-   * Quality tiers. `auto` picks one from the device (see world/Quality.ts) and steps down on its own if the
-   * frame rate stays low; players can pick one in Settings. Every tier keeps the same look: higher tiers
-   * add depth (real reflections, ambient occlusion, more lamp light, softer shadows), never gameplay.
+   * Quality tiers. Every tier has the same look: the same materials, the same baked light (lamps, contact
+   * shading, window spill), the same palette. Higher tiers only add resolution, softer shadows, bloom,
+   * antialiasing, real lake reflections and (Ultra) screen-space ambient occlusion. `auto` picks a tier from
+   * the device; while playing, the render scale drops first if the frame rate sags (dynamic resolution), and
+   * only then the tier.
    */
   quality: {
     tiers: {
-      /** Old or weak phones: cheaper shading, no post-processing, fake water, fewer lamp pools. */
-      low: { label: 'Low', pixelRatio: 1.25, pbr: false, lamps: 6, shadowMap: 1024, softShadows: false, bloom: 0, msaa: 0, reflections: 0, ssao: false },
-      /** The 3 GB mid-range target: physically based materials, bloom at a reduced size, fake water. */
-      medium: { label: 'Medium', pixelRatio: 1.5, pbr: true, lamps: 10, shadowMap: 1024, softShadows: false, bloom: 0.5, msaa: 2, reflections: 0, ssao: false },
-      /** Recent phones: soft shadows, real lake reflections, more lamp pools. */
-      high: { label: 'High', pixelRatio: 2, pbr: true, lamps: 16, shadowMap: 2048, softShadows: true, bloom: 0.5, msaa: 4, reflections: 0.4, ssao: false },
+      /** Old or weak phones: no post-processing (glows are geometry, so the look holds), hard shadows. */
+      low: { label: 'Low', pixelRatio: 1.25, maxMegapixels: 1.0, shadowMap: 1024, softShadows: false, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false },
+      /** The 3 GB mid-range target: bloom at a reduced size, FXAA (no multisampling). */
+      medium: { label: 'Medium', pixelRatio: 1.6, maxMegapixels: 1.8, shadowMap: 1024, softShadows: false, bloom: 0.4, msaa: 0, fxaa: true, reflections: 0, ssao: false },
+      /** Recent phones: soft shadows, real lake reflections. */
+      high: { label: 'High', pixelRatio: 2, maxMegapixels: 3.2, shadowMap: 2048, softShadows: true, bloom: 0.5, msaa: 4, fxaa: false, reflections: 0.4, ssao: false },
       /** Desktops and flagships: sharper reflections and screen-space ambient occlusion on top. */
-      ultra: { label: 'Ultra', pixelRatio: 2.5, pbr: true, lamps: 24, shadowMap: 2048, softShadows: true, bloom: 0.75, msaa: 4, reflections: 0.6, ssao: true },
+      ultra: { label: 'Ultra', pixelRatio: 2.5, maxMegapixels: 5.5, shadowMap: 2048, softShadows: true, bloom: 0.75, msaa: 4, fxaa: false, reflections: 0.6, ssao: true },
     },
-    /** Auto: if the smoothed frame rate stays under this for `downgradeSeconds`, drop one tier. */
+    /** Dynamic resolution: below `targetFps` the render scale steps down to `minScale`, and creeps back up. */
+    dynamicResolution: { targetFps: 52, minScale: 0.62, stepDown: 0.1, stepUp: 0.05, settleSeconds: 1.5, recoverSeconds: 6 },
+    /** Auto: if the frame rate stays under this at the lowest render scale for `downgradeSeconds`, drop a tier. */
     downgradeFps: 45,
     downgradeSeconds: 4,
   },
@@ -74,13 +78,26 @@ export const VISUALS = {
     fill: 0.75,
     /** How much the night sky and the lamps are reflected by metal and polish (brass, varnish, water). */
     environment: 0.35,
-    /** Warm ambient inside the carriages (what the ceiling lights would give), so no room is ever dark. */
-    interior: { color: '#FFB978', intensity: 0.85 },
-    /** Warm pools of light from the lamps nearest the camera (see quality `lamps` for how many). */
-    lamp: { color: '#FFAE5C', intensity: 2.4, radius: 2.4 },
-    /** Windows and lamp shades glow (linear HDR; bloom catches anything above the threshold). */
-    windowGlow: 2.1,
-    lampGlow: 3.2,
+    /**
+     * The baked light (world/lightBake.ts), painted once into a map of the train whenever it changes:
+     * warm fill in every room, a soft pool under each lamp (staying in its own room), the light spilling out
+     * of every window onto the platform and the water, and contact shading where floors meet walls, tuck
+     * under furniture and meet the hull outside. Linear colours; scaled by the night amount.
+     */
+    light: {
+      texel: 0.1,
+      interior: { color: '#FFB978', intensity: 0.78 },
+      lamp: { color: '#FFB066', intensity: 1.7, radius: 2.6 },
+      /** Bare bulbs in a run-down carriage are a little colder and dimmer; luxury is warmer and brighter. */
+      tierLamp: [0.85, 0.93, 1.0, 1.06, 1.14, 1.24],
+      spill: { color: '#FFB46E', intensity: 0.42, reach: 2.4 },
+      platformLamp: { color: '#FFA98C', intensity: 1.35, radius: 3.4 },
+      ao: { wall: 0.34, wallReach: 0.42, prop: 0.4, propReach: 0.38, hull: 0.5, hullReach: 1.1 },
+    },
+    /** Windows: warm, framed panes (below the bloom threshold so they never smear into strips). */
+    window: { glow: 0.62, nightGlass: '#1B2440' },
+    /** Lamp shades glow (linear HDR; bloom catches what is above the threshold). */
+    lampGlow: 2.6,
     fog: { color: '#1E2A4A', density: 0.0085 },
     bloom: { strength: 0.42, radius: 0.5, threshold: 1.0 },
     /**

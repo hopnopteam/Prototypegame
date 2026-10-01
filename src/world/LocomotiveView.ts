@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { FLOOR_Y } from './CarriageView';
-import { GeoBuilder } from './geo';
+import { GeoBuilder, PaneBuilder } from './geo';
 import { GANGWAY_LENGTH, LOCOMOTIVE_LENGTH } from './layout';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
@@ -120,9 +120,9 @@ export class LocomotiveView {
     this.group.add(livery, new THREE.Mesh(trim.build(), MATERIALS.liveryTrim));
 
     // Cab windows and the headlamp glow at night.
-    const windows = new GeoBuilder();
-    for (const x of [-1.52, 1.52]) windows.box(x, 2.0, cabMid, 0.02, 0.5, 0.8, PALETTE.windowDay);
-    windows.box(0, 2.1, cabFront - 0.01, 1.8, 0.45, 0.02, PALETTE.windowDay);
+    const windows = new PaneBuilder();
+    for (const x of [-1.52, 1.52]) windows.paneX(x + Math.sign(x) * 0.012, 1.75, 2.25, cabMid - 0.4, cabMid + 0.4, Math.sign(x) as 1 | -1, false);
+    windows.paneZ(cabFront - 0.022, 1.875, 2.325, -0.9, 0.9, -1, false);
     this.group.add(new THREE.Mesh(windows.build(), MATERIALS.windows));
     const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.25, 14).rotateX(Math.PI / 2), this.lampMaterial);
     lamp.position.set(0, 1.55, front + 0.5);

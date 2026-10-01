@@ -11,6 +11,7 @@ import { billboardTexture } from '../world/sprites';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
 import type { StationResult } from './events';
 import { sourceActive, sourceStay, type SourceSpec } from './Pickup';
+import { platformLightInput } from '../world/trainLight';
 import type { World } from './World';
 import { Zone } from './Zones';
 
@@ -203,12 +204,13 @@ export class Station {
     this.view.setOffset(this.platformOffset);
     if (visible) this.view.animate(_dt);
     this.view.setNight(w.stage.lighting.night);
-    // The platform's lamps light the train and the waiting guests as it slides in.
-    const lamps = w.stage.lighting.lamps;
+    // The platform's lamps light the deck, the waiting guests and the train's side as it slides in.
+    const light = w.stage.lightMap;
     if (visible !== this.lampsShown) {
       this.lampsShown = visible;
-      lamps.set('platform', visible ? this.view.lampAnchors : null, this.platformOffset);
-    } else if (visible) lamps.offset('platform', this.platformOffset);
+      light.setPlatform(visible ? platformLightInput(this.view.lampAnchors, this.view.z0, this.view.z1) : null);
+    }
+    if (visible) light.setPlatformOffset(this.platformOffset);
     const zOffset = this.platformOffset;
     w.scenery.setHiddenRegion(visible ? { x0: PLATFORM_X0 - 0.2, x1: PLATFORM_X0 + 16, z0: this.view.z0 + zOffset - 2, z1: this.view.z1 + zOffset + 2 } : null);
   }

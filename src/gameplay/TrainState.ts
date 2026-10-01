@@ -11,7 +11,8 @@ import { ExteriorView } from '../world/ExteriorView';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { buildRearDeck } from '../world/RearDeck';
-import { clippedMaterials, LIGHT_UNIFORMS, swapMaterials } from '../world/materials';
+import { clippedMaterials, swapMaterials } from '../world/materials';
+import { trainLightInput } from '../world/trainLight';
 import { TIER_NAMES } from '../world/palette';
 import type { Actor } from './Actor';
 import type { Guest } from './Guests';
@@ -610,19 +611,17 @@ export class TrainState {
     return (cls?.tip ?? 1) * (1 + (this.comfortCounts[cabin.carriage] ?? 0) * this.w.econ.comfort.cabinTipBonus);
   }
 
-  /** Views whose lamps the lamp pools know about; re-sent when a carriage is added or rebuilt. */
-  private readonly lampViews: CarriageView[] = [];
+  /** The views the light map was last baked from; re-baked when a carriage is added or rebuilt. */
+  private readonly litViews: CarriageView[] = [];
 
+  /** Re-bakes the train's light (lamps, window spill, contact shading) when any carriage changed. */
   private publishLamps(): void {
-    const lamps = this.w.stage.lighting.lamps;
-    for (let i = 0; i < Math.max(this.views.length, this.lampViews.length); i++) {
-      const view = this.views[i];
-      if (this.lampViews[i] === view) continue;
-      lamps.set(`car:${i}`, view ? view.lampAnchors(carriageOriginZ(i)) : null);
-      if (view) this.lampViews[i] = view;
-      else this.lampViews.length = i;
-    }
-    LIGHT_UNIFORMS.uNxTrainZ.value.set(-0.1, this.w.map.rearZ + 0.1);
+    let changed = this.litViews.length !== this.views.length;
+    for (let i = 0; i < this.views.length && !changed; i++) if (this.litViews[i] !== this.views[i]) changed = true;
+    if (!changed) return;
+    this.litViews.length = 0;
+    this.litViews.push(...this.views);
+    this.w.stage.lightMap.setTrain(trainLightInput(this.views.map((view, i) => ({ layout: view.layout, originZ: carriageOriginZ(i), tier: view.tier, lamps: view.lampAnchors(carriageOriginZ(i)) }))));
   }
 
   private savedTier(index: number): number {

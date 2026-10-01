@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { rect, type CarriageType, type Rect } from '../core/types';
 import type { ComfortKey } from '../config/content';
 import { buildBedMess, buildMessPiece, seeded, type BedMess, type MessPiece } from './Mess';
-import { GeoBuilder, type PartStyle } from './geo';
+import { GeoBuilder, PaneBuilder, type PartStyle } from './geo';
 import {
   CARRIAGE_LENGTH,
   DOOR_Z0,
@@ -500,7 +500,7 @@ export class CarriageView {
     const f = new GeoBuilder();
     const liv = new GeoBuilder();
     const trim = new GeoBuilder();
-    const glass = new GeoBuilder();
+    const glass = new PaneBuilder();
     const lamps = new GeoBuilder();
     const fin = this.finish;
 
@@ -578,7 +578,11 @@ export class CarriageView {
     add(liv, this.liveryBody, true, true, true);
     add(trim, this.liveryTrim, false, true, true);
     add(f, MATERIALS.floor, false, true);
-    add(glass, MATERIALS.windows, false, false, true);
+    if (!glass.isEmpty) {
+      const panes = new THREE.Mesh(glass.build(), MATERIALS.windows);
+      panes.layers.enable(REFLECT_LAYER);
+      this.group.add(panes);
+    }
     add(lamps, MATERIALS.lamps, false, false, true);
   }
 
@@ -684,7 +688,7 @@ export class CarriageView {
     return depth;
   }
 
-  private buildWall(s: GeoBuilder, liv: GeoBuilder, trim: GeoBuilder, glass: GeoBuilder, lamps: GeoBuilder, wall: WallBox): void {
+  private buildWall(s: GeoBuilder, liv: GeoBuilder, trim: GeoBuilder, glass: PaneBuilder, lamps: GeoBuilder, wall: WallBox): void {
     const alongZ = wall.z1 - wall.z0 >= wall.x1 - wall.x0;
     if (wall.kind === 'interior') this.partition(s, wall, wall.height, alongZ);
     else if (alongZ) this.sideWall(s, liv, trim, glass, lamps, wall);
@@ -711,7 +715,7 @@ export class CarriageView {
    * Long exterior wall: interior finish on the inside skin, livery outside, a band of windows (with
    * curtains from tier 2) and lamps between them, and a rounded cornice where the roof would be.
    */
-  private sideWall(s: GeoBuilder, liv: GeoBuilder, trim: GeoBuilder, glass: GeoBuilder, lamps: GeoBuilder, r: WallBox): void {
+  private sideWall(s: GeoBuilder, liv: GeoBuilder, trim: GeoBuilder, glass: PaneBuilder, lamps: GeoBuilder, r: WallBox): void {
     const fin = this.finish;
     const left = r.x0 < 0;
     const inner = left ? rect(r.x1 - SKIN, r.z0, r.x1, r.z1) : rect(r.x0, r.z0, r.x0 + SKIN, r.z1);
@@ -743,7 +747,20 @@ export class CarriageView {
         const w1 = zc + width / 2;
         this.innerFinish(s, zr(cursor, w0, inner), FLOOR_Y + WINDOW_Y0, FLOOR_Y + WINDOW_Y1, rail);
         liv.slab(zr(cursor, w0, outer), FLOOR_Y + WINDOW_Y0, FLOOR_Y + WINDOW_Y1, white, 0, 0, FLAT);
-        glass.box((r.x0 + r.x1) / 2, FLOOR_Y + (WINDOW_Y0 + WINDOW_Y1) / 2, zc, 0.03, WINDOW_Y1 - WINDOW_Y0, width, PALETTE.windowDay, 0, FLAT);
+        // The glass: a lamplit pane set back in the outer face (curtains painted on it from tier 2) and night
+        // glass on the room side; a framed opening with a sash bar outside. Thin quads, so seen from above
+        // nothing glows: the light shows on the faces and spills onto the ground (the light map).
+        const outerFace = left ? r.x0 : r.x1;
+        const out = left ? -1 : 1;
+        const y0 = FLOOR_Y + WINDOW_Y0;
+        const y1 = FLOOR_Y + WINDOW_Y1;
+        glass.paneX(outerFace - out * 0.035, y0, y1, w0, w1, out as 1 | -1, false, fin.curtains ? this.theme.curtain : '#FFFFFF');
+        glass.paneX(innerFace - inward * 0.022, y0, y1, w0, w1, inward as 1 | -1, true);
+        const fx = outerFace + out * 0.004;
+        trim.box(fx, y0 - 0.016, zc, 0.07, 0.032, width + 0.1, white, 0, FLAT);
+        trim.box(fx, y1 + 0.014, zc, 0.06, 0.028, width + 0.1, white, 0, FLAT);
+        for (const pz of [w0 - 0.016, w1 + 0.016]) trim.box(fx, (y0 + y1) / 2, pz, 0.05, y1 - y0 - 0.004, 0.032, white, 0, FLAT);
+        trim.box(outerFace - out * 0.026, y0 + (y1 - y0) * 0.64, zc, 0.012, 0.022, width - 0.004, white, 0, FLAT);
         s.box(innerFace + inward * 0.025, FLOOR_Y + WINDOW_Y0 + 0.012, zc, 0.05, 0.024, width + 0.06, fin.cap, 0, FLAT);
         if (fin.curtains) {
           for (const side of [-1, 1]) {
