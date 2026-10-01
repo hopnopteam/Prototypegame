@@ -122,6 +122,23 @@ export const DEFAULT_TRAIN_NAME = 'The Night Express';
  */
 export type PressTrigger = 'named' | 'coupling' | 'refurb3' | 'firstClass' | 'royal' | 'livery' | 'topThree' | 'champion' | 'guests100' | 'story';
 
+/**
+ * How the press is paced (session 14, owner: "the interview, the Gazette… come very quickly all at once"):
+ * one card per breather after a departure, a leg of the journey apart, the biggest news first.
+ */
+export const PRESS_PACING = {
+  /** After a departure, this many seconds are the calm beat when a press card may come (one per breather). */
+  calmSeconds: 25,
+  /** Seconds of play between press cards (about one leg of the journey). */
+  gapSeconds: 150,
+  /** Seconds of quiet after any other sheet (a level-up, a chooser) before a press card. */
+  afterSheetSeconds: 6,
+  /** Front pages waiting at most; beyond this the least important pays out with a toast instead. */
+  maxWaitingFrontPages: 2,
+  /** How much each kind of news matters when several wait for the same breather. */
+  newsWeight: { named: 10, royal: 9, champion: 9, firstClass: 8, topThree: 7, coupling: 6, story: 5, refurb3: 5, livery: 4, guests100: 4 } as Record<PressTrigger, number>,
+};
+
 export interface HeadlineDef {
   headline: string;
   body: string;

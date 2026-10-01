@@ -11,8 +11,8 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 - **The classic version** (before the session 12 lakeside, night look and carriage classes) is kept in
   [`archive/classic-v1/`](archive/classic-v1/README.md): a playable copy and the commit to return to.
 - **Graphics:** Settings has Auto / Low / Medium / High / Ultra (every tier shades the same way; the higher ones add
-  resolution, softer shadows, bloom, antialiasing and lake reflections). Auto lowers the render scale before it ever
-  drops a tier; add `?quality=low|medium|high|ultra` to the URL to force one (no dynamic resolution then).
+  resolution, softer shadows, bloom, antialiasing and lake reflections). Phones start at Medium; Auto lowers the
+  render scale before it ever drops a tier; add `?quality=low|medium|high|ultra` to the URL to force one (no dynamic resolution then).
 - **Locally:** `npm install && npm run build`, then open `dist/index.html` in a browser. It works offline from
   disk; for a phone, serve the folder (`npx serve dist`) and open it on the same Wi-Fi, or copy the file over.
 - **Controls:** touch and drag anywhere for the floating joystick, read on screen: push up and the conductor walks
@@ -61,7 +61,7 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | Floors by tier: broken planks and repairs, parquet, rugs | `src/world/Floors.ts` |
 | How passengers react (an icon per situation) | `src/config/chatter.ts` |
 | Content: stations, guest archetypes (with what each leaves behind), the carriage catalogue (each type's tiles incl. comforts, prices, limits and chooser text), coupling slots, station upgrades (exterior and marketing, with their bonuses), refurbishment tiers, stories, quests, products | `src/config/content.ts` |
-| The press: rival trains and their villainous owners (taunts, grumbles, portraits), front-page headlines and rewards per trigger, the Gazette debut interview and Rails Tonight interviews with perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
+| The press: how it is paced (`PRESS_PACING`: one card per breather, the gap between cards, which news goes first), rival trains and their villainous owners (taunts, grumbles, portraits), front-page headlines and rewards per trigger, the Gazette debut interview and Rails Tonight interviews with perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
 | Conductor outfits (earned and premium) and shoes by speed level | `src/config/wardrobe.ts` |
 | Walkthrough steps, one-time hints and the intro's camera beats and captions | `src/config/coach.ts` |
 | Carriage floor plans (passenger carriages: one per class, from six berths to one Royal Suite) | `src/world/layout.ts` |
@@ -74,7 +74,7 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 
 ```
 src/
-  core/       event bus, tweens, rng, math, logging
+  core/       event bus, tweens, rng, math, logging, background work (rebuilds spread over frames)
   config/     economy.ts, content.ts, classes.ts, visuals.ts: all tunables and content packs
   sim/        pure logic, unit tested: Journey, AdPolicy, UnlockChain, Wallet, Progression, Walkable, NavGraph, TrainMap, meta, press
   save/       versioned JSON save (localStorage + backup + migrations)

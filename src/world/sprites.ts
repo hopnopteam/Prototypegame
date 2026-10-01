@@ -452,3 +452,108 @@ export function headlineTexture(text: string): THREE.CanvasTexture {
   return finishTexture(c);
 }
 
+/**
+ * A tile's floating marker: what it unlocks (icon and a short name) and its price, on a little pill with a
+ * pointer down to the plate. Drawn over walls and furniture, so a tile in a narrow room is never hidden and
+ * never a mystery (session 14, owner: "the upgrade boxes are hidden and I have no idea what they are").
+ */
+export class TileMarker {
+  readonly sprite: THREE.Sprite;
+  private readonly ctx: CanvasRenderingContext2D;
+  private readonly texture: THREE.CanvasTexture;
+  private last = '';
+
+  constructor() {
+    const c = document.createElement('canvas');
+    c.width = 320 * MARKER_RES;
+    c.height = 128 * MARKER_RES;
+    const ctx = c.getContext('2d');
+    if (!ctx) throw new Error('2D canvas unavailable');
+    this.ctx = ctx;
+    this.texture = finishTexture(c);
+    // UI in the world: true colours (no night grade or fog), drawn over walls.
+    // A constant size on screen (like a HUD label pinned to the world), so it reads at any zoom.
+    this.sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.texture, transparent: true, depthWrite: false, depthTest: false, toneMapped: false, fog: false, sizeAttenuation: false }));
+    this.sprite.scale.set(TILE_MARKER_WIDTH, TILE_MARKER_WIDTH * 0.4, 1);
+    this.sprite.renderOrder = 9;
+  }
+
+  draw(icon: IconName, name: string, price: number, affordable: boolean, locked = false): void {
+    const key = `${icon}|${name}|${Math.ceil(price)}|${affordable}|${locked}`;
+    if (key === this.last) return;
+    this.last = key;
+    const ctx = this.ctx;
+    ctx.setTransform(MARKER_RES, 0, 0, MARKER_RES, 0, 0);
+    ctx.clearRect(0, 0, 320, 128);
+    ctx.lineJoin = 'round';
+    // The pointer, then the pill over it (one outline).
+    const pill = (): void => {
+      ctx.beginPath();
+      ctx.moveTo(48, 8);
+      ctx.arcTo(312, 8, 312, 96, 40);
+      ctx.arcTo(312, 96, 8, 96, 40);
+      ctx.lineTo(176, 96);
+      ctx.lineTo(160, 120);
+      ctx.lineTo(144, 96);
+      ctx.arcTo(8, 96, 8, 8, 40);
+      ctx.arcTo(8, 8, 312, 8, 40);
+      ctx.closePath();
+    };
+    pill();
+    const fill = ctx.createLinearGradient(0, 8, 0, 96);
+    if (locked) {
+      fill.addColorStop(0, '#E9E2D6');
+      fill.addColorStop(1, '#D4CBBB');
+    } else if (affordable) {
+      fill.addColorStop(0, '#F1FBEA');
+      fill.addColorStop(1, '#CFEBC2');
+    } else {
+      fill.addColorStop(0, '#FFFBF1');
+      fill.addColorStop(1, '#F1E3C6');
+    }
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    // The icon on a white disc.
+    ctx.beginPath();
+    ctx.arc(54, 52, 34, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = affordable && !locked ? '#3E9A56' : '#B98D5C';
+    ctx.stroke();
+    drawIcon(ctx, locked ? 'lock' : icon, 26, 24, 56);
+    // The name (short caps) over the price.
+    ctx.fillStyle = '#6B5B4B';
+    ctx.textBaseline = 'alphabetic';
+    // The name shrinks to fit before it would ever be cut short.
+    let label = name.toUpperCase();
+    let size = 25;
+    ctx.font = `700 ${size}px ${TILE_FONT}`;
+    while (size > 17 && ctx.measureText(label).width > 196) ctx.font = `700 ${--size}px ${TILE_FONT}`;
+    while (label.length > 3 && ctx.measureText(`${label}…`).width > 196 && ctx.measureText(label).width > 196) label = label.slice(0, -1);
+    if (label !== name.toUpperCase()) label = `${label.trimEnd()}…`;
+    ctx.fillText(label, 100, 44);
+    drawIcon(ctx, 'cash', 98, 52, 34);
+    ctx.fillStyle = INK;
+    ctx.font = `800 38px ${TILE_FONT}`;
+    ctx.fillText(formatNumber(Math.ceil(price)), 138, 84);
+    this.texture.needsUpdate = true;
+  }
+
+  dispose(): void {
+    this.texture.dispose();
+    (this.sprite.material as THREE.Material).dispose();
+  }
+}
+
+/**
+ * The marker's width on screen, as a fraction of the view's height at unit distance (three.js sprites without
+ * size attenuation): about a third of a phone's width.
+ */
+export const TILE_MARKER_WIDTH = 0.095;
+/** Canvas pixels per marker design unit (crisp on high-density screens). */
+const MARKER_RES = 1.6;
+

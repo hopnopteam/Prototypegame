@@ -153,8 +153,8 @@ export class Ui implements GameUi {
 
     const cashVal = h('span.val', { text: '0' });
     const gemsVal = h('span.val', { text: '0' });
-    const cash = h('div.pill.cash', { 'aria-label': 'Fares' }, icon('cash', 24), cashVal);
-    const gems = h('div.pill.gems', { 'aria-label': 'Gems' }, icon('gem', 20), gemsVal);
+    const cash = h('div.pill.cash', { 'aria-label': 'Fares' }, icon('cash', 28), cashVal);
+    const gems = h('div.pill.gems', { 'aria-label': 'Gems' }, icon('gem', 28), gemsVal);
     // MPH-style level: a gold star with the number and a star bar that fills (the count lives in the sheet).
     const levelBadge = h('div.badge', { text: '1' });
     const levelCount = h('span.lv-count', { hidden: true });
@@ -607,6 +607,7 @@ export class Ui implements GameUi {
     const g = this.game;
     const guideOn = !this.guide.el.hidden;
     const tag = this.hidden || guideOn ? null : g.tiles.nearTag(g.player.pos, TILE_TAG_RANGE);
+    if (this.hidden || guideOn) g.tiles.clearTag();
     const t = this.tileTag;
     const key = tag ? `${tag.label}|${tag.effect}` : '';
     if (key !== t.key) {

@@ -16,6 +16,7 @@ import {
   type InterviewDef,
   type PressTrigger,
   type Rival,
+  PRESS_PACING,
 } from '../config/press';
 import type { NewsItem } from '../save/SaveData';
 import { awardProgress, cleanTrainName, fillTemplate, leagueStanding, rivalsPassed, type LeagueStanding } from '../sim/press';
@@ -65,22 +66,8 @@ export interface RivalWatch {
   carriages: number;
 }
 
-/** After a departure, this many seconds are the calm beat when a press card may come (one per breather). */
-const CALM_SECONDS = 25;
+const { calmSeconds: CALM_SECONDS, gapSeconds: PRESS_GAP, afterSheetSeconds: AFTER_SHEET, maxWaitingFrontPages: MAX_WAITING_FRONT_PAGES, newsWeight: NEWS_WEIGHT } = PRESS_PACING;
 const GUESTS_NEWS = 100;
-/**
- * Seconds of play between press cards (about one leg of the journey), so the press is a steady thread
- * through the run rather than a pile of cards (session 14, owner: "they come very quickly all at once").
- */
-const PRESS_GAP = 150;
-/** Seconds of quiet after any other sheet (a level-up, a chooser) before a press card. */
-const AFTER_SHEET = 6;
-/** Front pages waiting at most; beyond this the least important pays out with a toast instead. */
-const MAX_WAITING_FRONT_PAGES = 2;
-/** How much each kind of news matters when several wait for the same breather. */
-const NEWS_WEIGHT: Record<PressTrigger, number> = {
-  named: 10, royal: 9, champion: 9, firstClass: 8, topThree: 7, coupling: 6, story: 5, refurb3: 5, livery: 4, guests100: 4,
-};
 
 /**
  * The world noticing your train (the answer to "what am I working towards?"): you name her, the league

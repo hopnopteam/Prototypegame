@@ -3,7 +3,7 @@ import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from './CarriageView';
 import { createZoneMaterial } from './materials';
 import { PALETTE } from './palette';
-import { bubbleTexture, makeSprite, TileFace } from './sprites';
+import { bubbleTexture, makeSprite, TILE_MARKER_WIDTH, TileFace, TileMarker } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 
 const RING_GEOMETRY = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
@@ -86,6 +86,8 @@ export class ZoneRing {
 
 /** How far the tile's pad stands proud of the floor: a physical plate you step on, not a sticker. */
 const PAD_HEIGHT = 0.06;
+/** How high a tile's marker floats over the floor: above the room walls, below the HUD's reach. */
+const MARKER_HEIGHT = 1.3;
 /** Lip colours by state (the face's border colour, a shade darker). */
 const LIP = { idle: '#9C7A52', affordable: '#2F7D50', active: '#C8891B', locked: '#8D8478' };
 
@@ -115,6 +117,8 @@ function roundedPad(size: number, height: number): THREE.BufferGeometry {
 export class TileView {
   readonly group = new THREE.Group();
   readonly face = new TileFace();
+  /** Floats over the plate: what it is and what it costs, never hidden behind a wall. */
+  readonly marker = new TileMarker();
   private readonly pad = new THREE.Group();
   private readonly plane: THREE.Mesh;
   private readonly lip: THREE.Mesh;
@@ -135,6 +139,8 @@ export class TileView {
     this.pad.position.y = FLOOR_Y;
     this.pad.add(this.lip, this.plane);
     this.group.add(this.pad);
+    this.marker.sprite.position.y = FLOOR_Y + MARKER_HEIGHT;
+    this.group.add(this.marker.sprite);
     this.popT = 0;
     this.setLip(locked ? 'locked' : 'idle');
   }
@@ -149,7 +155,8 @@ export class TileView {
     this.group.position.set(x, 0, z);
   }
 
-  update(dt: number, affordable: boolean, active: boolean): void {
+  /** `marker`: whether the floating marker shows (the close-up label takes its place near the conductor). */
+  update(dt: number, affordable: boolean, active: boolean, marker = true): void {
     this.time += dt;
     this.popT = Math.min(1, this.popT + dt * 3);
     const appear = this.popT < 1 ? 0.4 + 0.6 * Math.sin(this.popT * Math.PI * 0.5) * 1.08 : 1;
@@ -157,11 +164,16 @@ export class TileView {
     const s = appear * breathe;
     // Stepping on it presses the plate down a little, like a real button.
     this.pad.scale.set(s, active ? 0.45 : 1, s);
+    // The marker bobs gently, and steps aside while you stand on the tile (the plate shows the fill).
+    this.marker.sprite.visible = marker && !active;
+    this.marker.sprite.position.y = FLOOR_Y + MARKER_HEIGHT + Math.sin(this.time * 2.2) * 0.04;
+    this.marker.sprite.scale.set(TILE_MARKER_WIDTH * appear, TILE_MARKER_WIDTH * 0.4 * appear, 1);
     if (!this.locked) this.setLip(active ? 'active' : affordable ? 'affordable' : 'idle');
   }
 
   dispose(): void {
     this.face.dispose();
+    this.marker.dispose();
     (this.plane.material as THREE.Material).dispose();
     this.plane.geometry.dispose();
     this.lip.geometry.dispose();

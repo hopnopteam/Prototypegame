@@ -28,6 +28,11 @@ interface TileEntry {
   paidThisVisit: number;
 }
 
+/** A tile's name as its marker shows it: the essential word or two ("Comfort", not "Comfort Class"). */
+function markerName(label: string): string {
+  return label.replace(/ Class$/, '').replace(/^(Hire|Buy|Add) /, '').replace(/^Upgrade /, '');
+}
+
 const ICON_BY_KIND: Record<UnlockDef['kind'], IconName> = {
   cabin: 'bed',
   hire: 'person',
@@ -151,6 +156,7 @@ export class Tiles {
       const pos = w.map.rearDeck().tile;
       view.setPosition(pos.x, pos.z);
       view.face.draw('carriage', next.price, 0, false, false, true);
+      view.marker.draw('carriage', markerName(next.label), next.price, false, true);
       markWorldUi(view.group);
       w.scene.add(view.group);
       this.preview = { id: next.id, view };
@@ -180,7 +186,8 @@ export class Tiles {
         this.shortTileRemaining = remaining;
       }
       entry.view.face.draw(ICON_BY_KIND[entry.def.kind], remaining, progress, affordable, active);
-      entry.view.update(dt, affordable, active);
+      entry.view.marker.draw(ICON_BY_KIND[entry.def.kind], markerName(entry.def.label), remaining, affordable);
+      entry.view.update(dt, affordable, active, entry.def.id !== this.taggedId);
       if (!active) {
         entry.stand = 0;
         entry.paidThisVisit = 0;
@@ -194,7 +201,16 @@ export class Tiles {
    * The tile nearest to a point (within `range`) with its name and what it does, for the label over it. The
    * locked next-carriage preview says what it is waiting for.
    */
+  /** The tile the close-up label is showing (its marker steps aside), or null. */
+  private taggedId: string | null = null;
+
+  /** The close-up label is not showing (hidden UI, or the guide has the floor): every marker shows. */
+  clearTag(): void {
+    this.taggedId = null;
+  }
+
   nearTag(p: Vec2, range: number): { label: string; effect: string; x: number; z: number; locked: boolean } | null {
+    this.taggedId = null;
     let best: TileEntry | null = null;
     let bestD = range * range;
     for (const entry of this.entries.values()) {
@@ -207,6 +223,7 @@ export class Tiles {
         best = entry;
       }
     }
+    this.taggedId = best?.def.id ?? null;
     if (best) return { label: best.def.label, effect: best.def.effect, x: best.pos.x, z: best.pos.z, locked: false };
     if (this.preview) {
       const pos = this.w.map.rearDeck().tile;
