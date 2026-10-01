@@ -42,6 +42,8 @@ const b = new THREE.Color();
 
 /** Moon (and sun) direction, from the target toward the light: high over the lake, a little ahead of the train. */
 const LIGHT_OFFSET = new THREE.Vector3(-9, 16, -6);
+/** The fill comes from where the camera stands (the land side, behind the train), a little above. */
+const FILL_OFFSET = new THREE.Vector3(9, 6, 12);
 /** Half-size of the shadow camera, and how far it is centred ahead of the focus along the view. */
 const SHADOW_HALF = 14;
 const SHADOW_LEAD = 3;
@@ -121,6 +123,11 @@ class LampField {
 export class Lighting {
   readonly hemi = new THREE.HemisphereLight('#FFF6E8', '#A7B386', 1.55);
   readonly sun = new THREE.DirectionalLight('#FFF0D8', 2.1);
+  /**
+   * A soft, shadowless fill from the camera's side: moonlight bouncing off the platform and the lake. Without
+   * it the sides of the carriages that face the camera (their liveries, the passengers' faces) sit in shadow.
+   */
+  readonly fill = new THREE.DirectionalLight('#B9C9FF', 0.6);
   readonly fog = new THREE.FogExp2('#1E2A4A', 0.01);
   readonly background = new THREE.Color('#1E2A4A');
   readonly lamps = new LampField();
@@ -147,7 +154,7 @@ export class Lighting {
     shadow.bias = -0.0006;
     shadow.normalBias = 0.025;
     shadow.radius = 3;
-    scene.add(this.hemi, this.sun, this.sun.target);
+    scene.add(this.hemi, this.sun, this.sun.target, this.fill, this.fill.target);
     scene.fog = this.fog;
     scene.background = this.background;
   }
@@ -198,6 +205,9 @@ export class Lighting {
     this.sun.target.position.set(x, 0, z);
     this.sun.position.set(x + LIGHT_OFFSET.x, LIGHT_OFFSET.y, z + LIGHT_OFFSET.z);
     this.sun.target.updateMatrixWorld();
+    this.fill.target.position.set(focus.x, 0, focus.z);
+    this.fill.position.set(focus.x + FILL_OFFSET.x, FILL_OFFSET.y, focus.z + FILL_OFFSET.z);
+    this.fill.target.updateMatrixWorld();
     this.lamps.update(focus, camera.matrixWorldInverse, this.lampCount, this.night);
   }
 
@@ -218,6 +228,8 @@ export class Lighting {
     this.mix(this.sun.color, k0.sun, k1.sun, f);
     this.sun.intensity = lerp(k0.sunIntensity, k1.sunIntensity, f) * (1 - 0.7 * this.darkness);
     this.hemi.intensity *= 1 - 0.45 * this.darkness;
+    this.fill.color.copy(this.sun.color);
+    this.fill.intensity = VISUALS.night.fill * (0.4 + 0.6 * lerp(k0.night, k1.night, f)) * (1 - 0.5 * this.darkness);
     this.night = lerp(k0.night, k1.night, f);
     if (this.envStrength > 0 && this.envNight && this.envDay) {
       this.scene.environment = this.night > 0.5 ? this.envNight : this.envDay;

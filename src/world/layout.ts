@@ -44,7 +44,7 @@ export const QUEUE_SLOTS: Vec2[] = [
 export type PropKind =
   | 'bed' | 'desk' | 'urn' | 'linen' | 'rack' | 'bin' | 'toilet' | 'sink' | 'bathtub'
   | 'shelfTowel' | 'shelfRoll' | 'crateBay' | 'bench' | 'luggageRack' | 'plant' | 'lamp' | 'washShelf'
-  | 'closet' | 'laundry' | 'table' | 'sofa';
+  | 'closet' | 'laundry' | 'table' | 'sofa' | 'bureau';
 
 export interface PropDef {
   kind: PropKind;
@@ -312,7 +312,9 @@ function buildLobby(): CarriageLayout {
   b.prop('rack', 1.42, 5.35, INNER, 7.1, 'left');
   b.prop('bin', 1.64, 4.65, INNER, 5.05, 'left');
   b.prop('plant', 1.62, WALL, INNER, 0.55, 'left', false);
-  b.prop('plant', -INNER, 6.72, -1.64, 7.12, 'right', false);
+  // The lobby's back corner: a slim piece against the wall that grows with the class (crates, a cupboard, a
+  // bookcase, a bureau, then a piano), kept clear of the path from the desk to the cabins.
+  b.prop('bureau', -INNER, 5.95, -1.84, 6.95, 'right');
 
   b.anchor('deskService', -1.66, 3.3);
   b.anchor('deskCash', -1.66, 4.55);
@@ -341,7 +343,8 @@ function buildLobby(): CarriageLayout {
   b.node('lobby_front', 0.25, 1.5);
   b.node('lobby_fl', -1.62, 1.6);
   b.node('desk', -1.66, 3.3);
-  b.node('lobby_rl', -1.6, 4.9);
+  // Clear of the desk and of the back corner's piece, so the walk from the desk to the cabins is never pinched.
+  b.node('lobby_rl', -1.38, 4.9);
   b.node('lobby_rear', 0.3, 4.9);
   b.node('rack', 0.82, 6.25);
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, lobbyEnd - 0.1);

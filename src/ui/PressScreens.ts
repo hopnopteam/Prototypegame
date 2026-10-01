@@ -198,7 +198,7 @@ function perkIcon(kind: string): 'cash' | 'ticket' | 'bolt' {
  * The paper's photo: your train as it looked that day (its livery and how many carriages it had), crossing
  * the countryside, printed in soft newsprint tones.
  */
-export function drawTrainPhoto(canvas: HTMLCanvasElement, item: Pick<NewsItem, 'livery' | 'trim' | 'carriages' | 'id'>): void {
+export function drawTrainPhoto(canvas: HTMLCanvasElement, item: Pick<NewsItem, 'livery' | 'trim' | 'carriages' | 'id' | 'paints'>): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   const w = canvas.width;
@@ -257,9 +257,11 @@ export function drawTrainPhoto(canvas: HTMLCanvasElement, item: Pick<NewsItem, '
   }
   for (let i = 0; i < n; i++) {
     x -= carW + 6;
-    ctx.fillStyle = body;
+    // Each carriage in its own class paint (a mixed train is part of the story).
+    const paint = item.paints?.[i];
+    ctx.fillStyle = paint?.body ?? body;
     ctx.fillRect(x, railY - 44, carW, 44);
-    ctx.fillStyle = item.trim;
+    ctx.fillStyle = paint?.trim ?? item.trim;
     ctx.fillRect(x, railY - 10, carW, 4);
     ctx.fillStyle = '#FBEBC0';
     const windows = Math.max(2, Math.floor(carW / 22));

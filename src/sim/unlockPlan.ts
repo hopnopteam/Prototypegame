@@ -1,4 +1,5 @@
 import { CARRIAGE_CATALOGUE, CHOOSABLE, COUPLE_SLOTS, LEGACY_TRAIN, MAX_CARRIAGES, SLOT_PRICE_STEP, STATION_UPGRADES, type UnlockDef } from '../config/content';
+import { CLASS_BY_ID, isPassengerType, type ClassId } from '../config/classes';
 import type { CarriageType } from '../core/types';
 
 /** A tile's id: the carriage slot it lives in plus its key in that carriage's catalogue entry. */
@@ -42,6 +43,19 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
     defs.push({ id: `couple_${n}`, kind: 'couple', label: 'New Carriage', price: slot.price, stars: slot.stars, carriage: n, requires: slot.requires, effect: 'You choose what joins the train' });
   });
   return defs;
+}
+
+/**
+ * Whether a refit tile counts for a goal's filter: a tier ("3", any carriage) or a class ("class:first": a
+ * passenger carriage reaching it; service cars have no class).
+ */
+export function refitMatches(u: UnlockDef, filter: string | undefined, type: CarriageType | undefined): boolean {
+  if (u.kind !== 'refurb') return false;
+  if (!filter) return true;
+  const [what, id] = filter.split(':');
+  if (what !== 'class') return String(u.tier) === filter;
+  const cls = CLASS_BY_ID[id as ClassId];
+  return !!cls && type !== undefined && isPassengerType(type) && u.tier === cls.tier;
 }
 
 /** What the train needs, as seen at the last stops: drives which carriage the chooser recommends. */

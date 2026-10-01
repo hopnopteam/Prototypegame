@@ -47,6 +47,7 @@ export const OBJECTIVES: ObjectiveDef[] = [
   { id: 'rush_3', text: 'Rush ×3', icon: 'bolt', event: 'rush', streak: 3, target: 1, reward: { cash: 20 } },
   { id: 'comfort_1', text: 'Buy a comfort', icon: 'heart', event: 'unlock', filter: 'comfort', target: 1, reward: { cash: 25 } },
   { id: 'level_2', text: 'Reach level 2', icon: 'star', event: 'level', target: 2, reward: { gems: 5 } },
+  { id: 'class_comfort', text: 'Comfort class', icon: 'towel', event: 'refurb', filter: 'class:comfort', target: 1, reward: { cash: 40, gems: 3 }, stars: 3 },
   { id: 'conductor_1', text: 'Upgrade yourself', icon: 'conductor', event: 'conductor', target: 1, reward: { cash: 30 } },
   // The mid game: the washroom car, the station shop, automation.
   { id: 'couple_2', text: 'Add a 3rd carriage', icon: 'carriage', event: 'coupling', target: 2, reward: { cash: 40 }, stars: 3 },
@@ -64,6 +65,7 @@ export const OBJECTIVES: ObjectiveDef[] = [
   { id: 'cleans_15', text: 'Tidy 15 cabins', icon: 'broom', event: 'clean', target: 15, reward: { cash: 70 } },
   { id: 'train_up', text: 'Train your staff', icon: 'plus', event: 'unlock', filter: 'staffUpgrade', target: 1, reward: { cash: 60 } },
   { id: 'level_4', text: 'Reach level 4', icon: 'star', event: 'level', target: 4, reward: { gems: 10 } },
+  { id: 'class_business', text: 'Business class', icon: 'coffee', event: 'refurb', filter: 'class:business', target: 1, reward: { cash: 120, gems: 5 }, stars: 4 },
   // The long game: the full train and the top of the league.
   { id: 'couple_4', text: 'Add a 5th carriage', icon: 'carriage', event: 'coupling', target: 4, reward: { cash: 120 }, stars: 5 },
   { id: 'comforts_8', text: 'Own 8 comforts', icon: 'heart', event: 'unlock', filter: 'comfort', target: 8, reward: { cash: 150 } },
@@ -72,6 +74,8 @@ export const OBJECTIVES: ObjectiveDef[] = [
   { id: 'level_5', text: 'Reach level 5', icon: 'star', event: 'level', target: 5, reward: { gems: 12 } },
   { id: 'luxury', text: 'A luxury carriage', icon: 'paint', event: 'refurb', filter: '3', target: 1, reward: { cash: 200, gems: 5 }, stars: 5 },
   { id: 'level_6', text: 'Reach level 6', icon: 'star', event: 'level', target: 6, reward: { gems: 15 } },
+  { id: 'class_first', text: 'First Class', icon: 'champagne', event: 'refurb', filter: 'class:first', target: 1, reward: { cash: 300, gems: 8 }, stars: 6 },
   { id: 'level_7', text: 'Reach level 7', icon: 'star', event: 'level', target: 7, reward: { gems: 18 } },
   { id: 'level_8', text: 'Reach level 8', icon: 'trophy', event: 'level', target: 8, reward: { gems: 25, railMiles: 10 } },
+  { id: 'class_royal', text: 'Royal Suite', icon: 'crown', event: 'refurb', filter: 'class:royal', target: 1, reward: { gems: 30, railMiles: 10 }, stars: 8 },
 ];

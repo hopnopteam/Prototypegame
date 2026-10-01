@@ -6,8 +6,8 @@ import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, type BubbleStyle } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 
-export type HatKind = 'conductor' | 'boater' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'none';
-export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'none';
+export type HatKind = 'conductor' | 'boater' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'none';
+export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'sash' | 'none';
 
 export interface CharacterLook {
   body: string;
@@ -61,7 +61,7 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
   if (look.moustache) {
     for (const side of [-1, 1]) b.add(new THREE.SphereGeometry(0.05, 10, 6).scale(1.3, 0.5, 0.6), look.hair, side * 0.045, HEAD_Y - 0.075, 0.232, 0, 0, side * -0.25, { shade: 1 });
   }
-  const hatted = look.hat === 'conductor' || look.hat === 'boater' || look.hat === 'cap' || look.hat === 'beanie' || look.hat === 'pillbox';
+  const hatted = look.hat === 'conductor' || look.hat === 'boater' || look.hat === 'cap' || look.hat === 'beanie' || look.hat === 'pillbox' || look.hat === 'tophat';
   // Hair sits clearly outside the head where they overlap (near-coincident spheres flicker at the hairline).
   b.sphere(0, HEAD_Y + (hatted ? 0.03 : 0.07), -0.05, 0.268, look.hair, 2, 0.95, { shade: 0.85 });
 
@@ -96,6 +96,21 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
     case 'bun':
       b.sphere(0, HEAD_Y + 0.27, -0.12, 0.11, look.hair, 2, 1, { shade: 0.85 });
       break;
+    case 'crown': {
+      // A small gold crown with five points and red stones, sitting on the hair.
+      b.cylinder(0, HEAD_Y + 0.3, -0.02, 0.16, 0.15, 0.08, PALETTE.gold, 16, 'y', { shade: 0.9, surface: 'brass' });
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 + Math.PI / 2;
+        b.cone(Math.cos(a) * 0.14, HEAD_Y + 0.39, -0.02 + Math.sin(a) * 0.14, 0.035, 0.1, PALETTE.gold, 6, { shade: 1, surface: 'brass' });
+      }
+      b.sphere(0, HEAD_Y + 0.3, 0.13, 0.025, PALETTE.raspberry, 0, 1, { shade: 1, surface: 'crystal' });
+      break;
+    }
+    case 'tophat':
+      b.cylinder(0, HEAD_Y + 0.2, -0.01, 0.32, 0.32, 0.03, look.hatColor ?? '#1E1B24', 20, 'y', { shade: 0.95, surface: 'leather' });
+      b.cylinder(0, HEAD_Y + 0.37, -0.01, 0.2, 0.21, 0.32, look.hatColor ?? '#1E1B24', 18, 'y', { shade: 0.9, surface: 'leather' });
+      b.cylinder(0, HEAD_Y + 0.25, -0.01, 0.212, 0.212, 0.06, look.bandColor ?? PALETTE.gold, 18, 'y', { shade: 1 });
+      break;
     default:
       break;
   }
@@ -115,6 +130,11 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
     case 'camera':
       b.rounded(0, SHOULDER_Y - 0.12, 0.23, 0.18, 0.12, 0.08, 0.02, '#2B2B33', { shade: 1 });
       b.cylinder(0, SHOULDER_Y - 0.12, 0.29, 0.04, 0.04, 0.06, '#5A6273', 10, 'z');
+      break;
+    case 'sash':
+      // A royal sash from shoulder to hip.
+      b.add(new THREE.BoxGeometry(0.07, 0.56, 0.03), look.accent, 0.02, HIP_Y + 0.3, 0.215, 0.12, 0, 0.62, { shade: 1, surface: 'fabric' });
+      b.sphere(0.1, SHOULDER_Y - 0.12, 0.235, 0.035, PALETTE.gold, 1, 1, { shade: 1, surface: 'brass' });
       break;
     case 'handbag':
       for (let i = 0; i < 5; i++) b.sphere(-0.12 + i * 0.06, SHOULDER_Y + 0.02 - Math.abs(i - 2) * 0.012, 0.16, 0.022, PALETTE.linen, 0, 1, { shade: 1 });

@@ -7,6 +7,8 @@ import { PALETTE } from './palette';
 /** Height each carried item adds to a stack. */
 export const ITEM_HEIGHT: Record<ItemKind, number> = {
   tea: 0.2,
+  coffee: 0.22,
+  champagne: 0.3,
   blanket: 0.13,
   pillow: 0.14,
   towel: 0.11,
@@ -30,6 +32,25 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       b.cylinder(0.17, 0.11, 0, 0.012, 0.018, 0.08, PALETTE.porcelain, 6, 'x');
       b.cylinder(-0.11, 0.06, 0.02, 0.05, 0.04, 0.07, PALETTE.porcelain, 12);
       b.cylinder(-0.11, 0.035, 0.02, 0.07, 0.07, 0.01, PALETTE.porcelain, 12);
+      break;
+    case 'coffee':
+      // A silver tray with a tall dark coffee pot and a cup.
+      b.rounded(0, 0.015, 0, 0.44, 0.03, 0.3, 0.06, PALETTE.chrome, { shade: 0.9, surface: 'steel' });
+      b.cylinder(0.08, 0.12, 0, 0.06, 0.075, 0.18, '#3A2A24', 14, 'y', { shade: 0.8, surface: 'paint' });
+      b.cylinder(0.08, 0.22, 0, 0.03, 0.05, 0.03, PALETTE.chrome, 10, 'y', { surface: 'steel' });
+      b.cylinder(0.16, 0.14, 0, 0.012, 0.02, 0.1, PALETTE.chrome, 6, 'x', { surface: 'steel' });
+      b.cylinder(-0.11, 0.06, 0.02, 0.05, 0.04, 0.07, PALETTE.porcelain, 12);
+      b.cylinder(-0.11, 0.098, 0.02, 0.043, 0.043, 0.004, '#5A3524', 12, 'y', { shade: 1 });
+      b.cylinder(-0.11, 0.035, 0.02, 0.07, 0.07, 0.01, PALETTE.porcelain, 12);
+      break;
+    case 'champagne':
+      // A silver ice bucket with a green bottle and a flute beside it.
+      b.rounded(0, 0.015, 0, 0.44, 0.03, 0.3, 0.06, PALETTE.brass, { shade: 0.9, surface: 'brass' });
+      b.cylinder(0.06, 0.1, 0, 0.1, 0.08, 0.16, PALETTE.chrome, 16, 'y', { shade: 0.85, surface: 'steel' });
+      b.cylinder(0.06, 0.2, 0.01, 0.045, 0.045, 0.18, '#1F4A34', 12, 'y', { shade: 0.8, surface: 'glass' });
+      b.cylinder(0.06, 0.3, 0.01, 0.02, 0.03, 0.04, PALETTE.gold, 8, 'y', { surface: 'brass' });
+      b.cylinder(-0.12, 0.05, 0, 0.012, 0.012, 0.07, '#E8EEF2', 6, 'y', { surface: 'glass' });
+      b.cylinder(-0.12, 0.12, 0, 0.03, 0.016, 0.08, '#F3D36E', 10, 'y', { shade: 1, surface: 'glass' });
       break;
     case 'blanket':
       b.rounded(0, 0.06, 0, 0.44, 0.12, 0.32, 0.04, PALETTE.mustard, { pattern: PATTERN.stripesX, color2: PALETTE.raspberry, scale: 0.1, shade: 0.85 });

@@ -154,6 +154,17 @@ export const CARRIAGE_THEMES: Record<CarriageType, CarriageTheme> = {
   luggage: { wall: '#EFD0BA', wallLow: '#DDB397', carpet: '#E9DACD', deep: '#A7705A', blanket: '#5E7FA0', curtain: '#5E7FA0' },
 };
 
+/**
+ * Inside a passenger carriage the class sets the palette (outside, its livery: config/classes.ts). Basic
+ * keeps the carriage's own run-down and repaired neutrals.
+ */
+export const CLASS_THEMES: Record<'comfort' | 'business' | 'first' | 'royal', CarriageTheme> = {
+  comfort: { wall: '#B4DBD1', wallLow: '#86BFB2', carpet: '#DCE7E2', deep: '#2F7F7A', blanket: '#5FA39B', curtain: '#E5B452' },
+  business: { wall: '#BFCADB', wallLow: '#93A5BE', carpet: '#D6DCE4', deep: '#2A4468', blanket: '#3F5E8C', curtain: '#C9D2DC' },
+  first: { wall: '#C5CFEC', wallLow: '#9FAEDB', carpet: '#E4D8C0', deep: '#2B4B92', blanket: '#9E2F45', curtain: '#E2B653' },
+  royal: { wall: '#E7C3C1', wallLow: '#C99592', carpet: '#EADBD2', deep: '#6A1E2E', blanket: '#7E2436', curtain: '#E2B653' },
+};
+
 /** Tier names, shown on refurbishment tiles and in headlines. */
 /** Rags to riches: run-down → repaired (clean and plain) → cosy (its colours) → luxurious. */
 export const TIER_NAMES = ['Run-down', 'Repaired', 'Cosy', 'Luxurious'];

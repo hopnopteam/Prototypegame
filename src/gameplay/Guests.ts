@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ARCHETYPES, COMMON_MESS, type ArchetypeDef, type MessPiece, type StoryDef } from '../config/content';
-import type { ItemKind, Vec2 } from '../core/types';
+import { CLASS_BY_ID, type ClassId, type ServiceNeed } from '../config/classes';
+import type { Vec2 } from '../core/types';
 import type { IconName } from '../ui/icons';
 import { BED_TOP, FLOOR_Y } from '../world/CarriageView';
 import { CharacterView, type CharacterLook } from '../world/CharacterView';
@@ -14,7 +15,7 @@ export type GuestState =
   | 'platform' | 'boarding' | 'queue' | 'toCabin' | 'settling' | 'resting' | 'requesting'
   | 'toBathroom' | 'waitingBathroom' | 'inBathroom' | 'returning' | 'alighting' | 'leaving' | 'gone';
 
-export type GuestRequest = ItemKind | 'bathroom';
+export type GuestRequest = ServiceNeed | 'bathroom';
 
 const BATHROOM_USE_SECONDS = 2.6;
 const BATHROOM_EMPTY_WAIT = 6;
@@ -54,8 +55,13 @@ export class Guest {
   happyTime = 0;
   hasLuggage = false;
   readonly childPos: Vec2;
+  /** The class on their ticket: they board only a carriage of this class. */
+  cls: ClassId;
+  /** Royal: the rest of the butler's list (asked for one after another, paid as one generous tip). */
+  pending: ServiceNeed[] = [];
 
   constructor(readonly archetype: ArchetypeDef, x: number, z: number, speed: number, readonly story: StoryDef | null) {
+    this.cls = archetype.cls;
     this.pos = { x, z };
     this.childPos = { x, z: z + 0.6 };
     this.mover = new Mover(this.pos, speed);
@@ -63,7 +69,8 @@ export class Guest {
     const look: CharacterLook = {
       ...colors,
       accessory: story ? (story.id === 'priya' ? 'camera' : 'none') : archetype.accessory === 'child' ? 'none' : archetype.accessory,
-      hat: story?.id === 'walter' ? 'conductor' : archetype.id === 'backpacker' ? 'beanie' : archetype.id === 'grandma' ? 'bun' : 'none',
+      hat: story?.id === 'walter' ? 'conductor' : story ? 'none' : archetype.hat ?? 'none',
+      hatColor: story ? undefined : archetype.hatColor,
     };
     this.view = new CharacterView(look);
     this.child = !story && archetype.accessory === 'child'
@@ -89,6 +96,7 @@ export class Guests {
   readonly queue: Guest[] = [];
   private readonly tmp = new THREE.Vector3();
   private alightStagger = 0;
+  private readonly bedsLeft = new Map<ClassId, number>();
 
   constructor(private readonly w: World) {}
 
@@ -96,7 +104,7 @@ export class Guests {
   spawnStartingQueue(count: number): void {
     const slots = this.queueSlots();
     for (let i = 0; i < count; i++) {
-      const guest = this.create(this.pickArchetype(i === 0 ? 'businessman' : i === 1 ? 'grandma' : undefined), slots[i].x, slots[i].z, null);
+      const guest = this.create(this.pickArchetype('basic', i === 0 ? 'backpacker' : i === 1 ? 'student' : undefined), slots[i].x, slots[i].z, null);
       guest.state = 'queue';
       guest.queueSlot = i;
       guest.arrivedInQueue = true;
@@ -105,12 +113,18 @@ export class Guests {
     }
   }
 
-  /** Guests waiting on the platform, in platform-local coordinates. */
-  spawnPlatformGuests(spots: Vec2[], storyGuest: StoryDef | null): Guest[] {
+  /**
+   * Guests waiting on the platform, in platform-local coordinates, one class per spot (Station decides: the
+   * classes the train sells, and now and then one it does not yet).
+   */
+  spawnPlatformGuests(spots: Vec2[], storyGuest: StoryDef | null, classes: ClassId[]): Guest[] {
     const created: Guest[] = [];
     spots.forEach((spot, i) => {
       const story = i === 0 ? storyGuest : null;
-      const guest = this.create(this.pickArchetype(), spot.x, spot.z, story);
+      const cls = classes[i] ?? 'basic';
+      const guest = this.create(this.pickArchetype(cls), spot.x, spot.z, story);
+      // A story guest rides in whatever class they are given a ticket for.
+      guest.cls = cls;
       guest.state = 'platform';
       guest.onPlatform = true;
       guest.mover.facing = -Math.PI / 2 + (this.w.rng.next() - 0.5) * 0.8;
@@ -128,19 +142,29 @@ export class Guests {
    * Beds not spoken for at this stop: open cabins minus everyone aboard who is not getting off here. Only
    * that many can board; the rest wait for the next train (the clearest sign you need more cabins).
    */
-  bedsFree(stopSerial = this.w.journey.stopSerial): number {
-    return Math.max(0, this.w.train.openCabinCount() - this.stayingPast(stopSerial));
+  bedsFree(stopSerial = this.w.journey.stopSerial, cls?: ClassId): number {
+    return Math.max(0, this.w.train.openCabinCount(cls) - this.stayingPast(stopSerial, cls));
   }
 
-  /** Someone on the platform has a bed waiting for them. */
+  /** The next platform guest with a bed of their class waiting for them. */
+  private nextBoarder(stopSerial = this.w.journey.stopSerial): Guest | null {
+    const free = new Map<ClassId, number>();
+    for (const guest of this.list) {
+      if (guest.state !== 'platform') continue;
+      if (!free.has(guest.cls)) free.set(guest.cls, this.bedsFree(stopSerial, guest.cls));
+      if ((free.get(guest.cls) ?? 0) > 0) return guest;
+    }
+    return null;
+  }
+
+  /** Someone on the platform has a bed of their class waiting for them. */
   canBoard(): boolean {
-    return this.bedsFree() > 0 && this.list.some((g) => g.state === 'platform');
+    return this.nextBoarder() !== null;
   }
 
-  /** Boards the next platform guest: they walk in through the door and join the desk queue. */
+  /** Boards the next platform guest who has a bed: they walk in through the door and join the desk queue. */
   boardNext(byPlayer = false): Guest | null {
-    if (this.bedsFree() <= 0) return null;
-    const guest = this.list.find((g) => g.state === 'platform');
+    const guest = this.nextBoarder();
     if (!guest) return null;
     const map = this.w.map;
     const door = map.doors()[0];
@@ -162,16 +186,23 @@ export class Guests {
     return this.hasGuestAtDesk() ? this.queue[0] : null;
   }
 
+  /** Someone is at the desk and a clean cabin of their class (or someone else's in the line) is ready. */
+  deskReady(): boolean {
+    if (!this.hasGuestAtDesk()) return false;
+    return this.queue.some((g) => g.arrivedInQueue && g.state === 'queue' && this.w.train.freeCabin(g.cls) !== null);
+  }
+
   hasGuestAtDesk(): boolean {
     const first = this.queue[0];
     return !!first && first.arrivedInQueue && first.state === 'queue';
   }
 
-  /** Desk zone: check the first guest in, if there is a clean cabin for them. */
+  /** Desk zone: check the first guest in, if there is a clean cabin of their class for them. */
   deskStay(zone: Zone, actor: Actor, dt: number): boolean {
+    this.callForward();
     const guest = this.queue[0];
     if (!guest || !this.hasGuestAtDesk()) return false;
-    const cabin = this.w.train.freeCabin();
+    const cabin = this.w.train.freeCabin(guest.cls);
     if (!cabin) {
       zone.progress = 0;
       return false;
@@ -185,16 +216,44 @@ export class Guests {
     return true;
   }
 
-  requestFor(cabin: Cabin): ItemKind | null {
+  /**
+   * If the guest at the front has no clean cabin of their class yet but someone behind them does, that guest
+   * is called forward ("Business class, this way!") so one class never holds up another.
+   */
+  private callForward(): void {
+    const head = this.queue[0];
+    if (!head || !head.arrivedInQueue || head.state !== 'queue' || this.w.train.freeCabin(head.cls)) return;
+    const i = this.queue.findIndex((g) => g.arrivedInQueue && g.state === 'queue' && this.w.train.freeCabin(g.cls) !== null);
+    if (i <= 0) return;
+    const [next] = this.queue.splice(i, 1);
+    this.queue.unshift(next);
+    this.reflowQueue();
+  }
+
+  requestFor(cabin: Cabin): ServiceNeed | null {
     const guest = cabin.guest;
     if (!guest || guest.state !== 'requesting' || !guest.request || guest.request === 'bathroom') return null;
     return guest.request;
   }
 
-  /** Cabin zone: hand the requested item over for a tip and a star. */
+  /** Cabin zone: hand the requested item over (or turn the bed down) for a tip and a star. */
   deliverStay(cabin: Cabin, zone: Zone, actor: Actor, dt: number): boolean {
-    const item = this.requestFor(cabin);
-    if (!item || !actor.stack.has(item)) return false;
+    const need = this.requestFor(cabin);
+    if (!need) return false;
+    if (need === 'turndown') {
+      // Turning the bed down: a moment at the bedside, folding the cover back.
+      zone.progress += (dt / this.w.econ.classes.turndownSeconds) * actor.workMultiplier;
+      actor.view.act('hug');
+      if (zone.progress < 1) return true;
+      zone.progress = 0;
+      const guest = cabin.guest!;
+      guest.request = null;
+      this.w.audio.play('soft', { volume: 0.6, pitch: 1.2 });
+      this.fulfil(guest, 'turndown', actor.isPlayer);
+      return true;
+    }
+    const item = need;
+    if (!actor.stack.has(item)) return false;
     zone.timer += dt * actor.workMultiplier;
     if (zone.timer < this.w.econ.zones.dropIntervalSeconds) return true;
     zone.timer = 0;
@@ -253,14 +312,22 @@ export class Guests {
   update(dt: number): void {
     const w = this.w;
     const platformOffset = w.station.platformOffset;
-    // Platform guests beyond the free beds hold up a "no room" sign: they cannot board this time.
-    let beds = w.journey.phase === 'stationStop' || w.journey.phase === 'arriving' ? this.bedsFree(w.journey.phase === 'arriving' ? w.journey.stopSerial + 1 : w.journey.stopSerial) : -1;
+    // Everyone on the platform holds up a ticket in their class's colour; those beyond the free beds of their
+    // class hold up a "no room" sign instead: they cannot board this time.
+    const atStation = w.journey.phase === 'stationStop' || w.journey.phase === 'arriving';
+    const serial = w.journey.phase === 'arriving' ? w.journey.stopSerial + 1 : w.journey.stopSerial;
+    this.bedsLeft.clear();
     for (const guest of this.list) {
       if (guest.state !== 'platform') continue;
-      if (beds < 0) guest.view.showBubble(null);
-      else if (beds > 0) {
-        beds--;
-        guest.view.showBubble(null);
+      if (!atStation) {
+        guest.view.showBubble('ticket', guest.cls, 1.85);
+        continue;
+      }
+      if (!this.bedsLeft.has(guest.cls)) this.bedsLeft.set(guest.cls, this.bedsFree(serial, guest.cls));
+      const beds = this.bedsLeft.get(guest.cls) ?? 0;
+      if (beds > 0) {
+        this.bedsLeft.set(guest.cls, beds - 1);
+        guest.view.showBubble('ticket', guest.cls, 1.85);
       } else guest.view.showBubble('noroom', 'alert', 1.85);
     }
     for (const guest of [...this.list]) {
@@ -329,7 +396,7 @@ export class Guests {
     switch (guest.state) {
       case 'queue':
         if (guest.queueSlot !== 0 || !guest.arrivedInQueue) guest.view.showBubble(null);
-        else if (w.train.freeCabin()) guest.view.showBubble('ticket', 'request');
+        else if (w.train.freeCabin(guest.cls)) guest.view.showBubble('ticket', guest.cls);
         else guest.view.showBubble('noroom', 'alert');
         break;
       case 'settling':
@@ -354,7 +421,7 @@ export class Guests {
           guest.happyTime -= dt;
           if (guest.happyTime <= 0) this.backToBed(guest);
         } else if (guest.request && guest.request !== 'bathroom') {
-          guest.view.showBubble(guest.request as IconName, guest.slow ? 'alert' : 'request', 1.85, this.tipRingStep(guest));
+          guest.view.showBubble(guest.request as IconName, guest.slow ? 'alert' : guest.pending.length > 0 ? 'royal' : 'request', 1.85, this.tipRingStep(guest));
         }
         break;
       case 'waitingBathroom': {
@@ -373,7 +440,7 @@ export class Guests {
           bath.towels--;
           bath.rolls--;
           w.train.persistBathrooms();
-          const tip = Math.max(1, Math.round(w.econ.money.bathroomTip * guest.archetype.tipMultiplier * w.tipMultiplier() * w.train.bathTipMultiplier(bath)));
+          const tip = Math.max(1, Math.round(w.econ.money.bathroomTip * guest.archetype.tipMultiplier * CLASS_BY_ID[guest.cls].tip * w.tipMultiplier() * w.train.bathTipMultiplier(bath)));
           w.cash.add(bath.pileId, tip, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
           w.audio.play('flush');
           w.events.emit('bathroom.used', { tipped: true });
@@ -415,14 +482,29 @@ export class Guests {
     return true;
   }
 
+  /** What a guest of this class asks for: the class's own list, seasoned by what their kind likes best. */
+  private classRequest(guest: Guest, except?: ServiceNeed): ServiceNeed {
+    const cls = CLASS_BY_ID[guest.cls];
+    const liked = guest.archetype.requests as Partial<Record<ServiceNeed, number>>;
+    const weights: Partial<Record<ServiceNeed, number>> = {};
+    for (const [need, weight] of Object.entries(cls.requests) as [ServiceNeed, number][]) {
+      if (need === except || need === 'turndown') continue;
+      weights[need] = weight * (liked[need] ?? 1);
+    }
+    return this.w.rng.weighted(weights);
+  }
+
   private makeRequest(guest: Guest): void {
     const w = this.w;
     const story = guest.story ? w.meta?.storyRequest(guest.story) : null;
     let request: GuestRequest;
+    guest.pending = [];
     if (story) request = story;
     else {
       const bathroomOpen = w.train.bathrooms.some((b) => b.unlocked);
-      request = bathroomOpen && w.rng.chance(w.econ.guests.bathroomVisitWeight) ? 'bathroom' : w.rng.weighted(guest.archetype.requests);
+      request = bathroomOpen && w.rng.chance(w.econ.guests.bathroomVisitWeight) ? 'bathroom' : this.classRequest(guest);
+      // Royal: the butler's list, two things at once.
+      if (request !== 'bathroom' && CLASS_BY_ID[guest.cls].butler) guest.pending = [this.classRequest(guest, request)];
     }
     guest.request = request;
     guest.requestAt = w.time;
@@ -438,36 +520,70 @@ export class Guests {
       guest.pos.z = guest.cabin.center.z + 0.2;
       guest.mover.facing = -Math.PI / 2;
     }
-    guest.view.showBubble(request, 'request', 1.85, TIP_RING_STEPS);
+    guest.view.showBubble(request, guest.pending.length > 0 ? 'royal' : 'request', 1.85, TIP_RING_STEPS);
     guest.view.act('wave', w.econ.guests.waveSeconds);
     w.audio.play('soft', { volume: 0.5 });
   }
 
-  private fulfil(guest: Guest, item: ItemKind, byPlayer: boolean): void {
+  /** First and Royal: on arriving at the cabin the guest waits by the bed for it to be turned down. */
+  private askTurndown(guest: Guest): void {
+    const w = this.w;
+    guest.request = 'turndown';
+    guest.pending = [];
+    guest.requestAt = w.time;
+    guest.slow = false;
+    guest.happyTime = 0;
+    this.setState(guest, 'requesting');
+    if (guest.cabin) {
+      guest.pos.x = guest.cabin.center.x;
+      guest.pos.z = guest.cabin.center.z + 0.2;
+      guest.mover.facing = -Math.PI / 2;
+    }
+    guest.view.showBubble('turndown', 'request', 1.85, TIP_RING_STEPS);
+    guest.view.act('wave', w.econ.guests.waveSeconds);
+  }
+
+  private fulfil(guest: Guest, item: ServiceNeed, byPlayer: boolean): void {
     const w = this.w;
     if (guest.state !== 'requesting' || !guest.cabin) return;
     const service = w.econ.service;
     const elapsed = w.time - guest.requestAt;
     const speed = elapsed <= service.speedySeconds ? service.speedyTipMultiplier : elapsed <= service.quickSeconds ? service.quickTipMultiplier : 1;
     const comfort = guest.cabin ? w.train.cabinTipMultiplier(guest.cabin) : 1;
-    const tip = Math.max(1, Math.round(w.econ.money.requestTip * guest.archetype.tipMultiplier * w.tipMultiplier() * comfort * speed));
+    const base = item === 'turndown' ? w.econ.classes.turndownTip : w.econ.money.requestTip;
+    // Royal: the butler's list pays out with a flourish once everything on it has been brought.
+    const listDone = CLASS_BY_ID[guest.cls].butler && guest.pending.length === 0 && item !== 'turndown';
+    const butler = listDone ? w.econ.classes.butlerBonus : 1;
+    const tip = Math.max(1, Math.round(base * guest.archetype.tipMultiplier * w.tipMultiplier() * comfort * speed * butler));
     w.cash.add(guest.cabin.pileId, tip, this.tmp.set(guest.pos.x, FLOOR_Y + 1.1, guest.pos.z));
     if (byPlayer && speed > 1) {
       w.ui.floatIcon('bolt', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, speed >= service.speedyTipMultiplier ? 'star' : 'info');
       w.audio.play('sparkle', { pitch: speed >= service.speedyTipMultiplier ? 1.25 : 1 });
     }
-    w.addStars(w.econ.stars.requestFulfilled, 'request', guest.pos);
+    w.addStars(w.econ.stars.requestFulfilled * CLASS_BY_ID[guest.cls].stars, 'request', guest.pos);
     w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.6, guest.pos.z, 5, 0.2);
     w.audio.play('heart');
-    guest.view.showBubble('heart', 'plain', 1.75);
     guest.view.bounce(1);
-    guest.happyTime = w.econ.guests.enjoySeconds;
-    // They enjoy it where you can see it: a sip of the tea, a hug of the pillow or blanket.
-    guest.view.act(item === 'tea' ? 'sip' : 'hug', w.econ.guests.enjoySeconds);
     guest.slow = false;
     w.events.emit('request.fulfilled', { item, tip, x: guest.pos.x, z: guest.pos.z, byPlayer, speedy: speed >= service.speedyTipMultiplier });
-    if (guest.story) w.meta?.onStoryRequestDone(guest.story, item);
+    if (guest.story && item !== 'turndown') w.meta?.onStoryRequestDone(guest.story, item);
     w.feedback.onRequestServed(guest, elapsed, byPlayer);
+    // The butler's list: the next thing on it straight away.
+    const next = guest.pending.shift();
+    if (next) {
+      guest.request = next;
+      guest.requestAt = w.time;
+      guest.view.showBubble(next as IconName, guest.pending.length > 0 ? 'royal' : 'request', 1.85, TIP_RING_STEPS);
+      return;
+    }
+    if (listDone) {
+      w.ui.floatIcon('crown', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'star');
+      w.particles.emit('sparkle', guest.pos.x, FLOOR_Y + 1.6, guest.pos.z, 14, 0.4);
+    }
+    guest.view.showBubble('heart', 'plain', 1.75);
+    guest.happyTime = w.econ.guests.enjoySeconds;
+    // They enjoy it where you can see it: a sip of the tea, coffee or champagne, a hug of the pillow or blanket.
+    guest.view.act(item === 'tea' || item === 'coffee' || item === 'champagne' ? 'sip' : 'hug', w.econ.guests.enjoySeconds);
   }
 
   private backToBed(guest: Guest): void {
@@ -572,11 +688,16 @@ export class Guests {
     const deskNode = 'c0:desk';
     const path = w.map.nav.findPath(w.map.nearestNode(guest.pos.x, guest.pos.z) ?? deskNode, cabin.node);
     guest.mover.go([...(path ?? []), cabin.bedSide], () => {
+      const first = w.econ.guests.firstRequestDelay;
+      guest.nextRequestIn = w.rng.range(first[0], first[1]);
+      // First and Royal: the bed is turned down before they turn in.
+      if (CLASS_BY_ID[guest.cls].turndown && !guest.story) {
+        this.askTurndown(guest);
+        return;
+      }
       // They sit on the edge of the bed with the paper for a moment before turning in.
       this.setState(guest, 'settling');
       guest.settleFor = w.econ.guests.settleSeconds;
-      const first = w.econ.guests.firstRequestDelay;
-      guest.nextRequestIn = w.rng.range(first[0], first[1]);
     });
     w.events.emit('guest.checkedIn', { fare, x: guest.pos.x, z: guest.pos.z, byPlayer: actor.isPlayer });
     if (guest.story) w.meta?.onStoryGuestCheckedIn(guest.story);
@@ -693,12 +814,12 @@ export class Guests {
     guest.stateTime = 0;
   }
 
-  private pickArchetype(force?: string): ArchetypeDef {
+  /** Someone who travels in this class (a VIP boost from the billboards favours the grandest of them). */
+  private pickArchetype(cls: ClassId, force?: string): ArchetypeDef {
     if (force) return ARCHETYPES.find((a) => a.id === force) ?? ARCHETYPES[0];
-    const carriages = this.w.train.count;
     const weights: Record<string, number> = {};
     const vipBoost = 1 + this.w.stationPerks().vip;
-    for (const a of ARCHETYPES) if (carriages >= a.minCarriages) weights[a.id] = a.id === 'vip' ? a.weight * vipBoost : a.weight;
+    for (const a of ARCHETYPES) if (a.cls === cls) weights[a.id] = a.id === 'vip' || a.id === 'celebrity' ? a.weight * vipBoost : a.weight;
     const id = this.w.rng.weighted(weights);
     return ARCHETYPES.find((a) => a.id === id) ?? ARCHETYPES[0];
   }
@@ -733,8 +854,13 @@ export class Guests {
     if (i >= 0) this.list.splice(i, 1);
   }
 
-  /** Guests who will still be aboard after this stop (for sizing the platform crowd). */
-  stayingPast(stopSerial: number): number {
-    return this.list.filter((g) => g.aboard && (g.cabin === null ? g.state !== 'platform' : g.destinationStop > stopSerial)).length;
+  /** Guests (of one class, or all) who will still be aboard after this stop (for sizing the platform crowd). */
+  stayingPast(stopSerial: number, cls?: ClassId): number {
+    let n = 0;
+    for (const g of this.list) {
+      if (cls && g.cls !== cls) continue;
+      if (g.aboard && (g.cabin === null ? g.state !== 'platform' : g.destinationStop > stopSerial)) n++;
+    }
+    return n;
   }
 }

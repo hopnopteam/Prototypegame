@@ -32,6 +32,8 @@ export interface NewsItem {
   carriages: number;
   livery: string;
   trim: string;
+  /** Each carriage's paint that day (class liveries; older papers have none and use the train's livery). */
+  paints?: { body: string; trim: string }[];
   /** Lifetime seconds when it was printed. */
   at: number;
 }

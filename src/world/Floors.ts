@@ -17,6 +17,7 @@ import { PALETTE, type CarriageTheme } from './palette';
  *   (nailed down) in exactly the place it was, so you can see what was fixed. Tiles regrouted and patched.
  * 2 Cosy: polished oak boards; the lobby gets a waiting-room rug and a doormat.
  * 3 Luxurious: walnut chevron parquet in a border in every room; a grand rug in the lobby.
+ * 4 (passenger carriages, Royal Suite): marble checker in a dark red border with a gold line.
  *
  * Damage never sits on a pad, a doorway, a guest's spot or under furniture (where it would be hidden
  * anyway), so the floor tells the story without getting in the way.
@@ -336,7 +337,8 @@ export function buildFloor(f: GeoBuilder, layout: CarriageLayout, tier: number, 
   // Cosy and Luxurious: one sound base of wide boards, rooms laid over it, and rugs.
   f.box(0, FLOOR_Y - 0.03, L / 2, HALF_WIDTH * 2 - 0.04, 0.06, L - 0.04, PALETTE.boards, 0, { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1 });
   for (const cabin of layout.cabins) {
-    if (tier >= 3) parquetRoom(f, cabin.room);
+    if (tier >= 4) marbleRoom(f, cabin.room);
+    else if (tier >= 3) parquetRoom(f, cabin.room);
     else f.slab(cabin.room, FLOOR_Y, FLOOR_Y + ROOM_LIFT, PALETTE.boardsPolished, 0, 0, { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1 });
   }
   for (const bath of layout.bathrooms) {
@@ -361,6 +363,27 @@ export function buildFloor(f: GeoBuilder, layout: CarriageLayout, tier: number, 
       : rug(f, area, FLOOR_Y, [{ color: theme.deep, inset: 0 }, { color: '#EFE5D2', inset: 0.06 }]);
   }
   return { queueBase };
+}
+
+/** The Royal Suite: cream and grey marble in a checker, framed in dark red marble with a gold line. */
+function marbleRoom(f: GeoBuilder, r: Rect): void {
+  const border = 0.1;
+  const y0 = FLOOR_Y;
+  const y1 = FLOOR_Y + ROOM_LIFT;
+  const edge = '#5A2330';
+  const marble = { shade: 1, surface: 'marble' as const };
+  f.slab(rect(r.x0, r.z0, r.x1, r.z0 + border), y0, y1, edge, 0, 0, marble);
+  f.slab(rect(r.x0, r.z1 - border, r.x1, r.z1), y0, y1, edge, 0, 0, marble);
+  f.slab(rect(r.x0, r.z0 + border, r.x0 + border, r.z1 - border), y0, y1, edge, 0, 0, marble);
+  f.slab(rect(r.x1 - border, r.z0 + border, r.x1, r.z1 - border), y0, y1, edge, 0, 0, marble);
+  const inner = rect(r.x0 + border, r.z0 + border, r.x1 - border, r.z1 - border);
+  // A gold line just inside the border, then the checker (each a separate, non-overlapping band).
+  const line = 0.02;
+  f.slab(rect(inner.x0, inner.z0, inner.x1, inner.z0 + line), y0, y1, PALETTE.gold, 0, 0, { shade: 1, surface: 'brass' });
+  f.slab(rect(inner.x0, inner.z1 - line, inner.x1, inner.z1), y0, y1, PALETTE.gold, 0, 0, { shade: 1, surface: 'brass' });
+  f.slab(rect(inner.x0, inner.z0 + line, inner.x0 + line, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, { shade: 1, surface: 'brass' });
+  f.slab(rect(inner.x1 - line, inner.z0 + line, inner.x1, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, { shade: 1, surface: 'brass' });
+  f.slab(rect(inner.x0 + line, inner.z0 + line, inner.x1 - line, inner.z1 - line), y0, y1, '#EFEAE2', 0, 0, { pattern: PATTERN.checker, color2: '#D5CEC3', scale: 0.32, shade: 1, surface: 'marble' });
 }
 
 /** Walnut chevron parquet inside a plain border of the same wood. */

@@ -168,6 +168,8 @@ export class Game implements World {
       this.save.markDirty();
     });
     this.progression = new Progression(this.econ.progression, this.data.route);
+    // Class upgrades wait for their route level: a flag per level reached (older saves get theirs here).
+    for (let level = 1; level <= this.progression.level; level++) this.data.profile.flags[`level_${level}`] = true;
     this.unlocks = new UnlockChain(buildUnlocks(this.data.route.carriages), this.data.route, () => this.data.profile.flags);
     const route = this.data.route;
     this.journey = new Journey(this.econ.journey, {
@@ -554,6 +556,7 @@ export class Game implements World {
   }
 
   private onLevelUp(level: number): void {
+    this.setFlag(`level_${level}`);
     const earned = liveryFor(level);
     if (earned.id !== liveryFor(level - 1).id) {
       // Following reputation: repaint now. Wearing a Paint Shop pick: keep it and mention the new one.

@@ -18,15 +18,14 @@ export class Demand {
     const w = this.w;
     switch (kind) {
       case 'tea':
+      case 'coffee':
+      case 'champagne':
       case 'blanket':
-      case 'pillow': {
-        let n = 0;
-        for (const guest of w.guests.openRequests()) {
-          if (guest.request === kind && !w.staff.isHandled(guest)) n++;
-        }
-        return n;
-      }
+      case 'pillow':
+        return this.requestNeed(kind);
       case 'towel':
+        // Towels go to washrooms running low and to Comfort-class guests who ask for a fresh one.
+        return this.bathroomNeed(kind) + this.requestNeed(kind);
       case 'roll':
         return this.bathroomNeed(kind);
       case 'luggage': {
@@ -70,6 +69,15 @@ export class Demand {
   firstSurplus(actor: Actor): ItemKind | null {
     for (const kind of actor.stack.items) if (this.surplus(actor, kind) > 0) return kind;
     return null;
+  }
+
+  /** Guests waiting for this item in their cabin, not already being served by staff. */
+  private requestNeed(kind: ItemKind): number {
+    let n = 0;
+    for (const guest of this.w.guests.openRequests()) {
+      if (guest.request === kind && !this.w.staff.isHandled(guest)) n++;
+    }
+    return n;
   }
 
   private bathroomNeed(kind: 'towel' | 'roll'): number {

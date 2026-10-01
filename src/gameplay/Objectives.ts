@@ -1,5 +1,6 @@
 import { MAX_CARRIAGES, type UnlockDef } from '../config/content';
 import { OBJECTIVES, type ObjectiveDef, type ObjectiveEvent } from '../config/objectives';
+import { refitMatches } from '../sim/unlockPlan';
 import { FLOOR_Y } from '../world/CarriageView';
 import type { World } from './World';
 
@@ -132,7 +133,7 @@ export class Objectives {
     }
     const relevant = u.defs.filter((d) => {
       switch (def.event) {
-        case 'refurb': return d.kind === 'refurb' && (!def.filter || String(d.tier) === def.filter);
+        case 'refurb': return d.kind === 'refurb' && refitMatches(d, def.filter, this.w.train.types[d.carriage]);
         case 'coupling': return d.kind === 'couple';
         case 'station': return d.kind === 'exterior' || d.kind === 'marketing';
         default: return !def.filter || matches(d, def.filter);

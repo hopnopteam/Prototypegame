@@ -96,7 +96,10 @@ describe('UnlockChain', () => {
       const defs = buildUnlocks(train);
       const ids = new Set(defs.map((u) => u.id));
       for (const def of defs) for (const r of def.requires) expect(ids.has(r), `${train.join(',')}: ${def.id} needs ${r}`).toBe(true);
-      const chain = new UnlockChain(defs, { unlocked: [], partial: {} }, () => ({ firstCabinCleaned: true }));
+      // Every milestone reached: the first cabin cleaned by hand and every route level (class upgrades wait for theirs).
+      const flags: Record<string, boolean> = { firstCabinCleaned: true };
+      for (let level = 1; level <= 8; level++) flags[`level_${level}`] = true;
+      const chain = new UnlockChain(defs, { unlocked: [], partial: {} }, () => flags);
       let guard = 0;
       while (chain.available().length > 0 && guard++ < 200) {
         for (const def of chain.available()) chain.forceComplete(def.id);

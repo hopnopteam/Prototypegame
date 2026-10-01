@@ -147,14 +147,15 @@ export class Guidance {
     const pile = w.cash.nearestWithCash(player.pos);
     if (pile && pile.value >= 1) return this.because('cash', { x: pile.x, z: pile.z });
 
-    if (w.guests.hasGuestAtDesk() && w.train.freeCabin() && w.staff.count('porter') === 0) return this.because('desk', map.anchor(0, 'deskService'));
+    if (w.guests.deskReady() && w.staff.count('porter') === 0) return this.because('desk', map.anchor(0, 'deskService'));
 
     const cash = w.wallet.get('cash');
     const tile = w.tiles.cheapest();
     if (tile && w.unlocks.remaining(tile.def.id) <= cash) return this.because('tile', tile.pos);
 
     const request = w.guests.openRequests().find((g) => !w.staff.isHandled(g));
-    if (request && request.request && request.request !== 'bathroom') {
+    if (request && request.request === 'turndown' && request.cabin) return this.because('deliver', request.cabin.center);
+    if (request && request.request && request.request !== 'bathroom' && request.request !== 'turndown') {
       const source = this.sourceFor(request.request, request.cabin?.carriage ?? 0);
       if (source) return this.because('fetch', source);
     }
@@ -179,7 +180,7 @@ export class Guidance {
   private whereNeeded(items: ItemKind[]): Vec2 | null {
     const w = this.w;
     for (const guest of w.guests.openRequests()) {
-      if (guest.request && guest.request !== 'bathroom' && items.includes(guest.request) && guest.cabin) return guest.cabin.center;
+      if (guest.request && guest.request !== 'bathroom' && guest.request !== 'turndown' && items.includes(guest.request) && guest.cabin) return guest.cabin.center;
     }
     if (items.includes('luggage')) {
       const luggage = w.train.indexOfType('luggage');

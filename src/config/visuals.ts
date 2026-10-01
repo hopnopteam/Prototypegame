@@ -70,6 +70,8 @@ export const VISUALS = {
     moon: { color: '#A9BEFF', intensity: 1.35 },
     /** Sky and ground fill. */
     hemi: { sky: '#3D5590', ground: '#1A1F30', intensity: 1.1 },
+    /** Moonlight bouncing back from the camera's side, so liveries and faces toward the camera read. */
+    fill: 0.75,
     /** How much the night sky and the lamps are reflected by metal and polish (brass, varnish, water). */
     environment: 0.35,
     /** Warm ambient inside the carriages (what the ceiling lights would give), so no room is ever dark. */
@@ -77,10 +79,10 @@ export const VISUALS = {
     /** Warm pools of light from the lamps nearest the camera (see quality `lamps` for how many). */
     lamp: { color: '#FFAE5C', intensity: 2.4, radius: 2.4 },
     /** Windows and lamp shades glow (linear HDR; bloom catches anything above the threshold). */
-    windowGlow: 2.6,
+    windowGlow: 2.1,
     lampGlow: 3.2,
     fog: { color: '#1E2A4A', density: 0.0085 },
-    bloom: { strength: 0.62, radius: 0.55, threshold: 0.92 },
+    bloom: { strength: 0.42, radius: 0.5, threshold: 1.0 },
     /**
      * Colour grade (MEDIUM and up): lifted blue shadows, warm highlights, a touch of contrast and saturation,
      * a soft vignette and a whisper of grain (hides banding in the dark sky).

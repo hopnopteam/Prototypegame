@@ -1,3 +1,4 @@
+import type { ClassId, ServiceNeed } from '../config/classes';
 import type { CurrencyKind, ItemKind, JourneyPhase, StaffRole } from '../core/types';
 
 /** Every gameplay event. UI, audio, analytics, quests and FTUE all listen here instead of reaching in. */
@@ -7,7 +8,7 @@ export interface GameEvents {
   'guest.checkedIn': { fare: number; x: number; z: number; byPlayer: boolean };
   'guest.boarded': { byPlayer: boolean };
   'guest.alighted': { tip: number };
-  'request.fulfilled': { item: ItemKind; tip: number; x: number; z: number; byPlayer: boolean; speedy: boolean };
+  'request.fulfilled': { item: ServiceNeed; tip: number; x: number; z: number; byPlayer: boolean; speedy: boolean };
   'cabin.cleaned': { byPlayer: boolean; x: number; z: number };
   'spot.cleaned': { x: number; z: number; byPlayer: boolean };
   'item.picked': { item: ItemKind; byPlayer: boolean };
@@ -18,6 +19,7 @@ export interface GameEvents {
   'tile.draining': { x: number; z: number };
   'carriage.coupled': { index: number; type: string };
   'carriage.refurbished': { index: number; type: string; tier: number };
+  'carriage.classUp': { index: number; cls: ClassId };
   'staff.hired': { role: StaffRole; carriage: number };
   'stars.added': { amount: number; source: string; x?: number; z?: number };
   'level.up': { level: number };

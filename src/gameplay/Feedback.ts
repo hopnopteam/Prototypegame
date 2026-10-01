@@ -155,7 +155,7 @@ export class Feedback {
   /** A guest stood at the desk with a room ready and nobody coming rings the bell. */
   private checkDesk(step: number): void {
     const w = this.w;
-    const waiting = w.guests.hasGuestAtDesk() && !!w.train.freeCabin() && w.staff.count('porter') === 0;
+    const waiting = w.guests.deskReady() && w.staff.count('porter') === 0;
     this.deskWait = waiting ? this.deskWait + step : 0;
     if (this.deskWait < w.econ.feedback.deskWaitSeconds || this.bellTimer > 0) return;
     this.bellTimer = BELL_REPEAT_SECONDS;

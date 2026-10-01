@@ -1,5 +1,6 @@
 import type { CarriageType, ItemKind, StaffRole } from '../core/types';
 import type { IconName } from '../ui/icons';
+import type { ClassId } from './classes';
 
 /**
  * Content pack for route 1, Countryside Local. Routes, carriages, guests, stories and offers are data so
@@ -25,11 +26,14 @@ export const STATIONS: StationDef[] = [
   { id: 'larkspur-halt', name: 'Larkspur Halt', postcard: ['#7F9CC9', '#D7E1F0', '#577E57'], blurb: 'A request stop. Please request it.' },
 ];
 
-export type ArchetypeId = 'businessman' | 'backpacker' | 'grandma' | 'newlyweds' | 'family' | 'vip';
+export type ArchetypeId = 'student' | 'backpacker' | 'tourist' | 'grandma' | 'family' | 'businessman' | 'newlyweds' | 'vip' | 'celebrity' | 'royal';
 
 export interface ArchetypeDef {
   id: ArchetypeId;
   label: string;
+  /** The class they travel in: they board only a carriage of this class (config/classes.ts). */
+  cls: ClassId;
+  /** How often they turn up among travellers of their class. */
   weight: number;
   fareMultiplier: number;
   tipMultiplier: number;
@@ -37,9 +41,11 @@ export interface ArchetypeDef {
   /** Carriages coupled before this archetype starts appearing. */
   minCarriages: number;
   colors: { body: string; accent: string; skin: string; hair: string };
-  accessory: 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'child' | 'furcoat';
-  /** What they tend to ask for: personality you can learn and plan around. */
-  requests: Partial<Record<'tea' | 'blanket' | 'pillow', number>>;
+  accessory: 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'child' | 'furcoat' | 'camera' | 'sash';
+  hat?: 'beanie' | 'bun' | 'cap' | 'boater' | 'crown' | 'tophat';
+  hatColor?: string;
+  /** What they like best among their class's requests (weights multiply the class's own). */
+  requests: Partial<Record<'tea' | 'coffee' | 'champagne' | 'blanket' | 'pillow' | 'towel', number>>;
   /** Their signature reaction now and then during the ride (an icon in a bubble, never a sentence). */
   mood: IconName;
   /** What they leave behind in the cabin (a few are picked each time; see MESS in economy.ts). */
@@ -55,42 +61,70 @@ export type BedMess = 'heap' | 'tangle' | 'kicked';
 /** Bits anyone might leave, mixed in now and then so no two rooms look alike. */
 export const COMMON_MESS: MessPiece[] = ['paperBalls', 'wrappers', 'cup'];
 
+/**
+ * Who travels, class by class. Fares and tips come mostly from the class (config/classes.ts); the archetype's
+ * own multipliers are a light seasoning on top (a grandma tips a little more, a backpacker a little less).
+ */
 export const ARCHETYPES: ArchetypeDef[] = [
   {
-    id: 'businessman', label: 'Businessman', weight: 3, fareMultiplier: 1, tipMultiplier: 1, speedMultiplier: 1.08, minCarriages: 1,
-    colors: { body: '#5B6C85', accent: '#C0485C', skin: '#F1C7A5', hair: '#3A2E28' }, accessory: 'briefcase', requests: { tea: 4, pillow: 1, blanket: 1 },
-    mood: 'tea',
-    mess: ['newspaper', 'papers', 'cup', 'paperBalls'],
+    id: 'student', label: 'Student', cls: 'basic', weight: 3, fareMultiplier: 0.95, tipMultiplier: 0.9, speedMultiplier: 1.14, minCarriages: 1,
+    colors: { body: '#D9A03F', accent: '#34507A', skin: '#E8B894', hair: '#2E2420' }, accessory: 'backpack', hat: 'cap', requests: { pillow: 2, tea: 1.5 },
+    mood: 'smile',
+    mess: ['wrappers', 'paperBalls', 'book', 'socks'],
   },
   {
-    id: 'backpacker', label: 'Backpacker', weight: 3, fareMultiplier: 0.9, tipMultiplier: 0.8, speedMultiplier: 1.12, minCarriages: 1,
-    colors: { body: '#6FA36B', accent: '#EE8F4A', skin: '#D9A07A', hair: '#8C5A32' }, accessory: 'backpack', requests: { pillow: 4, tea: 1, blanket: 1 },
+    id: 'backpacker', label: 'Backpacker', cls: 'basic', weight: 3, fareMultiplier: 1, tipMultiplier: 1, speedMultiplier: 1.12, minCarriages: 1,
+    colors: { body: '#6FA36B', accent: '#EE8F4A', skin: '#D9A07A', hair: '#8C5A32' }, accessory: 'backpack', hat: 'beanie', requests: { pillow: 2, blanket: 1 },
     mood: 'camera',
     mess: ['map', 'wrappers', 'socks', 'bottle'],
   },
   {
-    id: 'grandma', label: 'Grandma', weight: 2, fareMultiplier: 1, tipMultiplier: 1.25, speedMultiplier: 0.82, minCarriages: 1,
-    colors: { body: '#B39BD1', accent: '#FBF6EC', skin: '#F2CFB3', hair: '#EFEFEF' }, accessory: 'handbag', requests: { blanket: 4, tea: 2, pillow: 1 },
+    id: 'tourist', label: 'Tourist', cls: 'comfort', weight: 3, fareMultiplier: 1, tipMultiplier: 1, speedMultiplier: 0.98, minCarriages: 1,
+    colors: { body: '#E07A5F', accent: '#FBF3E4', skin: '#F1C7A6', hair: '#8C5A32' }, accessory: 'camera', hat: 'boater', requests: { towel: 1.5, tea: 1.2 },
+    mood: 'camera',
+    mess: ['map', 'bottle', 'wrappers', 'cards'],
+  },
+  {
+    id: 'grandma', label: 'Grandma', cls: 'comfort', weight: 2, fareMultiplier: 1, tipMultiplier: 1.2, speedMultiplier: 0.82, minCarriages: 1,
+    colors: { body: '#B39BD1', accent: '#FBF6EC', skin: '#F2CFB3', hair: '#EFEFEF' }, accessory: 'handbag', hat: 'bun', requests: { blanket: 2, tea: 1.5 },
     mood: 'blanket',
     mess: ['yarn', 'book', 'cup', 'newspaper'],
   },
   {
-    id: 'newlyweds', label: 'Newlyweds', weight: 1.2, fareMultiplier: 1.1, tipMultiplier: 1.35, speedMultiplier: 1, minCarriages: 1,
-    colors: { body: '#FBF3E4', accent: '#E8849A', skin: '#EDBE9A', hair: '#5A3B2A' }, accessory: 'flower', requests: { tea: 3, pillow: 2, blanket: 1 },
-    mood: 'heart',
-    mess: ['petals', 'champagne', 'cards', 'cup'],
-  },
-  {
-    id: 'family', label: 'Family', weight: 1.5, fareMultiplier: 1.2, tipMultiplier: 1.1, speedMultiplier: 0.95, minCarriages: 2,
-    colors: { body: '#4F86B8', accent: '#F2C94C', skin: '#E3AE87', hair: '#2F2520' }, accessory: 'child', requests: { blanket: 2, pillow: 2, tea: 1 },
+    id: 'family', label: 'Family', cls: 'comfort', weight: 2, fareMultiplier: 1.15, tipMultiplier: 1.05, speedMultiplier: 0.95, minCarriages: 1,
+    colors: { body: '#4F86B8', accent: '#F2C94C', skin: '#E3AE87', hair: '#2F2520' }, accessory: 'child', requests: { blanket: 1.5, towel: 1.2 },
     mood: 'smile',
     mess: ['teddy', 'toyTrain', 'appleCore', 'wrappers'],
   },
   {
-    id: 'vip', label: 'VIP', weight: 0.6, fareMultiplier: 1.6, tipMultiplier: 2.4, speedMultiplier: 0.9, minCarriages: 3,
-    colors: { body: '#C8A27A', accent: '#E3B352', skin: '#F0C6A2', hair: '#1E1A18' }, accessory: 'furcoat', requests: { tea: 2, pillow: 2, blanket: 2 },
+    id: 'businessman', label: 'Business traveller', cls: 'business', weight: 3, fareMultiplier: 1, tipMultiplier: 1, speedMultiplier: 1.08, minCarriages: 1,
+    colors: { body: '#44556F', accent: '#C0485C', skin: '#F1C7A5', hair: '#3A2E28' }, accessory: 'briefcase', requests: { coffee: 2 },
+    mood: 'tea',
+    mess: ['newspaper', 'papers', 'cup', 'paperBalls'],
+  },
+  {
+    id: 'newlyweds', label: 'Newlyweds', cls: 'first', weight: 1.5, fareMultiplier: 1.05, tipMultiplier: 1.25, speedMultiplier: 1, minCarriages: 1,
+    colors: { body: '#FBF3E4', accent: '#E8849A', skin: '#EDBE9A', hair: '#5A3B2A' }, accessory: 'flower', requests: { champagne: 2 },
+    mood: 'heart',
+    mess: ['petals', 'champagne', 'cards', 'cup'],
+  },
+  {
+    id: 'vip', label: 'VIP', cls: 'first', weight: 2, fareMultiplier: 1.1, tipMultiplier: 1.2, speedMultiplier: 0.9, minCarriages: 1,
+    colors: { body: '#C8A27A', accent: '#E3B352', skin: '#F0C6A2', hair: '#1E1A18' }, accessory: 'furcoat', requests: { champagne: 1.5, coffee: 1.2 },
     mood: 'gem',
     mess: ['boa', 'champagne', 'cards', 'petals'],
+  },
+  {
+    id: 'celebrity', label: 'Celebrity', cls: 'first', weight: 1.2, fareMultiplier: 1.15, tipMultiplier: 1.3, speedMultiplier: 0.95, minCarriages: 1,
+    colors: { body: '#23202B', accent: '#E2B653', skin: '#C98E68', hair: '#1D1616' }, accessory: 'flower', hat: 'tophat', requests: { champagne: 2 },
+    mood: 'star',
+    mess: ['champagne', 'cards', 'boa', 'petals'],
+  },
+  {
+    id: 'royal', label: 'Royalty', cls: 'royal', weight: 1, fareMultiplier: 1, tipMultiplier: 1, speedMultiplier: 0.85, minCarriages: 1,
+    colors: { body: '#6A1E2E', accent: '#E2B653', skin: '#F1C7A6', hair: '#C9A36A' }, accessory: 'sash', hat: 'crown', requests: { champagne: 1.5, tea: 1.2 },
+    mood: 'crown',
+    mess: ['champagne', 'petals', 'book', 'cards'],
   },
 ];
 
@@ -113,7 +147,10 @@ export interface UnlockDef {
   cabin?: number;
   bathroom?: number;
   role?: StaffRole;
-  /** Refurbishment tier this tile brings the carriage to (1 Repaired … 3 Luxurious). */
+  /**
+   * Refit tier this tile brings the carriage to: service cars 1 Repaired … 3 Luxurious; passenger carriages
+   * 1 Repaired (Basic), 2 Comfort, 3 Business, 4 First Class, 5 Royal Suite (config/classes.ts).
+   */
   tier?: number;
   comfort?: ComfortKey;
   /** What it does, in a few words, shown on the tile label so no purchase is a mystery. */
@@ -169,14 +206,18 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 30, stars: 2, cabin: 1, requires: [], effect: '+1 guest' },
       { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 45, stars: 3, role: 'attendant', requires: ['cabin_1'], flags: ['firstCabinCleaned'], effect: 'Cleans cabins' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 60, stars: 3, tier: 1, requires: ['hire_attendant'], effect: 'Fares +25%' },
-      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 180, stars: 4, tier: 2, requires: ['refurb_1', '@couple_1'], effect: 'Fares +25%' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Comfort Class', price: 150, stars: 4, tier: 2, requires: ['refurb_1', '@couple_1'], flags: ['level_2'], effect: 'Fares ×2' },
       { key: 'comfort_lamp', kind: 'comfort', label: 'Reading Lamps', price: 85, stars: 2, comfort: 'lamp', requires: ['refurb_1', '@couple_1'], effect: 'Tips +20%' },
       { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 160, stars: 3, role: 'porter', requires: ['@couple_2'], effect: 'Check-in & bags' },
       { key: 'comfort_flowers', kind: 'comfort', label: 'Fresh Flowers', price: 150, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_2'], effect: 'Tips +20%' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Attendant Training', price: 240, stars: 2, role: 'attendant', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
       { key: 'comfort_radio', kind: 'comfort', label: 'Wireless Radios', price: 320, stars: 2, comfort: 'radio', requires: ['comfort_flowers', '@couple_3'], effect: 'Tips +20%' },
       { key: 'up_porter', kind: 'staffUpgrade', label: 'Porter Training', price: 420, stars: 2, role: 'porter', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
-      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 680, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Fares +25%' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Business Class', price: 1100, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_4'], effect: 'Fares ×4' },
+      { key: 'refurb_4', kind: 'refurb', label: 'First Class', price: 2600, stars: 6, tier: 4, requires: ['refurb_3'], flags: ['level_6'], effect: 'Fares ×8' },
+      { key: 'up2_attendant', kind: 'staffUpgrade', label: 'Attendant Mastery', price: 1300, stars: 3, role: 'attendant', requires: ['up_attendant'], flags: ['level_6'], effect: 'Faster, +1 carry' },
+      { key: 'up2_porter', kind: 'staffUpgrade', label: 'Porter Mastery', price: 1700, stars: 3, role: 'porter', requires: ['up_porter'], flags: ['level_7'], effect: 'Faster, +1 carry' },
+      { key: 'refurb_5', kind: 'refurb', label: 'Royal Suite', price: 7000, stars: 8, tier: 5, requires: ['refurb_4'], flags: ['level_8'], effect: 'Fares ×15' },
     ],
   },
   bathroom: {
@@ -199,6 +240,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'up_runner', kind: 'staffUpgrade', label: 'Runner Training', price: 300, stars: 2, role: 'runner', requires: ['hire_runner', '@couple_4'], effect: 'Faster, +1 carry' },
       { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 280, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'All tips +5%' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 520, stars: 5, tier: 3, requires: ['refurb_2', '@c0.refurb_3'], effect: 'All tips +5%' },
+      { key: 'up2_runner', kind: 'staffUpgrade', label: 'Runner Mastery', price: 1400, stars: 3, role: 'runner', requires: ['up_runner'], flags: ['level_6'], effect: 'Faster, +1 carry' },
     ],
   },
   luggage: {
@@ -208,6 +250,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'hire_porter', kind: 'hire', label: 'Luggage Porter', price: 220, stars: 3, role: 'porter', requires: ['couple'], effect: 'Carries bags' },
       { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 300, stars: 4, tier: 2, requires: ['refurb_1', '@couple_4'], effect: 'All tips +5%' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 520, stars: 5, tier: 3, requires: ['refurb_2', '@c0.refurb_3'], effect: 'All tips +5%' },
+      { key: 'up_porter', kind: 'staffUpgrade', label: 'Porter Mastery', price: 1500, stars: 3, role: 'porter', requires: ['hire_porter'], flags: ['level_7'], effect: 'Faster, +1 carry' },
     ],
   },
   sleeper: {
@@ -218,13 +261,16 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 120, stars: 3, tier: 1, requires: ['cabin_0'], effect: 'Fares +25%' },
       { key: 'comfort_lamp', kind: 'comfort', label: 'Reading Lamps', price: 130, stars: 2, comfort: 'lamp', requires: ['refurb_1'], effect: 'Tips +20%' },
       { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 150, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
-      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Makeover', price: 260, stars: 4, tier: 2, requires: ['cabin_1', 'refurb_1', '@couple_2'], effect: 'Fares +25%' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Comfort Class', price: 300, stars: 4, tier: 2, requires: ['cabin_1', 'refurb_1'], flags: ['level_2'], effect: 'Fares ×2' },
       { key: 'cabin_3', kind: 'cabin', label: 'Cabin {n}', price: 200, stars: 2, cabin: 3, requires: ['cabin_2', '@couple_2'], effect: '+1 guest' },
       { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 240, stars: 3, role: 'attendant', requires: ['cabin_1', '@couple_2'], effect: 'Cleans cabins' },
       { key: 'comfort_flowers', kind: 'comfort', label: 'Fresh Flowers', price: 240, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_3'], effect: 'Tips +20%' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Attendant Training', price: 380, stars: 2, role: 'attendant', requires: ['hire_attendant', '@couple_3'], effect: 'Faster, +1 carry' },
       { key: 'comfort_radio', kind: 'comfort', label: 'Wireless Radios', price: 420, stars: 2, comfort: 'radio', requires: ['comfort_flowers', '@couple_3'], effect: 'Tips +20%' },
-      { key: 'refurb_3', kind: 'refurb', label: 'Luxury Refit', price: 720, stars: 5, tier: 3, requires: ['cabin_3', 'refurb_2', '@couple_4'], effect: 'Fares +25%' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Business Class', price: 1600, stars: 5, tier: 3, requires: ['cabin_3', 'refurb_2'], flags: ['level_4'], effect: 'Fares ×4' },
+      { key: 'refurb_4', kind: 'refurb', label: 'First Class', price: 3800, stars: 6, tier: 4, requires: ['refurb_3'], flags: ['level_6'], effect: 'Fares ×8' },
+      { key: 'up2_attendant', kind: 'staffUpgrade', label: 'Attendant Mastery', price: 1800, stars: 3, role: 'attendant', requires: ['up_attendant'], flags: ['level_6'], effect: 'Faster, +1 carry' },
+      { key: 'refurb_5', kind: 'refurb', label: 'Royal Suite', price: 10000, stars: 8, tier: 5, requires: ['refurb_4'], flags: ['level_8'], effect: 'Fares ×15' },
     ],
   },
 };

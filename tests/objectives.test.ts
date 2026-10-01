@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { REACTIONS } from '../src/config/chatter';
 import { DEFAULT_TRAIN } from '../src/config/content';
 import { OBJECTIVES } from '../src/config/objectives';
-import { buildUnlocks } from '../src/sim/unlockPlan';
+import { buildUnlocks, refitMatches } from '../src/sim/unlockPlan';
 
 describe('objective chain', () => {
   const defs = buildUnlocks(DEFAULT_TRAIN);
@@ -20,7 +20,7 @@ describe('objective chain', () => {
         expect(matching.length, o.id).toBeGreaterThanOrEqual(o.target);
       }
       if (o.event === 'refurb') {
-        const matching = defs.filter((d) => d.kind === 'refurb' && (!o.filter || String(d.tier) === o.filter));
+        const matching = defs.filter((d) => refitMatches(d, o.filter, DEFAULT_TRAIN[d.carriage]));
         expect(matching.length, o.id).toBeGreaterThanOrEqual(o.target);
       }
       if (o.event === 'coupling') expect(o.target, o.id).toBeLessThanOrEqual(DEFAULT_TRAIN.length - 1);

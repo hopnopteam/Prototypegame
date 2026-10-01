@@ -1,16 +1,23 @@
+import { CLASS_BY_ID, type ClassId } from '../config/classes';
 import * as THREE from 'three';
 import { formatNumber } from '../core/math';
 import { drawIcon, INK, type IconName } from '../ui/icons';
 
 const bubbleCache = new Map<string, THREE.CanvasTexture>();
 
-export type BubbleStyle = 'request' | 'intent' | 'alert' | 'plain';
+/** Request styles, plus one per carriage class (a ticket held up on the platform in its class's colour). */
+export type BubbleStyle = 'request' | 'intent' | 'alert' | 'plain' | ClassId;
 
 const BUBBLE_FILL: Record<BubbleStyle, string> = {
   request: '#FFFDF7',
   intent: '#DDEBF4',
   alert: '#FFE3A1',
   plain: 'rgba(0,0,0,0)',
+  basic: CLASS_BY_ID.basic.color,
+  comfort: CLASS_BY_ID.comfort.color,
+  business: CLASS_BY_ID.business.color,
+  first: CLASS_BY_ID.first.color,
+  royal: CLASS_BY_ID.royal.color,
 };
 
 function canvas(size: number): [HTMLCanvasElement, CanvasRenderingContext2D] {

@@ -117,9 +117,10 @@ export const DEFAULT_TRAIN_NAME = 'The Night Express';
 
 /**
  * Only big, visible moments make the front page (and each one pays): naming the train, every new carriage,
- * a luxury refit, a new livery, breaking into the top three, topping the league, a hundred passengers.
+ * a luxury refit, a carriage reaching First Class or the Royal Suite, a new livery, breaking into the top
+ * three, topping the league, a hundred passengers.
  */
-export type PressTrigger = 'named' | 'coupling' | 'refurb3' | 'livery' | 'topThree' | 'champion' | 'guests100' | 'story';
+export type PressTrigger = 'named' | 'coupling' | 'refurb3' | 'firstClass' | 'royal' | 'livery' | 'topThree' | 'champion' | 'guests100' | 'story';
 
 export interface HeadlineDef {
   headline: string;
@@ -135,6 +136,14 @@ export const HEADLINES: Record<PressTrigger, HeadlineDef[]> = {
     { headline: 'Now {n} Carriages Long!', body: 'The {carriage} couples on. "She used to be one old carriage," a porter recalls.' },
   ],
   refurb3: [{ headline: 'Velvet and Brass!', body: 'The {carriage} is refitted in walnut and brass. The Orient Belle is said to be "not worried". She is worried.' }],
+  firstClass: [
+    { headline: 'First Class Aboard!', body: 'The {carriage} reopens in royal blue and gold: velvet, a piano and champagne on ice. Bookings are up. So are eyebrows.' },
+    { headline: 'More First Class!', body: 'Another carriage of velvet and gold on {train}. The waiting list now has a waiting list.' },
+  ],
+  royal: [
+    { headline: 'A Royal Suite on the Rails!', body: 'The {carriage} is now a four-poster palace on wheels, butler included. A duchess was seen practising her wave.' },
+    { headline: 'Fit for a King. Two Kings!', body: 'A second Royal Suite joins {train}. The crown jewels are said to be "considering it".' },
+  ],
   livery: [{ headline: '{train} Unveils a New Look!', body: 'Fresh {livery} paint to match a growing name. Trainspotters have started waving.' }],
   topThree: [{ headline: 'Into the Top Three!', body: '{train} passes {rival} and joins the best sleepers on the line. “{quote}” says their owner.' }],
   champion: [{ headline: 'Number One!', body: '{train} tops the Countryside League. From one old carriage to the best sleeper on the line. “{quote}”' }],
@@ -147,6 +156,8 @@ export const FRONT_PAGE_REWARDS: Record<PressTrigger, { gems?: number; railMiles
   named: { gems: 5 },
   coupling: { cashPerCarriage: 30 },
   refurb3: { gems: 10 },
+  firstClass: { gems: 12 },
+  royal: { gems: 20, railMiles: 3 },
   livery: { railMiles: 2 },
   topThree: { gems: 10 },
   champion: { gems: 25 },

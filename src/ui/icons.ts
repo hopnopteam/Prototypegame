@@ -7,7 +7,8 @@ export type IconName =
   | 'star' | 'cash' | 'gem' | 'miles' | 'bath' | 'clock' | 'ad' | 'lock' | 'plus' | 'carriage' | 'zzz'
   | 'heart' | 'bolt' | 'bag' | 'gear' | 'album' | 'calendar' | 'quest' | 'ticket' | 'check' | 'camera'
   | 'wrench' | 'skate' | 'hold' | 'chest' | 'noroom' | 'double' | 'box' | 'paint' | 'news' | 'trophy'
-  | 'mic' | 'dash' | 'hand' | 'menu' | 'conductor' | 'linen' | 'megaphone' | 'smile' | 'frown';
+  | 'mic' | 'dash' | 'hand' | 'menu' | 'conductor' | 'linen' | 'megaphone' | 'smile' | 'frown'
+  | 'coffee' | 'champagne' | 'crown' | 'turndown';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -46,6 +47,112 @@ const star = (c: CanvasRenderingContext2D, cx: number, cy: number, outer: number
 };
 
 const ICONS: Record<IconName, Draw> = {
+  coffee: (c) => {
+    // A dark coffee in a cup on a saucer, steaming.
+    c.beginPath();
+    c.ellipse(50, 82, 36, 8, 0, 0, Math.PI * 2);
+    fillStroke(c, '#E8DCC6');
+    c.beginPath();
+    c.moveTo(24, 44);
+    c.lineTo(76, 44);
+    c.lineTo(70, 76);
+    c.quadraticCurveTo(50, 82, 30, 76);
+    c.closePath();
+    fillStroke(c, '#FFFFFF');
+    c.beginPath();
+    c.arc(78, 58, 9, -Math.PI / 2, Math.PI / 2);
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.fillStyle = '#5A3524';
+    c.beginPath();
+    c.ellipse(50, 48, 23, 4.5, 0, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#9A8F86';
+    c.lineWidth = 5;
+    c.lineCap = 'round';
+    for (const x of [42, 58]) {
+      c.beginPath();
+      c.moveTo(x, 36);
+      c.quadraticCurveTo(x + 6, 26, x, 14);
+      c.stroke();
+    }
+  },
+  champagne: (c) => {
+    // Two flutes clinking, with bubbles.
+    const flute = (x: number, tilt: number): void => {
+      c.save();
+      c.translate(x, 52);
+      c.rotate(tilt);
+      c.beginPath();
+      c.moveTo(-10, -34);
+      c.lineTo(10, -34);
+      c.lineTo(7, 4);
+      c.quadraticCurveTo(0, 10, -7, 4);
+      c.closePath();
+      fillStroke(c, '#F6D77A', 5);
+      c.beginPath();
+      c.moveTo(0, 9);
+      c.lineTo(0, 30);
+      c.moveTo(-10, 32);
+      c.lineTo(10, 32);
+      c.lineWidth = 5;
+      c.strokeStyle = INK;
+      c.stroke();
+      c.restore();
+    };
+    flute(36, -0.22);
+    flute(64, 0.22);
+    c.fillStyle = '#FFFFFF';
+    for (const [x, y, r] of [[50, 14, 4], [44, 22, 3], [57, 24, 3]] as const) {
+      c.beginPath();
+      c.arc(x, y, r, 0, Math.PI * 2);
+      c.fill();
+    }
+  },
+  crown: (c) => {
+    c.beginPath();
+    c.moveTo(16, 72);
+    c.lineTo(12, 30);
+    c.lineTo(32, 48);
+    c.lineTo(50, 20);
+    c.lineTo(68, 48);
+    c.lineTo(88, 30);
+    c.lineTo(84, 72);
+    c.closePath();
+    fillStroke(c, '#F2C14E');
+    rr(c, 14, 70, 72, 12, 4);
+    fillStroke(c, '#D9A43A');
+    c.fillStyle = '#C0485C';
+    for (const x of [30, 50, 70]) {
+      c.beginPath();
+      c.arc(x, 62, 5, 0, Math.PI * 2);
+      c.fill();
+    }
+  },
+  turndown: (c) => {
+    // A bed with its cover folded back and a chocolate on the pillow.
+    rr(c, 12, 38, 76, 42, 8);
+    fillStroke(c, '#FFFFFF');
+    c.beginPath();
+    c.moveTo(12, 56);
+    c.lineTo(88, 56);
+    c.lineTo(88, 80);
+    c.lineTo(40, 80);
+    c.closePath();
+    fillStroke(c, '#7D9CBB');
+    c.beginPath();
+    c.moveTo(40, 80);
+    c.lineTo(56, 56);
+    c.lineTo(88, 56);
+    c.strokeStyle = INK;
+    c.lineWidth = 5;
+    c.stroke();
+    rr(c, 20, 26, 30, 16, 6);
+    fillStroke(c, '#F6F0E4', 5);
+    rr(c, 29, 30, 12, 8, 2);
+    fillStroke(c, '#5A3524', 3);
+  },
   tea: (c) => {
     c.beginPath();
     c.ellipse(50, 80, 38, 9, 0, 0, Math.PI * 2);
@@ -785,6 +892,9 @@ export function iconUrl(name: IconName, size = 64): string {
 }
 
 export const ITEM_ICON: Record<string, IconName> = {
+  coffee: 'coffee',
+  champagne: 'champagne',
+  turndown: 'turndown',
   tea: 'tea',
   blanket: 'blanket',
   pillow: 'pillow',

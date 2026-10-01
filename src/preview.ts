@@ -70,7 +70,7 @@ player.setPosition(-0.7, FLOOR_Y, 4.4);
 player.setCarrying(true);
 stage.scene.add(player.root);
 ARCHETYPES.forEach((a, i) => {
-  const g = new CharacterView({ ...a.colors, accessory: a.accessory, hat: a.id === 'backpacker' ? 'beanie' : a.id === 'grandma' ? 'bun' : 'none' });
+  const g = new CharacterView({ ...a.colors, accessory: a.accessory === 'child' ? 'none' : a.accessory, hat: a.hat ?? 'none', hatColor: a.hatColor });
   g.setPosition(-0.15 + (i % 3) * 0.7, FLOOR_Y, 2.8 + Math.floor(i / 3) * 0.75);
   g.setFacing(-Math.PI / 2);
   if (i === 0) g.showBubble('tea');

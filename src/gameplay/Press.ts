@@ -104,7 +104,10 @@ export class Press {
     });
     e.on('carriage.coupled', ({ index }) => this.print('coupling', { carriage: w.train.carriageName(index), n: index + 1 }));
     e.on('carriage.refurbished', ({ index, tier }) => {
-      if (tier >= 3) this.print('refurb3', { carriage: w.train.carriageName(index) });
+      // Passenger carriages make the paper as they reach First Class and the Royal Suite (Business is the
+      // walnut-and-brass refit); service cars when they go luxurious.
+      const trigger: PressTrigger | null = tier >= 5 ? 'royal' : tier === 4 ? 'firstClass' : tier === 3 ? 'refurb3' : null;
+      if (trigger) this.print(trigger, { carriage: w.train.carriageName(index) });
     });
     e.on('livery.changed', ({ name }) => this.print('livery', { livery: name }));
     e.on('stars.added', () => {
@@ -203,6 +206,7 @@ export class Press {
       carriages: w.train.count,
       livery: livery.body,
       trim: livery.trim,
+      paints: w.train.paints(),
       at: Math.round(w.lifetimeSeconds()),
     };
     p.items.unshift(item);

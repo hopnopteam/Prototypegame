@@ -97,6 +97,21 @@ export const ECONOMY = {
     waveSeconds: 1.4,
   },
 
+  /**
+   * Carriage classes (config/classes.ts holds the table). Travellers come for the classes the train sells;
+   * now and then one of the next class up turns up too and waits on the platform with their ticket (they
+   * cannot board yet): visible demand for the next upgrade, never a penalty.
+   */
+  classes: {
+    /** Chance a traveller holds a ticket for the class above the train's best (once that class can be bought). */
+    aspirantChance: 0.18,
+    /** First and Royal: seconds at the cabin to turn the bed down, and the tip for it (before the class tip). */
+    turndownSeconds: 1.1,
+    turndownTip: 4,
+    /** Royal: requests come in pairs; finishing the butler's list pays this much extra on the last tip. */
+    butlerBonus: 1.5,
+  },
+
   service: {
     /** Deliver a request this fast for a bigger tip. Slower is never worse than the base tip. */
     speedySeconds: 8,

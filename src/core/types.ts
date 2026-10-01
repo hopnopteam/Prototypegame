@@ -24,7 +24,7 @@ export const offsetRect = (r: Rect, dz: number): Rect => ({ x0: r.x0, z0: r.z0 +
 
 export const rectCenter = (r: Rect): Vec2 => ({ x: (r.x0 + r.x1) / 2, z: (r.z0 + r.z1) / 2 });
 
-export type ItemKind = 'tea' | 'blanket' | 'pillow' | 'towel' | 'roll' | 'luggage' | 'crate';
+export type ItemKind = 'tea' | 'coffee' | 'champagne' | 'blanket' | 'pillow' | 'towel' | 'roll' | 'luggage' | 'crate';
 
 export type CurrencyKind = 'cash' | 'gems' | 'railMiles';
 

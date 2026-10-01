@@ -21,8 +21,10 @@ import {
   type PropDef,
   type WallBox,
 } from './layout';
-import { MATERIALS, PATTERN } from './materials';
-import { CARRIAGE_THEMES, PALETTE, type CarriageTheme } from './palette';
+import { litMaterial, MATERIALS, PATTERN } from './materials';
+import { CARRIAGE_THEMES, CLASS_THEMES, PALETTE, type CarriageTheme } from './palette';
+import { classOfTier, isPassengerType, type ClassDef } from '../config/classes';
+import { SURFACES } from './surfaces';
 import { buildCobwebs, buildFloor, type FloorResult } from './Floors';
 import type { LampAnchor } from './Lighting';
 import { REFLECT_LAYER } from './Water';
@@ -101,8 +103,10 @@ const DOOR_POCKET_MARGIN = 0.015;
 interface Finish {
   wall: string;
   wallLow: string;
-  /** Lower wall is wood panelling rather than paint (tier 3). */
+  /** Lower wall is wood panelling rather than paint (Luxurious, and passenger classes from Business). */
   panelled: boolean;
+  /** The panelling's colour (walnut, or burgundy in the Royal Suite). */
+  panel: string;
   cap: string;
   floor: string;
   floorSeam: string;
@@ -121,9 +125,19 @@ interface Finish {
 
 function finishFor(type: CarriageType, tier: number, t: CarriageTheme): Finish {
   const tiled = type === 'bathroom';
+  if (isPassengerType(type) && tier >= 3) {
+    // Business, First Class and the Royal Suite: panelled, a runner edged in silver or gold, brass sconces.
+    const edge = tier === 3 ? '#C9D2DC' : PALETTE.gold;
+    return {
+      wall: t.wall, wallLow: t.wallLow, panelled: true, panel: tier >= 5 ? '#5A1A28' : PALETTE.walnut, cap: tier >= 5 ? PALETTE.gold : PALETTE.walnut,
+      floor: PALETTE.boards, floorSeam: PALETTE.boardsSeam, floorPattern: PATTERN.boards, floorScale: 0.3,
+      room: PALETTE.boards, roomSeam: PALETTE.boardsSeam, roomPattern: PATTERN.boards, roomScale: 0.3,
+      runner: { body: t.deep, edge }, curtains: true, lamps: 3, decor: true,
+    };
+  }
   if (tier <= 0) {
     return {
-      wall: PALETTE.wallWorn, wallLow: PALETTE.wallWornLow, panelled: false, cap: '#9DAFA3',
+      wall: PALETTE.wallWorn, wallLow: PALETTE.wallWornLow, panelled: false, panel: PALETTE.walnut, cap: '#9DAFA3',
       floor: PALETTE.plankWorn, floorSeam: PALETTE.plankWornSeam, floorPattern: PATTERN.boards, floorScale: 0.3,
       room: PALETTE.plankWorn, roomSeam: PALETTE.plankWornSeam, roomPattern: PATTERN.boards, roomScale: 0.3,
       runner: null, curtains: false, lamps: 0, decor: false,
@@ -133,7 +147,7 @@ function finishFor(type: CarriageType, tier: number, t: CarriageTheme): Finish {
   // Cabins keep their floorboards at every tier: the mat is what gets finer.
   const carpetRoom = oakRoom;
   const base = {
-    wall: t.wall, wallLow: t.wallLow, panelled: tier >= 3, cap: PALETTE.walnut,
+    wall: t.wall, wallLow: t.wallLow, panelled: tier >= 3, panel: PALETTE.walnut, cap: PALETTE.walnut,
     floor: PALETTE.boards, floorSeam: PALETTE.boardsSeam, floorPattern: PATTERN.boards, floorScale: 0.3,
   };
   // Repaired: sound, clean and plain (neutral paint); the carriage's own colours arrive at Cosy.
@@ -260,10 +274,21 @@ export class CarriageView {
   private readonly finish: Finish;
   private floorInfo: FloorResult = { queueBase: FLOOR_Y };
 
+  /** A passenger carriage's class (from its tier); null for service cars. */
+  readonly cls: ClassDef | null;
+  /** The paint outside: the class's own livery on passenger carriages, the train's livery on service cars. */
+  readonly liveryBody: THREE.Material;
+  readonly liveryTrim: THREE.Material;
+
   constructor(readonly layout: CarriageLayout, readonly index: number, readonly tier = 0) {
-    this.theme = CARRIAGE_THEMES[layout.type];
+    const passenger = isPassengerType(layout.type);
+    this.cls = passenger ? classOfTier(tier) : null;
+    const cls = this.cls;
+    this.theme = cls && cls.id !== 'basic' ? CLASS_THEMES[cls.id] : CARRIAGE_THEMES[layout.type];
     this.finish = finishFor(layout.type, tier, this.theme);
-    this.blanketColor = tier <= 0 ? PALETTE.greyWool : tier >= 3 ? this.theme.deep : this.theme.blanket;
+    this.blanketColor = tier <= 0 ? PALETTE.greyWool : tier >= 3 ? (tier >= 4 ? this.theme.blanket : this.theme.deep) : this.theme.blanket;
+    this.liveryBody = cls ? litMaterial(`livery:${cls.id}`, { vertexColors: true, color: cls.livery.body }, { surface: SURFACES.paint, light: true }) : MATERIALS.livery;
+    this.liveryTrim = cls ? litMaterial(`trim:${cls.id}`, { vertexColors: true, color: cls.livery.trim }, { surface: tier >= 4 ? SURFACES.brass : SURFACES.paint, light: true }) : MATERIALS.liveryTrim;
     this.buildStatic();
     this.buildRooms();
     this.buildRoomDoors();
@@ -498,7 +523,9 @@ export class CarriageView {
     for (const z of [0.02, L - 0.02]) for (const x of [-1.3, 1.3]) s.cylinder(x, 0.42, z, 0.11, 0.11, 0.25, PALETTE.chrome, 10, 'z');
 
     // Floor: the tier's boards (broken and old, then repaired, polished, parquet), rooms and rugs (Floors.ts).
-    this.floorInfo = buildFloor(f, this.layout, this.tier, this.theme, this.index * 7 + this.layout.type.length);
+    // Passenger classes: Comfort and Business polished boards, First chevron parquet, Royal marble.
+    const floorTier = this.cls ? [0, 1, 2, 2, 3, 4][this.tier] ?? 4 : this.tier;
+    this.floorInfo = buildFloor(f, this.layout, floorTier, this.theme, this.index * 7 + this.layout.type.length);
     if (this.tier <= 0) {
       const webs = buildCobwebs(this.layout, this.index + 3);
       if (webs) this.group.add(webs);
@@ -534,6 +561,7 @@ export class CarriageView {
       lamps.endObject();
     }
     this.buildDecor(s, f, lamps);
+    if (this.cls) for (const cabin of this.layout.cabins) buildClassDressing(s, lamps, cabin, this.tier, this.theme);
     this.buildDoorFrames(s);
     this.buildSpinners();
 
@@ -547,8 +575,8 @@ export class CarriageView {
       this.group.add(mesh);
     };
     add(s, MATERIALS.solid, true, true);
-    add(liv, MATERIALS.livery, true, true, true);
-    add(trim, MATERIALS.liveryTrim, false, true, true);
+    add(liv, this.liveryBody, true, true, true);
+    add(trim, this.liveryTrim, false, true, true);
     add(f, MATERIALS.floor, false, true);
     add(glass, MATERIALS.windows, false, false, true);
     add(lamps, MATERIALS.lamps, false, false, true);
@@ -667,7 +695,7 @@ export class CarriageView {
   private innerFinish(s: GeoBuilder, r: Rect, y0: number, y1: number, rail: Rect): void {
     const fin = this.finish;
     const low = Math.min(y1, FLOOR_Y + WAINSCOT);
-    if (low > y0) s.slab(r, y0, low, fin.panelled ? PALETTE.walnut : fin.wallLow, 0, 0, { shade: 0.82 });
+    if (low > y0) s.slab(r, y0, low, fin.panelled ? fin.panel : fin.wallLow, 0, 0, { shade: 0.82, surface: fin.panelled ? 'varnish' : 'matte' });
     if (y1 > low) s.slab(r, Math.max(y0, low), y1, fin.wall, 0, 0, { shade: 0.96 });
     if (fin.panelled && y0 <= FLOOR_Y + WAINSCOT && y1 >= FLOOR_Y + WAINSCOT) s.slab(shortenEnds(rail, END_INSET), FLOOR_Y + WAINSCOT - 0.012, FLOOR_Y + WAINSCOT + 0.018, PALETTE.brass, 0, 0, FLAT);
   }
@@ -935,7 +963,7 @@ export class CarriageView {
   }
 
   private doorMetal(): string {
-    return this.tier >= 2 ? PALETTE.brass : this.tier <= 0 ? PALETTE.iron : '#C9B79C';
+    return this.tier >= 5 ? PALETTE.gold : this.tier >= 2 ? PALETTE.brass : this.tier <= 0 ? PALETTE.iron : '#C9B79C';
   }
 
   /** Door frames and thresholds, merged into the carriage's static mesh. */
@@ -962,7 +990,7 @@ export class CarriageView {
     for (const door of this.layout.doors) {
       const group = new THREE.Group();
       const closedZ = (door.z0 + door.z1) / 2;
-      const mesh = new THREE.Mesh(body, MATERIALS.livery);
+      const mesh = new THREE.Mesh(body, this.liveryBody);
       mesh.castShadow = true;
       group.add(mesh, new THREE.Mesh(details, MATERIALS.solid));
       group.position.set(HALF_WIDTH + 0.05, FLOOR_Y + 0.52, closedZ);
@@ -1170,6 +1198,10 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
         for (const px of [r.x0 + 0.04, r.x1 - 0.04]) b.box(px, y + 0.38, r.z0 + 0.02, 0.04, 0.3, 0.04, PALETTE.iron, 0, FLAT);
         break;
       }
+      if (tier >= 4) {
+        buildGrandBed(b, r, theme, tier);
+        break;
+      }
       b.slab(r, y, y + 0.24, wood, 0, 0, { shade: 0.75 });
       b.rounded(cx, y + 0.31, cz + 0.02, w - 0.06, BED_TOP - 0.24, d - 0.08, 0.06, PALETTE.mattress, { shade: 0.92 });
       const pillows = tier >= 2 ? [-1, 1] : [0];
@@ -1255,6 +1287,9 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       }
       break;
     }
+    case 'bureau':
+      buildBureau(b, lamps, r, tier);
+      break;
     case 'washShelf': {
       // An open stand against the wall: side panels and three boards, the stock sits on the top two.
       const wood2 = tier <= 0 ? '#A99A86' : wood;
@@ -1369,4 +1404,243 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       break;
     }
   }
+}
+
+
+/**
+ * First Class and the Royal Suite beds. First: a tall buttoned velvet headboard, a red velvet throw with a gold
+ * edge, plump pillows and a bolster. Royal: the same bed as a four-poster, turned walnut posts with gold finials
+ * and a burgundy valance round the top (open above, so the sleeper stays in view).
+ */
+function buildGrandBed(b: GeoBuilder, r: Rect, theme: CarriageTheme, tier: number): void {
+  const y = FLOOR_Y;
+  const cx = (r.x0 + r.x1) / 2;
+  const cz = (r.z0 + r.z1) / 2;
+  const w = r.x1 - r.x0;
+  const d = r.z1 - r.z0;
+  const frame = tier >= 5 ? '#4A2A22' : PALETTE.walnutDark;
+  b.slab(r, y, y + 0.24, frame, 0, 0, { shade: 0.75, surface: 'varnish' });
+  b.slab(rect(r.x0 + 0.01, r.z0 + 0.01, r.x1 - 0.01, r.z1 - 0.01), y + 0.2, y + 0.23, PALETTE.gold, 0, 0.0, { shade: 1, surface: 'brass' });
+  b.rounded(cx, y + 0.31, cz + 0.02, w - 0.06, BED_TOP - 0.24, d - 0.08, 0.06, PALETTE.mattress, { shade: 0.92, surface: 'fabric' });
+  for (const side of [-1, 1]) b.rounded(cx + side * (w / 4 - 0.02), y + BED_TOP + 0.035, r.z0 + 0.27, w / 2 - 0.1, 0.1, 0.26, 0.07, PALETTE.pillow, { shade: 0.9, surface: 'fabric' });
+  b.cylinder(cx, y + BED_TOP + 0.05, r.z0 + 0.46, 0.055, 0.055, w - 0.24, theme.deep, 12, 'x', { shade: 0.9, surface: 'velvet' });
+  b.rounded(cx, y + BED_TOP - 0.005, r.z0 + d * 0.63, w - 0.02, 0.07, d * 0.68, 0.04, theme.blanket, { shade: 0.9, surface: 'velvet' });
+  b.box(cx, y + BED_TOP + 0.03, r.z0 + d * 0.3, w - 0.02, 0.012, 0.1, PALETTE.linen, 0, FLAT);
+  b.box(cx, y + BED_TOP + 0.031, r.z1 - 0.1, w - 0.02, 0.012, 0.05, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+  // Headboard: buttoned velvet in a gilt frame.
+  b.box(cx, y + 0.55, r.z0 + 0.04, w, 0.7, 0.08, frame, 0, { shade: 0.82, surface: 'varnish' });
+  b.rounded(cx, y + 0.6, r.z0 + 0.095, w - 0.14, 0.5, 0.03, 0.08, theme.deep, { shade: 0.9, surface: 'velvet' });
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) b.sphere(cx - 0.25 + i * 0.25, y + 0.5 + j * 0.2, r.z0 + 0.114, 0.015, PALETTE.gold, 0, 1, { shade: 1, surface: 'brass' });
+  b.cylinder(cx, y + 0.92, r.z0 + 0.04, 0.035, 0.035, w - 0.02, PALETTE.gold, 10, 'x', { shade: 1, surface: 'brass' });
+  if (tier < 5) return;
+  // The four-poster.
+  const top = y + 1.38;
+  const posts: [number, number][] = [[r.x0 + 0.04, r.z0 + 0.04], [r.x1 - 0.04, r.z0 + 0.04], [r.x0 + 0.04, r.z1 - 0.04], [r.x1 - 0.04, r.z1 - 0.04]];
+  for (const [px, pz] of posts) {
+    b.cylinder(px, (y + 0.24 + top) / 2, pz, 0.028, 0.034, top - y - 0.24, frame, 8, 'y', { shade: 0.85, surface: 'varnish' });
+    b.sphere(px, top + 0.05, pz, 0.045, PALETTE.gold, 1, 1.2, { shade: 1, surface: 'brass' });
+  }
+  const rail = (x0: number, z0: number, x1: number, z1: number): void => {
+    const along = Math.abs(z1 - z0) > Math.abs(x1 - x0);
+    b.box((x0 + x1) / 2, top - 0.02, (z0 + z1) / 2, along ? 0.04 : Math.abs(x1 - x0) - 0.06, 0.04, along ? Math.abs(z1 - z0) - 0.06 : 0.04, frame, 0, { shade: 1, surface: 'varnish' });
+    // The valance hangs just inside the rail: burgundy with a gold fringe.
+    const inset = 0.025;
+    if (along) {
+      const vx = x0 + (x0 < cx ? inset : -inset);
+      b.box(vx, top - 0.13, (z0 + z1) / 2, 0.012, 0.18, Math.abs(z1 - z0) - 0.1, theme.deep, 0, { shade: 0.9, surface: 'velvet' });
+      b.box(vx, top - 0.225, (z0 + z1) / 2, 0.014, 0.018, Math.abs(z1 - z0) - 0.1, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+    } else {
+      const vz = z0 + (z0 < cz ? inset : -inset);
+      b.box((x0 + x1) / 2, top - 0.13, vz, Math.abs(x1 - x0) - 0.1, 0.18, 0.012, theme.deep, 0, { shade: 0.9, surface: 'velvet' });
+      b.box((x0 + x1) / 2, top - 0.225, vz, Math.abs(x1 - x0) - 0.1, 0.018, 0.014, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+    }
+  };
+  rail(r.x0 + 0.04, r.z0 + 0.04, r.x0 + 0.04, r.z1 - 0.04);
+  rail(r.x1 - 0.04, r.z0 + 0.04, r.x1 - 0.04, r.z1 - 0.04);
+  rail(r.x0 + 0.04, r.z1 - 0.04, r.x1 - 0.04, r.z1 - 0.04);
+}
+
+/** The lobby's back corner, class by class: crates, a cupboard, a bookcase, a bureau, a piano, a gilded piano. */
+function buildBureau(b: GeoBuilder, lamps: GeoBuilder, r: Rect, tier: number): void {
+  const y = FLOOR_Y;
+  const cx = (r.x0 + r.x1) / 2;
+  const cz = (r.z0 + r.z1) / 2;
+  const w = r.x1 - r.x0;
+  const d = r.z1 - r.z0;
+  const face = r.x1;
+  if (tier <= 0) {
+    // Crates and a battered trunk, waiting to be unpacked.
+    b.box(cx, y + 0.22, r.z0 + 0.3, w - 0.02, 0.44, 0.5, '#A98D6F', 0, { pattern: PATTERN.stripesZ, color2: '#9C8264', scale: 0.12, shade: 0.8, surface: 'wood' });
+    b.box(cx, y + 0.18, r.z1 - 0.35, w - 0.04, 0.36, 0.6, '#7C5A45', 0, { shade: 0.8, surface: 'leather' });
+    b.box(cx, y + 0.37, r.z1 - 0.35, w - 0.02, 0.03, 0.62, PALETTE.iron, 0, FLAT);
+    return;
+  }
+  if (tier === 1) {
+    b.box(cx, y + 0.5, cz, w, 1.0, d - 0.1, PALETTE.oakMid, 0, { shade: 0.8, surface: 'wood' });
+    b.box(face + 0.006, y + 0.5, cz, 0.012, 0.9, 0.01, '#A08868', 0, FLAT);
+    for (const dz of [-0.12, 0.12]) b.sphere(face + 0.02, y + 0.55, cz + dz, 0.02, PALETTE.iron, 0);
+    return;
+  }
+  if (tier === 2) {
+    // A bookcase, full of colour.
+    b.box(cx, y + 0.55, cz, w, 1.1, d - 0.1, PALETTE.walnut, 0, { shade: 0.8, surface: 'varnish' });
+    const spines = ['#C0485C', '#5E7FA0', '#E5B452', '#6E9C86', '#8E6A8C', '#E08A6E'];
+    for (let shelf = 0; shelf < 3; shelf++) {
+      let z = r.z0 + 0.12;
+      let k = shelf * 2;
+      while (z < r.z1 - 0.16) {
+        const bw = 0.05 + ((k * 7) % 4) * 0.012;
+        b.box(face - 0.03, y + 0.22 + shelf * 0.32, z + bw / 2, 0.04, 0.24, bw, spines[k % spines.length], 0, FLAT);
+        z += bw + 0.008;
+        k++;
+      }
+    }
+    return;
+  }
+  if (tier === 3) {
+    // A bureau with drawers and a green-shaded banker's lamp.
+    b.box(cx, y + 0.4, cz, w, 0.8, d - 0.1, PALETTE.walnut, 0, { shade: 0.8, surface: 'varnish' });
+    for (let i = 0; i < 3; i++) {
+      b.box(face + 0.006, y + 0.16 + i * 0.22, cz, 0.012, 0.18, d - 0.3, PALETTE.walnutDark, 0, FLAT);
+      b.sphere(face + 0.02, y + 0.16 + i * 0.22, cz, 0.018, PALETTE.brass, 0, 1, { shade: 1, surface: 'brass' });
+    }
+    b.box(cx, y + 0.815, cz, w + 0.02, 0.03, d - 0.08, '#3E5F4E', 0, { shade: 1, surface: 'leather' });
+    b.cylinder(cx, y + 0.9, r.z0 + 0.3, 0.014, 0.05, 0.14, PALETTE.brass, 8, 'y', { surface: 'brass' });
+    lamps.cylinder(cx, y + 1.0, r.z0 + 0.3, 0.07, 0.1, 0.06, '#3F8A5E', 12, 'y', { shade: 0.9 });
+    return;
+  }
+  // An upright piano: black lacquer (ivory and gold in the Royal Suite), keys toward the room.
+  const body = tier >= 5 ? '#F2EDE4' : '#1C1A20';
+  const trim = PALETTE.gold;
+  b.box(cx, y + 0.62, cz, w, 1.24, d - 0.1, body, 0, { shade: 0.85, surface: 'varnish' });
+  // The keyboard stands only 10 cm proud of the case: the path from the desk to the cabins runs past it.
+  b.box(face + 0.05, y + 0.72, cz, 0.1, 0.06, d - 0.14, body, 0, { shade: 1, surface: 'varnish' });
+  b.box(face + 0.07, y + 0.755, cz, 0.06, 0.012, d - 0.2, '#F7F4EC', 0, FLAT);
+  for (let i = 0; i < 7; i++) b.box(face + 0.06, y + 0.768, r.z0 + 0.2 + i * ((d - 0.4) / 6), 0.04, 0.012, 0.03, '#1A1A1A', 0, FLAT);
+  b.box(face + 0.006, y + 1.1, cz, 0.012, 0.03, d - 0.12, trim, 0, { shade: 1, surface: 'brass' });
+  b.box(face + 0.006, y + 0.35, cz, 0.012, 0.03, d - 0.12, trim, 0, { shade: 1, surface: 'brass' });
+  // Music stand, and candles (a candelabra in the Royal Suite).
+  b.box(face - 0.03, y + 0.95, cz, 0.02, 0.2, 0.36, '#F4EEDC', 0, FLAT);
+  const candles = tier >= 5 ? [-0.3, -0.15, 0.15, 0.3] : [-0.3, 0.3];
+  for (const dz of candles) {
+    b.cylinder(cx, y + 1.3, cz + dz, 0.02, 0.03, 0.08, trim, 8, 'y', { surface: 'brass' });
+    lamps.cylinder(cx, y + 1.39, cz + dz, 0.014, 0.014, 0.1, '#FFF1D0', 8);
+  }
+}
+
+/**
+ * What a cabin's class adds, placed where it can never touch the cleaning pad, the mess or the tip pile: the
+ * light hanging over the walk-in (a bare bulb, a fabric shade, brass, a glass globe, a chandelier), a writing
+ * desk on the corridor wall past the door (Business and up), and at the foot of the bed a stool (Basic), a
+ * minibar (Business), a velvet ottoman and champagne on ice (First) or a slipper bath (Royal).
+ */
+function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout, tier: number, theme: CarriageTheme): void {
+  const y = FLOOR_Y;
+  const room = cabin.room;
+  const bed = cabin.bed;
+  const heart = cabin.center;
+  // Hanging light, just toward the corridor side of the walk-in, high above everyone's heads.
+  const hx = PARTITION_X1 + 0.42;
+  const hz = heart.z;
+  const hang = y + 1.5;
+  b.object('class:pendant');
+  lamps.object('class:pendant~glow');
+  b.cylinder(hx, (hang + y + 2.1) / 2, hz, 0.006, 0.006, y + 2.1 - hang, PALETTE.ink, 4);
+  if (tier <= 1) lamps.sphere(hx, hang - 0.05, hz, 0.05, PALETTE.lampShade, 1);
+  else if (tier === 2) {
+    b.cone(hx, hang - 0.06, hz, 0.15, 0.13, theme.curtain, 12, { shade: 0.9, surface: 'fabric' });
+    lamps.sphere(hx, hang - 0.12, hz, 0.045, PALETTE.lampShade, 1);
+  } else if (tier <= 4) {
+    b.cylinder(hx, hang, hz, 0.03, 0.05, 0.05, PALETTE.brass, 10, 'y', { surface: 'brass' });
+    lamps.sphere(hx, hang - 0.1, hz, tier >= 4 ? 0.1 : 0.08, tier >= 4 ? '#FFF4D8' : PALETTE.lampShade, 1);
+  } else {
+    // The chandelier: a gilt ring of candle bulbs round crystal drops.
+    b.cylinder(hx, hang, hz, 0.16, 0.16, 0.025, PALETTE.gold, 18, 'y', { surface: 'brass' });
+    b.cylinder(hx, hang + 0.08, hz, 0.02, 0.05, 0.16, PALETTE.gold, 8, 'y', { surface: 'brass' });
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      lamps.cylinder(hx + Math.cos(a) * 0.16, hang + 0.05, hz + Math.sin(a) * 0.16, 0.012, 0.012, 0.07, '#FFF1D0', 6);
+      b.sphere(hx + Math.cos(a + 0.5) * 0.09, hang - 0.07, hz + Math.sin(a + 0.5) * 0.09, 0.022, '#E8F2FF', 1, 1.6, { shade: 1, surface: 'crystal' });
+    }
+    lamps.sphere(hx, hang - 0.12, hz, 0.04, '#FFF4D8', 1);
+  }
+  b.endObject();
+  lamps.endObject();
+
+  // Business and up: a writing desk on the corridor wall, past the door, with a reading lamp.
+  if (tier >= 3) {
+    const z0 = cabin.door[1] + 0.06;
+    const z1 = room.z1 - 0.05;
+    if (z1 - z0 > 0.3) {
+      const x0 = PARTITION_X1 + 0.005;
+      const x1 = x0 + 0.26;
+      const zc = (z0 + z1) / 2;
+      b.object('class:desk');
+      lamps.object('class:desk~glow');
+      b.box((x0 + x1) / 2, y + 0.7, zc, x1 - x0, 0.04, z1 - z0, tier >= 4 ? PALETTE.walnutDark : PALETTE.walnut, 0, { shade: 1, surface: 'varnish' });
+      b.box(x0 + 0.02, y + 0.6, zc, 0.03, 0.16, z1 - z0 - 0.1, tier >= 4 ? PALETTE.gold : PALETTE.walnutDark, 0, { shade: 0.9, surface: tier >= 4 ? 'brass' : 'varnish' });
+      b.box((x0 + x1) / 2 + 0.02, y + 0.726, zc - 0.05, 0.14, 0.012, 0.18, '#F1EAD8', 0, FLAT);
+      b.cylinder(x0 + 0.1, y + 0.78, z1 - 0.1, 0.012, 0.035, 0.12, PALETTE.brass, 8, 'y', { surface: 'brass' });
+      lamps.cylinder(x0 + 0.1, y + 0.87, z1 - 0.1, 0.045, 0.07, 0.06, tier >= 4 ? '#F6E6BD' : '#3F8A5E', 12, 'y', { shade: 0.9 });
+      b.endObject();
+      lamps.endObject();
+    }
+  }
+
+  // At the foot of the bed.
+  const fz0 = bed.z1 + 0.05;
+  const fz1 = room.z1 - 0.04;
+  if (fz1 - fz0 < 0.3) return;
+  const fzc = (fz0 + fz1) / 2;
+  const fd = fz1 - fz0;
+  if (tier <= 1) {
+    b.object('class:stool');
+    const sx = bed.x0 + 0.35;
+    b.cylinder(sx, y + 0.4, fzc, 0.16, 0.16, 0.04, tier <= 0 ? '#9C8570' : PALETTE.oakMid, 12, 'y', { surface: 'wood' });
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      b.cylinder(sx + Math.cos(a) * 0.1, y + 0.2, fzc + Math.sin(a) * 0.1, 0.015, 0.015, 0.4, tier <= 0 ? '#8E7560' : PALETTE.walnut, 6, 'y', { surface: 'wood' });
+    }
+    b.endObject();
+    return;
+  }
+  if (tier === 3) {
+    // A minibar: a little walnut fridge with a bottle and glasses on top.
+    const mx0 = bed.x0 + 0.12;
+    const mx1 = mx0 + 0.44;
+    b.object('class:minibar');
+    b.box((mx0 + mx1) / 2, y + 0.25, fzc, mx1 - mx0, 0.5, Math.min(fd, 0.42), PALETTE.walnut, 0, { shade: 0.8, surface: 'varnish' });
+    b.box((mx0 + mx1) / 2, y + 0.25, fzc - Math.min(fd, 0.42) / 2 - 0.006, mx1 - mx0 - 0.08, 0.36, 0.012, '#B8C4CF', 0, { shade: 1, surface: 'steel' });
+    b.cylinder(mx0 + 0.12, y + 0.6, fzc, 0.035, 0.035, 0.2, '#3E5F4E', 10, 'y', { surface: 'glass' });
+    for (const dx of [0.24, 0.32]) b.cylinder(mx0 + dx, y + 0.54, fzc, 0.02, 0.018, 0.08, '#E8EEF2', 8, 'y', { surface: 'glass' });
+    b.endObject();
+    return;
+  }
+  if (tier === 4) {
+    // A velvet ottoman and champagne on ice.
+    b.object('class:ottoman');
+    b.rounded(bed.x0 + 0.38, y + 0.2, fzc, 0.52, 0.4, Math.min(fd, 0.36), 0.08, theme.blanket, { shade: 0.85, surface: 'velvet' });
+    for (const dx of [-0.2, 0.2]) b.sphere(bed.x0 + 0.38 + dx, y + 0.03, fzc, 0.03, PALETTE.gold, 0, 1, { shade: 1, surface: 'brass' });
+    b.object('class:champagne');
+    const bx = bed.x1 - 0.2;
+    b.cylinder(bx, y + 0.3, fzc, 0.04, 0.06, 0.6, PALETTE.gold, 10, 'y', { surface: 'brass' });
+    b.cylinder(bx, y + 0.66, fzc, 0.11, 0.09, 0.16, PALETTE.chrome, 14, 'y', { shade: 0.9, surface: 'steel' });
+    b.cylinder(bx, y + 0.78, fzc + 0.01, 0.04, 0.04, 0.2, '#1F4A34', 10, 'y', { surface: 'glass' });
+    b.cylinder(bx, y + 0.9, fzc + 0.01, 0.018, 0.026, 0.05, PALETTE.gold, 8, 'y', { surface: 'brass' });
+    b.endObject();
+    return;
+  }
+  // The Royal Suite's private bath: a slipper tub on gold claw feet, a gold tap and a folded towel.
+  b.object('class:bath');
+  const tx0 = bed.x0 + 0.06;
+  const tx1 = bed.x1 - 0.06;
+  const tcx = (tx0 + tx1) / 2;
+  const td = Math.min(fd, 0.46);
+  b.rounded(tcx, y + 0.3, fzc, tx1 - tx0, 0.4, td, 0.2, '#F7F4EE', { shade: 0.85, surface: 'ceramic' });
+  b.rounded(tcx, y + 0.505, fzc, tx1 - tx0 - 0.02, 0.03, td - 0.02, 0.19, PALETTE.gold, { shade: 1, surface: 'brass' });
+  b.rounded(tcx, y + 0.51, fzc, tx1 - tx0 - 0.14, 0.02, td - 0.14, 0.14, '#BFE0EC', { shade: 1, surface: 'glass' });
+  for (const fx of [tx0 + 0.12, tx1 - 0.12]) for (const dz of [-td / 2 + 0.1, td / 2 - 0.1]) b.sphere(fx, y + 0.05, fzc + dz, 0.045, PALETTE.gold, 0, 1, { shade: 1, surface: 'brass' });
+  b.cylinder(tx1 - 0.08, y + 0.62, fzc, 0.016, 0.016, 0.2, PALETTE.gold, 6, 'y', { surface: 'brass' });
+  b.box(tx0 + 0.18, y + 0.53, fzc, 0.24, 0.05, 0.16, theme.blanket, 0, { shade: 0.95, surface: 'fabric' });
+  b.endObject();
 }

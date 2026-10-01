@@ -5,6 +5,7 @@ import { EVENTS } from '../services/analytics';
 import { FLOOR_Y } from '../world/CarriageView';
 import { createItemMesh } from '../world/ItemMeshes';
 import { PLATFORM_X0 } from '../world/layout';
+import { CLASSES, type ClassId } from '../config/classes';
 import { PlatformView } from '../world/PlatformView';
 import { billboardTexture } from '../world/sprites';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
@@ -16,6 +17,16 @@ import { Zone } from './Zones';
 const APPROACH_MARGIN = 40;
 const DEPART_HIDE_DISTANCE = 70;
 /** Roadside billboards once the billboard campaign is bought. */
+/** A copy of `items` in random order. */
+function shuffled<T>(items: readonly T[], rng: { next(): number }): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng.next() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 const BILLBOARD_COUNT = 3;
 
 /**
@@ -221,11 +232,33 @@ export class Station {
     const count = Math.max(early, Math.min(econ.maxBoarders, free + extra + w.stationPerks().passengers));
     const spots = this.waitingSpots(count);
     const story = w.meta.storyGuestForStop();
-    const guests = w.guests.spawnPlatformGuests(spots, story);
+    const guests = w.guests.spawnPlatformGuests(spots, story, this.travellerClasses(stopSerial, count));
     this.luggagePile = guests.filter((g) => g.hasLuggage).length;
     this.luggageTotal = this.luggagePile;
     this.vendorCrates = w.train.hasSupplyCar() ? w.econ.facilities.vendorCratesPerStop : 0;
     this.layoutPlatformItems();
+  }
+
+  /**
+   * Who is waiting, by class: a traveller for every free bed of each class the train sells, the rest spread
+   * across those classes, and now and then someone with a ticket for the next class up (once it can be bought),
+   * who waits with a "no room" sign: the clearest nudge toward the next upgrade.
+   */
+  private travellerClasses(stopSerial: number, count: number): ClassId[] {
+    const w = this.w;
+    const capacity = w.train.classCapacity();
+    const boardable: ClassId[] = [];
+    for (const cls of capacity.keys()) for (let i = w.guests.bedsFree(stopSerial, cls); i > 0; i--) boardable.push(cls);
+    const out = shuffled(boardable, w.rng).slice(0, count);
+    const best = w.train.bestClass();
+    const above = CLASSES.find((c) => c.tier > best.tier) ?? null;
+    const weights: Partial<Record<ClassId, number>> = {};
+    for (const [cls, n] of capacity) weights[cls] = n;
+    while (out.length < count) {
+      if (above && w.progression.level >= above.level && w.rng.chance(w.econ.classes.aspirantChance)) out.push(above.id);
+      else out.push(capacity.size > 0 ? w.rng.weighted(weights) : 'basic');
+    }
+    return shuffled(out, w.rng);
   }
 
   private waitingSpots(count: number): Vec2[] {

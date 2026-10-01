@@ -280,7 +280,21 @@ export class StaffManager {
     const w = this.w;
     // 1. Answer a request in this carriage.
     const guest = w.guests.openRequests().find((g) => g.cabin && this.inScope(m, g.cabin.carriage) && !(g as Guest & { reservedBy?: StaffMember }).reservedBy);
-    if (guest && guest.cabin && guest.request && guest.request !== 'bathroom') {
+    if (guest && guest.cabin && guest.request === 'turndown') {
+      // Turning a First or Royal bed down: straight to the cabin, a moment at the bedside.
+      const cabin = guest.cabin;
+      const reserved = guest as Guest & { reservedBy?: StaffMember };
+      reserved.reservedBy = m;
+      return {
+        label: 'turndown', icon: 'turndown',
+        steps: [
+          { kind: 'goto', target: cabin.center, node: cabin.node },
+          { kind: 'stand', until: () => guest.request !== 'turndown', timeout: 4 },
+        ],
+        release: () => { reserved.reservedBy = undefined; },
+      };
+    }
+    if (guest && guest.cabin && guest.request && guest.request !== 'bathroom' && guest.request !== 'turndown') {
       const item = guest.request;
       const cabin = guest.cabin;
       const reserved = guest as Guest & { reservedBy?: StaffMember };
@@ -349,13 +363,13 @@ export class StaffManager {
           release: () => (m.wantItems = {}),
         };
       }
-    } else if (!luggageCarPorter && w.guests.hasGuestAtDesk() && w.train.freeCabin() && !this.someoneAt('desk', m)) {
+    } else if (!luggageCarPorter && w.guests.deskReady() && !this.someoneAt('desk', m)) {
       const desk = w.map.anchor(0, 'deskService');
       return {
         label: 'desk', icon: 'ticket',
         steps: [
           { kind: 'goto', target: desk, node: 'c0:desk' },
-          { kind: 'stand', until: () => !w.guests.hasGuestAtDesk() || !w.train.freeCabin() || w.journey.doorsOpen, timeout: 20 },
+          { kind: 'stand', until: () => !w.guests.deskReady() || w.journey.doorsOpen, timeout: 20 },
         ],
         release: () => this.releaseRole('desk', m),
         ...this.claimRole('desk', m),
@@ -454,6 +468,8 @@ export class StaffManager {
     const supply = this.w.train.indexOfType('supply');
     switch (kind) {
       case 'tea':
+      case 'coffee':
+      case 'champagne':
       case 'blanket':
       case 'pillow':
         return this.nearestSource(kind, m.carriage);
@@ -473,7 +489,8 @@ export class StaffManager {
 
   private nearestSource(item: ItemKind, carriage: number): Vec2 | null {
     const map = this.w.map;
-    const name = item === 'tea' ? 'urn' : item;
+    // The urn serves tea, coffee and champagne; the linen cupboard blankets, pillows and fresh towels.
+    const name = item === 'tea' || item === 'coffee' || item === 'champagne' ? 'urn' : item === 'towel' ? 'linen' : item;
     const candidates: Vec2[] = [];
     for (let i = 0; i < map.count; i++) if (map.hasAnchor(i, name) && (map.layoutOf(i).type === 'lobby' || map.layoutOf(i).type === 'sleeper')) candidates.push(map.anchor(i, name));
     if (candidates.length === 0) return null;

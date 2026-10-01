@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { CARRIAGE_CATALOGUE, MAX_CARRIAGES, type BedMess, type ComfortKey, type MessPiece, type UnlockDef } from '../config/content';
 import { buildUnlocks, carriageChoices } from '../sim/unlockPlan';
+import { CLASSES, classFare, classOfTier, classStartingAt, isPassengerType, type ClassDef, type ClassId } from '../config/classes';
+import { ClassChips } from '../world/ClassChips';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Vec2 } from '../core/types';
 import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
@@ -15,6 +17,7 @@ import type { Actor } from './Actor';
 import type { Guest } from './Guests';
 import { sourceActive, sourceStay, type SourceSpec } from './Pickup';
 import type { World } from './World';
+import type { IconName } from '../ui/icons';
 import { Zone } from './Zones';
 
 export class Cabin {
@@ -127,7 +130,7 @@ export class TrainState {
   readonly cabins: Cabin[] = [];
   readonly bathrooms: Bathroom[] = [];
   types: CarriageType[] = [];
-  /** Refurbishment tier per carriage: 0 second-hand … 3 luxurious. */
+  /** Refit tier per carriage: service cars 0 second-hand … 3 luxurious; passenger carriages 0 … 5 Royal Suite. */
   tiers: number[] = [];
   /** Comforts bought per carriage. */
   private comfortCounts: number[] = [];
@@ -144,10 +147,13 @@ export class TrainState {
   private jolt = 0;
   /** The open observation deck behind the last carriage, where the coupling tile sits. */
   private readonly deck: THREE.Group;
+  /** The class chip over every passenger carriage. */
+  private readonly chips = new ClassChips();
 
   constructor(private readonly w: World) {
     this.group.add(this.loco.group);
     this.group.add(this.exterior.group);
+    this.group.add(this.chips.group);
     this.deck = buildRearDeck();
     this.group.add(this.deck);
   }
@@ -277,9 +283,46 @@ export class TrainState {
     return this.indexOfType('supply') !== null;
   }
 
-  /** Refurbished cabins pay more: the whole point of doing up a rusty carriage. */
+  /** A passenger carriage's class (from its refit tier); service cars have none. */
+  classOf(carriage: number): ClassDef | null {
+    const type = this.types[carriage];
+    return type !== undefined && isPassengerType(type) ? classOfTier(this.tiers[carriage] ?? 0) : null;
+  }
+
+  /** The class a cabin sells (its carriage's). */
+  cabinClass(cabin: Cabin): ClassId {
+    return this.classOf(cabin.carriage)?.id ?? 'basic';
+  }
+
+  /** Classes the train sells right now, with how many open cabins each has (for who turns up on the platform). */
+  classCapacity(): Map<ClassId, number> {
+    const out = new Map<ClassId, number>();
+    for (const cabin of this.cabins) if (cabin.unlocked) out.set(this.cabinClass(cabin), (out.get(this.cabinClass(cabin)) ?? 0) + 1);
+    return out;
+  }
+
+  /** Each carriage's outside paint, front to back: its class livery, or the train's for service cars. */
+  paints(): { body: string; trim: string }[] {
+    const livery = this.w.currentLivery();
+    return this.types.map((_, i) => {
+      const c = this.classOf(i);
+      return c ? { body: c.livery.body, trim: c.livery.trim } : { body: livery.body, trim: livery.trim };
+    });
+  }
+
+  /** The best class on the train (what the next upgrade builds on). */
+  bestClass(): ClassDef {
+    let best = CLASSES[0];
+    this.types.forEach((_, i) => {
+      const c = this.classOf(i);
+      if (c && c.tier > best.tier) best = c;
+    });
+    return best;
+  }
+
+  /** The class sets the fare (Basic ×1 … Royal ×15; a repaired Basic carriage ×1.25). */
   fareMultiplier(cabin: Cabin): number {
-    return 1 + (this.tiers[cabin.carriage] ?? 0) * this.w.econ.refurb.fareBonusPerTier;
+    return classFare(this.tiers[cabin.carriage] ?? 0);
   }
 
   bathTipMultiplier(bath: Bathroom): number {
@@ -299,14 +342,17 @@ export class TrainState {
     return this.tiers[carriage] ?? 0;
   }
 
-  /** The best free cabin for a new guest: the lowest carriage first, so walks stay short. */
-  freeCabin(): Cabin | null {
-    for (const cabin of this.cabins) if (cabin.isFree) return cabin;
+  /** The best free cabin for a new guest of this class (any class if none given): the lowest carriage first. */
+  freeCabin(cls?: ClassId): Cabin | null {
+    for (const cabin of this.cabins) if (cabin.isFree && (!cls || this.cabinClass(cabin) === cls)) return cabin;
     return null;
   }
 
-  openCabinCount(): number {
-    return this.cabins.filter((c) => c.unlocked).length;
+  /** Open cabins (of one class, or all). */
+  openCabinCount(cls?: ClassId): number {
+    let n = 0;
+    for (const cabin of this.cabins) if (cabin.unlocked && (!cls || this.cabinClass(cabin) === cls)) n++;
+    return n;
   }
 
   setDoors(open: boolean): void {
@@ -423,6 +469,7 @@ export class TrainState {
 
     for (const view of this.views) view.animate(dt);
     this.publishLamps();
+    this.chips.sync(this.views.map((v) => v.cls), (i) => this.views[i]?.group.position.z ?? carriageOriginZ(i), dt);
 
     // Doors slide open at stations.
     if (this.doorAmount !== this.doorTarget) {
@@ -557,9 +604,10 @@ export class TrainState {
     return out;
   }
 
-  /** Cabin comforts lift the tips guests leave in that carriage. */
+  /** Tips left in a cabin: its class (Royal guests tip like royalty) and the comforts bought for it. */
   cabinTipMultiplier(cabin: Cabin): number {
-    return 1 + (this.comfortCounts[cabin.carriage] ?? 0) * this.w.econ.comfort.cabinTipBonus;
+    const cls = this.classOf(cabin.carriage);
+    return (cls?.tip ?? 1) * (1 + (this.comfortCounts[cabin.carriage] ?? 0) * this.w.econ.comfort.cabinTipBonus);
   }
 
   /** Views whose lamps the lamp pools know about; re-sent when a carriage is added or rebuilt. */
@@ -616,9 +664,16 @@ export class TrainState {
       w.stage.rig.shake(0.15, 0.3);
       w.stage.rig.punch(0.06);
       w.particles.emit('confetti', 0, FLOOR_Y + 2.2, originZ + 7, 40, 1.8);
-      w.ui.celebrate(TIER_NAMES[tier] ?? this.carriageName(index), null, 'paint');
+      const cls = isPassengerType(type) ? classStartingAt(tier) : null;
+      if (cls) {
+        // A new class: its name and emblem, and a shimmer along the fresh paint outside.
+        w.ui.celebrate(cls.name, null, cls.icon);
+        for (let k = 0; k < 5; k++) w.particles.emit('sparkle', HALF_WIDTH + 0.15, FLOOR_Y + 0.9, originZ + 1.5 + k * 2.6, 8, 0.6);
+        w.audio.play('levelup');
+      } else w.ui.celebrate(TIER_NAMES[tier] ?? this.carriageName(index), null, 'paint');
     });
     w.events.emit('carriage.refurbished', { index, type, tier });
+    if (isPassengerType(type) && classStartingAt(tier)) w.events.emit('carriage.classUp', { index, cls: classOfTier(tier).id });
   }
 
   /**
@@ -629,8 +684,9 @@ export class TrainState {
     const w = this.w;
     const front = new THREE.Plane(new THREE.Vector3(0, 0, -1), originZ);
     const back = new THREE.Plane(new THREE.Vector3(0, 0, 1), -originZ);
-    const newSide = clippedMaterials(front);
-    const oldSide = clippedMaterials(back);
+    // The paint changes with the class, so the wipe repaints the outside too.
+    const newSide = clippedMaterials(front, [view.liveryBody, view.liveryTrim]);
+    const oldSide = clippedMaterials(back, [old.liveryBody, old.liveryTrim]);
     swapMaterials(view.group, newSide);
     swapMaterials(old.group, oldSide);
     const z0 = originZ - 0.6;
@@ -803,7 +859,7 @@ export class TrainState {
             w.tweens.run(0.45, (t) => bed.scale.set(1, 0.85 + 0.15 * t, 1), { ease: easeOutBack });
           }
           w.ui.floatIcon('check', cabin.center.x, FLOOR_Y + 1.6, cabin.center.z, 'info');
-          w.addStars(w.econ.stars.cabinCleaned, 'clean', cabin.center);
+          w.addStars(w.econ.stars.cabinCleaned * (this.classOf(cabin.carriage)?.stars ?? 1), 'clean', cabin.center);
           if (actor.isPlayer) w.setFlag('firstCabinCleaned');
           w.events.emit('cabin.cleaned', { byPlayer: actor.isPlayer, x: cabin.center.x, z: cabin.center.z });
         }
@@ -874,8 +930,10 @@ export class TrainState {
       }));
       const deskCash = at('deskCash');
       w.cash.create('desk', deskCash.x, deskCash.z);
-      this.sourceZone('src:tea', at('urn'), ['tea']);
-      this.sourceZone('src:linen', at('linen'), ['blanket', 'pillow']);
+      // The urn is the service counter (tea; coffee for Business, champagne for First and Royal); the linen
+      // cupboard has blankets, pillows and fresh towels for Comfort-class guests.
+      this.sourceZone('src:tea', at('urn'), ['tea', 'coffee', 'champagne'], undefined, undefined, 'tea');
+      this.sourceZone('src:linen', at('linen'), ['blanket', 'pillow', 'towel']);
       this.luggageDropZone('rack:lobby', at('rack'));
       this.binZone('bin:lobby', at('bin'));
     }
@@ -920,8 +978,8 @@ export class TrainState {
     }
 
     if (type === 'sleeper') {
-      this.sourceZone(`src:tea:${index}`, at('urn'), ['tea']);
-      this.sourceZone(`src:linen:${index}`, at('linen'), ['blanket', 'pillow']);
+      this.sourceZone(`src:tea:${index}`, at('urn'), ['tea', 'coffee', 'champagne'], undefined, undefined, 'tea');
+      this.sourceZone(`src:linen:${index}`, at('linen'), ['blanket', 'pillow', 'towel']);
     }
 
     // The washroom car keeps its own towels and rolls: it works the day it couples on.
@@ -935,7 +993,7 @@ export class TrainState {
    * takes back anything nobody needs any more. One station can hold several items (the linen cupboard has
    * blankets and pillows): it gives whichever is wanted. Unlimited sources (tea urn, linen) pass no stock.
    */
-  private sourceZone(id: string, p: Vec2, items: ('tea' | 'blanket' | 'pillow' | 'towel' | 'roll')[], stock?: () => number, adjust?: (delta: number) => void): void {
+  private sourceZone(id: string, p: Vec2, items: ItemKind[], stock?: () => number, adjust?: (delta: number) => void, icon?: IconName): void {
     const w = this.w;
     const point = new THREE.Vector3(p.x, FLOOR_Y + 1.0, p.z);
     const specs: SourceSpec[] = items.map((item) => ({
@@ -955,7 +1013,7 @@ export class TrainState {
       x: p.x,
       z: p.z,
       radius: ZONE_RADIUS.source,
-      icon: items.length > 1 ? 'linen' : items[0],
+      icon: icon ?? (items.length > 1 ? 'linen' : items[0]),
       active: () => specs.some((s) => sourceActive(w, s)),
       highlight: () => specs.some((s) => w.demand.playerWants(s.kind) > 0 && s.stock() > 0),
       stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, pick(actor)),
