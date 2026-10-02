@@ -11,7 +11,7 @@ import { ExteriorView } from '../world/ExteriorView';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { buildRearDeck } from '../world/RearDeck';
-import { clippedMaterials, swapMaterials } from '../world/materials';
+import { clipSide, swapMaterials } from '../world/materials';
 import { trainLightInput } from '../world/trainLight';
 import { TIER_NAMES } from '../world/palette';
 import type { Actor } from './Actor';
@@ -752,15 +752,23 @@ export class TrainState {
    * The makeover: a line of sparkle sweeps from the front of the carriage to the back, the refurbished
    * carriage appearing behind it and the old one still ahead of it, then a flourish.
    */
+  /** Makeover wipes running right now (each uses its own pair of clipping planes). */
+  private readonly wipeSlots = new Set<number>();
+
   private makeoverWipe(old: CarriageView, view: CarriageView, originZ: number, done: () => void): void {
     const w = this.w;
-    const front = new THREE.Plane(new THREE.Vector3(0, 0, -1), originZ);
-    const back = new THREE.Plane(new THREE.Vector3(0, 0, 1), -originZ);
     // The paint changes with the class, so the wipe repaints the outside too.
-    const newSide = clippedMaterials(front, [view.liveryBody, view.liveryTrim]);
-    const oldSide = clippedMaterials(back, [old.liveryBody, old.liveryTrim]);
-    swapMaterials(view.group, newSide);
-    swapMaterials(old.group, oldSide);
+    let slot = 0;
+    while (this.wipeSlots.has(slot)) slot++;
+    this.wipeSlots.add(slot);
+    const newSide = clipSide('front', [view.liveryBody, view.liveryTrim], slot);
+    const oldSide = clipSide('back', [old.liveryBody, old.liveryTrim], slot);
+    const front = newSide.plane;
+    const back = oldSide.plane;
+    front.constant = originZ;
+    back.constant = -originZ;
+    swapMaterials(view.group, newSide.map);
+    swapMaterials(old.group, oldSide.map);
     const z0 = originZ - 0.6;
     const z1 = originZ + CARRIAGE_LENGTH + 0.6;
     let sparkle = 0;
@@ -770,10 +778,10 @@ export class TrainState {
     this.group.add(band);
     const finish = (): void => {
       this.group.remove(band);
-      swapMaterials(view.group, newSide, true);
+      swapMaterials(view.group, newSide.map, true);
       this.group.remove(old.group);
       old.dispose();
-      for (const m of [...newSide.values(), ...oldSide.values()]) m.dispose();
+      this.wipeSlots.delete(slot);
       done();
     };
     w.tweens.run(MAKEOVER_SECONDS, (t) => {

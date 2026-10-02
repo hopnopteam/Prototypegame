@@ -60,6 +60,8 @@ export interface SaveData {
     quality: 'auto' | 'low' | 'medium' | 'high' | 'ultra';
     /** The tier auto settled on last time (null until it has had to step down). */
     qualityAuto: 'low' | 'medium' | 'high' | 'ultra' | null;
+    /** The render scale dynamic resolution settled on, per tier (the next launch starts there). */
+    renderScale: Partial<Record<'low' | 'medium' | 'high' | 'ultra', number>>;
   };
   wallet: {
     cash: number;
@@ -137,7 +139,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     createdAt: now,
     lastActiveAt: now,
     profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {} },
-    settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null },
+    settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {} },
     wallet: { cash: 0, gems: 0, railMiles: 0 },
     route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0 },
     staff: {},

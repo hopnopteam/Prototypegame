@@ -8,7 +8,7 @@ import { ECONOMY, type Economy } from '../config/economy';
 import { EventBus } from '../core/EventBus';
 import { log } from '../core/log';
 import { Rng } from '../core/Rng';
-import { Background } from '../core/Background';
+import { Background, frameWork } from '../core/Background';
 import { Tweens } from '../core/Tween';
 import type { SaveData } from '../save/SaveData';
 import { BrowserSaveStorage } from '../save/SaveStorage';
@@ -28,9 +28,10 @@ import { buildUnlocks, stationPerks, type StationPerks } from '../sim/unlockPlan
 import { Wallet } from '../sim/Wallet';
 import { FLOOR_Y } from '../world/CarriageView';
 import { CharacterView } from '../world/CharacterView';
+import { CharacterBatch } from '../world/CharacterBatch';
 import { carriageOriginZ, GANGWAY_LENGTH, HALF_WIDTH, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0, REAR_DECK_LENGTH } from '../world/layout';
-import { VISUALS, type TierSettings } from '../config/visuals';
-import { setLivery } from '../world/materials';
+import { VISUALS, type QualityTier, type TierSettings } from '../config/visuals';
+import { setLivery, SHADOW_GEOMETRY } from '../world/materials';
 import { LIVERIES, liveryFor, type Livery } from '../world/palette';
 import { CashView } from '../world/CashView';
 import { Particles } from '../world/Particles';
@@ -64,6 +65,11 @@ import { ZoneSystem } from './Zones';
 
 /** Milliseconds of each frame given to rebuilds spread over frames (see core/Background). */
 const BACKGROUND_BUDGET_MS = 2;
+/**
+ * Milliseconds of each frame shared by all spread-out work together (the next scenery stretch first, then
+ * rebuilds, then the light bake): a phone keeps its 60 fps even while a coupling rebuilds everything.
+ */
+const FRAME_WORK_MS = 2.5;
 const SAVE_KEY = 'nightexpress.save';
 const MAX_FRAME = 0.05;
 /** Where in the day cycle the held night sits (the middle of the night key). */
@@ -86,6 +92,7 @@ export class Game implements World {
   readonly scene: THREE.Scene;
   readonly particles = new Particles();
   readonly cashView = new CashView();
+  readonly characters = new CharacterBatch(SHADOW_GEOMETRY);
   readonly audio = new AudioEngine();
   readonly haptics = new Haptics();
   readonly analytics: MockAnalyticsService;
@@ -150,13 +157,29 @@ export class Game implements World {
     // A ?quality= link forces a tier for this visit only (screenshots, comparisons); it is not saved.
     const forced = new URLSearchParams(location.search).get('quality');
     const quality = isTier(forced) ? forced : isTier(settings.quality) ? settings.quality : 'auto';
-    this.stage = new Stage(canvas, quality, isTier(settings.qualityAuto) ? settings.qualityAuto : null);
+    // Each tier opens at the render scale it settled on last time (phones a little under full the first time).
+    const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+    const startScale = (tier: QualityTier): number => {
+      if (isTier(forced)) return 1;
+      const remembered = settings.renderScale?.[tier];
+      const start = VISUALS.quality.dynamicResolution.startScale;
+      return typeof remembered === 'number' && remembered > 0 ? remembered : touch ? start.touch : start.desktop;
+    };
+    this.stage = new Stage(canvas, quality, isTier(settings.qualityAuto) ? settings.qualityAuto : null, startScale);
     this.stage.dynamicResolution = !isTier(forced);
+    this.stage.checkShaderErrors = settings.devTools;
     this.stage.onAutoTier = (tier) => {
       this.data.settings.qualityAuto = tier;
       this.save.markDirty();
     };
+    this.stage.onRenderScale = (tier, scale) => {
+      (this.data.settings.renderScale ??= {})[tier] = Math.round(scale * 100) / 100;
+      this.save.markDirty();
+    };
     this.scene = this.stage.scene;
+    // Every character from here on draws through one batch (one draw call for the whole crowd).
+    CharacterView.batch = this.characters;
+    this.scene.add(this.characters.group);
     this.scene.add(this.scenery.group, this.ambient.group, this.particles.points, this.cashView.mesh);
     this.stage.attachParticles(this.particles);
 
@@ -324,17 +347,22 @@ export class Game implements World {
     if (this.running) return;
     this.running = true;
     this.lastFrame = performance.now();
+    // High-refresh screens are held to about 60 fps (config: quality.maxFps): the same smooth motion for half
+    // the work and heat. A frame that comes too soon after the last one is skipped.
+    const minFrameMs = (1000 / VISUALS.quality.maxFps) * VISUALS.quality.skipShare;
     const frame = (now: number): void => {
       if (!this.running) return;
+      requestAnimationFrame(frame);
+      if (now - this.lastFrame < minFrameMs) return;
       const real = Math.min(0.25, (now - this.lastFrame) / 1000);
       this.lastFrame = now;
       this.frame(real);
-      requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
   }
 
   private frame(realDt: number): void {
+    frameWork.begin(FRAME_WORK_MS);
     if (!this.paused && !this.adPlaying) {
       // Fast-forward (dev) runs several normal-sized steps so nothing tunnels through a zone.
       // A hit-stop (a beat of slow motion on a big unlock) gives the moment weight.
@@ -412,6 +440,7 @@ export class Game implements World {
     this.ui.update(realDt);
     // Rebuilds in progress get a slice of every frame, never a whole frame.
     this.background.run(BACKGROUND_BUDGET_MS);
+    this.characters.sync();
     this.stage.render(realDt);
   }
 
@@ -619,6 +648,7 @@ export class Game implements World {
     this.audio.setEnabled(s.sound, s.music);
     this.haptics.enabled = s.haptics;
     log.setVerbose(s.devTools);
+    this.stage.checkShaderErrors = s.devTools;
   }
 
   /** A brand-new player gets the intro; anyone returning goes straight back to their train. */
@@ -717,6 +747,7 @@ export class Game implements World {
   simulate(seconds: number, dt = 1 / 30): number {
     const steps = Math.round(seconds / dt);
     for (let i = 0; i < steps; i++) {
+      frameWork.begin(FRAME_WORK_MS);
       this.step(dt);
       this.background.run(BACKGROUND_BUDGET_MS);
       this.data.profile.lifetimePlaySeconds += dt;

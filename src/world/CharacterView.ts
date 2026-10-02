@@ -5,6 +5,7 @@ import { MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, type BubbleStyle } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
+import type { CharacterBatch } from './CharacterBatch';
 
 export type HatKind = 'conductor' | 'boater' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'none';
 export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'sash' | 'none';
@@ -300,6 +301,8 @@ export class CharacterView {
   static lean = 0;
   /** Aboard the train (sways with it); people on the platform or by the line stand still. */
   leans = true;
+  /** When set (the game sets it), every character is drawn through this batch: one draw for the crowd. */
+  static batch: CharacterBatch | null = null;
 
   private readonly bodyMesh: THREE.Mesh;
   private readonly legMeshes: THREE.Mesh[] = [];
@@ -339,6 +342,7 @@ export class CharacterView {
     this.shadow.position.y = 0.012;
     this.root.add(this.shadow);
     this.root.scale.setScalar(scale);
+    CharacterView.batch?.register(this.root);
   }
 
   /** Changes outfit in place (geometry is cached per look, so this is cheap after the first time). */
@@ -621,6 +625,7 @@ export class CharacterView {
 
   dispose(): void {
     if (this.bubble) (this.bubble.material as THREE.SpriteMaterial).dispose();
+    CharacterView.batch?.unregister(this.root);
   }
 }
 

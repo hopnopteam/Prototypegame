@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { frameWork } from '../core/Background';
 import { bakeLight, bakeSteps, type BakeInput, type BakedLight } from './lightBake';
 import { LIGHT_UNIFORMS } from './materials';
 
@@ -72,15 +73,15 @@ export class LightMap {
   /** Advances any bake in progress within the frame's budget. */
   update(): void {
     if (!this.trainJob && !this.platformJob) return;
-    const start = performance.now();
-    while (performance.now() - start < BAKE_BUDGET_MS) {
+    const end = Math.min(performance.now() + BAKE_BUDGET_MS, frameWork.until);
+    do {
       const job = this.trainJob ?? this.platformJob;
       if (!job) return;
       if (job.next().done) {
         if (job === this.trainJob) this.trainJob = null;
         else this.platformJob = null;
       }
-    }
+    } while (performance.now() < end);
   }
 
   /** Runs a bake in progress to the end now (tools, tests, the first bake). */

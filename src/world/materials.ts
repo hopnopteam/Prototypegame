@@ -170,6 +170,9 @@ vNxSurface = aSurface;
   #ifdef USE_INSTANCING
   nxWorld = instanceMatrix * nxWorld;
   #endif
+  #ifdef USE_BATCHING
+  nxWorld = batchingMatrix * nxWorld;
+  #endif
   vNxWorld = (modelMatrix * nxWorld).xyz;
 }
 `;
@@ -527,23 +530,44 @@ export function setLivery(body: string, trim: string): void {
 }
 
 /**
- * Temporary clones of the train's materials that keep only one side of `plane` (the refurbishment wipe shows
- * the new carriage on one side of a moving line and the old one on the other). Dispose the clones when the
- * wipe ends.
+ * The refurbishment wipe shows the new carriage on one side of a moving line and the old one on the other:
+ * clones of the train's materials that keep only one side of a plane. The clones live for the whole game and
+ * are compiled at start-up (see Stage.warmUp): a clone made per wipe and thrown away after compiled fresh
+ * shaders every time, a stall of a few hundred milliseconds on a phone at the best moment of the game.
  */
-export function clippedMaterials(plane: THREE.Plane, extra: THREE.Material[] = []): Map<THREE.Material, THREE.Material> {
-  const map = new Map<THREE.Material, THREE.Material>();
-  const clip = (source: THREE.Material): void => {
-    if (map.has(source)) return;
+export interface ClipSide {
+  readonly plane: THREE.Plane;
+  readonly map: Map<THREE.Material, THREE.Material>;
+}
+
+const CLIP_BASE = (): THREE.Material[] => [MATERIALS.solid, MATERIALS.floor, MATERIALS.livery, MATERIALS.liveryTrim, MATERIALS.windows, MATERIALS.lamps, MATERIALS.lockedOverlay];
+/** One pair of sides per wipe running at once (two refits bought back to back each get their own line). */
+const clipSlots: Record<'front' | 'back', ClipSide>[] = [];
+
+/** The clipped clones for one side of a wipe (`extra`: per-class liveries, cloned once each). */
+export function clipSide(side: 'front' | 'back', extra: THREE.Material[] = [], slot = 0): ClipSide {
+  while (clipSlots.length <= slot) {
+    clipSlots.push({
+      front: { plane: new THREE.Plane(new THREE.Vector3(0, 0, -1), 0), map: new Map() },
+      back: { plane: new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), map: new Map() },
+    });
+  }
+  const s = clipSlots[slot][side];
+  for (const source of [...CLIP_BASE(), ...extra]) {
+    if (s.map.has(source)) continue;
     const clone = source.clone();
     const recipe = recipes.get(source);
     if (recipe) patchLit(clone as THREE.MeshStandardMaterial, recipe.kind === 'glow' ? { surface: SURFACES.matte } : recipe.options);
     else if ((source as THREE.ShaderMaterial).isShaderMaterial) (clone as THREE.ShaderMaterial).uniforms = (source as THREE.ShaderMaterial).uniforms;
-    clone.clippingPlanes = [plane];
-    map.set(source, clone);
-  };
-  for (const m of [MATERIALS.solid, MATERIALS.floor, MATERIALS.livery, MATERIALS.liveryTrim, MATERIALS.windows, MATERIALS.lamps, MATERIALS.lockedOverlay, ...extra]) clip(m);
-  return map;
+    clone.clippingPlanes = [s.plane];
+    s.map.set(source, clone);
+  }
+  return s;
+}
+
+/** The first wipe's clipped clones (both sides), for compiling up front (later slots share their shaders). */
+export function clippedClones(): THREE.Material[] {
+  return [...clipSide('front').map.values(), ...clipSide('back').map.values()];
 }
 
 /** Swaps every mesh under `root` onto its clipped clone (or back, with `restore`). */

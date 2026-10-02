@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { frameWork } from '../core/Background';
 import { Rng } from '../core/Rng';
 import { GeoBuilder } from './geo';
 import { CHUNK, chunkSteps, FILL_KINDS, FILL_SLOTS, fillGeometries, LAND_DECK, runSteps, SHORE_DECK, type ChunkBuild, type DeckEntry, type FillKind, type LandKind, type PieceKind, type ShoreKind } from './Lakeside';
@@ -305,7 +306,7 @@ export class Scenery {
       group.add(m);
       return m;
     };
-    return {
+    const chunk: Chunk = {
       group,
       terrain: mesh(MATERIALS.scenery, false, false),
       lake: mesh(MATERIALS.scenery, true, true),
@@ -321,6 +322,15 @@ export class Scenery {
       fill,
       landHidden: false,
     };
+    // A stretch's pieces never move inside it (only the stretch itself, when it comes round, and the beam
+    // and sails, which turn): their matrices are composed once, not every frame (two hundred objects).
+    for (const child of group.children) {
+      if (child === beam || child === sails) continue;
+      child.matrixAutoUpdate = false;
+      child.updateMatrix();
+    }
+    group.matrixAutoUpdate = false;
+    return chunk;
   }
 
   /** The next card from a deck: weighted, never a kind within its gap, never one of the last few. */
@@ -383,14 +393,15 @@ export class Scenery {
     }
     const p = this.pending;
     if (p.ready) return;
-    const start = performance.now();
+    // First claim on the frame's shared work budget: the stretch must be ready before it comes round.
+    const end = Math.min(performance.now() + BUILD_BUDGET_MS, frameWork.until);
     do {
       const r = p.steps.next();
       if (r.done) {
         p.ready = r.value;
         return;
       }
-    } while (performance.now() - start < BUILD_BUDGET_MS);
+    } while (performance.now() < end);
   }
 
   /** A stretch's pieces and geometry, step by step (the deck cards are drawn when it starts). */
@@ -417,6 +428,7 @@ export class Scenery {
     chunk.z = z;
     chunk.build = build;
     chunk.group.position.z = z;
+    chunk.group.updateMatrix();
     const set = (mesh: THREE.Mesh, geometry: THREE.BufferGeometry | null): void => {
       if (mesh.geometry !== EMPTY && mesh.geometry !== SAILS_GEOMETRY) mesh.geometry.dispose();
       mesh.geometry = geometry ?? EMPTY;

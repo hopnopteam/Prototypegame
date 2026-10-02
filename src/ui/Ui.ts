@@ -93,6 +93,9 @@ const CELEBRATE_MAX_DELAY = 60;
  * feedback (numbers, icons, reactions, tile labels, coach cues) is clamped to the play rect between those.
  * HUD pieces appear only once they mean something. Writes to the DOM only when a value changes.
  */
+/** How often the HUD targets are re-measured (seconds). */
+const SNAPSHOT_SECONDS = 0.25;
+
 export class Ui implements GameUi {
   readonly root: HTMLElement;
   game!: Game;
@@ -214,7 +217,10 @@ export class Ui implements GameUi {
     root.append(this.floatLayer, this.tileTag.el, this.rushChip.el, this.guide.el, top, this.objective.el, side, this.trainMap.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
 
     this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyTrain, journeyFill, journeyClock, side, menu, menuDot, shop, conductor, conductorDot };
-    window.addEventListener('resize', () => (this.rectTimer = 0));
+    window.addEventListener('resize', () => {
+      this.rectTimer = 0;
+      this.snapTimer = 0;
+    });
   }
 
   private tap(action: () => void): void {
@@ -240,6 +246,8 @@ export class Ui implements GameUi {
    */
   private readonly frame = { root: EMPTY_RECT, cash: EMPTY_RECT, level: EMPTY_RECT, conductor: EMPTY_RECT, map: EMPTY_RECT, reward: EMPTY_RECT, burst: EMPTY_RECT };
 
+  private snapTimer = 0;
+
   private snapshot(): void {
     const f = this.frame;
     f.root = this.root.getBoundingClientRect();
@@ -254,7 +262,13 @@ export class Ui implements GameUi {
   update(dt: number): void {
     const g = this.game;
     if (!g) return;
-    this.snapshot();
+    // The HUD's targets (counters, the level star, the map) only move when the layout does: reading them a
+    // few times a second is plenty, and every read is a layout the browser may have to do on the spot.
+    this.snapTimer -= dt;
+    if (this.snapTimer <= 0) {
+      this.snapTimer = SNAPSHOT_SECONDS;
+      this.snapshot();
+    }
     this.sinceSpeech += dt;
     this.rectTimer -= dt;
     if (this.rectTimer <= 0) this.measure();

@@ -19,19 +19,20 @@ function boot(): void {
     throw error;
   }
   ui.bind(game);
-  game.start();
+  (window as unknown as { nightExpress: Game }).nightExpress = game;
 
   // No title screen: the game opens on the train. A brand-new player gets the short intro (skippable, the
   // game paused under it); anyone with a save is straight back on their train. Sound starts on the first
-  // touch (browsers need one): Input unlocks it.
+  // touch (browsers need one): Input unlocks it. Every shader is compiled first, so play never stalls on one.
   const begin = (): void => {
     game.paused = false;
     ui.screens.holdForTitle(false);
   };
-  if (game.isBrandNew) game.playIntro(begin);
-  else begin();
-
-  (window as unknown as { nightExpress: Game }).nightExpress = game;
+  void game.stage.warmUp().then(() => {
+    game.start();
+    if (game.isBrandNew) game.playIntro(begin);
+    else begin();
+  });
 }
 
 boot();

@@ -6,7 +6,24 @@ import { LightMap } from './LightMap';
 import { installGradedToneMapping } from './toneMap';
 import type { Particles } from './Particles';
 import { PostFx } from './PostFx';
+import { clippedClones, MATERIALS } from './materials';
 import { detectTier, lowerTier, tierSettings, type QualitySetting } from './Quality';
+
+/** A tiny triangle with every vertex attribute the game's materials read (stand-ins for the warm-up). */
+function warmGeometry(): THREE.BufferGeometry {
+  const g = new THREE.BufferGeometry();
+  const set = (name: string, size: number): void => {
+    g.setAttribute(name, new THREE.BufferAttribute(new Float32Array(3 * size).fill(0.5), size));
+  };
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 0, 0, 1]), 3));
+  set('normal', 3);
+  set('uv', 2);
+  set('color', 3);
+  set('aColor2', 3);
+  set('aPattern', 2);
+  set('aSurface', 4);
+  return g;
+}
 
 /** Something that renders before the main pass each frame (the lake's planar reflection). */
 export interface PreRender {
@@ -35,6 +52,8 @@ export class Stage {
   smoothedFps = 60;
   /** Called when auto settles on a lower tier (the game remembers it for next time). */
   onAutoTier: ((tier: QualityTier) => void) | null = null;
+  /** Called when dynamic resolution settles on a new scale (the game remembers it for next launch). */
+  onRenderScale: ((tier: QualityTier, scale: number) => void) | null = null;
   /** Called after a tier is applied (the lake switches reflections on or off). */
   readonly tierListeners: ((tier: TierSettings) => void)[] = [];
   private readonly contextAntialias: boolean;
@@ -43,17 +62,30 @@ export class Stage {
   private preRender: PreRender | null = null;
   private fpsAccumulator = 0;
   private fpsFrames = 0;
-  private slowSeconds = 0;
-  private fastSeconds = 0;
+  /** Dynamic resolution: the current window's frames, how many were slow, smooth time, and the ceiling. */
+  private windowTime = 0;
+  private windowFrames = 0;
+  private windowSlow = 0;
+  private smoothSeconds = 0;
   private floorSeconds = 0;
+  private scaleCeiling = 1;
+  /** When the scale last stepped up (a drop soon after means that scale is too much for this device). */
+  private steppedUpAt = -1;
+  private clock = 0;
   private particles: Particles | null = null;
   private width = 1;
   private height = 1;
   private readonly projected = new THREE.Vector3();
+  /** Warm-up stand-ins kept alive so their shaders stay compiled (see warmUp). */
+  private readonly warmMaterials: THREE.Material[] = [];
   /** Every material replaced by a tier change, old → new, so meshes built earlier can be moved over. */
   private readonly replaced = new Map<THREE.Material, THREE.Material>();
 
-  constructor(private readonly canvas: HTMLCanvasElement, setting: QualitySetting, remembered: QualityTier | null) {
+  /**
+   * `startScale` is the render scale to open at (the one remembered from last time for this tier, or the
+   * device's default from config): no stutter while it finds its feet.
+   */
+  constructor(private readonly canvas: HTMLCanvasElement, setting: QualitySetting, remembered: QualityTier | null, private readonly startScale: (tier: QualityTier) => number = () => 1) {
     this.setting = setting;
     // The tier must be known before the context exists (canvas antialiasing is fixed at creation). Detection
     // needs a context, so a throwaway one answers first.
@@ -65,7 +97,10 @@ export class Stage {
     // Without post-processing (Low) the canvas antialiases itself.
     const first = tierSettings(this.tier);
     this.contextAntialias = first.msaa === 0 && first.bloom === 0 && !first.fxaa;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.contextAntialias, powerPreference: 'high-performance', preserveDrawingBuffer: false });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.contextAntialias, powerPreference: 'high-performance', preserveDrawingBuffer: false, stencil: false });
+    // Reading back every shader's log after compiling makes the browser wait for it (no parallel compiling):
+    // only worth it while developing.
+    this.renderer.debug.checkShaderErrors = false;
     // Only the refurbishment wipe uses clipping planes (on temporary material clones).
     this.renderer.localClippingEnabled = true;
     // Stats cover the whole frame (the reflection, the scene and every post pass), not just the last pass.
@@ -102,10 +137,17 @@ export class Stage {
     this.preRender = pass;
   }
 
+  /** Shader errors are reported (and compiles wait for them) only with the dev tools on. */
+  set checkShaderErrors(on: boolean) {
+    this.renderer.debug.checkShaderErrors = on;
+  }
+
   private applyTier(tier: QualityTier): void {
     this.tier = tier;
     const s = tierSettings(tier);
-    this.renderScale = 1;
+    this.renderScale = this.dynamicResolution ? Math.min(1, Math.max(VISUALS.quality.dynamicResolution.minScale, this.startScale(tier))) : 1;
+    this.scaleCeiling = 1;
+    this.resetWindow();
     this.updatePixelRatio();
     // PCF filtering throughout; the soft tiers sample a wider radius (this three.js has no separate soft type).
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -198,6 +240,60 @@ export class Stage {
     else this.renderer.render(this.scene, cam);
   }
 
+  /**
+   * Compiles every shader the game will need before the first frame. A shader first met mid-game (the
+   * refurbishment wipe's clipped materials, a poster's texture, a new carriage) is compiled on the spot,
+   * which stalls a phone for a few hundred milliseconds right at a big moment. Everything already built
+   * (hidden parts included) compiles in parallel where the browser can; then one hidden render of stand-ins
+   * for what comes later (and the moon's shadow pass) covers the rest. Resolves when done, or after
+   * `timeoutMs` at most.
+   */
+  async warmUp(timeoutMs = 5000): Promise<void> {
+    const group = new THREE.Group();
+    const geometry = warmGeometry();
+    const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    texture.needsUpdate = true;
+    const materials: THREE.Material[] = [
+      ...Object.values(MATERIALS),
+      ...clippedClones(),
+      new THREE.MeshLambertMaterial({ map: texture }),
+      new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false }),
+    ];
+    for (const material of materials) {
+      const mesh = new THREE.Mesh(geometry, material);
+      const instanced = new THREE.InstancedMesh(geometry, material, 1);
+      for (const m of [mesh, instanced]) {
+        m.castShadow = true;
+        m.receiveShadow = true;
+        m.frustumCulled = false;
+        m.scale.setScalar(1e-3);
+        m.position.copy(this.rig.focusPoint).setY(-6);
+        group.add(m);
+      }
+    }
+    const sprites = [
+      new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false }),
+      new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false, toneMapped: false, fog: false, sizeAttenuation: false }),
+    ];
+    for (const material of sprites) group.add(Object.assign(new THREE.Sprite(material), { frustumCulled: false }));
+    this.scene.add(group);
+    const timeout = new Promise<void>((done) => setTimeout(done, timeoutMs));
+    try {
+      await Promise.race([this.renderer.compileAsync(this.scene, this.rig.camera), timeout]);
+      // The shadow pass's depth shaders (and anything compileAsync left) compile on a real render.
+      this.renderer.shadowMap.needsUpdate = true;
+      this.renderer.render(this.scene, this.rig.camera);
+    } catch {
+      // A failed warm-up only means shaders compile when first needed, as before.
+    }
+    this.scene.remove(group);
+    // The stand-in materials are kept (never disposed): three frees a shader as soon as no material uses it,
+    // and the textured ones are the only users until a poster or nameplate needs that shader later.
+    this.warmMaterials.push(...materials.slice(-3), ...sprites);
+    this.renderer.shadowMap.needsUpdate = true;
+  }
+
   /** Draw calls in the last frame, all passes included. */
   get drawCalls(): number {
     return this.renderer.info.render.calls;
@@ -209,30 +305,47 @@ export class Stage {
   }
 
   private trackFps(dt: number): void {
+    this.clock += dt;
     this.fpsAccumulator += dt;
     this.fpsFrames++;
-    if (this.fpsAccumulator < 1) return;
-    const fps = this.fpsFrames / this.fpsAccumulator;
-    this.smoothedFps = this.smoothedFps * 0.6 + fps * 0.4;
-    const elapsed = this.fpsAccumulator;
-    this.fpsAccumulator = 0;
-    this.fpsFrames = 0;
+    if (this.fpsAccumulator >= 1) {
+      const fps = this.fpsFrames / this.fpsAccumulator;
+      this.smoothedFps = this.smoothedFps * 0.6 + fps * 0.4;
+      this.fpsAccumulator = 0;
+      this.fpsFrames = 0;
+    }
     if (!this.dynamicResolution) return;
-    // Dynamic resolution first: a lower render scale is invisible next to a stutter.
+    // Dynamic resolution first (a lower render scale is invisible next to a stutter), judged on the share of
+    // slow frames in a short window: one long frame (a cash burst, a new carriage) never costs resolution.
     const dr = VISUALS.quality.dynamicResolution;
-    this.slowSeconds = this.smoothedFps < dr.targetFps ? this.slowSeconds + elapsed : 0;
-    this.fastSeconds = this.smoothedFps > dr.targetFps + 6 ? this.fastSeconds + elapsed : 0;
-    if (this.slowSeconds >= dr.settleSeconds && this.renderScale > dr.minScale + 1e-3) {
-      this.slowSeconds = 0;
-      this.setRenderScale(Math.max(dr.minScale, this.renderScale - dr.stepDown));
-    } else if (this.fastSeconds >= dr.recoverSeconds && this.renderScale < 1) {
-      this.fastSeconds = 0;
-      this.setRenderScale(Math.min(1, this.renderScale + dr.stepUp));
+    this.windowTime += dt;
+    this.windowFrames++;
+    if (dt * 1000 > dr.slowFrameMs) this.windowSlow++;
+    if (this.windowTime < dr.windowSeconds) return;
+    const slow = this.windowSlow / Math.max(1, this.windowFrames) > dr.slowShare;
+    const elapsed = this.windowTime;
+    this.resetWindow();
+    if (slow) {
+      this.smoothSeconds = 0;
+      // A scale that was just stepped up to and is already too slow is the ceiling for this session.
+      if (this.steppedUpAt >= 0 && this.clock - this.steppedUpAt < dr.recoverSeconds * 1.5) this.scaleCeiling = Math.max(dr.minScale, this.renderScale - dr.stepUp);
+      this.steppedUpAt = -1;
+      if (this.renderScale > dr.minScale + 1e-3) {
+        this.setRenderScale(Math.max(dr.minScale, this.renderScale - dr.stepDown), true);
+        return;
+      }
+    } else {
+      this.smoothSeconds += elapsed;
+      if (this.smoothSeconds >= dr.recoverSeconds && this.renderScale < this.scaleCeiling - 1e-3) {
+        this.smoothSeconds = 0;
+        this.steppedUpAt = this.clock;
+        this.setRenderScale(Math.min(this.scaleCeiling, this.renderScale + dr.stepUp), true);
+      }
     }
     // Auto steps down a tier (never up) only when even the lowest scale stays slow.
     if (this.setting !== 'auto' || this.tier === 'low') return;
     const atFloor = this.renderScale <= dr.minScale + 1e-3;
-    this.floorSeconds = atFloor && this.smoothedFps < VISUALS.quality.downgradeFps ? this.floorSeconds + elapsed : 0;
+    this.floorSeconds = atFloor && slow ? this.floorSeconds + elapsed : 0;
     if (this.floorSeconds >= VISUALS.quality.downgradeSeconds) {
       this.floorSeconds = 0;
       this.smoothedFps = 60;
@@ -242,8 +355,15 @@ export class Stage {
     }
   }
 
-  private setRenderScale(scale: number): void {
+  private resetWindow(): void {
+    this.windowTime = 0;
+    this.windowFrames = 0;
+    this.windowSlow = 0;
+  }
+
+  private setRenderScale(scale: number, remember = false): void {
     this.renderScale = scale;
+    if (remember) this.onRenderScale?.(this.tier, scale);
     this.updatePixelRatio();
     this.renderer.setSize(this.width, this.height, false);
     this.fx?.setSize(this.width, this.height, this.pixelRatio);

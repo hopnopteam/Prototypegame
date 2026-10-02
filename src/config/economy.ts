@@ -323,13 +323,6 @@ export const ECONOMY = {
     ] as { cash?: number; gems?: number; railMiles?: number }[],
     questsPerDay: 3,
   },
-
-  performance: {
-    maxPixelRatio: 2,
-    lowPixelRatio: 1.25,
-    /** Drop resolution when the smoothed frame rate stays under this. */
-    downgradeFps: 48,
-  },
 };
 
 export type Economy = typeof ECONOMY;
