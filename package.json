@@ -13,12 +13,25 @@
     "check": "npm run typecheck && npm test && npm run build",
     "audit:ui": "node scripts/ui-audit.mjs",
     "audit:geo": "node scripts/geo-audit.mjs",
-    "audit:audio": "node scripts/audio-check.mjs"
+    "audit:audio": "node scripts/audio-check.mjs",
+    "app:sync": "npm run build && cap sync",
+    "app:ios": "npm run app:sync && cap open ios",
+    "app:android": "npm run app:sync && cap open android",
+    "app:assets": "python3 scripts/native/assets.py"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.5.2",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "three": "0.186.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@fontsource-variable/jost": "^5.3.0",
     "@types/three": "0.186.0",
     "esbuild": "0.28.2",

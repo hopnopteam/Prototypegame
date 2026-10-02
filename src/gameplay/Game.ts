@@ -12,6 +12,7 @@ import { Background, frameWork } from '../core/Background';
 import { Tweens } from '../core/Tween';
 import type { SaveData } from '../save/SaveData';
 import { BrowserSaveStorage } from '../save/SaveStorage';
+import { forgetSave, mirrorSave } from '../services/native';
 import { SaveSystem } from '../save/SaveSystem';
 import { MockAdService } from '../services/ads';
 import { EVENTS, MockAnalyticsService } from '../services/analytics';
@@ -70,7 +71,8 @@ const BACKGROUND_BUDGET_MS = 2;
  * rebuilds, then the light bake): a phone keeps its 60 fps even while a coupling rebuilds everything.
  */
 const FRAME_WORK_MS = 2.5;
-const SAVE_KEY = 'nightexpress.save';
+/** Where the save lives (localStorage, mirrored into the app's own storage on iOS and Android). */
+export const SAVE_KEY = 'nightexpress.save';
 const MAX_FRAME = 0.05;
 /** Where in the day cycle the held night sits (the middle of the night key). */
 const NIGHT_TIME = 0.82;
@@ -145,7 +147,10 @@ export class Game implements World {
     this.remote = new LocalRemoteConfig();
     applyOverrides(this.econ as unknown as Record<string, unknown>, this.remote);
 
-    this.save = new SaveSystem(new BrowserSaveStorage(), {
+    const storage = new BrowserSaveStorage();
+    storage.onWrite = (key, contents) => mirrorSave(key, contents);
+    storage.onRemove = (key) => forgetSave(key);
+    this.save = new SaveSystem(storage, {
       key: SAVE_KEY,
       now: () => Date.now(),
       newId: () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)),
@@ -550,19 +555,32 @@ export class Game implements World {
   }
 
   private onVisibility(): void {
-    if (document.hidden) {
-      this.hiddenAt = Date.now();
-      this.analytics.log(EVENTS.sessionEnd, { session_number: this.data.profile.sessionCount, session_seconds: Math.round(this.sessionSeconds) });
-      this.save.saveNow();
-      this.audio.setPaused(true);
-      this.paused = true;
-    } else {
-      const away = (Date.now() - this.hiddenAt) / 1000;
-      this.paused = false;
-      this.audio.setPaused(false);
-      this.lastFrame = performance.now();
-      if (away >= 60) this.startSession(away, false);
-    }
+    if (document.hidden) this.toBackground();
+    else this.toForeground();
+  }
+
+  private inBackground = false;
+
+  /** The app (or tab) went away: save now, end the session, pause and quiet everything. */
+  toBackground(): void {
+    if (this.inBackground) return;
+    this.inBackground = true;
+    this.hiddenAt = Date.now();
+    this.analytics.log(EVENTS.sessionEnd, { session_number: this.data.profile.sessionCount, session_seconds: Math.round(this.sessionSeconds) });
+    this.save.saveNow();
+    this.audio.setPaused(true);
+    this.paused = true;
+  }
+
+  /** Back again: resume (a long time away starts a new session, with offline earnings). */
+  toForeground(): void {
+    if (!this.inBackground) return;
+    this.inBackground = false;
+    const away = (Date.now() - this.hiddenAt) / 1000;
+    this.paused = this.ui.sheetOpen;
+    this.audio.setPaused(false);
+    this.lastFrame = performance.now();
+    if (away >= 60) this.startSession(away, false);
   }
 
   /** The livery on the train: the player's Paint Shop pick, or the best one earned by reputation. */

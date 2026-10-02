@@ -1,12 +1,16 @@
-import { Game } from './gameplay/Game';
+import { Game, SAVE_KEY } from './gameplay/Game';
+import { connectNative, restoreSave } from './services/native';
 import { h } from './ui/dom';
 import { Ui } from './ui/Ui';
 
 /** Boots the game: UI shell first (the mock services present through it), then the game, then the loop. */
-function boot(): void {
+async function boot(): Promise<void> {
   const canvas = document.getElementById('scene') as HTMLCanvasElement | null;
   const overlay = document.getElementById('ui');
   if (!canvas || !overlay) throw new Error('Night Express: missing #scene or #ui');
+
+  // In the app, a save the system cleared from the web view comes back from the app's own storage first.
+  await restoreSave(SAVE_KEY);
 
   const ui = new Ui(overlay);
   // Sheets raised while starting up (offline earnings, offers, the press) wait until the intro is over.
@@ -20,6 +24,11 @@ function boot(): void {
   }
   ui.bind(game);
   (window as unknown as { nightExpress: Game }).nightExpress = game;
+  const app = connectNative({
+    pause: () => game.toBackground(),
+    resume: () => game.toForeground(),
+    back: () => ui.closeTopSheet(),
+  });
 
   // No title screen: the game opens on the train. A brand-new player gets the short intro (skippable, the
   // game paused under it); anyone with a save is straight back on their train. Sound starts on the first
@@ -28,11 +37,12 @@ function boot(): void {
     game.paused = false;
     ui.screens.holdForTitle(false);
   };
-  void game.stage.warmUp().then(() => {
-    game.start();
-    if (game.isBrandNew) game.playIntro(begin);
-    else begin();
-  });
+  await game.stage.warmUp();
+  game.start();
+  // The app's launch screen stays up until the first frame is drawn.
+  requestAnimationFrame(() => requestAnimationFrame(() => app.ready()));
+  if (game.isBrandNew) game.playIntro(begin);
+  else begin();
 }
 
-boot();
+void boot();

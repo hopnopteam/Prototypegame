@@ -846,6 +846,14 @@ export class Ui implements GameUi {
     }
   }
 
+  get sheetOpen(): boolean {
+    return this.screens.anyOpen;
+  }
+
+  closeTopSheet(): boolean {
+    return this.screens.closeTop();
+  }
+
   toast(text: string, iconName?: IconName): void {
     const el = h('div.toast', {}, iconName ? icon(iconName, 22) : null, h('span', { text }));
     this.toastLayer.appendChild(el);

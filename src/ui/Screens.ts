@@ -38,6 +38,24 @@ export class Screens {
     return this.open > 0 || this.titleHold;
   }
 
+  /** True while a sheet is actually on screen (not just held back). */
+  get anyOpen(): boolean {
+    return this.open > 0;
+  }
+
+  /**
+   * Closes the top sheet as its own close button would (Android's back button). False when nothing could be
+   * closed (no sheet, or one that must be answered).
+   */
+  closeTop(): boolean {
+    const scrims = this.ui.root.querySelectorAll<HTMLElement>(':scope > .scrim');
+    const top = scrims[scrims.length - 1];
+    const button = top?.querySelector<HTMLButtonElement>('header .close');
+    if (!button) return top !== undefined;
+    button.click();
+    return true;
+  }
+
   /** The title screen and the intro keep sheets back (offline earnings, offers, the press) until play. */
   holdForTitle(on: boolean): void {
     this.titleHold = on;

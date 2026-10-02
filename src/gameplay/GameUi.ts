@@ -12,4 +12,8 @@ export interface GameUi extends UiApi, MockAdPresenter, MockStorePresenter, Pres
   showOffline(amount: number, seconds: number, gemCost: number, onCollect: (choice: DoubleChoice) => void): void;
   showFirstClassOffer(discounted: boolean, price: string, onBuy: () => void, onClose: () => void): void;
   setHidden(hidden: boolean): void;
+  /** A sheet is on screen (the game stays paused under it). */
+  readonly sheetOpen: boolean;
+  /** Closes the top sheet (Android's back button); false when there was nothing to close. */
+  closeTopSheet(): boolean;
 }

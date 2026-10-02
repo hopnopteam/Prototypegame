@@ -17,6 +17,9 @@ const BACKUP_SUFFIX = '.bak';
 export class BrowserSaveStorage implements SaveStorage {
   private readonly memory = new MemorySaveStorage();
   private available: boolean;
+  /** Called after every successful write (the app mirrors saves into its own storage). */
+  onWrite: ((key: string, contents: string) => void) | null = null;
+  onRemove: ((key: string) => void) | null = null;
 
   constructor() {
     this.available = BrowserSaveStorage.probe();
@@ -50,6 +53,7 @@ export class BrowserSaveStorage implements SaveStorage {
       const previous = window.localStorage.getItem(key);
       if (previous) window.localStorage.setItem(key + BACKUP_SUFFIX, previous);
       window.localStorage.setItem(key, contents);
+      this.onWrite?.(key, contents);
       return true;
     } catch (error) {
       log.warn('Save', 'Writing browser storage failed (storage full or blocked)', error);
@@ -59,6 +63,7 @@ export class BrowserSaveStorage implements SaveStorage {
 
   remove(key: string): void {
     this.memory.remove(key);
+    this.onRemove?.(key);
     if (!this.available) return;
     try {
       window.localStorage.removeItem(key);

@@ -1,5 +1,6 @@
 // Builds the game into self-contained HTML: dist/index.html (full page, playable offline from disk) and
-// dist/night-express.html (a body fragment for publishing as an Artifact, which adds its own skeleton).
+// dist/night-express.html (a body fragment for publishing as an Artifact, which adds its own skeleton), and
+// dist/app/index.html (the page the iOS and Android apps load; see capacitor.config.ts and NATIVE.md).
 import { build, context } from 'esbuild';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -51,6 +52,9 @@ function emit(result) {
   }
   writeFileSync(resolve(root, 'dist/index.html'), page);
   writeFileSync(resolve(root, 'dist/night-express.html'), fragment);
+  // The iOS and Android apps (Capacitor, capacitor.config.ts) load this folder: the same single page.
+  mkdirSync(resolve(root, 'dist/app'), { recursive: true });
+  writeFileSync(resolve(root, 'dist/app/index.html'), page);
   const kb = (Buffer.byteLength(page) / 1024).toFixed(0);
   console.log(`Built dist/index.html and dist/night-express.html (${kb} KB)`);
 }
