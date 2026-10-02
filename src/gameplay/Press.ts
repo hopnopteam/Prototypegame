@@ -139,6 +139,11 @@ export class Press {
     return this.state.trainName !== null;
   }
 
+  /** Seconds the screen has been free of cards and the station ticket (other systems wait for a calm too). */
+  get calmSeconds(): number {
+    return this.ui.ticketUp ? 0 : this.quiet;
+  }
+
   get standing(): LeagueStanding {
     return leagueStanding(this.w.data.route.stars, RIVALS);
   }

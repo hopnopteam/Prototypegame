@@ -213,6 +213,25 @@ export const ECONOMY = {
   },
 
   /**
+   * One layer at a time (session 15, owner: "the tutorials and challenges in the first minute are way too
+   * much… step by step"). The four-step walkthrough has the screen to itself; the goal chain wakes after the
+   * first stop (goals the walkthrough already covered are settled quietly); the Rush streak, the class badges
+   * and passengers' reaction bubbles each arrive once there is something for them to say.
+   */
+  onboarding: {
+    /** The goal chain starts once the walkthrough is done and this many stops are behind the train. */
+    goalsAfterStops: 1,
+    /** Rush streaks count once the train has this many carriages (after the first coupling, about 4 minutes). */
+    rushFromCarriages: 2,
+    /** Class badges show once the train has this many carriages (the Comfort refit comes after a coupling). */
+    classChipsFromCarriages: 2,
+    /** Passengers' reaction bubbles (smiles, hearts, stars) start after this many stops. */
+    reactionsAfterStops: 1,
+    /** No rewarded offer before this much lifetime play (seconds): the loop and the first stop come first. */
+    offersAfterSeconds: 150,
+  },
+
+  /**
    * Rush: services the conductor does back to back (check-in, requests, cleaning, luggage) build a streak;
    * milestones pay a cash bonus. Letting it lapse costs nothing (§5: no failure, only bonuses).
    */

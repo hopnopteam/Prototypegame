@@ -664,6 +664,11 @@ export class Game implements World {
    * skipped), so the first minute of play is untouched.
    */
   playIntro(done: () => void): void {
+    // Skipped before it could start (tools and tests skip it while the shaders are still compiling).
+    if (this.introSkipped) {
+      done();
+      return;
+    }
     this.paused = true;
     this.cinematic = { index: -1, t: 0, done };
     this.stage.rig.showWorldUi(false);
@@ -671,9 +676,14 @@ export class Game implements World {
   }
 
   skipIntro(): void {
-    if (!this.cinematic) return;
+    if (!this.cinematic) {
+      this.introSkipped = true;
+      return;
+    }
     this.finishIntro();
   }
+
+  private introSkipped = false;
 
   get inIntro(): boolean {
     return this.cinematic !== null;

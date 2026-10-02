@@ -22,6 +22,13 @@ export interface MonetizationHooks {
   showFirstClassOffer(discounted: boolean, price: string, onBuy: () => void, onClose: () => void): void;
 }
 
+/** Offers that wait politely (they are not tied to a moment that is about to pass). */
+const SOFT_OFFERS: OfferId[] = ['cashStash', 'speedBoost', 'supplyDelivery'];
+/** A soft offer stays at least this long once it shows. */
+const OFFER_MIN_SECONDS = 10;
+/** After the slot empties, this long before a soft offer fills it again. */
+const OFFER_REST_SECONDS = 12;
+
 /**
  * Humane hybrid monetization (§12). Rewarded offers appear at the moment of shortage and can always be paid
  * with gems instead. The single forced ad slot is the Departing phase, and AdPolicy decides whether it fires.
@@ -33,6 +40,10 @@ export class Monetization {
   private readonly shown = new Set<OfferId>();
   private busy = false;
   private offerCheckTimer = 0;
+  /** Seconds of play, for the offer slot's pacing (see `steady`). */
+  private offerClock = 0;
+  private topSince = 0;
+  private slotFreedAt = -Infinity;
   private firstClassPending = false;
   private sessionOffered = false;
 
@@ -60,10 +71,11 @@ export class Monetization {
   }
 
   update(dt: number): void {
+    this.offerClock += dt;
     this.offerCheckTimer -= dt;
     if (this.offerCheckTimer > 0) return;
     this.offerCheckTimer = 0.3;
-    const next = this.computeOffers();
+    const next = this.steady(this.computeOffers());
     // Only the first offer is on screen (one bottom slot), so only it counts as shown.
     for (const offer of next.slice(0, 1)) {
       if (!this.shown.has(offer.id)) {
@@ -75,12 +87,34 @@ export class Monetization {
     this.offers = next;
   }
 
+  /**
+   * A calm offer slot (session 15): a soft offer (a cash stash, roller skates) stays at least
+   * OFFER_MIN_SECONDS once shown, and the slot rests OFFER_REST_SECONDS after one goes before another comes
+   * (it used to pop in and out every few seconds as cash rose and fell). Time-bound offers (hold the train,
+   * a porter for this stop) come and go with their moment.
+   */
+  private steady(next: OfferView[]): OfferView[] {
+    const top = this.offers[0] ?? null;
+    const soft = (o: OfferView | null): boolean => !!o && SOFT_OFFERS.includes(o.id);
+    if (top && soft(top) && next[0]?.id !== top.id && this.offerClock - this.topSince < OFFER_MIN_SECONDS) {
+      return [top, ...next.filter((o) => o.id !== top.id)];
+    }
+    if (!top && next[0] && soft(next[0]) && this.offerClock - this.slotFreedAt < OFFER_REST_SECONDS) return [];
+    if (next[0]?.id !== top?.id) {
+      if (next[0]) this.topSince = this.offerClock;
+      else this.slotFreedAt = this.offerClock;
+    }
+    return next;
+  }
+
   private computeOffers(): OfferView[] {
     const w = this.w;
     const r = w.econ.rewarded;
     const m = w.data.monetization;
     const life = w.lifetimeSeconds();
     if (!w.adPolicy.canOfferRewarded(life) || this.busy) return [];
+    // The first minutes are for learning the loop (config: onboarding): no offer chip yet.
+    if (life < w.econ.onboarding.offersAfterSeconds) return [];
     const out: OfferView[] = [];
     const j = w.journey;
 

@@ -656,8 +656,8 @@ export class Ui implements GameUi {
   private updateObjective(dt: number): void {
     const g = this.game;
     const o = this.objective;
-    const def = g.objectives.current;
-    const show = !!def && !this.hidden && !this.resultEl && g.data.profile.ftue.first_checkin !== undefined;
+    const def = g.objectives.visible;
+    const show = !!def && !this.hidden && !this.resultEl;
     setVisible(o.el, show);
     if (!show || !def) return;
     // The goal's words show while it is new (or tapped), then fold away: the icon and count remain.
@@ -691,7 +691,7 @@ export class Ui implements GameUi {
 
   /** Tapping the goal reads it out again; goals that live in a menu open it. */
   private objectiveTapped(): void {
-    const def = this.game.objectives.current;
+    const def = this.game.objectives.visible;
     if (!def || this.game.objectives.done) return;
     if (def.event === 'conductor') {
       this.tap(() => this.screens.upgrades());

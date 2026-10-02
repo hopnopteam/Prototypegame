@@ -292,7 +292,9 @@ export interface CoupleSlot {
 }
 
 export const COUPLE_SLOTS: CoupleSlot[] = [
-  { price: 150, stars: 6, requires: ['c0.hire_attendant'] },
+  // Session 15: 120 (was 150). The Rush streak, whose bonuses used to fund the first carriage, now starts after
+  // this coupling (one layer at a time), so the first coupling still lands at about four minutes.
+  { price: 120, stars: 6, requires: ['c0.hire_attendant'] },
   { price: 240, stars: 6, requires: ['couple_1'] },
   { price: 380, stars: 8, requires: ['couple_2'] },
   { price: 600, stars: 8, requires: ['couple_3'] },

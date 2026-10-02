@@ -1,4 +1,4 @@
-import { COACH_GESTURE_DELAY, COACH_GUIDANCE_LINES, COACH_HINTS, COACH_OPTIONAL_SECONDS, COACH_REST_SECONDS, COACH_STEPS, type CoachLineDef } from '../config/coach';
+import { COACH_GESTURE_DELAY, COACH_GUIDANCE_LINES, COACH_HINTS, COACH_OPTIONAL_SECONDS, COACH_REST_SECONDS, COACH_LESSON_GAP_SECONDS, COACH_STEPS, type CoachLineDef } from '../config/coach';
 import { classStartingAt, isPassengerType } from '../config/classes';
 import type { StaffRole, Vec2 } from '../core/types';
 import { FLOOR_Y } from '../world/CarriageView';
@@ -76,7 +76,7 @@ export class Coach {
     w.ui.floatIcon('check', at.x, FLOOR_Y + PRAISE_HEIGHT, at.z, 'info');
     w.audio.play('ding', { volume: 0.6 });
     this.current = null;
-    this.rest = COACH_REST_SECONDS;
+    this.rest = this.walkthroughDone ? COACH_LESSON_GAP_SECONDS : COACH_REST_SECONDS;
   }
 
   /** The walkthrough is finished once the four loop steps are done. */

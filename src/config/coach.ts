@@ -68,6 +68,11 @@ export const INTRO_BEATS: IntroBeat[] = [
 
 /** Seconds between one step being done and the next cue appearing (a breath, and the tick). */
 export const COACH_REST_SECONDS = 2.2;
+/**
+ * After the walkthrough, a longer breath between one lesson and the next (session 15, owner: "not everything
+ * all at once"): the player gets to enjoy what they just learnt before the next thing is pointed out.
+ */
+export const COACH_LESSON_GAP_SECONDS = 9;
 /** Lessons about optional conveniences (the train map, Rail Miles) retire after this long on screen. */
 export const COACH_OPTIONAL_SECONDS = 8;
 /** The walk gesture only appears if the player has not moved for this long. */

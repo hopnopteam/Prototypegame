@@ -6,6 +6,8 @@ import type { World } from './World';
 
 /** How long a finished objective stays up (celebrating) before the next one slides in. */
 const NEXT_DELAY_SECONDS = 1.8;
+/** The chain wakes only after the screen has been free of cards this long. */
+const GOALS_CALM_SECONDS = 4;
 
 /**
  * The objective chain (config/objectives.ts): one goal at a time, counted from gameplay events, each
@@ -21,10 +23,64 @@ export class Objectives {
    */
   private recent: Partial<Record<ObjectiveEvent, number>> = {};
 
+  /**
+   * The chain sleeps through the walkthrough and the first stop (config: onboarding): the coach teaches the
+   * first verbs alone, one at a time. While asleep everything is remembered, and on waking the goals the
+   * player has already done are settled quietly (no reward pops) before the first new one shows.
+   */
+  private awake = false;
+
   constructor(private readonly w: World) {}
 
   get current(): ObjectiveDef | null {
     return OBJECTIVES[this.state.index] ?? null;
+  }
+
+  /** The goal on show in the banner (none while the chain sleeps). */
+  get visible(): ObjectiveDef | null {
+    return this.awake ? this.current : null;
+  }
+
+  private get shouldWake(): boolean {
+    const w = this.w;
+    const walkthrough = ['walk', 'checkin', 'cash', 'tile'].every((id) => w.flag(`coach_${id}`));
+    // After the first stop's ticket and the naming card, once the screen has been calm a moment.
+    return walkthrough && w.data.route.stopsCompleted >= w.econ.onboarding.goalsAfterStops && (w.press.named || w.data.route.stopsCompleted > w.econ.onboarding.goalsAfterStops) && w.press.calmSeconds >= GOALS_CALM_SECONDS;
+  }
+
+  /**
+   * Settles every goal the player already met while the chain slept (their rewards arrive together, in one
+   * burst, so the economy is as tuned); then the next goal shows.
+   */
+  private wake(): void {
+    this.awake = true;
+    const owed = { cash: 0, gems: 0, railMiles: 0, stars: 0 };
+    for (let def = this.current; def; def = this.current) {
+      const met = def.event === 'level'
+        ? this.w.progression.level >= def.target
+        : isTotal(def)
+          ? this.owned(def).owned >= def.target
+          : !def.filter && def.event !== 'rush' && def.event !== 'perfectStop' && (this.recent[def.event] ?? 0) >= def.target;
+      if (!met) break;
+      owed.cash += def.reward.cash ?? 0;
+      owed.gems += def.reward.gems ?? 0;
+      owed.railMiles += def.reward.railMiles ?? 0;
+      owed.stars += def.stars ?? 0;
+      this.state.index++;
+      this.state.progress = 0;
+    }
+    const w = this.w;
+    if (owed.cash > 0) w.wallet.add('cash', owed.cash, 'objective:catchup');
+    if (owed.gems > 0) w.wallet.add('gems', owed.gems, 'objective:catchup');
+    if (owed.railMiles > 0) w.wallet.add('railMiles', owed.railMiles, 'objective:catchup');
+    if (owed.stars > 0) w.addStars(owed.stars, 'objective', w.player.pos);
+    if (owed.cash + owed.gems + owed.railMiles > 0) {
+      const p = w.player.pos;
+      w.particles.emit('sparkle', p.x, FLOOR_Y + 1.6, p.z, 14, 0.6);
+      w.audio.play('cash', { volume: 0.7 });
+    }
+    w.save.markDirty();
+    this.activate();
   }
 
   get progress(): number {
@@ -79,6 +135,10 @@ export class Objectives {
   }
 
   update(dt: number): void {
+    if (!this.awake) {
+      if (this.shouldWake) this.wake();
+      return;
+    }
     if (this.doneTimer <= 0) return;
     this.doneTimer -= dt;
     if (this.doneTimer > 0) return;
@@ -89,6 +149,10 @@ export class Objectives {
   }
 
   private count(event: ObjectiveEvent, amount = 1, unlock?: UnlockDef): void {
+    if (!this.awake) {
+      this.recent[event] = (this.recent[event] ?? 0) + amount;
+      return;
+    }
     const def = this.current;
     const counts = !!def && !this.done && def.event === event && !isTotal(def) && (!def.filter || (!!unlock && matches(unlock, def.filter)));
     if (!def || !counts) {
@@ -124,12 +188,17 @@ export class Objectives {
    */
   private syncTotal(): void {
     const def = this.current;
-    if (!def || !isTotal(def) || this.done) return;
+    if (!this.awake || !def || !isTotal(def) || this.done) return;
+    const { owned, exhausted } = this.owned(def);
+    this.settle(def, owned, exhausted);
+  }
+
+  /** How many of what a goal is about the train owns, and whether there is no more of it to be had. */
+  private owned(def: ObjectiveDef): { owned: number; exhausted: boolean } {
     const u = this.w.unlocks;
     if (def.event === 'conductor') {
       const c = this.w.data.conductor;
-      this.settle(def, c.speed + c.capacity + c.fareBonus, false);
-      return;
+      return { owned: c.speed + c.capacity + c.fareBonus, exhausted: false };
     }
     const relevant = u.defs.filter((d) => {
       switch (def.event) {
@@ -140,7 +209,7 @@ export class Objectives {
       }
     });
     const owned = relevant.filter((d) => u.isUnlocked(d.id)).length;
-    this.settle(def, owned, this.w.train.count >= MAX_CARRIAGES && relevant.every((d) => u.isUnlocked(d.id)));
+    return { owned, exhausted: this.w.train.count >= MAX_CARRIAGES && relevant.every((d) => u.isUnlocked(d.id)) };
   }
 
   private settle(def: ObjectiveDef, owned: number, exhausted: boolean): void {
@@ -153,7 +222,7 @@ export class Objectives {
 
   private syncLevel(): void {
     const def = this.current;
-    if (!def || def.event !== 'level' || this.done) return;
+    if (!this.awake || !def || def.event !== 'level' || this.done) return;
     this.state.progress = Math.min(def.target, this.w.progression.level);
     if (this.state.progress >= def.target) this.complete(def);
   }
