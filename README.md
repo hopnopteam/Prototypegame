@@ -10,9 +10,13 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   play (no title screen).
 - **The classic version** (before the session 12 lakeside, night look and carriage classes) is kept in
   [`archive/classic-v1/`](archive/classic-v1/README.md): a playable copy and the commit to return to.
-- **Graphics:** Settings has Auto / Low / Medium / High / Ultra (every tier shades the same way; the higher ones add
-  resolution, softer shadows, bloom, antialiasing and lake reflections). Phones start at Medium; Auto lowers the
-  render scale before it ever drops a tier; add `?quality=low|medium|high|ultra` to the URL to force one (no dynamic resolution then).
+- **Graphics:** Settings has Auto / Low / Medium / High / Ultra (every tier shades the same way; Low and Medium
+  render straight to the screen with no post-processing, High and Ultra add bloom, softer shadows and lake
+  reflections). Phones start at Medium, held to about 60 fps; Auto lowers the render scale (remembered for next
+  time) before it ever drops a tier; add `?quality=low|medium|high|ultra` to the URL to force one (no dynamic resolution then).
+- **iPhone and Android apps:** the same game, wrapped for the App Store and Google Play with Capacitor:
+  `npm run app:ios` / `npm run app:android` (needs Xcode / Android Studio). Building, signing and submitting:
+  [`NATIVE.md`](NATIVE.md).
 - **Locally:** `npm install && npm run build`, then open `dist/index.html` in a browser. It works offline from
   disk; for a phone, serve the folder (`npx serve dist`) and open it on the same Wi-Fi, or copy the file over.
 - **Controls:** touch and drag anywhere for the floating joystick, read on screen: push up and the conductor walks
@@ -31,7 +35,8 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 | `npm run audit:ui` | Checks the boot (no title screen, no sheet over the intro) and the intro caption, stages the busiest HUD moments and every menu at seven phone sizes (320×568 to 430×932), then samples live play, and fails on any overlap, clipped text or off-screen element, or on too much text in play (more than 3 words on screen on average or 8 at once, cards excluded) |
 | `npm run audit:geo` | Builds every carriage at every tier (passenger carriages in each class's own floor plan through the Royal Suite, with their class furniture; all comforts, full stock, every guest type's mess and unmade bed), the locomotive, rear deck, exterior and platform, and fails on (1) any visible coplanar overlap of different surfaces (flicker) and (2) any two objects, or an object and a wall, passing through each other (clipping). Both must report 0 |
 | `npm run audit:audio` | Plays the built game with sound on, records the real output and fails if the theme does not decode, the next pass of the music is not queued exactly one loop apart, the output clips, goes silent once the theme is in, or audio logs an error; writes the recording to `dist/audio-check.wav` |
-| `npm run check` | Typecheck + tests + build |
+| `npm run check` | Typecheck + tests + build (the tests include the camera-visibility check for every tile and pad, and walking into every room) |
+| `npm run app:sync` | Builds and copies the game into the iOS and Android projects (`app:ios` / `app:android` also open Xcode / Android Studio; `app:assets` redraws the app icon and launch screens) |
 
 Tools in `scripts/` (need Chromium via Playwright, pre-installed in the cloud sessions):
 `pacing.mjs [seconds] [shotDir]` prints the timeline, every purchase with the gap before it and the longest dry spells (try 3600 for a whole route); `ui-shots.mjs <dir>` screenshots
@@ -56,6 +61,9 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | The camera (train angle, tilt, lens, framing, stick snapping), the graphics tiers and dynamic resolution, and the night look (moon, sky, the baked lamp and window light (`night.light`), window glass, glow, fog, bloom, grade) | `src/config/visuals.ts` |
 | Carriage classes (Basic to Royal Suite): liveries, chip colours, fare/tip/star multipliers, what each class asks for | `src/config/classes.ts` (class refit prices and level gates in `CARRIAGE_CATALOGUE`, aspirants and turndown in `economy.ts`, rooms per class in `LOBBY_ROOMS`/`SLEEPER_ROOMS` in `src/world/layout.ts`) |
 | The objective chain (goals, rewards) | `src/config/objectives.ts` |
+| One layer at a time: when the goal chain, Rush, class badges, reactions and offers start (`onboarding`); the gap between coach lessons | `src/config/economy.ts`, `src/config/coach.ts` (`COACH_LESSON_GAP_SECONDS`) |
+| Frame pacing (`maxFps`) and dynamic resolution | `src/config/visuals.ts` (`quality`) |
+| The app shell (app id, colours, launch screen, status bar) | `capacitor.config.ts`; native code in `ios/` and `android/` |
 | The sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, how celebrations ring out and keep the stage, the music's night filter | `src/config/audio.ts` |
 | The music (score: chords, melody, bass, drums) | `scripts/audio/build_music.py` renders `assets/audio/music_theme.mp3` from real piano, bass, guitar and drum recordings (credits in `assets/audio/CREDITS.md`); to use another track, replace the MP3 and set `loopSeconds` in `src/audio/music.ts` |
 | Floors by tier: broken planks and repairs, parquet, rugs | `src/world/Floors.ts` |
@@ -74,18 +82,19 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 
 ```
 src/
-  core/       event bus, tweens, rng, math, logging, background work (rebuilds spread over frames)
+  core/       event bus, tweens, rng, math, logging, background work (rebuilds spread over frames, one shared per-frame budget)
   config/     economy.ts, content.ts, classes.ts, visuals.ts: all tunables and content packs
   sim/        pure logic, unit tested: Journey, AdPolicy, UnlockChain, Wallet, Progression, Walkable, NavGraph, TrainMap, meta, press
   save/       versioned JSON save (localStorage + backup + migrations)
-  services/   ads, IAP, analytics, remote config: interfaces + mocks
-  world/      Three.js: stage with quality tiers, dynamic resolution and post-processing, camera, lighting, the baked light map (lamp pools, window spill, contact shading), the lakeside (terrain, set pieces, water, reflections), ambient life, platform, carriages and class chips, train exterior, characters, conductor gear, particles, cash
+  services/   ads, IAP, analytics, remote config: interfaces + mocks; native.ts (the iOS/Android app layer: saves, haptics, lifecycle)
+  world/      Three.js: stage with quality tiers, dynamic resolution, shader warm-up and post-processing, the character batch (one draw for everyone), camera, lighting, the baked light map (lamp pools, window spill, contact shading), the lakeside (terrain, set pieces, water, reflections), ambient life, platform, carriages and class chips, train exterior, characters, conductor gear, particles, cash
   gameplay/   Game (composition root), player, zones, tiles, guests, staff, station, train, guidance, coach, objectives, feedback, press, rush, meta, monetization, autopilot
   audio/      WebAudio: synthesised effects, the music loop, haptics
   ui/         DOM HUD, sheets, icons, styles
 assets/audio/ the music (MP3) and its credits
 tests/        vitest unit tests
-scripts/      build, smoke, pacing, UI, geometry and audio audits, screenshots, the music renderer
+scripts/      build, smoke, pacing, UI, geometry and audio audits, screenshots, the music renderer, native/assets.py (app icon, launch screens)
+ios/ android/ the App Store and Google Play projects (Capacitor; see NATIVE.md)
 ```
 
 The Unity M0 skeleton this project started from is in commit `864b131` if we move to a native engine later.
