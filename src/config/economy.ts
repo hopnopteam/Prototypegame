@@ -31,14 +31,18 @@ export const ECONOMY = {
      */
     fullSpeedAt: 0.85,
     stickCurve: 1.3,
-    /** Walking into a wall within this far of an opening slides you into it (doorways, gangways, props). */
-    doorAssist: 0.38,
+    /**
+     * Walking into a wall within this far of an opening slides you into it (doorways, gangways, props). A push
+     * within about 20° of head-on tries this before sliding along the wall (session 15).
+     */
+    doorAssist: 0.45,
     /**
      * Gliding along a wall keeps pace: a push up to ~50° off the wall slides along it at full speed (more
      * than that slows gradually), so corridors on the diagonal train never feel sticky. 1 = plain sliding.
      */
     wallGlide: 1.6,
-    radius: 0.3,
+    /** Everyone's collision radius (session 15, was 0.3): about the size of a body, so passages feel roomy. */
+    radius: 0.26,
     baseCarryCapacity: 3,
     /** Quick travel (tap a carriage on the train map) walks the route this much faster… */
     dashMultiplier: 1.8,

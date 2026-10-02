@@ -94,7 +94,15 @@ interface CabinMess {
 /** The washroom stock stand: panel width, board tops and overall height (metres above the floor). */
 const WASH_SHELF = { side: 0.03, middle: 0.33, top: 0.6, height: 0.64 };
 /** Room door leaves: height, and each leaf's offset from the partition centre (they pass inside it). */
-const LEAF_HEIGHT = 0.66;
+/** Door leaves stand a little under the knee-high partition they slide into. */
+const LEAF_HEIGHT = INTERIOR_WALL_HEIGHT - 0.1;
+/** The gangway's concertina sides. */
+const BELLOWS_HEIGHT = 0.4;
+/** The lobby clock hangs on the front wall between the tea urn and the linen cupboard. */
+const CLOCK_X = -1.03;
+/** A cabin's picture and wireless shelf sit on the knee-high partition (their tops stay under its cap). */
+const PICTURE_Y = INTERIOR_WALL_HEIGHT - 0.14;
+const RADIO_SHELF_Y = INTERIOR_WALL_HEIGHT - 0.32;
 const LEAF_GAP = 0.04;
 /** An open leaf stops this far short of the end of the wall it slides into. */
 const DOOR_POCKET_MARGIN = 0.015;
@@ -549,7 +557,8 @@ export class CarriageView {
 
     // Gangway to the next car: a steel plate between concertina bellows.
     f.box(0, FLOOR_Y - 0.02, L + GANGWAY_LENGTH / 2, 1.36, 0.04, GANGWAY_LENGTH - 0.02, '#8F8B87', 0, FLAT);
-    for (const x of [-0.74, 0.74]) s.box(x, FLOOR_Y + 0.45, L + GANGWAY_LENGTH / 2, 0.1, 0.9, GANGWAY_LENGTH - 0.02, '#46444D', 0, { pattern: PATTERN.stripesZ, color2: '#3A3840', scale: 0.08, shade: 0.8 });
+    // Low bellows (session 15): the camera looks into the next carriage over them.
+    for (const x of [-0.74, 0.74]) s.box(x, FLOOR_Y + BELLOWS_HEIGHT / 2, L + GANGWAY_LENGTH / 2, 0.1, BELLOWS_HEIGHT, GANGWAY_LENGTH - 0.02, '#46444D', 0, { pattern: PATTERN.stripesZ, color2: '#3A3840', scale: 0.08, shade: 0.8 });
 
     for (const wall of this.layout.walls) this.buildWall(s, liv, trim, glass, lamps, wall);
     for (const prop of this.layout.props) {
@@ -803,7 +812,8 @@ export class CarriageView {
     const white = '#FFFFFF';
     this.innerFinish(s, inner, FLOOR_Y, FLOOR_Y + h, rail);
     liv.slab(outer, 0.38, FLOOR_Y + h, white, 0, 0, { shade: 0.85 });
-    trim.slab(rect(r.x0, outer.z0 - (front ? 0.004 : 0), r.x1, outer.z1 + (front ? 0 : 0.004)), FLOOR_Y + 0.28, FLOOR_Y + 0.32, white, 0, 0, FLAT);
+    // The stripe stops just short of the gangway opening, so its end never shares a face with the panel's.
+    trim.slab(rect(r.x0 + 0.006, outer.z0 - (front ? 0.004 : 0), r.x1 - 0.006, outer.z1 + (front ? 0 : 0.004)), FLOOR_Y + 0.28, FLOOR_Y + 0.32, white, 0, 0, FLAT);
     liv.slab(rect(r.x0, r.z0 - (front ? 0.05 : 0), r.x1, r.z1 + (front ? 0 : 0.05)), FLOOR_Y + h, FLOOR_Y + h + 0.05, white, 0, 0, { shade: 0.92 });
   }
 
@@ -820,12 +830,12 @@ export class CarriageView {
     };
 
     if (type === 'lobby' && this.tier >= 1) {
-      // A clock above the counter, and (once cosy) the pigeon-hole key rack behind the desk.
+      // A clock on the front wall, and (once cosy) the pigeon-hole key rack behind the desk.
       s.object('decor:clock');
-      s.cylinder(1.2, FLOOR_Y + 0.74, frontWallZ + 0.01, 0.16, 0.16, 0.03, this.tier >= 3 ? PALETTE.gold : PALETTE.walnut, 18, 'z', FLAT);
-      s.cylinder(1.2, FLOOR_Y + 0.74, frontWallZ + 0.026, 0.13, 0.13, 0.01, PALETTE.linen, 18, 'z', FLAT);
-      s.box(1.2, FLOOR_Y + 0.78, frontWallZ + 0.034, 0.012, 0.08, 0.004, PALETTE.ink, 0, FLAT);
-      s.box(1.235, FLOOR_Y + 0.74, frontWallZ + 0.034, 0.07, 0.012, 0.004, PALETTE.ink, 0, FLAT);
+      s.cylinder(CLOCK_X, FLOOR_Y + 0.74, frontWallZ + 0.01, 0.16, 0.16, 0.03, this.tier >= 3 ? PALETTE.gold : PALETTE.walnut, 18, 'z', FLAT);
+      s.cylinder(CLOCK_X, FLOOR_Y + 0.74, frontWallZ + 0.026, 0.13, 0.13, 0.01, PALETTE.linen, 18, 'z', FLAT);
+      s.box(CLOCK_X, FLOOR_Y + 0.78, frontWallZ + 0.034, 0.012, 0.08, 0.004, PALETTE.ink, 0, FLAT);
+      s.box(CLOCK_X + 0.035, FLOOR_Y + 0.74, frontWallZ + 0.034, 0.07, 0.012, 0.004, PALETTE.ink, 0, FLAT);
       s.endObject();
       if (this.tier >= 2) {
         const kx = -INNER + 0.05;
@@ -950,7 +960,8 @@ export class CarriageView {
     const leaf = new GeoBuilder()
       // Glass, rail and handle stand a clear 1 cm proud of the panel (a hair's breadth would flicker).
       .box(0, 0, 0, 0.035, LEAF_HEIGHT, leafLength - 0.01, colour, 0, { shade: 0.85 })
-      .box(0, 0.12, 0, 0.055, 0.22, leafLength * 0.6, this.tier <= 0 ? '#C2B29C' : '#E4EEF0', 0, FLAT)
+      // The glass panel sits between the handle and the top rail (clear of both on the knee-high leaf).
+      .box(0, 0.09, 0, 0.055, 0.16, leafLength * 0.6, this.tier <= 0 ? '#C2B29C' : '#E4EEF0', 0, FLAT)
       .box(0, LEAF_HEIGHT / 2 + 0.005, 0, 0.055, 0.012, leafLength - 0.01, metal, 0, FLAT)
       .box(0, -0.04, leafLength * 0.34, 0.075, 0.06, 0.025, metal, 0, FLAT)
       .build();
@@ -1151,17 +1162,18 @@ function buildCabinComforts(b: GeoBuilder, glow: GeoBuilder, cabin: CabinLayout,
     // A little picture above, on the wall between the door and the bed.
     b.object('comfort:picture');
     const fx = cabin.room.x0 + 0.24;
-    b.box(fx, y + 0.56, wallZ + 0.012, 0.3, 0.22, 0.02, PALETTE.gold, 0, FLAT);
-    b.box(fx, y + 0.56, wallZ + 0.026, 0.24, 0.16, 0.004, PALETTE.frameCanvas[cabin.index % 4], 0, FLAT);
+    b.box(fx, y + PICTURE_Y, wallZ + 0.012, 0.3, 0.2, 0.02, PALETTE.gold, 0, FLAT);
+    b.box(fx, y + PICTURE_Y, wallZ + 0.026, 0.24, 0.14, 0.004, PALETTE.frameCanvas[cabin.index % 4], 0, FLAT);
   }
   if (keys.includes('radio')) {
     // A wall shelf with a wireless, beside the picture.
     const rx = (cabin.room.x0 + 0.42 + nx0) / 2 + 0.04;
     b.object('comfort:radio');
-    b.box(rx, y + 0.47, wallZ + 0.075, 0.3, 0.02, 0.15, PALETTE.walnutDark, 0, FLAT);
-    b.rounded(rx, y + 0.556, wallZ + 0.075, 0.24, 0.15, 0.11, 0.03, tier >= 3 ? PALETTE.walnut : '#B5835A', { shade: 0.9 });
-    b.box(rx - 0.04, y + 0.556, wallZ + 0.132, 0.1, 0.09, 0.006, '#E9D9B0', 0, FLAT);
-    b.cylinder(rx + 0.07, y + 0.556, wallZ + 0.134, 0.022, 0.022, 0.01, PALETTE.brass, 10, 'z');
+    const sy = y + RADIO_SHELF_Y;
+    b.box(rx, sy, wallZ + 0.075, 0.3, 0.02, 0.15, PALETTE.walnutDark, 0, FLAT);
+    b.rounded(rx, sy + 0.086, wallZ + 0.075, 0.24, 0.15, 0.11, 0.03, tier >= 3 ? PALETTE.walnut : '#B5835A', { shade: 0.9 });
+    b.box(rx - 0.04, sy + 0.086, wallZ + 0.132, 0.1, 0.09, 0.006, '#E9D9B0', 0, FLAT);
+    b.cylinder(rx + 0.07, sy + 0.086, wallZ + 0.134, 0.022, 0.022, 0.01, PALETTE.brass, 10, 'z');
   }
 }
 
@@ -1308,7 +1320,7 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       break;
     }
     case 'bureau':
-      buildBureau(b, lamps, r, tier);
+      buildBureau(b, lamps, r, tier, prop.facing === 'rear');
       break;
     case 'washShelf': {
       // An open stand against the wall: side panels and three boards, the stock sits on the top two.
@@ -1577,38 +1589,84 @@ function buildGrandBed(b: GeoBuilder, r: Rect, theme: CarriageTheme, tier: numbe
   rail(r.x0 + 0.04, r.z1 - 0.04, r.x1 - 0.04, r.z1 - 0.04);
 }
 
-/** The lobby's back corner, class by class: crates, a cupboard, a bookcase, a bureau, a piano, a gilded piano. */
-function buildBureau(b: GeoBuilder, lamps: GeoBuilder, r: Rect, tier: number): void {
+/**
+ * A piece against a wall, described across (out from the wall, toward the room) and along it, then turned to
+ * stand on a side wall (`rear` false: out is +x) or the front wall (`rear` true: out is +z).
+ */
+class WallPiece {
+  /** Out from the wall: from `o0` (at the wall) to `face` (the front of the piece). */
+  readonly o0: number;
+  readonly face: number;
+  readonly a0: number;
+  readonly a1: number;
+  readonly oc: number;
+  readonly ac: number;
+  /** Depth (out from the wall) and width (along it). */
+  readonly w: number;
+  readonly d: number;
+
+  constructor(r: Rect, private readonly rear: boolean) {
+    this.o0 = rear ? r.z0 : r.x0;
+    this.face = rear ? r.z1 : r.x1;
+    this.a0 = rear ? r.x0 : r.z0;
+    this.a1 = rear ? r.x1 : r.z1;
+    this.oc = (this.o0 + this.face) / 2;
+    this.ac = (this.a0 + this.a1) / 2;
+    this.w = this.face - this.o0;
+    this.d = this.a1 - this.a0;
+  }
+
+  box(g: GeoBuilder, o: number, y: number, a: number, so: number, h: number, sa: number, color: string, style?: PartStyle): void {
+    if (this.rear) g.box(a, y, o, sa, h, so, color, 0, style);
+    else g.box(o, y, a, so, h, sa, color, 0, style);
+  }
+
+  sphere(g: GeoBuilder, o: number, y: number, a: number, radius: number, color: string, detail = 0, squash = 1, style?: PartStyle): void {
+    if (this.rear) g.sphere(a, y, o, radius, color, detail, squash, style);
+    else g.sphere(o, y, a, radius, color, detail, squash, style);
+  }
+
+  upright(g: GeoBuilder, o: number, y: number, a: number, rTop: number, rBottom: number, h: number, color: string, segments: number, style?: PartStyle): void {
+    if (this.rear) g.cylinder(a, y, o, rTop, rBottom, h, color, segments, 'y', style);
+    else g.cylinder(o, y, a, rTop, rBottom, h, color, segments, 'y', style);
+  }
+}
+
+/**
+ * The lobby's corner piece, class by class: crates, a cupboard, a bookcase, a bureau, a piano, a gilded
+ * piano. Session 15 (owner: "remove the cupboard from the corridor"): it stands on the front wall now
+ * (`rear`), out of the way to the cabins.
+ */
+function buildBureau(b: GeoBuilder, lamps: GeoBuilder, r: Rect, tier: number, rear = false): void {
   const y = FLOOR_Y;
-  const cx = (r.x0 + r.x1) / 2;
-  const cz = (r.z0 + r.z1) / 2;
-  const w = r.x1 - r.x0;
-  const d = r.z1 - r.z0;
-  const face = r.x1;
+  const p = new WallPiece(r, rear);
+  const { oc, ac, w, d, face, a0, a1 } = p;
   if (tier <= 0) {
-    // Crates and a battered trunk, waiting to be unpacked.
-    b.box(cx, y + 0.22, r.z0 + 0.3, w - 0.02, 0.44, 0.5, '#A98D6F', 0, { pattern: PATTERN.stripesZ, color2: '#9C8264', scale: 0.12, shade: 0.8, surface: 'wood' });
-    b.box(cx, y + 0.18, r.z1 - 0.35, w - 0.04, 0.36, 0.6, '#7C5A45', 0, { shade: 0.8, surface: 'leather' });
-    b.box(cx, y + 0.37, r.z1 - 0.35, w - 0.02, 0.03, 0.62, PALETTE.iron, 0, FLAT);
+    // A crate and a battered trunk side by side, waiting to be unpacked (the trunk's iron band stands proud).
+    const crate = Math.min(0.42, d * 0.4);
+    p.box(b, oc, y + 0.22, a0 + 0.02 + crate / 2, w - 0.02, 0.44, crate, '#A98D6F', { pattern: rear ? PATTERN.stripesX : PATTERN.stripesZ, color2: '#9C8264', scale: 0.12, shade: 0.8, surface: 'wood' });
+    const trunk0 = a0 + crate + 0.06;
+    p.box(b, oc, y + 0.18, (trunk0 + a1 - 0.02) / 2, w - 0.04, 0.36, a1 - 0.02 - trunk0, '#7C5A45', { shade: 0.8, surface: 'leather' });
+    p.box(b, oc, y + 0.37, (trunk0 + a1 - 0.02) / 2, w - 0.02, 0.03, a1 - trunk0, PALETTE.iron, FLAT);
     return;
   }
   if (tier === 1) {
-    b.box(cx, y + 0.5, cz, w, 1.0, d - 0.1, PALETTE.oakMid, 0, { shade: 0.8, surface: 'wood' });
-    b.box(face + 0.006, y + 0.5, cz, 0.012, 0.9, 0.01, '#A08868', 0, FLAT);
-    for (const dz of [-0.12, 0.12]) b.sphere(face + 0.02, y + 0.55, cz + dz, 0.02, PALETTE.iron, 0);
+    p.box(b, oc, y + 0.5, ac, w, 1.0, d - 0.1, PALETTE.oakMid, { shade: 0.8, surface: 'wood' });
+    p.box(b, face + 0.006, y + 0.5, ac, 0.012, 0.9, 0.01, '#A08868', FLAT);
+    for (const da of [-0.12, 0.12]) p.sphere(b, face + 0.02, y + 0.55, ac + da, 0.02, PALETTE.iron, 0);
     return;
   }
   if (tier === 2) {
     // A bookcase, full of colour.
-    b.box(cx, y + 0.55, cz, w, 1.1, d - 0.1, PALETTE.walnut, 0, { shade: 0.8, surface: 'varnish' });
+    p.box(b, oc, y + 0.55, ac, w, 1.1, d - 0.1, PALETTE.walnut, { shade: 0.8, surface: 'varnish' });
     const spines = ['#C0485C', '#5E7FA0', '#E5B452', '#6E9C86', '#8E6A8C', '#E08A6E'];
     for (let shelf = 0; shelf < 3; shelf++) {
-      let z = r.z0 + 0.12;
+      let a = a0 + 0.12;
       let k = shelf * 2;
-      while (z < r.z1 - 0.16) {
+      while (a < a1 - 0.16) {
         const bw = 0.05 + ((k * 7) % 4) * 0.012;
-        b.box(face - 0.03, y + 0.22 + shelf * 0.32, z + bw / 2, 0.04, 0.24, bw, spines[k % spines.length], 0, FLAT);
-        z += bw + 0.008;
+        p.box(b, face - 0.03, y + 0.22 + shelf * 0.32, a + bw / 2, 0.04, 0.24, bw, spines[k % spines.length], FLAT);
+        a += bw + 0.008;
         k++;
       }
     }
@@ -1616,42 +1674,39 @@ function buildBureau(b: GeoBuilder, lamps: GeoBuilder, r: Rect, tier: number): v
   }
   if (tier === 3) {
     // A bureau with drawers and a green-shaded banker's lamp.
-    b.box(cx, y + 0.4, cz, w, 0.8, d - 0.1, PALETTE.walnut, 0, { shade: 0.8, surface: 'varnish' });
+    p.box(b, oc, y + 0.4, ac, w, 0.8, d - 0.1, PALETTE.walnut, { shade: 0.8, surface: 'varnish' });
     for (let i = 0; i < 3; i++) {
-      b.box(face + 0.006, y + 0.16 + i * 0.22, cz, 0.012, 0.18, d - 0.3, PALETTE.walnutDark, 0, FLAT);
-      b.sphere(face + 0.02, y + 0.16 + i * 0.22, cz, 0.018, PALETTE.brass, 0, 1, { shade: 1, surface: 'brass' });
+      p.box(b, face + 0.006, y + 0.16 + i * 0.22, ac, 0.012, 0.18, d - 0.3, PALETTE.walnutDark, FLAT);
+      p.sphere(b, face + 0.02, y + 0.16 + i * 0.22, ac, 0.018, PALETTE.brass, 0, 1, { shade: 1, surface: 'brass' });
     }
-    b.box(cx, y + 0.815, cz, w + 0.02, 0.03, d - 0.08, '#3E5F4E', 0, { shade: 1, surface: 'leather' });
-    b.cylinder(cx, y + 0.9, r.z0 + 0.3, 0.014, 0.05, 0.14, PALETTE.brass, 8, 'y', { surface: 'brass' });
-    lamps.cylinder(cx, y + 1.0, r.z0 + 0.3, 0.07, 0.1, 0.06, '#3F8A5E', 12, 'y', { shade: 0.9 });
+    p.box(b, oc, y + 0.815, ac, w + 0.02, 0.03, d - 0.08, '#3E5F4E', { shade: 1, surface: 'leather' });
+    p.upright(b, oc, y + 0.9, a0 + 0.3, 0.014, 0.05, 0.14, PALETTE.brass, 8, { surface: 'brass' });
+    p.upright(lamps, oc, y + 1.0, a0 + 0.3, 0.07, 0.1, 0.06, '#3F8A5E', 12, { shade: 0.9 });
     return;
   }
-  buildPiano(b, lamps, r, tier);
+  buildPiano(b, lamps, r, tier, rear);
 }
 
-/** An upright piano: black lacquer (ivory and gold in the Royal Suite), its keys toward +x (the room). */
-function buildPiano(b: GeoBuilder, lamps: GeoBuilder, r: Rect, tier: number): void {
+/** An upright piano: black lacquer (ivory and gold in the Royal Suite), its keys toward the room. */
+function buildPiano(b: GeoBuilder, lamps: GeoBuilder, r: Rect, tier: number, rear = false): void {
   const y = FLOOR_Y;
-  const cx = (r.x0 + r.x1) / 2;
-  const cz = (r.z0 + r.z1) / 2;
-  const w = r.x1 - r.x0;
-  const d = r.z1 - r.z0;
-  const face = r.x1;
+  const p = new WallPiece(r, rear);
+  const { oc, ac, w, d, face, a0 } = p;
   const body = tier >= 5 ? '#F2EDE4' : '#1C1A20';
   const trim = PALETTE.gold;
-  b.box(cx, y + 0.62, cz, w, 1.24, d - 0.1, body, 0, { shade: 0.85, surface: 'varnish' });
-  // The keyboard stands only 10 cm proud of the case: the path from the desk to the cabins runs past it.
-  b.box(face + 0.05, y + 0.72, cz, 0.1, 0.06, d - 0.14, body, 0, { shade: 1, surface: 'varnish' });
-  b.box(face + 0.065, y + 0.755, cz, 0.06, 0.012, d - 0.2, '#F7F4EC', 0, FLAT);
-  for (let i = 0; i < 7; i++) b.box(face + 0.06, y + 0.768, r.z0 + 0.2 + i * ((d - 0.4) / 6), 0.04, 0.012, 0.03, '#1A1A1A', 0, FLAT);
-  b.box(face + 0.006, y + 1.1, cz, 0.012, 0.03, d - 0.12, trim, 0, { shade: 1, surface: 'brass' });
-  b.box(face + 0.006, y + 0.35, cz, 0.012, 0.03, d - 0.12, trim, 0, { shade: 1, surface: 'brass' });
+  p.box(b, oc, y + 0.62, ac, w, 1.24, d - 0.1, body, { shade: 0.85, surface: 'varnish' });
+  // The keyboard stands only 10 cm proud of the case: nothing to walk round.
+  p.box(b, face + 0.05, y + 0.72, ac, 0.1, 0.06, d - 0.14, body, { shade: 1, surface: 'varnish' });
+  p.box(b, face + 0.065, y + 0.755, ac, 0.06, 0.012, d - 0.2, '#F7F4EC', FLAT);
+  for (let i = 0; i < 7; i++) p.box(b, face + 0.06, y + 0.768, a0 + 0.2 + i * ((d - 0.4) / 6), 0.04, 0.012, 0.03, '#1A1A1A', FLAT);
+  p.box(b, face + 0.006, y + 1.1, ac, 0.012, 0.03, d - 0.12, trim, { shade: 1, surface: 'brass' });
+  p.box(b, face + 0.006, y + 0.35, ac, 0.012, 0.03, d - 0.12, trim, { shade: 1, surface: 'brass' });
   // Music stand, and candles (a candelabra in the Royal Suite).
-  b.box(face - 0.03, y + 0.95, cz, 0.02, 0.2, 0.36, '#F4EEDC', 0, FLAT);
+  p.box(b, face - 0.03, y + 0.95, ac, 0.02, 0.2, 0.36, '#F4EEDC', FLAT);
   const candles = tier >= 5 ? [-0.3, -0.15, 0.15, 0.3] : [-0.3, 0.3];
-  for (const dz of candles) {
-    b.cylinder(cx, y + 1.3, cz + dz, 0.02, 0.03, 0.08, trim, 8, 'y', { surface: 'brass' });
-    lamps.cylinder(cx, y + 1.39, cz + dz, 0.014, 0.014, 0.1, '#FFF1D0', 8);
+  for (const da of candles) {
+    p.upright(b, oc, y + 1.3, ac + da, 0.02, 0.03, 0.08, trim, 8, { surface: 'brass' });
+    p.upright(lamps, oc, y + 1.39, ac + da, 0.014, 0.014, 0.1, '#FFF1D0', 8);
   }
 }
 

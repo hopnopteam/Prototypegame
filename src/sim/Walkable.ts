@@ -13,6 +13,8 @@ export interface WalkableOptions {
 }
 
 const STEP = 0.08;
+/** A push whose sideways part is under this share of the step counts as head-on (within about 20°). */
+const HEAD_ON = 0.35;
 
 /**
  * Where a character's centre may stand: a union of rectangles already shrunk by the character radius,
@@ -85,6 +87,10 @@ export class Walkable {
     const sx = dx / steps;
     const sz = dz / steps;
     const step = length / steps;
+    // A push that is mostly head-on into a wall (its sideways part under HEAD_ON of the step) tries the
+    // doorway funnel first. Before session 15 a push straight at the wall beside a doorway "slid" by a
+    // floating-point crumb (cos 90° is 6e-17, not 0) and the funnel never got its turn: you stayed pinned.
+    const headOn = assist > 0 && Math.min(Math.abs(sx), Math.abs(sz)) < HEAD_ON * step;
     for (let i = 0; i < steps; i++) {
       const nx = pos.x + sx;
       const nz = pos.z + sz;
@@ -93,6 +99,7 @@ export class Walkable {
         pos.z = nz;
         continue;
       }
+      if (headOn && this.funnel(pos, sx, sz, assist)) continue;
       const gx = pos.x + Math.sign(sx) * Math.min(step, Math.abs(sx) * glide);
       const gz = pos.z + Math.sign(sz) * Math.min(step, Math.abs(sz) * glide);
       // Slide along whichever wall lets the push through, the larger component first.
@@ -102,7 +109,7 @@ export class Walkable {
       else if (!xFirst && sx !== 0 && this.isWalkable(gx, pos.z)) pos.x = gx;
       else if (sx !== 0 && this.isWalkable(nx, pos.z)) pos.x = nx;
       else if (sz !== 0 && this.isWalkable(pos.x, nz)) pos.z = nz;
-      else if (!(assist > 0 && this.funnel(pos, sx, sz, assist))) break;
+      else if (headOn || !(assist > 0 && this.funnel(pos, sx, sz, assist))) break;
     }
   }
 

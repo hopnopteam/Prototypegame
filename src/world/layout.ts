@@ -16,9 +16,12 @@ export const CARRIAGE_PITCH = CARRIAGE_LENGTH + GANGWAY_LENGTH;
 export const HALF_WIDTH = 2.7;
 export const WALL = 0.16;
 export const INNER = HALF_WIDTH - WALL;
-/** Corridor runs along the left (1.44 m, room to pass); rooms sit to the right of this partition. */
-export const PARTITION_X0 = -1.1;
-export const PARTITION_X1 = -0.96;
+/**
+ * Corridor runs along the left; rooms sit to the right of this partition. Session 15 (owner: "make more room
+ * to walk around"): 1.62 m (was 1.44), so two people pass without either stopping.
+ */
+export const PARTITION_X0 = -0.92;
+export const PARTITION_X1 = -0.78;
 /**
  * Room doorways: wide and in the middle of the room's wall, so you walk straight in onto the room's work spot
  * without threading a needle (bi-parting doors slide into the wall on both sides as you come).
@@ -27,14 +30,30 @@ export const ROOM_DOOR_WIDTH = 1.4;
 /** A doorway centred on a room's corridor wall. */
 const centredDoor = (z0: number, z1: number): [number, number] => [(z0 + z1) / 2 - ROOM_DOOR_WIDTH / 2, (z0 + z1) / 2 + ROOM_DOOR_WIDTH / 2];
 export const EXTERIOR_WALL_HEIGHT = 1.1;
-export const INTERIOR_WALL_HEIGHT = 0.85;
+/**
+ * Walls between rooms stop at knee height (session 15, was 0.85 m): from the camera's angle a taller wall hid
+ * the floor just behind it, and with it the pads, tiles, mess and guests there. The floor plan still reads at
+ * a glance, like a dolls' house with the front walls cut down.
+ */
+export const INTERIOR_WALL_HEIGHT = 0.52;
+/**
+ * The rear end wall faces the camera (it looks down the train from the back): cut down to a low sill so the
+ * end of every carriage, where its improvement and staff tiles stand, is in full view.
+ */
+export const CUTAWAY_WALL_HEIGHT = 0.36;
 export const GANGWAY_HALF = 0.7;
 export const DOOR_Z0 = 0.8;
 export const DOOR_Z1 = 2.2;
 export const LOCOMOTIVE_LENGTH = 10;
 export const REAR_DECK_LENGTH = 2.4;
-/** Depth of the rear vestibule; everything else in a carriage ends before it. */
-export const REAR_VESTIBULE = 1.3;
+/**
+ * Depth of the rear vestibule; everything else in a carriage ends before it. Deep enough (session 15, was
+ * 1.3 m) for the improvement and staff tiles either side of the gangway to stand clear of every wall.
+ */
+export const REAR_VESTIBULE = 1.5;
+/** Where the rear vestibule's tiles stand: either side of the gangway, in full view (see tests/visibility). */
+export const REAR_TILE_Z = CARRIAGE_LENGTH - 0.95;
+export const REAR_TILE_X = 1.35;
 export const INTERIOR_END = CARRIAGE_LENGTH - REAR_VESTIBULE - 0.06;
 export const PLATFORM_X0 = HALF_WIDTH + 0.25;
 export const PLATFORM_WIDTH = 6.5;
@@ -168,8 +187,7 @@ class LayoutBuilder {
     if (blocks) this.layout.blocked.push(r);
   }
 
-  wall(x0: number, z0: number, x1: number, z1: number, kind: WallBox['kind'] = 'interior'): void {
-    const height = kind === 'exterior' ? EXTERIOR_WALL_HEIGHT : INTERIOR_WALL_HEIGHT;
+  wall(x0: number, z0: number, x1: number, z1: number, kind: WallBox['kind'] = 'interior', height = kind === 'exterior' ? EXTERIOR_WALL_HEIGHT : INTERIOR_WALL_HEIGHT): void {
     this.layout.walls.push({ ...rect(x0, z0, x1, z1), height, kind });
   }
 
@@ -184,13 +202,13 @@ class LayoutBuilder {
   }
 
   /** A wall across x from x0 to x1 at [z0,z1], leaving the given gaps open. */
-  wallAlongX(z0: number, z1: number, x0: number, x1: number, gaps: [number, number][], kind: WallBox['kind']): void {
+  wallAlongX(z0: number, z1: number, x0: number, x1: number, gaps: [number, number][], kind: WallBox['kind'], height?: number): void {
     let cursor = x0;
     for (const [g0, g1] of [...gaps].sort((a, b) => a[0] - b[0])) {
-      if (g0 > cursor) this.wall(cursor, z0, g0, z1, kind);
+      if (g0 > cursor) this.wall(cursor, z0, g0, z1, kind, height);
       cursor = Math.max(cursor, g1);
     }
-    if (cursor < x1) this.wall(cursor, z0, x1, z1, kind);
+    if (cursor < x1) this.wall(cursor, z0, x1, z1, kind, height);
   }
 
   node(id: string, x: number, z: number): string {
@@ -219,7 +237,7 @@ class LayoutBuilder {
     // End walls run between the side walls: the corners belong to the side walls alone (overlapping shells
     // would put two coplanar faces at every corner, which flicker).
     this.wallAlongX(0, WALL, -INNER, INNER, options.frontGangway ? [[-GANGWAY_HALF, GANGWAY_HALF]] : [], 'exterior');
-    this.wallAlongX(L - WALL, L, -INNER, INNER, [[-GANGWAY_HALF, GANGWAY_HALF]], 'exterior');
+    this.wallAlongX(L - WALL, L, -INNER, INNER, [[-GANGWAY_HALF, GANGWAY_HALF]], 'exterior', CUTAWAY_WALL_HEIGHT);
 
     if (options.doors) {
       const doorZ = (DOOR_Z0 + DOOR_Z1) / 2;
@@ -289,7 +307,8 @@ class LayoutBuilder {
       // The bigger rooms get a lounge beyond the bed (kept off the walk from the door to the room's heart).
       if (style === 'business' && len > 3.2) this.prop('armchair', INNER - 0.72, cz1 - 0.92, INNER - 0.04, cz1 - 0.2, 'left');
       if ((style === 'first' || style === 'royal') && len > 5) {
-        const sofa = rect(INNER - 0.62, cz1 - 2.5, INNER - 0.04, cz1 - 0.95);
+        // The sofa starts clear of whatever stands at the foot of the bed (the Royal slipper bath).
+        const sofa = rect(INNER - 0.62, Math.max(cz1 - 2.5, footZ1 + 0.1), INNER - 0.04, cz1 - 0.95);
         const table = rect(INNER - 1.38, cz1 - 2.05, INNER - 0.86, cz1 - 1.4);
         this.prop('sofa', sofa.x0, sofa.z0, sofa.x1, sofa.z1, 'left');
         this.prop('table', table.x0, table.z0, table.x1, table.z1);
@@ -301,8 +320,10 @@ class LayoutBuilder {
         this.prop('dining', dining.x0, dining.z0, dining.x1, dining.z1);
         // A grand piano in the far corner, its keys (and the stool) toward the room.
         this.prop('grandPiano', PARTITION_X1 + 0.04, cz1 - 2.0, PARTITION_X1 + 1.0, cz1 - 0.1, 'front');
-        // A tall armoire on the corridor wall between the writing desk and the piano.
-        this.prop('wardrobe', PARTITION_X1 + 0.02, cz1 - 3.6, PARTITION_X1 + 0.46, cz1 - 2.5, 'right');
+        // A tall armoire on the corridor wall between the writing desk (past the door, at most 0.95 m long)
+        // and the piano.
+        const armoireZ0 = Math.max(cz1 - 3.6, doorZ1 + 0.06 + 0.95 + 0.1);
+        this.prop('wardrobe', PARTITION_X1 + 0.02, armoireZ0, PARTITION_X1 + 0.46, Math.min(armoireZ0 + 1.1, cz1 - 2.08), 'right');
       }
 
       const corridorNode = this.node(`corr_${c}`, (-INNER + PARTITION_X0) / 2, doorZ);
@@ -321,7 +342,9 @@ class LayoutBuilder {
       // suite it is just inside the door, where the walk from the corridor ends.
       const openX0 = PARTITION_X1 + 0.32;
       const openX1 = bed.x0 - 0.42;
-      const heartZ = len > 4 ? doorZ : cz0 + len * 0.52;
+      // Nearer the room's front wall than its back one: the camera looks over the back wall (the next room's
+      // front), and the pad must stay clear of the strip of floor that wall hides (tests/visibility).
+      const heartZ = len > 4 ? doorZ : cz0 + len * 0.45;
       const heart = { x: Math.min((openX0 + openX1) / 2, PARTITION_X1 + 1.1), z: heartZ };
       // Tips: the far corner of a small room; in a suite, by the head of the bed (the heart is at the door).
       const tipZ = style === 'berth' ? cz1 - 0.38 : len > 4 ? bed.z0 + 0.62 : cz1 - 0.42;
@@ -379,9 +402,10 @@ function buildLobby(tier: number): CarriageLayout {
   b.prop('rack', 1.9, 5.4, INNER, 7.15, 'left');
   b.prop('bin', 2.12, 4.7, INNER, 5.1, 'left');
   b.prop('plant', 2.0, WALL, INNER, 0.55, 'left', false);
-  // The lobby's back corner: a slim piece against the wall that grows with the class (crates, a cupboard, a
-  // bookcase, a bureau, then a piano), kept clear of the path from the desk to the cabins.
-  b.prop('bureau', -INNER, 5.95, -2.18, 6.95, 'right');
+  // A slim piece on the front wall, between the linen cupboard and the plant, that grows with the class
+  // (crates, a cupboard, a bookcase, a bureau, then a piano). Session 15 (owner: "remove the cupboard from
+  // the corridor"): it used to stand where the corridor starts and pinched the way to the cabins.
+  b.prop('bureau', 0.98, WALL + 0.012, 1.92, 0.51, 'rear');
 
   b.anchor('deskService', -2.05, 3.4);
   b.anchor('deskCash', -2.05, 4.75);
@@ -396,11 +420,11 @@ function buildLobby(tier: number): CarriageLayout {
   b.anchor('home_attendant', 0.0, 6.4);
   b.anchor('tile_up_attendant', 0.0, 6.4);
   // The porter's post is at the carriage's back door, out of the busy lobby.
-  b.anchor('home_porter', -1.3, CARRIAGE_LENGTH - 0.72);
+  b.anchor('home_porter', -REAR_TILE_X, REAR_TILE_Z);
   // Between jobs the porter waits behind the desk, like a receptionist, not in the gangway everyone uses.
   b.anchor('idle_porter', -2.05, 2.15);
-  b.anchor('tile_up_porter', -1.3, CARRIAGE_LENGTH - 0.72);
-  b.anchor('tile_refurb', 1.3, CARRIAGE_LENGTH - 0.72);
+  b.anchor('tile_up_porter', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.anchor('stackItems', 0.9, 1.3);
 
   // One tidy snake from the desk, each place painted on the floor (drawn by CarriageView).
@@ -428,20 +452,22 @@ function buildLobby(tier: number): CarriageLayout {
 
 function buildSleeper(tier: number): CarriageLayout {
   const b = new LayoutBuilder('sleeper');
-  const front = 1.6;
+  // Deep enough that the linen pad in the nook stands clear of the first room's wall (in full view).
+  const front = 2.1;
   b.shell({ frontGangway: true, doors: false });
   b.vestibules(front);
   // A small service nook in the front vestibule: supplies sit next to the cabins that need them.
   // The service nook either side of the gangway: tea on the left, linen on the right.
   b.prop('urn', -INNER, WALL, -1.45, 0.66, 'rear');
-  b.prop('linen', 1.3, WALL, INNER, 0.62, 'rear');
+  // The linen cupboard stands in from the outer wall, so its pad is clear of the strip that wall hides.
+  b.prop('linen', 0.82, WALL, 2.02, 0.62, 'rear');
   b.anchor('urn', -2.0, 1.12);
-  b.anchor('linen', 1.9, 1.12);
-  b.anchor('blanket', 1.9, 1.12);
-  b.anchor('pillow', 1.9, 1.12);
-  b.anchor('home_attendant', 1.3, CARRIAGE_LENGTH - 0.72);
-  b.anchor('tile_up_attendant', 1.3, CARRIAGE_LENGTH - 0.72);
-  b.anchor('tile_refurb', -1.3, CARRIAGE_LENGTH - 0.72);
+  b.anchor('linen', 1.42, 1.12);
+  b.anchor('blanket', 1.42, 1.12);
+  b.anchor('pillow', 1.42, 1.12);
+  b.anchor('home_attendant', REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_up_attendant', REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_refurb', -REAR_TILE_X, REAR_TILE_Z);
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, front - 0.1);
   b.node('nook', 0, 1.05);
   b.chain('vest_front', 'nook', 'corr_in');
@@ -505,7 +531,7 @@ function buildBathroom(): CarriageLayout {
       doorZ,
       door: [doorZ0, doorZ1],
       // The restock pad stands in the middle of the little room, clear of the loo and the basin.
-      restock: { x: PARTITION_X1 + 1.05, z: z0 + 1.35 },
+      restock: { x: PARTITION_X1 + 1.05, z: z0 + 1.25 },
       useSpot: { x: INNER - 1.05, z: z0 + 0.62 },
       node,
       useNode,
@@ -514,7 +540,7 @@ function buildBathroom(): CarriageLayout {
   b.wallAlongZ(PARTITION_X0, PARTITION_X1, front, end, gaps, 'interior');
   b.node('corr_end', (-INNER + PARTITION_X0) / 2, CARRIAGE_LENGTH - REAR_VESTIBULE + 0.35);
   b.chain(previous, 'corr_end', 'vest_rear');
-  b.anchor('tile_refurb', 1.3, CARRIAGE_LENGTH - 0.75);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   return b.layout;
 }
 
@@ -539,7 +565,7 @@ function buildSupply(): CarriageLayout {
   b.anchor('home_runner', 0.1, 10.1);
   b.anchor('tile_up_runner', 0.1, 10.1);
   b.anchor('bin', -1.2, 12.2);
-  b.anchor('tile_refurb', 1.3, CARRIAGE_LENGTH - 0.75);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.node('aisle_front', 0, front + 0.2);
   b.node('aisle_mid', 0, 6.5);
   b.node('aisle_rear', 0.1, 11.4);
@@ -558,7 +584,7 @@ function buildLuggage(): CarriageLayout {
   b.anchor('rack', 0, 6.8);
   b.anchor('home_porter', 0.8, 3.4);
   b.anchor('tile_up_porter', 0.8, 3.4);
-  b.anchor('tile_refurb', 1.3, CARRIAGE_LENGTH - 0.75);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.node('aisle_front', 0, front + 0.3);
   b.node('rack', 0, 6.8);
   b.node('aisle_rear', 0, 11.2);
@@ -623,10 +649,11 @@ export const ZONE_RADIUS = {
   coupleTile: 0.8,
 } as const;
 /** Unlock tiles are squares this wide on the floor. */
-export const TILE_SIZE = 1.2;
+/** Unlock tiles: a metre square (session 15, was 1.2 m: the big plates would not fit clear of the walls). */
+export const TILE_SIZE = 1.0;
 export const COUPLE_TILE_SIZE = 1.6;
 /** A washroom's tip pile sits this far from its restock point. */
-export const BATH_PILE_OFFSET: Vec2 = { x: -0.35, z: 0.6 };
+export const BATH_PILE_OFFSET: Vec2 = { x: -0.35, z: 0.55 };
 
 /** Station upgrade tiles on the platform (world coordinates while the train is in), beside the lobby. */
 export const STATION_TILE_POS: Record<'exterior' | 'marketing', Vec2> = {

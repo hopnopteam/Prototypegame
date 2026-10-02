@@ -238,6 +238,22 @@ export class Tiles {
   }
 
   /** The cheapest visible tile, for guidance and cash offers. */
+  /**
+   * The cheapest station upgrade on show and affordable right now (they only stand on the platform while the
+   * train is in, so a player buys one during the stop or waits for the next).
+   */
+  stationBuy(cash: number): TileEntry | null {
+    if (this.w.journey.phase !== 'stationStop') return null;
+    let best: TileEntry | null = null;
+    for (const entry of this.entries.values()) {
+      if (!isStation(entry.def)) continue;
+      const price = this.w.unlocks.remaining(entry.def.id);
+      if (price > cash) continue;
+      if (!best || price < this.w.unlocks.remaining(best.def.id)) best = entry;
+    }
+    return best;
+  }
+
   cheapest(): TileEntry | null {
     let best: TileEntry | null = null;
     const atStation = this.w.journey.phase === 'stationStop';
