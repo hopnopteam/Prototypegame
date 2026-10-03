@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import type { OutfitDef } from '../config/wardrobe';
 import { SHOES_BY_SPEED } from '../config/wardrobe';
-import type { CharacterLook, CharacterView } from './CharacterView';
+import { CharacterView, type CharacterLook } from './CharacterView';
 import { GeoBuilder } from './geo';
-import { MATERIALS } from './materials';
+import { LIGHT_UNIFORMS, MATERIALS } from './materials';
 import { PALETTE } from './palette';
 
 export interface GearState {
@@ -21,18 +21,19 @@ export interface GearState {
   carrying: boolean;
 }
 
-const RING_COLOURS = { normal: new THREE.Color('#F2B233'), skating: new THREE.Color('#5FC6E0'), doubled: new THREE.Color('#FFD35C') };
+/** The rim light's colour: warm gold, cyan on skates, a brighter gold with double fares (linear, before strength). */
+const RIM_COLOURS = { normal: new THREE.Color('#FFC75A'), skating: new THREE.Color('#5FD2F0'), doubled: new THREE.Color('#FFE27A') };
 const SCOOTER_LIFT = 0.16;
 
 /**
- * Everything that makes the conductor unmistakable and shows what you have earned: a glowing ring on the
- * floor, the outfit from the wardrobe, and gear for each upgrade (sporty then gold shoes for speed, a
- * silver tray for carrying more, a flower, a watch chain and gold epaulettes for charm), plus the power-ups
- * in use (roller skates, the scooter). Rebuilt only when something changes.
+ * Everything that makes the conductor unmistakable and shows what you have earned: a soft rim of warm light
+ * round them (session 16, owner: "the yellow area around the player clips through the environment… a less
+ * intrusive way"; it replaces the ring on the floor and, being on the character, never cuts into a bed or a
+ * wall), the outfit from the wardrobe, and gear for each upgrade (sporty then gold shoes for speed, a silver
+ * tray for carrying more, a flower, a watch chain and gold epaulettes for charm), plus the power-ups in use
+ * (roller skates, the scooter). Rebuilt only when something changes.
  */
 export class ConductorGear {
-  private readonly ring: THREE.Mesh;
-  private readonly ringMaterial: THREE.MeshBasicMaterial;
   private readonly tray: THREE.Mesh;
   private readonly chest: THREE.Mesh;
   private readonly epaulettes: THREE.Mesh;
@@ -42,11 +43,8 @@ export class ConductorGear {
   private time = 0;
 
   constructor(private readonly view: CharacterView, private readonly base: CharacterLook) {
-    this.ringMaterial = new THREE.MeshBasicMaterial({ color: RING_COLOURS.normal, transparent: true, opacity: 0.8, depthWrite: false });
-    this.ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.52, 40).rotateX(-Math.PI / 2), this.ringMaterial);
-    this.ring.position.y = 0.02;
-    this.ring.renderOrder = 2;
-    view.root.add(this.ring);
+    // The rim light is drawn by the character batch, in the same single draw as everyone else.
+    CharacterView.batch?.highlight(view.root, true);
 
     // A silver tray under whatever the conductor carries (shown only with a load on it): silver on top,
     // a thin brass edge below, so from above it reads as a tray and not a gold disc.
@@ -125,11 +123,10 @@ export class ConductorGear {
     }
     this.tray.visible = state.carrying && state.capacityLevel >= 1;
     if (state.scooter) this.view.body.position.y = SCOOTER_LIFT;
-    // The ring breathes; it glows cyan on skates and brighter gold with double fares.
-    const colour = state.skating ? RING_COLOURS.skating : state.doubled ? RING_COLOURS.doubled : RING_COLOURS.normal;
-    this.ringMaterial.color.copy(colour);
-    const pulse = 0.5 + 0.5 * Math.sin(this.time * (state.skating || state.doubled ? 7 : 3));
-    this.ringMaterial.opacity = 0.55 + 0.3 * pulse;
-    this.ring.scale.setScalar(1 + 0.06 * pulse);
+    // The rim breathes gently; it turns cyan on skates and a brighter, quicker gold with double fares.
+    const boosted = state.skating || state.doubled;
+    const colour = state.skating ? RIM_COLOURS.skating : state.doubled ? RIM_COLOURS.doubled : RIM_COLOURS.normal;
+    const pulse = 0.5 + 0.5 * Math.sin(this.time * (boosted ? 6 : 2.2));
+    LIGHT_UNIFORMS.uNxHighlight.value.copy(colour).multiplyScalar((boosted ? 0.95 : 0.85) + (boosted ? 0.35 : 0.15) * pulse);
   }
 }

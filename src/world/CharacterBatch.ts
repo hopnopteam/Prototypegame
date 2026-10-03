@@ -30,7 +30,16 @@ interface Part {
   readonly id: number;
   readonly mask: number;
   seen: number;
+  /** Drawn with the rim light (the conductor). */
+  highlight: boolean;
 }
+
+/**
+ * Per-instance colours carry the highlight in alpha (white, alpha 1 = plain; alpha 0 = full rim light, see the
+ * lit shader in materials.ts): the colour multiply leaves every part as it was.
+ */
+const PLAIN = new THREE.Vector4(1, 1, 1, 1);
+const HIGHLIT = new THREE.Vector4(1, 1, 1, 0);
 
 /** A BatchedMesh that grows as new geometries and instances arrive. */
 class Batch {
@@ -43,7 +52,7 @@ class Batch {
   private instances = 0;
   private indexed: boolean;
 
-  constructor(material: THREE.Material, reference: THREE.BufferGeometry, castShadow: boolean, vertexCapacity: number) {
+  constructor(material: THREE.Material, reference: THREE.BufferGeometry, castShadow: boolean, vertexCapacity: number, readonly colours = false) {
     this.vertexCapacity = vertexCapacity;
     this.indexed = reference.getIndex() !== null;
     const indexCapacity = this.indexed ? vertexCapacity * 2 : 0;
@@ -55,7 +64,13 @@ class Batch {
     this.mesh.frustumCulled = false;
     this.attributes = Object.keys(reference.attributes);
     // The first geometry fixes the batch's vertex layout: add the reference so only what it has is kept.
-    this.geometryId(reference);
+    const referenceId = this.geometryId(reference);
+    if (colours) {
+      // The colour texture exists from the start, so the shader variant that reads it is the one warmed up.
+      const id = this.mesh.addInstance(referenceId);
+      this.mesh.setColorAt(id, PLAIN);
+      this.mesh.deleteInstance(id);
+    }
   }
 
   /** True when this geometry has the batch's layout (anything else renders on its own). */
@@ -72,7 +87,14 @@ class Batch {
       this.mesh.setInstanceCount(this.instanceCapacity);
     }
     this.instances++;
-    return this.mesh.addInstance(geometryId);
+    const id = this.mesh.addInstance(geometryId);
+    // Instance ids are reused: every new one starts plain.
+    if (this.colours) this.mesh.setColorAt(id, PLAIN);
+    return id;
+  }
+
+  setHighlight(id: number, on: boolean): void {
+    if (this.colours) this.mesh.setColorAt(id, on ? HIGHLIT : PLAIN);
   }
 
   remove(id: number): void {
@@ -114,10 +136,11 @@ export class CharacterBatch {
   private readonly shadow: Batch;
   private readonly roots = new Map<THREE.Object3D, number>();
   private readonly parts = new Map<THREE.Mesh, Part>();
+  private readonly highlighted = new Set<THREE.Object3D>();
   private frame = 0;
 
   constructor(shadowGeometry: THREE.BufferGeometry) {
-    this.lit = new Batch(MATERIALS.character, reference(LIT_ATTRIBUTES, null), true, INITIAL_VERTICES);
+    this.lit = new Batch(MATERIALS.character, reference(LIT_ATTRIBUTES, null), true, INITIAL_VERTICES, true);
     this.solid = new Batch(MATERIALS.solid, reference(SOLID_ATTRIBUTES, null), true, 16_384);
     this.shadow = new Batch(MATERIALS.shadow, reference(Object.keys(shadowGeometry.attributes), shadowGeometry), false, 4_096);
     this.group.add(this.lit.mesh, this.solid.mesh, this.shadow.mesh);
@@ -131,9 +154,16 @@ export class CharacterBatch {
     root.matrixWorldAutoUpdate = false;
   }
 
+  /** Draws this character with a soft rim light (the conductor: the eye finds them without a ring on the floor). */
+  highlight(root: THREE.Object3D, on: boolean): void {
+    if (on) this.highlighted.add(root);
+    else this.highlighted.delete(root);
+  }
+
   /** Back to drawing itself (a character leaving the game, or one that should not be batched). */
   unregister(root: THREE.Object3D): void {
     if (!this.roots.delete(root)) return;
+    this.highlighted.delete(root);
     root.matrixWorldAutoUpdate = true;
     root.traverse((o) => {
       const part = this.parts.get(o as THREE.Mesh);
@@ -160,14 +190,14 @@ export class CharacterBatch {
       parent.updateWorldMatrix(true, false);
       if (root.matrixAutoUpdate) root.updateMatrix();
       root.matrixWorld.multiplyMatrices(parent.matrixWorld, root.matrix);
-      this.visit(root, root.visible && visibleChain(parent), frame, true);
+      this.visit(root, root.visible && visibleChain(parent), frame, true, this.highlighted.has(root));
     }
     // Parts not seen this frame left their character (a blanket swapped, a prop dropped, a character taken
     // off the stage): they go back to drawing themselves, wherever they are now.
     for (const part of this.parts.values()) if (part.seen !== frame) this.release(part);
   }
 
-  private visit(object: THREE.Object3D, visible: boolean, frame: number, isRoot: boolean): void {
+  private visit(object: THREE.Object3D, visible: boolean, frame: number, isRoot: boolean, highlight: boolean): void {
     if (!isRoot) {
       if (object.matrixAutoUpdate) object.updateMatrix();
       object.matrixWorld.multiplyMatrices((object.parent as THREE.Object3D).matrixWorld, object.matrix);
@@ -177,6 +207,10 @@ export class CharacterBatch {
       const part = this.parts.get(mesh) ?? this.adopt(mesh);
       if (part) {
         part.seen = frame;
+        if (part.highlight !== highlight) {
+          part.highlight = highlight;
+          part.batch.setHighlight(part.id, highlight);
+        }
         part.batch.mesh.setVisibleAt(part.id, visible);
         if (visible) part.batch.mesh.setMatrixAt(part.id, mesh.matrixWorld);
       }
@@ -185,7 +219,7 @@ export class CharacterBatch {
     for (let i = 0; i < children.length; i++) {
       const child = children[i];
       // Every child gets its matrix here (bubbles and carried items too: the renderer skips the whole root).
-      this.visit(child, visible && child.visible, frame, false);
+      this.visit(child, visible && child.visible, frame, false, highlight);
     }
   }
 
@@ -194,7 +228,7 @@ export class CharacterBatch {
     const m = mesh.material;
     const batch = m === MATERIALS.character ? this.lit : m === MATERIALS.solid ? this.solid : m === MATERIALS.shadow ? this.shadow : null;
     if (!batch || !batch.accepts(mesh.geometry)) return null;
-    const part: Part = { mesh, batch, id: batch.add(mesh.geometry), mask: mesh.layers.mask, seen: 0 };
+    const part: Part = { mesh, batch, id: batch.add(mesh.geometry), mask: mesh.layers.mask, seen: 0, highlight: false };
     // The mesh itself no longer draws on any camera (the batch draws it).
     mesh.layers.mask = 0;
     this.parts.set(mesh, part);

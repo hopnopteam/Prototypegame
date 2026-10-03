@@ -197,8 +197,8 @@ export class Feedback {
 
   private say(reaction: Reaction, guest: Guest, critical: boolean): boolean {
     if (!guest.view.root.visible) return false;
-    // Reactions are a later layer: the first leg belongs to the walkthrough (config: onboarding).
-    if (this.w.data.route.stopsCompleted < this.w.econ.onboarding.reactionsAfterStops) return false;
+    // Reactions are a later layer: the first leg belongs to the walkthrough (config: flow).
+    if (!this.w.flow.allows('reactions')) return false;
     this.sinceChatter = 0;
     this.w.ui.reaction(reaction.icon, guest.pos.x, FLOOR_Y + SPEECH_HEIGHT, guest.pos.z, critical ? 'bad' : 'good', reaction.crossed);
     return true;

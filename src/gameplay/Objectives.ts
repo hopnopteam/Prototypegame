@@ -24,7 +24,7 @@ export class Objectives {
   private recent: Partial<Record<ObjectiveEvent, number>> = {};
 
   /**
-   * The chain sleeps through the walkthrough and the first stop (config: onboarding): the coach teaches the
+   * The chain sleeps through the walkthrough and the first stop (config: flow): the coach teaches the
    * first verbs alone, one at a time. While asleep everything is remembered, and on waking the goals the
    * player has already done are settled quietly (no reward pops) before the first new one shows.
    */
@@ -45,7 +45,8 @@ export class Objectives {
     const w = this.w;
     const walkthrough = ['walk', 'checkin', 'cash', 'tile'].every((id) => w.flag(`coach_${id}`));
     // After the first stop's ticket and the naming card, once the screen has been calm a moment.
-    return walkthrough && w.data.route.stopsCompleted >= w.econ.onboarding.goalsAfterStops && (w.press.named || w.data.route.stopsCompleted > w.econ.onboarding.goalsAfterStops) && w.press.calmSeconds >= GOALS_CALM_SECONDS;
+    const stops = w.econ.flow.features.goals.stops;
+    return walkthrough && w.flow.allows('goals') && (w.press.named || w.data.route.stopsCompleted > stops) && w.press.calmSeconds >= GOALS_CALM_SECONDS;
   }
 
   /**

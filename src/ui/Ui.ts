@@ -5,6 +5,7 @@ import type { CeremonyDef, InterviewDef } from '../config/press';
 import { damp, formatClock, formatNumber } from '../core/math';
 import type { CarriageType } from '../core/types';
 import type { StationResult } from '../gameplay/events';
+import type { CoachAnchor } from '../gameplay/Coach';
 import type { Game } from '../gameplay/Game';
 import type { DoubleChoice, GameUi } from '../gameplay/GameUi';
 import type { OfferView } from '../gameplay/Monetization';
@@ -547,7 +548,9 @@ export class Ui implements GameUi {
     const gestureOn = !!line && 'gesture' in line.anchor && !busyCentre;
     setVisible(this.gesture, gestureOn);
     // A walk-gesture line has no spot to point at: while the gesture gives way it waits (never a label in a corner).
-    const labelled = line && !('gesture' in line.anchor) ? line : null;
+    // A line about a tile that wears its marker gives way to the marker (icon, name and price, under the arrow):
+    // one label per spot (session 16).
+    const labelled = line && !('gesture' in line.anchor) && !this.onMarkedTile(line.anchor) ? line : null;
     const key = labelled ? `${labelled.id}` : '';
     if (key !== this.guide.key) {
       this.guide.key = key;
@@ -759,6 +762,12 @@ export class Ui implements GameUi {
     const clash = !!tag && x + half > tag.x0 && x - half < tag.x1 && y + size.h > tag.y0 && y < tag.y1;
     chip.el.style.opacity = clash ? '0' : '1';
     chip.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, 0)`;
+  }
+
+  /** The anchor is a tile whose floating marker is showing. */
+  private onMarkedTile(anchor: CoachAnchor): boolean {
+    if (!('world' in anchor)) return false;
+    return this.game.tiles.markerShownAt(anchor.world.x, anchor.world.z);
   }
 
   private updatePointer(): void {

@@ -3,6 +3,15 @@
  * Remote config can override any leaf by its dotted path, e.g. "ads.minIntervalSeconds".
  * Times are seconds, distances metres, money in Fares unless noted.
  */
+/** When a feature joins the flow: all the conditions given must hold. */
+export interface FlowGate {
+  stops?: number;
+  carriages?: number;
+  seconds?: number;
+  /** Route level reached. */
+  level?: number;
+}
+
 export const ECONOMY = {
   journey: {
     /** First leg is short so the first station lands at ~1:00 (§14), counting the opening departure. */
@@ -92,10 +101,12 @@ export const ECONOMY = {
     rideLegsWeights: { 1: 0.7, 2: 0.25, 3: 0.05 } as Record<1 | 2 | 3, number>,
     /** Guests waiting on the platform at a stop: free cabins + this many extra (who wait inside). */
     extraBoarders: [1, 2] as [number, number],
+    /** Travellers waiting at the first stops at least (once the flow allows a crowd; before that, one per free bed). */
     minBoarders: 3,
     maxBoarders: 7,
     luggageChance: 0.7,
-    initialGuests: 2,
+    /** Session 16: one guest at the desk to start (one room, one guest, one upgrade); more walk in as cabins open. */
+    initialGuests: 1,
     /** Until this many stops are done every guest rides exactly one leg: the opening is scripted, never luck. */
     earlyStopsOneLeg: 3,
     /** Seconds a new guest sits on the bed edge reading before lying down (it counts toward their first request). */
@@ -139,8 +150,11 @@ export const ECONOMY = {
     /** The station bonus grows by this fraction for every carriage coupled. */
     stationBonusPerCarriage: 0.3,
     startingCash: 0,
-    /** Loose cash on the floor at the very start: the first reward happens within seconds. */
-    startingFloorCash: 6,
+    /**
+     * Loose cash on the floor at the very start. Session 16: none (it pulled the first step away from the guest
+     * at the desk); the first reward is the first fare, three seconds in.
+     */
+    startingFloorCash: 0,
     /** Walk this close to a cash pile and it streams into your pockets. */
     magnetRadius: 1.1,
   },
@@ -218,17 +232,53 @@ export const ECONOMY = {
    * first stop (goals the walkthrough already covered are settled quietly); the Rush streak, the class badges
    * and passengers' reaction bubbles each arrive once there is something for them to say.
    */
-  onboarding: {
-    /** The goal chain starts once the walkthrough is done and this many stops are behind the train. */
-    goalsAfterStops: 1,
-    /** Rush streaks count once the train has this many carriages (after the first coupling, about 4 minutes). */
-    rushFromCarriages: 2,
-    /** Class badges show once the train has this many carriages (the Comfort refit comes after a coupling). */
-    classChipsFromCarriages: 2,
-    /** Passengers' reaction bubbles (smiles, hearts, stars) start after this many stops. */
-    reactionsAfterStops: 1,
-    /** No rewarded offer before this much lifetime play (seconds): the loop and the first stop come first. */
-    offersAfterSeconds: 150,
+  /**
+   * The flow (session 16, owner: "we need a FLOW… right now it's like someone randomly put the features
+   * there"). The opening is one room, one guest, one upgrade: a single guest at the desk, then one purchase at
+   * a time in `openingTiles` order, each cabin bringing a passenger in from the observation deck during the
+   * first leg. Every later feature joins when the ride reaches it (`features`): after this many stops
+   * (`stops`), with this many carriages (`carriages`) and this much lifetime play (`seconds`); all given
+   * must hold, and `level` is the route level. Gameplay asks `Flow.allows(feature)`.
+   */
+  flow: {
+    /** The first purchases, one on show at a time, in this order (the next appears when the last is bought). */
+    openingTiles: ['c0.cabin_1', 'c0.cabin_2', 'c0.hire_attendant', 'c0.refurb_1', 'couple_1'] as string[],
+    /** Passengers who walk in from the observation deck when a cabin is built, until this many stops are done. */
+    walkInsUntilStops: 1,
+    /** Seconds between a new tile appearing and the passenger it brings stepping out onto the deck. */
+    walkInDelay: 0.6,
+    features: {
+      /** The goal chain (it also waits for the walkthrough and the train's name, see Objectives). */
+      goals: { stops: 1 },
+      /** More than one request at a time (in the opening a guest asks only once the last one is served). */
+      manyRequests: { stops: 1 },
+      /** Bags to load at stations. */
+      luggage: { stops: 1 },
+      /** Travellers beyond the free beds, who wait with a "no room" sign for the next train. */
+      crowd: { stops: 1 },
+      /** Passengers' reaction bubbles (smiles, hearts, stars). */
+      reactions: { stops: 1 },
+      /** Rush streaks (the bolt under the conductor). */
+      rush: { carriages: 2 },
+      /** Class badges over the passenger carriages (or as soon as a carriage moves up a class). */
+      classChips: { carriages: 2 },
+      /** The locked next-carriage plate on the rear deck (before that, the coupling arrives in its turn). */
+      couplePreview: { carriages: 2 },
+      /** Rewarded offers in the bottom slot. */
+      offers: { seconds: 150, carriages: 2 },
+      /** The station workshop (exterior and marketing pads on the platform). */
+      workshop: { stops: 2, carriages: 2 },
+      /**
+       * Two regular tiles on show instead of one (`tiles.maxVisible`); until then the floor widens a step at a
+       * time after the opening: one tile, the coupling and a refit.
+       */
+      moreTiles: { level: 2 },
+    } satisfies Record<string, FlowGate>,
+    /**
+     * The first time a tile of one of these kinds appears away from the conductor, the camera glides over to
+     * show it, then back (MPH: "look, something new"). Seconds held, zoom, and the distance that warrants it.
+     */
+    reveal: { kinds: ['hire', 'refurb', 'couple', 'exterior', 'marketing'] as string[], seconds: 1.5, zoom: 1.05, minDistance: 3.2 },
   },
 
   /**

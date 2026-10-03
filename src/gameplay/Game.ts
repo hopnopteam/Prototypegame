@@ -56,6 +56,7 @@ import { Press } from './Press';
 import { Rush } from './Rush';
 import { Objectives } from './Objectives';
 import { Feedback } from './Feedback';
+import { Flow } from './Flow';
 import { StaffManager } from './Staff';
 import { Station } from './Station';
 import { Tiles } from './Tiles';
@@ -123,6 +124,7 @@ export class Game implements World {
   readonly rush: Rush;
   readonly objectives: Objectives;
   readonly feedback: Feedback;
+  readonly flow: Flow;
   readonly demand: Demand;
   readonly monetization: Monetization;
   readonly input: Input;
@@ -218,6 +220,7 @@ export class Game implements World {
     // A brand-new game opens pulling out of Millbrook: the journey is on screen from the first second.
     route.stopsCompleted === 0 && route.legsCompleted === 0 ? 'departing' : 'onTheMove');
 
+    this.flow = new Flow(this);
     this.map = new TrainMap(this.econ.player.radius);
     this.demand = new Demand(this);
     this.zones = new ZoneSystem(this.scene);
@@ -659,6 +662,9 @@ export class Game implements World {
       this.save.saveNow();
     });
     e.on('currency.changed', () => undefined);
+    // The flow moves on with the ride (the first fare collected, a stop behind the train): what is on show follows.
+    e.on('ftue.step', ({ step }) => step === 'first_cash' && this.tiles.refresh());
+    e.on('journey.phase', () => this.tiles.refresh());
   }
 
   applySettings(): void {

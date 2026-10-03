@@ -27,6 +27,7 @@ import type { Stage } from '../world/Stage';
 import type { CashPiles } from './CashPiles';
 import type { Demand } from './Demand';
 import type { Feedback } from './Feedback';
+import type { Flow } from './Flow';
 import type { GameEvents } from './events';
 import type { DoubleChoice } from './GameUi';
 import type { Guests } from './Guests';
@@ -84,6 +85,8 @@ export interface World {
   readonly press: Press;
   readonly demand: Demand;
   readonly feedback: Feedback;
+  /** What is in play yet: the opening's one-at-a-time purchases and when each later feature joins. */
+  readonly flow: Flow;
   readonly ui: UiApi;
   /** Game seconds since the page loaded (scaled by dev time scale). */
   readonly time: number;

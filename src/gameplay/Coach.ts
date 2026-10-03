@@ -9,6 +9,8 @@ const THINK_SECONDS = 0.25;
 const WALK_METRES = 1.2;
 /** Height of the tick over a finished step. */
 const PRAISE_HEIGHT = 1.9;
+/** A lesson's spot and the guide arrow's target count as the same place within this distance (metres). */
+const AGREE_METRES = 1.2;
 
 /** Where a coach line is shown: over a spot in the world, by a HUD element, or as the walk gesture. */
 export type CoachAnchor = { world: Vec2 } | { hud: 'map' | 'conductor' } | { gesture: true };
@@ -141,11 +143,22 @@ export class Coach {
       if (!this.hintActive(hint.id)) continue;
       const line = hint.id === 'request' ? this.requestStage() : hint;
       const anchor = this.anchorFor(line.id);
-      if (!anchor) continue;
+      if (!anchor || !this.agrees(anchor)) continue;
       this.show(line, anchor);
       return;
     }
     this.current = null;
+  }
+
+  /**
+   * One pointer at a time (session 16, owner: "so many pointers and things being pointed at once"): a lesson
+   * about a spot shows only while the guide arrow points there too (or the arrow is resting), so the label and
+   * the arrow are always one instruction. A lesson whose spot is not the next thing to do waits its turn.
+   */
+  private agrees(anchor: CoachAnchor): boolean {
+    if (!('world' in anchor)) return true;
+    const focus = this.w.guidance.focus;
+    return !focus || Math.hypot(focus.x - anchor.world.x, focus.z - anchor.world.z) < AGREE_METRES;
   }
 
   /** Requests are taught in two parts: where to pick the item up, then where to take it. */

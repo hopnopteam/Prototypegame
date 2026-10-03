@@ -256,8 +256,11 @@ export class Station {
     // Enough travellers to fill every free bed, plus one or two more who will have to wait for the next
     // train: visible demand that says "build more cabins".
     const free = w.guests.bedsFree(stopSerial);
-    const extra = w.rng.int(econ.extraBoarders[0], econ.extraBoarders[1]);
-    const early = w.data.route.stopsCompleted < 2 ? econ.minBoarders : 1;
+    // At the first stop exactly one traveller per free bed (config: flow `crowd`): boarding is learnt on its own,
+    // before anyone has to be left behind.
+    const crowd = w.flow.allows('crowd');
+    const extra = crowd ? w.rng.int(econ.extraBoarders[0], econ.extraBoarders[1]) : 0;
+    const early = crowd && w.data.route.stopsCompleted < 2 ? econ.minBoarders : 1;
     // Marketing (posters, billboard, band) draws a few more travellers each stop.
     const count = Math.max(early, Math.min(econ.maxBoarders, free + extra + w.stationPerks().passengers));
     const spots = this.waitingSpots(count);

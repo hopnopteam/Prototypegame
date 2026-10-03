@@ -103,6 +103,11 @@ export class Guidance {
     pointer.visible = true;
   }
 
+  /** Where the guide is pointing now (null when it is not showing): the one focus on screen. */
+  get focus(): Vec2 | null {
+    return this.target;
+  }
+
   /** The most useful next thing for the player to do (also drives the autopilot). */
   bestTarget(forBot = false): Vec2 | null {
     const target = this.pick(forBot);
@@ -144,15 +149,17 @@ export class Guidance {
       }
     }
 
+    const cash = w.wallet.get('cash');
+    // A station upgrade you can afford is now or never (it leaves with the platform), while the desk queue and
+    // the cash on the floor wait for the train to pull out: that one first.
+    const now = w.tiles.stationBuy(cash);
+    if (now) return this.because('tile', now.pos);
+
     const pile = w.cash.nearestWithCash(player.pos);
     if (pile && pile.value >= 1) return this.because('cash', { x: pile.x, z: pile.z });
 
     if (w.guests.deskReady() && w.staff.count('porter') === 0) return this.because('desk', map.anchor(0, 'deskService'));
 
-    const cash = w.wallet.get('cash');
-    // A station upgrade you can afford is now or never (it leaves with the platform): that one first.
-    const now = w.tiles.stationBuy(cash);
-    if (now) return this.because('tile', now.pos);
     const tile = w.tiles.cheapest();
     if (tile && w.unlocks.remaining(tile.def.id) <= cash) return this.because('tile', tile.pos);
 

@@ -137,6 +137,11 @@ export const LIGHT_UNIFORMS = {
   uNxMoonDir: { value: new THREE.Vector3(-0.45, 0.8, -0.3).normalize() },
   uNxMoonColor: { value: new THREE.Color('#E6EEFF') },
   uNxSkyAmount: { value: 0.35 },
+  /**
+   * The conductor's rim light (session 16, in place of the ring on the floor): colour × strength, applied only
+   * to the parts CharacterBatch marks as highlighted. Written by ConductorGear.
+   */
+  uNxHighlight: { value: new THREE.Color('#FFC75A') },
 };
 
 /** Heights in the light map are measured from the train's floor. */
@@ -161,10 +166,17 @@ const LIT_VERTEX_HEAD = /* glsl */ `
 attribute vec4 aSurface;
 varying vec4 vNxSurface;
 varying vec3 vNxWorld;
+varying float vNxHighlight;
 `;
 
 const LIT_VERTEX_BODY = /* glsl */ `
 vNxSurface = aSurface;
+vNxHighlight = 0.0;
+#ifdef USE_BATCHING_COLOR
+// CharacterBatch keeps every part's colour white and uses its alpha as the highlight (1 = none); the colour
+// multiply is a no-op and an opaque material ignores alpha.
+vNxHighlight = 1.0 - getBatchingColor(getIndirectIndex(gl_DrawID)).a;
+#endif
 {
   vec4 nxWorld = vec4(transformed, 1.0);
   #ifdef USE_INSTANCING
@@ -180,6 +192,8 @@ vNxSurface = aSurface;
 const LIT_FRAGMENT_HEAD = /* glsl */ `
 varying vec4 vNxSurface;
 varying vec3 vNxWorld;
+varying float vNxHighlight;
+uniform vec3 uNxHighlight;
 uniform vec4 uNxFixedSurface;
 #ifdef NX_LIGHT
 uniform sampler2D uNxLightMap;
@@ -223,6 +237,14 @@ vec4 nxSurface() {
  * The baked light as soft fill (lamps and window spill near the floor, fading high up) and its contact shading
  * (strongest at floor level, gone by knee height), then a soft rim on velvet and wool.
  */
+/**
+ * The conductor's highlight: a thin rim of warm light on the silhouette (how sharply it hugs the edge and its
+ * strength there) and a lift of their own colours (a share of the albedo added as light: brighter, same hue),
+ * like a hero's key light on a night set.
+ */
+const HIGHLIGHT_EDGE_POWER = 4.0;
+const HIGHLIGHT_RIM = 0.5;
+const HIGHLIGHT_FILL = 0.22;
 /** The brightest a specular highlight may get (linear), kept under the bloom threshold. */
 const SPECULAR_MAX = Math.min(0.9, VISUALS.night.bloom.threshold * 0.9);
 
@@ -268,6 +290,12 @@ reflectedLight.indirectSpecular *= nxAo;
     reflectedLight.directDiffuse *= 1.0 + nxSheen * nxRim * 1.4;
     reflectedLight.indirectDiffuse *= 1.0 + nxSheen * nxRim * 1.4;
   }
+}
+if (vNxHighlight > 0.001) {
+  // The conductor: a soft rim of warm light round the silhouette and a touch of fill, so the eye finds them on
+  // any floor without a marking on the ground (which clipped into beds and walls). Kept under the bloom threshold.
+  float nxEdge = pow(1.0 - saturate(dot(normal, geometryViewDir)), ${HIGHLIGHT_EDGE_POWER.toFixed(1)});
+  totalEmissiveRadiance += vNxHighlight * (uNxHighlight * (nxEdge * ${HIGHLIGHT_RIM.toFixed(2)}) + diffuseColor.rgb * ${HIGHLIGHT_FILL.toFixed(2)});
 }
 `;
 

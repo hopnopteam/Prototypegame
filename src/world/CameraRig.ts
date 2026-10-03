@@ -147,6 +147,11 @@ export class CameraRig {
     this.overrideSharpness = sharpness;
   }
 
+  /** A focus override (a celebration, a reveal) is running. */
+  get focusing(): boolean {
+    return this.overrideTime > 0;
+  }
+
   setZoom(zoom: number): void {
     this.zoom = zoom;
   }

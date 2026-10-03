@@ -26,7 +26,12 @@ interface TileEntry {
   billTimer: number;
   stand: number;
   paidThisVisit: number;
+  /** Seconds on show (a new tile keeps its marker a moment, so the player sees what just appeared). */
+  age: number;
 }
+
+/** A newly shown tile keeps its marker this long even when it is not the focus. */
+const NEW_TILE_MARKER_SECONDS = 4;
 
 /** A tile's name as its marker shows it: the essential word or two ("Comfort", not "Comfort Class"). */
 function markerName(label: string): string {
@@ -67,9 +72,9 @@ export class Tiles {
   }
 
   /**
-   * Shows the next goals, never a floor full of price tags: the coupling tile (the big goal) plus at most
-   * a couple of others, each the next step in its own carriage, cheapest first. During the first minute
-   * only one tile is shown, so the first lesson is unmistakable.
+   * Shows the next goals, never a floor full of price tags. The opening shows one purchase at a time, in
+   * order (session 16); after it, the coupling tile (the big goal) plus at most a couple of others, each the
+   * next step in its own carriage, cheapest first, and up to `maxRefits` refits.
    */
   refresh(): void {
     const w = this.w;
@@ -79,9 +84,11 @@ export class Tiles {
     for (const [id, entry] of this.entries) {
       if (!availableIds.has(id)) this.removeEntry(id, entry);
     }
-    // Station upgrades: the next of each kind waits on the platform (shown only while the train is in).
+    // Station upgrades: the next of each kind waits on the platform (shown only while the train is in), once
+    // the flow has reached the station workshop.
+    const workshop = w.flow.allows('workshop');
     for (const kind of ['exterior', 'marketing'] as const) {
-      if ([...this.entries.values()].some((e) => e.def.kind === kind)) continue;
+      if (!workshop || [...this.entries.values()].some((e) => e.def.kind === kind)) continue;
       const next = available.find((d) => d.kind === kind);
       if (next) this.addEntry(next, { ...STATION_TILE_POS[kind] });
     }
@@ -90,6 +97,25 @@ export class Tiles {
       if (def.kind === 'couple') return !w.train.coupling && def.carriage === w.train.count;
       return def.carriage < w.train.count;
     });
+    // The opening sells one thing at a time, in order (config: flow.openingTiles): only its next purchase is
+    // on show, plus anything already part-paid (money put into a tile never disappears).
+    const opening = w.flow.openingTile();
+    if (opening !== null) {
+      // One guest first: the first upgrade appears once their fare is in the player's pocket.
+      const earned = w.data.profile.ftue.first_cash !== undefined || w.unlocks.paid(opening) > 0;
+      for (const def of eligible) {
+        if (this.entries.has(def.id) || ((def.id !== opening || !earned) && w.unlocks.paid(def.id) <= 0)) continue;
+        const pos = this.positionFor(def);
+        if (pos) this.addEntry(def, pos);
+      }
+      this.refreshPreview();
+      return;
+    }
+    // While a carriage is joining, nothing new appears elsewhere: the newcomer's own tiles come first.
+    if (w.train.growing) {
+      this.refreshPreview();
+      return;
+    }
     const couple = eligible.find((d) => d.kind === 'couple');
     if (couple && !this.entries.has(couple.id)) {
       const pos = this.positionFor(couple);
@@ -112,14 +138,27 @@ export class Tiles {
       this.addEntry(refit, pos);
     }
     const regular = (d: UnlockDef): boolean => d.kind !== 'couple' && d.kind !== 'refurb' && !isStation(d);
-    const cap = w.data.profile.ftue.first_unlock === undefined ? 1 : w.econ.tiles.maxVisible;
+    const cap = w.flow.allows('moreTiles') ? w.econ.tiles.maxVisible : 1;
     let shown = [...this.entries.values()].filter((e) => regular(e.def)).length;
+    // A carriage that has just joined comes first: its first tile is the obvious next step, so it takes the place
+    // of an unpaid tile elsewhere (session 16: the new sleeper's first cabin had waited behind the lobby's lamps).
+    const fresh = (carriage: number): boolean => !w.unlocks.defs.some((d) => d.carriage === carriage && d.kind !== 'couple' && !isStation(d) && w.unlocks.isUnlocked(d.id));
+    const freshFirst = eligible.find((d) => regular(d) && fresh(d.carriage) && !this.entries.has(d.id));
+    if (freshFirst && shown >= cap) {
+      const spare = [...this.entries.values()]
+        .filter((e) => regular(e.def) && !fresh(e.def.carriage) && w.unlocks.paid(e.def.id) <= 0)
+        .sort((a, b) => w.unlocks.remaining(b.def.id) - w.unlocks.remaining(a.def.id))[0];
+      if (spare) {
+        this.removeEntry(spare.def.id, spare);
+        shown--;
+      }
+    }
     if (shown >= cap) {
       this.refreshPreview();
       return;
     }
     const refitSpot = new Set([...this.entries.values()].filter((e) => e.def.kind === 'refurb').map((e) => e.def.carriage));
-    // One candidate per carriage (the first in its designed order), then the cheapest of those.
+    // One candidate per carriage (the first in its designed order), then the cheapest of those (a new carriage's first).
     const firstPerCarriage = new Map<number, UnlockDef>();
     for (const def of eligible) {
       if (!regular(def) || this.entries.has(def.id)) continue;
@@ -127,7 +166,8 @@ export class Tiles {
       if ([...this.entries.values()].some((e) => e.def.carriage === def.carriage && regular(e.def))) continue;
       if (!firstPerCarriage.has(def.carriage)) firstPerCarriage.set(def.carriage, def);
     }
-    const candidates = [...firstPerCarriage.values()].sort((a, b) => w.unlocks.remaining(a.id) - w.unlocks.remaining(b.id));
+    const rank = (d: UnlockDef): number => (fresh(d.carriage) ? 0 : 1e9) + w.unlocks.remaining(d.id);
+    const candidates = [...firstPerCarriage.values()].sort((a, b) => rank(a) - rank(b));
     // Anything already part-paid comes first: a tile you have put money into never disappears.
     for (const def of eligible) if (regular(def) && !this.entries.has(def.id) && w.unlocks.paid(def.id) > 0 && !candidates.includes(def) && !(def.kind === 'comfort' && refitSpot.has(def.carriage))) candidates.unshift(def);
     for (const def of candidates) {
@@ -143,7 +183,9 @@ export class Tiles {
   private refreshPreview(): void {
     const w = this.w;
     const next = w.unlocks.defs.find((u) => u.kind === 'couple' && u.carriage === w.train.count);
-    const show = !!next && !w.train.coupling && !w.unlocks.isAvailable(next.id) && !w.unlocks.isUnlocked(next.id);
+    // The locked next-carriage plate joins once a carriage has coupled (in the opening the coupling arrives in
+    // its turn, config: flow).
+    const show = !!next && w.flow.allows('couplePreview') && !w.train.coupling && !w.unlocks.isAvailable(next.id) && !w.unlocks.isUnlocked(next.id);
     if (!show || (this.preview && this.preview.id !== next!.id)) {
       if (this.preview) {
         w.scene.remove(this.preview.view.group);
@@ -167,17 +209,31 @@ export class Tiles {
     return [...this.entries.values()];
   }
 
+  /** A tile at this spot is wearing its floating marker (checked every frame by the UI: no allocation). */
+  markerShownAt(x: number, z: number): boolean {
+    for (const entry of this.entries.values()) {
+      if (entry.view.marker.sprite.visible && Math.abs(entry.pos.x - x) < 0.05 && Math.abs(entry.pos.z - z) < 0.05) return true;
+    }
+    return false;
+  }
+
   update(dt: number): void {
-    const cash = this.w.wallet.get('cash');
+    const w = this.w;
+    const cash = w.wallet.get('cash');
     let anyShort = false;
-    const atStation = this.w.journey.phase === 'stationStop';
+    const atStation = w.journey.phase === 'stationStop';
+    // One focus at a time (session 16, owner: "so many pointers… multiple at once"): while the guide arrow is
+    // up, only its target tile wears a floating marker (and a tile that has just appeared, for a moment); when
+    // the arrow rests, so do affordable tiles. Any other tile is just its plate on the floor (icon and price).
+    const focus = w.guidance.focus;
     for (const entry of this.entries.values()) {
       if (isStation(entry.def)) {
         entry.view.group.visible = atStation;
         entry.zone.enabled = atStation;
         if (!atStation) continue;
       }
-      const remaining = this.w.unlocks.remaining(entry.def.id);
+      entry.age += dt;
+      const remaining = w.unlocks.remaining(entry.def.id);
       const progress = 1 - remaining / entry.def.price;
       const affordable = cash >= remaining;
       const active = entry.zone.playerInside;
@@ -185,16 +241,38 @@ export class Tiles {
         anyShort = true;
         this.shortTileRemaining = remaining;
       }
+      const focused = !!focus && Math.abs(focus.x - entry.pos.x) < 0.05 && Math.abs(focus.z - entry.pos.z) < 0.05;
+      const marker = (focused || entry.age < NEW_TILE_MARKER_SECONDS || (affordable && !focus)) && entry.def.id !== this.taggedId;
       entry.view.face.draw(ICON_BY_KIND[entry.def.kind], remaining, progress, affordable, active);
-      entry.view.marker.draw(ICON_BY_KIND[entry.def.kind], markerName(entry.def.label), remaining, affordable);
-      entry.view.update(dt, affordable, active, entry.def.id !== this.taggedId);
+      if (marker) entry.view.marker.draw(ICON_BY_KIND[entry.def.kind], markerName(entry.def.label), remaining, affordable);
+      entry.view.update(dt, affordable, active, marker);
       if (!active) {
         entry.stand = 0;
         entry.paidThisVisit = 0;
       }
+      this.maybeReveal(entry);
     }
     this.preview?.view.update(dt, false, false);
     this.shortOfCash = anyShort ? this.shortOfCash + dt : 0;
+  }
+
+  /**
+   * The first time a tile of a new kind appears away from the conductor (the first hire, refit, coupling,
+   * station workshop), the camera glides over to show it and back: "look, something new" (config: flow.reveal).
+   */
+  private maybeReveal(entry: TileEntry): void {
+    const w = this.w;
+    const reveal = w.econ.flow.reveal;
+    const flag = `reveal_${entry.def.kind}`;
+    // (The game is paused under sheets and through the intro, so this never runs behind one.)
+    if (!reveal.kinds.includes(entry.def.kind) || w.flag(flag) || w.stage.rig.focusing) return;
+    const p = w.player.pos;
+    w.data.profile.flags[flag] = true;
+    w.save.markDirty();
+    if (Math.hypot(entry.pos.x - p.x, entry.pos.z - p.z) < reveal.minDistance) return;
+    w.stage.rig.focusOn(this.to.set(entry.pos.x, 0, entry.pos.z), reveal.seconds, reveal.zoom);
+    w.audio.play('sparkle', { volume: 0.5, pitch: 1.1 });
+    entry.age = 0;
   }
 
   /**
@@ -270,7 +348,7 @@ export class Tiles {
     view.setPosition(pos.x, pos.z);
     markWorldUi(view.group);
     w.scene.add(view.group);
-    const entry: TileEntry = { def, view, pos, acc: 0, billTimer: 0, stand: 0, paidThisVisit: 0, zone: null as unknown as Zone };
+    const entry: TileEntry = { def, view, pos, acc: 0, billTimer: 0, stand: 0, paidThisVisit: 0, age: 0, zone: null as unknown as Zone };
     entry.zone = w.zones.add(new Zone({
       id: `tile:${def.id}`,
       x: pos.x,
@@ -284,6 +362,8 @@ export class Tiles {
     }));
     this.entries.set(def.id, entry);
     if (w.time > 1) w.audio.play('pop', { pitch: 0.8, volume: 0.6 });
+    // A brand-new tile from the start of a session is already known: only tiles that appear in play are "new".
+    if (w.time <= 1) entry.age = NEW_TILE_MARKER_SECONDS;
   }
 
   private removeEntry(id: string, entry: TileEntry): void {

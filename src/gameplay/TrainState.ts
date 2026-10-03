@@ -227,6 +227,11 @@ export class TrainState {
     });
   }
 
+  /** A carriage is joining: being chosen, or rolling in. */
+  get growing(): boolean {
+    return this.coupling || this.choosing || this.pendingChoice;
+  }
+
   get count(): number {
     return this.types.length;
   }
@@ -479,7 +484,7 @@ export class TrainState {
     for (const view of this.views) view.animate(dt);
     this.publishLamps();
     // Class badges arrive with the classes themselves (the Comfort refit comes after the first coupling).
-    const badges = this.count >= this.w.econ.onboarding.classChipsFromCarriages || this.views.some((v) => v.tier >= 2);
+    const badges = this.w.flow.allows('classChips') || this.views.some((v) => v.tier >= 2);
     this.chips.sync(this.views.map((v) => (badges ? v.cls : null)), (i) => this.views[i]?.group.position.z ?? carriageOriginZ(i), dt, this.w.stage.rig.zoomNow);
 
     // Doors slide open at stations.

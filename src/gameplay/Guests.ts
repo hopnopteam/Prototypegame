@@ -23,6 +23,12 @@ const BATHROOM_EMPTY_WAIT = 6;
 const SIT_ROOT = BED_TOP - 0.24;
 /** A guest back from the washroom sits only briefly before lying down again. */
 const RETURN_SETTLE_SECONDS = 0.8;
+/** Who strolls in from the observation deck for each cabin built in the first leg (the first guest is a backpacker). */
+const WALK_IN_ARCHETYPES = ['student', 'backpacker'];
+/** Seconds a walk-in takes to appear (they pop in on the deck with a puff). */
+const WALK_IN_APPEAR = 0.35;
+/** Walk-ins hurry to the desk (a bed at last!): the player is never left waiting for them. */
+const WALK_IN_HURRY = 1.35;
 /** Steps in the "generous tip" ring drawn around a request bubble. */
 export const TIP_RING_STEPS = 12;
 
@@ -59,6 +65,8 @@ export class Guest {
   cls: ClassId;
   /** Royal: the rest of the butler's list (asked for one after another, paid as one generous tip). */
   pending: ServiceNeed[] = [];
+  /** Strolled in from the observation deck during the first leg (not through a station door). */
+  walkIn = false;
 
   constructor(readonly archetype: ArchetypeDef, x: number, z: number, speed: number, readonly story: StoryDef | null) {
     this.cls = archetype.cls;
@@ -98,7 +106,48 @@ export class Guests {
   private alightStagger = 0;
   private readonly bedsLeft = new Map<ClassId, number>();
 
-  constructor(private readonly w: World) {}
+  private walkIns = 0;
+
+  constructor(private readonly w: World) {
+    // The first leg (config: flow): a cabin opens and a passenger strolls in from the observation deck to take it,
+    // so building a room always brings someone to sleep in it.
+    w.events.on('unlock.completed', ({ id }) => {
+      const def = w.unlocks.get(id);
+      if (def?.kind !== 'cabin' || !w.flow.walkIns || w.journey.doorsOpen) return;
+      w.tweens.delay(w.econ.flow.walkInDelay, () => this.walkIn());
+    });
+  }
+
+  /** A passenger appears on the observation deck and walks forward to the desk queue. */
+  walkIn(): Guest | null {
+    const w = this.w;
+    if (!w.flow.walkIns || this.queue.length >= this.queueCapacity) return null;
+    const deck = w.map.rearDeck();
+    const start = { x: deck.tile.x + 0.35, z: deck.room.z0 + 0.5 };
+    const archetype = this.pickArchetype('basic', WALK_IN_ARCHETYPES[this.walkIns++ % WALK_IN_ARCHETYPES.length]);
+    const guest = this.create(archetype, start.x, start.z, null);
+    guest.walkIn = true;
+    guest.mover.speed *= WALK_IN_HURRY;
+    guest.state = 'boarding';
+    guest.stateTime = 0;
+    guest.queueSlot = this.queue.length;
+    guest.arrivedInQueue = false;
+    guest.view.root.scale.setScalar(0.01);
+    this.queue.push(guest);
+    guest.mover.go(this.insidePath(guest, this.slotPosition(guest.queueSlot)), () => this.arriveInQueue(guest));
+    w.particles.emit('sparkle', start.x, FLOOR_Y + 0.6, start.z, 12, 0.4);
+    w.audio.play('pop', { pitch: 1.2, volume: 0.5 });
+    return guest;
+  }
+
+  /** A route through the train (never through a wall) from where the guest stands to a point inside. */
+  private insidePath(guest: Guest, to: Vec2): Vec2[] {
+    const map = this.w.map;
+    const from = map.nearestNode(guest.pos.x, guest.pos.z);
+    const end = map.nearestNode(to.x, to.z);
+    const path = from && end ? map.nav.findPath(from, end) : null;
+    return [...(path ?? []), to];
+  }
 
   /** Guests already aboard when a session starts (boarded at the previous station). */
   spawnStartingQueue(count: number): void {
@@ -128,7 +177,8 @@ export class Guests {
       guest.state = 'platform';
       guest.onPlatform = true;
       guest.mover.facing = -Math.PI / 2 + (this.w.rng.next() - 0.5) * 0.8;
-      guest.hasLuggage = this.w.rng.chance(this.w.econ.guests.luggageChance);
+      // Bags join the flow from the second station (config: flow).
+      guest.hasLuggage = this.w.flow.allows('luggage') && this.w.rng.chance(this.w.econ.guests.luggageChance);
       created.push(guest);
     });
     return created;
@@ -286,7 +336,7 @@ export class Guests {
   onDoorsClosing(): void {
     const door = this.w.map.doors()[0];
     for (const guest of this.list) {
-      if (guest.state === 'boarding') {
+      if (guest.state === 'boarding' && !guest.walkIn) {
         guest.pos.x = door.inside.x;
         guest.pos.z = door.inside.z;
         guest.mover.go([this.slotPosition(guest.queueSlot)], () => this.arriveInQueue(guest));
@@ -394,6 +444,9 @@ export class Guests {
   private think(guest: Guest, dt: number): void {
     const w = this.w;
     switch (guest.state) {
+      case 'boarding':
+        if (guest.walkIn && guest.stateTime <= WALK_IN_APPEAR + dt) guest.view.root.scale.setScalar(Math.max(0.01, Math.min(1, guest.stateTime / WALK_IN_APPEAR)));
+        break;
       case 'queue':
         if (guest.queueSlot !== 0 || !guest.arrivedInQueue) guest.view.showBubble(null);
         else if (w.train.freeCabin(guest.cls)) guest.view.showBubble('ticket', guest.cls);
@@ -478,8 +531,11 @@ export class Guests {
   }
 
   private requestsAllowed(): boolean {
-    // Requests fill the first minute (before the first station) so there is never a dead moment.
-    return true;
+    const w = this.w;
+    if (w.flow.allows('manyRequests')) return true;
+    // The opening (config: flow): one thing at a time. The first request waits until the first cabin is built,
+    // and a guest asks only when nobody else is waiting for something and nobody stands at the desk.
+    return w.data.profile.ftue.first_unlock !== undefined && this.openRequests().length === 0 && !this.deskReady();
   }
 
   /** What a guest of this class asks for: the class's own list, seasoned by what their kind likes best. */
@@ -765,6 +821,8 @@ export class Guests {
   }
 
   private arriveInQueue(guest: Guest): void {
+    // A walk-in who hurried in walks at their own pace from here.
+    if (guest.walkIn) guest.mover.speed = this.w.econ.guests.walkSpeed * guest.archetype.speedMultiplier;
     guest.arrivedInQueue = true;
     guest.state = 'queue';
     guest.stateTime = 0;
@@ -785,6 +843,8 @@ export class Guests {
       if (guest.state === 'queue' && guest.arrivedInQueue) {
         guest.arrivedInQueue = false;
         guest.mover.go([this.slotPosition(i)], () => this.arriveInQueue(guest));
+      } else if (guest.state === 'boarding' && guest.walkIn) {
+        guest.mover.go(this.insidePath(guest, this.slotPosition(i)), () => this.arriveInQueue(guest));
       } else if (guest.state === 'boarding') {
         const door = this.w.map.doors()[0];
         const inside = guest.pos.x < door.inside.x + 0.5;

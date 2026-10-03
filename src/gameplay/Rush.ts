@@ -40,8 +40,8 @@ export class Rush {
 
   private service(_at: Vec2): void {
     const w = this.w;
-    // A later layer: streaks start counting once the basics are second nature (config: onboarding).
-    if (w.train.count < w.econ.onboarding.rushFromCarriages) return;
+    // A later layer: streaks start counting once the basics are second nature (config: flow).
+    if (!w.flow.allows('rush')) return;
     const rush = w.econ.rush;
     this.streak++;
     this.timeLeft = rush.window;

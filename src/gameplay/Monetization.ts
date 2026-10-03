@@ -113,8 +113,8 @@ export class Monetization {
     const m = w.data.monetization;
     const life = w.lifetimeSeconds();
     if (!w.adPolicy.canOfferRewarded(life) || this.busy) return [];
-    // The first minutes are for learning the loop (config: onboarding): no offer chip yet.
-    if (life < w.econ.onboarding.offersAfterSeconds) return [];
+    // The opening is for learning the loop (config: flow): no offer chip until the first carriage is on.
+    if (!w.flow.allows('offers')) return [];
     const out: OfferView[] = [];
     const j = w.journey;
 
