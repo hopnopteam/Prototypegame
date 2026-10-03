@@ -11,6 +11,7 @@ import {
   HALF_WIDTH,
   INNER,
   INTERIOR_WALL_HEIGHT,
+  ROOM_DOOR,
   PARTITION_X0,
   PARTITION_X1,
   QUEUE_SLOTS,
@@ -22,10 +23,11 @@ import {
   type WallBox,
 } from './layout';
 import { litMaterial, MATERIALS, PATTERN } from './materials';
-import { CARRIAGE_THEMES, CLASS_THEMES, PALETTE, type CarriageTheme } from './palette';
+import { CARRIAGE_THEMES, CLASS_THEMES, PALETTE, shadeHex, type CarriageTheme } from './palette';
+import { smoothstep01 } from '../core/math';
 import { classOfTier, isPassengerType, type ClassDef } from '../config/classes';
 import { SURFACES } from './surfaces';
-import { buildCobwebs, buildFloor, type FloorResult } from './Floors';
+import { buildCobwebs, floorSteps, type FloorResult } from './Floors';
 import type { LampAnchor } from './Lighting';
 import { REFLECT_LAYER } from './Water';
 
@@ -61,11 +63,6 @@ const MESS_POP = 0.2;
 /** How high a swept piece hops on its way in (metres). */
 const MESS_HOP = 0.35;
 /** A hex colour lightened (+) or darkened (−). */
-function shadeHex(hex: string, amount: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const c = (v: number): number => Math.max(0, Math.min(255, v + amount));
-  return `#${((c(n >> 16) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
-}
 /** Trims and rails stop this short of a wall's ends, so their end faces never share a plane with it. */
 const END_INSET = 0.006;
 /** A rect shortened at both ends of its long axis. */
@@ -93,9 +90,14 @@ interface CabinMess {
 
 /** The washroom stock stand: panel width, board tops and overall height (metres above the floor). */
 const WASH_SHELF = { side: 0.03, middle: 0.33, top: 0.6, height: 0.64 };
-/** Room door leaves: height, and each leaf's offset from the partition centre (they pass inside it). */
-/** Door leaves stand a little under the knee-high partition they slide into. */
-const LEAF_HEIGHT = INTERIOR_WALL_HEIGHT - 0.1;
+/**
+ * Room doors (session 16, owner: "the doors are half animated… make them feel like part of the train"): two
+ * hinged leaves per doorway, as tall as the cut-away partition, that swing into the room. The partition beside a
+ * doorway is only ~0.3 m, too short for sliding leaves to clear a 1.4 m opening (they used to stop at a third of
+ * it); a swing reads clearly from above and needs no wall to hide in.
+ */
+const LEAF_HEIGHT = INTERIOR_WALL_HEIGHT - 0.04;
+const { hingeInset: HINGE_INSET, meetGap: LEAF_MEET_GAP, swing: DOOR_SWING, thickness: LEAF_THICKNESS } = ROOM_DOOR;
 /** The gangway's concertina sides. */
 const BELLOWS_HEIGHT = 0.4;
 /** The lobby clock hangs on the front wall between the tea urn and the linen cupboard. */
@@ -103,9 +105,6 @@ const CLOCK_X = -1.03;
 /** A cabin's picture and wireless shelf sit on the knee-high partition (their tops stay under its cap). */
 const PICTURE_Y = INTERIOR_WALL_HEIGHT - 0.14;
 const RADIO_SHELF_Y = INTERIOR_WALL_HEIGHT - 0.32;
-const LEAF_GAP = 0.04;
-/** An open leaf stops this far short of the end of the wall it slides into. */
-const DOOR_POCKET_MARGIN = 0.015;
 
 /** How a carriage looks at a refurbishment tier: the whole rags-to-riches story in one table. */
 interface Finish {
@@ -234,14 +233,11 @@ export interface RoomDoor {
   open: number;
   locked: boolean;
   width: number;
-  /** First of this door's two instances in the carriage's leaf mesh, and each leaf's closed position. */
+  /** First of this door's two instances in the carriage's leaf mesh. */
   instance: number;
-  closedZ: [number, number];
-  /**
-   * Each leaf's length, which is also how far it slides (front leaf toward −z, back leaf toward +z). A leaf
-   * is only as long as the wall beside it, so an open door always vanishes completely.
-   */
-  lengths: [number, number];
+  /** Each leaf's hinge (z, at the front and back posts), and the leaves' length: they meet in the middle. */
+  hinges: [number, number];
+  leafLength: number;
 }
 
 /**
@@ -251,6 +247,10 @@ export interface RoomDoor {
  * Static parts merge into a handful of meshes. Things that change (beds that pop in, dirt, stock, doors)
  * are small separate meshes the gameplay layer toggles.
  */
+/** Sliced builds (session 16): walls and props laid per slice before a frame may end. */
+const WALLS_PER_SLICE = 3;
+const PROPS_PER_SLICE = 4;
+
 export class CarriageView {
   readonly group = new THREE.Group();
   readonly cabinBeds: THREE.Group[] = [];
@@ -288,7 +288,11 @@ export class CarriageView {
   readonly liveryBody: THREE.Material;
   readonly liveryTrim: THREE.Material;
 
-  constructor(readonly layout: CarriageLayout, readonly index: number, readonly tier = 0) {
+  /**
+   * `sliced`: build nothing yet; the owner runs `buildSteps()` a slice at a time over several frames (a refit or
+   * a coupling during play must never stall a frame; session 16). Otherwise it is built at once (loading a save).
+   */
+  constructor(readonly layout: CarriageLayout, readonly index: number, readonly tier = 0, sliced = false) {
     const passenger = isPassengerType(layout.type);
     this.cls = passenger ? classOfTier(tier) : null;
     const cls = this.cls;
@@ -297,10 +301,20 @@ export class CarriageView {
     this.blanketColor = tier <= 0 ? PALETTE.greyWool : tier >= 3 ? (tier >= 4 ? this.theme.blanket : this.theme.deep) : this.theme.blanket;
     this.liveryBody = cls ? litMaterial(`livery:${cls.id}`, { vertexColors: true, color: cls.livery.body }, { surface: SURFACES.paint, light: true }) : MATERIALS.livery;
     this.liveryTrim = cls ? litMaterial(`trim:${cls.id}`, { vertexColors: true, color: cls.livery.trim }, { surface: tier >= 4 ? SURFACES.brass : SURFACES.paint, light: true }) : MATERIALS.liveryTrim;
-    this.buildStatic();
-    this.buildRooms();
+    if (sliced) return;
+    const steps = this.buildSteps();
+    while (!steps.next().done) {
+      // built at once
+    }
+  }
+
+  /** The whole build in small slices (each yield is a point where a frame may end). */
+  *buildSteps(): Generator<void, void, void> {
+    yield* this.buildStatic();
+    yield* this.buildRooms();
     this.buildRoomDoors();
     this.buildDoors();
+    yield;
     this.buildStock();
   }
 
@@ -403,12 +417,18 @@ export class CarriageView {
   }
 
   /** Slides a room door: the two leaves part and disappear into the wall on either side. */
+  /** 0 shut, 1 open: both leaves swing into the room together (eased, so they settle softly either way). */
   setRoomDoor(door: RoomDoor, amount: number): void {
     if (amount === door.open || !this.leafMesh) return;
     door.open = amount;
+    const swing = DOOR_SWING * smoothstep01(amount);
     for (let k = 0; k < 2; k++) {
-      tmpPos.set(door.x + (k === 0 ? -LEAF_GAP : LEAF_GAP), FLOOR_Y + LEAF_HEIGHT / 2, door.closedZ[k] + amount * door.lengths[k] * (k === 0 ? -1 : 1));
-      tmpMatrix.compose(tmpPos, tmpQuat.identity(), tmpScale.set(1, 1, door.lengths[k] / (door.width / 2)));
+      // The front leaf points back along the doorway when shut and turns toward the room (+x) as it opens; the
+      // back leaf is its mirror image.
+      const yaw = k === 0 ? swing : Math.PI - swing;
+      tmpPos.set(door.x, FLOOR_Y + LEAF_HEIGHT / 2, door.hinges[k]);
+      tmpQuat.setFromAxisAngle(UP, yaw);
+      tmpMatrix.compose(tmpPos, tmpQuat, tmpScale.set(1, 1, door.leafLength));
       this.leafMesh.setMatrixAt(door.instance + k, tmpMatrix);
     }
     this.leafMesh.instanceMatrix.needsUpdate = true;
@@ -502,7 +522,7 @@ export class CarriageView {
 
   // ─── Static build ──────────────────────────────────────────────────────────
 
-  private buildStatic(): void {
+  private *buildStatic(): Generator<void, void, void> {
     const L = CARRIAGE_LENGTH;
     const s = new GeoBuilder();
     const f = new GeoBuilder();
@@ -534,7 +554,9 @@ export class CarriageView {
     // Floor: the tier's boards (broken and old, then repaired, polished, parquet), rooms and rugs (Floors.ts).
     // Passenger classes: Comfort and Business polished boards, First chevron parquet, Royal marble.
     const floorTier = this.cls ? [0, 1, 2, 2, 3, 4][this.tier] ?? 4 : this.tier;
-    this.floorInfo = buildFloor(f, this.layout, floorTier, this.theme, this.index * 7 + this.layout.type.length);
+    yield;
+    this.floorInfo = yield* floorSteps(f, this.layout, floorTier, this.theme, this.index * 7 + this.layout.type.length);
+    yield;
     if (this.tier <= 0) {
       const webs = buildCobwebs(this.layout, this.index + 3);
       if (webs) this.group.add(webs);
@@ -560,7 +582,14 @@ export class CarriageView {
     // Low bellows (session 15): the camera looks into the next carriage over them.
     for (const x of [-0.74, 0.74]) s.box(x, FLOOR_Y + BELLOWS_HEIGHT / 2, L + GANGWAY_LENGTH / 2, 0.1, BELLOWS_HEIGHT, GANGWAY_LENGTH - 0.02, '#46444D', 0, { pattern: PATTERN.stripesZ, color2: '#3A3840', scale: 0.08, shade: 0.8 });
 
-    for (const wall of this.layout.walls) this.buildWall(s, liv, trim, glass, lamps, wall);
+    yield;
+    let n = 0;
+    for (const wall of this.layout.walls) {
+      this.buildWall(s, liv, trim, glass, lamps, wall);
+      if (++n % WALLS_PER_SLICE === 0) yield;
+    }
+    yield;
+    n = 0;
     for (const prop of this.layout.props) {
       if (prop.kind === 'bed' || prop.kind === 'toilet' || prop.kind === 'sink' || prop.kind === 'bathtub' || prop.kind === 'washShelf') continue;
       if (prop.kind === 'plant' && this.tier < 2) continue;
@@ -569,11 +598,20 @@ export class CarriageView {
       buildProp(s, lamps, prop, this.theme, this.tier);
       s.endObject();
       lamps.endObject();
+      if (++n % PROPS_PER_SLICE === 0) yield;
     }
+    yield;
     this.buildDecor(s, f, lamps);
-    if (this.cls) for (const cabin of this.layout.cabins) buildClassDressing(s, lamps, cabin, this.tier, this.theme, this.layout.props);
+    yield;
+    if (this.cls) {
+      for (const cabin of this.layout.cabins) {
+        buildClassDressing(s, lamps, cabin, this.tier, this.theme, this.layout.props);
+        yield;
+      }
+    }
     this.buildDoorFrames(s);
     this.buildSpinners();
+    yield;
 
     const add = (builder: GeoBuilder, material: THREE.Material, cast: boolean, receive: boolean, reflect = false): void => {
       if (builder.isEmpty) return;
@@ -584,16 +622,21 @@ export class CarriageView {
       if (reflect) mesh.layers.enable(REFLECT_LAYER);
       this.group.add(mesh);
     };
+    // Each merge is its own slice: the big ones (the shell, the floor) take a few milliseconds apiece.
     add(s, MATERIALS.solid, true, true);
+    yield;
     add(liv, this.liveryBody, true, true, true);
     add(trim, this.liveryTrim, false, true, true);
+    yield;
     add(f, MATERIALS.floor, false, true);
+    yield;
     if (!glass.isEmpty) {
       const panes = new THREE.Mesh(glass.build(), MATERIALS.windows);
       panes.layers.enable(REFLECT_LAYER);
       this.group.add(panes);
     }
     add(lamps, MATERIALS.lamps, false, false, true);
+    yield;
   }
 
   /**
@@ -890,7 +933,7 @@ export class CarriageView {
     }
   }
 
-  private buildRooms(): void {
+  private *buildRooms(): Generator<void, void, void> {
     for (const cabin of this.layout.cabins) {
       const bed = new GeoBuilder();
       const bedLamps = new GeoBuilder();
@@ -910,7 +953,9 @@ export class CarriageView {
       this.cabinBeds[cabin.index] = bedGroup;
 
       this.cabinLocks[cabin.index] = this.lockOverlay(cabin.room);
+      yield;
       this.buildMess(cabin);
+      yield;
     }
 
     for (const bath of this.layout.bathrooms) {
@@ -930,6 +975,7 @@ export class CarriageView {
       this.group.add(group);
       this.bathroomFixtures[bath.index] = group;
       this.bathroomLocks[bath.index] = this.lockOverlay(bath.room);
+      yield;
     }
   }
 
@@ -952,40 +998,28 @@ export class CarriageView {
       ...this.layout.bathrooms.map((b) => ({ kind: 'bath' as const, index: b.index, span: b.door })),
     ];
     if (doors.length === 0) return;
-    const width = doors[0].span[1] - doors[0].span[0];
-    const leafLength = width / 2;
     const x = (PARTITION_X0 + PARTITION_X1) / 2;
     const colour = this.tier <= 0 ? '#A48B72' : this.theme.deep;
+    const panel = this.tier <= 0 ? '#B79E84' : shadeHex(this.theme.deep, 18);
     const metal = this.doorMetal();
+    // One leaf, one metre long from its hinge (z = 0) toward +z; each instance is scaled to its length. Its face
+    // is a raised panel, a brass rail along the top and a handle near the free end, a clear centimetre proud of
+    // the leaf (flush trims flicker).
     const leaf = new GeoBuilder()
-      // Glass, rail and handle stand a clear 1 cm proud of the panel (a hair's breadth would flicker).
-      .box(0, 0, 0, 0.035, LEAF_HEIGHT, leafLength - 0.01, colour, 0, { shade: 0.85 })
-      // The glass panel sits between the handle and the top rail (clear of both on the knee-high leaf).
-      .box(0, 0.09, 0, 0.055, 0.16, leafLength * 0.6, this.tier <= 0 ? '#C2B29C' : '#E4EEF0', 0, FLAT)
-      .box(0, LEAF_HEIGHT / 2 + 0.005, 0, 0.055, 0.012, leafLength - 0.01, metal, 0, FLAT)
-      .box(0, -0.04, leafLength * 0.34, 0.075, 0.06, 0.025, metal, 0, FLAT)
+      .box(0, 0, 0.5, LEAF_THICKNESS, LEAF_HEIGHT, 1, colour, 0, { shade: 0.85 })
+      .box(0, -0.03, 0.5, LEAF_THICKNESS + 0.02, LEAF_HEIGHT * 0.55, 0.7, panel, 0, FLAT)
+      .box(0, LEAF_HEIGHT / 2 + 0.006, 0.5, LEAF_THICKNESS + 0.01, 0.012, 1, metal, 0, FLAT)
+      .box(0, 0.06, 0.88, LEAF_THICKNESS + 0.05, 0.05, 0.03, metal, 0, FLAT)
       .build();
     const mesh = new THREE.InstancedMesh(leaf, MATERIALS.solid, doors.length * 2);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this.leafMesh = mesh;
-    // The partition's solid stretches either side of each doorway: a leaf slides as far as its wall allows.
-    const partition = this.layout.walls.filter((w) => Math.abs(w.x0 - PARTITION_X0) < 0.02 && Math.abs(w.x1 - PARTITION_X1) < 0.02);
-    const wallRoom = (edge: number, forward: boolean): number => {
-      const wall = partition.find((w) => Math.abs((forward ? w.z0 : w.z1) - edge) < 0.02);
-      return wall ? wall.z1 - wall.z0 : 0;
-    };
     doors.forEach((d, i) => {
-      const front = wallRoom(d.span[0], false) - DOOR_POCKET_MARGIN;
-      const rear = wallRoom(d.span[1], true) - DOOR_POCKET_MARGIN;
-      let a = Math.min(width / 2, front);
-      let b = width - a;
-      if (b > rear) {
-        b = rear;
-        a = Math.min(width - b, front);
-      }
-      const closedZ: [number, number] = [d.span[0] + a / 2, d.span[1] - b / 2];
-      const door: RoomDoor = { kind: d.kind, index: d.index, x, z: (d.span[0] + d.span[1]) / 2, open: -1, locked: false, width, instance: i * 2, closedZ, lengths: [a, b] };
+      const width = d.span[1] - d.span[0];
+      const hinges: [number, number] = [d.span[0] + HINGE_INSET, d.span[1] - HINGE_INSET];
+      const leafLength = width / 2 - HINGE_INSET - LEAF_MEET_GAP / 2;
+      const door: RoomDoor = { kind: d.kind, index: d.index, x, z: (d.span[0] + d.span[1]) / 2, open: -1, locked: false, width, instance: i * 2, hinges, leafLength };
       this.roomDoors.push(door);
       this.setRoomDoor(door, 0);
     });

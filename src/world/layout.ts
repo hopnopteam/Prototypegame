@@ -37,6 +37,13 @@ export const EXTERIOR_WALL_HEIGHT = 1.1;
  */
 export const INTERIOR_WALL_HEIGHT = 0.52;
 /**
+ * Room doors (session 16): two hinged leaves per doorway that swing into the room (the partition beside a
+ * doorway is too short for sliding leaves to clear it). A hinge sits `hingeInset` inside its door post, the
+ * leaves meet with `meetGap` between them, an open door swings `swing` radians, a leaf is `thickness` thick.
+ * `tests/doors.test.ts` sweeps every leaf through its swing in every floor plan.
+ */
+export const ROOM_DOOR = { hingeInset: 0.04, meetGap: 0.01, swing: Math.PI * 0.47, thickness: 0.035 };
+/**
  * The rear end wall faces the camera (it looks down the train from the back): cut down to a low sill so the
  * end of every carriage, where its improvement and staff tiles stand, is in full view.
  */

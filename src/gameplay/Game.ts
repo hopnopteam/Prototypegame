@@ -77,8 +77,6 @@ export const SAVE_KEY = 'nightexpress.save';
 const MAX_FRAME = 0.05;
 /** Where in the day cycle the held night sits (the middle of the night key). */
 const NIGHT_TIME = 0.82;
-/** Time scale during a hit-stop. */
-const HIT_STOP_SCALE = 0.25;
 
 /**
  * Composition root and main loop. Builds every system once, owns time (including the dev time scale and
@@ -263,6 +261,7 @@ export class Game implements World {
     this.cash.create('floor', this.map.anchor(0, 'startCash').x, this.map.anchor(0, 'startCash').z);
     this.tiles.refresh();
     this.guests.spawnStartingQueue(this.econ.guests.initialGuests);
+    this.guests.spawnDeckPassengers();
     if (this.save.outcome === 'newPlayer' || this.data.profile.lifetimePlaySeconds < 1) {
       this.cash.add('floor', this.econ.money.startingFloorCash);
     }
@@ -373,10 +372,7 @@ export class Game implements World {
     frameWork.begin(FRAME_WORK_MS);
     if (!this.paused && !this.adPlaying) {
       // Fast-forward (dev) runs several normal-sized steps so nothing tunnels through a zone.
-      // A hit-stop (a beat of slow motion on a big unlock) gives the moment weight.
-      const slow = this.hitStopTime > 0 ? HIT_STOP_SCALE : 1;
-      this.hitStopTime = Math.max(0, this.hitStopTime - realDt);
-      let remaining = Math.min(realDt, MAX_FRAME * 4) * this.timeScale * slow;
+      let remaining = Math.min(realDt, MAX_FRAME * 4) * this.timeScale;
       while (remaining > 1e-6) {
         const dt = Math.min(MAX_FRAME, remaining);
         this.step(dt);
@@ -450,13 +446,6 @@ export class Game implements World {
     this.background.run(BACKGROUND_BUDGET_MS);
     this.characters.sync();
     this.stage.render(realDt);
-  }
-
-  private hitStopTime = 0;
-
-  /** A beat of slow motion (real seconds) for a big moment. Sim-only runs ignore it. */
-  hitStop(seconds: number): void {
-    this.hitStopTime = Math.max(this.hitStopTime, seconds);
   }
 
   /**

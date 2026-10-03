@@ -474,7 +474,7 @@ export class TileMarker {
     // UI in the world: true colours (no night grade or fog), drawn over walls.
     // A constant size on screen (like a HUD label pinned to the world), so it reads at any zoom.
     this.sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.texture, transparent: true, depthWrite: false, depthTest: false, toneMapped: false, fog: false, sizeAttenuation: false }));
-    this.sprite.scale.set(TILE_MARKER_WIDTH, TILE_MARKER_WIDTH * 0.4, 1);
+    this.sprite.scale.set(TILE_MARKER_WIDTH, TILE_MARKER_WIDTH * TILE_MARKER_ASPECT, 1);
     this.sprite.renderOrder = 9;
   }
 
@@ -554,6 +554,9 @@ export class TileMarker {
  * size attenuation): about a third of a phone's width.
  */
 export const TILE_MARKER_WIDTH = 0.095;
+/** The marker's height (as a share of its width) and where its pointer's tip sits below its centre (share of height). */
+export const TILE_MARKER_ASPECT = 0.4;
+export const TILE_MARKER_TIP = 120 / 128 - 0.5;
 /** Canvas pixels per marker design unit (crisp on high-density screens). */
 const MARKER_RES = 1.6;
 

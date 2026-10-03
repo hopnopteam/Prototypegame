@@ -197,6 +197,13 @@ export const LIVERIES: Livery[] = [
 ];
 
 /** The best livery earned by this route level. */
+/** A colour lifted (positive) or darkened (negative) by `amount` on every channel (0–255). */
+export function shadeHex(hex: string, amount: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = (v: number): number => Math.max(0, Math.min(255, v + amount));
+  return `#${((c(n >> 16) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
+}
+
 export function liveryFor(level: number): Livery {
   let best = LIVERIES[0];
   for (const l of LIVERIES) if (l.minLevel !== undefined && level >= l.minLevel) best = l;

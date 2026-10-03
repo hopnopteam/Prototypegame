@@ -27,9 +27,11 @@ export const AUDIO = {
   tail: { seconds: 1.6, damping: 0.3, wet: 0.3, hold: 0.28, release: 1.15 },
   /**
    * A celebration owns the moment: for `holdOff` seconds after one of `cues` starts, the small cues in
-   * `quiet` are skipped so nothing steps on the fanfare (the coach's ding, an objective's chime, coins).
+   * `quiet` play softer (× `duck`) so nothing steps on the fanfare. Session 16: softer, never skipped; skipping
+   * them meant coins scooped or a tile bought just after an upgrade made no sound at all, which read as the
+   * audio cutting out.
    */
-  celebration: { cues: ['fanfare', 'levelup'], holdOff: 1.4, quiet: ['ding', 'chest', 'heart', 'unlock', 'chime', 'coin', 'pop', 'sparkle', 'bell'] },
+  celebration: { cues: ['fanfare', 'levelup'], holdOff: 1.4, duck: 0.35, quiet: ['ding', 'chest', 'heart', 'unlock', 'chime', 'coin', 'pop', 'sparkle', 'bell'] },
   music: {
     /** Seconds to fade the theme in at the start (and after it is switched back on) and out when switched off. */
     fadeIn: 2.5,

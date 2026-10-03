@@ -172,17 +172,18 @@ export class AudioEngine {
     if (!ends) this.ringing.set(name, (ends = []));
     for (let i = ends.length - 1; i >= 0; i--) if (ends[i] <= now) ends.splice(i, 1);
     if (ends.length >= (AUDIO.voicesByCue[name] ?? AUDIO.voices)) return;
+    let volume = options.volume ?? 1;
     if (this.depth === 0) {
       const c = AUDIO.celebration;
       if (c.cues.includes(name)) this.celebrationUntil = now + c.holdOff;
-      else if (now < this.celebrationUntil && c.quiet.includes(name)) return;
+      else if (now < this.celebrationUntil && c.quiet.includes(name)) volume *= c.duck;
     }
     this.lastPlay.set(name, now);
     const outerEnd = this.cueEnd;
     this.cueEnd = now;
     this.depth++;
     try {
-      this.build(name, now + 0.005, options.pitch ?? 1, options.volume ?? 1);
+      this.build(name, now + 0.005, options.pitch ?? 1, volume);
     } finally {
       this.depth--;
     }

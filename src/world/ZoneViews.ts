@@ -3,7 +3,7 @@ import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from './CarriageView';
 import { createZoneMaterial } from './materials';
 import { PALETTE } from './palette';
-import { bubbleTexture, makeSprite, TILE_MARKER_WIDTH, TileFace, TileMarker } from './sprites';
+import { bubbleTexture, makeSprite, TILE_MARKER_ASPECT, TILE_MARKER_WIDTH, TileFace, TileMarker } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 
 const RING_GEOMETRY = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
@@ -88,6 +88,8 @@ export class ZoneRing {
 const PAD_HEIGHT = 0.06;
 /** How high a tile's marker floats over the floor: above the room walls, below the HUD's reach. */
 const MARKER_HEIGHT = 1.3;
+/** Where a tile's floating marker hangs (world height); the close-up label takes its exact place. */
+export const TILE_MARKER_Y = FLOOR_Y + MARKER_HEIGHT;
 /** Lip colours by state (the face's border colour, a shade darker). */
 const LIP = { idle: '#9C7A52', affordable: '#2F7D50', active: '#C8891B', locked: '#8D8478' };
 
@@ -167,7 +169,7 @@ export class TileView {
     // The marker bobs gently, and steps aside while you stand on the tile (the plate shows the fill).
     this.marker.sprite.visible = marker && !active;
     this.marker.sprite.position.y = FLOOR_Y + MARKER_HEIGHT + Math.sin(this.time * 2.2) * 0.04;
-    this.marker.sprite.scale.set(TILE_MARKER_WIDTH * appear, TILE_MARKER_WIDTH * 0.4 * appear, 1);
+    this.marker.sprite.scale.set(TILE_MARKER_WIDTH * appear, TILE_MARKER_WIDTH * TILE_MARKER_ASPECT * appear, 1);
     if (!this.locked) this.setLip(active ? 'active' : affordable ? 'affordable' : 'idle');
   }
 

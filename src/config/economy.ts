@@ -16,6 +16,12 @@ export const ECONOMY = {
   journey: {
     /** First leg is short so the first station lands at ~1:00 (§14), counting the opening departure. */
     firstLegMoveSeconds: 48,
+    /**
+     * Session 16 (owner: "the second ride… is either too fast or too slow"): the rides grow instead of jumping from
+     * 48 s to 150 s. The second ride (90 s) holds one arc: Repairs early, then saving for the first new carriage,
+     * which couples about as the second station comes into view to fill it; the third is a little longer again.
+     */
+    earlyLegSeconds: [90, 120] as number[],
     moveSeconds: 150,
     arrivingSeconds: 6,
     stationSeconds: 40,

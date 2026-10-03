@@ -17,6 +17,8 @@ import type { IconName } from './icons';
 import { PressScreens } from './PressScreens';
 import { Screens } from './Screens';
 import { TrainMapUi } from './TrainMapUi';
+import { TILE_MARKER_ASPECT, TILE_MARKER_TIP, TILE_MARKER_WIDTH } from '../world/sprites';
+import { TILE_MARKER_Y } from '../world/ZoneViews';
 
 interface Floating {
   el: HTMLElement;
@@ -67,7 +69,8 @@ const RUSH_CHIP_OFFSET = 14;
 const BURST_HOLD_SECONDS = 0.35;
 /** Tile labels show for the nearest tile within this many metres, floating this high above it. */
 const TILE_TAG_RANGE = 2.6;
-const TILE_TAG_HEIGHT = 1.35;
+/** The close-up label's pointer below its box (the CSS ::after), so its tip lands on the marker's tip. */
+const TILE_TAG_POINTER = 6;
 /** Coach labels float above the guidance arrow. */
 const GUIDE_HEIGHT = 2.55;
 const TOAST_SECONDS = 2.2;
@@ -548,9 +551,9 @@ export class Ui implements GameUi {
     const gestureOn = !!line && 'gesture' in line.anchor && !busyCentre;
     setVisible(this.gesture, gestureOn);
     // A walk-gesture line has no spot to point at: while the gesture gives way it waits (never a label in a corner).
-    // A line about a tile that wears its marker gives way to the marker (icon, name and price, under the arrow):
+    // A line about a tile gives way to the tile's own label (its marker, or the close-up label when you are near):
     // one label per spot (session 16).
-    const labelled = line && !('gesture' in line.anchor) && !this.onMarkedTile(line.anchor) ? line : null;
+    const labelled = line && !('gesture' in line.anchor) && !this.onTile(line.anchor) ? line : null;
     const key = labelled ? `${labelled.id}` : '';
     if (key !== this.guide.key) {
       this.guide.key = key;
@@ -638,18 +641,27 @@ export class Ui implements GameUi {
     }
     this.tileTagBox = null;
     if (!tag) return;
-    this.tmp.set(tag.x, TILE_TAG_HEIGHT, tag.z);
+    // The label takes the marker's exact place: its pointer's tip where the marker's was (the marker hangs at
+    // a constant size on screen, so its tip sits a fixed share of its height below where it hangs).
+    this.tmp.set(tag.x, TILE_MARKER_Y, tag.z);
     const r = this.rect;
     const size = sizeOf(t.el);
-    if (!g.stage.project(this.tmp, this.screen) || this.screen.y - size.h < r.top || this.screen.y > r.bottom) {
+    if (!g.stage.project(this.tmp, this.screen)) {
+      t.el.style.opacity = '0';
+      return;
+    }
+    const markerPx = TILE_MARKER_WIDTH * TILE_MARKER_ASPECT * g.stage.rig.camera.projectionMatrix.elements[5] * (g.stage.size.height / 2);
+    const tip = this.screen.y + markerPx * TILE_MARKER_TIP;
+    const bottom = tip - TILE_TAG_POINTER;
+    if (bottom - size.h < r.top || tip > r.bottom) {
       t.el.style.opacity = '0';
       return;
     }
     const half = size.w / 2;
     const x = Math.min(Math.max(this.screen.x, r.left + half), r.right - half);
-    this.tileTagBox = { x0: x - half, x1: x + half, y0: this.screen.y - size.h, y1: this.screen.y + 6 };
+    this.tileTagBox = { x0: x - half, x1: x + half, y0: bottom - size.h, y1: tip };
     t.el.style.opacity = '1';
-    t.el.style.transform = `translate(${x}px, ${this.screen.y}px) translate(-50%, -100%)`;
+    t.el.style.transform = `translate(${x}px, ${bottom}px) translate(-50%, -100%)`;
   }
 
   /**
@@ -764,10 +776,9 @@ export class Ui implements GameUi {
     chip.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, 0)`;
   }
 
-  /** The anchor is a tile whose floating marker is showing. */
-  private onMarkedTile(anchor: CoachAnchor): boolean {
-    if (!('world' in anchor)) return false;
-    return this.game.tiles.markerShownAt(anchor.world.x, anchor.world.z);
+  /** The anchor is a tile (it speaks for itself). */
+  private onTile(anchor: CoachAnchor): boolean {
+    return 'world' in anchor && this.game.tiles.tileAt(anchor.world.x, anchor.world.z);
   }
 
   private updatePointer(): void {

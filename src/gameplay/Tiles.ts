@@ -10,9 +10,12 @@ import type { World } from './World';
 import { Zone } from './Zones';
 
 const DWELL_SECONDS = 0.3;
-/** Camera zoom kick and slow-motion beat (real seconds) when a tile completes. */
+/** Camera zoom kick when a tile completes (session 16: no slow-motion beat; on a phone it read as a hitch). */
 const UNLOCK_PUNCH = 0.05;
-const UNLOCK_HIT_STOP = 0.14;
+/** Seconds after a purchase before the next tile pops up: its own beat, never in the purchase's frame. */
+const NEXT_TILE_DELAY = 0.45;
+/** The plate's fill is redrawn in steps of this fraction (each redraw is a texture upload). */
+const FILL_STEP = 1 / 24;
 /** Station upgrades live on the platform and only while the train is in. */
 const isStation = (def: UnlockDef): boolean => def.kind === 'exterior' || def.kind === 'marketing';
 const BILL_INTERVAL = 0.07;
@@ -209,10 +212,14 @@ export class Tiles {
     return [...this.entries.values()];
   }
 
-  /** A tile at this spot is wearing its floating marker (checked every frame by the UI: no allocation). */
-  markerShownAt(x: number, z: number): boolean {
+  /**
+   * A tile stands at this spot (checked every frame by the UI: no allocation). Decided from positions only, never
+   * from what is showing: the coach's line, the close-up label and the marker used to hide one another in turn
+   * and flickered every frame (session 16).
+   */
+  tileAt(x: number, z: number): boolean {
     for (const entry of this.entries.values()) {
-      if (entry.view.marker.sprite.visible && Math.abs(entry.pos.x - x) < 0.05 && Math.abs(entry.pos.z - z) < 0.05) return true;
+      if (entry.view.group.visible && Math.abs(entry.pos.x - x) < 0.05 && Math.abs(entry.pos.z - z) < 0.05) return true;
     }
     return false;
   }
@@ -234,7 +241,7 @@ export class Tiles {
       }
       entry.age += dt;
       const remaining = w.unlocks.remaining(entry.def.id);
-      const progress = 1 - remaining / entry.def.price;
+      const progress = Math.floor((1 - remaining / entry.def.price) / FILL_STEP) * FILL_STEP;
       const affordable = cash >= remaining;
       const active = entry.zone.playerInside;
       if (active && remaining > 0 && cash <= 0 && entry.stand > DWELL_SECONDS) {
@@ -244,7 +251,8 @@ export class Tiles {
       const focused = !!focus && Math.abs(focus.x - entry.pos.x) < 0.05 && Math.abs(focus.z - entry.pos.z) < 0.05;
       const marker = (focused || entry.age < NEW_TILE_MARKER_SECONDS || (affordable && !focus)) && entry.def.id !== this.taggedId;
       entry.view.face.draw(ICON_BY_KIND[entry.def.kind], remaining, progress, affordable, active);
-      if (marker) entry.view.marker.draw(ICON_BY_KIND[entry.def.kind], markerName(entry.def.label), remaining, affordable);
+      // (Not while standing on it: the marker is hidden then, and each redraw is a texture upload.)
+      if (marker && !active) entry.view.marker.draw(ICON_BY_KIND[entry.def.kind], markerName(entry.def.label), remaining, affordable);
       entry.view.update(dt, affordable, active, marker);
       if (!active) {
         entry.stand = 0;
@@ -424,9 +432,8 @@ export class Tiles {
     w.particles.emit('sparkle', entry.pos.x, FLOOR_Y + 0.4, entry.pos.z, 24, 0.6);
     w.particles.emit('star', entry.pos.x, FLOOR_Y + 0.6, entry.pos.z, 10, 0.4);
     w.stage.rig.shake(0.12, 0.2);
-    // Weight: a zoom kick and a beat of slow motion as the new thing pops into existence.
+    // Weight: a zoom kick as the new thing pops into existence.
     w.stage.rig.punch(def.kind === 'couple' ? 0.02 : UNLOCK_PUNCH);
-    if (def.kind !== 'couple' && def.kind !== 'refurb') w.hitStop(UNLOCK_HIT_STOP);
     w.addStars(def.stars, 'unlock', entry.pos);
     w.analytics.log(EVENTS.unlockCompleted, { id: def.id, price: def.price, time: Math.round(w.lifetimeSeconds()) });
     w.analytics.log(EVENTS.currencySpent, { currency: 'cash', amount: def.price, sink: `unlock:${def.kind}` });
@@ -444,7 +451,7 @@ export class Tiles {
     } else {
       w.train.applyUnlock(def, true);
     }
-    this.refresh();
+    w.tweens.delay(NEXT_TILE_DELAY, () => this.refresh());
   }
 
   private positionFor(def: UnlockDef): Vec2 | null {

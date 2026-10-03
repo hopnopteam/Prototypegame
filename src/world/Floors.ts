@@ -5,7 +5,7 @@ import { DOOR_Z0, DOOR_Z1, HALF_WIDTH, INNER, PARTITION_X0, PARTITION_X1, QUEUE_
 import { FLOOR_Y } from './CarriageView';
 import { PATTERN } from './materials';
 import { seeded } from './Mess';
-import { PALETTE, type CarriageTheme } from './palette';
+import { PALETTE, shadeHex, type CarriageTheme } from './palette';
 
 /**
  * Floors tell the rags-to-riches story at a glance, tier by tier:
@@ -314,6 +314,18 @@ function rug(f: GeoBuilder, r: Rect, base: number, layers: { color: string; inse
  * Returns what other floor dressing needs to know.
  */
 export function buildFloor(f: GeoBuilder, layout: CarriageLayout, tier: number, theme: CarriageTheme, seed: number): FloorResult {
+  const steps = floorSteps(f, layout, tier, theme, seed);
+  for (;;) {
+    const next = steps.next();
+    if (next.done) return next.value;
+  }
+}
+
+/**
+ * The floor a room at a time (session 16): the run-down tiers lay every plank, seam, hole and patch by hand,
+ * about 20 ms for a carriage on a desktop, so a refit during play lays it over several frames.
+ */
+export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number, theme: CarriageTheme, seed: number): Generator<void, FloorResult, void> {
   const L = layout.length;
   const ko = keepOuts(layout);
   let queueBase = FLOOR_Y;
@@ -327,6 +339,7 @@ export function buildFloor(f: GeoBuilder, layout: CarriageLayout, tier: number, 
       const local = seeded(seed * 131 + Math.round(region.r.x0 * 100) * 7 + Math.round(region.r.z0 * 100));
       if (region.tiled) tileField(f, region.r, top, tier, local, ko);
       else boardField(f, region.r, top, tier, local, ko, region.room);
+      yield;
     }
     if (layout.type === 'lobby' && tier >= 1) {
       // A coir doormat inside the platform door: the first thing a repaired lobby offers.
@@ -354,7 +367,7 @@ export function buildFloor(f: GeoBuilder, layout: CarriageLayout, tier: number, 
       { color: gold ? PALETTE.gold : theme.deep, inset: 0 },
       { color: theme.deep, inset: 0.035 },
       { color: '#F1E7D4', inset: 0.1 },
-      { color: theme.deep, inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: shade(theme.deep, 20), scale: 0.2, shade: 1 } },
+      { color: theme.deep, inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: shadeHex(theme.deep, 20), scale: 0.2, shade: 1 } },
     ];
     if (sofa && table) rug(f, rect(table.rect.x0 - 0.22, sofa.rect.z0 + 0.04, sofa.rect.x1 - 0.02, sofa.rect.z1 - 0.04), base, layers(tier >= 5));
     if (dining) rug(f, rect(dining.rect.x0 - 0.06, dining.rect.z0 - 0.06, dining.rect.x1 + 0.06, dining.rect.z1 + 0.06), base, layers(true));
@@ -376,7 +389,7 @@ export function buildFloor(f: GeoBuilder, layout: CarriageLayout, tier: number, 
         { color: PALETTE.gold, inset: 0 },
         { color: theme.deep, inset: 0.04 },
         { color: '#F4EBDA', inset: 0.12 },
-        { color: theme.deep, inset: 0.16, pattern: { pattern: PATTERN.diamond, color2: shade(theme.deep, 22), scale: 0.18, shade: 1 } },
+        { color: theme.deep, inset: 0.16, pattern: { pattern: PATTERN.diamond, color2: shadeHex(theme.deep, 22), scale: 0.18, shade: 1 } },
       ])
       : rug(f, area, FLOOR_Y, [{ color: theme.deep, inset: 0 }, { color: '#EFE5D2', inset: 0.06 }]);
   }
@@ -415,12 +428,6 @@ function parquetRoom(f: GeoBuilder, r: Rect): void {
   f.slab(rect(r.x0, r.z0 + border, r.x0 + border, r.z1 - border), y0, y1, edge, 0, 0, FLAT);
   f.slab(rect(r.x1 - border, r.z0 + border, r.x1, r.z1 - border), y0, y1, edge, 0, 0, FLAT);
   f.slab(rect(r.x0 + border, r.z0 + border, r.x1 - border, r.z1 - border), y0, y1, PALETTE.walnut, 0, 0, { pattern: PATTERN.chevron, color2: PALETTE.walnutDark, scale: 0.22, shade: 1 });
-}
-
-function shade(hex: string, amount: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const c = (v: number): number => Math.max(0, Math.min(255, v + amount));
-  return `#${((c(n >> 16) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
 }
 
 /**

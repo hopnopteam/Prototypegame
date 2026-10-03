@@ -101,4 +101,11 @@ describe('Journey', () => {
     expect(ECONOMY.journey.departingSeconds + ECONOMY.journey.firstLegMoveSeconds + ECONOMY.journey.arrivingSeconds).toBeLessThanOrEqual(65);
     expect(ECONOMY.journey.stationSeconds).toBe(40);
   });
+
+  it('rides grow from the short first leg to the cruise, never jumping (session 16)', () => {
+    const ramped = new Journey({ ...config, earlyLegSeconds: [90, 120] }, { onPhase: () => undefined, onLastCall: () => undefined });
+    expect([0, 1, 2, 3, 9].map((stops) => ramped.legSeconds(stops))).toEqual([48, 90, 120, 150, 150]);
+    const legs = [0, 1, 2, 3].map((stops) => new Journey(ECONOMY.journey, { onPhase: () => undefined, onLastCall: () => undefined }).legSeconds(stops));
+    for (let i = 1; i < legs.length; i++) expect(legs[i]).toBeGreaterThanOrEqual(legs[i - 1]);
+  });
 });

@@ -1,5 +1,10 @@
 export const clamp = (v: number, min: number, max: number): number => (v < min ? min : v > max ? max : v);
 export const clamp01 = (v: number): number => clamp(v, 0, 1);
+/** Eases 0..1 in and out (slow start, slow finish). */
+export const smoothstep01 = (t: number): number => {
+  const x = clamp01(t);
+  return x * x * (3 - 2 * x);
+};
 export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 export const invLerp = (a: number, b: number, v: number): number => (a === b ? 0 : (v - a) / (b - a));
 

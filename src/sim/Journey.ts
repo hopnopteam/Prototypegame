@@ -2,6 +2,8 @@ import type { JourneyPhase } from '../core/types';
 
 export interface JourneyConfig {
   firstLegMoveSeconds: number;
+  /** The legs after the first stops, in order, before `moveSeconds` takes over (rides grow, never jump). */
+  earlyLegSeconds?: readonly number[];
   moveSeconds: number;
   arrivingSeconds: number;
   stationSeconds: number;
@@ -49,8 +51,14 @@ export class Journey {
     this.legsCompleted = legsCompleted;
     this.stopSerial = stopSerial;
     this.phase = startPhase;
-    this.moveDuration = moveSecondsOverride ?? (stopSerial === 0 ? config.firstLegMoveSeconds : config.moveSeconds);
+    this.moveDuration = moveSecondsOverride ?? this.legSeconds(stopSerial);
     this.stationDuration = config.stationSeconds;
+  }
+
+  /** How long the train runs after this many stops: a short first leg, a few growing ones, then the cruise. */
+  legSeconds(stopsDone: number): number {
+    if (stopsDone === 0) return this.config.firstLegMoveSeconds;
+    return this.config.earlyLegSeconds?.[stopsDone - 1] ?? this.config.moveSeconds;
   }
 
   get duration(): number {
@@ -164,7 +172,7 @@ export class Journey {
       case 'departing':
         this.phase = 'onTheMove';
         this.legsCompleted++;
-        this.moveDuration = this.stopSerial === 0 ? this.config.firstLegMoveSeconds : this.config.moveSeconds;
+        this.moveDuration = this.legSeconds(this.stopSerial);
         break;
     }
     this.listener.onPhase(this.phase, previous);

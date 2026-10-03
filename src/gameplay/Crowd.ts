@@ -11,7 +11,7 @@ interface Body {
 }
 
 /** Guest states where the guest is standing somewhere on the train floor (not in bed, not on the platform). */
-const FLOOR_STATES: ReadonlySet<GuestState> = new Set<GuestState>(['boarding', 'queue', 'toCabin', 'settling', 'requesting', 'toBathroom', 'waitingBathroom', 'returning', 'alighting']);
+const FLOOR_STATES: ReadonlySet<GuestState> = new Set<GuestState>(['deck', 'boarding', 'queue', 'toCabin', 'settling', 'requesting', 'toBathroom', 'waitingBathroom', 'returning', 'alighting']);
 const WALKING_STATES: ReadonlySet<GuestState> = new Set<GuestState>(['boarding', 'toCabin', 'toBathroom', 'returning', 'alighting']);
 
 const MIN_GAP = 0.5;

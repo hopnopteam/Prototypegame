@@ -104,10 +104,19 @@ const tmp = new THREE.Vector3();
 /** Pillow centre from the head of the bed, and the sleeper's head from their root (CharacterView). */
 const PILLOW_Z = 0.27;
 const SLEEPER_HEAD = 1.02;
-/** Room doors open when someone is this close to the doorway centre (metres), at these rates (per second). */
-const ROOM_DOOR_REACH = 1.25;
-const ROOM_DOOR_OPEN_RATE = 4;
-const ROOM_DOOR_CLOSE_RATE = 1.6;
+/**
+ * Room doors swing open when someone comes this close to the doorway (metres), early enough to be wide open
+ * before they get there even at a stride, and stay open until everyone is a little further off (`ROOM_DOOR_KEEP`)
+ * so they never flap at the edge. Rates are per second: a quick swing open, a gentler one shut.
+ */
+const ROOM_DOOR_REACH = 2.0;
+const ROOM_DOOR_KEEP = 2.4;
+/** The approach to a doorway reaches this far past its posts along the corridor. */
+const ROOM_DOOR_SIDE = 0.5;
+/** Walking within this angle of straight at the doorway counts as heading in (cosine): passing by does not. */
+const ROOM_DOOR_HEADING = 0.55;
+const ROOM_DOOR_OPEN_RATE = 4.5;
+const ROOM_DOOR_CLOSE_RATE = 2.2;
 /** A cabin's mess clears away in this many visible steps while it is tidied. */
 const CLEAN_STEPS = 7;
 /** Where the conductor steps to (metres ahead of the old rear) while a new carriage rolls in. */
@@ -227,9 +236,9 @@ export class TrainState {
     });
   }
 
-  /** A carriage is joining: being chosen, or rolling in. */
+  /** A carriage is joining (being chosen, or rolling in) or being rebuilt for a refit. */
   get growing(): boolean {
-    return this.coupling || this.choosing || this.pendingChoice;
+    return this.coupling || this.choosing || this.pendingChoice || this.refitting.size > 0;
   }
 
   get count(): number {
@@ -424,8 +433,12 @@ export class TrainState {
     const index = this.types.length;
     if (this.coupling) return;
     this.coupling = true;
+    // The carriage is built a slice per frame first (the chooser has just closed), then rolls in.
+    this.buildView(type, index, this.savedTier(index), true, (view) => this.rollIn(type, index, view, onDone));
+  }
+
+  private rollIn(type: CarriageType, index: number, view: CarriageView, onDone?: () => void): void {
     const plan = { type, name: '' };
-    const view = new CarriageView(getLayout(plan.type, this.savedTier(index)), index, this.savedTier(index));
     const targetZ = carriageOriginZ(index);
     const startZ = targetZ + 48;
     view.group.position.z = startZ;
@@ -663,9 +676,54 @@ export class TrainState {
     const old = this.views[index];
     const type = this.types[index];
     if (!old || type === undefined || tier <= old.tier) return;
+    // One rebuild per carriage at a time; a further refit waits for it (only fast-forwarding can ask for one).
+    if (this.refitting.has(index)) {
+      this.refitQueue.set(index, Math.max(tier, this.refitQueue.get(index) ?? 0));
+      return;
+    }
+    // During play the new carriage is built a slice per frame (session 16: built at once it stalled the frame
+    // the refit was bought, long enough on a phone to break up the sound), and the makeover starts when it is
+    // ready, a few frames later. Loading a save builds at once.
+    this.refitting.add(index);
+    this.buildView(type, index, tier, animate, (view) => {
+      this.refitting.delete(index);
+      this.finishRefurbish(index, type, tier, view, animate);
+      // Nothing new appeared while it was rebuilt (`growing`): what is next shows now.
+      if (animate) this.w.tiles.refresh();
+      const next = this.refitQueue.get(index);
+      if (next !== undefined) {
+        this.refitQueue.delete(index);
+        this.refurbish(index, next, animate);
+      }
+    });
+  }
+
+  /** Carriages being rebuilt for a refit, and a further refit asked for meanwhile. */
+  private readonly refitting = new Set<number>();
+  private readonly refitQueue = new Map<number, number>();
+  private buildSerial = 0;
+
+  /**
+   * A carriage view for this type and tier: built a slice per frame through the background queue (during
+   * play: a whole carriage at once costs several frames' time on a phone), or at once (loading, previews).
+   */
+  private buildView(type: CarriageType, index: number, tier: number, sliced: boolean, ready: (view: CarriageView) => void): void {
+    if (!sliced) {
+      ready(new CarriageView(getLayout(type, tier), index, tier));
+      return;
+    }
+    const view = new CarriageView(getLayout(type, tier), index, tier, true);
+    const steps = function* (): Generator<void, void, void> {
+      yield* view.buildSteps();
+      ready(view);
+    };
+    this.w.background.add(`carriage:${index}:${++this.buildSerial}`, steps());
+  }
+
+  private finishRefurbish(index: number, type: CarriageType, tier: number, view: CarriageView, animate: boolean): void {
+    const old = this.views[index];
     // A new class can mean a new floor plan: fewer, bigger, grander rooms.
     const relayout = layoutKey(type, old.tier) !== layoutKey(type, tier);
-    const view = new CarriageView(getLayout(type, tier), index, tier);
     view.group.position.copy(old.group.position);
     if (!relayout) for (const cabin of this.cabins) if (cabin.carriage === index) view.setCabinLocked(cabin.index, !cabin.unlocked);
     for (const bath of this.bathrooms) if (bath.carriage === index) view.setBathroomLocked(bath.layout.index, !bath.unlocked);
@@ -807,12 +865,16 @@ export class TrainState {
   /** Room doors slide open for anyone walking up to them, and close behind. Locked rooms stay shut. */
   private updateRoomDoors(dt: number): void {
     const w = this.w;
-    const reach2 = ROOM_DOOR_REACH * ROOM_DOOR_REACH;
+    // The conductor's heading, once a frame (read by every door).
+    const v = w.player.velocity;
+    const speed = Math.hypot(v.x, v.z);
+    this.playerHeading.x = speed > 0.3 ? v.x / speed : 0;
+    this.playerHeading.z = speed > 0.3 ? v.z / speed : 0;
     for (let i = 0; i < this.views.length; i++) {
       const view = this.views[i];
       const originZ = view.group.position.z;
       for (const door of view.roomDoors) {
-        const want = door.locked ? 0 : this.someoneNear(door, originZ, reach2) ? 1 : 0;
+        const want = door.locked ? 0 : this.someoneAtDoor(door, originZ, door.open > 0) ? 1 : 0;
         if (door.open === want) continue;
         const rate = want > door.open ? ROOM_DOOR_OPEN_RATE : ROOM_DOOR_CLOSE_RATE;
         const next = want > door.open ? Math.min(1, door.open + dt * rate) : Math.max(0, door.open - dt * rate);
@@ -822,17 +884,33 @@ export class TrainState {
     }
   }
 
-  private someoneNear(door: RoomDoor, originZ: number, reach2: number): boolean {
+  /**
+   * Someone is coming through: in the doorway or the room just inside it, or walking at the doorway from the
+   * corridor (walking past along the corridor does not open every door). An open door stays open while anyone
+   * is still close, so it never shuts on them.
+   */
+  private readonly playerHeading = { x: 0, z: 0 };
+
+  private someoneAtDoor(door: RoomDoor, originZ: number, open: boolean): boolean {
     const w = this.w;
-    const dz = door.z + originZ;
-    const near = (p: Vec2): boolean => {
+    const doorZ = door.z + originZ;
+    const halfZ = door.width / 2 + ROOM_DOOR_SIDE + (open ? 0.3 : 0);
+    const reach = open ? ROOM_DOOR_KEEP : ROOM_DOOR_REACH;
+    const at = (p: Vec2, dirX: number, dirZ: number): boolean => {
+      // Rooms are on the +x side of the partition.
       const x = p.x - door.x;
-      const z = p.z - dz;
-      return x * x + z * z < reach2;
+      const z = p.z - doorZ;
+      if (Math.abs(z) > halfZ || Math.abs(x) > reach) return false;
+      if (open || x > -0.1) return true;
+      if (dirX === 0 && dirZ === 0) return x > -0.5 && Math.abs(z) < door.width / 2;
+      const len = Math.hypot(x, z) || 1;
+      return (-x * dirX - z * dirZ) / len > ROOM_DOOR_HEADING;
     };
-    if (near(w.player.pos)) return true;
-    for (const m of w.staff.members) if (near(m.pos)) return true;
-    for (const g of w.guests.list) if (!g.inCabin && near(g.pos)) return true;
+    if (at(w.player.pos, this.playerHeading.x, this.playerHeading.z)) return true;
+    const mover = (pos: Vec2, m: { facing: number; speedNow: number }): boolean =>
+      m.speedNow > 0 ? at(pos, Math.sin(m.facing), Math.cos(m.facing)) : at(pos, 0, 0);
+    for (const m of w.staff.members) if (mover(m.pos, m.mover)) return true;
+    for (const g of w.guests.list) if (!g.inCabin && mover(g.pos, g.mover)) return true;
     return false;
   }
 
