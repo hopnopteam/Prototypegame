@@ -1,0 +1,78 @@
+# Builds an installable Android test APK of Night Express on every push to the working branch (and on demand).
+# The web game is built, wrapped by Capacitor and signed with the repo's fixed test key, so each new APK installs
+# over the last one. The APK is attached to the run and to a pre-release you can open on the phone.
+name: Android test build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/new-session-zlmzpt]
+    paths:
+      - 'src/**'
+      - 'assets/**'
+      - 'android/**'
+      - 'scripts/build.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.ts'
+      - '.github/workflows/android-apk.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the game
+        run: npm run build
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Copy the game into the Android project
+        run: npx cap sync android
+
+      - name: Build the APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "night-express-${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: night-express-apk-${{ github.run_number }}
+          path: night-express-${{ github.run_number }}.apk
+
+      - name: Publish a test pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-test-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Night Express Android test build ${{ github.run_number }}
+          prerelease: true
+          files: night-express-${{ github.run_number }}.apk
+          body: |
+            Test build of Night Express for Android (not for the Play Store).
+            On the phone: download the APK, allow installs from this source when asked, and open it.
+            Built from ${{ github.sha }}.

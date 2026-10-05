@@ -7,8 +7,9 @@ android {
         applicationId "com.hopnop.nightexpress"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Test builds from CI count up, so each new APK installs over the last one.
+        versionCode((System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger())
+        versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,7 +17,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Test builds (not for the stores) are signed with one fixed key kept in the repo, so every new APK
+    // installs over the last one. Store builds use their own upload key (NATIVE.md), never this one.
+    signingConfigs {
+        test {
+            storeFile file('test-signing.keystore')
+            storePassword 'nightexpress'
+            keyAlias 'nightexpress-test'
+            keyPassword 'nightexpress'
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.test
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
