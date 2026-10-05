@@ -115,7 +115,8 @@ export const ECONOMY = {
     maxBoarders: 7,
     luggageChance: 0.7,
     /** Session 16: one guest at the desk to start (one room, one guest, one upgrade); more walk in as cabins open. */
-    initialGuests: 1,
+    /** Guests already inside at the desk when a new game opens (session 19: none, the opening starts outside). */
+    initialGuests: 0,
     /** Until this many stops are done every guest rides exactly one leg: the opening is scripted, never luck. */
     earlyStopsOneLeg: 3,
     /** Seconds a new guest sits on the bed edge reading before lying down (it counts toward their first request). */
@@ -258,15 +259,26 @@ export const ECONOMY = {
     openingTiles: ['c0.cabin_1', 'c0.cabin_2', 'c0.hire_attendant', 'c0.refurb_1', 'couple_1'] as string[],
     /**
      * Where the first passengers come from (session 17, owner: "where guests are coming from… a whole system where
-     * logistically it makes total sense"): a new game opens standing at Millbrook with the doors open. One guest
-     * has already stepped in and waits at the desk; `travellers` more wait on the platform with a "no room" sign
-     * (one cabin is ready, and it is spoken for). Each cabin built frees a bed and the next one walks aboard by
-     * themselves (`boardDelay` seconds after the purchase; the boarding pad is taught at the first real stop).
-     * Once they are all inside, the last call sounds and the train leaves `lastCallSeconds` later. The clock is
-     * held until then: the train never leaves anyone it has a bed for. Every passenger after that boards at a
-     * station.
+     * logistically it makes total sense"): a new game opens standing at Millbrook with the doors open. Session 19
+     * (owner: "start from collecting tickets from outside and then the game moves inside"): the conductor starts
+     * on the platform beside `travellers` waiting passengers. The first collects their ticket at the door (the
+     * boarding pad, the walkthrough's first step) and walks in to the desk; the conductor follows them inside.
+     * The other has a "no room" sign (one cabin is ready); each cabin built frees a bed and they walk aboard by
+     * themselves (`boardDelay` seconds after the purchase). Once everyone with a bed is inside, the last call
+     * sounds and the train leaves `lastCallSeconds` later. The clock is held until then: the train never leaves
+     * anyone it has a bed for. Every passenger after that boards at a station.
      */
-    prologue: { travellers: 1, boardDelay: 0.6, lastCallSeconds: 6 },
+    prologue: {
+      travellers: 2,
+      boardDelay: 0.6,
+      lastCallSeconds: 6,
+      /**
+       * Who waits on the platform, in order. The first pays a full fare (a backpacker), so their fare always
+       * buys the first cabin: a cheaper archetype (a student pays 14 of the 15) left the opening with no way to
+       * earn the last coin (session 19).
+       */
+      archetypes: ['backpacker', 'student'] as string[],
+    },
     features: {
       /** The goal chain (it also waits for the walkthrough and the train's name, see Objectives). */
       goals: { stops: 1 },

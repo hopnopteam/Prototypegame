@@ -117,12 +117,12 @@ export class Guests {
    * Guests waiting on the platform, in platform-local coordinates, one class per spot (Station decides: the
    * classes the train sells, and now and then one it does not yet).
    */
-  spawnPlatformGuests(spots: Vec2[], storyGuest: StoryDef | null, classes: ClassId[]): Guest[] {
+  spawnPlatformGuests(spots: Vec2[], storyGuest: StoryDef | null, classes: ClassId[], archetypes: string[] = []): Guest[] {
     const created: Guest[] = [];
     spots.forEach((spot, i) => {
       const story = i === 0 ? storyGuest : null;
       const cls = classes[i] ?? 'basic';
-      const guest = this.create(this.pickArchetype(cls), spot.x, spot.z, story);
+      const guest = this.create(this.pickArchetype(cls, archetypes[i]), spot.x, spot.z, story);
       // A story guest rides in whatever class they are given a ticket for.
       guest.cls = cls;
       guest.state = 'platform';
@@ -163,7 +163,9 @@ export class Guests {
    * Millbrook, before the first departure, travellers step aboard by themselves as rooms open).
    */
   canBoard(): boolean {
-    return !this.w.station.prologue && this.nextBoarder() !== null;
+    // At Millbrook only the first ticket is collected at the pad; after that travellers step aboard by themselves.
+    const station = this.w.station;
+    return (!station.prologue || !station.prologueTicketsDone) && this.nextBoarder() !== null;
   }
 
   /** Someone on the platform has a bed of their class (whoever boards them). */
@@ -658,8 +660,10 @@ export class Guests {
       this.destroy(guest);
       return;
     }
-    // If their stop came and went while they were in the bathroom, they alight now.
+    // If their stop came while they were in the bathroom, they alight now. They are out of the washroom
+    // first: alighting refuses anyone still in one, which once held them there for the whole stop.
     if (guest.destinationStop <= w.journey.stopSerial && w.journey.doorsOpen) {
+      this.setState(guest, 'returning');
       this.startAlighting(guest);
       return;
     }
@@ -737,6 +741,7 @@ export class Guests {
     if (guest.state === 'toBathroom' || guest.state === 'waitingBathroom' || guest.state === 'inBathroom') return;
     if (!w.journey.doorsOpen) return;
     const cabin = guest.cabin;
+    const fromBed = guest.inCabin;
     // They leave a tip and a lived-in cabin behind.
     let tip = w.econ.money.alightTip * guest.archetype.tipMultiplier * w.tipMultiplier() * w.train.cabinTipMultiplier(cabin);
     if (w.train.luggageStored > 0) {
@@ -753,7 +758,9 @@ export class Guests {
     guest.view.act('wave', 1.2);
     guest.view.showBubble(null);
     const door = w.map.doors()[0];
-    const from = cabin.node;
+    // From the bed, or from wherever they are (a washroom, the corridor): a path from the cabin's node would
+    // have them walk straight through the walls to reach it.
+    const from = fromBed ? cabin.node : (w.map.nearestNode(guest.pos.x, guest.pos.z) ?? cabin.node);
     const path = w.map.nav.findPath(from, door.outsideNode);
     const exit = { x: door.outside.x + 2.2, z: door.outside.z - 3 - w.rng.next() * 3 };
     guest.mover.go([...(path ?? [door.inside, door.outside]), exit], () => this.finishAlighting(guest, false));

@@ -279,7 +279,28 @@ export class Stage {
     this.preRender?.render(this.renderer, this.scene, cam);
     if (this.fx) this.fx.render(dt);
     else this.renderer.render(this.scene, cam);
+    this.pinPrograms();
   }
+
+  /**
+   * Keeps every shader program once compiled (session 19). three.js deletes a program when the last material
+   * using it is disposed, so a sprite, poster or label rebuilt later (a new tile marker, the next station's
+   * posters) compiled the same program again mid-game: a hitch of tens of milliseconds on a phone each time.
+   * A few dozen kept programs cost nothing; a recompile in play is what the player feels.
+   */
+  private pinPrograms(): void {
+    const programs = this.renderer.info.programs;
+    if (!programs || programs.length === this.pinnedCount) return;
+    for (const program of programs) {
+      const p = program as unknown as { usedTimes: number; __nxPinned?: boolean };
+      if (p.__nxPinned) continue;
+      p.__nxPinned = true;
+      p.usedTimes++;
+    }
+    this.pinnedCount = programs.length;
+  }
+
+  private pinnedCount = 0;
 
   /**
    * Compiles every shader the game will need before the first frame. A shader first met mid-game (the
@@ -298,12 +319,23 @@ export class Stage {
       ...Object.values(MATERIALS),
       ...clippedClones(),
       new THREE.MeshLambertMaterial({ map: texture }),
+      // Posters and billboards before their picture arrives (session 19: compiled mid-game otherwise).
+      new THREE.MeshLambertMaterial({ color: '#ffffff' }),
       new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false }),
       new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false }),
     ];
-    for (const material of materials) {
+    const textured = 4;
+    materials.forEach((material, index) => {
       const mesh = new THREE.Mesh(geometry, material);
       const instanced = new THREE.InstancedMesh(geometry, material, 1);
+      // Signs, posters and labels are drawn without receiving shadows (a different shader): both variants.
+      const plain = index >= materials.length - textured ? new THREE.Mesh(geometry, material) : null;
+      if (plain) {
+        plain.frustumCulled = false;
+        plain.scale.setScalar(1e-3);
+        plain.position.copy(this.rig.focusPoint).setY(-6);
+        group.add(plain);
+      }
       for (const m of [mesh, instanced]) {
         m.castShadow = true;
         m.receiveShadow = true;
@@ -312,7 +344,7 @@ export class Stage {
         m.position.copy(this.rig.focusPoint).setY(-6);
         group.add(m);
       }
-    }
+    });
     const sprites = [
       new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false }),
       new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false, toneMapped: false, fog: false, sizeAttenuation: false }),
@@ -331,7 +363,7 @@ export class Stage {
     this.scene.remove(group);
     // The stand-in materials are kept (never disposed): three frees a shader as soon as no material uses it,
     // and the textured ones are the only users until a poster or nameplate needs that shader later.
-    this.warmMaterials.push(...materials.slice(-3), ...sprites);
+    this.warmMaterials.push(...materials.slice(-textured), ...sprites);
     this.renderer.shadowMap.needsUpdate = true;
   }
 

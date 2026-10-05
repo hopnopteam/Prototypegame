@@ -255,7 +255,9 @@ export class Game implements World {
 
     this.train.init();
     this.applyLivery();
-    const spawn = this.map.anchor(0, 'playerSpawn');
+    // A new game opens outside on the Millbrook platform, collecting tickets (session 19); otherwise in the lobby.
+    const opening = this.journey.phase === 'stationStop' && this.journey.held;
+    const spawn = opening ? Station.prologueSpawn(this.map.doors()[0]) : this.map.anchor(0, 'playerSpawn');
     this.player = new Player(this, this.input, spawn);
     this.guidance = new Guidance(this);
     this.needs = new TrainNeeds(this);
@@ -308,8 +310,10 @@ export class Game implements World {
    */
   private listenForAudioGesture(): void {
     this.audio.prepare();
+    // Every gesture: cheap when audio is already running, and it revives the context (and the master fade)
+    // after an interruption the browser would not resume by itself.
     const tryUnlock = (): void => {
-      if (!this.audio.unlocked) this.audio.unlock();
+      this.audio.unlock();
     };
     for (const name of ['pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(name, tryUnlock, { capture: true, passive: true });
   }
@@ -767,7 +771,7 @@ export class Game implements World {
       ? new THREE.Vector3(1.6, 0, -4.2)
       : next.focus === 'lobby'
         ? new THREE.Vector3(0.3, 0, 5.2)
-        : new THREE.Vector3(this.player.pos.x, 0, this.player.pos.z - 0.6);
+        : new THREE.Vector3(this.player.pos.x, 0, this.player.pos.z + 0.6);
     this.stage.rig.focusOn(target, next.seconds + 0.6, next.zoom, 1.5);
     this.ui.showCaption({ kicker: next.kicker, text: next.text });
   }

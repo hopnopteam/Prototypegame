@@ -33,6 +33,8 @@ function shuffled<T>(items: readonly T[], rng: { next(): number }): T[] {
 const BILLBOARD_COUNT = 3;
 /** Where the first travellers wait on the Millbrook platform (along the lobby, in the opening's view). */
 const PROLOGUE_WAIT_Z = 5.9;
+/** Where a new game's conductor stands on the platform, from the lobby door's outside point (session 19). */
+const PROLOGUE_SPAWN = { dx: 1.3, dz: 2.3 };
 
 /**
  * The journey rhythm made physical (§5): the platform glides in and stops at the doors, guests board and
@@ -62,6 +64,11 @@ export class Station {
    * until the travellers it has rooms for are aboard. Travellers step aboard by themselves as rooms open.
    */
   prologue = false;
+  /**
+   * At Millbrook the conductor collects the first traveller's ticket by hand (session 19); after that, whoever
+   * gets a bed steps aboard by themselves, since the conductor is inside by then.
+   */
+  prologueTicketsDone = false;
   /** Seconds a traveller on the Millbrook platform has had a free bed (they step aboard after a beat). */
   private prologueWait = 0;
 
@@ -69,7 +76,18 @@ export class Station {
     w.scene.add(this.view.group);
     w.events.on('luggage.loaded', () => this.luggageLoadedThisStop++);
     w.events.on('guest.alighted', () => this.alightedThisStop++);
-    w.events.on('guest.boarded', () => this.boardedThisStop++);
+    w.events.on('guest.boarded', ({ byPlayer }) => {
+      this.boardedThisStop++;
+      if (this.prologue && byPlayer && !this.prologueTicketsDone) {
+        this.prologueTicketsDone = true;
+        w.ftue('first_ticket');
+      }
+    });
+  }
+
+  /** Where a new game's conductor starts: on the Millbrook platform, a few steps from the door and the travellers. */
+  static prologueSpawn(door: { outside: Vec2 }): Vec2 {
+    return { x: door.outside.x + PROLOGUE_SPAWN.dx, z: door.outside.z + PROLOGUE_SPAWN.dz };
   }
 
   init(): void {
@@ -180,16 +198,18 @@ export class Station {
 
   /**
    * A brand-new game opens here (session 17, owner: "where guests are coming from"): standing at Millbrook,
-   * doors open, the platform alongside. One guest has already stepped in and waits at the desk; a traveller
-   * waits outside with a "no room" sign, because the one ready cabin is spoken for. Build a cabin and they walk
-   * aboard; once everyone the train has a bed for is inside, the last call sounds and it pulls out. Passengers
-   * only ever come from a station platform.
+   * doors open, the platform alongside. Session 19: the conductor starts outside with the travellers and
+   * collects the first one's ticket at the door; that traveller walks in to the desk and the game moves inside.
+   * The other waits with a "no room" sign, because the one ready cabin is spoken for. Build a cabin and they
+   * walk aboard; once everyone the train has a bed for is inside, the last call sounds and it pulls out.
+   * Passengers only ever come from a station platform.
    */
   startPrologue(): void {
     const w = this.w;
     const j = w.journey;
     if (j.phase !== 'stationStop' || !j.held) return;
     this.prologue = true;
+    this.prologueTicketsDone = false;
     this.prologueWait = 0;
     this.spawnedForStop = j.stopSerial;
     w.map.setDoorsOpen(true);
@@ -198,7 +218,7 @@ export class Station {
     this.view.setOffset(0);
     this.view.setHeadline(`${this.currentStation().name} awaits the night train`);
     const count = w.econ.flow.prologue.travellers;
-    w.guests.spawnPlatformGuests(this.prologueSpots(count), null, new Array<ClassId>(count).fill('basic'));
+    w.guests.spawnPlatformGuests(this.prologueSpots(count), null, new Array<ClassId>(count).fill('basic'), w.econ.flow.prologue.archetypes);
     w.audio.setStationAmbience(true);
   }
 
@@ -212,6 +232,8 @@ export class Station {
     }
     if (!j.held) return;
     const rules = w.econ.flow.prologue;
+    // The first ticket is the conductor's to collect (the walkthrough's first step): nobody boards before it.
+    if (!this.prologueTicketsDone) return;
     if (w.guests.hasBoarder()) {
       this.prologueWait += dt;
       if (this.prologueWait >= rules.boardDelay) {

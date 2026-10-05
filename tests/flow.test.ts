@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TRAIN } from '../src/config/content';
+import { ARCHETYPES, DEFAULT_TRAIN } from '../src/config/content';
 import { ECONOMY } from '../src/config/economy';
 import { Flow } from '../src/gameplay/Flow';
 import type { World } from '../src/gameplay/World';
@@ -34,11 +34,16 @@ describe('the opening', () => {
     }
   });
 
-  it('starts with one guest and nothing on the floor, and the first cabin costs no more than the first fare', () => {
-    expect(ECONOMY.guests.initialGuests).toBe(1);
+  it('starts outside with travellers to collect tickets from, nothing on the floor, and the first cabin costs no more than the first fare', () => {
+    // Session 19: nobody waits inside; the opening starts on the platform with more travellers than ready beds.
+    expect(ECONOMY.guests.initialGuests).toBe(0);
+    expect(ECONOMY.flow.prologue.travellers).toBeGreaterThanOrEqual(2);
     expect(ECONOMY.money.startingFloorCash).toBe(0);
     const first = buildUnlocks(['lobby']).find((d) => d.id === opening[0])!;
     expect(first.price).toBeLessThanOrEqual(ECONOMY.money.baseFare);
+    // The first traveller's own fare buys it (a cheaper archetype once soft-locked the opening).
+    const firstTraveller = ARCHETYPES.find((a) => a.id === ECONOMY.flow.prologue.archetypes[0])!;
+    expect(Math.round(ECONOMY.money.baseFare * firstTraveller.fareMultiplier)).toBeGreaterThanOrEqual(first.price);
   });
 });
 

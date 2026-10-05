@@ -68,7 +68,16 @@ await page.evaluate(() => {
     for (const p of audio.passes) if (!seen.has(p)) { seen.add(p); window.__passStarts.push(p.at); }
   }, 100);
 });
-await page.waitForTimeout(seconds * 1000);
+// Session 19: a stalled main thread (a slow frame on a weak phone, or the page's frames halted while the
+// audio runs on) must never leave the music without its next pass. Freeze the page for 3 s mid-recording.
+await page.waitForTimeout(Math.min(20, seconds / 2) * 1000);
+const queuedAhead = await page.evaluate(() => {
+  const a = window.nightExpress.audio;
+  return a.passes.some((p) => p.at > window.__ctx.currentTime);
+});
+check(queuedAhead, 'the next pass of the theme is always queued ahead on the audio clock');
+await page.evaluate(() => { const end = performance.now() + 3000; while (performance.now() < end) { /* stall */ } });
+await page.waitForTimeout(Math.max(0, seconds - Math.min(20, seconds / 2) - 3) * 1000);
 
 const result = await page.evaluate(() => {
   const sr = window.__ctx.sampleRate;
@@ -94,6 +103,31 @@ const result = await page.evaluate(() => {
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return { sr, n, peak, perSecond, pcm: btoa(bin), passes: window.__passStarts, loop: window.nightExpress.audio.passes.length, recStart: window.__recStart ?? 0 };
 });
+// Away and back: the music fades out, the context suspends, and it all comes back on return.
+{
+  await page.evaluate(() => window.nightExpress.toBackground());
+  await page.waitForTimeout(800);
+  const away = await page.evaluate(() => ({ state: window.__ctx.state, level: window.nightExpress.audio.masterLevel }));
+  await page.evaluate(() => window.nightExpress.toForeground());
+  await page.waitForTimeout(800);
+  const back = await page.evaluate(() => ({ state: window.__ctx.state, level: window.nightExpress.audio.masterLevel }));
+  check(away.level < 0.01 && back.state === 'running' && back.level > 0.5, `music fades away in the background and back on return (away ${away.level.toFixed(2)}, back ${back.level.toFixed(2)} ${back.state})`);
+  // A resume the browser refuses (iOS after an interruption, no gesture yet): the next tap must bring it all back.
+  await page.evaluate(() => window.nightExpress.toBackground());
+  await page.waitForTimeout(600);
+  await page.evaluate(() => {
+    const ctx = window.__ctx;
+    const real = ctx.resume.bind(ctx);
+    let refused = false;
+    ctx.resume = () => (refused ? real() : ((refused = true), Promise.reject(new Error('not allowed'))));
+    window.nightExpress.toForeground();
+  });
+  await page.waitForTimeout(500);
+  await page.mouse.click(195, 700);
+  await page.waitForTimeout(800);
+  const revived = await page.evaluate(() => ({ state: window.__ctx.state, level: window.nightExpress.audio.masterLevel }));
+  check(revived.state === 'running' && revived.level > 0.5, `a refused resume is revived by the next tap (${revived.state}, level ${revived.level.toFixed(2)})`);
+}
 // A phone: a touch tap (whose pointerdown is not an audio gesture; its touchend / pointerup is) starts the theme.
 {
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -118,7 +152,10 @@ check(result.peak < 0.99, 'the output never clips');
 const FADE_IN = 2.5;
 const themeFrom = result.passes.length ? Math.max(0, Math.ceil(result.passes[0] - result.recStart + FADE_IN)) : 0;
 check(result.passes.length > 0 && themeFrom < 10, `the theme starts soon after the first touch (${themeFrom} s in, fade included)`);
-check(result.perSecond.slice(themeFrom).every((v) => v > -70), 'never silent once the theme is in (it plays under everything)');
+check(result.perSecond.slice(themeFrom).every((v) => v > -70), 'never silent once the theme is in (it plays under everything), even through a 3 s main-thread stall');
+const inPlay = result.perSecond.slice(themeFrom);
+const quietest = inPlay.length ? Math.min(...inPlay) : -99;
+check(quietest > -45, `the music stays audible on a phone speaker (quietest second ${quietest.toFixed(0)} dBFS RMS)`);
 if (seconds > loop + 2) check(gaps.length >= 1 && gaps.every((g) => Math.abs(g - loop) < 0.02), `the next pass queues exactly one loop apart (gaps: ${gaps.map((g) => g.toFixed(3)).join(', ') || 'none'})`);
 check(errors.length === 0, `no audio errors${errors.length ? `: ${errors.slice(0, 3).join(' | ')}` : ''}`);
 

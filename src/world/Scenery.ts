@@ -5,11 +5,11 @@ import { GeoBuilder } from './geo';
 import { CHUNK, chunkSteps, FILL_KINDS, FILL_SLOTS, fillGeometries, LAND_DECK, runSteps, SHORE_DECK, type ChunkBuild, type DeckEntry, type FillKind, type LandKind, type PieceKind, type ShoreKind } from './Lakeside';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
-import { groundHeight, TRACK_HALF } from './terrain';
+import { groundHeight, SCENERY_SPREAD, WORLD_TRACK_HALF } from './terrain';
 import { PlanarReflection, REFLECT_LAYER, Water } from './Water';
 
 /** Billboards stand just beyond the ballast on the land side, where the camera always catches them. */
-const BILLBOARD_X = 4.25;
+const BILLBOARD_X = 4.25 + SCENERY_SPREAD;
 const BILLBOARD_W = 2.3;
 const BILLBOARD_H = 1.2;
 /** The world the stretches tile: from well ahead of the locomotive to well behind the longest train. */
@@ -160,7 +160,7 @@ export class Scenery {
 
     // Track bed and rails. Rails are uniform along z, so they stay put while the sleepers scroll.
     const bed = new GeoBuilder();
-    bed.box(0, 0.05, (SPAN_MIN + SPAN_MAX) / 2, (TRACK_HALF - 0.52) * 2, 0.1, SPAN_MAX - SPAN_MIN + 60, '#7E7B76', 0, { pattern: PATTERN.dots, color2: '#6E6B66', scale: 0.12, shade: 1, surface: 'stone' });
+    bed.box(0, 0.05, (SPAN_MIN + SPAN_MAX) / 2, (WORLD_TRACK_HALF - 0.52) * 2, 0.1, SPAN_MAX - SPAN_MIN + 60, '#7E7B76', 0, { pattern: PATTERN.dots, color2: '#6E6B66', scale: 0.12, shade: 1, surface: 'stone' });
     for (const x of [-0.72, 0.72]) {
       bed.box(x, 0.22, (SPAN_MIN + SPAN_MAX) / 2, 0.1, 0.12, SPAN_MAX - SPAN_MIN + 60, PALETTE.rail, 0, { shade: 0.8, surface: 'iron' });
       bed.box(x, 0.285, (SPAN_MIN + SPAN_MAX) / 2, 0.07, 0.012, SPAN_MAX - SPAN_MIN + 60, PALETTE.railTop, 0, { shade: 1, surface: { roughness: 0.55, metalness: 0.4 } });
@@ -255,8 +255,9 @@ export class Scenery {
       if (z0 > focusZ + CHIMNEY_VIEW[1] || z0 + CHUNK < focusZ + CHIMNEY_VIEW[0]) continue;
       for (const c of build.chimneys) {
         const z = z0 + c.z;
-        if (z < focusZ + CHIMNEY_VIEW[0] || z > focusZ + CHIMNEY_VIEW[1] || this.isHidden(c.x, z)) continue;
-        emit(c.x, c.y, z);
+        const x = c.x < 0 ? c.x - SCENERY_SPREAD : c.x + SCENERY_SPREAD;
+        if (z < focusZ + CHIMNEY_VIEW[0] || z > focusZ + CHIMNEY_VIEW[1] || this.isHidden(x, z)) continue;
+        emit(x, c.y, z);
       }
     }
   }
@@ -336,15 +337,18 @@ export class Scenery {
       group.add(m);
       return m;
     };
+    const lakeSide = (m: THREE.Mesh): THREE.Mesh => ((m.position.x = -SCENERY_SPREAD), m);
+    const landSide = (m: THREE.Mesh): THREE.Mesh => ((m.position.x = SCENERY_SPREAD), m);
     const chunk: Chunk = {
       group,
       terrain: mesh(MATERIALS.scenery, false, false),
-      lake: mesh(MATERIALS.scenery, true, true),
-      land: mesh(MATERIALS.scenery, true, false),
-      lakeGlow: mesh(MATERIALS.lamps, false, true, false),
-      landGlow: mesh(MATERIALS.lamps, false, false, false),
-      lakePools: pools(),
-      landPools: pools(),
+      // Lakeside pieces are built in their own coordinates and moved out to the world (SCENERY_SPREAD).
+      lake: lakeSide(mesh(MATERIALS.scenery, true, true)),
+      land: landSide(mesh(MATERIALS.scenery, true, false)),
+      lakeGlow: lakeSide(mesh(MATERIALS.lamps, false, true, false)),
+      landGlow: landSide(mesh(MATERIALS.lamps, false, false, false)),
+      lakePools: lakeSide(pools()),
+      landPools: landSide(pools()),
       beam,
       sails,
       z: 0,
@@ -472,9 +476,9 @@ export class Scenery {
     set(chunk.lakePools, prepared.lakePools);
     set(chunk.landPools, prepared.landPools);
     chunk.beam.visible = build.beacon !== null;
-    if (build.beacon) chunk.beam.position.copy(build.beacon);
+    if (build.beacon) chunk.beam.position.copy(build.beacon).setX(build.beacon.x - SCENERY_SPREAD);
     chunk.sails.visible = build.windmill !== null;
-    if (build.windmill) chunk.sails.position.copy(build.windmill);
+    if (build.windmill) chunk.sails.position.copy(build.windmill).setX(build.windmill.x + SCENERY_SPREAD);
     chunk.landHidden = false;
     this.writeFill(chunk);
   }
@@ -487,8 +491,9 @@ export class Scenery {
       for (const spot of build.fill) {
         const slot = used[spot.kind] ?? 0;
         if (slot >= FILL_SLOTS[spot.kind]) continue;
-        if (spot.land && this.isHidden(spot.x, chunk.z + spot.z + this.scroll)) continue;
-        dummy.position.set(spot.x, spot.y, spot.z);
+        const x = spot.land ? spot.x + SCENERY_SPREAD : spot.x - SCENERY_SPREAD;
+        if (spot.land && this.isHidden(x, chunk.z + spot.z + this.scroll)) continue;
+        dummy.position.set(x, spot.y, spot.z);
         dummy.rotation.set(0, spot.rot, 0);
         dummy.scale.set(spot.scale, spot.scale, spot.scale);
         dummy.updateMatrix();
@@ -542,7 +547,7 @@ export class Scenery {
 }
 
 /** Kept clear of everything: the track bed (scenery never enters it). */
-export const SCENERY_TRACK_HALF = TRACK_HALF;
+export const SCENERY_TRACK_HALF = WORLD_TRACK_HALF;
 
 /** The lighthouse's sweeping beam: a long, faint cone of light, brightest at the lamp. */
 const BEAM_GEOMETRY = (() => {

@@ -37,6 +37,11 @@ const LAMP_SPACING = 3.2;
 
 /** Height of every walkable floor (train and platform); the ground is at y = 0. */
 export const FLOOR_Y = 0.55;
+/**
+ * The chassis trim line ends this much short of the carriage (both ends together): an odd length, so its end
+ * faces never fall in the plane of a floorboard's end (session 19: one flickered at a sleeper's rear).
+ */
+const TRIM_INSET = 0.093;
 /** Mattress top above the floor, for every bed at every tier (sleepers lie here). */
 export const BED_TOP = 0.4;
 
@@ -567,8 +572,8 @@ export class CarriageView {
       liv.box(side * (skirtW / 2 - rim / 2), 0.46, L / 2, rim, 0.16, skirtL, '#FFFFFF', 0, { shade: 0.8 });
       liv.box(0, 0.46, L / 2 + side * (skirtL / 2 - rim / 2), skirtW - rim * 2 - 0.004, 0.16, rim, '#FFFFFF', 0, { shade: 0.8 });
       // The trim line stands 2 cm proud of the floor's ends (its end faces never flush with a board's).
-      trim.box(side * (HALF_WIDTH - 0.01 - rim / 2), 0.525, L / 2, rim, 0.025, L - 0.08, '#FFFFFF', 0, FLAT);
-      trim.box(0, 0.525, L / 2 + side * ((L - 0.08) / 2 - rim / 2), HALF_WIDTH * 2 - 0.02 - rim * 2 - 0.004, 0.025, rim, '#FFFFFF', 0, FLAT);
+      trim.box(side * (HALF_WIDTH - 0.01 - rim / 2), 0.525, L / 2, rim, 0.025, L - TRIM_INSET, '#FFFFFF', 0, FLAT);
+      trim.box(0, 0.525, L / 2 + side * ((L - TRIM_INSET) / 2 - rim / 2), HALF_WIDTH * 2 - 0.02 - rim * 2 - 0.004, 0.025, rim, '#FFFFFF', 0, FLAT);
     }
     s.box(0, 0.28, L / 2, HALF_WIDTH * 2 - 0.6, 0.2, L - 0.8, PALETTE.undercarriage);
     for (const z of [2.3, L - 2.3]) {

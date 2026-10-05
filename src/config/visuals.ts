@@ -16,7 +16,7 @@ export const VISUALS = {
     /** Vertical field of view (degrees): narrow, so the train reads like a model on a table. */
     fovDeg: 33,
     /** Metres of floor that must fit across the screen at the focus point (keeps people readable). */
-    minVisibleWidth: 8.4,
+    minVisibleWidth: 9.0,
     /** Metres the view leads along the train toward the locomotive (the way the train is going). */
     lookAhead: 1.0,
     /** Metres the view leans out over the lake, so more of it is on screen (the player sits a little low). */
@@ -55,10 +55,14 @@ export const VISUALS = {
    */
   quality: {
     tiers: {
-      /** Older or 2–3 GB phones: lite shading, no shadow maps, still drawn at 1.5× (crisp). */
-      low: { label: 'Low', pixelRatio: 1.5, maxMegapixels: 1.1, lite: true, shadows: 'off' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false },
-      /** Every other phone: lite shading, the train's static moon shadow, drawn at 1.75×. */
-      medium: { label: 'Medium', pixelRatio: 1.75, maxMegapixels: 1.5, lite: true, shadows: 'static' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false },
+      /**
+       * Older or 2–3 GB phones: the same shaders as Medium (lite shading, the static train shadow), drawn at
+       * fewer pixels. Session 19: Low used to drop the shadow map, so an automatic Medium → Low step recompiled
+       * every shader at once (a freeze of seconds on a phone); now the step only changes resolution.
+       */
+      low: { label: 'Low', pixelRatio: 1.75, maxMegapixels: 1.4, lite: true, shadows: 'static' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false },
+      /** Every other phone: lite shading, the train's static moon shadow, drawn at 2× (session 19: crisp on every phone). */
+      medium: { label: 'Medium', pixelRatio: 2, maxMegapixels: 2.0, lite: true, shadows: 'static' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false },
       /** Laptops (and phones, by choice): full shading, bloom halos, soft shadows, real lake reflections. */
       high: { label: 'High', pixelRatio: 2, maxMegapixels: 3.2, lite: false, shadows: 'follow' as ShadowMode, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.5, msaa: 4, fxaa: false, reflections: 0.4, ssao: false },
       /** Desktops: sharper reflections and screen-space ambient occlusion on top. */

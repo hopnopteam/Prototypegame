@@ -190,6 +190,8 @@ export class Coach {
     switch (id) {
       case 'walk':
         return Math.hypot(w.player.pos.x - this.spawn.x, w.player.pos.z - this.spawn.z) > WALK_METRES || ftue.first_checkin !== undefined;
+      case 'tickets':
+        return w.station.prologueTicketsDone || !w.station.prologue || ftue.first_checkin !== undefined;
       case 'checkin':
         return ftue.first_checkin !== undefined;
       case 'cash':
@@ -217,6 +219,8 @@ export class Coach {
     switch (id) {
       case 'walk':
         return w.player.idleSeconds > COACH_GESTURE_DELAY ? { gesture: true } : null;
+      case 'tickets':
+        return world(w.station.boardingPoint());
       case 'checkin':
         return world(w.map.anchor(0, 'deskService'));
       case 'cash': {

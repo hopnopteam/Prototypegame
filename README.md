@@ -16,13 +16,19 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   held to about 60 fps; Auto trims the render scale a little (never below 80%) and otherwise drops a tier, holding
   a steady 30 fps on Low; add `?quality=low|medium|high|ultra` to the URL to force one (no dynamic resolution then).
 - **Sound:** the music starts on the first tap (phones count a tap's release, not its press, as permission).
+- **Android test build (APK):** every push to the working branch builds a signed test APK on GitHub Actions
+  (`.github/workflows/android-apk.yml`) and publishes it as a pre-release named `android-test-N` on the
+  repository's Releases page. On the phone: download the `.apk`, open it, allow "install unknown apps" for the
+  browser if asked, install. Each build is signed with the same test key, so a new one installs over the old one
+  and keeps the save.
 - **iPhone and Android apps:** the same game, wrapped for the App Store and Google Play with Capacitor:
   `npm run app:ios` / `npm run app:android` (needs Xcode / Android Studio). Building, signing and submitting:
   [`NATIVE.md`](NATIVE.md).
 - **Locally:** `npm install && npm run build`, then open `dist/index.html` in a browser. It works offline from
   disk; for a phone, serve the folder (`npx serve dist`) and open it on the same Wi-Fi, or copy the file over.
-- **The opening:** a new game starts standing at Millbrook with the doors open: a guest at the desk and a traveller
-  on the platform waiting for a room. Every passenger in the game boards from a station platform.
+- **The opening:** a new game starts outside, on the Millbrook platform beside the train: collect the first
+  traveller's ticket at the door, follow them in, check them in at the desk and build the cabin the second
+  traveller needs. Every passenger in the game boards from a station platform.
 - **Controls:** touch and drag anywhere for the floating joystick, read on screen: push up and the conductor walks
   straight up the screen, whatever the angle of the train (mouse drag, or WASD / arrow keys on desktop).
   Everything else is walk-over: stand in a zone and it acts.

@@ -33,7 +33,8 @@ export function h<K extends keyof HTMLElementTagNameMap>(
 }
 
 /** Icons are drawn at twice their CSS size, for sharp edges on high-density screens. */
-const ICON_RESOLUTION = 2;
+/** Icons are drawn at the screen's own pixel density (at least 2×, at most 3×), so they are never stretched. */
+const ICON_RESOLUTION = Math.min(3, Math.max(2, Math.ceil(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 2)));
 
 /**
  * An icon as a small canvas: each name and size is drawn once, then copied (a cheap blit). Never an encoded

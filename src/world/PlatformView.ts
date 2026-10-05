@@ -39,6 +39,25 @@ const MASTER_LOOK: CharacterLook = { body: '#2F3E5C', accent: '#E2B04A', skin: '
 const PIGEON_SPOTS = [1.6, 2.3, 3.4, 13.2, 14.1, 15.5];
 const PIGEON_FLY_SECONDS = 3.2;
 
+let glowMap: THREE.Texture | null = null;
+
+/** A soft round halo for the canopy lamps (drawn once, shared). */
+function glowTexture(): THREE.Texture {
+  if (glowMap) return glowMap;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,0.9)');
+  g.addColorStop(0.35, 'rgba(255,255,255,0.35)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  glowMap = new THREE.CanvasTexture(c);
+  glowMap.colorSpace = THREE.SRGBColorSpace;
+  return glowMap;
+}
+
 /** A pigeon about 0.3 m long, facing -z: grey body, a darker head with a green-violet neck, a tail. */
 function pigeonGeometry(): THREE.BufferGeometry {
   const b = new GeoBuilder();
@@ -198,7 +217,9 @@ export class PlatformView {
       lamps.sphere(x1 - 0.9, FLOOR_Y + 2.55, z, 0.16, PALETTE.lampShade, 1);
       anchors.push({ x: x1 - 1.1, y: FLOOR_Y + 2.3, z, strength: 1 });
       b.box(x1 - 0.72, FLOOR_Y + 2.72, z, 0.36, 0.03, 0.03, PALETTE.navy, 0, { shade: 1 });
-      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ color: PALETTE.lampGlow, transparent: true, opacity: 0, depthWrite: false }));
+      // A soft halo (session 19: without a texture each glow was a hard-edged square that showed as pale bars
+      // where the canopy cut it off).
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: PALETTE.lampGlow, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
       glow.scale.set(1.8, 1.8, 1);
       glow.position.set(x1 - 0.9, FLOOR_Y + 2.55, z);
       glows.push(glow);

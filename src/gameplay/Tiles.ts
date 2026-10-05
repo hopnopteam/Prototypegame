@@ -310,6 +310,9 @@ export class Tiles {
       }
     }
     this.taggedId = best?.def.id ?? null;
+    // The marker steps aside in this very frame: the step that hides it runs before the UI picks the label,
+    // so the frame the label first showed used to draw both (a double label on a slow phone frame).
+    if (best) best.view.marker.sprite.visible = false;
     if (best) return { label: best.def.label, effect: best.def.effect, x: best.pos.x, z: best.pos.z, locked: false };
     if (this.preview) {
       const pos = this.w.map.rearDeck().tile;

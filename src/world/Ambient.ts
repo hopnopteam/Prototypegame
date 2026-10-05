@@ -3,6 +3,7 @@ import { Rng } from '../core/Rng';
 import { CharacterView, type CharacterLook } from './CharacterView';
 import { GeoBuilder } from './geo';
 import { BOAT_LANE } from './Lakeside';
+import { SCENERY_SPREAD } from './terrain';
 import { MATERIALS } from './materials';
 
 /** People who come out to watch the train go by: farmers, children, a grandmother with a hat. */
@@ -14,12 +15,12 @@ const ONLOOKER_LOOKS: { look: CharacterLook; scale: number }[] = [
   { look: { body: '#7FB48A', accent: '#FFFFFF', skin: '#F1C7A6', hair: '#A0522D', pants: '#6B5A4A', hat: 'beanie', hatColor: '#C0485C', arms: true }, scale: 0.78 },
 ];
 /** Onlookers stand on the grass just beyond the verge on the land side, close enough to wave at the windows. */
-const ONLOOKER_X: [number, number] = [3.5, 3.9];
+const ONLOOKER_X: [number, number] = [3.5 + SCENERY_SPREAD, 3.9 + SCENERY_SPREAD];
 /**
  * Lantern boats and swans keep to the open-water lane (beyond every jetty and islet, short of the islands),
  * so nothing on the water ever passes through anything else.
  */
-const BOAT_X: [number, number] = [BOAT_LANE[0] - 0.6, BOAT_LANE[1] + 0.6];
+const BOAT_X: [number, number] = [BOAT_LANE[0] - 0.6 - SCENERY_SPREAD, BOAT_LANE[1] + 0.6 - SCENERY_SPREAD];
 const BOAT_DRIFT = 0.25;
 const SWAN_DRIFT = 0.12;
 

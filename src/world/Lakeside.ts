@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Rng } from '../core/Rng';
 import { GeoBuilder, type PartStyle } from './geo';
 import { PATTERN } from './materials';
-import { groundColor, groundHeight, shoreX, TRACK_HALF, VERGE_Y, WATER_Y } from './terrain';
+import { groundColor, groundHeight, sceneryToWorldX, shoreX, TRACK_HALF, VERGE_Y, WATER_Y } from './terrain';
 
 /**
  * What passes the window: the lakeside, built one 24 m stretch at a time from continuous functions (see
@@ -598,7 +598,8 @@ function buildTerrain(s0: number, land: LandKind): THREE.BufferGeometry {
       const z = r * ROW_STEP;
       const s = s0 + z;
       for (const x of cols) {
-        positions.push(x, groundHeight(x, s), z);
+        // Heights and colours in the lakeside's coordinates, laid out in the world's (SCENERY_SPREAD).
+        positions.push(sceneryToWorldX(x), groundHeight(x, s), z);
         const c = groundColor(x, s, lane, field);
         colors.push(c[0], c[1], c[2]);
       }

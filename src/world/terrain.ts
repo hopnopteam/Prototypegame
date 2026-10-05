@@ -8,8 +8,19 @@
  * x < 0 is the lake side, x > 0 the land side; the track bed runs down the middle (|x| < TRACK_HALF).
  */
 
-/** The track bed's half-width (ballast); nothing of the scenery comes inside it. */
+/**
+ * The track bed's half-width (ballast) in the lakeside's own coordinates; nothing of the scenery comes inside it.
+ * The lakeside pieces, the ground and the water are all laid out in these coordinates and then moved out to the
+ * world by SCENERY_SPREAD on each side (session 19: the train grew to 6.4 m, so the world around it moved out
+ * half a metre each side, keeping every placement rule and test in one coordinate system).
+ */
 export const TRACK_HALF = 3.0;
+/** How far the lakeside sits out from where its own coordinates put it: lake side −x, land side +x (session 19). */
+export const SCENERY_SPREAD = 0.5;
+/** The track bed's half-width in the world. */
+export const WORLD_TRACK_HALF = TRACK_HALF + SCENERY_SPREAD;
+/** A lakeside x (lake side negative, land side positive) as a world x. */
+export const sceneryToWorldX = (x: number): number => (x < 0 ? x - SCENERY_SPREAD : x + SCENERY_SPREAD);
 /** The water's surface. */
 export const WATER_Y = 0;
 /** Height of the grass verges beside the ballast. */
@@ -42,9 +53,13 @@ export function shoreX(s: number): number {
 
 /** The same shoreline in GLSL for the water shader. Keep in step with shoreX. */
 export const SHORE_GLSL = /* glsl */ `
-float nxShoreX(float s) {
+float nxShoreXRaw(float s) {
   float w = sin(s * ${K1.toFixed(7)} + 1.3) * 0.95 + sin(s * ${K2.toFixed(7)} + 0.4) * 0.45 + sin(s * ${K3.toFixed(7)} + 2.1) * 0.18;
   return min(${SHORE_NEAREST.toFixed(2)}, ${SHORE_MID.toFixed(2)} + w);
+}
+/** The shoreline in world x (the lakeside moved out by SCENERY_SPREAD). */
+float nxShoreX(float s) {
+  return nxShoreXRaw(s) - ${SCENERY_SPREAD.toFixed(2)};
 }
 `;
 

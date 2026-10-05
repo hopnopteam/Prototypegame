@@ -21,6 +21,23 @@ apps run the same file.
 All of it lives in `src/services/native.ts`; in a browser every call there is a no-op, so the web build is
 unchanged. Configuration: `capacitor.config.ts` (app id `com.hopnop.nightexpress`, name, colours, plugins).
 
+## Test builds (Android, no local tools needed)
+
+`.github/workflows/android-apk.yml` builds the Android app on GitHub Actions whenever the game changes on the
+working branch (or by hand from the Actions tab: "Android test APK" → Run workflow). It builds the web game, syncs
+it into `android/`, builds a debug APK and publishes it as a pre-release `android-test-<run>` with the file
+`night-express-<run>.apk` (also kept as a workflow artifact). The version code is the run number, so each build
+is newer than the last.
+
+The APK is signed with `android/app/test-signing.keystore` (password `nightexpress`, alias
+`nightexpress-test`), committed on purpose: every test build carries the same signature, so testers install new
+builds over old ones and keep their progress. It is a test key only, never for the Play Store; a release build is
+signed with your own upload key (see Submitting).
+
+Installing on a phone: open the release page on the phone, download the `.apk`, open it and allow installs from
+that browser when Android asks. iPhone builds need a Mac with Xcode (below) or a TestFlight setup with an Apple
+developer account.
+
 ## Building
 
 You need Node 22+, and for iOS a Mac with Xcode 26 (or the version Capacitor 8 asks for), for Android

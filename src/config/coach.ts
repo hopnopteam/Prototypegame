@@ -15,6 +15,8 @@ export interface CoachLineDef {
 
 export const COACH_STEPS: CoachLineDef[] = [
   { id: 'walk', icon: 'hand', text: 'Drag to walk' },
+  // Session 19: the game opens outside on the platform; the first ticket is collected at the door.
+  { id: 'tickets', icon: 'ticket', text: 'Collect tickets' },
   { id: 'checkin', icon: 'ticket', text: 'Check in' },
   { id: 'cash', icon: 'cash', text: 'Grab it' },
   { id: 'tile', icon: 'bed', text: 'Build' },
@@ -53,7 +55,7 @@ export const COACH_GUIDANCE_LINES: Record<string, CoachLineDef> = {
  * HUD appears and the train pulls out. Skippable. `focus` picks the shot; `zoom` > 1 is wider.
  */
 export interface IntroBeat {
-  focus: 'locomotive' | 'lobby' | 'desk';
+  focus: 'locomotive' | 'lobby' | 'conductor';
   seconds: number;
   zoom: number;
   kicker?: string;
@@ -63,7 +65,7 @@ export interface IntroBeat {
 export const INTRO_BEATS: IntroBeat[] = [
   { focus: 'locomotive', seconds: 2.6, zoom: 1.4, kicker: 'Millbrook · 11:40 pm', text: 'The night train is boarding' },
   { focus: 'lobby', seconds: 2.3, zoom: 1.05, text: 'One tired old carriage…' },
-  { focus: 'desk', seconds: 2.3, zoom: 0.92, text: '…and passengers waiting!' },
+  { focus: 'conductor', seconds: 2.3, zoom: 0.92, text: '…and passengers waiting!' },
 ];
 
 /** Seconds between one step being done and the next cue appearing (a breath, and the tick). */

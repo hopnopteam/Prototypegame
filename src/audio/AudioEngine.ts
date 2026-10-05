@@ -20,6 +20,17 @@ export type Sfx =
  * button tap happened to resume it. Now `prepare()` builds the graph and decodes the theme at boot (a suspended
  * context may decode), and `unlock()` is called on every qualifying gesture until the context is running, so
  * the theme fades in on the very first tap.
+ *
+ * Session 19 (owner: "music getting cut off is non-negotiable"): three ways the music could drop out, all fixed
+ * at the root. (1) The next pass was queued only a second ahead, so any stall longer than that at a loop
+ * boundary (a slow frame on a phone, or Android halting the page's frames while the notification shade is
+ * down, with the audio still running) found the queue empty and restarted the theme from the top with a fade:
+ * now the next whole pass is always queued (`music.lookahead` is longer than the loop). (2) Coming back from the
+ * background, a resume the browser refused (iOS wants a gesture after an interruption) left the master fade
+ * at zero for good: now any gesture and any return to `running` restore it (`statechange`). (3) The mix sat
+ * about 20 dB under a phone game's, so on a phone speaker the quiet bars vanished under the clack: the music
+ * and master levels were raised (`AUDIO.mix`). The context also asks for `balanced` latency (larger audio
+ * buffers), so a busy main thread on a weak phone cannot starve the audio thread into crackles.
  */
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -35,6 +46,8 @@ export class AudioEngine {
   private musicOn = true;
   private paused = false;
   private suspendTimer = 0;
+  /** The master is faded out (a pause) and must be faded back in once the context runs again. */
+  private faded = false;
   private speed = 0;
   private clackTimer = 0;
   private crowd: AudioBufferSourceNode | null = null;
@@ -79,13 +92,16 @@ export class AudioEngine {
       this.ensureContext();
       const ctx = this.ctx;
       if (!ctx) return false;
-      if (ctx.state !== 'running' && !this.paused) {
-        void ctx.resume();
+      if (this.paused) return false;
+      if (ctx.state !== 'running') {
+        void ctx.resume().then(() => this.restoreMaster(), () => undefined);
         // Older iOS also wants a sound started inside the gesture: one silent sample.
         const kick = ctx.createBufferSource();
         kick.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
         kick.connect(ctx.destination);
         kick.start(0);
+      } else {
+        this.restoreMaster();
       }
       return ctx.state === 'running';
     } catch (error) {
@@ -99,8 +115,16 @@ export class AudioEngine {
     if (!this.ctx) {
       const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctor) return;
-      const ctx = new Ctor({ latencyHint: 'interactive' });
+      // Balanced latency: a little larger audio buffer, so a busy main thread never starves the audio thread.
+      const ctx = new Ctor({ latencyHint: 'balanced' });
       this.ctx = ctx;
+      // Back to running from anywhere (a gesture, the browser's own resume after an interruption): fade the
+      // master back in if a pause left it down. Interrupted or suspended while we did not ask for it (a phone
+      // call, a notification sound, a Bluetooth switch): ask to resume; a gesture retries if that is refused.
+      ctx.addEventListener('statechange', () => {
+        if (ctx.state === 'running') this.restoreMaster();
+        else if (!this.paused && ctx.state !== 'closed' && !document.hidden) void ctx.resume().catch(() => undefined);
+      });
       const l = AUDIO.limiter;
       const limiter = ctx.createDynamicsCompressor();
       limiter.threshold.value = l.threshold;
@@ -148,19 +172,36 @@ export class AudioEngine {
     const t = ctx.currentTime;
     const fade = AUDIO.pauseFade;
     window.clearTimeout(this.suspendTimer);
-    this.master.gain.cancelScheduledValues(t);
-    this.master.gain.setValueAtTime(this.master.gain.value, t);
     if (paused) {
+      this.faded = true;
+      this.master.gain.cancelScheduledValues(t);
+      this.master.gain.setValueAtTime(this.master.gain.value, t);
       this.master.gain.linearRampToValueAtTime(0, t + fade);
-      this.suspendTimer = window.setTimeout(() => void ctx.suspend(), fade * 1000 + 40);
+      this.suspendTimer = window.setTimeout(() => {
+        if (this.paused) void ctx.suspend();
+      }, fade * 1000 + 40);
+    } else if (ctx.state === 'running') {
+      this.restoreMaster();
     } else {
-      void ctx.resume().then(() => {
-        const now = ctx.currentTime;
-        this.master.gain.cancelScheduledValues(now);
-        this.master.gain.setValueAtTime(0, now);
-        this.master.gain.linearRampToValueAtTime(AUDIO.mix.master, now + fade);
-      });
+      // If the browser refuses (no gesture yet after an interruption), the next tap resumes and restores.
+      void ctx.resume().then(() => this.restoreMaster(), () => undefined);
     }
+  }
+
+  /** Fades the master back up after a pause, once (whatever path brought the context back to running). */
+  private restoreMaster(): void {
+    const ctx = this.ctx;
+    if (!ctx || this.paused || !this.faded || ctx.state !== 'running') return;
+    this.faded = false;
+    const now = ctx.currentTime;
+    this.master.gain.cancelScheduledValues(now);
+    this.master.gain.setValueAtTime(this.master.gain.value, now);
+    this.master.gain.linearRampToValueAtTime(AUDIO.mix.master, now + AUDIO.pauseFade);
+  }
+
+  /** For tools and audits: the master's level right now. */
+  get masterLevel(): number {
+    return this.master ? this.master.gain.value : 0;
   }
 
   setTrainSpeed(fraction: number): void {

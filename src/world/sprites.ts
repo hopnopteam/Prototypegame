@@ -20,14 +20,22 @@ const BUBBLE_FILL: Record<BubbleStyle, string> = {
   royal: CLASS_BY_ID.royal.color,
 };
 
-function canvas(size: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
+function canvas(size: number, resolution = 1): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement('canvas');
-  c.width = size;
-  c.height = size;
+  c.width = Math.round(size * resolution);
+  c.height = Math.round(size * resolution);
   const ctx = c.getContext('2d');
   if (!ctx) throw new Error('2D canvas unavailable');
+  // Drawn in `size` units whatever the resolution, so the artwork code never changes.
+  if (resolution !== 1) ctx.scale(resolution, resolution);
   return [c, ctx];
 }
+
+/**
+ * Bubbles and the guide arrow show about 60 CSS pixels across, so 175 device pixels on a 3× phone: drawn at
+ * 1.5× their old 128 px so they stay crisp (session 19) without making the cache of ring steps heavy.
+ */
+const WORLD_UI_RES = 1.5;
 
 function finishTexture(c: HTMLCanvasElement): THREE.CanvasTexture {
   const texture = new THREE.CanvasTexture(c);
@@ -51,7 +59,7 @@ export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ri
   const cached = bubbleCache.get(key);
   if (cached) return cached;
   const size = 128;
-  const [c, ctx] = canvas(size);
+  const [c, ctx] = canvas(size, WORLD_UI_RES);
   if (style !== 'plain') {
     const cx = 64;
     const cy = 58;
@@ -104,7 +112,7 @@ let guideArrow: THREE.CanvasTexture | null = null;
 export function guideArrowTexture(): THREE.CanvasTexture {
   if (guideArrow) return guideArrow;
   const size = 128;
-  const [c, ctx] = canvas(size);
+  const [c, ctx] = canvas(size, WORLD_UI_RES);
   const shaft = { x0: 44, x1: 84, y0: 10, y1: 62 };
   const head = { x0: 14, x1: 114, y0: 58, tip: 118 };
   const path = (): void => {

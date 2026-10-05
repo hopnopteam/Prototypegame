@@ -11,17 +11,25 @@ export const GANGWAY_LENGTH = 1.2;
 export const CARRIAGE_PITCH = CARRIAGE_LENGTH + GANGWAY_LENGTH;
 /**
  * Half the carriage's width. Session 14 (owner: "a bit wider so there's more breathing area"): 5.4 m across
- * (was 4.4), so the corridor, the rooms and the reception all have room to move.
+ * (was 4.4). Session 19 (owner: "bigger and more wider… a bigger moving area"): 6.4 m across.
  */
-export const HALF_WIDTH = 2.7;
+export const HALF_WIDTH = 3.2;
 export const WALL = 0.16;
 export const INNER = HALF_WIDTH - WALL;
 /**
- * Corridor runs along the left; rooms sit to the right of this partition. Session 15 (owner: "make more room
- * to walk around"): 1.62 m (was 1.44), so two people pass without either stopping.
+ * How much each outer wall has moved out since the floor plans were drawn (at 5.4 m): furniture that stands
+ * against an outer wall moves with it (`out`), so it keeps its size and the room opens up in the middle.
  */
-export const PARTITION_X0 = -0.92;
-export const PARTITION_X1 = -0.78;
+const GROW = HALF_WIDTH - 2.7;
+/** An x drawn against an outer wall, moved out with that wall (left of the middle moves left, right moves right). */
+const out = (x: number): number => (x < 0 ? x - GROW : x + GROW);
+/**
+ * Corridor runs along the left; rooms sit to the right of this partition. Session 15 (owner: "make more room
+ * to walk around"): 1.62 m (was 1.44), so two people pass without either stopping. Session 19: the partition
+ * moved 0.2 m toward the corridor as the train widened, so the corridor is 1.92 m and every room 0.7 m wider.
+ */
+export const PARTITION_X0 = -1.12;
+export const PARTITION_X1 = -0.98;
 /**
  * Room doorways: wide and in the middle of the room's wall, so you walk straight in onto the room's work spot
  * without threading a needle (bi-parting doors slide into the wall on both sides as you come).
@@ -404,11 +412,11 @@ function buildLobby(tier: number): CarriageLayout {
   // The desk spans the queue's two rows, so the rug in front of it lines up with it end to end; a clear
   // lane runs round the queue on every side (to the door, the counter, the rack and the cabins).
   b.prop('desk', -1.55, 2.55, -0.79, 4.25, 'right');
-  b.prop('urn', -INNER, WALL, -1.45, 0.66, 'rear');
+  b.prop('urn', -INNER, WALL, out(-1.45), 0.66, 'rear');
   b.prop('linen', -0.6, WALL, 0.9, 0.62, 'rear');
-  b.prop('rack', 1.9, 5.4, INNER, 7.15, 'left');
-  b.prop('bin', 2.12, 4.7, INNER, 5.1, 'left');
-  b.prop('plant', 2.0, WALL, INNER, 0.55, 'left', false);
+  b.prop('rack', out(1.9), 5.4, INNER, 7.15, 'left');
+  b.prop('bin', out(2.12), 4.7, INNER, 5.1, 'left');
+  b.prop('plant', out(2.0), WALL, INNER, 0.55, 'left', false);
   // A slim piece on the front wall, between the linen cupboard and the plant, that grows with the class
   // (crates, a cupboard, a bookcase, a bureau, then a piano). Session 15 (owner: "remove the cupboard from
   // the corridor"): it used to stand where the corridor starts and pinched the way to the cabins.
@@ -418,12 +426,12 @@ function buildLobby(tier: number): CarriageLayout {
   b.anchor('deskCash', -2.05, 4.75);
   b.anchor('startCash', -1.75, 5.55);
   b.anchor('playerSpawn', 0.0, 5.25);
-  b.anchor('urn', -2.0, 1.12);
+  b.anchor('urn', out(-2.0), 1.12);
   b.anchor('linen', 0.15, 1.12);
   b.anchor('blanket', 0.15, 1.12);
   b.anchor('pillow', 0.15, 1.12);
-  b.anchor('rack', 1.3, 6.25);
-  b.anchor('bin', 1.66, 4.9);
+  b.anchor('rack', out(1.3), 6.25);
+  b.anchor('bin', out(1.66), 4.9);
   b.anchor('home_attendant', 0.0, 6.4);
   b.anchor('tile_up_attendant', 0.0, 6.4);
   // The porter's post is at the carriage's back door, out of the busy lobby.
@@ -444,7 +452,7 @@ function buildLobby(tier: number): CarriageLayout {
   // Clear of the desk and of the back corner's piece, so the walk from the desk to the cabins is never pinched.
   b.node('lobby_rl', -1.75, 4.95);
   b.node('lobby_rear', 0.4, 4.95);
-  b.node('rack', 1.3, 6.25);
+  b.node('rack', out(1.3), 6.25);
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, lobbyEnd - 0.1);
   // The desk is reached from behind (lobby_rl), so guests never walk through the staff side.
   b.chain(doorIn, 'lobby_front', 'lobby_fl');
@@ -465,13 +473,13 @@ function buildSleeper(tier: number): CarriageLayout {
   b.vestibules(front);
   // A small service nook in the front vestibule: supplies sit next to the cabins that need them.
   // The service nook either side of the gangway: tea on the left, linen on the right.
-  b.prop('urn', -INNER, WALL, -1.45, 0.66, 'rear');
+  b.prop('urn', -INNER, WALL, out(-1.45), 0.66, 'rear');
   // The linen cupboard stands in from the outer wall, so its pad is clear of the strip that wall hides.
-  b.prop('linen', 0.82, WALL, 2.02, 0.62, 'rear');
-  b.anchor('urn', -2.0, 1.12);
-  b.anchor('linen', 1.42, 1.12);
-  b.anchor('blanket', 1.42, 1.12);
-  b.anchor('pillow', 1.42, 1.12);
+  b.prop('linen', out(0.82), WALL, out(2.02), 0.62, 'rear');
+  b.anchor('urn', out(-2.0), 1.12);
+  b.anchor('linen', out(1.42), 1.12);
+  b.anchor('blanket', out(1.42), 1.12);
+  b.anchor('pillow', out(1.42), 1.12);
   b.anchor('home_attendant', REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_up_attendant', REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_refurb', -REAR_TILE_X, REAR_TILE_Z);
@@ -494,16 +502,16 @@ function buildBathroom(): CarriageLayout {
   b.connector(-INNER, front - 0.5, PARTITION_X0, end + 0.55, 'z');
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, front);
 
-  b.prop('closet', -INNER, 1.0, -1.8, 2.9, 'right');
-  b.prop('laundry', 1.8, 0.35, INNER, 2.35, 'left');
-  b.prop('bench', 2.1, 3.0, INNER, 4.8, 'left');
-  b.prop('plant', -INNER, 4.6, -2.14, 5.0, 'right', false);
-  b.anchor('closet', -1.36, 1.95);
-  b.anchor('towel', -1.36, 1.95);
-  b.anchor('roll', -1.36, 1.95);
+  b.prop('closet', -INNER, 1.0, out(-1.8), 2.9, 'right');
+  b.prop('laundry', out(1.8), 0.35, INNER, 2.35, 'left');
+  b.prop('bench', out(2.1), 3.0, INNER, 4.8, 'left');
+  b.prop('plant', -INNER, 4.6, out(-2.14), 5.0, 'right', false);
+  b.anchor('closet', out(-1.36), 1.95);
+  b.anchor('towel', out(-1.36), 1.95);
+  b.anchor('roll', out(-1.36), 1.95);
   // Where waiting guests stand (in front of the bench) and the lounge's nav points.
-  b.anchor('wait_0', 1.7, 3.45);
-  b.anchor('wait_1', 1.7, 4.35);
+  b.anchor('wait_0', out(1.7), 3.45);
+  b.anchor('wait_1', out(1.7), 4.35);
   b.node('lounge', 0.1, 2.6);
   b.node('lounge_rear', 0.3, 4.2);
 
@@ -559,19 +567,19 @@ function buildSupply(): CarriageLayout {
   b.shell({ frontGangway: true, doors: true });
   b.vestibules(front);
   // The aisle overlaps both vestibules so the collision margin never opens a gap between them.
-  b.room(-1.85, front - 0.9, 1.85, CARRIAGE_LENGTH - 0.45);
-  b.prop('shelfTowel', -INNER, 3.0, -1.85, 5.8, 'right');
-  b.prop('shelfRoll', 1.85, 3.0, INNER, 5.8, 'left');
-  b.prop('crateBay', 1.85, 6.5, INNER, 8.4, 'left');
-  b.prop('sofa', -INNER, 9.0, -1.95, 11.2, 'right');
-  b.prop('table', -1.75, 9.55, -1.15, 10.65);
-  b.prop('laundry', 1.95, 9.2, INNER, 10.8, 'left');
-  b.anchor('shelf_towel', -1.2, 4.4);
-  b.anchor('shelf_roll', 1.2, 4.4);
-  b.anchor('crateDrop', 1.2, 7.45);
+  b.room(out(-1.85), front - 0.9, out(1.85), CARRIAGE_LENGTH - 0.45);
+  b.prop('shelfTowel', -INNER, 3.0, out(-1.85), 5.8, 'right');
+  b.prop('shelfRoll', out(1.85), 3.0, INNER, 5.8, 'left');
+  b.prop('crateBay', out(1.85), 6.5, INNER, 8.4, 'left');
+  b.prop('sofa', -INNER, 9.0, out(-1.95), 11.2, 'right');
+  b.prop('table', out(-1.75), 9.55, out(-1.15), 10.65);
+  b.prop('laundry', out(1.95), 9.2, INNER, 10.8, 'left');
+  b.anchor('shelf_towel', out(-1.2), 4.4);
+  b.anchor('shelf_roll', out(1.2), 4.4);
+  b.anchor('crateDrop', out(1.2), 7.45);
   b.anchor('home_runner', 0.1, 10.1);
   b.anchor('tile_up_runner', 0.1, 10.1);
-  b.anchor('bin', -1.2, 12.2);
+  b.anchor('bin', out(-1.2), 12.2);
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.node('aisle_front', 0, front + 0.2);
   b.node('aisle_mid', 0, 6.5);
@@ -585,9 +593,9 @@ function buildLuggage(): CarriageLayout {
   const front = 2.5;
   b.shell({ frontGangway: true, doors: true });
   b.vestibules(front);
-  b.room(-1.75, front - 0.9, 1.75, CARRIAGE_LENGTH - 0.45);
-  b.prop('luggageRack', -INNER, 3.2, -1.75, 12.4, 'right');
-  b.prop('luggageRack', 1.75, 4.4, INNER, 12.4, 'left');
+  b.room(out(-1.75), front - 0.9, out(1.75), CARRIAGE_LENGTH - 0.45);
+  b.prop('luggageRack', -INNER, 3.2, out(-1.75), 12.4, 'right');
+  b.prop('luggageRack', out(1.75), 4.4, INNER, 12.4, 'left');
   b.anchor('rack', 0, 6.8);
   b.anchor('home_porter', 0.8, 3.4);
   b.anchor('tile_up_porter', 0.8, 3.4);

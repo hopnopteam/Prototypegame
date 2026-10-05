@@ -5,8 +5,12 @@
  * assets/audio/CREDITS.md). Tune freely: no code changes needed.
  */
 export const AUDIO = {
-  /** Bus levels (linear). The theme sits at about −37 dBFS RMS: a bed under the cues, never over them. */
-  mix: { master: 0.66, sfx: 1, music: 0.12, ambience: 0.5 },
+  /**
+   * Bus levels (linear). Session 19: the theme sat at about −39 dBFS RMS, some 20 dB under a phone game's mix,
+   * so on a phone speaker its quiet bars vanished under the rail clack and read as the music cutting out. It
+   * now sits at about −30 dBFS RMS (still a bed under the cues), and the effects peak around −7 dBFS.
+   */
+  mix: { master: 0.85, sfx: 1, music: 0.26, ambience: 0.5 },
   /**
    * A safety limiter on the output: it only touches peaks above the threshold (several cues landing at
    * once), so the normal mix is never squashed or pumped. Its automatic make-up gain (about +1.7 dB) is
@@ -39,8 +43,12 @@ export const AUDIO = {
     /** Low-pass on the music: open by day, warmer and softer at night. */
     dayCutoff: 16000,
     nightCutoff: 3800,
-    /** Seconds of look-ahead when queueing the next pass of the loop. */
-    lookahead: 1,
+    /**
+     * Seconds of look-ahead when queueing the next pass of the loop. Longer than the loop itself, so the next
+     * whole pass is always waiting on the audio clock: a stalled main thread (a slow frame, or the page's frames
+     * halted under a phone's notification shade) can never leave a gap or restart the theme (session 19).
+     */
+    lookahead: 52,
   },
   /** Rail clack: a "da-dum" pair per rail joint, faster and louder with speed (the session 8 sound). */
   clack: { base: 0.05, perSpeed: 0.09 },

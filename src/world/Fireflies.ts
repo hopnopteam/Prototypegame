@@ -3,8 +3,8 @@ import { Rng } from '../core/Rng';
 
 /** Bands the fireflies drift over (x across the line, height above the ground): the land verge and fields, the reeds on the bank. */
 const BANDS: { x: [number, number]; y: [number, number]; share: number }[] = [
-  { x: [3.3, 11.5], y: [0.25, 1.5], share: 0.68 },
-  { x: [-7.2, -3.5], y: [0.3, 1.2], share: 0.32 },
+  { x: [3.8, 12.0], y: [0.25, 1.5], share: 0.68 },
+  { x: [-7.7, -4.0], y: [0.3, 1.2], share: 0.32 },
 ];
 const COUNT = 220;
 /** The stretch of line they cover (world z), wrapped as the countryside scrolls past. */

@@ -226,14 +226,17 @@ export function mergePlanes(planes: THREE.BufferGeometry[]): THREE.BufferGeometr
     indices += p.getIndex()?.count ?? 0;
   }
   const position = new Float32Array(vertices * 3);
+  const normal = new Float32Array(vertices * 3);
   const uv = new Float32Array(vertices * 2);
   const index: number[] = [];
   let v = 0;
   for (const p of planes) {
     const pos = p.getAttribute('position');
+    const nor = p.getAttribute('normal');
     const tex = p.getAttribute('uv');
     for (let i = 0; i < pos.count; i++) {
       position.set([pos.getX(i), pos.getY(i), pos.getZ(i)], (v + i) * 3);
+      if (nor) normal.set([nor.getX(i), nor.getY(i), nor.getZ(i)], (v + i) * 3);
       uv.set([tex.getX(i), tex.getY(i)], (v + i) * 2);
     }
     const idx = p.getIndex();
@@ -242,6 +245,8 @@ export function mergePlanes(planes: THREE.BufferGeometry[]): THREE.BufferGeometr
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  // Normals too: without them three switches to a flat-shading shader variant, compiled mid-game (session 19).
+  geometry.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
   geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geometry.setIndex(index);
   geometry.computeBoundingSphere();
