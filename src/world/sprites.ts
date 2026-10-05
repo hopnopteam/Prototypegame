@@ -94,6 +94,52 @@ export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ri
 }
 
 /** Bubbles and icons are UI in the world: drawn over walls and furniture so a wall never cuts one in half. */
+let guideArrow: THREE.CanvasTexture | null = null;
+
+/**
+ * The guide arrow (session 17): a chunky gold arrow pointing down, in the HUD's pop style (a 3 px ink line at
+ * HUD size, a highlight down one side), drawn flat to the screen so it always reads as an arrow. It used to be a
+ * lit four-sided cone that, seen from above at night, looked like a dull khaki box floating over the train.
+ */
+export function guideArrowTexture(): THREE.CanvasTexture {
+  if (guideArrow) return guideArrow;
+  const size = 128;
+  const [c, ctx] = canvas(size);
+  const shaft = { x0: 44, x1: 84, y0: 10, y1: 62 };
+  const head = { x0: 14, x1: 114, y0: 58, tip: 118 };
+  const path = (): void => {
+    ctx.beginPath();
+    ctx.moveTo(shaft.x0, shaft.y0 + 8);
+    ctx.quadraticCurveTo(shaft.x0, shaft.y0, shaft.x0 + 8, shaft.y0);
+    ctx.lineTo(shaft.x1 - 8, shaft.y0);
+    ctx.quadraticCurveTo(shaft.x1, shaft.y0, shaft.x1, shaft.y0 + 8);
+    ctx.lineTo(shaft.x1, head.y0);
+    ctx.lineTo(head.x1 - 6, head.y0);
+    ctx.quadraticCurveTo(head.x1 + 2, head.y0, head.x1 - 4, head.y0 + 7);
+    ctx.lineTo(70, head.tip - 3);
+    ctx.quadraticCurveTo(64, head.tip + 3, 58, head.tip - 3);
+    ctx.lineTo(head.x0 + 4, head.y0 + 7);
+    ctx.quadraticCurveTo(head.x0 - 2, head.y0, head.x0 + 6, head.y0);
+    ctx.lineTo(shaft.x0, head.y0);
+    ctx.closePath();
+  };
+  const fill = ctx.createLinearGradient(0, shaft.y0, 0, head.tip);
+  fill.addColorStop(0, '#FFE58A');
+  fill.addColorStop(1, '#F2B338');
+  path();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  // A highlight down the left of the shaft: the HUD's bevel.
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.fillRect(shaft.x0 + 7, shaft.y0 + 9, 7, head.y0 - shaft.y0 - 12);
+  guideArrow = finishTexture(c);
+  return guideArrow;
+}
+
 export function makeSprite(texture: THREE.Texture, size: number): THREE.Sprite {
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false });
   const sprite = new THREE.Sprite(material);

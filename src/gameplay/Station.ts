@@ -31,6 +31,8 @@ function shuffled<T>(items: readonly T[], rng: { next(): number }): T[] {
 }
 
 const BILLBOARD_COUNT = 3;
+/** Where the first travellers wait on the Millbrook platform (along the lobby, in the opening's view). */
+const PROLOGUE_WAIT_Z = 5.9;
 
 /**
  * The journey rhythm made physical (§5): the platform glides in and stops at the doors, guests board and
@@ -55,6 +57,13 @@ export class Station {
   private starsAtArrival = 0;
   private luggageLoadedThisStop = 0;
   private readonly tmp = new THREE.Vector3();
+  /**
+   * The opening at Millbrook (config: flow `prologue`): the train stands at the platform with the clock held
+   * until the travellers it has rooms for are aboard. Travellers step aboard by themselves as rooms open.
+   */
+  prologue = false;
+  /** Seconds a traveller on the Millbrook platform has had a free bed (they step aboard after a beat). */
+  private prologueWait = 0;
 
   constructor(private readonly w: World) {
     w.scene.add(this.view.group);
@@ -169,8 +178,63 @@ export class Station {
     this.w.scenerySpanChanged?.();
   }
 
+  /**
+   * A brand-new game opens here (session 17, owner: "where guests are coming from"): standing at Millbrook,
+   * doors open, the platform alongside. One guest has already stepped in and waits at the desk; a traveller
+   * waits outside with a "no room" sign, because the one ready cabin is spoken for. Build a cabin and they walk
+   * aboard; once everyone the train has a bed for is inside, the last call sounds and it pulls out. Passengers
+   * only ever come from a station platform.
+   */
+  startPrologue(): void {
+    const w = this.w;
+    const j = w.journey;
+    if (j.phase !== 'stationStop' || !j.held) return;
+    this.prologue = true;
+    this.prologueWait = 0;
+    this.spawnedForStop = j.stopSerial;
+    w.map.setDoorsOpen(true);
+    w.train.setDoors(true);
+    this.platformOffset = 0;
+    this.view.setOffset(0);
+    this.view.setHeadline(`${this.currentStation().name} awaits the night train`);
+    const count = w.econ.flow.prologue.travellers;
+    w.guests.spawnPlatformGuests(this.prologueSpots(count), null, new Array<ClassId>(count).fill('basic'));
+    w.audio.setStationAmbience(true);
+  }
+
+  /** At Millbrook: whoever has a bed steps aboard; when nobody is left outside, the train gets ready to go. */
+  private updatePrologue(dt: number): void {
+    const w = this.w;
+    const j = w.journey;
+    if (j.phase !== 'stationStop') {
+      this.prologue = false;
+      return;
+    }
+    if (!j.held) return;
+    const rules = w.econ.flow.prologue;
+    if (w.guests.hasBoarder()) {
+      this.prologueWait += dt;
+      if (this.prologueWait >= rules.boardDelay) {
+        this.prologueWait = 0;
+        const guest = w.guests.boardNext(false);
+        guest?.view.act('wave', 0.8);
+      }
+      return;
+    }
+    this.prologueWait = 0;
+    const outside = w.guests.list.some((g) => g.state === 'platform' || (g.state === 'boarding' && g.pos.x > w.map.doors()[0].inside.x + 0.3));
+    if (!outside) j.release(rules.lastCallSeconds);
+  }
+
   onPhase(phase: JourneyPhase, previous: JourneyPhase): void {
     const w = this.w;
+    if (phase === 'departing' && previous === 'stationStop' && this.prologue) {
+      // Leaving Millbrook: the doors close and the flag goes up, but it was not a stop of the ride (no ticket).
+      this.prologue = false;
+      this.view.setFlag(true);
+      this.closeDoors();
+      return;
+    }
     if (phase === 'stationStop') {
       w.map.setDoorsOpen(true);
       w.train.setDoors(true);
@@ -209,6 +273,7 @@ export class Station {
   update(_dt: number): void {
     const w = this.w;
     const j = w.journey;
+    if (this.prologue) this.updatePrologue(_dt);
     const toStop = j.distanceToStop;
     const sinceDeparture = j.distanceSinceDeparture;
     const length = this.view.length;
@@ -292,6 +357,17 @@ export class Station {
       else out.push(capacity.size > 0 ? w.rng.weighted(weights) : 'basic');
     }
     return shuffled(out, w.rng);
+  }
+
+  /**
+   * At Millbrook the travellers wait further down the platform, beside the lobby's windows, where the opening's
+   * camera (on the desk) sees them; boarding, they walk along the platform to the door.
+   */
+  private prologueSpots(count: number): Vec2[] {
+    const door = this.w.map.doors()[0];
+    const spots: Vec2[] = [];
+    for (let i = 0; i < count; i++) spots.push({ x: door.outside.x - 0.25 + (i % 2) * 0.6, z: PROLOGUE_WAIT_Z + i * 0.7 });
+    return spots;
   }
 
   private waitingSpots(count: number): Vec2[] {

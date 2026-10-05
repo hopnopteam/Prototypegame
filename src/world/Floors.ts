@@ -37,8 +37,12 @@ const FLAT: PartStyle = { shade: 1 };
 const OLD_TONES = ['#8C8375', '#978D7E', '#817868', '#A09482', '#7A7163', '#918877'];
 const REPAIRED_TONES = ['#C9AE84', '#BFA27A', '#D1B68C', '#B89C74', '#C4A67C'];
 const FRESH_TONES = ['#EAD3A2', '#E6CB95', '#EFD9AC'];
-const SUBFLOOR = '#1C1511';
-const JOIST = '#5A4636';
+/**
+ * What shows through a hole and the open seams: a dark timber subfloor and lighter joists (session 17: was near
+ * black, so a missing board read as a black square cut out of the picture rather than a hole with depth).
+ */
+const SUBFLOOR = '#3B2F27';
+const JOIST = '#76604C';
 const NAIL_OLD = '#5B4A3E';
 const NAIL_NEW = '#C9C8C0';
 const TILE_OLD = ['#D3CCBD', '#C9C1B0', '#D8D1C2', '#BDB4A2'];
@@ -331,7 +335,7 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
   let queueBase = FLOOR_Y;
   if (tier <= 1) {
     // Subfloor and joists: only ever seen through seams and holes.
-    f.box(0, FLOOR_Y - PLANK_T - JOIST_H - 0.02, L / 2, HALF_WIDTH * 2 - 0.04, 0.04, L - 0.04, SUBFLOOR, 0, { shade: 0.6 });
+    f.box(0, FLOOR_Y - PLANK_T - JOIST_H - 0.02, L / 2, HALF_WIDTH * 2 - 0.04, 0.04, L - 0.04, SUBFLOOR, 0, { shade: 0.75 });
     for (let z = 0.3; z < L - 0.1; z += JOIST_SPACING) f.box(0, FLOOR_Y - PLANK_T - JOIST_H / 2, z, HALF_WIDTH * 2 - 0.1, JOIST_H, 0.07, JOIST, 0, FLAT);
     for (const region of regions(layout)) {
       const top = FLOOR_Y + (region.room ? ROOM_LIFT : 0);
@@ -430,45 +434,60 @@ function parquetRoom(f: GeoBuilder, r: Rect): void {
   f.slab(rect(r.x0 + border, r.z0 + border, r.x1 - border, r.z1 - border), y0, y1, PALETTE.walnut, 0, 0, { pattern: PATTERN.chevron, color2: PALETTE.walnutDark, scale: 0.22, shade: 1 });
 }
 
+/** A window opening on a wall that faces the camera: its inner face (x), its span along the wall and its top. */
+export interface WindowCorner {
+  x: number;
+  /** +1 if the room is toward +x of the wall face. */
+  inward: number;
+  z0: number;
+  z1: number;
+  top: number;
+}
+
 /**
- * Cobwebs for a run-down carriage: a web strung across the far corners of each room and the carriage ends,
- * just under the wall tops, where they read from above. One mesh, one texture.
+ * Cobwebs (session 17, owner: "the spiderwebs… doesn't look natural, instead looks hung up on the ceiling"): in an
+ * old carriage a few windows on the camera's side have a small web in an upper corner of the frame, flat against
+ * it, where a real spider would spin one. The old webs were laid flat at a height the walls no longer reach (they
+ * were cut to knee height in session 15), so they floated in the air.
  */
-export function buildCobwebs(layout: CarriageLayout, seed: number): THREE.Mesh | null {
+export function buildCobwebs(windows: readonly WindowCorner[], seed: number): THREE.Mesh | null {
   const rand = seeded(seed * 17 + 5);
-  const spots: { x: number; z: number; sx: number; sz: number; y: number }[] = [];
-  const topInterior = FLOOR_Y + 0.78;
-  const topExterior = FLOOR_Y + 1.02;
-  for (const room of [...layout.cabins.map((c) => c.room), ...layout.bathrooms.map((b) => b.room)]) {
-    // The corner on the room's far (screen-top) wall, by the window or by the corridor, alternating.
-    const byWindow = rand() < 0.6;
-    spots.push(byWindow
-      ? { x: room.x1 - 0.01, z: room.z0 + 0.01, sx: -1, sz: 1, y: topInterior }
-      : { x: room.x0 + 0.01, z: room.z0 + 0.01, sx: 1, sz: 1, y: topInterior });
-  }
-  // The carriage's front corners.
-  spots.push({ x: -INNER + 0.01, z: 0.17, sx: 1, sz: 1, y: topExterior }, { x: INNER - 0.01, z: 0.17, sx: -1, sz: 1, y: topExterior });
-  if (spots.length === 0) return null;
   const positions: number[] = [];
   const uvs: number[] = [];
-  for (const s of spots) {
-    const size = 0.5 + rand() * 0.16;
-    // A right triangle in the corner, sagging slightly toward the middle.
-    const a = [s.x, s.y, s.z];
-    const b = [s.x + s.sx * size, s.y, s.z];
-    const c = [s.x, s.y, s.z + s.sz * size];
-    positions.push(...a, ...b, ...c);
+  let count = 0;
+  // One window in three (never two side by side), starting from a different one in each carriage.
+  const first = Math.floor(rand() * Math.min(WEB_EVERY, windows.length));
+  windows.forEach((win, i) => {
+    if (i % WEB_EVERY !== first) return;
+    const size = WEB_SIZE * (0.85 + rand() * 0.3);
+    const left = rand() < 0.5;
+    const x = win.x + win.inward * WEB_PROUD;
+    const cz = left ? win.z0 + WEB_INSET : win.z1 - WEB_INSET;
+    const along = left ? 1 : -1;
+    const y = win.top - WEB_INSET;
+    // A right triangle in the frame's corner: one leg down the post, one along the header.
+    positions.push(x, y, cz, x, y - size, cz, x, y, cz + along * size);
     uvs.push(0, 0, 1, 0, 0, 1);
-  }
+    count++;
+  });
+  if (count === 0) return null;
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   // Each web is its own object for the clipping audit (they share one mesh and one draw).
-  geometry.userData.objects = spots.map((_, i) => ({ label: 'decor:cobweb', start: i * 3, end: i * 3 + 3 }));
+  geometry.userData.objects = Array.from({ length: count }, (_, i) => ({ label: 'decor:cobweb', start: i * 3, end: i * 3 + 3 }));
   const mesh = new THREE.Mesh(geometry, cobwebMaterial());
   mesh.renderOrder = 2;
   return mesh;
 }
+
+/** One window in this many has a web. */
+const WEB_EVERY = 3;
+/** A web's legs (metres): small, a corner of a window, not a sheet. */
+const WEB_SIZE = 0.2;
+/** How far in front of the wall's face a web hangs, and how far inside the frame's corner it starts. */
+const WEB_PROUD = 0.012;
+const WEB_INSET = 0.008;
 
 let webMaterial: THREE.MeshBasicMaterial | null = null;
 
@@ -483,14 +502,15 @@ function cobwebMaterial(): THREE.MeshBasicMaterial {
     // Threads bold enough to survive being drawn a few dozen pixels across on a phone.
     // A dusty haze thickest in the corner, so the web reads even over a pale wall.
     const haze = ctx.createRadialGradient(0, 0, 0, 0, 0, size);
-    haze.addColorStop(0, 'rgba(236, 234, 226, 0.55)');
-    haze.addColorStop(0.7, 'rgba(236, 234, 226, 0.18)');
-    haze.addColorStop(1, 'rgba(236, 234, 226, 0)');
+    haze.addColorStop(0, 'rgba(226, 223, 214, 0.35)');
+    haze.addColorStop(0.7, 'rgba(226, 223, 214, 0.1)');
+    haze.addColorStop(1, 'rgba(226, 223, 214, 0)');
     ctx.fillStyle = haze;
     ctx.fillRect(0, 0, size, size);
-    ctx.strokeStyle = 'rgba(248, 247, 240, 1)';
-    ctx.shadowColor = 'rgba(40, 36, 30, 0.45)';
-    ctx.shadowBlur = 3;
+    // Dusty grey-white threads: they belong to the old carriage, they are not a sticker on it.
+    ctx.strokeStyle = 'rgba(232, 229, 220, 0.8)';
+    ctx.shadowColor = 'rgba(40, 36, 30, 0.3)';
+    ctx.shadowBlur = 2;
     ctx.lineWidth = 9;
     ctx.lineCap = 'round';
     // Spokes from the corner (canvas top-left is the corner; v is flipped by the texture).

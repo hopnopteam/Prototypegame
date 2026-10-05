@@ -14,7 +14,6 @@ import {
   ROOM_DOOR,
   PARTITION_X0,
   PARTITION_X1,
-  QUEUE_SLOTS,
   REAR_VESTIBULE,
   WALL,
   type CabinLayout,
@@ -27,7 +26,7 @@ import { CARRIAGE_THEMES, CLASS_THEMES, PALETTE, shadeHex, type CarriageTheme } 
 import { smoothstep01 } from '../core/math';
 import { classOfTier, isPassengerType, type ClassDef } from '../config/classes';
 import { SURFACES } from './surfaces';
-import { buildCobwebs, floorSteps, type FloorResult } from './Floors';
+import { buildCobwebs, floorSteps, type WindowCorner } from './Floors';
 import type { LampAnchor } from './Lighting';
 import { REFLECT_LAYER } from './Water';
 
@@ -56,7 +55,7 @@ export function windowSpacing(len: number): { count: number; slot: number; width
 const FLAT: PartStyle = { shade: 1 };
 /**
  * Heights (above the floor) of everything lying flat on it, each in its own layer at least 4 mm from the
- * next: rooms 0–6 mm, queue marks to 11, runners 12, cabin mess from 40.
+ * next: rooms 0–6 mm, runners 12, cabin mess from 40.
  */
 /** Each piece of a cabin's mess is swept in to the broom over this share of the tidying. */
 const MESS_POP = 0.2;
@@ -71,13 +70,17 @@ const shortenEnds = (r: Rect, by: number): Rect => (r.z1 - r.z0 >= r.x1 - r.x0 ?
 const SHELF_LOW = 0.3;
 const SHELF_HIGH = 0.62;
 const SHELF_TOP = 0.012;
-/** Mess pieces are built this much bigger than their MESS_CELL, so they read at phone zoom. */
-const MESS_SCALE = 1.9;
 /**
- * Mess floor slots on the boards around the mat, outside the cleaning pad: front left, front right, back
- * left (the back right corner is where the tip is left). The room stays one spot to clean from.
+ * Mess pieces are built a little bigger than their MESS_CELL so they read at phone zoom (session 17: 1.35, was
+ * 1.9, when a newspaper was half a metre across and the rooms looked like a toy box).
  */
-const MESS_SLOTS = [{ x: -0.38, z: -0.82 }, { x: 0.4, z: -0.82 }, { x: -0.38, z: 0.82 }];
+const MESS_SCALE = 1.35;
+/** The guest's one floor piece lies this far out from the bed's side (centre), in the lane by the bed. */
+const MESS_BESIDE_BED = 0.27;
+/** …and at least this far from the tip they left (centres), so the two never touch. */
+const MESS_TIP_CLEAR = 0.56;
+/** …and clear of a nightstand at the bed's head (from the head wall). */
+const MESS_HEAD_CLEAR = 0.62;
 
 interface CabinMess {
   group: THREE.Group;
@@ -280,7 +283,6 @@ export class CarriageView {
   /** What sleepers are tucked under: matches the bedspread at this tier. */
   readonly blanketColor: string;
   private readonly finish: Finish;
-  private floorInfo: FloorResult = { queueBase: FLOOR_Y };
 
   /** A passenger carriage's class (from its tier); null for service cars. */
   readonly cls: ClassDef | null;
@@ -555,10 +557,10 @@ export class CarriageView {
     // Passenger classes: Comfort and Business polished boards, First chevron parquet, Royal marble.
     const floorTier = this.cls ? [0, 1, 2, 2, 3, 4][this.tier] ?? 4 : this.tier;
     yield;
-    this.floorInfo = yield* floorSteps(f, this.layout, floorTier, this.theme, this.index * 7 + this.layout.type.length);
+    yield* floorSteps(f, this.layout, floorTier, this.theme, this.index * 7 + this.layout.type.length);
     yield;
     if (this.tier <= 0) {
-      const webs = buildCobwebs(this.layout, this.index + 3);
+      const webs = buildCobwebs(this.cameraSideWindows(), this.index + 3);
       if (webs) this.group.add(webs);
     }
     if (fin.runner && (this.layout.cabins.length > 0 || this.layout.bathrooms.length > 0)) {
@@ -601,11 +603,11 @@ export class CarriageView {
       if (++n % PROPS_PER_SLICE === 0) yield;
     }
     yield;
-    this.buildDecor(s, f, lamps);
+    this.buildDecor(s, lamps);
     yield;
     if (this.cls) {
       for (const cabin of this.layout.cabins) {
-        buildClassDressing(s, lamps, cabin, this.tier, this.theme, this.layout.props);
+        buildClassDressing(s, lamps, cabin, this.tier, this.theme);
         yield;
       }
     }
@@ -652,13 +654,14 @@ export class CarriageView {
     const mess: CabinMess = { group, items: [], key: '', heart: { x: heart.x, z: heart.z } };
     this.mess[cabin.index] = mess;
     // A default mess (previews and the audit); the game sets each guest's own with setMess().
-    this.setMess(cabin.index, ['newspaper', 'cup', 'paperBalls'], 'heap', 1);
+    this.setMess(cabin.index, ['newspaper'], 'unmade', 1);
     return mess;
   }
 
   /**
-   * What the last guest left: floor pieces in the mat's corner slots (clear of the cleaner in the middle),
-   * then the unmade bed, in the order they get tidied (floor first, the bed last: the big reveal).
+   * What the last guest left: one thing of theirs on the floor beside the bed (always the same place, clear of
+   * the cleaning pad, the tip and the nightstand), then the bed they slept in, in the order they get tidied (the
+   * bed last: the big reveal).
    */
   setMess(cabinIndex: number, pieces: readonly MessPiece[], bed: BedMess, seed: number): void {
     const mess = this.mess[cabinIndex];
@@ -673,7 +676,6 @@ export class CarriageView {
     }
     mess.items.length = 0;
     const rand = seeded(seed);
-    const heart = mess.heart;
     const floor = FLOOR_Y + LIFT;
     const add = (build: (b: GeoBuilder) => void, x: number, y: number, z: number, ry: number, scale: number, name: string): void => {
       const b = new GeoBuilder();
@@ -688,20 +690,30 @@ export class CarriageView {
       mess.group.add(mesh);
       mess.items.push(mesh);
     };
-    // Slots in a shuffled order, so the same pieces never sit in the same places twice.
-    // A berth is short: its slots tuck in closer so nothing meets the walls.
-    const reach = Math.min(1, ((cabin.room.z1 - cabin.room.z0) / 2 - 0.32) / 0.82);
-    const slots = MESS_SLOTS.map((o) => ({ x: heart.x + o.x, z: heart.z + o.z * reach })).sort(() => rand() - 0.5);
-    pieces.slice(0, slots.length).forEach((piece, i) => {
-      const slot = slots[i];
-      // Quarter turns only: a piece's square cell stays a square cell.
-      add((b) => buildMessPiece(b, piece, 0), slot.x, floor, slot.z, Math.floor(rand() * 4) * (Math.PI / 2), MESS_SCALE, piece);
-    });
+    const slot = this.messSlot(cabin);
+    const piece = pieces[0];
+    // Quarter turns only: a piece's square cell stays a square cell.
+    if (piece) add((b) => buildMessPiece(b, piece, 0), slot.x, floor, slot.z, Math.floor(rand() * 4) * (Math.PI / 2), MESS_SCALE, piece);
     const r = cabin.bed;
     const w = r.x1 - r.x0 - 0.1;
     const d = r.z1 - r.z0 - 0.3;
-    add((b) => buildBedMess(b, bed, w, d, BED_TOP + 0.03, this.blanketColor, shadeHex(this.blanketColor, -26)), (r.x0 + r.x1) / 2, FLOOR_Y, (r.z0 + r.z1) / 2 + 0.1, 0, 1, `bed-${bed}`);
+    add((b) => buildBedMess(b, w, d, BED_TOP + 0.03, this.blanketColor, shadeHex(this.blanketColor, -26)), (r.x0 + r.x1) / 2, FLOOR_Y, (r.z0 + r.z1) / 2 + 0.1, 0, 1, `bed-${bed}`);
     if (mess.group.visible) this.setDirtFade(cabinIndex, 0, 0);
+  }
+
+  /** Where a guest's one floor piece lies: beside the middle of the bed, nudged clear of the tip and the head. */
+  private messSlot(cabin: CabinLayout): { x: number; z: number } {
+    const bed = cabin.bed;
+    const x = bed.x0 - MESS_BESIDE_BED;
+    let z = Math.max((bed.z0 + bed.z1) / 2, cabin.room.z0 + MESS_HEAD_CLEAR);
+    const tip = cabin.tipPile;
+    if (Math.hypot(tip.x - x, tip.z - z) < MESS_TIP_CLEAR) {
+      const dx = Math.min(Math.abs(tip.x - x), MESS_TIP_CLEAR);
+      const dz = Math.sqrt(MESS_TIP_CLEAR * MESS_TIP_CLEAR - dx * dx);
+      const towardHead = tip.z - dz;
+      z = towardHead >= cabin.room.z0 + MESS_HEAD_CLEAR ? towardHead : tip.z + dz;
+    }
+    return { x, z };
   }
 
 
@@ -734,6 +746,20 @@ export class CarriageView {
   /** Per-frame life: the laundry turns. */
   animate(dt: number): void {
     for (let i = 0; i < this.spinners.length; i++) this.spinners[i].rotation.y += dt * (2.6 + (i % 2) * 0.7);
+  }
+
+  /** The window openings on the long wall whose inside faces the camera (the lake side), front to back. */
+  private cameraSideWindows(): WindowCorner[] {
+    const out: WindowCorner[] = [];
+    for (const wall of this.layout.walls) {
+      if (wall.kind !== 'exterior' || wall.x1 > 0 || wall.z1 - wall.z0 < wall.x1 - wall.x0) continue;
+      const { count, slot, width } = windowSpacing(wall.z1 - wall.z0);
+      for (let i = 0; i < count; i++) {
+        const zc = wall.z0 + slot * (i + 0.5);
+        out.push({ x: wall.x1, inward: 1, z0: zc - width / 2, z1: zc + width / 2, top: FLOOR_Y + WINDOW_Y1 });
+      }
+    }
+    return out.sort((a, b) => a.z0 - b.z0);
   }
 
   private frontDepth(): number {
@@ -861,7 +887,7 @@ export class CarriageView {
   }
 
   /** A few touches that grow with the tier: a clock and key rack in the lobby, frames and rugs later. */
-  private buildDecor(s: GeoBuilder, f: GeoBuilder, lamps: GeoBuilder): void {
+  private buildDecor(s: GeoBuilder, lamps: GeoBuilder): void {
     const type = this.layout.type;
     const fin = this.finish;
     const frontWallZ = WALL + 0.012;
@@ -891,23 +917,8 @@ export class CarriageView {
         s.endObject();
       }
     }
-    if (type === 'lobby') {
-      // Painted queue places: where to stand reads at a glance, and the line stays tidy.
-      const mark = this.tier >= 2 ? this.theme.deep : '#B9AE9C';
-      const base = this.floorInfo.queueBase;
-      const inner = base > FLOOR_Y ? '#EFE5D2' : fin.floor;
-      QUEUE_SLOTS.forEach((p, i) => {
-        f.disc(p.x, base + LIFT, p.z, 0.22, mark, 24);
-        f.disc(p.x, base + LIFT * 2, p.z, 0.17, inner, 24);
-        const next = QUEUE_SLOTS[i + 1];
-        if (!next) return;
-        // A dotted guide to the next place.
-        for (let k = 1; k <= 3; k++) {
-          const t = k / 4;
-          f.disc(p.x + (next.x - p.x) * t, base + LIFT, p.z + (next.z - p.z) * t, 0.035, mark, 10);
-        }
-      });
-    }
+    // Session 17: no painted queue places. Flat discs over the old boards read as stains, not as a line; the
+    // guests waiting in it are the line (and from the Cosy refit the waiting rug frames it).
     if (fin.decor && type !== 'lobby') {
       // Pictures only where nothing already stands against the front wall.
       const wallFree = (x: number, w: number): boolean => !this.layout.props.some((p) => p.rect.z0 < 0.8 && p.rect.x0 < x + w / 2 && p.rect.x1 > x - w / 2);
@@ -1457,6 +1468,14 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       b.cylinder(cx, y + 0.7, cz, Math.min(w, d) / 2, Math.min(w, d) / 2, 0.04, tier <= 0 ? '#A98D6F' : PALETTE.oak, 20, 'y', FLAT);
       b.sphere(cx - 0.06, y + 0.8, cz - 0.08, 0.09, tier >= 2 ? PALETTE.brass : PALETTE.porcelain, 1, 0.85);
       for (const [dx, dz] of [[0.14, 0.12], [-0.12, 0.16]]) b.cylinder(cx + dx, y + 0.76, cz + dz, 0.04, 0.032, 0.07, PALETTE.porcelain, 10);
+      if (tier >= 4) {
+        // A suite's lounge light: a little brass lamp with a silk shade, on the table.
+        const lx = cx + 0.13;
+        const lz = cz - 0.12;
+        b.cylinder(lx, y + 0.735, lz, 0.035, 0.04, 0.03, PALETTE.brass, 10, 'y', { surface: 'brass' });
+        b.cylinder(lx, y + 0.8, lz, 0.009, 0.009, 0.11, PALETTE.brass, 6, 'y', { surface: 'brass' });
+        lamps.cylinder(lx, y + 0.88, lz, 0.04, 0.065, 0.07, '#F6E6BD', 12, 'y', { shade: 0.9 });
+      }
       break;
     }
     case 'sofa': {
@@ -1560,8 +1579,14 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
         b.rounded(cx, y + 0.68, backZ, 0.36, 0.46, 0.05, 0.05, PALETTE.gold, { shade: 1, surface: 'brass' });
         b.rounded(cx, y + 0.68, backZ - side * 0.03, 0.28, 0.36, 0.03, 0.05, theme.deep, { shade: 0.9, surface: 'velvet' });
       }
-      b.cylinder(cx - 0.08, y + 0.8, cz, 0.03, 0.04, 0.08, PALETTE.gold, 8, 'y', { surface: 'brass' });
-      lamps.cylinder(cx - 0.08, y + 0.89, cz, 0.012, 0.012, 0.1, '#FFF1D0', 6);
+      // A gilt candelabra (the suite's light: there is no ceiling to hang a chandelier from).
+      b.cylinder(cx - 0.08, y + 0.8, cz, 0.03, 0.045, 0.08, PALETTE.gold, 8, 'y', { surface: 'brass' });
+      b.cylinder(cx - 0.08, y + 0.88, cz, 0.008, 0.008, 0.1, PALETTE.gold, 6, 'y', { surface: 'brass' });
+      b.box(cx - 0.08, y + 0.925, cz, 0.016, 0.012, 0.13, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+      for (const dz of [-0.06, 0, 0.06]) {
+        b.cylinder(cx - 0.08, y + 0.94, cz + dz, 0.014, 0.01, 0.016, PALETTE.gold, 6, 'y', { surface: 'brass' });
+        lamps.cylinder(cx - 0.08, y + 0.99 + (dz === 0 ? 0.02 : 0), cz + dz, 0.009, 0.009, 0.08, '#FFF1D0', 6);
+      }
       b.cylinder(cx + 0.06, y + 0.82, cz, 0.025, 0.035, 0.12, '#E8EEF2', 8, 'y', { surface: 'glass' });
       for (let i = 0; i < 3; i++) b.sphere(cx + 0.06 + (i - 1) * 0.03, y + 0.9 + (i % 2) * 0.02, cz + (i - 1) * 0.015, 0.025, '#C0485C', 1, 0.9);
       break;
@@ -1745,24 +1770,18 @@ function buildPiano(b: GeoBuilder, lamps: GeoBuilder, r: Rect, tier: number, rea
 }
 
 /**
- * What a cabin's class adds, placed where it can never touch the cleaning pad, the mess or the tip pile: the
- * light hanging over the walk-in (a bare bulb, a fabric shade, brass, a glass globe, a chandelier), a writing
- * desk on the corridor wall past the door (Business and up), and at the foot of the bed a stool (Basic), a
- * minibar (Business), a velvet ottoman and champagne on ice (First) or a slipper bath (Royal).
+ * What a cabin's class adds, placed where it can never touch the cleaning pad, the mess or the tip pile: a
+ * writing desk with a reading lamp on the corridor wall past the door (Business and up), and at the foot of the
+ * bed a stool with a hurricane lantern (Basic), a luggage bench (Comfort), a minibar (Business), a velvet ottoman
+ * and champagne on ice (First) or a slipper bath (Royal).
  */
-function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout, tier: number, theme: CarriageTheme, props: readonly PropDef[]): void {
+function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout, tier: number, theme: CarriageTheme): void {
   const y = FLOOR_Y;
   const room = cabin.room;
   const bed = cabin.bed;
-  const heart = cabin.center;
-  // Hanging light, just toward the corridor side of the walk-in, high above everyone's heads; a suite also
-  // hangs one over each table in it.
-  buildPendant(b, lamps, PARTITION_X1 + 0.42, heart.z, tier, theme, 'class:pendant');
-  props.forEach((p, i) => {
-    if (p.kind !== 'table' && p.kind !== 'dining') return;
-    if (p.rect.z0 < room.z0 || p.rect.z1 > room.z1 || p.rect.x0 < room.x0 || p.rect.x1 > room.x1) return;
-    buildPendant(b, lamps, (p.rect.x0 + p.rect.x1) / 2, (p.rect.z0 + p.rect.z1) / 2, tier, theme, `class:pendant${i}`);
-  });
+  // Session 17: no hanging lights. The roof is cut away, so a lamp on a wire hung from nothing above the walls
+  // (and threw a dark disc onto the floor). Each class's light stands on its furniture instead: a lantern on the
+  // stool, a reading lamp on the desk, a lamp on the lounge table, a candelabra on the dinner table.
 
   // Business and up: a writing desk on the corridor wall, past the door, with a reading lamp (never longer
   // than a desk, however long the suite).
@@ -1793,13 +1812,22 @@ function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout
   const fd = fz1 - fz0;
   if (tier <= 1) {
     b.object('class:stool');
+    lamps.object('class:stool~glow');
     const sx = bed.x0 + 0.35;
     b.cylinder(sx, y + 0.4, fzc, 0.16, 0.16, 0.04, tier <= 0 ? '#9C8570' : PALETTE.oakMid, 12, 'y', { surface: 'wood' });
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * Math.PI * 2;
       b.cylinder(sx + Math.cos(a) * 0.1, y + 0.2, fzc + Math.sin(a) * 0.1, 0.015, 0.015, 0.4, tier <= 0 ? '#8E7560' : PALETTE.walnut, 6, 'y', { surface: 'wood' });
     }
+    // The berth's light: a hurricane lantern on the stool (iron, then brass once repaired), its glass lit.
+    const metal = tier <= 0 ? PALETTE.iron : PALETTE.brass;
+    const lx = sx - 0.04;
+    b.cylinder(lx, y + 0.435, fzc, 0.05, 0.055, 0.03, metal, 10, 'y', { surface: tier <= 0 ? 'matte' : 'brass' });
+    lamps.cylinder(lx, y + 0.5, fzc, 0.032, 0.04, 0.1, PALETTE.lampShade, 10, 'y', { shade: 0.95 });
+    b.cylinder(lx, y + 0.565, fzc, 0.045, 0.03, 0.03, metal, 10, 'y', { surface: tier <= 0 ? 'matte' : 'brass' });
+    b.cylinder(lx, y + 0.6, fzc, 0.006, 0.006, 0.05, metal, 4);
     b.endObject();
+    lamps.endObject();
     return;
   }
   if (tier === 2) {
@@ -1855,35 +1883,6 @@ function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout
   b.cylinder(tx1 - 0.08, y + 0.62, fzc, 0.016, 0.016, 0.2, PALETTE.gold, 6, 'y', { surface: 'brass' });
   b.box(tx0 + 0.18, y + 0.53, fzc, 0.24, 0.05, 0.16, theme.blanket, 0, { shade: 0.95, surface: 'fabric' });
   b.endObject();
-}
-
-/** A ceiling light by class: a bare bulb, a fabric shade, brass, a glass globe, a chandelier. */
-function buildPendant(b: GeoBuilder, lamps: GeoBuilder, hx: number, hz: number, tier: number, theme: CarriageTheme, label: string): void {
-  const y = FLOOR_Y;
-  const hang = y + 1.5;
-  b.object(label);
-  lamps.object(`${label}~glow`);
-  b.cylinder(hx, (hang + y + 2.1) / 2, hz, 0.006, 0.006, y + 2.1 - hang, PALETTE.ink, 4);
-  if (tier <= 1) lamps.sphere(hx, hang - 0.05, hz, 0.05, PALETTE.lampShade, 1);
-  else if (tier === 2) {
-    b.cone(hx, hang - 0.06, hz, 0.15, 0.13, theme.curtain, 12, { shade: 0.9, surface: 'fabric' });
-    lamps.sphere(hx, hang - 0.12, hz, 0.045, PALETTE.lampShade, 1);
-  } else if (tier <= 4) {
-    b.cylinder(hx, hang, hz, 0.03, 0.05, 0.05, PALETTE.brass, 10, 'y', { surface: 'brass' });
-    lamps.sphere(hx, hang - 0.1, hz, tier >= 4 ? 0.1 : 0.08, tier >= 4 ? '#FFF4D8' : PALETTE.lampShade, 1);
-  } else {
-    // The chandelier: a gilt ring of candle bulbs round crystal drops.
-    b.cylinder(hx, hang, hz, 0.16, 0.16, 0.025, PALETTE.gold, 18, 'y', { surface: 'brass' });
-    b.cylinder(hx, hang + 0.08, hz, 0.02, 0.05, 0.16, PALETTE.gold, 8, 'y', { surface: 'brass' });
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      lamps.cylinder(hx + Math.cos(a) * 0.16, hang + 0.05, hz + Math.sin(a) * 0.16, 0.012, 0.012, 0.07, '#FFF1D0', 6);
-      b.sphere(hx + Math.cos(a + 0.5) * 0.09, hang - 0.07, hz + Math.sin(a + 0.5) * 0.09, 0.022, '#E8F2FF', 1, 1.6, { shade: 1, surface: 'crystal' });
-    }
-    lamps.sphere(hx, hang - 0.12, hz, 0.04, '#FFF4D8', 1);
-  }
-  b.endObject();
-  lamps.endObject();
 }
 
 /**

@@ -215,8 +215,8 @@ export class Game implements World {
         this.events.emit('journey.lastCall', {});
       },
     }, route.stationIndex, route.legsCompleted, route.stopsCompleted, route.stopsCompleted > 0 ? 70 : undefined,
-    // A brand-new game opens pulling out of Millbrook: the journey is on screen from the first second.
-    route.stopsCompleted === 0 && route.legsCompleted === 0 ? 'departing' : 'onTheMove');
+    // A brand-new game opens standing at Millbrook, its first passengers boarding (Station.startPrologue).
+    route.stopsCompleted === 0 && route.legsCompleted === 0 ? 'stationStop' : 'onTheMove');
 
     this.flow = new Flow(this);
     this.map = new TrainMap(this.econ.player.radius);
@@ -261,7 +261,7 @@ export class Game implements World {
     this.cash.create('floor', this.map.anchor(0, 'startCash').x, this.map.anchor(0, 'startCash').z);
     this.tiles.refresh();
     this.guests.spawnStartingQueue(this.econ.guests.initialGuests);
-    this.guests.spawnDeckPassengers();
+    this.station.startPrologue();
     if (this.save.outcome === 'newPlayer' || this.data.profile.lifetimePlaySeconds < 1) {
       this.cash.add('floor', this.econ.money.startingFloorCash);
     }

@@ -358,7 +358,8 @@ export class Ui implements GameUi {
     }
 
     const j = g.journey;
-    const stopped = j.phase === 'stationStop';
+    // A held stop (the opening at Millbrook) has no clock: the train leaves once its passengers are aboard.
+    const stopped = j.phase === 'stationStop' && !j.held;
     hud.journey.classList.toggle('stop', stopped);
     hud.journey.classList.toggle('urgent', stopped && j.timeLeft <= g.econ.journey.lastCallSeconds);
     // On the move the train rides the line toward the station; at a stop the line drains toward departure.
@@ -575,6 +576,12 @@ export class Ui implements GameUi {
     const r = this.rect;
     const rootRect = this.frame.root;
     const { w: width, h: height } = sizeOf(el);
+    // Its size is reported a frame after it appears (or changes words): until then it waits unseen, instead of
+    // being placed as if it had no size (half of it over the top bar for that one frame).
+    if (width === 0 || height === 0) {
+      el.style.opacity = '0';
+      return;
+    }
     let x = 0;
     let y = 0;
     let tail = 'down';
@@ -646,7 +653,7 @@ export class Ui implements GameUi {
     this.tmp.set(tag.x, TILE_MARKER_Y, tag.z);
     const r = this.rect;
     const size = sizeOf(t.el);
-    if (!g.stage.project(this.tmp, this.screen)) {
+    if (size.w === 0 || size.h === 0 || !g.stage.project(this.tmp, this.screen)) {
       t.el.style.opacity = '0';
       return;
     }

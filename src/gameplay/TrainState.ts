@@ -119,6 +119,10 @@ const ROOM_DOOR_OPEN_RATE = 4.5;
 const ROOM_DOOR_CLOSE_RATE = 2.2;
 /** A cabin's mess clears away in this many visible steps while it is tidied. */
 const CLEAN_STEPS = 7;
+/** A room's broom icon shows when the guide's target is this close to its pad… */
+const CLEAN_ICON_FOCUS = 0.8;
+/** …or when the conductor is this close to it. */
+const CLEAN_ICON_NEAR = 2.2;
 /** Where the conductor steps to (metres ahead of the old rear) while a new carriage rolls in. */
 const COUPLING_STEP_BACK = 0.8;
 /** How long the refurbishment wipe takes to sweep the carriage (seconds). */
@@ -984,11 +988,18 @@ export class TrainState {
       x: spot.x,
       z: spot.z,
       radius: ZONE_RADIUS.spot,
-      // The one place to stand: a broom pad in the middle of the mat, shown only while the room is dirty.
+      // The one place to stand: a broom pad in the middle of the room, shown only while the room is dirty.
       icon: 'broom',
       ring: true,
       hideWhenInactive: true,
       active: () => cabin.dirty[i] && !cabin.guest,
+      // The broom floats only over the room the guide points at, or one the conductor is close to and nobody
+      // on the staff has taken: three rooms to tidy are three quiet pads, not three signs.
+      showIcon: () => {
+        const focus = w.guidance?.focus;
+        if (focus && Math.hypot(focus.x - spot.x, focus.z - spot.z) < CLEAN_ICON_FOCUS) return true;
+        return !cabin.cleaner && Math.hypot(w.player.pos.x - spot.x, w.player.pos.z - spot.z) < CLEAN_ICON_NEAR;
+      },
       stay: (zone, actor, dt) => {
         const before = zone.progress;
         zone.progress += (dt / w.econ.zones.cleanCabinSeconds) * actor.workMultiplier;

@@ -61,9 +61,9 @@ export interface IntroBeat {
 }
 
 export const INTRO_BEATS: IntroBeat[] = [
-  { focus: 'locomotive', seconds: 2.6, zoom: 1.4, kicker: 'Millbrook · 11:40 pm', text: 'The night shift' },
+  { focus: 'locomotive', seconds: 2.6, zoom: 1.4, kicker: 'Millbrook · 11:40 pm', text: 'The night train is boarding' },
   { focus: 'lobby', seconds: 2.3, zoom: 1.05, text: 'One tired old carriage…' },
-  { focus: 'desk', seconds: 2.3, zoom: 0.92, text: '…and a guest waiting!' },
+  { focus: 'desk', seconds: 2.3, zoom: 0.92, text: '…and passengers waiting!' },
 ];
 
 /** Seconds between one step being done and the next cue appearing (a breath, and the tick). */

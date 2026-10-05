@@ -85,8 +85,10 @@ describe('Flow', () => {
     expect(new Flow(world({ level: 2 })).allows('moreTiles')).toBe(true);
   });
 
-  it('walk-ins belong to the first leg only', () => {
-    expect(new Flow(world({ stops: 0 })).walkIns).toBe(true);
-    expect(new Flow(world({ stops: 1 })).walkIns).toBe(false);
+  it('the opening at Millbrook waits for travellers to board, then leaves', () => {
+    const prologue = ECONOMY.flow.prologue;
+    expect(prologue.travellers).toBeGreaterThanOrEqual(1);
+    // The last call comes inside the journey's own last-call window, so it chimes as soon as it is called.
+    expect(prologue.lastCallSeconds).toBeLessThanOrEqual(ECONOMY.journey.lastCallSeconds);
   });
 });

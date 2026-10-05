@@ -23,11 +23,6 @@ export class Flow {
     return null;
   }
 
-  /** Passengers walk in from the observation deck when a cabin is built (the first leg only). */
-  get walkIns(): boolean {
-    return this.w.data.route.stopsCompleted < this.w.econ.flow.walkInsUntilStops;
-  }
-
   /** Has the ride reached this feature yet? */
   allows(feature: FeatureId): boolean {
     return this.passes(this.w.econ.flow.features[feature]);

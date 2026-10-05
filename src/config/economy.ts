@@ -14,8 +14,11 @@ export interface FlowGate {
 
 export const ECONOMY = {
   journey: {
-    /** First leg is short so the first station lands at ~1:00 (§14), counting the opening departure. */
-    firstLegMoveSeconds: 48,
+    /**
+     * First leg is short so the first station lands at ~1:00 (§14), counting the boarding at Millbrook and the
+     * departure (session 17: 36 s, was 48, now that the game opens standing at the platform).
+     */
+    firstLegMoveSeconds: 36,
     /**
      * Session 16 (owner: "the second ride… is either too fast or too slow"): the rides grow instead of jumping from
      * 48 s to 150 s. The second ride (90 s) holds one arc: Repairs early, then saving for the first new carriage,
@@ -218,10 +221,14 @@ export const ECONOMY = {
     sharpness: 3,
   },
   mess: {
-    minPieces: 2,
-    maxPieces: 3,
-    /** Chance one piece is swapped for something anyone might leave (a paper ball, a wrapper). */
-    commonChance: 0.3,
+    /**
+     * Session 17 (owner: "the dirt, unclean room presentation is still a mess… doesn't look thrown together"): a
+     * used room is the bed they slept in plus one thing of theirs on the floor beside it, always in the same place.
+     */
+    minPieces: 1,
+    maxPieces: 1,
+    /** Chance that one thing is something anyone might leave (a paper ball, a wrapper) instead of their own. */
+    commonChance: 0.2,
   },
 
   /** Comforts (reading lamps, flowers, radios; soaps, towel rails): what each one adds in its carriage. */
@@ -249,10 +256,17 @@ export const ECONOMY = {
   flow: {
     /** The first purchases, one on show at a time, in this order (the next appears when the last is bought). */
     openingTiles: ['c0.cabin_1', 'c0.cabin_2', 'c0.hire_attendant', 'c0.refurb_1', 'couple_1'] as string[],
-    /** Passengers who walk in from the observation deck when a cabin is built, until this many stops are done. */
-    walkInsUntilStops: 1,
-    /** Seconds between a new tile appearing and the passenger it brings stepping out onto the deck. */
-    walkInDelay: 0.6,
+    /**
+     * Where the first passengers come from (session 17, owner: "where guests are coming from… a whole system where
+     * logistically it makes total sense"): a new game opens standing at Millbrook with the doors open. One guest
+     * has already stepped in and waits at the desk; `travellers` more wait on the platform with a "no room" sign
+     * (one cabin is ready, and it is spoken for). Each cabin built frees a bed and the next one walks aboard by
+     * themselves (`boardDelay` seconds after the purchase; the boarding pad is taught at the first real stop).
+     * Once they are all inside, the last call sounds and the train leaves `lastCallSeconds` later. The clock is
+     * held until then: the train never leaves anyone it has a bed for. Every passenger after that boards at a
+     * station.
+     */
+    prologue: { travellers: 1, boardDelay: 0.6, lastCallSeconds: 6 },
     features: {
       /** The goal chain (it also waits for the walkthrough and the train's name, see Objectives). */
       goals: { stops: 1 },

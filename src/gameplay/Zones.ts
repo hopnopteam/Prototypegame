@@ -20,6 +20,11 @@ export interface ZoneOptions {
   hideWhenInactive?: boolean;
   /** Draw attention: the player is needed here right now (a shelf with something someone asked for). */
   highlight?: () => boolean;
+  /**
+   * When the floating icon shows (default: whenever the ring does). A job that can be waiting in many rooms at
+   * once (a room to tidy) shows its icon only where it matters, so the train is never a field of signs.
+   */
+  showIcon?: () => boolean;
   /** Called every frame for each actor standing inside. Return true while real work happens. */
   stay: (zone: Zone, actor: Actor, dt: number) => boolean;
   enter?: (zone: Zone, actor: Actor) => void;
@@ -95,6 +100,7 @@ export class Zone {
     this.ring.visible = this.enabled && (active || !this.opts.hideWhenInactive);
     this.ring.dimmed = !active;
     this.ring.highlight = active && !!this.opts.highlight?.();
+    this.ring.iconShown = !this.opts.showIcon || this.opts.showIcon();
     this.ring.progress = this.progress;
     this.ring.pulse = this.playerInside && active ? 1 : 0;
     this.ring.update(dt);

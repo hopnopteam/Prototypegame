@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import type { ItemKind, Vec2 } from '../core/types';
 import { FLOOR_Y } from '../world/CarriageView';
-import { GeoBuilder } from '../world/geo';
-import { MATERIALS } from '../world/materials';
+import { guideArrowTexture, makeSprite } from '../world/sprites';
 import { markWorldUi } from '../world/ZoneViews';
 import type { World } from './World';
 
@@ -21,6 +20,10 @@ const POINTER_INSET = { top: 124, right: 84, left: 64, side: 36 };
 const FTUE_SECONDS = 150;
 const IDLE_BEFORE_HINT = 3;
 const REACHED = 0.9;
+/** The guide arrow: its size on screen (metres at the target), the height it hangs at and its bounce. */
+const ARROW_SIZE = 0.62;
+const ARROW_HEIGHT = 1.75;
+const ARROW_BOB = 0.28;
 
 /**
  * A bouncing arrow over the next useful thing and a screen-edge pointer when it is off-screen (the Coach
@@ -40,12 +43,8 @@ export class Guidance {
   enabled = true;
 
   constructor(private readonly w: World) {
-    const b = new GeoBuilder();
-    b.cone(0, 0, 0, 0.32, 0.55, '#FFD35C', 4);
     this.arrow = new THREE.Group();
-    const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
-    mesh.rotation.x = Math.PI;
-    this.arrow.add(mesh);
+    this.arrow.add(makeSprite(guideArrowTexture(), ARROW_SIZE));
     this.arrow.visible = false;
     markWorldUi(this.arrow);
     w.scene.add(this.arrow);
@@ -65,8 +64,8 @@ export class Guidance {
     const near = target ? Math.hypot(target.x - player.x, target.z - player.z) < REACHED : true;
     this.arrow.visible = !!target && !near;
     if (target && !near) {
-      this.arrow.position.set(target.x, FLOOR_Y + 1.8 + Math.abs(Math.sin(this.time * 4)) * 0.35, target.z);
-      this.arrow.rotation.y = this.time * 2;
+      // A soft bounce, its tip just above head height over the spot.
+      this.arrow.position.set(target.x, FLOOR_Y + ARROW_HEIGHT + Math.abs(Math.sin(this.time * 4)) * ARROW_BOB, target.z);
     }
     this.updatePointer(target && !near ? target : null);
   }

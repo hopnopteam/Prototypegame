@@ -45,6 +45,27 @@ describe('Journey', () => {
     expect(phases).toEqual(['onTheMove', 'arriving', 'stationStop']);
   });
 
+  it('can open standing at the first station, held until released, then leaves on the short first leg (session 17)', () => {
+    const phases: JourneyPhase[] = [];
+    const lastCalls: number[] = [];
+    const journey = new Journey(config, { onPhase: (p) => phases.push(p), onLastCall: () => lastCalls.push(1) }, 0, 0, 0, undefined, 'stationStop');
+    expect(journey.phase).toBe('stationStop');
+    expect(journey.held).toBe(true);
+    expect(journey.doorsOpen).toBe(true);
+    // Nobody is rushed: a held stop never runs down and cannot be held for longer.
+    run(journey, 300);
+    expect(phases).toEqual([]);
+    expect(journey.holdTrain()).toBe(false);
+    journey.release(6);
+    run(journey, 0.1);
+    expect(lastCalls).toEqual([1]);
+    run(journey, 6 + config.departingSeconds);
+    expect(phases).toEqual(['departing', 'onTheMove']);
+    // Millbrook was not a stop of the ride: the first stop is still ahead.
+    expect(journey.stopSerial).toBe(0);
+    expect(journey.duration).toBe(config.firstLegMoveSeconds);
+  });
+
   it('loops through every phase in order', () => {
     const { journey, phases } = makeJourney(1, 1);
     run(journey, config.moveSeconds + 6 + 40 + 6 + 0.1);

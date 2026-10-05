@@ -65,6 +65,10 @@ export class ZoneRing {
     this.lit = value;
   }
 
+  set iconShown(value: boolean) {
+    if (this.icon) this.icon.visible = value;
+  }
+
   set dimmed(value: boolean) {
     this.material.uniforms.uOpacity.value = value ? 0.35 : 1;
     if (this.icon) (this.icon.material as THREE.SpriteMaterial).opacity = value ? 0.4 : 1;

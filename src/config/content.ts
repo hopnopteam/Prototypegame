@@ -52,12 +52,12 @@ export interface ArchetypeDef {
   mess: MessPiece[];
 }
 
-/** Things a guest can leave on the cabin floor (built in world/Mess.ts). */
+/** Things a guest can leave on the cabin floor, one per stay (built in world/Mess.ts). */
 export type MessPiece =
   | 'newspaper' | 'cup' | 'papers' | 'paperBalls' | 'socks' | 'map' | 'wrappers' | 'bottle' | 'book' | 'yarn'
   | 'petals' | 'champagne' | 'teddy' | 'toyTrain' | 'appleCore' | 'boa' | 'cards';
-/** How they leave the bed. */
-export type BedMess = 'heap' | 'tangle' | 'kicked';
+/** How they leave the bed (session 17: one look everywhere, the duvet kicked down to the foot). */
+export type BedMess = 'unmade';
 /** Bits anyone might leave, mixed in now and then so no two rooms look alike. */
 export const COMMON_MESS: MessPiece[] = ['paperBalls', 'wrappers', 'cup'];
 
@@ -209,7 +209,8 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 15, stars: 2, cabin: 1, requires: [], effect: '+1 guest' },
       { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 45, stars: 3, role: 'attendant', requires: ['cabin_1'], flags: ['firstCabinCleaned'], effect: 'Cleans cabins' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 60, stars: 3, tier: 1, requires: ['hire_attendant'], effect: 'Fares +25%' },
-      { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 35, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
+      // Session 17: 30 (was 35). Bought on the first leg for the travellers waiting at the first stop.
+      { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 30, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
       { key: 'refurb_2', kind: 'refurb', label: 'Comfort Class', price: 150, stars: 4, tier: 2, requires: ['refurb_1', '@couple_1'], flags: ['level_2'], effect: '2 cabins · Fares ×2.5' },
       { key: 'comfort_lamp', kind: 'comfort', label: 'Reading Lamps', price: 85, stars: 2, comfort: 'lamp', requires: ['refurb_1', '@couple_1'], effect: 'Tips +20%' },
       { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 160, stars: 3, role: 'porter', requires: ['@couple_2'], effect: 'Check-in & bags' },
@@ -295,10 +296,10 @@ export interface CoupleSlot {
 }
 
 export const COUPLE_SLOTS: CoupleSlot[] = [
-  // Session 16: 150 again (session 15 had 120 while Rush stopped funding it). The opening's walk-in guests fill
-  // three cabins in the first leg, so the first carriage lands at about 2:45 on the autopilot (~3:30 by hand),
-  // the last purchase of the opening (config: flow.openingTiles).
-  { price: 150, stars: 6, requires: ['c0.hire_attendant'] },
+  // Session 17: 140 (session 16: 150). Two guests ride the first leg now (the one at the desk and the traveller who
+  // boards at Millbrook), one fewer than the old walk-ins, so the first carriage still lands at about 3:00 on the
+  // autopilot (~3:30 by hand), the last purchase of the opening (config: flow.openingTiles).
+  { price: 140, stars: 6, requires: ['c0.hire_attendant'] },
   { price: 240, stars: 6, requires: ['couple_1'] },
   { price: 380, stars: 8, requires: ['couple_2'] },
   { price: 600, stars: 8, requires: ['couple_3'] },

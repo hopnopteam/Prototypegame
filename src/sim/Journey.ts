@@ -33,6 +33,11 @@ export class Journey {
   /** Increments every stop; ad rules use it to tell stops apart. */
   stopSerial: number;
   holdUsed = false;
+  /**
+   * The train waits at the platform with no clock running (the opening at Millbrook: it leaves once its first
+   * passengers are aboard). `release` starts the last few seconds.
+   */
+  held = false;
   private moveDuration: number;
   private stationDuration: number;
   private lastCallSent = false;
@@ -44,13 +49,17 @@ export class Journey {
     legsCompleted = 0,
     stopSerial = 0,
     moveSecondsOverride?: number,
-    /** A brand-new game opens pulling out of the first station, so the journey is on screen from second one. */
-    startPhase: 'onTheMove' | 'departing' = 'onTheMove',
+    /**
+     * Where a session opens: on the move, or (a brand-new game, session 17) standing at the first station with
+     * the doors open and the clock held, so the first passengers are seen boarding from the platform.
+     */
+    startPhase: 'onTheMove' | 'departing' | 'stationStop' = 'onTheMove',
   ) {
     this.stationIndex = stationIndex;
     this.legsCompleted = legsCompleted;
     this.stopSerial = stopSerial;
     this.phase = startPhase;
+    this.held = startPhase === 'stationStop';
     this.moveDuration = moveSecondsOverride ?? this.legSeconds(stopSerial);
     this.stationDuration = config.stationSeconds;
   }
@@ -127,14 +136,24 @@ export class Journey {
 
   /** Rewarded "Hold the train": adds time to the current stop, once per stop. */
   holdTrain(): boolean {
-    if (this.phase !== 'stationStop' || this.holdUsed) return false;
+    if (this.phase !== 'stationStop' || this.holdUsed || this.held) return false;
     this.holdUsed = true;
     this.stationDuration += this.config.holdTheTrainSeconds;
     this.lastCallSent = false;
     return true;
   }
 
+  /** A held stop gets going: the doors close in `seconds` (the last call sounds at once if that is short). */
+  release(seconds: number): void {
+    if (!this.held) return;
+    this.held = false;
+    this.time = 0;
+    this.stationDuration = seconds;
+    this.lastCallSent = false;
+  }
+
   update(dt: number): void {
+    if (this.held) return;
     this.time += dt;
     if (this.phase === 'stationStop' && !this.lastCallSent && this.timeLeft <= this.config.lastCallSeconds) {
       this.lastCallSent = true;

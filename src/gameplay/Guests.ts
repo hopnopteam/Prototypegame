@@ -12,7 +12,7 @@ import type { World } from './World';
 import type { Zone } from './Zones';
 
 export type GuestState =
-  | 'deck' | 'platform' | 'boarding' | 'queue' | 'toCabin' | 'settling' | 'resting' | 'requesting'
+  | 'platform' | 'boarding' | 'queue' | 'toCabin' | 'settling' | 'resting' | 'requesting'
   | 'toBathroom' | 'waitingBathroom' | 'inBathroom' | 'returning' | 'alighting' | 'leaving' | 'gone';
 
 export type GuestRequest = ServiceNeed | 'bathroom';
@@ -23,14 +23,6 @@ const BATHROOM_EMPTY_WAIT = 6;
 const SIT_ROOT = BED_TOP - 0.24;
 /** A guest back from the washroom sits only briefly before lying down again. */
 const RETURN_SETTLE_SECONDS = 0.8;
-/** Who waits on the observation deck for a cabin in the first leg (the guest at the desk is a backpacker). */
-const WALK_IN_ARCHETYPES = ['student', 'backpacker'];
-/** Walk-ins hurry to the desk (a bed at last!): the player is never left waiting for them. */
-const WALK_IN_HURRY = 1.35;
-/** Where the deck passengers stand: at the back rail, a little apart, looking down the line (deck-local). */
-const DECK_SPOTS = [{ x: -0.62, back: 0.5 }, { x: 0.7, back: 0.62 }];
-/** Seconds between a deck passenger glancing at their watch. */
-const DECK_FIDGET_SECONDS = 4.5;
 /** Steps in the "generous tip" ring drawn around a request bubble. */
 export const TIP_RING_STEPS = 12;
 
@@ -67,8 +59,6 @@ export class Guest {
   cls: ClassId;
   /** Royal: the rest of the butler's list (asked for one after another, paid as one generous tip). */
   pending: ServiceNeed[] = [];
-  /** Came in from the observation deck during the first leg (not through a station door). */
-  walkIn = false;
 
   constructor(readonly archetype: ArchetypeDef, x: number, z: number, speed: number, readonly story: StoryDef | null) {
     this.cls = archetype.cls;
@@ -108,78 +98,7 @@ export class Guests {
   private alightStagger = 0;
   private readonly bedsLeft = new Map<ClassId, number>();
 
-  /**
-   * The first leg (config: flow): passengers who boarded at Millbrook without a cabin wait on the observation
-   * deck, out of the opening's view, looking back down the line. Each cabin built calls the next one in, so
-   * building a room always brings someone to sleep in it, and nobody ever appears from nowhere (session 16).
-   */
-  private readonly deck: Guest[] = [];
-
-  constructor(private readonly w: World) {
-    w.events.on('unlock.completed', ({ id }) => {
-      const def = w.unlocks.get(id);
-      if (def?.kind !== 'cabin' || !w.flow.walkIns || w.journey.doorsOpen) return;
-      w.tweens.delay(w.econ.flow.walkInDelay, () => this.walkIn());
-    });
-  }
-
-  /** At the start of the first leg: one passenger on the deck for every cabin of the opening still to build. */
-  spawnDeckPassengers(): void {
-    const w = this.w;
-    if (!w.flow.walkIns) return;
-    const waiting = w.econ.flow.openingTiles.filter((id) => w.unlocks.get(id)?.kind === 'cabin' && !w.unlocks.isUnlocked(id)).length;
-    const deck = w.map.rearDeck().room;
-    for (let i = 0; i < Math.min(waiting, DECK_SPOTS.length); i++) {
-      const spot = DECK_SPOTS[i];
-      const guest = this.create(this.pickArchetype('basic', WALK_IN_ARCHETYPES[i % WALK_IN_ARCHETYPES.length]), spot.x, deck.z1 - spot.back, null);
-      guest.state = 'deck';
-      guest.walkIn = true;
-      // Looking back down the line, a little turned toward the lake.
-      guest.mover.facing = (i === 0 ? -0.35 : 0.2);
-      this.deck.push(guest);
-    }
-  }
-
-  /** A cabin has opened: the next passenger on the deck walks forward to the desk queue. */
-  walkIn(): Guest | null {
-    const guest = this.deck.shift();
-    if (!guest || guest.state !== 'deck') return null;
-    guest.mover.speed *= WALK_IN_HURRY;
-    guest.state = 'boarding';
-    guest.stateTime = 0;
-    guest.queueSlot = this.queue.length;
-    guest.arrivedInQueue = false;
-    this.queue.push(guest);
-    guest.view.act('wave', 0.8);
-    guest.mover.go(this.insidePath(guest, this.slotPosition(guest.queueSlot)), () => this.arriveInQueue(guest));
-    return guest;
-  }
-
-  /** The first stop: anyone still waiting on the deck gets off here (their hop was a short one). */
-  private sendOffDeck(): void {
-    const w = this.w;
-    const door = w.map.doors()[0];
-    for (const guest of this.deck.splice(0)) {
-      if (guest.state !== 'deck') continue;
-      this.setState(guest, 'alighting');
-      guest.view.act('wave', 1.2);
-      const path = this.insidePath(guest, door.inside);
-      const exit = { x: door.outside.x + 2.2, z: door.outside.z - 3 - w.rng.next() * 3 };
-      guest.mover.go([...path, door.outside, exit], () => {
-        this.setState(guest, 'leaving');
-        guest.onPlatform = true;
-      });
-    }
-  }
-
-  /** A route through the train (never through a wall) from where the guest stands to a point inside. */
-  private insidePath(guest: Guest, to: Vec2): Vec2[] {
-    const map = this.w.map;
-    const from = map.nearestNode(guest.pos.x, guest.pos.z);
-    const end = map.nearestNode(to.x, to.z);
-    const path = from && end ? map.nav.findPath(from, end) : null;
-    return [...(path ?? []), to];
-  }
+  constructor(private readonly w: World) {}
 
   /** Guests already aboard when a session starts (boarded at the previous station). */
   spawnStartingQueue(count: number): void {
@@ -239,8 +158,16 @@ export class Guests {
     return null;
   }
 
-  /** Someone on the platform has a bed of their class waiting for them. */
+  /**
+   * Someone on the platform has a bed of their class waiting for them (and the conductor can board them: at
+   * Millbrook, before the first departure, travellers step aboard by themselves as rooms open).
+   */
   canBoard(): boolean {
+    return !this.w.station.prologue && this.nextBoarder() !== null;
+  }
+
+  /** Someone on the platform has a bed of their class (whoever boards them). */
+  hasBoarder(): boolean {
     return this.nextBoarder() !== null;
   }
 
@@ -355,7 +282,6 @@ export class Guests {
 
   /** Every guest whose stop this is gets up and heads for the door (staggered so they don't overlap). */
   onStationStop(stopSerial: number): void {
-    this.sendOffDeck();
     this.alightStagger = 0;
     for (const guest of this.list) {
       if (guest.destinationStop <= stopSerial && guest.cabin && (guest.inCabin || guest.state === 'toCabin')) {
@@ -369,7 +295,7 @@ export class Guests {
   onDoorsClosing(): void {
     const door = this.w.map.doors()[0];
     for (const guest of this.list) {
-      if (guest.state === 'boarding' && !guest.walkIn) {
+      if (guest.state === 'boarding') {
         guest.pos.x = door.inside.x;
         guest.pos.z = door.inside.z;
         guest.mover.go([this.slotPosition(guest.queueSlot)], () => this.arriveInQueue(guest));
@@ -477,13 +403,6 @@ export class Guests {
   private think(guest: Guest, dt: number): void {
     const w = this.w;
     switch (guest.state) {
-      case 'deck':
-        // Waiting for a room: now and then a glance at the watch.
-        if (guest.stateTime > DECK_FIDGET_SECONDS) {
-          guest.stateTime = 0;
-          guest.view.act('watch', 1.2);
-        }
-        break;
       case 'queue':
         if (guest.queueSlot !== 0 || !guest.arrivedInQueue) guest.view.showBubble(null);
         else if (w.train.freeCabin(guest.cls)) guest.view.showBubble('ticket', guest.cls);
@@ -858,8 +777,6 @@ export class Guests {
   }
 
   private arriveInQueue(guest: Guest): void {
-    // A walk-in who hurried in walks at their own pace from here.
-    if (guest.walkIn) guest.mover.speed = this.w.econ.guests.walkSpeed * guest.archetype.speedMultiplier;
     guest.arrivedInQueue = true;
     guest.state = 'queue';
     guest.stateTime = 0;
@@ -880,8 +797,6 @@ export class Guests {
       if (guest.state === 'queue' && guest.arrivedInQueue) {
         guest.arrivedInQueue = false;
         guest.mover.go([this.slotPosition(i)], () => this.arriveInQueue(guest));
-      } else if (guest.state === 'boarding' && guest.walkIn) {
-        guest.mover.go(this.insidePath(guest, this.slotPosition(i)), () => this.arriveInQueue(guest));
       } else if (guest.state === 'boarding') {
         const door = this.w.map.doors()[0];
         const inside = guest.pos.x < door.inside.x + 0.5;
@@ -998,7 +913,7 @@ export class Guests {
     for (const g of this.list) {
       if (cls && g.cls !== cls) continue;
       // Deck passengers get off at the first stop: they never hold a bed past it.
-      if (g.aboard && g.state !== 'deck' && (g.cabin === null ? g.state !== 'platform' : g.destinationStop > stopSerial)) n++;
+      if (g.aboard && (g.cabin === null ? g.state !== 'platform' : g.destinationStop > stopSerial)) n++;
     }
     return n;
   }

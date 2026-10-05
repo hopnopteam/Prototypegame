@@ -317,7 +317,7 @@ const HOLDS: Record<string, string[]> = {
   'prop:shelfRoll': ['stock:shelfRoll'],
   'prop:washShelf': ['stock:towel', 'stock:roll'],
   // An unmade bed is built on top of the made one.
-  bed: ['mess:bed-heap', 'mess:bed-tangle', 'mess:bed-kicked'],
+  bed: ['mess:bed-unmade'],
 };
 const holds = (container: string, item: string): boolean => (HOLDS[container] ?? []).includes(item.split('#')[0]);
 
@@ -337,8 +337,8 @@ function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras
     layout.cabins.forEach((c) => {
       view.setCabinLocked(c.index, locked);
       view.setDirt(c.index, [true, true, true]);
-      // Every mess piece in turn, four to a room (more than any guest leaves), and every unmade-bed look.
-      const pieces = [0, 1, 2, 3].map((j) => MESS_PIECES[(messTurn * 4 + j) % MESS_PIECES.length]);
+      // Every mess piece in turn (a guest leaves one, beside the bed) with the unmade bed.
+      const pieces = [MESS_PIECES[messTurn % MESS_PIECES.length]];
       view.setMess(c.index, pieces, BED_MESS[messTurn % BED_MESS.length], messTurn + 1);
       messTurn++;
     });

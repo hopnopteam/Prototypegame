@@ -5,10 +5,10 @@ export type { BedMess, MessPiece };
 import { PALETTE } from './palette';
 
 /**
- * What a guest leaves behind: a small library of pieces, each built around its own origin and kept inside
- * a MESS_CELL square (so pieces in neighbouring floor slots can never touch), plus a few unmade-bed looks.
- * Which pieces a room gets depends on who stayed (ARCHETYPE_MESS in config/content.ts) and a little luck,
- * so no two rooms look alike. Heights are relative to the floor or the mattress top.
+ * What a guest leaves behind: the bed they slept in and one thing of theirs on the floor beside it (a businessman's
+ * paper, a backpacker's map, grandma's yarn…), from a small library of pieces, each built around its own origin
+ * inside a MESS_CELL square. Which piece depends on who stayed (`mess` on each archetype in config/content.ts).
+ * Heights are relative to the floor or the mattress top.
  */
 
 /** Every floor piece fits inside this square (metres), centred on its slot. */
@@ -95,12 +95,13 @@ const FLOOR: Record<MessPiece, Builder> = {
     for (let i = 0; i < 6; i++) b.sphere(-0.11 + i * 0.044, y + 0.03, Math.sin(i * 1.2) * 0.06, 0.035, '#F2A7B5', 0, 0.85);
   },
   cards: (b, y) => {
-    // A fanned hand, each card 5 mm above the last (closer faces would flicker), and one stray under it.
+    // A fanned hand, each card 5 mm above the last (closer faces would flicker), and one stray under it, clear of
+    // the floor and of the hand by more than the audit's 3 mm at the pieces' scale.
     for (let i = 0; i < 5; i++) {
       const a = -0.5 + i * 0.25;
-      b.box(Math.sin(a) * 0.05, y + 0.003 + i * 0.005, Math.cos(a) * 0.035 - 0.03, 0.08, 0.002, 0.115, i % 2 ? '#FBF7EF' : '#F3EBDA', a, FLAT);
+      b.box(Math.sin(a) * 0.05, y + 0.009 + i * 0.005, Math.cos(a) * 0.035 - 0.03, 0.08, 0.002, 0.115, i % 2 ? '#FBF7EF' : '#F3EBDA', a, FLAT);
     }
-    b.box(-0.08, y + 0.001, 0.09, 0.07, 0.002, 0.095, '#C0485C', 0.3, FLAT);
+    b.box(-0.08, y + 0.004, 0.09, 0.07, 0.002, 0.095, '#C0485C', 0.3, FLAT);
   },
 };
 
@@ -112,33 +113,30 @@ export function buildMessPiece(b: GeoBuilder, piece: MessPiece, y: number): void
 export const MESS_PIECES = Object.keys(FLOOR) as MessPiece[];
 
 /**
- * An unmade bed on top of the made one: `w`/`d` are the free mattress area (the made pillow at the head is
- * left clear), `top` the blanket's surface, `color` the bedspread and `heap` a darker fold of it. A white
- * crumpled sheet against the coloured blanket is what reads as "slept in" from above.
+ * The bed they slept in, on top of the made one (session 17, owner: "a better unified system to represent room being
+ * dirty that doesn't look thrown together"): one look in every room, in that room's own colours. The duvet is
+ * kicked down into a soft roll across the foot with one corner thrown back, and the creased white sheet shows where
+ * they lay. `w`/`d` are the free mattress area below the pillows, `top` the made cover's surface, `color` the
+ * cover and `fold` its underside.
  */
-export function buildBedMess(b: GeoBuilder, kind: BedMess, w: number, d: number, top: number, color: string, heap: string): void {
+export function buildBedMess(b: GeoBuilder, w: number, d: number, top: number, color: string, fold: string): void {
   const sheet = PALETTE.linen;
-  if (kind === 'heap') {
-    // Everything piled in the middle: sheet mound, the blanket bunched beside it, a pillow askew.
-    b.rounded(-w * 0.08, top + 0.05, -d * 0.02, w * 0.62, 0.12, d * 0.36, 0.08, sheet, { shade: 0.93 });
-    b.rounded(-w * 0.14, top + 0.12, d * 0.02, w * 0.3, 0.08, d * 0.18, 0.06, sheet, { shade: 0.97 });
-    b.rounded(w * 0.18, top + 0.07, d * 0.26, w * 0.52, 0.15, d * 0.2, 0.07, heap, { shade: 0.88 }, 0.3);
-    b.rounded(-w * 0.2, top + 0.04, -d * 0.26, w * 0.34, 0.09, 0.2, 0.06, PALETTE.pillow, { shade: 0.92 }, 0.45);
-  } else if (kind === 'tangle') {
-    // The blanket twisted into a rope across the bed, the sheet's corner flipped back, a pillow at the foot.
-    b.rounded(0, top + 0.05, d * 0.02, w * 0.24, 0.12, d * 0.66, 0.06, heap, { shade: 0.88 }, 0.35);
-    b.rounded(w * 0.24, top + 0.015, -d * 0.2, w * 0.3, 0.03, d * 0.24, 0.03, sheet, { shade: 0.95 }, -0.4);
-    b.rounded(-w * 0.22, top + 0.04, d * 0.36, w * 0.34, 0.09, 0.2, 0.06, PALETTE.pillow, { shade: 0.92 }, -0.5);
-  } else {
-    // Kicked to the foot in a bundle, the sheet rumpled up the middle.
-    b.rounded(0, top + 0.07, d * 0.36, w * 0.84, 0.16, d * 0.2, 0.07, heap, { shade: 0.88 });
-    b.rounded(w * 0.04, top + 0.03, -d * 0.06, w * 0.66, 0.06, d * 0.34, 0.05, sheet, { shade: 0.95 });
-    b.rounded(-w * 0.16, top + 0.08, -d * 0.02, w * 0.28, 0.07, d * 0.15, 0.05, sheet, { shade: 0.98 });
-  }
-  void color;
+  // From below the pillows (and a grand bed's bolster) to where the duvet roll begins.
+  const head = -d / 2 + 0.3;
+  const roll = d * 0.16;
+  const sheetLength = roll - head + 0.04;
+  b.rounded(0, top + 0.012, head + sheetLength / 2, w * 0.92, 0.024, sheetLength, 0.012, sheet, { shade: 0.97 });
+  // Two soft creases where they turned over.
+  b.rounded(-w * 0.12, top + 0.03, head + sheetLength * 0.35, w * 0.46, 0.022, 0.05, 0.011, sheet, { shade: 0.9 }, 0.3);
+  b.rounded(w * 0.14, top + 0.03, head + sheetLength * 0.68, w * 0.38, 0.022, 0.05, 0.011, sheet, { shade: 0.9 }, -0.25);
+  // The duvet kicked down into a roll across the foot…
+  const rollLength = d / 2 - roll;
+  b.rounded(0, top + 0.06, roll + rollLength / 2, w, 0.12, rollLength, 0.06, color, { shade: 0.92 }, 0.04);
+  // …with one corner thrown back up the bed, its underside showing.
+  b.rounded(w * 0.22, top + 0.036, roll - 0.1, w * 0.38, 0.05, 0.3, 0.025, fold, { shade: 0.9 }, 0.45);
 }
 
-export const BED_MESS: BedMess[] = ['heap', 'tangle', 'kicked'];
+export const BED_MESS: BedMess[] = ['unmade'];
 
 /** A tiny deterministic generator, so a room's mess stays the same while it waits to be cleaned. */
 export function seeded(seed: number): () => number {
