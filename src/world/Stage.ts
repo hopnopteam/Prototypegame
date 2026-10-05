@@ -6,7 +6,7 @@ import { LightMap } from './LightMap';
 import { installGradedToneMapping } from './toneMap';
 import type { Particles } from './Particles';
 import { PostFx } from './PostFx';
-import { clippedClones, MATERIALS } from './materials';
+import { clippedClones, MATERIALS, setLiteShading } from './materials';
 import { detectTier, lowerTier, tierSettings, type QualitySetting } from './Quality';
 
 /** A tiny triangle with every vertex attribute the game's materials read (stand-ins for the warm-up). */
@@ -72,6 +72,12 @@ export class Stage {
   /** When the scale last stepped up (a drop soon after means that scale is too much for this device). */
   private steppedUpAt = -1;
   private clock = 0;
+  /** No judging the frame rate until this clock time (start-up, a hitch, a tier change). */
+  private judgeFrom = 0;
+  /** Auto on Low, still slow at the floor: frames held to the fallback rate (0 = no hold). */
+  fpsHold = 0;
+  /** The WebGL context was lost (a phone under memory pressure): nothing renders until it is restored. */
+  contextLost = false;
   private particles: Particles | null = null;
   private width = 1;
   private height = 1;
@@ -98,6 +104,20 @@ export class Stage {
     const first = tierSettings(this.tier);
     this.contextAntialias = first.msaa === 0 && first.bloom === 0 && !first.fxaa;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.contextAntialias, powerPreference: 'high-performance', preserveDrawingBuffer: false, stencil: false });
+    // A phone may drop the context under memory pressure: wait for it to come back instead of freezing on a
+    // black canvas (three rebuilds its programs and uploads on the next render; the light maps and static
+    // shadows are redrawn).
+    canvas.addEventListener('webglcontextlost', (event) => {
+      event.preventDefault();
+      this.contextLost = true;
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      this.contextLost = false;
+      this.lightMap.invalidate();
+      this.lighting.invalidateShadows();
+      this.renderer.shadowMap.needsUpdate = true;
+      this.judgeFrom = this.clock + VISUALS.quality.dynamicResolution.graceSeconds;
+    });
     // Reading back every shader's log after compiling makes the browser wait for it (no parallel compiling):
     // only worth it while developing.
     this.renderer.debug.checkShaderErrors = false;
@@ -115,6 +135,11 @@ export class Stage {
     this.scene.add(this.rig.camera);
     this.applyTier(this.tier);
     this.resize();
+  }
+
+  /** Tools: switch lite shading on or off without changing the tier (A/B timing). */
+  devLite(on: boolean): void {
+    setLiteShading(on);
   }
 
   /** The detected tier for this device, for the settings sheet. */
@@ -145,13 +170,19 @@ export class Stage {
   private applyTier(tier: QualityTier): void {
     this.tier = tier;
     const s = tierSettings(tier);
-    this.renderScale = this.dynamicResolution ? Math.min(1, Math.max(VISUALS.quality.dynamicResolution.minScale, this.startScale(tier))) : 1;
+    const dr = VISUALS.quality.dynamicResolution;
+    this.renderScale = this.dynamicResolution ? Math.min(1, Math.max(dr.minScale, dr.rememberFloor, this.startScale(tier))) : 1;
     this.scaleCeiling = 1;
+    this.fpsHold = 0;
+    this.judgeFrom = this.clock + dr.graceSeconds;
     this.resetWindow();
     this.updatePixelRatio();
+    // Lite (per-vertex) shading on the phone tiers; set before anything compiles (see warmUp).
+    setLiteShading(s.lite);
     // PCF filtering throughout; the soft tiers sample a wider radius (this three.js has no separate soft type).
+    this.renderer.shadowMap.enabled = s.shadows !== 'off';
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
-    this.lighting.setShadows(true, s.shadowMap, s.softShadows ? 4 : 1.5);
+    this.lighting.setShadows(s.shadows, s.shadowMap, s.softShadows ? 4 : 1.5, this.renderer.capabilities.maxTextureSize);
     this.renderer.shadowMap.needsUpdate = true;
     this.fx?.dispose();
     this.fx = null;
@@ -225,11 +256,21 @@ export class Stage {
 
   private frameNo = 0;
 
+  /** The shortest a frame may be (ms): the 60 fps cap, or the fallback hold on a device that cannot keep up. */
+  get minFrameMs(): number {
+    const q = VISUALS.quality;
+    return this.fpsHold > 0 ? (1000 / this.fpsHold) * 0.92 : (1000 / q.maxFps) * q.skipShare;
+  }
+
   render(dt: number): void {
+    if (this.contextLost) return;
     this.trackFps(dt);
     this.lightMap.update();
     this.frameNo++;
-    if (this.frameNo % tierSettings(this.tier).shadowInterval === 0) this.renderer.shadowMap.needsUpdate = true;
+    // Static shadows redraw only when the train changed; following shadows on the tier's cadence.
+    if (this.lighting.shadowMode === 'static') {
+      if (this.lighting.takeStaticRedraw()) this.renderer.shadowMap.needsUpdate = true;
+    } else if (this.frameNo % tierSettings(this.tier).shadowInterval === 0) this.renderer.shadowMap.needsUpdate = true;
     const cam = this.rig.camera;
     cam.updateMatrixWorld();
     this.lighting.follow(this.rig.focusPoint, this.rig.viewDirection);
@@ -315,9 +356,14 @@ export class Stage {
       this.fpsFrames = 0;
     }
     if (!this.dynamicResolution) return;
-    // Dynamic resolution first (a lower render scale is invisible next to a stutter), judged on the share of
-    // slow frames in a short window: one long frame (a cash burst, a new carriage) never costs resolution.
     const dr = VISUALS.quality.dynamicResolution;
+    // A single long frame is a hitch (a build, a texture upload), not a slow device: give it a moment.
+    if (dt * 1000 > dr.hitchMs) this.judgeFrom = Math.max(this.judgeFrom, this.clock + dr.hitchGraceSeconds);
+    if (this.clock < this.judgeFrom) {
+      this.resetWindow();
+      return;
+    }
+    // Judged on the share of slow frames in a window of a couple of seconds: sustained, not one stutter.
     this.windowTime += dt;
     this.windowFrames++;
     if (dt * 1000 > dr.slowFrameMs) this.windowSlow++;
@@ -341,17 +387,25 @@ export class Stage {
         this.steppedUpAt = this.clock;
         this.setRenderScale(Math.min(this.scaleCeiling, this.renderScale + dr.stepUp), true);
       }
+      // Held to 30 and smooth for a good while: try full rate again.
+      if (this.fpsHold > 0 && this.smoothSeconds >= dr.recoverSeconds * 2) {
+        this.fpsHold = 0;
+        this.judgeFrom = this.clock + dr.hitchGraceSeconds;
+      }
     }
-    // Auto steps down a tier (never up) only when even the lowest scale stays slow.
-    if (this.setting !== 'auto' || this.tier === 'low') return;
     const atFloor = this.renderScale <= dr.minScale + 1e-3;
     this.floorSeconds = atFloor && slow ? this.floorSeconds + elapsed : 0;
-    if (this.floorSeconds >= VISUALS.quality.downgradeSeconds) {
-      this.floorSeconds = 0;
+    if (this.floorSeconds < VISUALS.quality.downgradeSeconds) return;
+    this.floorSeconds = 0;
+    // Auto steps down a tier (never up) only when even the lowest scale stays slow; on Low, an even 30.
+    if (this.setting === 'auto' && this.tier !== 'low') {
       this.smoothedFps = 60;
       const next = lowerTier(this.tier);
       this.applyTier(next);
       this.onAutoTier?.(next);
+    } else if (this.fpsHold === 0) {
+      this.fpsHold = VISUALS.quality.fallbackFps;
+      this.judgeFrom = this.clock + dr.hitchGraceSeconds;
     }
   }
 

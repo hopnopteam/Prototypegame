@@ -22,6 +22,9 @@ const NO_REPEAT = 4;
  * milliseconds (many more on a phone): built in slices it never shows as a hitch.
  */
 const BUILD_BUDGET_MS = 1.5;
+/** Seconds between wisps from each chimney, and the stretch around the view (world z, from the focus) that smokes. */
+const CHIMNEY_PUFF_SECONDS = 0.45;
+const CHIMNEY_VIEW: [number, number] = [-50, 18];
 
 interface Chunk {
   group: THREE.Group;
@@ -147,6 +150,7 @@ export class Scenery {
   private readonly billboards: THREE.Group[] = [];
   private readonly billboardMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
   private time = 0;
+  private smokeTimer = 0;
   private pending: Pending | null = null;
 
   constructor() {
@@ -185,6 +189,11 @@ export class Scenery {
   /** Called when the train grows. The stretches already cover the longest train. */
   setSpan(_trainRearZ: number): void {
     this.writeSleepers();
+  }
+
+  /** The region hidden for the platform (world coordinates), or null between stations. */
+  get hiddenRegion(): { x0: number; x1: number; z0: number; z1: number } | null {
+    return this.hideRegion;
   }
 
   /** Land-side scenery inside this region is hidden (the station platform and building occupy it). */
@@ -228,6 +237,27 @@ export class Scenery {
     for (const chunk of this.chunks) {
       if (chunk.beam.visible) chunk.beam.rotation.y = this.time * 0.9;
       if (chunk.sails.visible) chunk.sails.rotation.x = this.time * 0.6;
+    }
+  }
+
+  /**
+   * Cottage chimneys smoking gently (session 18): a wisp from each chimney near the view now and then, carried
+   * along with the countryside. `focusZ` is where the camera looks; only chimneys around it puff.
+   */
+  smokeChimneys(dt: number, focusZ: number, emit: (x: number, y: number, z: number) => void): void {
+    this.smokeTimer -= dt;
+    if (this.smokeTimer > 0) return;
+    this.smokeTimer = CHIMNEY_PUFF_SECONDS;
+    for (const chunk of this.chunks) {
+      const build = chunk.build;
+      if (!build || build.chimneys.length === 0 || chunk.landHidden) continue;
+      const z0 = chunk.z + this.scroll;
+      if (z0 > focusZ + CHIMNEY_VIEW[1] || z0 + CHUNK < focusZ + CHIMNEY_VIEW[0]) continue;
+      for (const c of build.chimneys) {
+        const z = z0 + c.z;
+        if (z < focusZ + CHIMNEY_VIEW[0] || z > focusZ + CHIMNEY_VIEW[1] || this.isHidden(c.x, z)) continue;
+        emit(c.x, c.y, z);
+      }
     }
   }
 

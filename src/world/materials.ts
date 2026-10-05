@@ -299,6 +299,159 @@ if (vNxHighlight > 0.001) {
 }
 `;
 
+/**
+ * Lite shading (session 18, owner: "the performance in mobile is completely trash… insane frame rate drops…
+ * the whole game is completely blurred"): the phone tiers light every surface per vertex instead of per
+ * pixel. The geometry is flat-shaded low-poly, so a face's three vertices share its normal and per-vertex light
+ * is the face's light: the moon, the fill, the sky and the analytic sky reflection come out the same, at a
+ * fraction of the cost (no GGX, no DFG lookup, no per-pixel sky). Per pixel only what really varies across a
+ * face remains: the painted pattern, the moon's shadow, the baked lamplight and contact shading, and fog. That
+ * leaves room to draw phones at a crisp resolution.
+ */
+const LITE_VERTEX_HEAD = /* glsl */ `
+#include <lights_pars_begin>
+uniform vec4 uNxFixedSurface;
+uniform vec3 uNxSkyZenith;
+uniform vec3 uNxSkyHorizon;
+uniform vec3 uNxSkyGround;
+uniform vec3 uNxMoonDir;
+uniform float uNxSkyAmount;
+varying vec4 vNxMoon;
+varying vec3 vNxRest;
+varying vec3 vNxEnv;
+vec3 nxSkyV(vec3 r, float rough) {
+  float up = r.y;
+  vec3 sky = mix(uNxSkyHorizon, uNxSkyZenith, smoothstep(0.05, 0.85, up));
+  sky = mix(uNxSkyGround, sky, smoothstep(-0.25, 0.04, up));
+  vec3 avg = (uNxSkyZenith + uNxSkyHorizon * 2.0 + uNxSkyGround) * 0.25;
+  return mix(sky, avg, rough * rough);
+}
+`;
+
+const LITE_VERTEX_BODY = /* glsl */ `
+{
+  #ifdef NX_VERTEX_SURFACE
+  vec4 nxSurf = aSurface;
+  #else
+  vec4 nxSurf = uNxFixedSurface;
+  #endif
+  float nxRough = 1.0 - nxSurf.x;
+  vec3 nxNv = normalize(transformedNormal);
+  vec3 nxMoon = vec3(0.0);
+  float nxSpec = 0.0;
+  vec3 nxRest = getAmbientLightIrradiance(ambientLightColor);
+  vec3 nxViewV = normalize(-(modelViewMatrix * vec4(transformed, 1.0)).xyz);
+  #if NUM_DIR_LIGHTS > 0
+  for (int i = 0; i < NUM_DIR_LIGHTS; i++) {
+    vec3 l = directionalLights[i].direction;
+    float d = max(dot(nxNv, l), 0.0);
+    if (i == 0) {
+      // The moon (the shadow-casting light comes first): its share is shadowed per pixel; a Blinn glint whose
+      // tightness follows the surface's smoothness.
+      nxMoon = directionalLights[i].color * d;
+      float shine = mix(240.0, 6.0, nxRough);
+      vec3 h = normalize(l + nxViewV);
+      nxSpec = pow(max(dot(nxNv, h), 0.0), shine) * (shine + 8.0) * 0.04 * d;
+    } else {
+      nxRest += directionalLights[i].color * d;
+    }
+  }
+  #endif
+  #if NUM_HEMI_LIGHTS > 0
+  for (int i = 0; i < NUM_HEMI_LIGHTS; i++) nxRest += getHemisphereLightIrradiance(hemisphereLights[i], nxNv);
+  #endif
+  vec3 nxNw = inverseTransformDirection(nxNv, viewMatrix);
+  vec3 nxVw = normalize(cameraPosition - vNxWorld);
+  nxRest += nxSkyV(nxNw, 1.0) * (uNxSkyAmount * PI);
+  vNxMoon = vec4(nxMoon, nxSpec);
+  vNxRest = nxRest;
+  // The night sky the surface reflects (fresnel-weighted; tinted by F0 per pixel).
+  float nxFres = pow(1.0 - max(dot(nxNw, nxVw), 0.0), 5.0);
+  vNxEnv = nxSkyV(reflect(-nxVw, nxNw), nxRough) * uNxSkyAmount * (nxSurf.x * nxSurf.x) * (0.25 + 0.75 * nxFres + nxSurf.y);
+}
+`;
+
+const LITE_FRAGMENT_HEAD = /* glsl */ `
+varying vec4 vNxMoon;
+varying vec3 vNxRest;
+varying vec3 vNxEnv;
+`;
+
+const LITE_LIGHTS = /* glsl */ `
+vec3 geometryNormal = normal;
+vec3 geometryViewDir = ( isOrthographic ) ? vec3( 0, 0, 1 ) : normalize( vViewPosition );
+float nxShadow = 1.0;
+#if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0
+{
+  DirectionalLightShadow nxSh = directionalLightShadows[ 0 ];
+  #if defined( SHADOWMAP_TYPE_PCF )
+  // One hardware-filtered compare (2×2 PCF in a single fetch) instead of three's five: the phone tiers'
+  // static map is fine enough (~3.5 cm texels) that the extra taps only cost fill rate.
+  vec4 nxSc = vDirectionalShadowCoord[ 0 ];
+  nxSc.xyz /= nxSc.w;
+  nxSc.z += nxSh.shadowBias;
+  if ( receiveShadow && nxSc.x >= 0.0 && nxSc.x <= 1.0 && nxSc.y >= 0.0 && nxSc.y <= 1.0 && nxSc.z <= 1.0 ) {
+    nxShadow = mix( 1.0, texture( directionalShadowMap[ 0 ], nxSc.xyz ), nxSh.shadowIntensity );
+  }
+  #else
+  nxShadow = receiveShadow ? getShadow( directionalShadowMap[ 0 ], nxSh.shadowMapSize, nxSh.shadowIntensity, nxSh.shadowBias, nxSh.shadowRadius, vDirectionalShadowCoord[ 0 ] ) : 1.0;
+  #endif
+}
+#endif
+vec4 nxS = nxSurface();
+vec3 nxDiffuse = diffuseColor.rgb * (1.0 - nxS.y) * RECIPROCAL_PI;
+vec3 nxF0 = mix(vec3(0.04), diffuseColor.rgb, nxS.y);
+vec3 nxBakedLight = vec3(0.0);
+float nxAo = 1.0;
+#ifdef NX_LIGHT
+{
+  vec4 nxB = nxBaked(vNxWorld);
+  float nxH = vNxWorld.y - ${LIGHT_FLOOR_Y.toFixed(2)};
+  nxBakedLight = nxB.rgb * (uNxLightOn * (1.0 - smoothstep(1.3, 2.6, nxH)));
+  nxAo = mix(nxB.a, 1.0, smoothstep(0.06, 0.85, nxH));
+}
+#endif
+reflectedLight.indirectDiffuse = nxDiffuse * (vNxRest + nxBakedLight) * nxAo;
+reflectedLight.directDiffuse = nxDiffuse * vNxMoon.rgb * nxShadow * mix(1.0, nxAo, 0.55);
+{
+  vec3 nxSpec = nxF0 * (vNxEnv * nxAo + uNxMoonColor * (vNxMoon.a * nxShadow));
+  float nxM = max(max(nxSpec.r, nxSpec.g), nxSpec.b);
+  reflectedLight.indirectSpecular = nxSpec * min(1.0, ${SPECULAR_MAX.toFixed(2)} / max(nxM, 1e-4));
+}
+{
+  float nxSheen = 1.0 - nxS.w;
+  if (nxSheen > 0.0) {
+    float nxRim = pow(1.0 - saturate(dot(geometryNormal, geometryViewDir)), 3.0);
+    reflectedLight.directDiffuse *= 1.0 + nxSheen * nxRim * 1.4;
+    reflectedLight.indirectDiffuse *= 1.0 + nxSheen * nxRim * 1.4;
+  }
+}
+if (vNxHighlight > 0.001) {
+  float nxEdge = pow(1.0 - saturate(dot(normal, geometryViewDir)), ${HIGHLIGHT_EDGE_POWER.toFixed(1)});
+  totalEmissiveRadiance += vNxHighlight * (uNxHighlight * (nxEdge * ${HIGHLIGHT_RIM.toFixed(2)}) + diffuseColor.rgb * ${HIGHLIGHT_FILL.toFixed(2)});
+}
+`;
+
+/** Lite shading on (the phone tiers) or off (full physically based shading). Set before the first compile. */
+let liteShading = false;
+
+/** Every material built from a recipe (and its clipped clones), to recompile when the shading mode changes. */
+const shaded = new Set<THREE.Material>();
+
+/**
+ * Switches every lit material between lite (per-vertex) and full shading. Programs are cached per mode, so a
+ * tier change recompiles once; call it before warm-up so the first frame already has the right shaders.
+ */
+export function setLiteShading(on: boolean): void {
+  if (on === liteShading) return;
+  liteShading = on;
+  for (const m of shaded) m.needsUpdate = true;
+}
+
+export function isLiteShading(): boolean {
+  return liteShading;
+}
+
 /** Adds patterns, per-vertex surfaces, the baked light and glow to a physically based material. */
 function patchLit(material: THREE.MeshStandardMaterial, options: LitOptions): void {
   const fixed = typeof options.surface === 'object' ? options.surface : SURFACES.matte;
@@ -307,12 +460,16 @@ function patchLit(material: THREE.MeshStandardMaterial, options: LitOptions): vo
   if (options.surface === 'vertex') defines.NX_VERTEX_SURFACE = '';
   if (options.light) defines.NX_LIGHT = '';
   material.defines = { ...(material.defines ?? {}), ...defines };
+  shaded.add(material);
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uNxFixedSurface = { value: fixedSurface };
     Object.assign(shader.uniforms, LIGHT_UNIFORMS);
+    const lite = liteShading;
     let vs = LIT_VERTEX_HEAD + shader.vertexShader;
-    let fs = LIT_FRAGMENT_HEAD + shader.fragmentShader;
-    vs = vs.replace('#include <begin_vertex>', `#include <begin_vertex>\n${LIT_VERTEX_BODY}`);
+    // The vertex lighting needs three's light uniforms and helpers, after <common> (PI, saturate).
+    if (lite) vs = vs.replace('#include <common>', `#include <common>\n${LITE_VERTEX_HEAD}`);
+    let fs = (lite ? LITE_FRAGMENT_HEAD : '') + LIT_FRAGMENT_HEAD + shader.fragmentShader;
+    vs = vs.replace('#include <begin_vertex>', `#include <begin_vertex>\n${LIT_VERTEX_BODY}${lite ? LITE_VERTEX_BODY : ''}`);
     if (options.pattern) {
       vs = PATTERN_VERTEX_HEAD + vs.replace('#include <begin_vertex>', `#include <begin_vertex>\n${PATTERN_VERTEX_BODY}`);
       fs = PATTERN_FRAGMENT_HEAD + fs.replace('#include <color_fragment>', PATTERN_FRAGMENT_BODY);
@@ -320,13 +477,21 @@ function patchLit(material: THREE.MeshStandardMaterial, options: LitOptions): vo
     fs = fs
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = 1.0 - nxSurface().x;')
       .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = nxSurface().y;')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * nxSurface().z * uNxGlow;')
-      .replace('#include <lights_fragment_end>', LIT_LIGHTS);
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * nxSurface().z * uNxGlow;');
+    if (lite) {
+      fs = fs
+        .replace('#include <lights_physical_fragment>', '')
+        .replace('#include <lights_fragment_begin>', LITE_LIGHTS)
+        .replace('#include <lights_fragment_maps>', '')
+        .replace('#include <lights_fragment_end>', '');
+    } else {
+      fs = fs.replace('#include <lights_fragment_end>', LIT_LIGHTS);
+    }
     shader.vertexShader = vs;
     shader.fragmentShader = fs;
   };
   const key = `nx|${options.pattern ? 'p' : ''}|${options.surface === 'vertex' ? 'v' : 'f'}|${options.light ? 'l' : ''}`;
-  material.customProgramCacheKey = () => key;
+  material.customProgramCacheKey = () => `${key}|${liteShading ? 'lite' : 'pbr'}`;
 }
 
 let nightNow = 0;

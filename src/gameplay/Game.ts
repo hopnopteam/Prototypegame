@@ -38,6 +38,7 @@ import { CashView } from '../world/CashView';
 import { Particles } from '../world/Particles';
 import { Scenery } from '../world/Scenery';
 import { Ambient } from '../world/Ambient';
+import { Fireflies } from '../world/Fireflies';
 import { Stage } from '../world/Stage';
 import { isTier } from '../world/Quality';
 import { CashPiles } from './CashPiles';
@@ -82,6 +83,11 @@ const NIGHT_TIME = 0.82;
  * Composition root and main loop. Builds every system once, owns time (including the dev time scale and
  * pausing while an ad plays), sessions, offline earnings and the day/night cycle.
  */
+/** The quality policy (see `settings.qualityPolicy`): 18 = lite phone tiers, crisp resolution. */
+const QUALITY_POLICY = 18;
+/** Particle size scale at one device pixel per CSS pixel (Particles' default, tuned at that density). */
+const PARTICLE_SCALE = 400;
+
 export class Game implements World {
   readonly econ: Economy;
   readonly events = new EventBus<GameEvents>();
@@ -109,6 +115,8 @@ export class Game implements World {
   readonly journey: Journey;
   readonly scenery = new Scenery();
   readonly ambient = new Ambient();
+  /** Fireflies over the verges and the reeds at night (session 18). */
+  readonly fireflies = new Fireflies();
   readonly train: TrainState;
   readonly cash: CashPiles;
   readonly tiles: Tiles;
@@ -159,6 +167,13 @@ export class Game implements World {
     log.setVerbose(this.data.settings.devTools);
 
     const settings = this.data.settings;
+    // A remembered tier drop or render scale from an older quality policy starts afresh under this one.
+    if (settings.qualityPolicy !== QUALITY_POLICY) {
+      settings.qualityAuto = null;
+      settings.renderScale = {};
+      settings.qualityPolicy = QUALITY_POLICY;
+      this.save.markDirty();
+    }
     // A ?quality= link forces a tier for this visit only (screenshots, comparisons); it is not saved.
     const forced = new URLSearchParams(location.search).get('quality');
     const quality = isTier(forced) ? forced : isTier(settings.quality) ? settings.quality : 'auto';
@@ -185,7 +200,7 @@ export class Game implements World {
     // Every character from here on draws through one batch (one draw call for the whole crowd).
     CharacterView.batch = this.characters;
     this.scene.add(this.characters.group);
-    this.scene.add(this.scenery.group, this.ambient.group, this.particles.points, this.cashView.mesh);
+    this.scene.add(this.scenery.group, this.ambient.group, this.fireflies.points, this.particles.points, this.cashView.mesh);
     this.stage.attachParticles(this.particles);
 
     this.analytics = new MockAnalyticsService(80);
@@ -236,6 +251,7 @@ export class Game implements World {
     this.feedback = new Feedback(this);
     this.input = new Input(canvas.parentElement ?? canvas, overlay);
     this.input.onFirstInteraction = () => this.audio.unlock();
+    this.listenForAudioGesture();
 
     this.train.init();
     this.applyLivery();
@@ -282,6 +298,20 @@ export class Game implements World {
     document.addEventListener('visibilitychange', () => this.onVisibility());
     window.addEventListener('pagehide', () => this.save.saveNow());
     window.addEventListener('resize', () => this.stage.resize());
+  }
+
+  /**
+   * Audio may only start inside a gesture that counts as user activation: a tap's pointerup or touchend, a
+   * click, a key (a touch's pointerdown does not). Every such gesture resumes the sound if it is not running
+   * (the first tap, normally, and again after the phone suspended it, e.g. for a call); the graph is built and
+   * the theme decoded at boot, so the music is ready for the first tap.
+   */
+  private listenForAudioGesture(): void {
+    this.audio.prepare();
+    const tryUnlock = (): void => {
+      if (!this.audio.unlocked) this.audio.unlock();
+    };
+    for (const name of ['pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(name, tryUnlock, { capture: true, passive: true });
   }
 
   get data(): SaveData {
@@ -355,12 +385,12 @@ export class Game implements World {
     this.running = true;
     this.lastFrame = performance.now();
     // High-refresh screens are held to about 60 fps (config: quality.maxFps): the same smooth motion for half
-    // the work and heat. A frame that comes too soon after the last one is skipped.
-    const minFrameMs = (1000 / VISUALS.quality.maxFps) * VISUALS.quality.skipShare;
+    // the work and heat. A frame that comes too soon after the last one is skipped (and a device that cannot
+    // keep up is held to an even 30: Stage.minFrameMs).
     const frame = (now: number): void => {
       if (!this.running) return;
       requestAnimationFrame(frame);
-      if (now - this.lastFrame < minFrameMs) return;
+      if (now - this.lastFrame < this.stage.minFrameMs) return;
       const real = Math.min(0.25, (now - this.lastFrame) / 1000);
       this.lastFrame = now;
       this.frame(real);
@@ -384,6 +414,8 @@ export class Game implements World {
     this.present(realDt);
   }
 
+  private readonly emitChimneySmoke = (x: number, y: number, z: number): void => this.particles.emit('chimney', x, y, z, 1, 0.05);
+
   /** One simulation step. */
   step(dt: number): void {
     this.time += dt;
@@ -393,6 +425,7 @@ export class Game implements World {
     this.scenery.update(dt, this.journey.speed);
     this.updateLean(dt);
     this.ambient.update(dt, this.journey.speed, this.stage.rig.target, this.stage.lighting.night, this.scenery.isHiddenAt);
+    this.fireflies.update(dt, this.journey.speed, this.stage.lighting.night, this.stage.renderer.getPixelRatio(), this.scenery.hiddenRegion);
     this.player.update(dt);
     this.zones.update(dt, [this.player, ...this.staff.members]);
     this.guests.update(dt);
@@ -402,7 +435,8 @@ export class Game implements World {
     this.tiles.update(dt);
     this.cash.update(dt);
     this.cashView.update(dt);
-    this.particles.update(dt);
+    this.scenery.smokeChimneys(dt, this.stage.rig.target.z, this.emitChimneySmoke);
+    this.particles.update(dt, this.journey.speed);
     this.tweens.update(dt);
     this.guidance.update(dt);
     this.coach.update(dt);
@@ -441,6 +475,8 @@ export class Game implements World {
     rig.update(realDt, this.player.pos.x, this.player.pos.z);
     this.scenery.present(realDt, rig.focusPoint, night, this.stage.size, rig.zoomNow);
     this.particles.setNight(night);
+    // Particle sizes are tuned at one device pixel per CSS pixel: keep them the same size on sharp screens.
+    this.particles.setScale(PARTICLE_SCALE * this.stage.renderer.getPixelRatio());
     this.ui.update(realDt);
     // Rebuilds in progress get a slice of every frame, never a whole frame.
     this.background.run(BACKGROUND_BUDGET_MS);

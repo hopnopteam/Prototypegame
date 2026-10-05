@@ -10,10 +10,12 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   play (no title screen).
 - **The classic version** (before the session 12 lakeside, night look and carriage classes) is kept in
   [`archive/classic-v1/`](archive/classic-v1/README.md): a playable copy and the commit to return to.
-- **Graphics:** Settings has Auto / Low / Medium / High / Ultra (every tier shades the same way; Low and Medium
-  render straight to the screen with no post-processing, High and Ultra add bloom, softer shadows and lake
-  reflections). Phones start at Medium, held to about 60 fps; Auto lowers the render scale (remembered for next
-  time) before it ever drops a tier; add `?quality=low|medium|high|ultra` to the URL to force one (no dynamic resolution then).
+- **Graphics:** Settings has Auto / Low / Medium / High / Ultra (one look on every tier; Low and Medium render
+  straight to the screen with lighter per-vertex shading, Medium with a static train shadow; High and Ultra add
+  bloom, softer following shadows and lake reflections). Phones start at Medium, sharp (up to 1.5–1.75× pixels),
+  held to about 60 fps; Auto trims the render scale a little (never below 80%) and otherwise drops a tier, holding
+  a steady 30 fps on Low; add `?quality=low|medium|high|ultra` to the URL to force one (no dynamic resolution then).
+- **Sound:** the music starts on the first tap (phones count a tap's release, not its press, as permission).
 - **iPhone and Android apps:** the same game, wrapped for the App Store and Google Play with Capacitor:
   `npm run app:ios` / `npm run app:android` (needs Xcode / Android Studio). Building, signing and submitting:
   [`NATIVE.md`](NATIVE.md).
@@ -64,14 +66,14 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | Carriage classes (Basic to Royal Suite): liveries, chip colours, fare/tip/star multipliers, what each class asks for | `src/config/classes.ts` (class refit prices and level gates in `CARRIAGE_CATALOGUE`, aspirants and turndown in `economy.ts`, rooms per class in `LOBBY_ROOMS`/`SLEEPER_ROOMS` in `src/world/layout.ts`) |
 | The objective chain (goals, rewards) | `src/config/objectives.ts` |
 | The flow: the opening's purchases in order (`flow.openingTiles`: one on show at a time), the boarding at Millbrook that opens the game (`flow.prologue`: travellers waiting on the platform, how soon they step aboard, the last call), when each later feature joins (`flow.features`: bags, the platform crowd, reactions, Rush, class badges, the next-carriage plate, offers, the station workshop, a second tile, the goal chain) and the camera glide to something new (`flow.reveal`); the gap between coach lessons | `src/config/economy.ts` (`flow`), `src/config/coach.ts` (`COACH_LESSON_GAP_SECONDS`) |
-| Frame pacing (`maxFps`) and dynamic resolution | `src/config/visuals.ts` (`quality`) |
+| Frame pacing (`maxFps`), dynamic resolution, the tier drop and 30 fps hold, lite shading and shadow mode per tier | `src/config/visuals.ts` (`quality`) |
 | The app shell (app id, colours, launch screen, status bar) | `capacitor.config.ts`; native code in `ios/` and `android/` |
 | The sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, how celebrations ring out and keep the stage, the music's night filter | `src/config/audio.ts` |
 | The music (score: chords, melody, bass, drums) | `scripts/audio/build_music.py` renders `assets/audio/music_theme.mp3` from real piano, bass, guitar and drum recordings (credits in `assets/audio/CREDITS.md`); to use another track, replace the MP3 and set `loopSeconds` in `src/audio/music.ts` |
 | Floors by tier: broken planks and repairs, parquet, rugs | `src/world/Floors.ts` |
 | How passengers react (an icon per situation) | `src/config/chatter.ts` |
 | Content: stations, guest archetypes (with what each leaves behind), the carriage catalogue (each type's tiles incl. comforts, prices, limits and chooser text), coupling slots, station upgrades (exterior and marketing, with their bonuses), refurbishment tiers, stories, quests, products | `src/config/content.ts` |
-| The press: how it is paced (`PRESS_PACING`: one card per breather, the gap between cards, which news goes first), rival trains and their villainous owners (taunts, grumbles, portraits), front-page headlines and rewards per trigger, the Gazette debut interview and Rails Tonight interviews with perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
+| The press: how it is paced (`PRESS_PACING`: one card per breather, the gap between cards, which news goes first), rival trains and their villainous owners (taunts, grumbles, portraits, the spoils each pays when overtaken), the race on the HUD (`RIVAL_RACE`: when a rival turns nervous, how long reactions show), front-page headlines and rewards per trigger, the Gazette debut interview and Rails Tonight interviews with perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
 | Conductor outfits (earned and premium) and shoes by speed level | `src/config/wardrobe.ts` |
 | Walkthrough steps, one-time hints and the intro's camera beats and captions | `src/config/coach.ts` |
 | Carriage floor plans (passenger carriages: one per class, from six berths to one Royal Suite) | `src/world/layout.ts` |
@@ -89,7 +91,7 @@ src/
   sim/        pure logic, unit tested: Journey, AdPolicy, UnlockChain, Wallet, Progression, Walkable, NavGraph, TrainMap, meta, press
   save/       versioned JSON save (localStorage + backup + migrations)
   services/   ads, IAP, analytics, remote config: interfaces + mocks; native.ts (the iOS/Android app layer: saves, haptics, lifecycle)
-  world/      Three.js: stage with quality tiers, dynamic resolution, shader warm-up and post-processing, the character batch (one draw for everyone), camera, lighting, the baked light map (lamp pools, window spill, contact shading), the lakeside (terrain, set pieces, water, reflections), ambient life, platform, carriages and class chips, train exterior, characters, conductor gear, particles, cash
+  world/      Three.js: stage with quality tiers, dynamic resolution, shader warm-up and post-processing, the character batch (one draw for everyone), camera, lighting, the baked light map (lamp pools, window spill, contact shading), the lakeside (terrain, set pieces, water, reflections), ambient life, platform, carriages and class chips, train exterior, characters, conductor gear, particles, fireflies, the lobby cat, cash
   gameplay/   Game (composition root), player, zones, tiles, guests, staff, station, train, guidance, coach, objectives, feedback, press, rush, meta, monetization, autopilot
   audio/      WebAudio: synthesised effects, the music loop, haptics
   ui/         DOM HUD, sheets, icons, styles

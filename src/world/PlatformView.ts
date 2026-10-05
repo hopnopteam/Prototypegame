@@ -32,6 +32,25 @@ const BEAT_SECONDS = 0.5;
 /** The station master stands by the front of the train and waves the green flag at departure. */
 const MASTER_POS = { x: PLATFORM_X0 + 0.95, z: -1.0 };
 const MASTER_LOOK: CharacterLook = { body: '#2F3E5C', accent: '#E2B04A', skin: '#E8B894', hair: '#8A8A8A', pants: '#2A3248', hat: 'conductor', hatColor: '#2F3E5C', bandColor: '#C0485C', arms: true, moustache: true };
+/**
+ * Pigeons perched on the canopy roof (session 18: a lived-in station): they shuffle and peck, and take off
+ * when the train leaves. Where along the platform they sit (z), and how many.
+ */
+const PIGEON_SPOTS = [1.6, 2.3, 3.4, 13.2, 14.1, 15.5];
+const PIGEON_FLY_SECONDS = 3.2;
+
+/** A pigeon about 0.3 m long, facing -z: grey body, a darker head with a green-violet neck, a tail. */
+function pigeonGeometry(): THREE.BufferGeometry {
+  const b = new GeoBuilder();
+  b.add(new THREE.SphereGeometry(0.08, 8, 6).scale(0.85, 0.8, 1.35), '#8E96A6', 0, 0.075, 0, 0, 0, 0, { shade: 0.85 });
+  b.add(new THREE.SphereGeometry(0.06, 7, 5).scale(0.8, 0.6, 1.1), '#A9B0BC', 0, 0.09, 0.02, 0, 0, 0, { shade: 0.95 });
+  b.add(new THREE.SphereGeometry(0.045, 7, 5), '#5E6678', 0, 0.15, -0.09, 0, 0, 0, { shade: 0.9 });
+  b.add(new THREE.SphereGeometry(0.04, 6, 4).scale(1, 0.7, 0.9), '#5E8A7E', 0, 0.115, -0.07, 0, 0, 0, { shade: 1 });
+  b.add(new THREE.ConeGeometry(0.012, 0.035, 4).rotateX(-Math.PI / 2), '#D9B88A', 0, 0.145, -0.14, 0, 0, 0, { shade: 1 });
+  b.add(new THREE.BoxGeometry(0.07, 0.015, 0.09), '#6E7686', 0, 0.08, 0.12, 0.25, 0, 0, { shade: 0.9 });
+  return b.build();
+}
+
 /** The newsstand ahead of the lobby: today's Rail Gazette headline on a board. */
 const KIOSK_POS = { x: PLATFORM_X0 + 2.0, z: -4.2 };
 
@@ -56,6 +75,10 @@ export class PlatformView {
   private readonly posterMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
   private posterKey = '';
   private readonly band: CharacterView[] = [];
+  private readonly pigeons = new THREE.InstancedMesh(pigeonGeometry(), MATERIALS.solid, PIGEON_SPOTS.length);
+  /** Each pigeon's perch (x, y, z), heading, peck timer and, once flying, how long it has flown. */
+  private readonly perches = PIGEON_SPOTS.map((z, i) => ({ x: 0, y: 0, z, yaw: 0, peck: i * 0.7, flown: -1, vx: 0, vz: 0 }));
+  private readonly pigeonDummy = new THREE.Object3D();
   private beat = 0;
   private marketing: MarketingState = { posters: false, band: false };
   private readonly master: CharacterView;
@@ -290,6 +313,36 @@ export class PlatformView {
     }
     if (this.vendor) this.group.add(this.vendor);
     this.buildPosters();
+    this.perchPigeons(x1);
+  }
+
+  /** Every pigeon back on the canopy roof (a new station's platform). */
+  private pigeonX1 = PLATFORM_X0 + PLATFORM_WIDTH;
+
+  private perchPigeons(x1: number): void {
+    this.pigeonX1 = x1;
+    if (!this.pigeons.parent) {
+      this.pigeons.frustumCulled = false;
+      this.pigeons.castShadow = true;
+      this.group.add(this.pigeons);
+    }
+    this.perches.forEach((p, i) => {
+      // On the canopy's top, nearer its outer (camera) edge so they read against the roof.
+      p.x = x1 - 1.45 + ((i * 0.37) % 1.3);
+      p.y = FLOOR_Y + 3.07;
+      p.yaw = ((i * 2.3) % (Math.PI * 2)) - Math.PI;
+      p.flown = -1;
+    });
+  }
+
+  /** The pigeons take off (the departure whistle): up and away from the train, gone in a few seconds. */
+  scatterPigeons(): void {
+    this.perches.forEach((p, i) => {
+      if (p.flown >= 0) return;
+      p.flown = 0;
+      p.vx = 1.6 + (i % 3) * 0.5;
+      p.vz = -1.2 - (i % 2) * 1.4;
+    });
   }
 
   /** Posters of your train on every platform, and a brass band at the door (marketing upgrades). */
@@ -319,8 +372,11 @@ export class PlatformView {
     for (const view of this.band) view.root.visible = state.band;
   }
 
-  /** The station master's green flag: up and waving while the train departs. */
+  /** The station master's green flag: up and waving while the train departs (and the pigeons take off). */
   setFlag(up: boolean): void {
+    if (up && !this.master.waving) this.scatterPigeons();
+    // Out of sight once the train is under way: they are back on the roof for the next station.
+    if (!up && this.master.waving) this.perchPigeons(this.pigeonX1);
     this.master.waving = up;
   }
 
@@ -336,6 +392,7 @@ export class PlatformView {
   /** The band plays while the platform is on screen: a little hop on every beat. */
   animate(dt: number): void {
     this.master.update(dt, 0);
+    this.animatePigeons(dt);
     if (!this.marketing.band || this.band.length === 0) return;
     this.beat += dt;
     const onBeat = this.beat >= BEAT_SECONDS;
@@ -344,6 +401,34 @@ export class PlatformView {
       if (onBeat && (i !== 1 || Math.random() < 0.5)) view.bounce(0.35);
       view.update(dt, 0);
     });
+  }
+
+  /** Perched pigeons shuffle and peck; flying ones climb away with quick wingbeats (a body squash) and vanish. */
+  private animatePigeons(dt: number): void {
+    const d = this.pigeonDummy;
+    let shown = 0;
+    for (const p of this.perches) {
+      if (p.flown >= PIGEON_FLY_SECONDS) continue;
+      if (p.flown >= 0) {
+        p.flown += dt;
+        const t = p.flown;
+        d.position.set(p.x + p.vx * t, p.y + 1.4 * t + 0.3 * t * t, p.z + p.vz * t);
+        d.rotation.set(-0.3, Math.atan2(-p.vx, -p.vz), 0);
+        const flap = 1 + Math.sin(t * 40) * 0.35;
+        d.scale.set(flap, 1 / flap, 1);
+      } else {
+        p.peck -= dt;
+        if (p.peck <= 0) p.peck = 1.2 + ((p.z * 7.3) % 1.6);
+        const pecking = p.peck < 0.25;
+        d.position.set(p.x, p.y, p.z);
+        d.rotation.set(pecking ? 0.45 : 0, p.yaw + Math.sin(p.peck * 0.8) * 0.3, 0);
+        d.scale.set(1, 1, 1);
+      }
+      d.updateMatrix();
+      this.pigeons.setMatrixAt(shown++, d.matrix);
+    }
+    this.pigeons.count = shown;
+    this.pigeons.instanceMatrix.needsUpdate = true;
   }
 
   private buildPosters(): void {

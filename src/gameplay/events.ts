@@ -40,6 +40,8 @@ export interface GameEvents {
   'train.named': { name: string };
   'awards.presented': { level: number; won: number };
   'rival.taunted': { rival: string };
+  /** You passed a rival in the league (session 18): their spoils are paid and their pennant goes up. */
+  'rival.overtaken': { index: number; rank: number };
 }
 
 export interface StationResult {

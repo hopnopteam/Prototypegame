@@ -14,6 +14,7 @@ import { CarriageView, FLOOR_Y } from './world/CarriageView';
 import { ExteriorView } from './world/ExteriorView';
 import { carriageOriginZ, getLayout, trainRearZ } from './world/layout';
 import { LocomotiveView } from './world/LocomotiveView';
+import { RIVALS } from './config/press';
 import { BED_MESS, MESS_PIECES } from './world/Mess';
 import { PlatformView } from './world/PlatformView';
 import { buildRearDeck } from './world/RearDeck';
@@ -316,6 +317,8 @@ const HOLDS: Record<string, string[]> = {
   'prop:shelfTowel': ['stock:shelfTowel'],
   'prop:shelfRoll': ['stock:shelfRoll'],
   'prop:washShelf': ['stock:towel', 'stock:roll'],
+  // The lobby cat curls up on the reception desk.
+  'prop:desk': ['cat'],
   // An unmade bed is built on top of the made one.
   bed: ['mess:bed-unmade'],
 };
@@ -354,6 +357,8 @@ function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras
     root.add(view.group);
   });
   const loco = new LocomotiveView();
+  // Every rival's pennant up (the most the line ever carries).
+  loco.setPennants(RIVALS.map((r) => ({ livery: r.livery, trim: r.trim })));
   loco.group.name = 'loco';
   root.add(loco.group);
   const deck = buildRearDeck();

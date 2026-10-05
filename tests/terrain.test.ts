@@ -3,7 +3,7 @@ import { BOAT_LANE, buildChunk, CHUNK, LAND_DECK, SHORE_DECK, type FillKind } fr
 import { groundHeight, SHORE_MID, SHORE_NEAREST, shoreX, TRACK_HALF, WORLD_PERIOD } from '../src/world/terrain';
 
 /** Rough heights of the fill shapes at scale 1 (metres). */
-const FILL_HEIGHT: Record<FillKind, number> = { pine: 3.4, spruce: 3.95, broadleaf: 2.8, bush: 0.6, reed: 1.0, rock: 0.35, lily: 0.05, flower: 0.27 };
+const FILL_HEIGHT: Record<FillKind, number> = { pine: 3.4, spruce: 3.95, broadleaf: 2.8, bush: 0.6, reed: 1.0, rock: 0.35, lily: 0.05, flower: 0.27, sheep: 0.8 };
 /** Land side: anything nearer the line than this many metres per metre of height would hide the train. */
 const HIDE_SLOPE = 0.45;
 

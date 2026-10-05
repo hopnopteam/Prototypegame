@@ -62,6 +62,11 @@ export interface SaveData {
     qualityAuto: 'low' | 'medium' | 'high' | 'ultra' | null;
     /** The render scale dynamic resolution settled on, per tier (the next launch starts there). */
     renderScale: Partial<Record<'low' | 'medium' | 'high' | 'ultra', number>>;
+    /**
+     * Which quality policy `qualityAuto` and `renderScale` were learnt under (session 18 made the phone tiers
+     * cheap per pixel instead of low in resolution, so what an older policy learnt no longer applies).
+     */
+    qualityPolicy: number;
   };
   wallet: {
     cash: number;
@@ -129,7 +134,11 @@ export interface SaveData {
     stats: { guests: number; perfectStops: number; requests: number; streak: number; weekGuests: number; lastWeeklyStop: number; lastQueueStop: number };
     reputationSeen: number;
     /** Rival Watch: owners who have taunted you, and those whose grumble after being passed has run. */
-    rivals: { taunted: number[]; humbled: number[] };
+    /**
+     * Rival Watch and the race (session 18): taunted (their card has run), humbled (their grumble has run),
+     * prized (their spoils have been paid, once each).
+     */
+    rivals: { taunted: number[]; humbled: number[]; prized: number[] };
   };
 }
 
@@ -139,7 +148,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     createdAt: now,
     lastActiveAt: now,
     profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {} },
-    settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {} },
+    settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {}, qualityPolicy: 0 },
     wallet: { cash: 0, gems: 0, railMiles: 0 },
     route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0 },
     staff: {},
@@ -180,7 +189,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
       pending: [],
       stats: { guests: 0, perfectStops: 0, requests: 0, streak: 0, weekGuests: 0, lastWeeklyStop: 0, lastQueueStop: -99 },
       reputationSeen: 0,
-      rivals: { taunted: [], humbled: [] },
+      rivals: { taunted: [], humbled: [], prized: [] },
     },
   };
 }

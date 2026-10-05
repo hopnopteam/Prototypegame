@@ -130,7 +130,8 @@ export class PressScreens {
   /**
    * Rival Watch: the Gazette hands the page to a rival owner, who brags about their train and sneers at
    * yours. Their portrait, their (longer, grander) train in the photo, the quote, and the gap to close. The
-   * last rival you passed gets a line at the top, grumbling. It pays nothing: the prize is overtaking them.
+   * last rival you passed gets a line at the top, grumbling. It pays nothing itself: it shows what passing
+   * them is worth (their spoils, session 18), paid the moment you overtake them.
    */
   rivalWatch(watch: RivalWatch, onDone: () => void): void {
     const g = this.game;
@@ -169,6 +170,12 @@ export class PressScreens {
       ),
       h('div.bar.tape-bar', {}, h('i', { style: { width: `${pct}%` } })),
       h('p.small.center', {}, icon('star', 16), ` ${formatNumber(gap)} to go`),
+      h('div.spoils-row.center', {},
+        h('span.what', { text: rival.spoils.what }),
+        h('span.chip-s', { text: rival.spoils.perk.label }),
+        h('span.chip-s', {}, icon('cash', 16), formatNumber(rival.spoils.cashPerCarriage * watch.carriages)),
+        rival.spoils.gems ? h('span.chip-s', {}, icon('gem', 14), String(rival.spoils.gems)) : null,
+      ),
       h('button.btn.primary', { 'data-default': '', onclick: finish }, 'Challenge accepted!'),
     );
     const scrim = h('div.scrim.center.press-scrim.rival-scrim', {}, h('div.rays'), paper);

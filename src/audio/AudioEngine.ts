@@ -13,6 +13,13 @@ export type Sfx =
  * skipped rather than cutting one short, and a transparent limiter only catches peaks when several land at
  * once. Music is the Night Express theme, queued pass after pass so its tail rings into the next pass (a
  * seamless loop whatever the decoder). Silent until the first touch (browsers require a gesture).
+ *
+ * Session 18 (owner: "the game music doesn't kick in until a few minutes in"): the context used to be created
+ * and resumed once, on the first `pointerdown`. A touch's pointerdown is not a gesture that may start audio
+ * (only pointerup / touchend / click / keydown are), so on phones the context stayed suspended until some later
+ * button tap happened to resume it. Now `prepare()` builds the graph and decodes the theme at boot (a suspended
+ * context may decode), and `unlock()` is called on every qualifying gesture until the context is running, so
+ * the theme fades in on the very first tap.
  */
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -51,46 +58,77 @@ export class AudioEngine {
     return this.ctx !== null && this.ctx.state === 'running';
   }
 
-  /** Call from a user gesture. Safe to call repeatedly. */
-  unlock(): void {
+  /**
+   * Builds the audio graph and starts decoding the theme before any gesture (the context waits suspended), so
+   * the music is ready the moment audio is allowed. Safe to call more than once.
+   */
+  prepare(): void {
     try {
-      if (!this.ctx) {
-        const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        if (!Ctor) return;
-        const ctx = new Ctor();
-        this.ctx = ctx;
-        const l = AUDIO.limiter;
-        const limiter = ctx.createDynamicsCompressor();
-        limiter.threshold.value = l.threshold;
-        limiter.knee.value = l.knee;
-        limiter.ratio.value = l.ratio;
-        limiter.attack.value = l.attack;
-        limiter.release.value = l.release;
-        this.master = ctx.createGain();
-        this.master.gain.value = AUDIO.mix.master;
-        this.master.connect(limiter).connect(ctx.destination);
-        this.sfx = ctx.createGain();
-        this.sfx.connect(this.master);
-        this.musicFilter = ctx.createBiquadFilter();
-        this.musicFilter.type = 'lowpass';
-        this.musicFilter.frequency.value = AUDIO.music.dayCutoff;
-        this.musicFilter.Q.value = 0.5;
-        this.musicBus = ctx.createGain();
-        this.musicFilter.connect(this.musicBus).connect(this.master);
-        this.ambience = ctx.createGain();
-        this.ambience.connect(this.master);
-        const room = ctx.createConvolver();
-        room.buffer = this.makeRoom();
-        this.tail = ctx.createGain();
-        this.tail.gain.value = AUDIO.tail.wet;
-        this.tail.connect(room).connect(this.sfx);
-        this.noiseBuffer = this.makeNoise();
-        this.applyToggles();
-        void this.decodeTheme(ctx);
-      }
-      if (this.ctx.state === 'suspended' && !this.paused) void this.ctx.resume();
+      this.ensureContext();
     } catch (error) {
       log.warn('Audio', 'WebAudio unavailable', error);
+    }
+  }
+
+  /**
+   * Call from a user gesture (pointerup, touchend, click, keydown): resumes the context. Safe to call repeatedly;
+   * returns true once audio is running.
+   */
+  unlock(): boolean {
+    try {
+      this.ensureContext();
+      const ctx = this.ctx;
+      if (!ctx) return false;
+      if (ctx.state !== 'running' && !this.paused) {
+        void ctx.resume();
+        // Older iOS also wants a sound started inside the gesture: one silent sample.
+        const kick = ctx.createBufferSource();
+        kick.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+        kick.connect(ctx.destination);
+        kick.start(0);
+      }
+      return ctx.state === 'running';
+    } catch (error) {
+      log.warn('Audio', 'WebAudio unavailable', error);
+      return false;
+    }
+  }
+
+  /** The context and its graph, built once (suspended until a gesture resumes it). */
+  private ensureContext(): void {
+    if (!this.ctx) {
+      const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctor) return;
+      const ctx = new Ctor({ latencyHint: 'interactive' });
+      this.ctx = ctx;
+      const l = AUDIO.limiter;
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = l.threshold;
+      limiter.knee.value = l.knee;
+      limiter.ratio.value = l.ratio;
+      limiter.attack.value = l.attack;
+      limiter.release.value = l.release;
+      this.master = ctx.createGain();
+      this.master.gain.value = AUDIO.mix.master;
+      this.master.connect(limiter).connect(ctx.destination);
+      this.sfx = ctx.createGain();
+      this.sfx.connect(this.master);
+      this.musicFilter = ctx.createBiquadFilter();
+      this.musicFilter.type = 'lowpass';
+      this.musicFilter.frequency.value = AUDIO.music.dayCutoff;
+      this.musicFilter.Q.value = 0.5;
+      this.musicBus = ctx.createGain();
+      this.musicFilter.connect(this.musicBus).connect(this.master);
+      this.ambience = ctx.createGain();
+      this.ambience.connect(this.master);
+      const room = ctx.createConvolver();
+      room.buffer = this.makeRoom();
+      this.tail = ctx.createGain();
+      this.tail.gain.value = AUDIO.tail.wet;
+      this.tail.connect(room).connect(this.sfx);
+      this.noiseBuffer = this.makeNoise();
+      this.applyToggles();
+      void this.decodeTheme(ctx);
     }
   }
 
@@ -344,8 +382,14 @@ export class AudioEngine {
 
   private async decodeTheme(ctx: AudioContext): Promise<void> {
     try {
-      const bytes = Uint8Array.from(atob(MUSIC.data), (ch) => ch.charCodeAt(0));
-      this.theme = await ctx.decodeAudioData(bytes.buffer);
+      const text = atob(MUSIC.data);
+      const bytes = new Uint8Array(text.length);
+      for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i);
+      // The callback form too: older Safari never resolves the promise form.
+      this.theme = await new Promise<AudioBuffer>((done, fail) => {
+        const pending = ctx.decodeAudioData(bytes.buffer, done, fail) as Promise<AudioBuffer> | undefined;
+        pending?.then(done, fail);
+      });
     } catch (error) {
       log.warn('Audio', 'could not decode the music', error);
     }
@@ -368,8 +412,10 @@ export class AudioEngine {
       source.buffer = theme;
       const gain = ctx.createGain();
       if (fadeIn) {
-        gain.gain.setValueAtTime(0.0001, at);
-        gain.gain.exponentialRampToValueAtTime(1, at + AUDIO.music.fadeIn);
+        // A linear ramp is audible within a few hundred milliseconds (an exponential one from silence stays
+        // inaudible for most of its length, so the theme seemed not to start).
+        gain.gain.setValueAtTime(0, at);
+        gain.gain.linearRampToValueAtTime(1, at + AUDIO.music.fadeIn);
         fadeIn = false;
       }
       source.connect(gain).connect(this.musicFilter);

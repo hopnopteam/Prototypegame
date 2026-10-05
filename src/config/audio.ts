@@ -34,7 +34,7 @@ export const AUDIO = {
   celebration: { cues: ['fanfare', 'levelup'], holdOff: 1.4, duck: 0.35, quiet: ['ding', 'chest', 'heart', 'unlock', 'chime', 'coin', 'pop', 'sparkle', 'bell'] },
   music: {
     /** Seconds to fade the theme in at the start (and after it is switched back on) and out when switched off. */
-    fadeIn: 2.5,
+    fadeIn: 1.2,
     fadeOut: 0.8,
     /** Low-pass on the music: open by day, warmer and softer at night. */
     dayCutoff: 16000,

@@ -60,10 +60,10 @@ export const LAND_DECK: DeckEntry<LandKind>[] = [
 ];
 
 /** Instanced fill: what each slot holds (positions in chunk-local z, world x). */
-export type FillKind = 'pine' | 'spruce' | 'broadleaf' | 'bush' | 'reed' | 'rock' | 'lily' | 'flower';
-export const FILL_KINDS: FillKind[] = ['pine', 'spruce', 'broadleaf', 'bush', 'reed', 'rock', 'lily', 'flower'];
+export type FillKind = 'pine' | 'spruce' | 'broadleaf' | 'bush' | 'reed' | 'rock' | 'lily' | 'flower' | 'sheep';
+export const FILL_KINDS: FillKind[] = ['pine', 'spruce', 'broadleaf', 'bush', 'reed', 'rock', 'lily', 'flower', 'sheep'];
 /** Slots per stretch for each fill kind. */
-export const FILL_SLOTS: Record<FillKind, number> = { pine: 26, spruce: 14, broadleaf: 14, bush: 22, reed: 30, rock: 14, lily: 26, flower: 40 };
+export const FILL_SLOTS: Record<FillKind, number> = { pine: 26, spruce: 14, broadleaf: 14, bush: 22, reed: 30, rock: 14, lily: 26, flower: 40, sheep: 8 };
 
 export interface FillSpot {
   kind: FillKind;
@@ -92,6 +92,8 @@ export interface ChunkBuild {
   beacon: THREE.Vector3 | null;
   /** A windmill's hub (chunk-local), for its turning sails. */
   windmill: THREE.Vector3 | null;
+  /** Cottage chimney tops (chunk-local), for their wisps of smoke (session 18). */
+  chimneys: THREE.Vector3[];
 }
 
 /** The night palette of the lakeside props (moonlit, so a little brighter than it reads). */
@@ -137,6 +139,7 @@ class Stretch {
   readonly claims: Claim[] = [];
   beacon: THREE.Vector3 | null = null;
   windmill: THREE.Vector3 | null = null;
+  readonly chimneys: THREE.Vector3[] = [];
 
   constructor(readonly s0: number, readonly rng: Rng) {}
 
@@ -215,6 +218,7 @@ function cottage(b: GeoBuilder, glow: GeoBuilder, st: Stretch, x: number, z: num
   b.rounded(x, y + h / 2, z, w, h, d, 0.06, wall, { shade: 0.8 });
   b.prism(x, y + h, z, w + 0.4, 1.25, d + 0.35, roof, { pattern: PATTERN.stripesZ, color2: '#46525F', scale: 0.25, shade: 1 });
   b.box(x + w * 0.25, y + h + 1.0, z - d * 0.2, 0.34, 0.9, 0.34, C.stoneDark, 0, { shade: 0.85 });
+  st.chimneys.push(new THREE.Vector3(x + w * 0.25, y + h + 1.5, z - d * 0.2));
   b.box(x + w / 2 + 0.01, y + 0.55, z + d * 0.28, 0.04, 1.05, 0.6, C.woodDark, 0, FLAT);
   b.endObject();
   // Lit windows on the two sides the camera sees (+x, +z), with sills.
@@ -439,6 +443,8 @@ function buildLand(st: Stretch, kind: LandKind): void {
         const x = rng.range(5.6, 9.5);
         if (st.free(x, z, 0.7)) hayBale(b, st, x, z);
       }
+      // A few sheep grazing inside the fence (session 18: a lived-in countryside).
+      st.scatter('sheep', rng.int(3, 5), 5.4, 10.5, [0.9, 1.1], true, 0.55);
       st.scatter('flower', 26, 4.7, 10, [0.8, 1.3], true, 0.14);
       st.scatter('flower', 8, 2.9, 4.0, [0.8, 1.1], true, 0.14);
       woods(st, 10, 8, ['broadleaf', 'pine']);
@@ -481,6 +487,7 @@ function buildLand(st: Stretch, kind: LandKind): void {
       b.add(new THREE.ConeGeometry(0.28, 0.24, 10), C.hay, 8.2, st.ground(8.2, sz) + 1.62, sz, 0, 0, 0, FLAT);
       b.endObject();
       st.claim(7.9, sz - 0.6, 8.5, sz + 0.6);
+      st.scatter('sheep', rng.int(2, 4), 7.2, 9.6, [0.9, 1.1], true, 0.55);
       st.scatter('bush', 6, 3.5, 5.6, [0.6, 0.9], true, 0.45);
       break;
     }
@@ -659,6 +666,7 @@ export function* chunkSteps(s0: number, shore: ShoreKind, land: LandKind, seed: 
     fill: st.fill,
     beacon: st.beacon,
     windmill: st.windmill,
+    chimneys: st.chimneys,
   };
 }
 
@@ -725,7 +733,14 @@ export function fillGeometries(): Record<FillKind, THREE.BufferGeometry> {
     flower.add(new THREE.CylinderGeometry(0.006, 0.006, h, 3), '#5E8A5A', dx, h / 2, dz, 0, 0, 0, FLAT);
     flower.add(new THREE.OctahedronGeometry(0.032, 0), petals[i % petals.length], dx, h, dz, 0, 0, 0, { shade: 1, surface: { roughness: 0.7, metalness: 0, glow: 0.05 } });
   }
+  // A sheep: a woolly cream body, a dark face looking down to graze, four dark legs (about 0.75 m tall).
+  const sheep = new GeoBuilder();
+  sheep.add(soft(new THREE.IcosahedronGeometry(0.34, 1)).scale(1.3, 0.92, 0.9), '#EEE8DA', 0, 0.5, 0, 0, 0, 0, { shade: 0.8, surface: 'fabric' });
+  sheep.add(soft(new THREE.IcosahedronGeometry(0.2, 1)), '#F3EEE2', 0.16, 0.66, 0.05, 0, 0, 0, { shade: 0.9, surface: 'fabric' });
+  sheep.add(soft(new THREE.IcosahedronGeometry(0.13, 1)).scale(1.25, 0.9, 0.85), '#3A3436', 0.5, 0.38, 0, 0, 0, -0.5, { shade: 0.85 });
+  for (const [lx, lz] of [[0.24, 0.14], [0.24, -0.14], [-0.24, 0.14], [-0.24, -0.14]]) sheep.cylinder(lx, 0.14, lz, 0.035, 0.035, 0.28, '#3A3436', 5);
   return {
+    sheep: sheep.build(),
     pine: pine.build(),
     spruce: spruce.build(),
     broadleaf: broad.build(),

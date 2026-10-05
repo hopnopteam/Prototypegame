@@ -48,6 +48,9 @@ await page.addInitScript(() => {
 
 await page.goto(`file://${file}`);
 await page.waitForTimeout(800);
+// Session 18: the theme is decoded at boot, before any touch, so it can start on the very first tap.
+await page.waitForFunction(() => window.nightExpress?.audio?.theme, null, { timeout: 8000 }).catch(() => undefined);
+check(await page.evaluate(() => !!window.nightExpress.audio.theme), 'the theme is decoded before the first touch');
 await page.mouse.click(195, 700);
 await page.evaluate(() => window.nightExpress.skipIntro?.());
 await page.waitForFunction(() => !document.querySelector('.splash'), null, { timeout: 3000 }).catch(() => undefined);
@@ -91,6 +94,18 @@ const result = await page.evaluate(() => {
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return { sr, n, peak, perSecond, pcm: btoa(bin), passes: window.__passStarts, loop: window.nightExpress.audio.passes.length, recStart: window.__recStart ?? 0 };
 });
+// A phone: a touch tap (whose pointerdown is not an audio gesture; its touchend / pointerup is) starts the theme.
+{
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const tapPage = await phone.newPage();
+  await tapPage.goto(`file://${file}`);
+  await tapPage.waitForFunction(() => window.nightExpress?.audio?.theme, null, { timeout: 8000 }).catch(() => undefined);
+  await tapPage.evaluate(() => window.nightExpress.skipIntro?.());
+  await tapPage.touchscreen.tap(195, 700);
+  await tapPage.waitForFunction(() => window.nightExpress.audio.unlocked && window.nightExpress.audio.passes.length > 0, null, { timeout: 3000 }).catch(() => undefined);
+  check(await tapPage.evaluate(() => window.nightExpress.audio.unlocked && window.nightExpress.audio.passes.length > 0), 'a touch tap on a phone starts the theme at once');
+  await phone.close();
+}
 await browser.close();
 
 const loop = 48;

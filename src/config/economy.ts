@@ -288,6 +288,8 @@ export const ECONOMY = {
       offers: { seconds: 150, carriages: 2 },
       /** The station workshop (exterior and marketing pads on the platform). */
       workshop: { stops: 2, carriages: 2 },
+      /** The race up the league: the next rival's portrait on the HUD (session 18; also waits for the train's name). */
+      rivals: { stops: 2, carriages: 2 },
       /**
        * Two regular tiles on show instead of one (`tiles.maxVisible`); until then the floor widens a step at a
        * time after the opening: one tile, the coupling and a refit.

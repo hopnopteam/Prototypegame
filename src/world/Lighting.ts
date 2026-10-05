@@ -48,6 +48,21 @@ const FILL_OFFSET = new THREE.Vector3(9, 6, 12);
 const SHADOW_HALF = 14;
 const SHADOW_LEAD = 3;
 
+/**
+ * Static shadows (session 18, the phone tiers): the train never moves under the moon, so one shadow map covers
+ * the whole train and is drawn again only when the train changes (a carriage built, refitted or coupled, a room
+ * opened). Only the train's fixed parts cast into it (they are put on this layer); people keep their soft blob
+ * shadows. The per-frame shadow pass, half of every other frame on a phone, is gone.
+ */
+export const STATIC_CASTER_LAYER = 3;
+/** Static map: texel size along and across the train (metres), the largest side, and a margin round the train. */
+const STATIC_TEXEL = 0.035;
+const STATIC_MAX_SIZE = 4096;
+const STATIC_MARGIN = 1.5;
+/** The train's extent across (x) and its tallest point (the locomotive's chimney), for the static frustum. */
+const TRAIN_HALF_X = 3.4;
+const TRAIN_TOP = 4.6;
+
 /** A lamp in a carriage or on the platform: a world position and a strength (1 = a room's ceiling light). */
 export interface LampAnchor {
   x: number;
@@ -74,6 +89,13 @@ export class Lighting {
   /** 0 open sky, 1 deep in a rock cutting: the moon and sky fill dim, the lamps carry on. */
   darkness = 0;
   private shadowTexel = (SHADOW_HALF * 2) / 1024;
+  /** 'follow': a tight frustum on the view, redrawn on the tier's cadence; 'static': the whole train, redrawn on change. */
+  shadowMode: 'follow' | 'static' = 'follow';
+  /** Static mode: the map must be redrawn (the train changed). */
+  private staticDirty = true;
+  private trainZ: [number, number] = [-12, 16];
+  private maxTexture = STATIC_MAX_SIZE;
+  private readonly corner = new THREE.Vector3();
 
   constructor(scene: THREE.Scene) {
     this.sun.position.copy(LIGHT_OFFSET);
@@ -95,16 +117,97 @@ export class Lighting {
     scene.background = this.background;
   }
 
-  /** Shadows on or off, the map size, and how soft their edges are (PCF sampling radius in texels). */
-  setShadows(enabled: boolean, size = 1024, radius = 2): void {
-    this.sun.castShadow = enabled;
+  /**
+   * Shadows: off, following the view (`size` square map, redrawn on the tier's cadence) or static (the whole
+   * train, redrawn when it changes); `radius` is how soft their edges are (PCF sampling radius in texels).
+   */
+  setShadows(mode: 'off' | 'follow' | 'static', size = 1024, radius = 2, maxTexture = STATIC_MAX_SIZE): void {
+    this.sun.castShadow = mode !== 'off';
     this.sun.shadow.radius = radius;
-    if (this.sun.shadow.mapSize.x !== size) {
-      this.sun.shadow.mapSize.set(size, size);
-      this.sun.shadow.map?.dispose();
-      this.sun.shadow.map = null;
-      this.shadowTexel = (SHADOW_HALF * 2) / size;
+    this.maxTexture = Math.min(STATIC_MAX_SIZE, maxTexture);
+    this.shadowMode = mode === 'static' ? 'static' : 'follow';
+    const cam = this.sun.shadow.camera;
+    // Static: only the train's fixed parts cast; following: everything that casts (people included).
+    cam.layers.set(mode === 'static' ? STATIC_CASTER_LAYER : 0);
+    if (mode === 'static') {
+      cam.up.set(0, 0, 1);
+      this.staticDirty = true;
+      return;
     }
+    cam.up.set(0, 1, 0);
+    cam.left = -SHADOW_HALF;
+    cam.right = SHADOW_HALF;
+    cam.top = SHADOW_HALF;
+    cam.bottom = -SHADOW_HALF;
+    cam.near = 1;
+    cam.far = 50;
+    cam.updateProjectionMatrix();
+    this.setMapSize(size, size);
+    this.shadowTexel = (SHADOW_HALF * 2) / size;
+  }
+
+  private setMapSize(width: number, height: number): void {
+    const shadow = this.sun.shadow;
+    if (shadow.mapSize.x === width && shadow.mapSize.y === height) return;
+    shadow.mapSize.set(width, height);
+    shadow.map?.dispose();
+    shadow.map = null;
+  }
+
+  /** The train's length changed (front and rear in z), or something on it that casts did: redraw static shadows. */
+  setTrainSpan(z0: number, z1: number): void {
+    if (Math.abs(z0 - this.trainZ[0]) > 1e-3 || Math.abs(z1 - this.trainZ[1]) > 1e-3) {
+      this.trainZ = [z0, z1];
+      this.staticDirty = true;
+    }
+  }
+
+  /** Something that casts into the static map changed (a carriage built or refitted, a bed or a fixture shown). */
+  invalidateShadows(): void {
+    this.staticDirty = true;
+  }
+
+  /** Static mode: true once when the map must be redrawn (and fits the frustum round the train first). */
+  takeStaticRedraw(): boolean {
+    if (this.shadowMode !== 'static' || !this.staticDirty || !this.sun.castShadow) return false;
+    this.staticDirty = false;
+    this.fitStatic();
+    return true;
+  }
+
+  /** Aims the moon at the middle of the train and fits an orthographic frustum round all of it (train along y). */
+  private fitStatic(): void {
+    const [z0, z1] = this.trainZ;
+    const cz = (z0 + z1) / 2;
+    this.sun.target.position.set(0, 0, cz);
+    this.sun.position.set(LIGHT_OFFSET.x, LIGHT_OFFSET.y, cz + LIGHT_OFFSET.z);
+    this.sun.target.updateMatrixWorld();
+    this.sun.updateMatrixWorld();
+    const cam = this.sun.shadow.camera;
+    cam.position.copy(this.sun.position);
+    cam.lookAt(this.sun.target.position);
+    cam.updateMatrixWorld();
+    const inverse = cam.matrixWorldInverse;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const x of [-TRAIN_HALF_X, TRAIN_HALF_X]) for (const y of [-0.5, TRAIN_TOP]) for (const z of [z0, z1]) {
+      const p = this.corner.set(x, y, z).applyMatrix4(inverse);
+      minX = Math.min(minX, p.x);
+      maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y);
+      maxY = Math.max(maxY, p.y);
+      minZ = Math.min(minZ, p.z);
+      maxZ = Math.max(maxZ, p.z);
+    }
+    cam.left = minX - STATIC_MARGIN;
+    cam.right = maxX + STATIC_MARGIN;
+    cam.bottom = minY - STATIC_MARGIN;
+    cam.top = maxY + STATIC_MARGIN;
+    // Light-space depth runs along -z; receivers below the train (ground, platform, water) stay inside.
+    cam.near = Math.max(0.1, -maxZ - 4);
+    cam.far = -minZ + 12;
+    cam.updateProjectionMatrix();
+    const pow2 = (v: number): number => Math.min(this.maxTexture, 2 ** Math.ceil(Math.log2(Math.max(64, v))));
+    this.setMapSize(pow2((cam.right - cam.left) / STATIC_TEXEL), pow2((cam.top - cam.bottom) / STATIC_TEXEL));
   }
 
   /**
@@ -112,15 +215,17 @@ export class Lighting {
    * further), snapped to whole shadow texels so shadows never shimmer as the camera glides.
    */
   follow(focus: THREE.Vector3, viewDirection: THREE.Vector2): void {
+    this.fill.target.position.set(focus.x, 0, focus.z);
+    this.fill.position.set(focus.x + FILL_OFFSET.x, FILL_OFFSET.y, focus.z + FILL_OFFSET.z);
+    this.fill.target.updateMatrixWorld();
+    // A static map stays on the train (fitStatic aims the moon).
+    if (this.shadowMode === 'static') return;
     const step = this.shadowTexel;
     const x = Math.round((focus.x + viewDirection.x * SHADOW_LEAD) / step) * step;
     const z = Math.round((focus.z + viewDirection.y * SHADOW_LEAD) / step) * step;
     this.sun.target.position.set(x, 0, z);
     this.sun.position.set(x + LIGHT_OFFSET.x, LIGHT_OFFSET.y, z + LIGHT_OFFSET.z);
     this.sun.target.updateMatrixWorld();
-    this.fill.target.position.set(focus.x, 0, focus.z);
-    this.fill.position.set(focus.x + FILL_OFFSET.x, FILL_OFFSET.y, focus.z + FILL_OFFSET.z);
-    this.fill.target.updateMatrixWorld();
   }
 
   /** `t` in [0,1): position in the day cycle. */

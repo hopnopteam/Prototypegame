@@ -1,7 +1,7 @@
 import type { ObjectiveDef } from '../config/objectives';
 import * as THREE from 'three';
 import type { ProductDef } from '../config/content';
-import type { CeremonyDef, InterviewDef } from '../config/press';
+import { RIVALS, type CeremonyDef, type InterviewDef } from '../config/press';
 import { damp, formatClock, formatNumber } from '../core/math';
 import type { CarriageType } from '../core/types';
 import type { StationResult } from '../gameplay/events';
@@ -15,6 +15,7 @@ import type { NewsItem } from '../save/SaveData';
 import { forgetSize, h, icon, replayClass, setText, setVisible, sizeOf } from './dom';
 import type { IconName } from './icons';
 import { PressScreens } from './PressScreens';
+import { drawOwnerPortrait } from './portraits';
 import { Screens } from './Screens';
 import { TrainMapUi } from './TrainMapUi';
 import { TILE_MARKER_ASPECT, TILE_MARKER_TIP, TILE_MARKER_WIDTH } from '../world/sprites';
@@ -122,7 +123,11 @@ export class Ui implements GameUi {
     level: HTMLButtonElement; levelBadge: HTMLElement; levelCount: HTMLElement;
     journey: HTMLElement; journeyTrain: HTMLElement; journeyFill: HTMLElement; journeyClock: HTMLElement;
     side: HTMLElement; menu: HTMLButtonElement; menuDot: HTMLElement; shop: HTMLButtonElement; conductor: HTMLButtonElement; conductorDot: HTMLElement;
+    rival: HTMLButtonElement; rivalFace: HTMLCanvasElement; rivalTrophy: HTMLElement; rivalRank: HTMLElement; rivalReact: HTMLElement;
   };
+  /** What the rival chip shows now (face and mood, reaction), so it is redrawn only when that changes. */
+  private rivalKey = '';
+  private rivalReactKey = '';
   private displayedCash = 0;
   private lastCash = 0;
   private readonly objective: { el: HTMLElement; icon: HTMLElement; text: HTMLElement; fill: HTMLElement; count: HTMLElement; reward: HTMLElement; key: string; words: number };
@@ -183,8 +188,16 @@ export class Ui implements GameUi {
     const conductorDot = h('span.dot', { hidden: true });
     const conductor = button('conductor', 'Conductor: upgrades and outfits', () => this.screens.upgrades());
     conductor.appendChild(conductorDot);
+    // The race (session 18): the next rival's face, ringed by how much of the gap is closed; tap for the league.
+    const rivalFace = h('canvas.portrait', { width: 72, height: 72 }) as HTMLCanvasElement;
+    const rivalTrophy = h('span.trophy', { hidden: true }, icon('trophy', 24));
+    const rivalRank = h('span.rk');
+    const rivalReact = h('span.react', { hidden: true });
+    const rival = button('trophy', 'Countryside League', () => this.screens.leagueSheet());
+    rival.classList.add('rival');
+    rival.replaceChildren(rivalFace, rivalTrophy, rivalRank, rivalReact);
     this.boostLayer = h('div.boost');
-    const side = h('div.side', {}, shop, conductor, this.boostLayer);
+    const side = h('div.side', {}, shop, conductor, rival, this.boostLayer);
 
     this.floatLayer = h('div.floats');
     this.burst.value = h('span', { text: '+0' });
@@ -220,7 +233,7 @@ export class Ui implements GameUi {
     root.append(this.caption.el, skip);
     root.append(this.floatLayer, this.tileTag.el, this.rushChip.el, this.guide.el, top, this.objective.el, side, this.trainMap.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
 
-    this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyTrain, journeyFill, journeyClock, side, menu, menuDot, shop, conductor, conductorDot };
+    this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyTrain, journeyFill, journeyClock, side, menu, menuDot, shop, conductor, conductorDot, rival, rivalFace, rivalTrophy, rivalRank, rivalReact };
     window.addEventListener('resize', () => {
       this.rectTimer = 0;
       this.snapTimer = 0;
@@ -240,6 +253,7 @@ export class Ui implements GameUi {
       if (delta <= 0 || kind === 'railMiles') return;
       replayClass(kind === 'cash' ? this.hud.cash : this.hud.gems, ['bump']);
     });
+    game.events.on('rival.overtaken', () => replayClass(this.hud.rival, ['overtaken']));
   }
 
   // ─── Per-frame ──────────────────────────────────────────────────────────────
@@ -371,6 +385,8 @@ export class Ui implements GameUi {
     const journeyLabel = stopped ? `${g.station.currentStation().name}: departs in ${formatClock(j.timeLeft)}` : `Next: ${g.station.currentStation().name}`;
     if (hud.journey.getAttribute('aria-label') !== journeyLabel) hud.journey.setAttribute('aria-label', journeyLabel);
 
+    this.updateRival();
+
     const affordable = upgradesOpen && this.screens.affordableUpgrades() > 0;
     setVisible(hud.conductorDot, affordable);
     hud.conductor.classList.toggle('glow', affordable);
@@ -387,6 +403,42 @@ export class Ui implements GameUi {
       this.boostLayer.replaceChildren();
       if (boostLeft > 0) this.boostLayer.append(h('div.badge', { title: 'Roller skates' }, icon('skate', 24), h('span', { text: formatClock(boostLeft) })));
       if (doubled) this.boostLayer.append(h('div.badge', { title: 'Double fares at the next stop' }, icon('double', 24), h('span', { text: '×2' })));
+    }
+  }
+
+  /**
+   * The rival chip: the face of the rival you are chasing (smug, nervous as you close in, scowling for a
+   * moment once passed), a ring that fills as the stars land, your rank, and a flinch at your big moments.
+   */
+  private updateRival(): void {
+    const g = this.game;
+    const hud = this.hud;
+    const race = g.press.race;
+    this.reveal(hud.rival, race.visible);
+    if (!race.visible) return;
+    const face = race.humbled ?? race.next;
+    const key = face ? `${RIVALS.indexOf(face)}|${race.mood}` : 'top';
+    if (key !== this.rivalKey) {
+      this.rivalKey = key;
+      setVisible(hud.rivalFace, face !== null);
+      setVisible(hud.rivalTrophy, face === null);
+      if (face) drawOwnerPortrait(hud.rivalFace, face.owner.look, face.livery, face.trim, race.mood);
+      const label = face && race.next ? `Countryside League: #${race.rank}, next ${race.next.name}` : `Countryside League: #${race.rank}`;
+      hud.rival.title = label;
+      hud.rival.setAttribute('aria-label', label);
+    }
+    setText(hud.rivalRank, `#${race.rank}`);
+    // The ring fills as the stars land (like the level star), and is full for a moment once a rival is passed.
+    const span = Math.max(1, race.to - race.from);
+    const fill = race.humbled || !race.next ? 1 : Math.max(0, Math.min(race.fraction, (g.data.route.stars - this.pendingStars - race.from) / span));
+    const p = (Math.round(fill * 100) / 100).toFixed(2);
+    if (hud.rival.style.getPropertyValue('--p') !== p) hud.rival.style.setProperty('--p', p);
+    hud.rival.classList.toggle('near', race.mood === 'nervous' && !race.reaction && !race.humbled);
+    const reactKey = race.reaction ?? '';
+    if (reactKey !== this.rivalReactKey) {
+      this.rivalReactKey = reactKey;
+      hud.rivalReact.replaceChildren(...(race.reaction ? [icon(race.reaction, 20)] : []));
+      setVisible(hud.rivalReact, race.reaction !== null);
     }
   }
 

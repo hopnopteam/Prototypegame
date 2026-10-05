@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { FLOOR_Y } from './CarriageView';
+import { STATIC_CASTER_LAYER } from './Lighting';
+import { CarriageView, FLOOR_Y } from './CarriageView';
+import { RIVALS } from '../config/press';
 import { GeoBuilder, PaneBuilder } from './geo';
 import { GANGWAY_LENGTH, LOCOMOTIVE_LENGTH } from './layout';
 import { MATERIALS, PATTERN } from './materials';
@@ -43,6 +45,19 @@ function poolTexture(): THREE.CanvasTexture {
   return t;
 }
 
+/** The cab roof's top, the row of flagpoles across it (half its span), their height and the flags' size. */
+const CAB_ROOF_TOP = 2.95;
+const PENNANT_ROW = 1.4;
+const PENNANT_POLE = 0.58;
+const PENNANT_WIDTH = 0.3;
+const PENNANT_DROP = 0.21;
+/** Flags are lightened toward white so they read against the night sky (the rivals' liveries are deep). */
+const PENNANT_LIFT = 0.3;
+const flagTint = new THREE.Color();
+const lifted = (hex: string, by: number): string => '#' + flagTint.set(hex).lerp(new THREE.Color('#FFFFFF'), by).getHexString();
+/** One slot for every rival in the league. */
+const PENNANT_SLOTS = RIVALS.length;
+
 /** Steam locomotive at the head of the train (top of the screen). Faces -z. Navy, gold and signal red. */
 export class LocomotiveView {
   readonly group = new THREE.Group();
@@ -52,6 +67,10 @@ export class LocomotiveView {
   /** The brass nameplate on the tender, facing the train: the player's name for her. */
   private readonly nameplate: THREE.Mesh;
   private name = '';
+  /** Pennants of the rivals beaten (session 18): a line from a brass mast on the cab roof to the chimney. */
+  private pennants: THREE.Mesh | null = null;
+  private pennantKey = '';
+  private readonly pennantLine: { from: THREE.Vector3; to: THREE.Vector3 };
   private readonly lampMaterial = new THREE.MeshBasicMaterial({ color: '#FFE3A8' });
   private readonly beam = new THREE.Mesh(BEAM_GEOMETRY, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
   private readonly pool = new THREE.Mesh(POOL_GEOMETRY, new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
@@ -113,10 +132,12 @@ export class LocomotiveView {
     const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    mesh.layers.enable(STATIC_CASTER_LAYER);
     this.group.add(mesh);
     const livery = new THREE.Mesh(liv.build(), MATERIALS.livery);
     livery.castShadow = true;
     livery.receiveShadow = true;
+    livery.layers.enable(STATIC_CASTER_LAYER);
     this.group.add(livery, new THREE.Mesh(trim.build(), MATERIALS.liveryTrim));
 
     // Cab windows and the headlamp glow at night.
@@ -150,12 +171,59 @@ export class LocomotiveView {
     }
 
     this.chimneyTop.set(0, 3.4, chimneyZ);
+    // The flagpoles stand in a row along the cab roof's rear edge (the edge nearest the camera).
+    this.pennantLine = { from: new THREE.Vector3(-PENNANT_ROW, CAB_ROOF_TOP, cabBack + 0.08), to: new THREE.Vector3(PENNANT_ROW - PENNANT_WIDTH, CAB_ROOF_TOP, cabBack + 0.08) };
     this.group.traverse((o) => o.layers.enable(REFLECT_LAYER));
 
     this.nameplate = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.3), new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false }));
     this.nameplate.position.set(0, 0.86, back + 0.03);
     this.nameplate.visible = false;
     this.group.add(this.nameplate);
+  }
+
+  /**
+   * Hoists a pennant for each rival beaten: a row of little brass flagpoles along the cab roof's rear edge,
+   * right above the nameplate where the camera looks, each flying that rival's livery with a band of their
+   * trim, in the order they fell (the league table, worn on the engine). Rebuilt only when the list changes.
+   */
+  setPennants(colours: { livery: string; trim: string }[]): void {
+    const key = colours.map((c) => c.livery).join(',');
+    if (key === this.pennantKey) return;
+    this.pennantKey = key;
+    if (this.pennants) {
+      this.group.remove(this.pennants);
+      this.pennants.geometry.dispose();
+      this.pennants = null;
+    }
+    if (colours.length === 0) return;
+    const b = new GeoBuilder();
+    const { from, to } = this.pennantLine;
+    colours.forEach((colour, i) => {
+      const x = from.x + ((to.x - from.x) * i) / Math.max(1, PENNANT_SLOTS - 1);
+      const z = from.z;
+      b.object(`pennant ${i}`);
+      b.cylinder(x, CAB_ROOF_TOP + PENNANT_POLE / 2, z, 0.012, 0.016, PENNANT_POLE, PALETTE.brass, 6);
+      b.sphere(x, CAB_ROOF_TOP + PENNANT_POLE + 0.02, z, 0.026, PALETTE.gold, 1);
+      // The flag streams out sideways from the top of the pole: a band of trim at the hoist, the livery beyond.
+      const y = CAB_ROOF_TOP + PENNANT_POLE - PENNANT_DROP / 2 - 0.02;
+      b.box(x + 0.035, y, z, 0.05, PENNANT_DROP, 0.012, lifted(colour.trim, PENNANT_LIFT * 0.5), 0, { shade: 1 });
+      const shape = new THREE.Shape();
+      shape.moveTo(0, PENNANT_DROP / 2);
+      shape.lineTo(0, -PENNANT_DROP / 2);
+      shape.lineTo(PENNANT_WIDTH, 0);
+      shape.closePath();
+      const flag = new THREE.ExtrudeGeometry(shape, { depth: 0.012, bevelEnabled: false });
+      flag.translate(0, 0, -0.006);
+      b.add(flag, lifted(colour.livery, PENNANT_LIFT), x + 0.06, y, z, 0, 0, 0, { shade: 1 });
+    });
+    b.endObject();
+    const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+    mesh.castShadow = true;
+    mesh.layers.enable(STATIC_CASTER_LAYER);
+    mesh.layers.enable(REFLECT_LAYER);
+    this.pennants = mesh;
+    this.group.add(mesh);
+    CarriageView.shadowEpoch++;
   }
 
   setName(name: string): void {

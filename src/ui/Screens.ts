@@ -10,6 +10,7 @@ import type { CarriageChoiceView } from '../gameplay/UiApi';
 import type { CarriageType } from '../core/types';
 import { QUALITY_TIERS, VISUALS } from '../config/visuals';
 import { h, icon } from './dom';
+import { ownerPortrait } from './portraits';
 import type { IconName } from './icons';
 import type { Ui } from './Ui';
 
@@ -177,19 +178,59 @@ export class Screens {
     ], { closable: false, center: true, className: 'chooser' });
   }
 
-  /** The league table: the rivals, and you among them. */
+  /**
+   * The league table: the rivals (their owner's face: smug ahead of you, scowling once passed, with what
+   * passing them is worth or a tick), and you among them.
+   */
   private league(): HTMLElement {
     const g = this.game;
     const reputation = g.data.route.stars;
-    const rows = [...RIVALS.map((r) => ({ name: r.name, owner: r.owner.name, rep: r.reputation, you: false, livery: r.livery })),
-      { name: g.press.trainName, owner: 'You', rep: reputation, you: true, livery: g.currentLivery().body }]
+    const rows = [...RIVALS.map((r) => ({ rival: r, name: r.name, owner: r.owner.name, rep: r.reputation, you: false, livery: r.livery })),
+      { rival: null, name: g.press.trainName, owner: 'You', rep: reputation, you: true, livery: g.currentLivery().body }]
       .sort((a, b) => b.rep - a.rep || (a.you ? -1 : 1));
-    return h('ol.league', {}, ...rows.map((row, i) => h(`li${row.you ? '.you' : ''}` as 'li', {},
-      h('span.rank', { text: String(i + 1) }),
-      h('span.swatch', { style: { background: row.livery } }),
-      h('span.name', {}, h('b', { text: row.name }), h('small', { text: row.owner })),
-      h('span.rep', {}, icon('star', 14), formatNumber(row.rep)),
-    )));
+    return h('ol.league', {}, ...rows.map((row, i) => {
+      const passed = row.rival !== null && row.rival.reputation <= reputation;
+      return h(`li${row.you ? '.you' : ''}${passed ? '.passed' : ''}` as 'li', {},
+        h('span.rank', { text: String(i + 1) }),
+        row.rival ? ownerPortrait(row.rival, 30, passed ? 'humbled' : 'smug') : h('span.swatch', { style: { background: row.livery } }),
+        h('span.name', {}, h('b', { text: row.name }), h('small', { text: row.owner })),
+        h('span.rep', {}, icon('star', 14), formatNumber(row.rep)),
+        row.rival ? h('span.spoils', {}, passed ? icon('check', 18) : h('small', { text: row.rival.spoils.perk.label })) : h('span.spoils'),
+      );
+    }));
+  }
+
+  /** The rival chip's sheet: who is next, how far, what passing them is worth, and the whole league. */
+  leagueSheet(): void {
+    const g = this.game;
+    const race = g.press.race;
+    const next = race.next;
+    const stars = g.data.route.stars;
+    const pct = Math.round(race.fraction * 100);
+    const spoils = next?.spoils;
+    this.sheet('Countryside League', 'trophy', [
+      next && spoils
+        ? h('div.race-card', {},
+          ownerPortrait(next, 72, race.mood === 'humbled' ? 'smug' : race.mood),
+          h('div.info', {},
+            h('b', { text: next.owner.name }),
+            h('small', { text: next.name }),
+            h('div.bar', {}, h('i', { style: { width: `${pct}%` } })),
+            h('span.gap', {}, icon('star', 14), ` ${formatNumber(Math.max(0, next.reputation - stars))} to go`),
+          ),
+        )
+        : h('p.lead', { text: 'Number one: the best sleeper on the line.' }),
+      next && spoils
+        ? h('div.spoils-row', {},
+          h('span.what', { text: spoils.what }),
+          h('span.chip-s', { text: spoils.perk.label }),
+          h('span.chip-s', {}, icon('cash', 16), formatNumber(spoils.cashPerCarriage * g.train.count)),
+          spoils.gems ? h('span.chip-s', {}, icon('gem', 14), String(spoils.gems)) : null,
+        )
+        : null,
+      this.league(),
+      h('p.small', { text: 'Stars come from building, tidying rooms, requests and perfect stops.' }),
+    ], { className: 'league-sheet' });
   }
 
   /** The menu: everything that is not play, one tap away and out of the way. */

@@ -17,9 +17,10 @@ import {
   type PressTrigger,
   type Rival,
   PRESS_PACING,
+  RIVAL_RACE,
 } from '../config/press';
 import type { NewsItem } from '../save/SaveData';
-import { awardProgress, cleanTrainName, fillTemplate, leagueStanding, rivalsPassed, type LeagueStanding } from '../sim/press';
+import { awardProgress, cleanTrainName, fillTemplate, leagueStanding, raceProgress, rivalsPassed, type LeagueStanding, type RaceProgress } from '../sim/press';
 import type { DoubleChoice } from './GameUi';
 import type { World } from './World';
 
@@ -66,6 +67,18 @@ export interface RivalWatch {
   carriages: number;
 }
 
+/**
+ * The race to the next rival as the HUD shows it (session 18): who, how far, and how they are taking it.
+ * `humbled` is the rival just passed, shown scowling for a moment before the next one takes their place.
+ */
+export interface RaceView extends RaceProgress {
+  visible: boolean;
+  mood: 'smug' | 'nervous' | 'humbled';
+  humbled: Rival | null;
+  /** A flinch at one of your big moments (a coupling, a refit), shown as an icon beside their face. */
+  reaction: 'frown' | 'bolt' | null;
+}
+
 const { calmSeconds: CALM_SECONDS, gapSeconds: PRESS_GAP, afterSheetSeconds: AFTER_SHEET, maxWaitingFrontPages: MAX_WAITING_FRONT_PAGES, newsWeight: NEWS_WEIGHT } = PRESS_PACING;
 const GUESTS_NEWS = 100;
 
@@ -80,6 +93,15 @@ export class Press {
   private calm = 0;
   private sinceShown = PRESS_GAP;
   private quiet = AFTER_SHEET;
+  /** The rival just passed (scowling on the HUD for a moment) and for how much longer. */
+  private humbledShown: Rival | null = null;
+  private humbledLeft = 0;
+  /** A flinch on the rival chip and for how much longer; the gap since the last one. */
+  private reaction: RaceView['reaction'] = null;
+  private reactionLeft = 0;
+  private sinceReaction = RIVAL_RACE.reactGap;
+  private raceStars = -1;
+  private readonly raceView: RaceView = { visible: false, next: null, from: 0, to: 0, fraction: 0, rank: 0, mood: 'smug', humbled: null, reaction: null };
 
   constructor(private readonly w: World, private readonly ui: PressUi) {
     const p = this.state;
@@ -87,6 +109,12 @@ export class Press {
     // Saves from before the debut interview (it used to come at level 2): treat it as done.
     if (p.trainName && !p.interviews.includes(DEBUT_INTERVIEW) && !p.pending.includes(`interview:${DEBUT_INTERVIEW}`)) p.interviews.push(DEBUT_INTERVIEW);
     if (!p.trainName && w.data.route.stopsCompleted > 0) this.queue('name');
+    // Saves from before the race paid spoils: rivals already passed hand theirs over now (the perk only).
+    RIVALS.forEach((rival, index) => {
+      if (rival.reputation > w.data.route.stars || p.rivals.prized.includes(index)) return;
+      p.rivals.prized.push(index);
+      w.data.meta.perks[rival.spoils.perk.kind] += rival.spoils.perk.amount;
+    });
     const e = w.events;
     e.on('guest.checkedIn', () => {
       p.stats.guests++;
@@ -100,8 +128,12 @@ export class Press {
       if (r.clean) p.stats.perfectStops++;
       w.save.markDirty();
     });
-    e.on('carriage.coupled', ({ index }) => this.print('coupling', { carriage: w.train.carriageName(index), n: index + 1 }));
+    e.on('carriage.coupled', ({ index }) => {
+      this.print('coupling', { carriage: w.train.carriageName(index), n: index + 1 });
+      this.react('frown');
+    });
     e.on('carriage.refurbished', ({ index, tier }) => {
+      if (tier >= 2) this.react('frown');
       // Passenger carriages make the paper as they reach First Class and the Royal Suite (Business is the
       // walnut-and-brass refit); service cars when they go luxurious.
       const trigger: PressTrigger | null = tier >= 5 ? 'royal' : tier === 4 ? 'firstClass' : tier === 3 ? 'refurb3' : null;
@@ -148,8 +180,35 @@ export class Press {
     return leagueStanding(this.w.data.route.stars, RIVALS);
   }
 
+  /** The race as the HUD's rival chip shows it (one object, refreshed in place). */
+  get race(): RaceView {
+    const w = this.w;
+    const v = this.raceView;
+    // The standing only changes when stars do (the HUD asks every frame).
+    if (w.data.route.stars !== this.raceStars) {
+      this.raceStars = w.data.route.stars;
+      Object.assign(v, raceProgress(this.raceStars, RIVALS));
+    }
+    v.visible = this.named && w.flow.allows('rivals');
+    v.humbled = this.humbledLeft > 0 ? this.humbledShown : null;
+    v.reaction = this.reactionLeft > 0 ? this.reaction : null;
+    v.mood = v.humbled ? 'humbled' : v.next && (v.fraction >= RIVAL_RACE.nearShare || v.reaction) ? 'nervous' : 'smug';
+    return v;
+  }
+
+  /** The rival you are chasing flinches at one of your big moments (rate-limited; only while the race shows). */
+  private react(kind: NonNullable<RaceView['reaction']>): void {
+    if (this.sinceReaction < RIVAL_RACE.reactGap || !this.named || !this.w.flow.allows('rivals') || !this.standing.next) return;
+    this.reaction = kind;
+    this.reactionLeft = RIVAL_RACE.reactSeconds;
+    this.sinceReaction = 0;
+  }
+
   update(dt: number): void {
     this.sinceShown += dt;
+    this.sinceReaction += dt;
+    if (this.reactionLeft > 0) this.reactionLeft -= dt;
+    if (this.humbledLeft > 0) this.humbledLeft -= dt;
     if (this.calm > 0) this.calm -= dt;
     this.quiet = this.ui.busy ? 0 : this.quiet + dt;
     const p = this.state;
@@ -276,8 +335,7 @@ export class Press {
     if (passed.length === 0) return;
     const standing = this.standing;
     const last = passed[passed.length - 1];
-    this.w.audio.play('sparkle', { pitch: 1.2 });
-    this.w.ui.toast(`#${standing.rank}`, 'trophy');
+    for (const rival of passed) this.overtake(rival, standing.rank);
     // The big overtakes are front-page news, with the loser's grumble as the quote.
     if (standing.rank === 1) {
       if (!p.fired.champion) {
@@ -288,6 +346,54 @@ export class Press {
       this.print('topThree', { rival: last.name, quote: last.owner.humbled });
       this.markHumbled(last);
     }
+  }
+
+  /**
+   * Passing a rival (session 18): their spoils change hands on the spot (a permanent perk, a purse, gems),
+   * their face scowls on the HUD for a moment, and their pennant goes up on your locomotive. No card.
+   */
+  private overtake(rival: Rival, rank: number): void {
+    const w = this.w;
+    const p = this.state;
+    const index = RIVALS.indexOf(rival);
+    if (index < 0) return;
+    // Before the race is on screen (the opening), the spoils change hands quietly: one layer at a time.
+    const shown = this.named && w.flow.allows('rivals');
+    if (!shown) {
+      if (!p.rivals.prized.includes(index)) {
+        p.rivals.prized.push(index);
+        w.data.meta.perks[rival.spoils.perk.kind] += rival.spoils.perk.amount;
+        w.wallet.add('cash', rival.spoils.cashPerCarriage * w.train.count, 'rival');
+        if (rival.spoils.gems) w.wallet.add('gems', rival.spoils.gems, 'rival');
+      }
+      w.events.emit('rival.overtaken', { index, rank });
+      return;
+    }
+    this.humbledShown = rival;
+    this.humbledLeft = RIVAL_RACE.humbledSeconds;
+    this.reactionLeft = 0;
+    if (!p.rivals.prized.includes(index)) {
+      p.rivals.prized.push(index);
+      const spoils = rival.spoils;
+      w.data.meta.perks[spoils.perk.kind] += spoils.perk.amount;
+      const cash = spoils.cashPerCarriage * w.train.count;
+      if (cash > 0) w.wallet.add('cash', cash, 'rival');
+      if (spoils.gems) w.wallet.add('gems', spoils.gems, 'rival');
+      w.ui.toast(spoils.perk.label, 'trophy');
+    }
+    w.audio.play('sparkle', { pitch: 1.2 });
+    w.audio.play('chest');
+    w.haptics.success();
+    w.particles.emit('confetti', w.player.pos.x, 2.6, w.player.pos.z, 36, 1.2);
+    w.save.markDirty();
+    w.events.emit('rival.overtaken', { index, rank });
+    w.analytics.log('rival_overtaken', { rival: rival.name, rank, seconds: Math.round(w.lifetimeSeconds()) });
+  }
+
+  /** Pennants of every rival passed, in the order they were beaten (hoisted on the locomotive). */
+  get pennants(): Rival[] {
+    const stars = this.w.data.route.stars;
+    return RIVALS.filter((r) => r.reputation <= stars);
   }
 
   // ─── Rival Watch ───────────────────────────────────────────────────────────

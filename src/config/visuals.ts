@@ -40,27 +40,29 @@ export const VISUALS = {
   },
 
   /**
-   * Quality tiers. Every tier has the same look: the same materials, the same baked light (lamps, contact
-   * shading, window spill), the same palette and the same graded tone map (installed in the renderer, so a
-   * tier without post-processing matches one with it). Higher tiers only add resolution, softer shadows,
-   * bloom halos, real lake reflections and (Ultra) screen-space ambient occlusion.
+   * Quality tiers. Every tier has the same palette, the same baked light (lamps, contact shading, window spill)
+   * and the same graded tone map (installed in the renderer, so a tier without post-processing matches one
+   * with it).
    *
-   * Session 15: phones render straight to the screen (Low and Medium have no post-processing at all: no
-   * half-float target, no bloom chain, no extra full-screen passes). The screen's own multisampling
-   * antialiases them, which is almost free on phone GPUs. Bloom and the rest start at High.
-   * `shadowInterval`: the moon's shadow map is redrawn every this many frames (the train stands still and
-   * people walk slowly, so every other frame looks the same and halves that pass on phones).
+   * Session 18 (owner: "the performance in mobile is completely trash… insane frame rate drops… the whole game
+   * is completely blurred"): phones were drawn at 1.3× their CSS pixels, then dynamic resolution cut that to
+   * 0.6 and Auto fell to Low, about 0.66× on a 3× screen, and remembered it for the next launch. Now the phone
+   * tiers are cheap per pixel instead of low in resolution:
+   * `lite`: light per vertex (exact for the flat-shaded geometry; see materials.ts), not full PBR per pixel.
+   * `shadows`: 'off', 'static' (one map round the whole train, redrawn only when the train changes; people
+   * keep their blob shadows) or 'follow' (a frustum on the view, redrawn every `shadowInterval` frames).
+   * `pixelRatio` is a floor of crispness the dynamic resolution never goes far below (`minScale`).
    */
   quality: {
     tiers: {
-      /** Older or 2–3 GB phones: a lower resolution, hard shadows, no post-processing. */
-      low: { label: 'Low', pixelRatio: 1.1, maxMegapixels: 0.75, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false },
-      /** Every other phone: straight to the screen, multisampled by the screen itself. */
-      medium: { label: 'Medium', pixelRatio: 1.5, maxMegapixels: 1.25, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false },
-      /** Laptops (and phones, by choice): bloom halos, soft shadows, real lake reflections. */
-      high: { label: 'High', pixelRatio: 2, maxMegapixels: 3.2, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.5, msaa: 4, fxaa: false, reflections: 0.4, ssao: false },
+      /** Older or 2–3 GB phones: lite shading, no shadow maps, still drawn at 1.5× (crisp). */
+      low: { label: 'Low', pixelRatio: 1.5, maxMegapixels: 1.1, lite: true, shadows: 'off' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false },
+      /** Every other phone: lite shading, the train's static moon shadow, drawn at 1.75×. */
+      medium: { label: 'Medium', pixelRatio: 1.75, maxMegapixels: 1.5, lite: true, shadows: 'static' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false },
+      /** Laptops (and phones, by choice): full shading, bloom halos, soft shadows, real lake reflections. */
+      high: { label: 'High', pixelRatio: 2, maxMegapixels: 3.2, lite: false, shadows: 'follow' as ShadowMode, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.5, msaa: 4, fxaa: false, reflections: 0.4, ssao: false },
       /** Desktops: sharper reflections and screen-space ambient occlusion on top. */
-      ultra: { label: 'Ultra', pixelRatio: 2.5, maxMegapixels: 5.5, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.75, msaa: 4, fxaa: false, reflections: 0.6, ssao: true },
+      ultra: { label: 'Ultra', pixelRatio: 2.5, maxMegapixels: 5.5, lite: false, shadows: 'follow' as ShadowMode, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.75, msaa: 4, fxaa: false, reflections: 0.6, ssao: true },
     },
     /**
      * Frame pacing. High-refresh screens (120/144 Hz) are held to about 60 frames a second: the same smooth
@@ -70,15 +72,21 @@ export const VISUALS = {
     maxFps: 60,
     skipShare: 0.6,
     /**
-     * Dynamic resolution. A frame slower than `slowFrameMs` counts as slow; when more than `slowShare` of the
-     * frames in a `windowSeconds` window are slow, the render scale steps down by `stepDown` (quickly, so a
-     * stutter never lasts). After `recoverSeconds` of smooth frames it creeps back up by `stepUp`, but never
-     * above a scale that already proved too slow this session (no see-sawing). The scale it settles on is
-     * remembered, so the next launch starts there. Phones start a little under full scale (`startScale`).
+     * Dynamic resolution, patient and shallow (session 18): a frame slower than `slowFrameMs` counts as slow;
+     * when more than `slowShare` of the frames in a `windowSeconds` window are slow, the render scale steps down
+     * by `stepDown`, never below `minScale` (a phone stays crisp). Nothing is judged in the first `graceSeconds`
+     * of play (shaders and the first bakes) or for `hitchGraceSeconds` after a single long frame (a hitch is not
+     * a slow device). After `recoverSeconds` of smooth play it climbs back by `stepUp`. A remembered scale is
+     * only a starting point (never below `rememberFloor`): every launch can climb back to full.
      */
-    dynamicResolution: { slowFrameMs: 20, slowShare: 0.45, windowSeconds: 0.6, minScale: 0.6, stepDown: 0.12, stepUp: 0.05, recoverSeconds: 8, startScale: { touch: 0.88, desktop: 1 } },
-    /** Auto: if it is still slow at the lowest render scale for `downgradeSeconds`, drop a tier. */
-    downgradeSeconds: 3,
+    dynamicResolution: { slowFrameMs: 24, slowShare: 0.5, windowSeconds: 2, minScale: 0.8, stepDown: 0.1, stepUp: 0.05, recoverSeconds: 6, graceSeconds: 6, hitchMs: 120, hitchGraceSeconds: 2, rememberFloor: 0.9, startScale: { touch: 1, desktop: 1 } },
+    /**
+     * Auto: if it is still slow at the lowest render scale for `downgradeSeconds`, drop a tier (never below
+     * Low). On Low, still slow at the floor for as long again, frames are held to `fallbackFps` (an even 30 is
+     * smoother than a stuttering 40) until things recover.
+     */
+    downgradeSeconds: 5,
+    fallbackFps: 30,
   },
 
   /**
@@ -134,6 +142,8 @@ export const VISUALS = {
 };
 
 export type Visuals = typeof VISUALS;
+/** How the moon's shadows are drawn on a tier (see `quality`). */
+export type ShadowMode = 'off' | 'static' | 'follow';
 export type QualityTier = keyof typeof VISUALS.quality.tiers;
 export type TierSettings = (typeof VISUALS.quality.tiers)[QualityTier];
 export const QUALITY_TIERS: QualityTier[] = ['low', 'medium', 'high', 'ultra'];

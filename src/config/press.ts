@@ -31,6 +31,20 @@ export interface RivalOwner {
   carriages: number;
 }
 
+/**
+ * What you take from a rival when you overtake them (session 18, owner: "no motivation to keep upgrading"):
+ * something of theirs that becomes yours for good (a permanent perk), a purse, and their pennant, hoisted on
+ * your locomotive. Shown on Rival Watch and in the league, so every star you earn is a step toward it.
+ */
+export interface RivalSpoils {
+  /** What changes hands, in a few words ("Their coal contract"). */
+  what: string;
+  perk: { kind: PerkKind; amount: number; label: string };
+  /** Cash for each carriage of yours, paid on the spot. */
+  cashPerCarriage: number;
+  gems?: number;
+}
+
 export interface Rival {
   name: string;
   /** Reputation (route stars) needed to overtake them. */
@@ -40,7 +54,24 @@ export interface Rival {
   livery: string;
   trim: string;
   owner: RivalOwner;
+  spoils: RivalSpoils;
 }
+
+/**
+ * The race up the league (session 18): the next rival's portrait rides on the HUD with a ring that fills as
+ * your stars close the gap; their face changes as you close in, they flinch at your big moments, and passing
+ * them pays their spoils. No card: the race is always in view, never in the way.
+ */
+export const RIVAL_RACE = {
+  /** Share of the gap closed (from the rival below to this one) when their face turns nervous and the ring glows. */
+  nearShare: 0.8,
+  /** Seconds a reaction (a flinch at a coupling or a refit, a nervous glance) stays on the chip. */
+  reactSeconds: 2.6,
+  /** Seconds between two reactions at least. */
+  reactGap: 40,
+  /** Seconds the humbled owner stays on the chip after you pass them, before the next rival takes their place. */
+  humbledSeconds: 2.4,
+};
 
 /** The Countryside League. The player starts at the bottom; overtaking the Orient Belle makes you #1. */
 export const RIVALS: Rival[] = [
@@ -52,6 +83,7 @@ export const RIVALS: Rival[] = [
       taunt: { headline: '“One Carriage? How Adorable.”', body: 'Sir Reginald Soot of the Puffing Billy chuckles into his waistcoat. “My coal bunker is bigger than {train}.”' },
       humbled: 'Beginner\'s luck! My chimney was sulking.',
     },
+    spoils: { what: 'Their coal contract', perk: { kind: 'speedBonus', amount: 0.03, label: 'Walk +3%' }, cashPerCarriage: 10 },
   },
   {
     name: 'Midnight Mail', reputation: 100, blurb: 'Carries letters. Occasionally people.', livery: '#4A4E69', trim: '#C9A45C',
@@ -61,6 +93,7 @@ export const RIVALS: Rival[] = [
       taunt: { headline: '“Letters Travel Better Than Their Guests!”', body: '“We deliver on time. {train} delivers… eventually,” sniffs Lady Mildred of the Midnight Mail.' },
       humbled: 'Return to sender! This is most irregular.',
     },
+    spoils: { what: 'The mail contract', perk: { kind: 'fareBonus', amount: 0.02, label: 'Fares +2%' }, cashPerCarriage: 12 },
   },
   {
     name: 'Highland Rambler', reputation: 200, blurb: 'Tartan seats, strong opinions.', livery: '#5E7F5A', trim: '#B8483E',
@@ -70,6 +103,7 @@ export const RIVALS: Rival[] = [
       taunt: { headline: '“A Wee Train for Wee People.”', body: '“Our tartan seats have seen more miles than their paint,” booms The McTavish from the Highland Rambler.' },
       humbled: 'Och! My bagpipes will hear of this.',
     },
+    spoils: { what: 'Their tartan blankets', perk: { kind: 'tipBonus', amount: 0.03, label: 'Tips +3%' }, cashPerCarriage: 15, gems: 5 },
   },
   {
     name: 'Duchess of Dover', reputation: 330, blurb: 'Serves tea at exactly 4 o\'clock.', livery: '#8E6A8C', trim: '#EAD9A8',
@@ -79,6 +113,7 @@ export const RIVALS: Rival[] = [
       taunt: { headline: '“Tea at Four. Sharp. Unlike Some.”', body: '“One simply cannot sleep on a train that pours at five past,” says the Duchess, stroking her poodle.' },
       humbled: 'Five past four! The poodle is inconsolable.',
     },
+    spoils: { what: 'Her four o\'clock tea', perk: { kind: 'tipBonus', amount: 0.03, label: 'Tips +3%' }, cashPerCarriage: 20, gems: 5 },
   },
   {
     name: 'The Silver Arrow', reputation: 480, blurb: 'Fast, shiny, a little smug.', livery: '#9AA3AD', trim: '#2E2D34',
@@ -88,6 +123,7 @@ export const RIVALS: Rival[] = [
       taunt: { headline: '“Speed Is Luxury, Darling.”', body: 'Baron von Zoom polishes his goggles. “By the time {train} pours the tea, we have arrived.”' },
       humbled: 'Impossible! I was… letting them win.',
     },
+    spoils: { what: 'Their racing timetable', perk: { kind: 'speedBonus', amount: 0.03, label: 'Walk +3%' }, cashPerCarriage: 25, gems: 8 },
   },
   {
     name: 'The Blue Pullman', reputation: 640, blurb: 'Old money on new rails.', livery: '#34507A', trim: '#D9B45A',
@@ -97,6 +133,7 @@ export const RIVALS: Rival[] = [
       taunt: { headline: '“New Money Smells of Paint.”', body: '“Our carpets are older than their conductor,” sniffs Cornelius Gold III of the Blue Pullman.' },
       humbled: 'My monocle fell in my soup.',
     },
+    spoils: { what: 'Their old-money regulars', perk: { kind: 'fareBonus', amount: 0.03, label: 'Fares +3%' }, cashPerCarriage: 30, gems: 8 },
   },
   {
     name: 'Orient Belle', reputation: 820, blurb: 'Five-time Golden Whistle winner.', livery: '#7A2E3A', trim: '#E2B653',
@@ -106,6 +143,7 @@ export const RIVALS: Rival[] = [
       taunt: { headline: '“Five Golden Whistles. They Have… a Whistle.”', body: '“Number one is a lonely place, darling. Let\'s keep it that way,” purrs Madame Noir of the Orient Belle.' },
       humbled: 'Enjoy it, darling. While it lasts.',
     },
+    spoils: { what: 'The Golden Whistle route', perk: { kind: 'fareBonus', amount: 0.05, label: 'Fares +5%' }, cashPerCarriage: 40, gems: 15 },
   },
 ];
 

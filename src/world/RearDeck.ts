@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { STATIC_CASTER_LAYER } from './Lighting';
 import { FLOOR_Y } from './CarriageView';
 import { GeoBuilder } from './geo';
 import { GANGWAY_LENGTH, REAR_DECK_LENGTH } from './layout';
@@ -29,6 +30,7 @@ export function buildRearDeck(): THREE.Group {
   const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  mesh.layers.enable(STATIC_CASTER_LAYER);
   group.add(mesh, new THREE.Mesh(liv.build(), MATERIALS.livery));
   const lamp = new GeoBuilder().cylinder(0, 0, 0, 0.07, 0.1, 0.18, PALETTE.lampShade, 10, 'y', { shade: 0.9 }).build();
   const lampMesh = new THREE.Mesh(lamp, MATERIALS.lamps);

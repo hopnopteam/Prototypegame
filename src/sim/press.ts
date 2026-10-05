@@ -20,6 +20,27 @@ export function leagueStanding(reputation: number, rivals: Rival[]): LeagueStand
   return { rank: ahead.length + 1, total: rivals.length + 1, next };
 }
 
+export interface RaceProgress {
+  /** The rival you are chasing, or null at number one. */
+  next: Rival | null;
+  /** Reputation where this leg of the race began (the rival below, or 0) and where it ends (the rival's). */
+  from: number;
+  to: number;
+  /** Share of this leg covered, 0–1 (1 at number one). */
+  fraction: number;
+  rank: number;
+}
+
+/** How far along the race to the next rival you are: the ring on the HUD's rival chip. */
+export function raceProgress(reputation: number, rivals: Rival[]): RaceProgress {
+  const standing = leagueStanding(reputation, rivals);
+  const next = standing.next;
+  if (!next) return { next: null, from: reputation, to: reputation, fraction: 1, rank: standing.rank };
+  const below = rivals.filter((r) => r.reputation <= reputation).reduce((a, r) => Math.max(a, r.reputation), 0);
+  const span = Math.max(1, next.reputation - below);
+  return { next, from: below, to: next.reputation, fraction: Math.max(0, Math.min(1, (reputation - below) / span)), rank: standing.rank };
+}
+
 /** Rivals passed while reputation went from `before` to `after`, in the order they were passed. */
 export function rivalsPassed(before: number, after: number, rivals: Rival[]): Rival[] {
   return rivals.filter((r) => r.reputation > before && r.reputation <= after).sort((a, b) => a.reputation - b.reputation);

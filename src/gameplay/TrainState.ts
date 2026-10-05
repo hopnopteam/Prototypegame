@@ -1,3 +1,4 @@
+import { RIVALS } from '../config/press';
 import * as THREE from 'three';
 import { CARRIAGE_CATALOGUE, MAX_CARRIAGES, type BedMess, type ComfortKey, type MessPiece, type UnlockDef } from '../config/content';
 import { buildUnlocks, carriageChoices } from '../sim/unlockPlan';
@@ -6,7 +7,7 @@ import { ClassChips } from '../world/ClassChips';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Vec2 } from '../core/types';
 import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
-import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, GANGWAY_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, layoutKey, ZONE_RADIUS, type BathroomLayout, type CabinLayout } from '../world/layout';
+import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, GANGWAY_LENGTH, LOCOMOTIVE_LENGTH, REAR_DECK_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, layoutKey, ZONE_RADIUS, type BathroomLayout, type CabinLayout } from '../world/layout';
 import { ExteriorView } from '../world/ExteriorView';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
 import { LocomotiveView } from '../world/LocomotiveView';
@@ -115,6 +116,10 @@ const ROOM_DOOR_KEEP = 2.4;
 const ROOM_DOOR_SIDE = 0.5;
 /** Walking within this angle of straight at the doorway counts as heading in (cosine): passing by does not. */
 const ROOM_DOOR_HEADING = 0.55;
+/** Standing this close to the lobby cat for this long brings a heart, at most once in this many seconds. */
+const CAT_HEART_RADIUS = 1.4;
+const CAT_HEART_AFTER = 1.2;
+const CAT_HEART_GAP = 30;
 const ROOM_DOOR_OPEN_RATE = 4.5;
 const ROOM_DOOR_CLOSE_RATE = 2.2;
 /** A cabin's mess clears away in this many visible steps while it is tidied. */
@@ -180,6 +185,10 @@ export class TrainState {
       this.rebuildExterior();
     });
     document.fonts?.ready.then(() => this.loco.refreshName()).catch(() => undefined);
+    // The pennants of every rival beaten fly from the engine (session 18).
+    const pennants = (): void => this.loco.setPennants(RIVALS.filter((r) => r.reputation <= this.w.data.route.stars).map((r) => ({ livery: r.livery, trim: r.trim })));
+    pennants();
+    this.w.events.on('rival.overtaken', pennants);
     for (const type of this.w.data.route.carriages) this.addCarriage(type, false);
     // A coupling was paid for but the choice never made (the app closed on the chooser): ask again.
     this.pendingChoice = this.w.unlocks.isUnlocked(`couple_${this.count}`);
@@ -466,6 +475,8 @@ export class TrainState {
     w.tweens.run(2.3, (t) => {
       view.group.position.z = startZ + (targetZ - startZ) * t;
       this.deck.position.z = view.group.position.z + CARRIAGE_LENGTH;
+      // The static moon shadow follows the carriage in.
+      CarriageView.shadowEpoch++;
     }, {
       ease: easeOutCubic,
       delay: 0.5,
@@ -500,6 +511,7 @@ export class TrainState {
 
     for (const view of this.views) view.animate(dt);
     this.publishLamps();
+    this.publishShadows();
     // Class badges arrive with the classes themselves (the Comfort refit comes after the first coupling).
     const badges = this.w.flow.allows('classChips') || this.views.some((v) => v.tier >= 2);
     this.chips.sync(this.views.map((v) => (badges ? v.cls : null)), (i) => this.views[i]?.group.position.z ?? carriageOriginZ(i), dt, this.w.stage.rig.zoomNow);
@@ -532,7 +544,10 @@ export class TrainState {
       this.views.forEach((v, i) => (v.group.position.z = carriageOriginZ(i) + offset));
     }
 
-    if (w.player) this.updateRoomDoors(dt);
+    if (w.player) {
+      this.updateRoomDoors(dt);
+      this.updateCat(dt);
+    }
 
     // Keep visuals in sync with state (cheap: a handful of visibility flags).
     for (const cabin of this.cabins) {
@@ -657,6 +672,17 @@ export class TrainState {
   private readonly litViews: CarriageView[] = [];
 
   /** Re-bakes the train's light (lamps, window spill, contact shading) when any carriage changed. */
+  /** The static moon shadow (phone tiers) spans the train and is redrawn whenever a caster on it changed. */
+  private publishShadows(): void {
+    const lighting = this.w.stage.lighting;
+    lighting.setTrainSpan(-GANGWAY_LENGTH - LOCOMOTIVE_LENGTH, this.w.map.rearZ + REAR_DECK_LENGTH);
+    if (CarriageView.shadowEpoch === this.shadowEpoch) return;
+    this.shadowEpoch = CarriageView.shadowEpoch;
+    lighting.invalidateShadows();
+  }
+
+  private shadowEpoch = -1;
+
   private publishLamps(): void {
     let changed = this.litViews.length !== this.views.length;
     for (let i = 0; i < this.views.length && !changed; i++) if (this.litViews[i] !== this.views[i]) changed = true;
@@ -866,6 +892,31 @@ export class TrainState {
     }, { delay: 0.35, complete: finish });
   }
 
+  /**
+   * The lobby cat breathes, swishes its tail and watches the conductor; linger beside it and it shows a
+   * heart now and then (session 18).
+   */
+  private updateCat(dt: number): void {
+    const w = this.w;
+    this.catHeartIn = Math.max(0, this.catHeartIn - dt);
+    for (const view of this.views) {
+      const cat = view.cat;
+      if (!cat) continue;
+      const g = cat.group;
+      const dx = w.player.pos.x - g.position.x;
+      const dz = w.player.pos.z - (view.group.position.z + g.position.z);
+      const watching = cat.update(dt, dx, dz);
+      this.catNear = watching && dx * dx + dz * dz < CAT_HEART_RADIUS * CAT_HEART_RADIUS ? this.catNear + dt : 0;
+      if (this.catNear > CAT_HEART_AFTER && this.catHeartIn <= 0) {
+        this.catHeartIn = CAT_HEART_GAP;
+        w.particles.emit('heart', g.position.x, g.position.y + 0.35, view.group.position.z + g.position.z, 1, 0.05);
+      }
+    }
+  }
+
+  private catNear = 0;
+  private catHeartIn = 0;
+
   /** Room doors slide open for anyone walking up to them, and close behind. Locked rooms stay shut. */
   private updateRoomDoors(dt: number): void {
     const w = this.w;
@@ -924,6 +975,7 @@ export class TrainState {
     w.map.rebuild(this.types, w.journey.doorsOpen, moreToCome, this.tiers);
     this.deck.visible = moreToCome;
     this.deck.position.z = w.map.rearZ;
+    CarriageView.shadowEpoch++;
     w.station?.onTrainChanged();
     // Anyone left where a wall now stands is gently moved onto the floor.
     if (w.player) {

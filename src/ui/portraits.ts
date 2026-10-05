@@ -1,4 +1,4 @@
-import type { OwnerLook } from '../config/press';
+import type { OwnerLook, Rival } from '../config/press';
 
 const INK = '#2A2433';
 const PAPER = '#F4ECDB';
@@ -8,7 +8,13 @@ const PAPER = '#F4ECDB';
  * and a smug little smile, and one signature piece each (a top hat, a lorgnette, a great red beard…).
  * Drawn on a canvas in newsprint tones so it sits on the page like the train photos.
  */
-export function drawOwnerPortrait(canvas: HTMLCanvasElement, look: OwnerLook, coat: string, trim: string): void {
+/**
+ * How the owner looks at you (session 18): smug while you are far behind, nervous (worried brows, a gasp, a
+ * bead of sweat) once you are closing in, humbled (a scowl) when you have just passed them.
+ */
+export type OwnerMood = 'smug' | 'nervous' | 'humbled';
+
+export function drawOwnerPortrait(canvas: HTMLCanvasElement, look: OwnerLook, coat: string, trim: string, mood: OwnerMood = 'smug'): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   const s = canvas.width / 160;
@@ -75,20 +81,32 @@ export function drawOwnerPortrait(canvas: HTMLCanvasElement, look: OwnerLook, co
     ctx.fill();
   }
 
-  // Face: villainous arched brows, narrowed eyes, a smug smile.
+  // Face: villainous arched brows, narrowed eyes, a smug smile (or worried, or scowling: see OwnerMood).
   ctx.strokeStyle = INK;
   ctx.lineCap = 'round';
   ctx.lineWidth = 3.2;
-  line(ctx, 64, 76, 74, 72);
-  line(ctx, 96, 76, 86, 72);
+  if (mood === 'nervous') {
+    // Worried: the inner ends of the brows shoot up.
+    line(ctx, 62, 79, 74, 69);
+    line(ctx, 98, 79, 86, 69);
+  } else if (mood === 'humbled') {
+    line(ctx, 63, 74, 75, 79);
+    line(ctx, 97, 74, 85, 79);
+  } else {
+    line(ctx, 64, 76, 74, 72);
+    line(ctx, 96, 76, 86, 72);
+  }
   ctx.fillStyle = INK;
   ctx.beginPath();
-  ctx.ellipse(70, 83, 3.6, 2.4, 0, 0, Math.PI * 2);
-  ctx.ellipse(90, 83, 3.6, 2.4, 0, 0, Math.PI * 2);
+  const eyeH = mood === 'nervous' ? 3.6 : 2.4;
+  ctx.ellipse(70, 83, 3.6, eyeH, 0, 0, Math.PI * 2);
+  ctx.ellipse(90, 83, 3.6, eyeH, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.lineWidth = 2.4;
   ctx.beginPath();
-  ctx.arc(84, 99, 9, 0.25, Math.PI - 0.9);
+  if (mood === 'nervous') ctx.ellipse(80, 103, 4, 5, 0, 0, Math.PI * 2);
+  else if (mood === 'humbled') ctx.arc(80, 110, 9, Math.PI + 0.6, -0.6);
+  else ctx.arc(84, 99, 9, 0.25, Math.PI - 0.9);
   ctx.stroke();
   ctx.fillStyle = shade(look.skin, -30);
   ctx.beginPath();
@@ -248,6 +266,18 @@ export function drawOwnerPortrait(canvas: HTMLCanvasElement, look: OwnerLook, co
     case 'bun':
       break;
   }
+  if (mood === 'nervous') {
+    // A bead of sweat at the temple.
+    ctx.fillStyle = '#8FC6EA';
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(112, 64);
+    ctx.bezierCurveTo(105, 76, 106, 84, 112, 84);
+    ctx.bezierCurveTo(118, 84, 119, 76, 112, 64);
+    ctx.fill();
+    ctx.stroke();
+  }
   ctx.restore();
   // Ring and newsprint wash.
   ctx.strokeStyle = INK;
@@ -277,4 +307,16 @@ function shade(hex: string, amount: number): string {
   const n = parseInt(hex.slice(1), 16);
   const c = (v: number): number => Math.max(0, Math.min(255, v + amount));
   return `#${((c(n >> 16) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
+}
+
+/** A rival owner's portrait as a canvas element `size` CSS pixels across (drawn at twice that for sharpness). */
+export function ownerPortrait(rival: Rival, size: number, mood: OwnerMood = 'smug'): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'portrait';
+  canvas.width = size * 2;
+  canvas.height = size * 2;
+  canvas.style.width = `${size}px`;
+  canvas.style.height = `${size}px`;
+  drawOwnerPortrait(canvas, rival.owner.look, rival.livery, rival.trim, mood);
+  return canvas;
 }

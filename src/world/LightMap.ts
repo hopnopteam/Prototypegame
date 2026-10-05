@@ -84,6 +84,13 @@ export class LightMap {
     } while (performance.now() < end);
   }
 
+  /** After a lost WebGL context: every map is uploaded again on the next render. */
+  invalidate(): void {
+    this.neutral.needsUpdate = true;
+    if (this.train) this.train.texture.needsUpdate = true;
+    if (this.platform) this.platform.texture.needsUpdate = true;
+  }
+
   /** Runs a bake in progress to the end now (tools, tests, the first bake). */
   finish(which: 'train' | 'platform' = 'train'): void {
     const job = which === 'train' ? this.trainJob : this.platformJob;

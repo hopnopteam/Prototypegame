@@ -1,6 +1,7 @@
 import * as THREE from 'three';
+import { STATIC_CASTER_LAYER } from './Lighting';
 import type { CarriageType } from '../core/types';
-import { FLOOR_Y, WINDOW_Y0, WINDOW_Y1, windowSpacing } from './CarriageView';
+import { CarriageView, FLOOR_Y, WINDOW_Y0, WINDOW_Y1, windowSpacing } from './CarriageView';
 import { GeoBuilder, mergePlanes, type PartStyle } from './geo';
 import { carriageOriginZ, DOOR_Z0, DOOR_Z1, getLayout, HALF_WIDTH } from './layout';
 import { MATERIALS } from './materials';
@@ -129,7 +130,9 @@ export class ExteriorView {
     if (solidGeo) {
       this.solid = new THREE.Mesh(solidGeo, MATERIALS.solid);
       this.solid.castShadow = true;
+      this.solid.layers.enable(STATIC_CASTER_LAYER);
       this.group.add(this.solid);
+      CarriageView.shadowEpoch++;
     }
     if (lampGeo) {
       this.lamps = new THREE.Mesh(lampGeo, MATERIALS.lamps);

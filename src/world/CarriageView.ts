@@ -1,3 +1,4 @@
+import { TrainCat } from './TrainCat';
 import * as THREE from 'three';
 import { rect, type CarriageType, type Rect } from '../core/types';
 import type { ComfortKey } from '../config/content';
@@ -27,6 +28,7 @@ import { smoothstep01 } from '../core/math';
 import { classOfTier, isPassengerType, type ClassDef } from '../config/classes';
 import { SURFACES } from './surfaces';
 import { buildCobwebs, floorSteps, type WindowCorner } from './Floors';
+import { STATIC_CASTER_LAYER } from './Lighting';
 import type { LampAnchor } from './Lighting';
 import { REFLECT_LAYER } from './Water';
 
@@ -318,9 +320,30 @@ export class CarriageView {
     this.buildDoors();
     yield;
     this.buildStock();
+    this.buildCat();
+    CarriageView.shadowEpoch++;
   }
 
+  /** The lobby cat, curled up on the reception desk (session 18); null in carriages without a desk. */
+  cat: TrainCat | null = null;
+
+  private buildCat(): void {
+    const desk = this.layout.props.find((p) => p.kind === 'desk');
+    if (!desk) return;
+    this.cat = new TrainCat();
+    // The desk's top: a trestle table when run down, a felt-topped counter once repaired (see buildProp).
+    this.cat.place(desk.rect, FLOOR_Y + (this.tier <= 0 ? 0.84 : 0.925));
+    this.group.add(this.cat.group);
+  }
+
+  /**
+   * Bumped whenever something that casts into the static moon shadow appears, disappears or is finished
+   * (a carriage built, a bed or a fixture shown): TrainState redraws the static shadows when it changes.
+   */
+  static shadowEpoch = 0;
+
   setCabinLocked(cabin: number, locked: boolean): void {
+    if (this.cabinLocked[cabin] !== locked) CarriageView.shadowEpoch++;
     const lock = this.cabinLocks[cabin];
     const bed = this.cabinBeds[cabin];
     if (lock) lock.visible = locked;
@@ -335,6 +358,7 @@ export class CarriageView {
   }
 
   setBathroomLocked(bathroom: number, locked: boolean): void {
+    CarriageView.shadowEpoch++;
     const lock = this.bathroomLocks[bathroom];
     const fixtures = this.bathroomFixtures[bathroom];
     if (lock) lock.visible = locked;
@@ -620,6 +644,8 @@ export class CarriageView {
       const mesh = new THREE.Mesh(builder.build(), material);
       mesh.castShadow = cast;
       mesh.receiveShadow = receive;
+      // The carriage's fixed shell casts into the static moon shadow on the phone tiers (Lighting).
+      if (cast) mesh.layers.enable(STATIC_CASTER_LAYER);
       // The outside of the train (paint, glowing windows) is mirrored in the lake on the high tiers.
       if (reflect) mesh.layers.enable(REFLECT_LAYER);
       this.group.add(mesh);
@@ -958,6 +984,7 @@ export class CarriageView {
       const mesh = new THREE.Mesh(geometry, MATERIALS.solid);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+      mesh.layers.enable(STATIC_CASTER_LAYER);
       bedGroup.add(mesh);
       bedGroup.position.set(centerX, FLOOR_Y, centerZ);
       this.group.add(bedGroup);
@@ -982,6 +1009,7 @@ export class CarriageView {
       const mesh = new THREE.Mesh(builder.build(), MATERIALS.solid);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+      mesh.layers.enable(STATIC_CASTER_LAYER);
       group.add(mesh);
       this.group.add(group);
       this.bathroomFixtures[bath.index] = group;

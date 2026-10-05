@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Rng } from '../core/Rng';
 
-export type ParticleKind = 'dust' | 'sparkle' | 'confetti' | 'smoke' | 'steam' | 'star' | 'cash' | 'heart';
+export type ParticleKind = 'dust' | 'sparkle' | 'confetti' | 'smoke' | 'steam' | 'star' | 'cash' | 'heart' | 'chimney';
 
 interface KindSpec {
   colors: string[];
@@ -15,6 +15,8 @@ interface KindSpec {
   /** 0 soft round, 1 star, 2 card, 3 a soft puff lit by the moon at night (smoke, steam, dust). */
   shape: 0 | 1 | 2 | 3;
   alpha: number;
+  /** Carried along with the countryside as it scrolls past (smoke from a cottage chimney stays with the cottage's air). */
+  rides?: boolean;
 }
 
 const SPECS: Record<ParticleKind, KindSpec> = {
@@ -26,6 +28,7 @@ const SPECS: Record<ParticleKind, KindSpec> = {
   star: { colors: ['#FFD35C', '#FFE9A8'], size: [0.35, 0.6], life: [0.8, 1.2], speed: [2, 4], up: [2, 4], gravity: 4, drag: 1.4, grow: -0.1, shape: 1, alpha: 1 },
   cash: { colors: ['#7CC47F', '#A6DDB0'], size: [0.12, 0.18], life: [0.6, 0.9], speed: [1.5, 3], up: [2, 3.5], gravity: 8, drag: 0.8, grow: 0, shape: 2, alpha: 1 },
   heart: { colors: ['#E8577A', '#F28CA5'], size: [0.3, 0.45], life: [0.9, 1.3], speed: [0.2, 0.6], up: [1.0, 1.6], gravity: -0.4, drag: 1, grow: 0.1, shape: 0, alpha: 1 },
+  chimney: { colors: ['#D9D6CF', '#C9C6C0', '#E6E3DC'], size: [0.35, 0.55], life: [2.6, 3.6], speed: [0.04, 0.12], up: [0.45, 0.7], gravity: -0.04, drag: 0.4, grow: 1.8, shape: 3, alpha: 0.3, rides: true },
 };
 
 const tmpColor = new THREE.Color();
@@ -175,7 +178,8 @@ export class Particles {
     }
   }
 
-  update(dt: number): void {
+  /** `ground` is how fast the countryside scrolls past (kinds that ride with it move along at that speed). */
+  update(dt: number, ground = 0): void {
     for (let i = 0; i < this.capacity; i++) {
       if (this.life[i] <= 0) {
         if (this.alpha[i] !== 0) this.alpha[i] = 0;
@@ -190,7 +194,7 @@ export class Particles {
       this.velocity[i * 3 + 2] *= drag;
       this.position[i * 3] += this.velocity[i * 3] * dt;
       this.position[i * 3 + 1] += this.velocity[i * 3 + 1] * dt;
-      this.position[i * 3 + 2] += this.velocity[i * 3 + 2] * dt;
+      this.position[i * 3 + 2] += (this.velocity[i * 3 + 2] + (spec.rides ? ground : 0)) * dt;
       this.size[i] = Math.max(0.01, this.baseSize[i] * (1 + spec.grow * t));
       this.alpha[i] = this.baseAlpha[i] * (t < 0.1 ? t / 0.1 : 1 - Math.max(0, t - 0.6) / 0.4);
     }

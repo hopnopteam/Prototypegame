@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CEREMONIES, DEBUT_INTERVIEW, HEADLINES, INTERVIEWS, RIVALS } from '../src/config/press';
 import { ECONOMY } from '../src/config/economy';
-import { awardProgress, cleanTrainName, fillTemplate, leagueStanding, rivalsPassed } from '../src/sim/press';
+import { awardProgress, cleanTrainName, fillTemplate, leagueStanding, raceProgress, rivalsPassed } from '../src/sim/press';
 
 describe('press', () => {
   it('fills headline tokens and drops unknown ones', () => {
@@ -21,6 +21,27 @@ describe('press', () => {
     const passed = rivalsPassed(20, 300, RIVALS).map((r) => r.name);
     expect(passed).toEqual(['Puffing Billy', 'Midnight Mail', 'Highland Rambler']);
     expect(rivalsPassed(300, 300, RIVALS)).toEqual([]);
+  });
+
+  it('measures the race to the next rival from the one below', () => {
+    const [first, second] = RIVALS;
+    expect(raceProgress(0, RIVALS)).toMatchObject({ next: first, from: 0, to: first.reputation, fraction: 0 });
+    const mid = raceProgress((first.reputation + second.reputation) / 2, RIVALS);
+    expect(mid.next).toBe(second);
+    expect(mid.from).toBe(first.reputation);
+    expect(mid.fraction).toBeCloseTo(0.5);
+    const top = raceProgress(10_000, RIVALS);
+    expect(top.next).toBeNull();
+    expect(top.fraction).toBe(1);
+    expect(top.rank).toBe(1);
+  });
+
+  it('gives every rival spoils worth chasing', () => {
+    for (const rival of RIVALS) {
+      expect(rival.spoils.perk.amount).toBeGreaterThan(0);
+      expect(rival.spoils.cashPerCarriage).toBeGreaterThan(0);
+      expect(rival.spoils.what.split(' ').length).toBeLessThanOrEqual(5);
+    }
   });
 
   it('can reach number one within route 1', () => {
