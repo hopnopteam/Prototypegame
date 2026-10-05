@@ -24,7 +24,7 @@ unchanged. Configuration: `capacitor.config.ts` (app id `com.hopnop.nightexpress
 ## Test builds (Android, no local tools needed)
 
 `.github/workflows/android-apk.yml` builds the Android app on GitHub Actions whenever the game changes on the
-working branch (or by hand from the Actions tab: "Android test APK" → Run workflow). It builds the web game, syncs
+working branch (or by hand from the Actions tab: "Android test build" → Run workflow). It builds the web game, syncs
 it into `android/`, builds a debug APK and publishes it as a pre-release `android-test-<run>` with the file
 `night-express-<run>.apk` (also kept as a workflow artifact). The version code is the run number, so each build
 is newer than the last.
