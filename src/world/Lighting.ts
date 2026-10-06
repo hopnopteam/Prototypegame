@@ -60,7 +60,7 @@ const STATIC_TEXEL = 0.035;
 const STATIC_MAX_SIZE = 4096;
 const STATIC_MARGIN = 1.5;
 /** The train's extent across (x) and its tallest point (the locomotive's chimney), for the static frustum. */
-const TRAIN_HALF_X = 3.4;
+const TRAIN_HALF_X = 2.8;
 const TRAIN_TOP = 4.6;
 
 /** A lamp in a carriage or on the platform: a world position and a strength (1 = a room's ceiling light). */

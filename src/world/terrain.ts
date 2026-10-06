@@ -16,7 +16,7 @@
  */
 export const TRACK_HALF = 3.0;
 /** How far the lakeside sits out from where its own coordinates put it: lake side −x, land side +x (session 19). */
-export const SCENERY_SPREAD = 0.5;
+export const SCENERY_SPREAD = 0;
 /** The track bed's half-width in the world. */
 export const WORLD_TRACK_HALF = TRACK_HALF + SCENERY_SPREAD;
 /** A lakeside x (lake side negative, land side positive) as a world x. */

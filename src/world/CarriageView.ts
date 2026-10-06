@@ -666,6 +666,10 @@ export class CarriageView {
     if (!glass.isEmpty) {
       const panes = new THREE.Mesh(glass.build(), MATERIALS.windows);
       panes.layers.enable(REFLECT_LAYER);
+      // The glass stops the moon (session 20): through bare openings it laid pale streaks along the corridor
+      // floor under every window, which read as stray marks, not moonlight.
+      panes.castShadow = true;
+      panes.layers.enable(STATIC_CASTER_LAYER);
       this.group.add(panes);
     }
     add(lamps, MATERIALS.lamps, false, false, true);

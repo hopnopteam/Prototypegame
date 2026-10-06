@@ -10,11 +10,15 @@ import { PALETTE, shadeHex, type CarriageTheme } from './palette';
 /**
  * Floors tell the rags-to-riches story at a glance, tier by tier:
  *
- * 0 Run-down: real grey planks with open seams over a dark subfloor and joists. Every room has its own
- *   damage: a board or two missing (a real hole you can see into), splintered ends, a split board, one
- *   warped board lifting at the end. Washrooms have dingy tiles with gaps and a cracked one.
- * 1 Repaired: the same boards, sanded to honey and tightened; every hole and break has a fresh pale board
- *   (nailed down) in exactly the place it was, so you can see what was fixed. Tiles regrouted and patched.
+ * 0 Run-down: real grey planks with open seams over a dark subfloor and joists, and one hole per room (a
+ *   board or two missing, splintered ends, the joists below). Washrooms have dingy tiles, one missing.
+ * 1 Repaired: the same boards, sanded to honey and tightened; each hole has a new board in exactly its place,
+ *   a shade lighter than the rest. Tiles regrouted, the missing one replaced.
+ *
+ * Session 20 (owner: "weird textures issues all over the floor"): at phone size the old floor read as noise:
+ * narrow boards each in one of six contrasting shades, random joints, a split and a warped board and nail
+ * heads in every room, and bright patches where the repairs were. Boards are now wider, in three close shades,
+ * jointed in a regular stagger, and the damage is one clear hole per room.
  * 2 Cosy: polished oak boards; the lobby gets a waiting-room rug and a doormat.
  * 3 Luxurious: walnut chevron parquet in a border in every room; a grand rug in the lobby.
  * 4 (passenger carriages, Royal Suite): marble checker in a dark red border with a gold line.
@@ -29,25 +33,26 @@ const ROOM_LIFT = 0.006;
 const PLANK_T = 0.045;
 const JOIST_H = 0.05;
 const JOIST_SPACING = 0.6;
-/** Board widths: narrow old boards, wide new ones. */
-const OLD_BOARD = 0.19;
+/** Board width and length (session 20: 0.19 m boards of random length read as noise on a phone). */
+const BOARD = 0.3;
+const BOARD_LENGTH = 2.1;
 const TILE = 0.25;
 const FLAT: PartStyle = { shade: 1 };
 
-const OLD_TONES = ['#8C8375', '#978D7E', '#817868', '#A09482', '#7A7163', '#918877'];
-const REPAIRED_TONES = ['#C9AE84', '#BFA27A', '#D1B68C', '#B89C74', '#C4A67C'];
-const FRESH_TONES = ['#EAD3A2', '#E6CB95', '#EFD9AC'];
+/** Three close shades per tier (a whisper of variety, never a pattern of its own). */
+const OLD_TONES = ['#8D8476', '#918879', '#898072'];
+const REPAIRED_TONES = ['#C6A97E', '#C9AD82', '#C2A57A'];
+/** The board laid where a hole was: a shade lighter than its neighbours, so the repair reads without shouting. */
+const PATCH_TONE = '#D0B489';
 /**
  * What shows through a hole and the open seams: a dark timber subfloor and lighter joists (session 17: was near
  * black, so a missing board read as a black square cut out of the picture rather than a hole with depth).
  */
 const SUBFLOOR = '#3B2F27';
 const JOIST = '#76604C';
-const NAIL_OLD = '#5B4A3E';
-const NAIL_NEW = '#C9C8C0';
-const TILE_OLD = ['#D3CCBD', '#C9C1B0', '#D8D1C2', '#BDB4A2'];
-const TILE_REPAIRED = ['#EDEAE3', '#E7E3DA'];
-const TILE_NEW = '#FBFAF6';
+const TILE_OLD = ['#CFC8B9', '#CBC4B5', '#D2CBBD'];
+const TILE_REPAIRED = ['#ECE9E2', '#E9E6DE'];
+const TILE_NEW = '#F2F0EA';
 const GROUT_OLD = '#4F4A44';
 const GROUT_NEW = '#B9B4AA';
 
@@ -155,91 +160,54 @@ function pickHoles(r: Rect, strip: number, count: number, rand: () => number, ko
 }
 
 /**
- * Boards along z across a region. Tier 0: narrow, weathered, open seams, with holes, splinters, a split
- * board and a warped one. Tier 1: the same layout sanded and tight, a fresh board wherever damage was.
+ * Boards along z across a region, jointed in a regular stagger. Tier 0: weathered, open seams, one hole (a
+ * missing stretch with splintered ends). Tier 1: the same boards sanded and tight, a new board in the hole.
  */
 function boardField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () => number, ko: ReturnType<typeof keepOuts>, room: boolean): void {
-  const seam = tier <= 0 ? 0.008 : 0.0025;
-  const strips = Math.max(1, Math.round((r.x1 - r.x0) / OLD_BOARD));
+  const seam = tier <= 0 ? 0.007 : 0.003;
+  const strips = Math.max(1, Math.round((r.x1 - r.x0) / BOARD));
   const w = (r.x1 - r.x0) / strips;
-  const holes = pickHoles(r, w, room ? 1 : Math.max(0, Math.floor((r.z1 - r.z0) / 4.5)), rand, ko, !room);
+  // One hole per room, and one per long run of corridor (a short strip of open floor has none).
+  const holes = pickHoles(r, w, room ? 1 : r.z1 - r.z0 > 6 && r.x1 - r.x0 > 0.9 ? 1 : 0, rand, ko, !room);
   if ((globalThis as { __floorDebug?: string[] }).__floorDebug) (globalThis as { __floorDebug?: string[] }).__floorDebug!.push(`${room ? 'room' : 'open'} ${r.x0.toFixed(2)},${r.z0.toFixed(2)}-${r.x1.toFixed(2)},${r.z1.toFixed(2)} holes ${holes.map((h) => `${h.x0.toFixed(2)},${h.z0.toFixed(2)}`).join(' ')}`);
   const bottom = top - PLANK_T;
   const y = (top + bottom) / 2;
-  // Rooms get one split and one warped board; corridors about one of each every few metres.
-  const span = Math.max(1, Math.round((r.z1 - r.z0) / 5));
-  let splits = room ? 1 : (r.x1 - r.x0 > 0.5 ? span : 0);
-  let warps = room ? 1 : (r.x1 - r.x0 > 0.5 ? span : 0);
+  const tones = tier <= 0 ? OLD_TONES : REPAIRED_TONES;
+  const phase = rand();
   for (let s = 0; s < strips; s++) {
     const x0 = r.x0 + s * w + seam / 2;
     const x1 = r.x0 + (s + 1) * w - seam / 2;
     const cx = (x0 + x1) / 2;
     const bw = x1 - x0;
-    // Boards of random length with joints staggered strip to strip.
-    let z = r.z0 - rand() * 1.2;
+    // Each strip starts a golden-ratio share of a board further back than its neighbour: joints that never
+    // line up, in a rhythm the eye reads as one floor.
+    let z = r.z0 - ((phase + s * 0.618) % 1) * BOARD_LENGTH;
+    let k = 0;
     while (z < r.z1) {
-      const len = 0.75 + rand() * 1.1;
-      let a = Math.max(r.z0, z) + (z > r.z0 ? seam / 2 : 0);
+      const len = BOARD_LENGTH;
+      const a = Math.max(r.z0, z) + (z > r.z0 ? seam / 2 : 0);
       const b = Math.min(r.z1, z + len) - (z + len < r.z1 ? seam / 2 : 0);
       z += len;
+      const board = tones[(s * 2 + k++) % tones.length];
       if (b - a < 0.05) continue;
       const hole = holes.find((h) => s >= h.s0 && s <= h.s1 && h.z0 < b && h.z1 > a);
-      const old = OLD_TONES[Math.floor(rand() * OLD_TONES.length)];
-      const board = tier <= 0 ? old : REPAIRED_TONES[Math.floor(rand() * REPAIRED_TONES.length)];
-      if (hole) {
-        if (tier <= 0) {
-          // A missing stretch: the board stops short on either side with splintered ends.
-          // (A joint can fall inside the hole: each board only breaks at the edge it actually reaches.)
-          if (hole.z0 - a > 0.04) plank(f, cx, y, a, hole.z0, bw, board);
-          if (b - hole.z1 > 0.04) plank(f, cx, y, hole.z1, b, bw, board);
-          if (a < hole.z0 && b > hole.z0) splinters(f, cx, bw, y, hole.z0, 1, rand, board);
-          if (a < hole.z1 && b > hole.z1) splinters(f, cx, bw, y, hole.z1, -1, rand, board);
-        } else {
-          // Repaired: the old board up to the patch, a fresh nailed board across it.
-          if (hole.z0 - a > 0.04) plank(f, cx, y, a, hole.z0 - seam / 2, bw, board);
-          if (b - hole.z1 > 0.04) plank(f, cx, y, hole.z1 + seam / 2, b, bw, board);
-          const fresh = FRESH_TONES[Math.floor(rand() * FRESH_TONES.length)];
-          plank(f, cx, y, Math.max(a, hole.z0 + seam / 2), Math.min(b, hole.z1 - seam / 2), bw, fresh);
-          nails(f, cx, bw, top, Math.max(a, hole.z0 + seam / 2) + 0.04, NAIL_NEW);
-          nails(f, cx, bw, top, Math.min(b, hole.z1 - seam / 2) - 0.04, NAIL_NEW);
-        }
+      if (!hole) {
+        plank(f, cx, y, a, b, bw, board);
         continue;
       }
-      const candidate = rect(x0 - 0.05, a - 0.05, x1 + 0.05, b + 0.05);
-      if (splits > 0 && b - a > 0.6 && s > 0 && s < strips - 1 && rand() < 0.3 && clear(candidate, ko, 0.8)) {
-        splits--;
-        if (tier <= 0) {
-          // Split down its length: two narrow halves with a dark crack between.
-          const crack = 0.007;
-          const cut = x0 + bw * (0.4 + rand() * 0.2);
-          plank(f, (x0 + cut - crack / 2) / 2, y, a, b, cut - crack / 2 - x0, board);
-          plank(f, (cut + crack / 2 + x1) / 2, y, a, b, x1 - cut - crack / 2, board);
-        } else {
-          const fresh = FRESH_TONES[Math.floor(rand() * FRESH_TONES.length)];
-          plank(f, cx, y, a, b, bw, fresh);
-          nails(f, cx, bw, top, a + 0.04, NAIL_NEW);
-          nails(f, cx, bw, top, b - 0.04, NAIL_NEW);
-        }
-        continue;
+      if (tier <= 0) {
+        // A missing stretch: the board stops short on either side with splintered ends.
+        // (A joint can fall inside the hole: each board only breaks at the edge it actually reaches.)
+        if (hole.z0 - a > 0.04) plank(f, cx, y, a, hole.z0, bw, board);
+        if (b - hole.z1 > 0.04) plank(f, cx, y, hole.z1, b, bw, board);
+        if (a < hole.z0 && b > hole.z0) splinters(f, cx, bw, y, hole.z0, 1, rand, board);
+        if (a < hole.z1 && b > hole.z1) splinters(f, cx, bw, y, hole.z1, -1, rand, board);
+      } else {
+        // Repaired: the old board up to the patch, a new board across it.
+        if (hole.z0 - a > 0.04) plank(f, cx, y, a, hole.z0 - seam / 2, bw, board);
+        if (b - hole.z1 > 0.04) plank(f, cx, y, hole.z1 + seam / 2, b, bw, board);
+        plank(f, cx, y, Math.max(a, hole.z0 + seam / 2), Math.min(b, hole.z1 - seam / 2), bw, PATCH_TONE);
       }
-      if (warps > 0 && b - a > 0.7 && s > 0 && s < strips - 1 && rand() < 0.25 && clear(candidate, ko)) {
-        warps--;
-        if (tier <= 0) {
-          // Warped: one end has lifted off its nails and stands proud of its neighbours.
-          const length = b - a;
-          const angle = 0.035;
-          const rise = (length / 2) * Math.sin(angle);
-          f.add(new THREE.BoxGeometry(bw, PLANK_T, length), board, cx, y + rise + 0.001, (a + b) / 2, angle, 0, 0, { shade: 0.95 });
-        } else {
-          plank(f, cx, y, a, b, bw, FRESH_TONES[0]);
-          nails(f, cx, bw, top, a + 0.04, NAIL_NEW);
-          nails(f, cx, bw, top, b - 0.04, NAIL_NEW);
-        }
-        continue;
-      }
-      plank(f, cx, y, a, b, bw, board);
-      // Old boards show their nail heads here and there.
-      if (tier <= 0 && rand() < 0.3 && clear(candidate, ko)) nails(f, cx, bw, top, a + 0.05, NAIL_OLD);
     }
   }
 }
@@ -260,11 +228,6 @@ function splinters(f: GeoBuilder, cx: number, bw: number, y: number, edge: numbe
   }
 }
 
-/** Two nail heads across a board, standing a few millimetres proud. */
-function nails(f: GeoBuilder, cx: number, bw: number, top: number, z: number, color: string): void {
-  for (const dx of [-bw * 0.28, bw * 0.28]) f.cylinder(cx + dx, top + 0.002, z, 0.009, 0.009, 0.004, color, 8, 'y', FLAT);
-}
-
 /** Tiles over grout: tier 0 dingy with gaps and a crack, tier 1 regrouted with a few bright new tiles. */
 function tileField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () => number, ko: ReturnType<typeof keepOuts>): void {
   const grout = tier <= 0 ? 0.006 : 0.004;
@@ -273,9 +236,9 @@ function tileField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () =
   const nz = Math.max(1, Math.round((r.z1 - r.z0) / TILE));
   const tw = (r.x1 - r.x0) / nx;
   const td = (r.z1 - r.z0) / nz;
-  // A couple of damaged tiles per room, never under a pad or a fitting.
+  // One missing tile per room (session 20: was three damaged tiles), never under a pad or a fitting.
   const damaged = new Map<string, 'missing' | 'cracked'>();
-  for (let attempt = 0; attempt < 30 && damaged.size < 3; attempt++) {
+  for (let attempt = 0; attempt < 30 && damaged.size < 1; attempt++) {
     const i = 1 + Math.floor(rand() * Math.max(1, nx - 2));
     const j = 1 + Math.floor(rand() * Math.max(1, nz - 2));
     const cell = rect(r.x0 + i * tw - 0.05, r.z0 + j * td - 0.05, r.x0 + (i + 1) * tw + 0.05, r.z0 + (j + 1) * td + 0.05);
@@ -289,7 +252,8 @@ function tileField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () =
       const w = tw - grout;
       const d = td - grout;
       const state = damaged.get(`${i},${j}`);
-      const color = tier <= 0 ? TILE_OLD[Math.floor(rand() * TILE_OLD.length)] : TILE_REPAIRED[Math.floor(rand() * TILE_REPAIRED.length)];
+      const tones = tier <= 0 ? TILE_OLD : TILE_REPAIRED;
+      const color = tones[(i + j * 2) % tones.length];
       if (state && tier >= 1) {
         f.box(x0 + w / 2, top - 0.003, z0 + d / 2, w, 0.006, d, TILE_NEW, 0, FLAT);
         continue;

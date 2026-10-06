@@ -81,6 +81,16 @@ export class Coach {
     this.rest = this.walkthroughDone ? COACH_LESSON_GAP_SECONDS : COACH_REST_SECONDS;
   }
 
+  /**
+   * A first-time lesson is up about this spot (session 20: after the walkthrough the guide arrow shows only to
+   * teach something the first time, or as a nudge when the player stands idle).
+   */
+  teaching(spot: { x: number; z: number }): boolean {
+    const cur = this.current;
+    if (!cur || !('world' in cur.anchor)) return false;
+    return Math.hypot(cur.anchor.world.x - spot.x, cur.anchor.world.z - spot.z) < AGREE_METRES;
+  }
+
   /** The walkthrough is finished once the four loop steps are done. */
   get walkthroughDone(): boolean {
     return COACH_STEPS.every((s) => this.done(s.id));

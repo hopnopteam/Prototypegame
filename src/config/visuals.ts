@@ -15,8 +15,8 @@ export const VISUALS = {
     pitchDeg: 48,
     /** Vertical field of view (degrees): narrow, so the train reads like a model on a table. */
     fovDeg: 33,
-    /** Metres of floor that must fit across the screen at the focus point (keeps people readable). */
-    minVisibleWidth: 9.0,
+    /** Metres of floor that must fit across the screen at the focus point (keeps people readable; session 20: 7.8, was 9, the slimmer train framed closer). */
+    minVisibleWidth: 7.8,
     /** Metres the view leads along the train toward the locomotive (the way the train is going). */
     lookAhead: 1.0,
     /** Metres the view leans out over the lake, so more of it is on screen (the player sits a little low). */

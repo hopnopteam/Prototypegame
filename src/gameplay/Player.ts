@@ -1,5 +1,8 @@
 import { SCOOTER_SPEED_BONUS } from '../config/content';
 import { approach, dampAngle } from '../core/math';
+
+/** How briskly the conductor turns to face the way they walk (session 20: 22, was 14: near on the spot, as in MPH). */
+const TURN_SHARPNESS = 22;
 import type { Vec2 } from '../core/types';
 import { FLOOR_Y } from '../world/CarriageView';
 import { CharacterView, CONDUCTOR_LOOK } from '../world/CharacterView';
@@ -157,8 +160,8 @@ export class Player implements Actor {
       const mz = this.pos.z - before.z;
       this.speedNow = Math.hypot(mx, mz) / Math.max(1e-4, dt);
       // Face the way the conductor actually goes (gliding along a wall included), never into the wall.
-      if (this.speedNow > 0.4) this.facing = dampAngle(this.facing, Math.atan2(mx, mz), 14, dt);
-      else if (Math.hypot(tx, tz) > 0.1) this.facing = dampAngle(this.facing, Math.atan2(tx, tz), 14, dt);
+      if (this.speedNow > 0.4) this.facing = dampAngle(this.facing, Math.atan2(mx, mz), TURN_SHARPNESS, dt);
+      else if (Math.hypot(tx, tz) > 0.1) this.facing = dampAngle(this.facing, Math.atan2(tx, tz), TURN_SHARPNESS, dt);
       this.idleSeconds = 0;
     } else {
       this.speedNow = 0;

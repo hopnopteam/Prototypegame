@@ -343,7 +343,9 @@ export class Scenery {
       group,
       terrain: mesh(MATERIALS.scenery, false, false),
       // Lakeside pieces are built in their own coordinates and moved out to the world (SCENERY_SPREAD).
-      lake: lakeSide(mesh(MATERIALS.scenery, true, true)),
+      // The moon shines from the lake side, so props there would throw their shadows into the cut-away train
+      // (a lamp post read as a dark figure sliding across the floor, session 20): they cast none.
+      lake: lakeSide(mesh(MATERIALS.scenery, false, true)),
       land: landSide(mesh(MATERIALS.scenery, true, false)),
       lakeGlow: lakeSide(mesh(MATERIALS.lamps, false, true, false)),
       landGlow: landSide(mesh(MATERIALS.lamps, false, false, false)),

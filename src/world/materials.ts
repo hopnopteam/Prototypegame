@@ -385,13 +385,19 @@ float nxShadow = 1.0;
 {
   DirectionalLightShadow nxSh = directionalLightShadows[ 0 ];
   #if defined( SHADOWMAP_TYPE_PCF )
-  // One hardware-filtered compare (2×2 PCF in a single fetch) instead of three's five: the phone tiers'
-  // static map is fine enough (~3.5 cm texels) that the extra taps only cost fill rate.
+  // Four hardware-filtered compares (each a 2×2 PCF) on a rotated grid a texel apart. Session 20: one tap left
+  // stair-stepped edges on the floor under every wall on a sharp phone screen (read as "weird textures");
+  // four soften them for three more fetches.
   vec4 nxSc = vDirectionalShadowCoord[ 0 ];
   nxSc.xyz /= nxSc.w;
   nxSc.z += nxSh.shadowBias;
   if ( receiveShadow && nxSc.x >= 0.0 && nxSc.x <= 1.0 && nxSc.y >= 0.0 && nxSc.y <= 1.0 && nxSc.z <= 1.0 ) {
-    nxShadow = mix( 1.0, texture( directionalShadowMap[ 0 ], nxSc.xyz ), nxSh.shadowIntensity );
+    vec2 nxT = 1.0 / nxSh.shadowMapSize;
+    float nxLit = texture( directionalShadowMap[ 0 ], vec3( nxSc.xy + vec2( -0.9, -0.35 ) * nxT, nxSc.z ) )
+      + texture( directionalShadowMap[ 0 ], vec3( nxSc.xy + vec2( 0.35, -0.9 ) * nxT, nxSc.z ) )
+      + texture( directionalShadowMap[ 0 ], vec3( nxSc.xy + vec2( 0.9, 0.35 ) * nxT, nxSc.z ) )
+      + texture( directionalShadowMap[ 0 ], vec3( nxSc.xy + vec2( -0.35, 0.9 ) * nxT, nxSc.z ) );
+    nxShadow = mix( 1.0, nxLit * 0.25, nxSh.shadowIntensity );
   }
   #else
   nxShadow = receiveShadow ? getShadow( directionalShadowMap[ 0 ], nxSh.shadowMapSize, nxSh.shadowIntensity, nxSh.shadowBias, nxSh.shadowRadius, vDirectionalShadowCoord[ 0 ] ) : 1.0;
@@ -603,7 +609,8 @@ export const MATERIALS = {
   ground: lit({}, { surface: SURFACES.stone, light: true }),
   /** Interior floors. */
   floor: lit({ vertexColors: true }, { pattern: true, surface: 'vertex', light: true }),
-  windows: paneMaterial() as THREE.Material,
+  // Both faces of the thin panes block the moon in the shadow pass (each pane is a single quad).
+  windows: Object.assign(paneMaterial(), { shadowSide: THREE.DoubleSide }) as THREE.Material,
   /** Lamp shades and bulbs: lit from within at night. */
   lamps: build({ kind: 'glow', params: { vertexColors: true, emissive: new THREE.Color('#FFD68A'), emissiveIntensity: 0.05 }, options: {} }),
   lamp: new THREE.MeshBasicMaterial({ color: PALETTE.lampGlow }) as THREE.Material,

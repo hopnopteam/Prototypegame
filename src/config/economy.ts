@@ -38,17 +38,22 @@ export const ECONOMY = {
     legsPerDayCycle: 4,
   },
 
+  /**
+   * Session 20 (owner: "the movement… a bit more inspired by My Perfect Hotel, not entirely"): MPH moves at one
+   * brisk pace the moment you push, turns on the spot and stops dead. Ours now does nearly that: full speed at
+   * half a throw, near-instant start and stop, a quick turn; a light stride stays for the long corridors.
+   */
   player: {
-    moveSpeed: 5.0,
-    acceleration: 38,
+    moveSpeed: 5.6,
+    acceleration: 70,
     /** Stopping and turning back are firmer than starting, so the conductor stops where you let go. */
-    braking: 70,
+    braking: 110,
     /**
-     * Stick response: full speed a little before the rim (`fullSpeedAt` of the throw), and a gentle curve
-     * (`stickCurve` > 1) so small movements of the thumb give slow, precise steps.
+     * Stick response: full speed at `fullSpeedAt` of the throw (half: a short push is enough), linear below it
+     * (`stickCurve` 1), so a nudge still makes a careful step.
      */
-    fullSpeedAt: 0.85,
-    stickCurve: 1.3,
+    fullSpeedAt: 0.5,
+    stickCurve: 1.0,
     /**
      * Walking into a wall within this far of an opening slides you into it (doorways, gangways, props). A push
      * within about 20° of head-on tries this before sliding along the wall (session 15).
@@ -71,14 +76,14 @@ export const ECONOMY = {
      * Stride: keep walking the same way (a corridor, the aisle) and the conductor picks up pace, so a long
      * train is never a slog. Resets on a sharp turn or a stop.
      */
-    stride: { delaySeconds: 0.45, rampSeconds: 0.7, multiplier: 1.55, turnResetDegrees: 55 },
+    stride: { delaySeconds: 0.6, rampSeconds: 0.8, multiplier: 1.3, turnResetDegrees: 55 },
   },
 
   /**
    * The camera eases in when you step into a cabin or washroom (framing the room), out on the platform
    * and a touch out while you stride down the train, leading the way you are going.
    */
-  camera: { roomZoom: 0.86, roomBias: 0.22, platformZoom: 1.12, strideZoom: 0.08, travelZoom: 1.1, lead: 1.0 },
+  camera: { roomZoom: 0.9, roomBias: 0.22, platformZoom: 1.1, strideZoom: 0.04, travelZoom: 1.08, lead: 0.8 },
 
   zones: {
     checkInSeconds: 0.9,

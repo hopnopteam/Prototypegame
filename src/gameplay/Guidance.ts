@@ -16,9 +16,15 @@ export interface PointerState {
 
 /** Screen-edge pointer insets in CSS pixels (top clears the HUD bars, right clears the side buttons). */
 const POINTER_INSET = { top: 124, right: 84, left: 64, side: 36 };
-/** Until this much lifetime play the arrow always shows; after that only when the player seems stuck. */
-const FTUE_SECONDS = 150;
 const IDLE_BEFORE_HINT = 3;
+/**
+ * Session 20 (owner: "the amount of arrow pointing… is quite insane and very distracting"): after the first-minute
+ * walkthrough the arrow shows only for a lesson about its own spot (once per mechanic) or as a nudge after this
+ * many idle seconds. It never points at cash on the floor (in plain sight, and it pulls itself in).
+ */
+const IDLE_NUDGE = 6;
+/** Seconds the arrow takes to grow in or shrink away (it never pops). */
+const ARROW_FADE = 0.22;
 const REACHED = 0.9;
 /** The guide arrow: its size on screen (metres at the target), the height it hangs at and its bounce. */
 const ARROW_SIZE = 0.62;
@@ -33,6 +39,9 @@ const ARROW_BOB = 0.28;
 export class Guidance {
   private readonly arrow: THREE.Group;
   private target: Vec2 | null = null;
+  /** Whether the arrow is up for the current target (see `shouldShow`), and its eased size. */
+  private shown = false;
+  private grow = 0;
   private thinkTimer = 0;
   private time = 0;
   readonly pointer: PointerState = { x: 0, y: 0, angle: 0, visible: false };
@@ -56,18 +65,32 @@ export class Guidance {
     this.thinkTimer -= dt;
     if (this.thinkTimer <= 0) {
       this.thinkTimer = 0.3;
-      const show = this.enabled && (w.lifetimeSeconds() < FTUE_SECONDS || w.player.idleSeconds > IDLE_BEFORE_HINT);
-      this.target = show ? this.pick() : null;
+      this.target = this.enabled ? this.pick() : null;
+      this.shown = this.shouldShow();
     }
-    const target = this.target;
+    const target = this.shown ? this.target : null;
     const player = w.player.pos;
     const near = target ? Math.hypot(target.x - player.x, target.z - player.z) < REACHED : true;
-    this.arrow.visible = !!target && !near;
-    if (target && !near) {
+    this.grow = Math.max(0, Math.min(1, this.grow + (target && !near ? dt : -dt) / ARROW_FADE));
+    this.arrow.visible = this.grow > 0.01;
+    if (target) {
       // A soft bounce, its tip just above head height over the spot.
       this.arrow.position.set(target.x, FLOOR_Y + ARROW_HEIGHT + Math.abs(Math.sin(this.time * 4)) * ARROW_BOB, target.z);
     }
+    const g = this.grow * this.grow * (3 - 2 * this.grow);
+    this.arrow.scale.setScalar(Math.max(0.001, g));
     this.updatePointer(target && !near ? target : null);
+  }
+
+  /** The walkthrough, a first-time lesson about this very spot, or a nudge after a few idle seconds. */
+  private shouldShow(): boolean {
+    const w = this.w;
+    if (!this.target) return false;
+    const coach = w.coach;
+    if (!coach || !coach.walkthroughDone) return true;
+    if (this.reason === 'cash') return false;
+    if (coach.teaching(this.target)) return true;
+    return w.player.idleSeconds > IDLE_NUDGE;
   }
 
   private updatePointer(target: Vec2 | null): void {
@@ -104,7 +127,7 @@ export class Guidance {
 
   /** Where the guide is pointing now (null when it is not showing): the one focus on screen. */
   get focus(): Vec2 | null {
-    return this.target;
+    return this.shown ? this.target : null;
   }
 
   /** The most useful next thing for the player to do (also drives the autopilot). */
