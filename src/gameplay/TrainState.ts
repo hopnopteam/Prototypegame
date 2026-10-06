@@ -4,7 +4,7 @@ import { buildUnlocks, carriageChoices } from '../sim/unlockPlan';
 import { CLASSES, classFare, classOfTier, classStartingAt, isPassengerType, type ClassDef, type ClassId } from '../config/classes';
 import { ClassChips } from '../world/ClassChips';
 import { easeOutBack, easeOutCubic } from '../core/math';
-import type { CarriageType, ItemKind, Vec2 } from '../core/types';
+import type { CarriageType, ItemKind, Rect, Vec2 } from '../core/types';
 import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
 import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, GANGWAY_LENGTH, LOCOMOTIVE_LENGTH, REAR_DECK_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, layoutKey, ZONE_RADIUS, type BathroomLayout, type CabinLayout } from '../world/layout';
 import { ExteriorView } from '../world/ExteriorView';
@@ -600,10 +600,19 @@ export class TrainState {
       if (settled !== level) {
         this.nightLevel.set(cabin.id, settled);
         view.setBlind(cabin.index, Math.round(settled * 20) / 20);
+      }
+      // A covered room is dark; an open one lit, dimmed while its guest sleeps (the reveal flickers it on itself).
+      if (!w.reveal?.lighting.has(cabin.id)) {
         const r = cabin.layout.room;
         const originZ = carriageOriginZ(cabin.carriage);
-        w.stage?.dimmer.set(cabin.id, r.x0, r.z0 + originZ, r.x1, r.z1 + originZ, 1 - settled * (1 - NIGHT_LIGHT));
+        w.stage?.dimmer.set(cabin.id, r.x0, r.z0 + originZ, r.x1, r.z1 + originZ, cabin.unlocked ? 1 - settled * (1 - NIGHT_LIGHT) : 0);
       }
+    }
+    for (const bath of this.bathrooms) {
+      if (w.reveal?.lighting.has(bath.id)) continue;
+      const r = bath.layout.room;
+      const originZ = carriageOriginZ(bath.carriage);
+      w.stage?.dimmer.set(bath.id, r.x0, r.z0 + originZ, r.x1, r.z1 + originZ, bath.unlocked ? 1 : 0);
     }
     for (const bath of this.bathrooms) this.views[bath.carriage]?.setBathroomStock(bath.layout.index, bath.towels, bath.rolls);
     const supply = this.indexOfType('supply');
@@ -1046,26 +1055,36 @@ export class TrainState {
     }
   }
 
+  /** A room bought (session 22): its doorway opens, and (in play) the reveal lifts its lid and turns its lights on. */
   private unlockCabin(cabin: Cabin, animate: boolean): void {
     cabin.unlocked = true;
     const view = this.views[cabin.carriage];
+    const lid = animate ? view.takeCover(`cabin:${cabin.index}`) : null;
     view.setCabinLocked(cabin.index, false);
-    if (animate) {
-      const bed = view.cabinBeds[cabin.index];
-      if (bed) this.popIn(bed);
-      this.w.particles.emit('sparkle', cabin.center.x, FLOOR_Y + 0.6, cabin.center.z, 18, 0.6);
-    }
+    this.w.map.refreshWalkable();
+    if (animate) this.w.reveal.play({ key: cabin.id, room: this.worldRoom(cabin.carriage, cabin.layout.room), center: cabin.center, lid, furniture: [view.cabinBeds[cabin.index]], kind: 'cabin' });
   }
 
   private unlockBathroom(bath: Bathroom, animate: boolean): void {
     bath.unlocked = true;
     const view = this.views[bath.carriage];
+    const lid = animate ? view.takeCover(`bath:${bath.layout.index}`) : null;
     view.setBathroomLocked(bath.layout.index, false);
-    if (animate) {
-      const fixtures = view.bathroomFixtures[bath.layout.index];
-      if (fixtures) this.popIn(fixtures);
-      this.w.particles.emit('sparkle', bath.restock.x, FLOOR_Y + 0.6, bath.restock.z, 18, 0.8);
-    }
+    this.w.map.refreshWalkable();
+    if (animate) this.w.reveal.play({ key: bath.id, room: this.worldRoom(bath.carriage, bath.layout.room), center: bath.restock, lid, furniture: [view.bathroomFixtures[bath.layout.index]], kind: 'bathroom' });
+  }
+
+  private worldRoom(carriage: number, r: Rect): Rect {
+    const oz = carriageOriginZ(carriage);
+    return { x0: r.x0, z0: r.z0 + oz, x1: r.x1, z1: r.z1 + oz };
+  }
+
+  /** Rooms still locked in a carriage (`cabin:2`, `bath:1`): their doorways stay shut (TrainMap). */
+  lockedRooms(index: number): ReadonlySet<string> | undefined {
+    let locked: Set<string> | undefined;
+    for (const c of this.cabins) if (c.carriage === index && !c.unlocked) (locked ??= new Set()).add(`cabin:${c.index}`);
+    for (const b of this.bathrooms) if (b.carriage === index && !b.unlocked) (locked ??= new Set()).add(`bath:${b.layout.index}`);
+    return locked;
   }
 
   /** Things pop into existence with a scale bounce (§ juice). */

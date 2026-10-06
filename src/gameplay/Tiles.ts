@@ -4,7 +4,7 @@ import type { Vec2 } from '../core/types';
 import { EVENTS } from '../services/analytics';
 import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from '../world/CarriageView';
-import { COUPLE_TILE_SIZE, STATION_TILE_POS, TILE_SIZE, ZONE_RADIUS } from '../world/layout';
+import { carriageOriginZ, COUPLE_TILE_SIZE, doorTileSpot, STATION_TILE_POS, TILE_SIZE, ZONE_RADIUS } from '../world/layout';
 import { markWorldUi, TileView } from '../world/ZoneViews';
 import type { World } from './World';
 import { Zone } from './Zones';
@@ -479,13 +479,18 @@ export class Tiles {
     const w = this.w;
     const map = w.map;
     switch (def.kind) {
+      // A locked room is shut and covered (session 22): its tile waits in the corridor at its door.
       case 'cabin': {
         const cabin = w.train.cabins.find((c) => c.carriage === def.carriage && c.index === def.cabin);
-        return cabin ? { ...cabin.center } : null;
+        if (!cabin) return null;
+        const p = doorTileSpot(cabin.layout.door);
+        return { x: p.x, z: p.z + carriageOriginZ(def.carriage) };
       }
       case 'bathroom': {
         const bath = w.train.bathrooms.find((b) => b.carriage === def.carriage && b.layout.index === def.bathroom);
-        return bath ? { ...bath.restock } : null;
+        if (!bath) return null;
+        const p = doorTileSpot(bath.layout.door);
+        return { x: p.x, z: p.z + carriageOriginZ(def.carriage) };
       }
       case 'hire':
         return map.hasAnchor(def.carriage, `home_${def.role}`) ? map.anchor(def.carriage, `home_${def.role}`) : null;

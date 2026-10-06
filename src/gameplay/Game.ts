@@ -62,6 +62,7 @@ import { StaffManager } from './Staff';
 import { Venues } from './Venues';
 import { Station } from './Station';
 import { Tiles } from './Tiles';
+import { Reveal } from './Reveal';
 import { TrainNeeds } from './TrainNeeds';
 import { TrainState } from './TrainState';
 import type { World } from './World';
@@ -121,6 +122,7 @@ export class Game implements World {
   readonly train: TrainState;
   readonly cash: CashPiles;
   readonly tiles: Tiles;
+  readonly reveal: Reveal;
   readonly guests: Guests;
   readonly staff: StaffManager;
   /** The venue carriages (session 20): café, dining car, bar lounge, observation dome. */
@@ -247,8 +249,10 @@ export class Game implements World {
     this.staff = new StaffManager(this);
     this.venues = new Venues(this);
     this.map.closedProps = (index) => this.venues.closedProps(index);
+    this.map.lockedRooms = (index) => this.train.lockedRooms(index);
     this.station = new Station(this);
     this.tiles = new Tiles(this);
+    this.reveal = new Reveal(this);
     this.meta = new Meta(this);
     this.press = new Press(this, ui);
     this.rush = new Rush(this);

@@ -6,6 +6,9 @@ import { buildBedMess, buildMessPiece, seeded, type BedMess, type MessPiece } fr
 import { GeoBuilder, PaneBuilder, type PartStyle } from './geo';
 import {
   CARRIAGE_LENGTH,
+  COVER_BASE,
+  COVER_INSET,
+  COVER_TOP,
   DOOR_Z0,
   DOOR_Z1,
   GANGWAY_LENGTH,
@@ -348,8 +351,7 @@ export class CarriageView {
   readonly roomDoors: RoomDoor[] = [];
   /** Washing-machine drums: spun by animate() so the laundry is always going. */
   private readonly spinners: THREE.Object3D[] = [];
-  private readonly cabinLocks: THREE.Mesh[] = [];
-  private readonly bathroomLocks: THREE.Mesh[] = [];
+
   /** Comfort props per room (lamps, flowers, radios; soaps, towel rails), rebuilt when one is bought. */
   private cabinComforts: THREE.Group[] = [];
   private bathComforts: THREE.Group[] = [];
@@ -357,6 +359,7 @@ export class CarriageView {
   private readonly mess: CabinMess[] = [];
   /** Each cabin's mat: its own material, so a dirty room's mat dims and brightens back as it is tidied. */
   private readonly cabinLocked: boolean[] = [];
+  private readonly bathLocked: boolean[] = [];
   private readonly doors: THREE.Mesh[] = [];
   private readonly bathroomTowels: StockRack[] = [];
   private readonly bathroomRolls: StockRack[] = [];
@@ -424,6 +427,8 @@ export class CarriageView {
     yield* this.buildStatic();
     yield* this.buildRooms();
     this.buildBlinds();
+    this.built = true;
+    this.rebuildDressing();
     yield* this.buildVenue();
     this.buildRoomDoors();
     this.buildDoors();
@@ -453,13 +458,15 @@ export class CarriageView {
 
   setCabinLocked(cabin: number, locked: boolean): void {
     if (this.cabinLocked[cabin] !== locked) CarriageView.shadowEpoch++;
-    const lock = this.cabinLocks[cabin];
     const bed = this.cabinBeds[cabin];
-    if (lock) lock.visible = locked;
+    const room = this.layout.cabins[cabin]?.room;
+    if (room) this.setCover(`cabin:${cabin}`, room, locked);
     if (bed) bed.visible = !locked;
     const comforts = this.cabinComforts[cabin];
     if (comforts) comforts.visible = !locked;
+    const changed = (this.cabinLocked[cabin] ?? false) !== locked;
     this.cabinLocked[cabin] = locked;
+    if (changed) this.rebuildDressing();
     const mess = this.mess[cabin];
     if (mess && locked) mess.group.visible = false;
     const door = this.roomDoors.find((d) => d.kind === 'cabin' && d.index === cabin);
@@ -468,9 +475,14 @@ export class CarriageView {
 
   setBathroomLocked(bathroom: number, locked: boolean): void {
     CarriageView.shadowEpoch++;
-    const lock = this.bathroomLocks[bathroom];
+    this.bathLocked[bathroom] = locked;
+    if (locked) {
+      this.bathroomTowels[bathroom]?.show(0);
+      this.bathroomRolls[bathroom]?.show(0);
+    }
     const fixtures = this.bathroomFixtures[bathroom];
-    if (lock) lock.visible = locked;
+    const room = this.layout.bathrooms[bathroom]?.room;
+    if (room) this.setCover(`bath:${bathroom}`, room, locked);
     if (fixtures) fixtures.visible = !locked;
     const comforts = this.bathComforts[bathroom];
     if (comforts) comforts.visible = !locked;
@@ -487,6 +499,64 @@ export class CarriageView {
     if (mess.group.visible === dirty) return;
     mess.group.visible = dirty;
     if (dirty) this.setDirtFade(cabin, 0, 0);
+  }
+
+  /**
+   * Covered rooms (session 22): a locked room wears a low lid on its knee-high walls (with a brass padlock), so
+   * nobody can see into it until it is bought. It sits no higher than the walls at its edges and rises gently
+   * inward, so it never hides more of the corridor than the walls already do. `takeCover` hands a lid to the
+   * reveal, which lifts it away.
+   */
+  private readonly covers = new Map<string, THREE.Mesh>();
+
+  private setCover(key: string, room: Rect, on: boolean): void {
+    const lid = this.covers.get(key);
+    if (on && !lid) {
+      const mesh = buildCover(room);
+      this.covers.set(key, mesh);
+      this.group.add(mesh);
+    } else if (!on && lid) {
+      this.covers.delete(key);
+      this.group.remove(lid);
+      lid.geometry.dispose();
+    }
+  }
+
+  /** A room's lid, taken off the carriage for the reveal to lift away (it disposes of it); null if it has none. */
+  takeCover(key: string): THREE.Mesh | null {
+    const lid = this.covers.get(key) ?? null;
+    if (lid) this.covers.delete(key);
+    return lid;
+  }
+
+  /** The view has finished building (sliced builds run over several frames). */
+  private built = false;
+  /** Each class's furnishings round the open rooms (the stool and lantern, the desk, the minibar…): one merged mesh. */
+  private dressing: THREE.Mesh[] = [];
+
+  /**
+   * Session 22: a locked room shows nothing inside, so the class furnishings are drawn for the open rooms only,
+   * merged per carriage (a solid mesh and its lamp glow) and rebuilt when a room opens.
+   */
+  private rebuildDressing(): void {
+    if (!this.built || !this.cls) return;
+    for (const mesh of this.dressing) {
+      this.group.remove(mesh);
+      mesh.geometry.dispose();
+    }
+    this.dressing = [];
+    const solid = new GeoBuilder();
+    const glow = new GeoBuilder();
+    for (const cabin of this.layout.cabins) if (!this.cabinLocked[cabin.index]) buildClassDressing(solid, glow, cabin, this.tier, this.theme);
+    for (const [builder, material] of [[solid, MATERIALS.solid], [glow, MATERIALS.lamps]] as const) {
+      if (builder.isEmpty) continue;
+      const mesh = new THREE.Mesh(builder.build(), material);
+      mesh.castShadow = material === MATERIALS.solid;
+      mesh.receiveShadow = true;
+      if (mesh.castShadow) mesh.layers.enable(STATIC_CASTER_LAYER);
+      this.group.add(mesh);
+      this.dressing.push(mesh);
+    }
   }
 
   /** A bed stripped of its bedding (true) or made up (false). */
@@ -584,8 +654,10 @@ export class CarriageView {
 
 
   setBathroomStock(bathroom: number, towels: number, rolls: number): void {
-    this.bathroomTowels[bathroom]?.show(towels);
-    this.bathroomRolls[bathroom]?.show(rolls);
+    // A locked washroom shows nothing inside (session 22).
+    const open = !this.bathLocked[bathroom];
+    this.bathroomTowels[bathroom]?.show(open ? towels : 0);
+    this.bathroomRolls[bathroom]?.show(open ? rolls : 0);
   }
 
   setShelfStock(towels: number, rolls: number): void {
@@ -1032,12 +1104,6 @@ export class CarriageView {
     yield;
     this.buildDecor(s, lamps);
     yield;
-    if (this.cls) {
-      for (const cabin of this.layout.cabins) {
-        buildClassDressing(s, lamps, cabin, this.tier, this.theme);
-        yield;
-      }
-    }
     this.buildDoorFrames(s);
     this.buildSpinners();
     // The dome's glass: its own mesh that throws no shadow (session 21: as part of the shell it laid a dark band
@@ -1426,7 +1492,6 @@ export class CarriageView {
       this.group.add(bedGroup);
       this.cabinBeds[cabin.index] = bedGroup;
 
-      this.cabinLocks[cabin.index] = this.lockOverlay(cabin.room);
       yield;
       this.buildMess(cabin);
       yield;
@@ -1449,18 +1514,11 @@ export class CarriageView {
       group.add(mesh);
       this.group.add(group);
       this.bathroomFixtures[bath.index] = group;
-      this.bathroomLocks[bath.index] = this.lockOverlay(bath.room);
       yield;
     }
   }
 
-  private lockOverlay(room: Rect): THREE.Mesh {
-    const lock = new THREE.Mesh(new THREE.PlaneGeometry(room.x1 - room.x0 - 0.04, room.z1 - room.z0 - 0.04).rotateX(-Math.PI / 2), MATERIALS.lockedOverlay);
-    lock.position.set((room.x0 + room.x1) / 2, FLOOR_Y + 0.08, (room.z0 + room.z1) / 2);
-    lock.visible = false;
-    this.group.add(lock);
-    return lock;
-  }
+
 
   /**
    * Room doors: two leaves per doorway inside the partition's thickness, so they vanish into the wall when
@@ -2083,6 +2141,54 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
   }
 }
 
+
+
+/**
+ * The lid over a locked room (session 22): a slate hip-roofed cover from wall to wall, a cream band round its top
+ * and a brass padlock on it. The sides slope more gently than the camera looks down, so the lid never hides any
+ * of the corridor the walls do not already hide.
+ */
+function buildCover(room: Rect): THREE.Mesh {
+  const x0 = room.x0 - 0.07;
+  const x1 = room.x1;
+  const z0 = room.z0 - 0.06;
+  const z1 = room.z1 + 0.06;
+  const yb = FLOOR_Y + COVER_BASE;
+  const yt = FLOOR_Y + COVER_TOP;
+  const inset = Math.min(COVER_INSET, (x1 - x0) / 2 - 0.1, (z1 - z0) / 2 - 0.1);
+  const tx0 = x0 + inset;
+  const tx1 = x1 - inset;
+  const tz0 = z0 + inset;
+  const tz1 = z1 - inset;
+  // Four sloped sides and the top, as flat-shaded triangles.
+  const quads: number[][][] = [
+    [[x0, yb, z0], [x0, yb, z1], [tx0, yt, tz1], [tx0, yt, tz0]],
+    [[x1, yb, z1], [x1, yb, z0], [tx1, yt, tz0], [tx1, yt, tz1]],
+    [[x1, yb, z0], [x0, yb, z0], [tx0, yt, tz0], [tx1, yt, tz0]],
+    [[x0, yb, z1], [x1, yb, z1], [tx1, yt, tz1], [tx0, yt, tz1]],
+    [[tx0, yt, tz0], [tx0, yt, tz1], [tx1, yt, tz1], [tx1, yt, tz0]],
+  ];
+  const positions: number[] = [];
+  for (const [a, b2, c, d] of quads) positions.push(...a, ...b2, ...c, ...a, ...c, ...d);
+  const shell = new THREE.BufferGeometry();
+  shell.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  shell.computeVertexNormals();
+  const b = new GeoBuilder();
+  b.object('cover');
+  b.add(shell, '#5E6B78', 0, 0, 0, 0, 0, 0, { pattern: PATTERN.stripesX, color2: '#56626E', scale: 0.12, shade: 0.92 });
+  // A cream band round the top's edge, standing proud of it.
+  const cx = (tx0 + tx1) / 2;
+  const cz = (tz0 + tz1) / 2;
+  b.box(cx, yt + 0.008, tz0 + 0.02, tx1 - tx0, 0.016, 0.04, '#EFE6D2', 0, FLAT);
+  b.box(cx, yt + 0.008, tz1 - 0.02, tx1 - tx0, 0.016, 0.04, '#EFE6D2', 0, FLAT);
+  // The padlock: a brass body with a keyhole and its shackle, standing on the top.
+  b.rounded(cx, yt + 0.13, cz, 0.1, 0.24, 0.28, 0.04, PALETTE.brass, { shade: 1, surface: 'brass' });
+  b.add(new THREE.TorusGeometry(0.09, 0.024, 6, 16, Math.PI), PALETTE.brass, cx, yt + 0.25, cz, 0, Math.PI / 2, 0, { shade: 1, surface: 'brass' });
+  const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+  mesh.receiveShadow = true;
+  mesh.userData.room = true;
+  return mesh;
+}
 
 /**
  * First Class and the Royal Suite beds. First: a tall buttoned velvet headboard, a red velvet throw with a gold

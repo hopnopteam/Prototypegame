@@ -40,6 +40,7 @@ import type { Press } from './Press';
 import type { StaffManager } from './Staff';
 import type { Station } from './Station';
 import type { Tiles } from './Tiles';
+import type { Reveal } from './Reveal';
 import type { TrainState } from './TrainState';
 import type { UiApi } from './UiApi';
 import type { ZoneSystem } from './Zones';
@@ -78,6 +79,8 @@ export interface World {
   readonly train: TrainState;
   readonly cash: CashPiles;
   readonly tiles: Tiles;
+  /** Opening a covered room (session 22). */
+  readonly reveal: Reveal;
   readonly guests: Guests;
   readonly staff: StaffManager;
   readonly station: Station;

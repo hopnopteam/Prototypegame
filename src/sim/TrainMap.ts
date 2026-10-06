@@ -31,6 +31,8 @@ export class TrainMap {
   private rearDeckEnabled = true;
   /** What is not there yet in each carriage (a venue's tables and extras still to buy): it does not block. */
   closedProps: (index: number) => ReadonlySet<number> | undefined = () => undefined;
+  /** Rooms still locked in a carriage (session 22): their doorways are shut until bought. */
+  lockedRooms: (index: number) => ReadonlySet<string> | undefined = () => undefined;
 
   constructor(radius: number) {
     this.walk = new Walkable(radius);
@@ -172,7 +174,10 @@ export class TrainMap {
   }
 
   private buildWalkable(): void {
-    for (const c of this.carriages) c.closed = this.closedProps(c.index);
+    for (const c of this.carriages) {
+      c.closed = this.closedProps(c.index);
+      c.locked = this.lockedRooms(c.index);
+    }
     this.walk.rebuild(this.carriages, {
       doorsOpen: this.doorsOpen,
       platform: this.doorsOpen ? this.platformRoom() : null,

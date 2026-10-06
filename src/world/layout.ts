@@ -117,6 +117,8 @@ export interface Connector {
   axis: 'x' | 'z';
   /** Platform doors only open during station stops. */
   door?: boolean;
+  /** Session 22: the doorway into this room (`cabin:2`, `bath:1`): shut, and walled off, while the room is locked. */
+  room?: string;
 }
 
 /**
@@ -297,8 +299,8 @@ class LayoutBuilder {
     this.layout.rooms.push(rect(x0, z0, x1, z1));
   }
 
-  connector(x0: number, z0: number, x1: number, z1: number, axis: 'x' | 'z', door = false): void {
-    this.layout.connectors.push({ rect: rect(x0, z0, x1, z1), axis, door });
+  connector(x0: number, z0: number, x1: number, z1: number, axis: 'x' | 'z', door = false, room?: string): void {
+    this.layout.connectors.push(room ? { rect: rect(x0, z0, x1, z1), axis, door, room } : { rect: rect(x0, z0, x1, z1), axis, door });
   }
 
   prop(kind: PropKind, x0: number, z0: number, x1: number, z1: number, facing?: PropDef['facing'], blocks = true, variant?: string): number {
@@ -410,7 +412,7 @@ class LayoutBuilder {
 
       const room = rect(PARTITION_X1, cz0 + 0.06, INNER, cz1 - 0.06);
       this.room(room.x0, room.z0, room.x1, room.z1);
-      this.connector(PARTITION_X0 - 0.45, doorZ0, PARTITION_X1 + 0.45, doorZ1, 'x');
+      this.connector(PARTITION_X0 - 0.45, doorZ0, PARTITION_X1 + 0.45, doorZ1, 'x', false, `cabin:${c}`);
 
       // The bed against the outer wall: wider and grander with each class.
       const bedWidth = { berth: 0.92, cabin: 1.05, business: 1.35, first: 1.45, royal: 1.62 }[style];
@@ -637,7 +639,7 @@ function buildBathroom(): CarriageLayout {
     const doorZ = (doorZ0 + doorZ1) / 2;
     gaps.push([doorZ0, doorZ1]);
     b.room(PARTITION_X1, z0 + 0.06, INNER, z1 - 0.06);
-    b.connector(PARTITION_X0 - 0.45, doorZ0, PARTITION_X1 + 0.45, doorZ1, 'x');
+    b.connector(PARTITION_X0 - 0.45, doorZ0, PARTITION_X1 + 0.45, doorZ1, 'x', false, `bath:${index}`);
     b.prop('toilet', INNER - 0.62, z0 + 0.22, INNER, z0 + 0.87, 'left');
     // The washroom's own towels and rolls, on an open stand against the front wall.
     b.prop('washShelf', PARTITION_X1 + 0.08, z0 + 0.08, PARTITION_X1 + 0.68, z0 + 0.38, 'rear');
@@ -1207,6 +1209,22 @@ export const ZONE_RADIUS = {
 /** Unlock tiles: a metre square (session 15, was 1.2 m: the big plates would not fit clear of the walls). */
 export const TILE_SIZE = 1.0;
 export const COUPLE_TILE_SIZE = 1.6;
+/**
+ * A covered (locked) room's lid (session 22): its edges just above the knee-high walls, rising to a flat top inset
+ * from them; gentler than the camera's look-down, so it never hides the corridor (tests/visibility.test.ts).
+ */
+export const COVER_BASE = INTERIOR_WALL_HEIGHT + 0.015;
+export const COVER_TOP = 0.84;
+export const COVER_INSET = 0.38;
+
+/**
+ * A locked room's price tile (session 22): in the corridor at its door, hugging the partition (the room itself is
+ * shut and covered until it is bought). Walking past never spends: tiles wait for a short dwell.
+ */
+export function doorTileSpot(door: [number, number]): Vec2 {
+  return { x: PARTITION_X0 - TILE_SIZE / 2 - 0.12, z: (door[0] + door[1]) / 2 };
+}
+
 /** A washroom's tip pile sits this far from its restock point. */
 export const BATH_PILE_OFFSET: Vec2 = { x: -0.35, z: 0.55 };
 
@@ -1266,7 +1284,7 @@ export function footprints(layout: CarriageLayout): Footprint[] {
   }
   for (const cabin of layout.cabins) {
     zone(`request_${cabin.index}`, cabin.center, ZONE_RADIUS.request, `cabin_${cabin.index}`);
-    tile(`cabin_tile_${cabin.index}`, cabin.center, `cabin_${cabin.index}`);
+    tile(`cabin_tile_${cabin.index}`, doorTileSpot(cabin.door), `cabin_${cabin.index}`);
     cabin.spots.forEach((s, i) => zone(`spot_${cabin.index}_${i}`, s, ZONE_RADIUS.spot, `cabin_${cabin.index}`));
     pile(`tips_${cabin.index}`, cabin.tipPile);
   }
@@ -1293,7 +1311,7 @@ export function footprints(layout: CarriageLayout): Footprint[] {
   }
   for (const bath of layout.bathrooms) {
     zone(`restock_${bath.index}`, bath.restock, ZONE_RADIUS.restock, `bath_${bath.index}`);
-    tile(`bath_tile_${bath.index}`, bath.restock, `bath_${bath.index}`);
+    tile(`bath_tile_${bath.index}`, doorTileSpot(bath.door), `bath_${bath.index}`);
     pile(`bath_tips_${bath.index}`, { x: bath.restock.x + BATH_PILE_OFFSET.x, z: bath.restock.z + BATH_PILE_OFFSET.z });
   }
   return out;

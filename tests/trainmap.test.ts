@@ -205,3 +205,33 @@ describe('TrainMap', () => {
     expect(map.walk.isWalkable(p.x, p.z)).toBe(true);
   });
 });
+
+/** Session 22: a locked room is shut. Nobody can walk into it from the corridor until it is bought. */
+describe('TrainMap: locked rooms are closed', () => {
+  const map = new TrainMap(ECONOMY.player.radius);
+  extrasClosed(map);
+  // Every room locked but the first of each carriage.
+  map.lockedRooms = (i) => {
+    const layout = map.layoutOf(i);
+    const keys = new Set<string>();
+    layout.cabins.forEach((c) => c.index > 0 && keys.add(`cabin:${c.index}`));
+    layout.bathrooms.forEach((b) => b.index > 0 && keys.add(`bath:${b.index}`));
+    return keys;
+  };
+  map.rebuild(FULL_TRAIN, false);
+  const reach = reachable(map, map.anchor(0, 'playerSpawn'));
+  it('reaches the open rooms but never the locked ones', () => {
+    for (let i = 0; i < map.count; i++) {
+      const layout = map.layoutOf(i);
+      const oz = carriageOriginZ(i);
+      for (const c of layout.cabins) {
+        const inside = { x: c.center.x, z: c.center.z + oz };
+        expect(reach(inside, 0.1), `carriage ${i} cabin ${c.index}`).toBe(c.index === 0);
+      }
+      for (const b of layout.bathrooms) {
+        const inside = { x: b.useSpot.x, z: b.useSpot.z + oz };
+        expect(reach(inside, 0.1), `carriage ${i} washroom ${b.index}`).toBe(b.index === 0);
+      }
+    }
+  });
+});

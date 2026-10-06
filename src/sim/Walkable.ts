@@ -6,6 +6,8 @@ export interface PlacedLayout {
   originZ: number;
   /** Props not there yet (a venue's tables and extras still to buy, by prop index): they do not block. */
   closed?: ReadonlySet<number>;
+  /** Rooms still locked (`cabin:2`, `bath:1`, session 22): their doorways are shut. */
+  locked?: ReadonlySet<string>;
 }
 
 export interface WalkableOptions {
@@ -34,13 +36,15 @@ export class Walkable {
     const areas: Rect[] = [];
     const blocked: Rect[] = [];
 
-    for (const { layout, originZ, closed } of carriages) {
+    for (const { layout, originZ, closed, locked } of carriages) {
       const skip = closed && closed.size > 0 ? new Set([...closed].map((i) => layout.props[i]?.rect)) : null;
       for (const room of layout.rooms) {
         areas.push(rect(room.x0 + r, room.z0 + r + originZ, room.x1 - r, room.z1 - r + originZ));
       }
       for (const connector of layout.connectors) {
         if (connector.door && !options.doorsOpen) continue;
+        // A locked room's doorway is shut (session 22): nobody walks in until it is bought.
+        if (connector.room && locked?.has(connector.room)) continue;
         const c = connector.rect;
         areas.push(
           connector.axis === 'x'

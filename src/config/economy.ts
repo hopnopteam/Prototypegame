@@ -167,6 +167,25 @@ export const ECONOMY = {
     wakeupSeconds: 0.9,
   },
 
+  /**
+   * Opening a covered room (session 22, gameplay/Reveal.ts): the lid lifts away, the lights flicker on, the
+   * furniture pops in. The first room of each kind gets the long version.
+   */
+  reveal: {
+    shortSeconds: 0.9,
+    longSeconds: 2.2,
+    /** Share of the reveal the lid takes to lift off, and how high it rises. */
+    lidShare: 0.45,
+    lidLift: 0.9,
+    /** When the lights start to come on and the furniture pops in (shares of the reveal). */
+    lightsAt: 0.3,
+    furnitureAt: 0.45,
+    /** The lights' blinks as they come on (lamp light, 0 dark to 1 lit); the short reveal keeps the last two. */
+    flicker: [0.7, 0.1, 0.9, 0.35, 1] as number[],
+    /** How close the camera eases in for a long reveal. */
+    zoom: 1.2,
+  },
+
   classes: {
     /** Chance a traveller holds a ticket for the class above the train's best (once that class can be bought). */
     aspirantChance: 0.18,
