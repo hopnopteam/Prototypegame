@@ -12,6 +12,8 @@ export interface PlacedLayout {
 
 export interface WalkableOptions {
   doorsOpen: boolean;
+  /** Session 22: the opening's covered carriage keeps its platform doors shut (the platform stays walkable). */
+  doorsSealed?: boolean;
   platform: Rect | null;
   rearDeck: Rect | null;
 }
@@ -42,7 +44,7 @@ export class Walkable {
         areas.push(rect(room.x0 + r, room.z0 + r + originZ, room.x1 - r, room.z1 - r + originZ));
       }
       for (const connector of layout.connectors) {
-        if (connector.door && !options.doorsOpen) continue;
+        if (connector.door && (!options.doorsOpen || options.doorsSealed)) continue;
         // A locked room's doorway is shut (session 22): nobody walks in until it is bought.
         if (connector.room && locked?.has(connector.room)) continue;
         const c = connector.rect;

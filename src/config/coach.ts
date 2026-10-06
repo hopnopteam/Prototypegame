@@ -15,11 +15,12 @@ export interface CoachLineDef {
 
 export const COACH_STEPS: CoachLineDef[] = [
   { id: 'walk', icon: 'hand', text: 'Drag to walk' },
-  // Session 19: the game opens outside on the platform; the first ticket is collected at the door.
-  { id: 'tickets', icon: 'ticket', text: 'Collect tickets' },
-  { id: 'checkin', icon: 'ticket', text: 'Check in' },
+  // Session 22, the station start: sell the first ticket at the booth, grab the fare, open the covered carriage,
+  // make up its first bed; the guest walks in.
+  { id: 'tickets', icon: 'ticket', text: 'Sell tickets' },
   { id: 'cash', icon: 'cash', text: 'Grab it' },
-  { id: 'tile', icon: 'bed', text: 'Build' },
+  { id: 'tile', icon: 'carriage', text: 'Open' },
+  { id: 'bed', icon: 'bedding', text: 'Make bed' },
 ];
 
 export const COACH_HINTS: CoachLineDef[] = [

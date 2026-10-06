@@ -37,6 +37,9 @@ interface TileEntry {
 const NEW_TILE_MARKER_SECONDS = 4;
 
 /** A tile's name as its marker shows it: the essential word or two ("Comfort", not "Comfort Class"). */
+/** The Open carriage tile, from the lobby door's outside point: on the platform, toward the front of the door. */
+const OPEN_TILE = { dx: 0.35, dz: -1.4 };
+
 function markerName(label: string): string {
   return label.replace(/ Class$/, '').replace(/^(Hire|Buy|Add) /, '').replace(/^Upgrade /, '');
 }
@@ -55,6 +58,7 @@ const ICON_BY_KIND: Record<UnlockDef['kind'], IconName> = {
   seat: 'plus',
   menu: 'star',
   station: 'gear',
+  open: 'carriage',
 };
 
 /** A tile's icon: its kind's, or for a venue's seats and menus the venue's own (a cup, a cloche, a glass). */
@@ -479,6 +483,11 @@ export class Tiles {
     const w = this.w;
     const map = w.map;
     switch (def.kind) {
+      // The opening's covered carriage (session 22): its tile waits on the platform beside its door.
+      case 'open': {
+        const door = map.doors()[0];
+        return { x: door.outside.x + OPEN_TILE.dx, z: door.outside.z + OPEN_TILE.dz };
+      }
       // A locked room is shut and covered (session 22): its tile waits in the corridor at its door.
       case 'cabin': {
         const cabin = w.train.cabins.find((c) => c.carriage === def.carriage && c.index === def.cabin);

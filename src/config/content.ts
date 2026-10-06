@@ -132,7 +132,9 @@ export type UnlockKind =
   | 'cabin' | 'hire' | 'couple' | 'bathroom' | 'refurb' | 'staffUpgrade' | 'comfort' | 'exterior' | 'marketing'
   // Session 20, the venue carriages: a table, stool or row of seats; a dearer menu; a second machine, range or
   // the grand piano.
-  | 'seat' | 'menu' | 'station';
+  | 'seat' | 'menu' | 'station'
+  // Session 22: the opening's covered carriage, opened at its door.
+  | 'open';
 
 /** Small comforts bought per carriage: each shows up in every room and lifts that carriage's tips. */
 export type ComfortKey = 'lamp' | 'flowers' | 'radio' | 'soap' | 'rail';
@@ -215,7 +217,9 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       // Session 16: the opening (economy `flow.openingTiles`). Cabin 2 costs exactly the first fare; Cabin 3
       // follows straight after (each brings a passenger in during the first leg); the attendant waits for the first
       // tidy by hand, then Repairs, then the coupling.
-      { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 15, stars: 2, cabin: 1, requires: [], effect: '+1 guest' },
+      // Session 22: a new game's train stands covered at Millbrook; the first ticket opens the first carriage.
+      { key: 'open', kind: 'open', label: 'Open carriage', price: 15, stars: 2, requires: [], effect: 'Let guests in' },
+      { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 15, stars: 2, cabin: 1, requires: ['open'], effect: '+1 guest' },
       { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 45, stars: 3, role: 'attendant', requires: ['cabin_1'], flags: ['firstCabinCleaned'], effect: 'Cleans cabins' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 60, stars: 3, tier: 1, requires: ['hire_attendant'], effect: 'Fares +25%' },
       // Session 17: 30 (was 35). Bought on the first leg for the travellers waiting at the first stop.

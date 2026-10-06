@@ -144,6 +144,9 @@ const ROOM_DOOR_CLOSE_RATE = 2.2;
 const CLEAN_STEPS = 7;
 /** A room's lamp light at lights out (share of full), and how quickly the lights and blinds change. */
 const NIGHT_LIGHT = 0.15;
+/** The opening's Open carriage tile, and the dimmer key for its carriage's lights (session 22). */
+const OPEN_CARRIAGE = 'c0.open';
+const CARRIAGE_LIGHT = 'carriage:0';
 const NIGHT_FADE = 2.5;
 const USED = [true];
 const CLEAN = [false];
@@ -223,6 +226,44 @@ export class TrainState {
     });
     this.rebuildMap();
     this.rebuildExterior();
+    // Session 22, the station start: a new game's first carriage stands covered at Millbrook, its doors shut and
+    // its first bed bare, until the first ticket pays to open it.
+    const open = this.w.unlocks.get(OPEN_CARRIAGE);
+    if (open && !this.w.unlocks.isUnlocked(OPEN_CARRIAGE)) {
+      this.covered = true;
+      this.views[0]?.setCarriageCovered(true);
+      this.views[0]?.setAllBlinds(1);
+      this.w.map.setSealed(true);
+      const first = this.cabins.find((c) => c.carriage === 0 && c.unlocked);
+      if (first) first.linenFresh = 0;
+    }
+  }
+
+  /** The opening's first carriage is still covered (session 22). */
+  covered = false;
+  /** Its blinds, easing up once it is opened. */
+  private openBlinds = 0;
+
+  /** The first ticket opens the covered carriage: the roof lifts away, the lights come on, the doors open. */
+  private openCarriage(animate: boolean): void {
+    const w = this.w;
+    if (!this.covered) return;
+    this.covered = false;
+    const view = this.views[0];
+    if (!view) return;
+    const roof = animate ? view.takeCarriageCover() : null;
+    view.setCarriageCovered(false);
+    this.openBlinds = animate ? 1 : 0;
+    view.setAllBlinds(this.openBlinds);
+    w.map.setSealed(false);
+    if (!animate) return;
+    const oz = carriageOriginZ(0);
+    const beds = this.cabins.filter((c) => c.carriage === 0 && c.unlocked).map((c) => view.cabinBeds[c.index]);
+    w.reveal.play({
+      key: CARRIAGE_LIGHT, room: { x0: -HALF_WIDTH, z0: oz, x1: HALF_WIDTH, z1: oz + CARRIAGE_LENGTH },
+      center: { x: 0, z: oz + CARRIAGE_LENGTH * 0.4 }, lid: roof, furniture: beds, kind: 'carriage',
+    });
+    w.events.emit('carriage.opened', {});
   }
 
   /** Re-dresses the outside of the train from the exterior upgrades bought so far. */
@@ -454,6 +495,9 @@ export class TrainState {
       case 'refurb':
         this.refurbish(def.carriage, def.tier ?? 1, animate);
         break;
+      case 'open':
+        this.openCarriage(animate);
+        break;
       case 'exterior':
         this.rebuildExterior();
         if (animate) this.dressUpMoment();
@@ -607,6 +651,15 @@ export class TrainState {
         const originZ = carriageOriginZ(cabin.carriage);
         w.stage?.dimmer.set(cabin.id, r.x0, r.z0 + originZ, r.x1, r.z1 + originZ, cabin.unlocked ? 1 - settled * (1 - NIGHT_LIGHT) : 0);
       }
+    }
+    // The covered carriage is dark inside; once opened its blinds go up.
+    if (!w.reveal?.lighting.has(CARRIAGE_LIGHT)) {
+      const oz = carriageOriginZ(0);
+      w.stage?.dimmer.set(CARRIAGE_LIGHT, -HALF_WIDTH, oz, HALF_WIDTH, oz + CARRIAGE_LENGTH, this.covered ? 0 : 1);
+    }
+    if (this.openBlinds > 0) {
+      this.openBlinds = Math.max(0, this.openBlinds - dt * 0.8);
+      this.views[0]?.setAllBlinds(Math.round(this.openBlinds * 20) / 20);
     }
     for (const bath of this.bathrooms) {
       if (w.reveal?.lighting.has(bath.id)) continue;

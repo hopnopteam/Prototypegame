@@ -28,6 +28,8 @@ export class TrainMap {
   readonly walk: Walkable;
   carriages: PlacedCarriage[] = [];
   private doorsOpen = false;
+  /** Session 22: the opening's covered carriage: its platform doors stay shut until it is opened. */
+  private sealed = false;
   private rearDeckEnabled = true;
   /** What is not there yet in each carriage (a venue's tables and extras still to buy): it does not block. */
   closedProps: (index: number) => ReadonlySet<number> | undefined = () => undefined;
@@ -168,6 +170,13 @@ export class TrainMap {
     nav.setDoorsOpen(this.doorsOpen);
   }
 
+  /** The opening's covered carriage seals its doors (session 22); opening it lets everyone through. */
+  setSealed(sealed: boolean): void {
+    if (sealed === this.sealed) return;
+    this.sealed = sealed;
+    this.buildWalkable();
+  }
+
   /** Something bought appeared (or the walls moved): the walkable floor is worked out again. */
   refreshWalkable(): void {
     this.buildWalkable();
@@ -180,6 +189,7 @@ export class TrainMap {
     }
     this.walk.rebuild(this.carriages, {
       doorsOpen: this.doorsOpen,
+      doorsSealed: this.sealed,
       platform: this.doorsOpen ? this.platformRoom() : null,
       rearDeck: this.rearDeckEnabled ? this.rearDeck().room : null,
     });

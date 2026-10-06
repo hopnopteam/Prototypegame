@@ -14,7 +14,9 @@ if (!existsSync(file)) { console.error('dist/index.html missing: run npm run bui
 
 // Latest acceptable lifetime second for each beat. Looser than the §14 targets so autopilot variance
 // does not flake the check; scripts/pacing.mjs is the tool for tuning toward the targets themselves.
-const DEADLINES = { first_checkin: 15, first_cash: 20, first_unlock: 45, first_station: 80, first_hire: 150, first_carriage: 360, second_carriage: 720, route_level_2: 780 };
+// Session 22, the station start: the first ticket at the booth within seconds, the covered carriage opened within
+// the first half-minute, the departure at about a minute (so the first station at about 1:45).
+const DEADLINES = { first_checkin: 15, first_cash: 20, first_unlock: 30, first_station: 125, first_hire: 190, first_carriage: 360, second_carriage: 720, route_level_2: 780 };
 
 const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -82,7 +84,7 @@ for (let t = 0; t < total; t += 5) {
       stories: g.data.press.items.length,
       debut: g.data.press.interviews.includes(0),
       taunts: g.data.press.rivals.taunted.length,
-      coachDone: ['walk', 'checkin', 'cash', 'tile'].every((id) => g.flag(`coach_${id}`)),
+      coachDone: g.coach.walkthroughDone,
       tiers: g.train.tiers.slice(),
       station: g.data.route.unlocked.filter((id) => id.startsWith('st.')),
       objective: g.data.objectives.index,

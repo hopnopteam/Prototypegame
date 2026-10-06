@@ -218,8 +218,9 @@ export class Coach {
         return Math.hypot(w.player.pos.x - this.spawn.x, w.player.pos.z - this.spawn.z) > WALK_METRES || ftue.first_checkin !== undefined;
       case 'tickets':
         return w.station.prologueTicketsDone || !w.station.prologue || ftue.first_checkin !== undefined;
-      case 'checkin':
-        return ftue.first_checkin !== undefined;
+      case 'bed':
+        // The first bed made up (the opening's bare bed), or a returning game with nothing bare to make.
+        return ftue.first_clean !== undefined || !w.train.cabins.some((c) => c.unlocked && !c.made && !c.guest);
       case 'cash':
         return ftue.first_cash !== undefined;
       case 'tile':
@@ -247,8 +248,8 @@ export class Coach {
         return w.player.idleSeconds > COACH_GESTURE_DELAY ? { gesture: true } : null;
       case 'tickets':
         return world(w.station.boardingPoint());
-      case 'checkin':
-        return world(w.map.anchor(0, 'deskService'));
+      case 'bed':
+        return world(w.guidance.bestTarget());
       case 'cash': {
         const pile = w.cash.nearestWithCash(w.player.pos);
         return pile && pile.value >= 1 ? world({ x: pile.x, z: pile.z }) : null;

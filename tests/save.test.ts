@@ -88,9 +88,20 @@ describe('SaveSystem', () => {
     const save = create(SAVE_MIGRATIONS);
     save.load();
     expect(save.data.version).toBe(SAVE_VERSION);
-    expect(save.data.route.unlocked).toEqual(['c0.cabin_1', 'c0.refurb_1', 'c0.refurb_2']);
+    // v3 → v4 then adds the opening's Open carriage (every old save has seen its opening).
+    expect(save.data.route.unlocked).toEqual(['c0.open', 'c0.cabin_1', 'c0.refurb_1', 'c0.refurb_2']);
     expect(save.data.route.partial).toEqual({ 'c4.refurb_1': 30 });
     expect(save.data.route.carriages).toEqual(['lobby']);
+  });
+
+  it('migrates v3 saves to the station start: the first carriage open, the opening seen', () => {
+    storage.setCandidates(KEY, JSON.stringify({ version: 3, route: { unlocked: ['c0.cabin_1', 'couple_1', 'c1.cabin_0'], carriages: ['lobby', 'sleeper'] }, profile: { installId: 'abc', flags: { coach_walk: true } } }));
+    const save = create(SAVE_MIGRATIONS);
+    save.load();
+    expect(save.data.version).toBe(SAVE_VERSION);
+    expect(save.data.route.unlocked).toEqual(['c0.open', 'c0.cabin_1', 'couple_1', 'c1.cabin_0']);
+    expect(save.data.profile.flags.openingSeen).toBe(true);
+    expect(save.data.profile.flags.coach_walk).toBe(true);
   });
 
   it('treats a save without a version as unreadable', () => {

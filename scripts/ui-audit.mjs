@@ -100,25 +100,16 @@ for (const [width, height] of SIZES) {
   await page.waitForTimeout(700);
   const report = (label, issues) => { for (const issue of issues) problems.push(`${width}×${height} ${label}: ${issue}`); };
 
-  // Boot (session 12: no title screen): a brand-new player goes straight into the intro over the train,
-  // with no splash and no sheet on top.
+  // Boot (session 22: no title screen and no intro): a brand-new player is straight into play on the Millbrook
+  // platform, with no splash, no caption card and no sheet on top, the walkthrough's first cue showing.
+  await page.waitForTimeout(500);
   report('boot', await page.evaluate(() => {
     const out = [];
     if (document.querySelector('.splash')) out.push('a title screen is showing');
-    if (document.querySelector('.scrim')) out.push('a sheet opened over the intro');
-    return out;
-  }));
-  // The intro: its caption card and Skip button must fit too, then skip it.
-  await page.waitForFunction(() => { const c = document.querySelector('.cine-caption'); return c && !c.hidden; }, null, { timeout: 4000 }).catch(() => undefined);
-  await page.waitForTimeout(500);
-  report('intro', await page.evaluate(() => {
-    const cap = document.querySelector('.cine-caption')?.getBoundingClientRect();
-    const skip = document.querySelector('.cine-skip')?.getBoundingClientRect();
-    const out = [];
-    if (!cap || cap.width === 0) out.push('intro caption missing');
-    for (const [name, r] of [['caption', cap], ['skip', skip]]) if (r && r.width > 0 && (r.left < 0 || r.right > innerWidth || r.top < 0 || r.bottom > innerHeight)) out.push(`intro ${name} leaves the screen`);
-    const text = document.querySelector('.cine-text');
-    if (text && text.scrollWidth > text.clientWidth + 1) out.push('intro caption text clipped');
+    if (document.querySelector('.scrim')) out.push('a sheet opened over the opening');
+    const cap = document.querySelector('.cine-caption');
+    if (cap && !cap.hidden && cap.getBoundingClientRect().width > 0) out.push('an intro caption is showing');
+    if (window.nightExpress.paused) out.push('the game is not playing');
     return out;
   }));
   await page.evaluate(() => window.nightExpress.skipIntro?.());

@@ -30,9 +30,9 @@ async function boot(): Promise<void> {
     back: () => ui.closeTopSheet(),
   });
 
-  // No title screen: the game opens on the train. A brand-new player gets the short intro (skippable, the
-  // game paused under it); anyone with a save is straight back on their train. Sound starts on the first
-  // touch (browsers need one): Input unlocks it. Every shader is compiled first, so play never stalls on one.
+  // No title screen and no intro (session 22): a brand-new player is straight into play on the Millbrook
+  // platform beside the covered train; anyone with a save is straight back on their train. Sound starts on the
+  // first touch (browsers need one): Input unlocks it. Every shader is compiled first, so play never stalls.
   const begin = (): void => {
     game.paused = false;
     ui.screens.holdForTitle(false);
@@ -41,8 +41,7 @@ async function boot(): Promise<void> {
   game.start();
   // The app's launch screen stays up until the first frame is drawn.
   requestAnimationFrame(() => requestAnimationFrame(() => app.ready()));
-  if (game.isBrandNew) game.playIntro(begin);
-  else begin();
+  begin();
 }
 
 void boot();

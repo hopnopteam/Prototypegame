@@ -14,6 +14,8 @@ export interface GameEvents {
   /** Session 22: a used bed stripped (its bedding is laundry now), and laundry dropped in a linen cupboard's hamper. */
   'bed.stripped': { byPlayer: boolean; x: number; z: number };
   'laundry.dropped': { byPlayer: boolean };
+  /** Session 22: the opening's covered carriage opened. */
+  'carriage.opened': Record<string, never>;
   'item.picked': { item: ItemKind; byPlayer: boolean };
   'item.dropped': { item: ItemKind; byPlayer: boolean };
   'item.returned': { item: ItemKind; byPlayer: boolean };

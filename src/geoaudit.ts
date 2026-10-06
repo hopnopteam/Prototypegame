@@ -365,6 +365,11 @@ function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras
       }
     });
     layout.bathrooms.forEach((b) => view.setBathroomLocked(b.index, locked));
+    // Session 22: the opening's covered first carriage (its roof on, every blind down).
+    if (locked && i === 0) {
+      view.setCarriageCovered(true);
+      view.setAllBlinds(1);
+    }
     // Every comfort, so their props are checked against every tier's furniture.
     if (!locked) view.setComforts(['lamp', 'flowers', 'radio', 'soap', 'rail']);
     // Full stock everywhere: the busiest the rooms ever look.

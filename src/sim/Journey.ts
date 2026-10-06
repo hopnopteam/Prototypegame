@@ -149,6 +149,16 @@ export class Journey {
     return true;
   }
 
+  /** Seconds before departure the last call sounds. */
+  get lastCallSeconds(): number {
+    return this.config.lastCallSeconds;
+  }
+
+  /** The current stop lasts this much longer (the opening waits for its first guest, session 22). */
+  extend(seconds: number): void {
+    if (this.phase === 'stationStop') this.stationDuration += seconds;
+  }
+
   /** A held stop gets going: the doors close in `seconds` (the last call sounds at once if that is short). */
   release(seconds: number): void {
     if (!this.held) return;

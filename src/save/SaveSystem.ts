@@ -48,7 +48,28 @@ export const SAVE_MIGRATIONS: SaveMigration[] = [
       route.carriages = legacyCarriages(unlocked);
     },
   },
+  {
+    // v3 → v4 (session 22, the station start): a new game opens on the Millbrook platform beside a covered
+    // train. Everyone who already plays has seen their opening: their first carriage is open (the new Open
+    // carriage tile counts as bought) and the opening never plays again. Rooms they bought stay open and
+    // uncovered; rooms still locked come covered (both follow from the unlocked list). Guests are not saved,
+    // so there is no trip to move on: the train reloads empty, every bed made up.
+    from: 3,
+    apply(raw) {
+      const route = raw.route as { unlocked?: string[] } | undefined;
+      if (route) {
+        const unlocked = Array.isArray(route.unlocked) ? route.unlocked : [];
+        if (!unlocked.includes(OPENED_CARRIAGE)) unlocked.unshift(OPENED_CARRIAGE);
+        route.unlocked = unlocked;
+      }
+      const profile = raw.profile as { flags?: Record<string, boolean> } | undefined;
+      if (profile) profile.flags = { ...(profile.flags ?? {}), openingSeen: true };
+    },
+  },
 ];
+
+/** The opening's Open carriage tile (session 22): bought for every save from before the station start. */
+const OPENED_CARRIAGE = 'c0.open';
 
 export interface SaveSystemOptions {
   key: string;

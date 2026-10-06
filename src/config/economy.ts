@@ -311,7 +311,7 @@ export const ECONOMY = {
    */
   flow: {
     /** The first purchases, one on show at a time, in this order (the next appears when the last is bought). */
-    openingTiles: ['c0.cabin_1', 'c0.cabin_2', 'c0.hire_attendant', 'c0.refurb_1', 'couple_1'] as string[],
+    openingTiles: ['c0.open', 'c0.cabin_1', 'c0.cabin_2', 'c0.hire_attendant', 'c0.refurb_1', 'couple_1'] as string[],
     /**
      * Where the first passengers come from (session 17, owner: "where guests are coming from… a whole system where
      * logistically it makes total sense"): a new game opens standing at Millbrook with the doors open. Session 19
@@ -327,6 +327,14 @@ export const ECONOMY = {
       travellers: 2,
       boardDelay: 0.6,
       lastCallSeconds: 6,
+      /**
+       * Session 22, the station start: a new game's first stop lasts this long (the clock runs from the first
+       * frame) and happens once. The train stands covered; the first ticket opens the first carriage, its first
+       * bed is made up, the guest walks in. If the first guest is not aboard when the clock runs out it waits for
+       * them, at most `holdCapSec` more; the conductor is never left behind.
+       */
+      durationSec: 60,
+      holdCapSec: 90,
       /**
        * Who waits on the platform, in order. The first pays a full fare (a backpacker), so their fare always
        * buys the first cabin: a cheaper archetype (a student pays 14 of the 15) left the opening with no way to

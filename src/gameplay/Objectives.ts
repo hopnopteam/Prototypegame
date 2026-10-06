@@ -43,7 +43,7 @@ export class Objectives {
 
   private get shouldWake(): boolean {
     const w = this.w;
-    const walkthrough = ['walk', 'checkin', 'cash', 'tile'].every((id) => w.flag(`coach_${id}`));
+    const walkthrough = w.coach?.walkthroughDone ?? true;
     // After the first stop's ticket and the naming card, once the screen has been calm a moment.
     const stops = w.econ.flow.features.goals.stops;
     return walkthrough && w.flow.allows('goals') && (w.press.named || w.data.route.stopsCompleted > stops) && w.press.calmSeconds >= GOALS_CALM_SECONDS;

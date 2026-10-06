@@ -11,6 +11,7 @@ import {
   COVER_TOP,
   DOOR_Z0,
   DOOR_Z1,
+  EXTERIOR_WALL_HEIGHT,
   GANGWAY_LENGTH,
   HALF_WIDTH,
   INNER,
@@ -569,17 +570,55 @@ export class CarriageView {
 
   /** A cabin's window blinds: 0 up, 1 down (lights out). */
   setBlind(cabin: number, level: number): void {
-    const mesh = this.blinds;
-    if (!mesh || this.blindLevel[cabin] === level) return;
+    if (!this.blinds || this.blindLevel[cabin] === level) return;
     this.blindLevel[cabin] = level;
-    const scale = Math.max(0.001, level);
+    this.layBlinds();
+  }
+
+  /** Every window's blind on this carriage (the opening's covered carriage): 0 up, 1 down. */
+  setAllBlinds(level: number): void {
+    if (!this.blinds || this.allBlinds === level) return;
+    this.allBlinds = level;
+    this.layBlinds();
+  }
+
+  private allBlinds = 0;
+
+  private layBlinds(): void {
+    const mesh = this.blinds;
+    if (!mesh) return;
+    let any = false;
     this.blindSlots.forEach((slot, i) => {
-      if (slot.cabin !== cabin) return;
-      tmpMatrix.makeScale(1, scale, slot.width).setPosition(slot.x, slot.y, slot.z);
+      const level = Math.max(slot.cabin >= 0 ? (this.blindLevel[slot.cabin] ?? 0) : 0, this.allBlinds);
+      if (level > 0) any = true;
+      tmpMatrix.makeScale(1, Math.max(0.001, level), slot.width).setPosition(slot.x, slot.y, slot.z);
       mesh.setMatrixAt(i, tmpMatrix);
     });
     mesh.instanceMatrix.needsUpdate = true;
-    mesh.visible = this.blindLevel.some((l) => l > 0);
+    mesh.visible = any;
+  }
+
+  /**
+   * The opening's covered carriage (session 22): a slate roof over the whole carriage, sitting on its walls, so
+   * nothing inside shows until it is opened. `takeCarriageCover` hands it to the reveal.
+   */
+  private roof: THREE.Mesh | null = null;
+
+  setCarriageCovered(on: boolean): void {
+    if (on && !this.roof) {
+      this.roof = buildCarriageRoof();
+      this.group.add(this.roof);
+    } else if (!on && this.roof) {
+      this.group.remove(this.roof);
+      this.roof.geometry.dispose();
+      this.roof = null;
+    }
+  }
+
+  takeCarriageCover(): THREE.Mesh | null {
+    const roof = this.roof;
+    this.roof = null;
+    return roof;
   }
 
   /**
@@ -594,8 +633,9 @@ export class CarriageView {
       const { count, slot, width } = windowSpacing(wall.z1 - wall.z0);
       for (let i = 0; i < count; i++) {
         const zc = wall.z0 + slot * (i + 0.5);
+        // A cabin's own windows go down at lights out; every window goes down while the carriage is covered.
         const cabin = this.layout.cabins.find((c) => zc - width / 2 > c.room.z0 && zc + width / 2 < c.room.z1);
-        if (cabin) this.blindSlots.push({ cabin: cabin.index, x: wall.x1 - BLIND_INSET, y: FLOOR_Y + WY1 - 0.006, z: zc, width: width - 0.03 });
+        this.blindSlots.push({ cabin: cabin ? cabin.index : -1, x: wall.x1 - BLIND_INSET, y: FLOOR_Y + WY1 - 0.006, z: zc, width: width - 0.03 });
       }
     }
     if (this.blindSlots.length === 0) return;
@@ -2187,6 +2227,39 @@ function buildCover(room: Rect): THREE.Mesh {
   const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
   mesh.receiveShadow = true;
   mesh.userData.room = true;
+  return mesh;
+}
+
+/**
+ * The roof over the opening's covered carriage (session 22): two slate slopes from eaves just above the walls'
+ * cornice to a cream ridge, closed at both ends, a little wider than the carriage.
+ */
+function buildCarriageRoof(): THREE.Mesh {
+  const x0 = -HALF_WIDTH - 0.06;
+  const x1 = HALF_WIDTH + 0.06;
+  const z0 = -0.02;
+  const z1 = CARRIAGE_LENGTH + 0.02;
+  const ye = FLOOR_Y + EXTERIOR_WALL_HEIGHT + 0.08;
+  const yr = ye + 0.5;
+  const positions: number[] = [];
+  const quad = (a: number[], b2: number[], c: number[], d: number[]): void => {
+    positions.push(...a, ...b2, ...c, ...a, ...c, ...d);
+  };
+  quad([x0, ye, z1], [x0, ye, z0], [0, yr, z0], [0, yr, z1]);
+  quad([x1, ye, z0], [x1, ye, z1], [0, yr, z1], [0, yr, z0]);
+  positions.push(x0, ye, z0, x1, ye, z0, 0, yr, z0);
+  positions.push(x1, ye, z1, x0, ye, z1, 0, yr, z1);
+  // The underside, so nothing shows through from below the eaves.
+  quad([x0, ye, z0], [x0, ye, z1], [x1, ye, z1], [x1, ye, z0]);
+  const shell = new THREE.BufferGeometry();
+  shell.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  shell.computeVertexNormals();
+  const b = new GeoBuilder();
+  b.object('roof');
+  b.add(shell, '#5E6B78', 0, 0, 0, 0, 0, 0, { pattern: PATTERN.stripesZ, color2: '#56626E', scale: 0.18, shade: 0.92 });
+  b.box(0, yr + 0.02, CARRIAGE_LENGTH / 2, 0.12, 0.05, CARRIAGE_LENGTH + 0.06, '#EFE6D2', 0, FLAT);
+  const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+  mesh.receiveShadow = true;
   return mesh;
 }
 

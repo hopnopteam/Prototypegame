@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { FLOOR_Y } from './CarriageView';
 import { GeoBuilder, mergePlanes } from './geo';
-import { carriageOriginZ, DOOR_Z0, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0 } from './layout';
+import { carriageOriginZ, DOOR_Z0, DOOR_Z1, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0 } from './layout';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
 import { CharacterView, type CharacterLook } from './CharacterView';
@@ -271,6 +271,19 @@ export class PlatformView {
     for (const dz of [-1.5, 1.5]) props.object('platform:signPost').box(x0 + 4.2 + dz * 0.7, FLOOR_Y + 1.0, -1.2, 0.07, 2.0, 0.07, PALETTE.navy, 0, { shade: 0.9 });
     props.endObject();
 
+    // Session 22: the ticket booth by the lobby door, its window and counter facing the train; the conductor (or
+    // the porter) sells tickets standing at it.
+    const booth = PlatformView.boothPosition();
+    props.object('platform:booth');
+    props.box(booth.x, FLOOR_Y + 0.5, booth.z, 0.7, 1.0, 1.0, PALETTE.navy, 0, { shade: 0.85 });
+    props.box(booth.x, FLOOR_Y + 1.3, booth.z, 0.7, 0.6, 1.0, PALETTE.linen, 0, { shade: 0.9 });
+    props.box(booth.x - 0.36, FLOOR_Y + 1.28, booth.z, 0.01, 0.38, 0.72, '#9DB8CF', 0, { shade: 1, surface: 'glass' });
+    props.box(booth.x - 0.4, FLOOR_Y + 1.02, booth.z, 0.12, 0.04, 0.9, PALETTE.oak, 0, { shade: 1 });
+    props.box(booth.x, FLOOR_Y + 1.64, booth.z, 0.86, 0.08, 1.16, PALETTE.canopy, 0, { pattern: PATTERN.stripesZ, color2: PALETTE.stationTrim, scale: 0.2, shade: 1 });
+    props.box(booth.x - 0.36, FLOOR_Y + 1.82, booth.z, 0.04, 0.2, 0.56, PALETTE.gold, 0, { shade: 1 });
+    props.box(booth.x - 0.385, FLOOR_Y + 1.82, booth.z, 0.012, 0.12, 0.44, PALETTE.stationPink, 0, { shade: 1 });
+    props.endObject();
+
     // Luggage trolley near where suitcases wait.
     const luggageZ = luggageCarIndex !== null ? carriageOriginZ(luggageCarIndex) + DOOR_Z0 + 3.2 : DOOR_Z0 + 3.2;
     props.object('platform:trolley');
@@ -486,6 +499,16 @@ export class PlatformView {
     for (const p of planes) p.dispose();
     this.posters = group;
     this.group.add(group);
+  }
+
+  /** The ticket booth by the lobby door (session 22; local = world when stopped). */
+  static boothPosition(): { x: number; z: number } {
+    return { x: PLATFORM_X0 + 2.2, z: (DOOR_Z0 + DOOR_Z1) / 2 };
+  }
+
+  /** Where the fares paid at the booth stack up: beside it, toward the door. */
+  static boothCashPosition(): { x: number; z: number } {
+    return { x: PLATFORM_X0 + 1.0, z: DOOR_Z1 + 0.35 };
   }
 
   /** Where the suitcases for boarding guests are piled (local = world when stopped). */

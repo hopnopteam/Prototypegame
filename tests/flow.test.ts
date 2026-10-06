@@ -62,8 +62,9 @@ describe('Flow', () => {
   };
 
   it('walks the opening one tile at a time and ends it at the first coupling', () => {
-    expect(new Flow(world({})).openingTile()).toBe('c0.cabin_1');
-    expect(new Flow(world({ unlocked: ['c0.cabin_1'] })).openingTile()).toBe('c0.cabin_2');
+    expect(new Flow(world({})).openingTile()).toBe('c0.open');
+    expect(new Flow(world({ unlocked: ['c0.open'] })).openingTile()).toBe('c0.cabin_1');
+    expect(new Flow(world({ unlocked: ['c0.open', 'c0.cabin_1'] })).openingTile()).toBe('c0.cabin_2');
     const done = new Flow(world({ unlocked: [...ECONOMY.flow.openingTiles] }));
     expect(done.openingTile()).toBeNull();
     expect(done.opening).toBe(false);

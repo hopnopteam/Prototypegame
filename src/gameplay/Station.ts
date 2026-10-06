@@ -69,8 +69,6 @@ export class Station {
    * gets a bed steps aboard by themselves, since the conductor is inside by then.
    */
   prologueTicketsDone = false;
-  /** Seconds a traveller on the Millbrook platform has had a free bed (they step aboard after a beat). */
-  private prologueWait = 0;
 
   constructor(private readonly w: World) {
     w.scene.add(this.view.group);
@@ -221,7 +219,6 @@ export class Station {
     if (j.phase !== 'stationStop' || !j.held) return;
     this.prologue = true;
     this.prologueTicketsDone = false;
-    this.prologueWait = 0;
     this.spawnedForStop = j.stopSerial;
     w.map.setDoorsOpen(true);
     w.train.setDoors(true);
@@ -231,9 +228,19 @@ export class Station {
     const count = w.econ.flow.prologue.travellers;
     w.guests.spawnPlatformGuests(this.prologueSpots(count), null, new Array<ClassId>(count).fill('basic'), w.econ.flow.prologue.archetypes);
     w.audio.setStationAmbience(true);
+    // Session 22: the first stop's clock runs from the first frame (it waits for the first guest if need be).
+    this.prologueClock = 0;
+    j.release(w.econ.flow.prologue.durationSec);
   }
 
-  /** At Millbrook: whoever has a bed steps aboard; when nobody is left outside, the train gets ready to go. */
+  /** Seconds since the opening began (the clock may hold for the first guest up to `holdCapSec` past its end). */
+  private prologueClock = 0;
+
+  /**
+   * At Millbrook (session 22): the first ticket is the conductor's to sell; after it, whoever has a room ready
+   * buys theirs by themselves and walks aboard. The clock runs, but waits for the first guest to be aboard (at
+   * most `holdCapSec` past its end); anyone else left on the platform waits for the next train.
+   */
   private updatePrologue(dt: number): void {
     const w = this.w;
     const j = w.journey;
@@ -241,22 +248,11 @@ export class Station {
       this.prologue = false;
       return;
     }
-    if (!j.held) return;
     const rules = w.econ.flow.prologue;
-    // The first ticket is the conductor's to collect (the walkthrough's first step): nobody boards before it.
-    if (!this.prologueTicketsDone) return;
-    if (w.guests.hasBoarder()) {
-      this.prologueWait += dt;
-      if (this.prologueWait >= rules.boardDelay) {
-        this.prologueWait = 0;
-        const guest = w.guests.boardNext(false);
-        guest?.view.act('wave', 0.8);
-      }
-      return;
-    }
-    this.prologueWait = 0;
-    const outside = w.guests.list.some((g) => g.state === 'platform' || (g.state === 'boarding' && g.pos.x > w.map.doors()[0].inside.x + 0.3));
-    if (!outside) j.release(rules.lastCallSeconds);
+    this.prologueClock += dt;
+    // Everyone with a ticket aboard (or the cap reached): the clock runs out and the train leaves.
+    const allAboard = this.prologueTicketsDone && !w.guests.list.some((g) => g.paid && (g.state === 'platform' || g.state === 'boarding'));
+    if (!allAboard && this.prologueClock < rules.durationSec + rules.holdCapSec && j.timeLeft < j.lastCallSeconds + 1) j.extend(dt);
   }
 
   onPhase(phase: JourneyPhase, previous: JourneyPhase): void {
@@ -442,6 +438,8 @@ export class Station {
     for (const m of w.staff.members) rescue(m.pos);
     for (const g of w.guests.list) if (g.aboard) rescue(g.pos);
     w.train.setDoors(false);
+    // Fares left at the booth come aboard with the conductor (the platform is about to slide away).
+    w.cash.collect('booth');
     w.audio.setStationAmbience(false);
     w.audio.play('whistle');
   }
@@ -511,6 +509,9 @@ export class Station {
   private createZones(): void {
     const w = this.w;
     const door = w.map.doors()[0];
+    // The fares paid at the ticket booth stack up beside it (session 22).
+    const cashAt = PlatformView.boothCashPosition();
+    w.cash.create('booth', cashAt.x, cashAt.z);
     this.boardingZone = w.zones.add(new Zone({
       id: 'board',
       x: door.outside.x + 0.15,

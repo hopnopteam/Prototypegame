@@ -64,12 +64,12 @@ const UNLOCKS = buildUnlocks(DEFAULT_TRAIN);
 describe('UnlockChain', () => {
   const makeChain = (flags: Record<string, boolean> = {}) => new UnlockChain(UNLOCKS, { unlocked: [], partial: {} }, () => flags);
 
-  it('shows only the first tile at the start', () => {
-    expect(makeChain().available().map((d) => d.id)).toEqual(['c0.cabin_1']);
+  it('shows only the first tile at the start (session 22: Open carriage, then the second cabin)', () => {
+    expect(makeChain().available().map((d) => d.id)).toEqual(['c0.open']);
   });
 
   it('takes payment in instalments and completes once', () => {
-    const chain = makeChain();
+    const chain = new UnlockChain(UNLOCKS, { unlocked: ['c0.open'], partial: {} }, () => ({}));
     expect(chain.pay('c0.cabin_1', 4)).toBe(4);
     expect(chain.complete('c0.cabin_1')).toBe(false);
     expect(chain.pay('c0.cabin_1', 100)).toBe(chain.get('c0.cabin_1')!.price - 4);
@@ -80,7 +80,7 @@ describe('UnlockChain', () => {
 
   it('waits for gameplay flags (hire after the first manual clean)', () => {
     const flags: Record<string, boolean> = {};
-    const chain = new UnlockChain(UNLOCKS, { unlocked: ['c0.cabin_1', 'c0.cabin_2'], partial: {} }, () => flags);
+    const chain = new UnlockChain(UNLOCKS, { unlocked: ['c0.open', 'c0.cabin_1', 'c0.cabin_2'], partial: {} }, () => flags);
     expect(chain.isAvailable('c0.hire_attendant')).toBe(false);
     flags.firstCabinCleaned = true;
     expect(chain.isAvailable('c0.hire_attendant')).toBe(true);
@@ -109,7 +109,7 @@ describe('UnlockChain', () => {
   });
 
   it('points at the cheapest available tile', () => {
-    const chain = new UnlockChain(UNLOCKS, { unlocked: ['c0.cabin_1', 'c0.cabin_2', 'c0.hire_attendant'], partial: {} }, () => ({}));
+    const chain = new UnlockChain(UNLOCKS, { unlocked: ['c0.open', 'c0.cabin_1', 'c0.cabin_2', 'c0.hire_attendant'], partial: {} }, () => ({}));
     expect(chain.cheapestAvailable()?.id).toBe('c0.refurb_1');
   });
 
