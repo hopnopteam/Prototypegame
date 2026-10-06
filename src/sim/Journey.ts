@@ -130,6 +130,12 @@ export class Journey {
     return 1;
   }
 
+  /** How far along the current leg the train is: 0 at a station (and leaving it), 1 pulling in (guests' trips). */
+  get travelShare(): number {
+    if (this.phase === 'onTheMove') return Math.min(1, this.time / this.moveDuration);
+    return this.phase === 'arriving' ? 1 : 0;
+  }
+
   get doorsOpen(): boolean {
     return this.phase === 'stationStop';
   }

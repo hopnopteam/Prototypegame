@@ -38,8 +38,10 @@ export interface VenueDef {
   kind: VenueKind;
   /** Name on the chooser card and in the news. */
   name: string;
-  /** How likely a resting guest picks this venue for an outing (relative to the other venues aboard). */
+  /** How likely a guest picks this venue for an outing (relative to the other venues aboard). */
   visitWeight: number;
+  /** Session 22: when in their night guests go (a coffee in the morning, a cocktail or a film in the evening). */
+  when: ('evening' | 'morning')[];
   products: VenueProduct[];
   /** Seconds a guest eats, drinks or watches before paying and leaving. */
   consumeSeconds: number;
@@ -51,7 +53,7 @@ export interface VenueDef {
 
 export const VENUES: Record<VenueKind, VenueDef> = {
   cafe: {
-    kind: 'cafe', name: 'Café Car', visitWeight: 1.3,
+    kind: 'cafe', name: 'Café Car', visitWeight: 1.3, when: ['evening', 'morning'],
     products: [
       { item: 'latte', price: 5, makeSeconds: 1.4 },
       { item: 'pastry', price: 8, makeSeconds: 0.6, menu: 'menu_pastry' },
@@ -61,28 +63,28 @@ export const VENUES: Record<VenueKind, VenueDef> = {
     tierPrice: [1, 1.25, 1.6, 2.1],
   },
   dining: {
-    kind: 'dining', name: 'Dining Car', visitWeight: 1.0,
+    kind: 'dining', name: 'Dining Car', visitWeight: 1.0, when: ['evening', 'morning'],
     products: [{ item: 'meal', price: 14, makeSeconds: 2.2 }],
     consumeSeconds: 8,
     roles: ['chef', 'waiter'],
     tierPrice: [1, 1.25, 1.6, 2.1],
   },
   bar: {
-    kind: 'bar', name: 'Bar Lounge', visitWeight: 0.9,
+    kind: 'bar', name: 'Bar Lounge', visitWeight: 0.9, when: ['evening'],
     products: [{ item: 'cocktail', price: 11, makeSeconds: 1.8 }],
     consumeSeconds: 7,
     roles: ['bartender'],
     tierPrice: [1, 1.25, 1.6, 2.1],
   },
   dome: {
-    kind: 'dome', name: 'Observation Dome', visitWeight: 0.9,
+    kind: 'dome', name: 'Observation Dome', visitWeight: 0.9, when: ['evening', 'morning'],
     products: [],
     consumeSeconds: 0,
     roles: ['host'],
     tierPrice: [1, 1.25, 1.6, 2.1],
   },
   cinema: {
-    kind: 'cinema', name: 'Cinema Car', visitWeight: 1.0,
+    kind: 'cinema', name: 'Cinema Car', visitWeight: 1.0, when: ['evening'],
     products: [{ item: 'popcorn', price: 6, makeSeconds: 1.0 }],
     consumeSeconds: 0,
     roles: ['projectionist'],
@@ -109,11 +111,6 @@ export const VENUE_MENUS: Record<string, { price: number; items: VenueCharge[] }
 };
 
 export const VENUE_TUNING = {
-  /**
-   * Chance a resting guest's next wish is an outing to a venue (when one has room), instead of a request
-   * in their cabin or a washroom visit.
-   */
-  outingChance: 0.42,
   /** How much a guest's purse adds to a venue price: (class tip multiplier − 1) × this, plus one. */
   classSpend: 0.4,
   /** Café: most guests in the queue at once (the rest choose another venue or wait in bed). */

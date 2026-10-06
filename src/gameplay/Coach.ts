@@ -46,7 +46,7 @@ export class Coach {
     // Doing the thing is what completes a lesson.
     const e = w.events;
     e.on('request.fulfilled', ({ byPlayer }) => byPlayer && this.learn('request'));
-    e.on('spot.cleaned', ({ byPlayer }) => byPlayer && this.learn('dirty'));
+    e.on('cabin.cleaned', ({ byPlayer }) => byPlayer && this.learn('dirty'));
     e.on('guest.boarded', ({ byPlayer }) => byPlayer && this.learn('station'));
     e.on('bathroom.restocked', ({ byPlayer }) => byPlayer && this.learn('washroom'));
     e.on('staff.hired', () => this.learn('hire'));
@@ -156,7 +156,7 @@ export class Coach {
         continue;
       }
       if (!this.hintActive(hint.id)) continue;
-      const line = hint.id === 'request' ? this.requestStage() : hint;
+      const line = hint.id === 'request' ? this.requestStage() : hint.id === 'dirty' ? this.turnaroundStage() : hint;
       const anchor = this.anchorFor(line.id);
       if (!anchor || !this.agrees(anchor)) continue;
       this.show(line, anchor);
@@ -183,6 +183,17 @@ export class Coach {
     if (reason === 'fetch') return find('request_fetch');
     if (reason === 'deliver') return find('request_deliver');
     return find('request');
+  }
+
+  /** Turning a room around is taught step by step: strip it, laundry to the cupboard, a fresh set, make the bed. */
+  private turnaroundStage(): CoachLineDef {
+    const w = this.w;
+    const find = (id: string): CoachLineDef => COACH_HINTS.find((h) => h.id === id) ?? COACH_HINTS[0];
+    const stack = w.player.stack;
+    if (stack.has('laundry')) return find('dirty_laundry');
+    if (w.guidance.reason === 'fetch') return find('dirty_linen');
+    if (stack.has('bedding') && (w.guidance.reason === 'clean' || w.guidance.reason === 'deliver')) return find('dirty_make');
+    return find('dirty');
   }
 
   private canAffordTile(): boolean {
@@ -220,7 +231,7 @@ export class Coach {
 
   private anchorFor(id: string): CoachAnchor | null {
     // Guidance lines and the two request stages follow the guidance arrow's target.
-    if (id.startsWith('g_') || id === 'request_fetch' || id === 'request_deliver') {
+    if (id.startsWith('g_') || id === 'request_fetch' || id === 'request_deliver' || id.startsWith('dirty_')) {
       const target = this.w.guidance.bestTarget();
       return target ? { world: target } : null;
     }
@@ -249,8 +260,8 @@ export class Coach {
         return world(guest?.cabin?.center);
       }
       case 'dirty': {
-        const cabin = w.train.cabins.find((c) => c.isDirty && !c.guest && !c.cleaner);
-        return world(cabin ? cabin.spots[cabin.dirty.findIndex(Boolean)] : null);
+        const cabin = w.train.cabins.find((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
+        return world(cabin ? (cabin.spots[0] ?? cabin.center) : null);
       }
       case 'station':
         return world(w.station.boardingPoint());
@@ -301,7 +312,7 @@ export class Coach {
       case 'request':
         return w.guests.openRequests().some((g) => g.request && g.request !== 'bathroom' && !w.staff.isHandled(g));
       case 'dirty':
-        return w.train.cabins.some((c) => c.isDirty && !c.guest && !c.cleaner);
+        return w.player.stack.has('laundry') || w.train.cabins.some((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
       case 'station':
         return w.journey.phase === 'stationStop' && w.guests.canBoard();
       case 'hire':

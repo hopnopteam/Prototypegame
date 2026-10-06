@@ -20,6 +20,10 @@ export const ITEM_HEIGHT: Record<ItemKind, number> = {
   meal: 0.2,
   cocktail: 0.22,
   popcorn: 0.24,
+  newspaper: 0.06,
+  breakfast: 0.16,
+  bedding: 0.2,
+  laundry: 0.22,
 };
 
 const cache = new Map<ItemKind, THREE.BufferGeometry>();
@@ -108,6 +112,34 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       // A red-and-white striped carton heaped with popcorn.
       b.cylinder(0, 0.1, 0, 0.085, 0.06, 0.2, '#D9433F', 12, 'y', { pattern: PATTERN.stripesZ, color2: '#FBF5EA', scale: 0.05, shade: 0.95 });
       for (const [x, z, y] of [[0, 0, 0.23], [0.04, 0.03, 0.215], [-0.04, 0.02, 0.215], [0.02, -0.04, 0.22], [-0.03, -0.03, 0.21]]) b.sphere(x, y, z, 0.035, '#FFF1C9', 1, 0.85, { shade: 1 });
+      break;
+    case 'newspaper':
+      // The morning paper, folded, on a small silver tray.
+      b.rounded(0, 0.008, 0, 0.36, 0.016, 0.26, 0.04, PALETTE.chrome, { shade: 0.9, surface: 'steel' });
+      b.box(0, 0.03, 0, 0.28, 0.026, 0.2, '#F3EEE2', 0, { shade: 0.95 });
+      b.box(0, 0.0435, -0.06, 0.24, 0.002, 0.03, '#2B2230', 0, { shade: 1 });
+      b.box(-0.06, 0.0435, 0.03, 0.1, 0.002, 0.08, '#9DB8CF', 0, { shade: 1 });
+      break;
+    case 'breakfast':
+      // A breakfast tray: a croissant, a cup of coffee, a little pot of jam.
+      b.rounded(0, 0.015, 0, 0.44, 0.03, 0.3, 0.06, PALETTE.brass, { shade: 0.9, surface: 'brass' });
+      b.cylinder(-0.06, 0.04, 0, 0.11, 0.11, 0.016, PALETTE.porcelain, 14);
+      b.add(new THREE.TorusGeometry(0.065, 0.03, 6, 12, Math.PI * 1.1).rotateX(Math.PI / 2).rotateY(Math.PI * 0.45), '#E2A04A', -0.06, 0.07, 0.02, 0, 0, 0, { shade: 0.9 });
+      b.cylinder(0.12, 0.07, 0.04, 0.045, 0.036, 0.07, PALETTE.porcelain, 12);
+      b.cylinder(0.12, 0.106, 0.04, 0.04, 0.04, 0.004, '#5A3524', 12, 'y', { shade: 1 });
+      b.cylinder(0.12, 0.05, -0.08, 0.03, 0.03, 0.04, '#C0485C', 10, 'y', { shade: 1, surface: 'glass' });
+      break;
+    case 'bedding':
+      // A fresh bedding set: folded white linen with a pillow on top, tied with a blue band.
+      b.rounded(0, 0.06, 0, 0.44, 0.12, 0.32, 0.03, '#F6F2EA', { shade: 0.9 });
+      b.box(0, 0.06, 0, 0.06, 0.124, 0.324, '#7D9CBB', 0, { shade: 1 });
+      b.rounded(0, 0.16, 0, 0.36, 0.08, 0.24, 0.05, PALETTE.pillow, { shade: 0.9 });
+      break;
+    case 'laundry':
+      // Used bedding bundled up for the laundry: a crumpled heap of sheet with the cover's colour showing.
+      b.sphere(-0.07, 0.09, 0, 0.13, '#DCE3EA', 1, 0.7, { shade: 0.85 });
+      b.sphere(0.08, 0.08, 0.03, 0.11, '#C9D2DC', 1, 0.7, { shade: 0.85 });
+      b.sphere(0.02, 0.15, -0.04, 0.09, '#B7A79A', 1, 0.7, { shade: 0.85 });
       break;
     case 'crate':
       b.box(0, 0.17, 0, 0.5, 0.34, 0.42, PALETTE.oak, 0, { pattern: PATTERN.stripesZ, color2: '#A87544', scale: 0.09, shade: 0.8 });

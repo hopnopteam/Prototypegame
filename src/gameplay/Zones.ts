@@ -25,6 +25,8 @@ export interface ZoneOptions {
    * once (a room to tidy) shows its icon only where it matters, so the train is never a field of signs.
    */
   showIcon?: () => boolean;
+  /** The icon for the job here right now, when it changes (a room's pad: the broom, then fresh bedding). */
+  iconFor?: () => IconName;
   /** Called every frame for each actor standing inside. Return true while real work happens. */
   stay: (zone: Zone, actor: Actor, dt: number) => boolean;
   enter?: (zone: Zone, actor: Actor) => void;
@@ -52,6 +54,7 @@ export class Zone {
   playerInside = false;
   enabled = true;
   private readonly opts: ZoneOptions;
+  private iconName: IconName | null;
 
   constructor(opts: ZoneOptions) {
     this.opts = opts;
@@ -62,6 +65,7 @@ export class Zone {
     this.player = opts.player ?? true;
     this.staff = opts.staff ?? true;
     this.priority = opts.priority ?? 0;
+    this.iconName = opts.icon ?? null;
     this.ring = opts.ring === false ? null : new ZoneRing(opts.radius, opts.icon ?? null, opts.color);
     this.ring?.setPosition(opts.x, opts.z);
   }
@@ -101,6 +105,13 @@ export class Zone {
     this.ring.dimmed = !active;
     this.ring.highlight = active && !!this.opts.highlight?.();
     this.ring.iconShown = !this.opts.showIcon || this.opts.showIcon();
+    if (this.opts.iconFor && active) {
+      const name = this.opts.iconFor();
+      if (name !== this.iconName) {
+        this.iconName = name;
+        this.ring.setIcon(name);
+      }
+    }
     this.ring.progress = this.progress;
     this.ring.pulse = this.playerInside && active ? 1 : 0;
     this.ring.update(dt);

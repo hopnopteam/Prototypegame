@@ -5,6 +5,30 @@ import type { World } from './World';
 type StaffLike = Actor & { wantItems?: Partial<Record<ItemKind, number>> };
 
 /**
+ * Which counter in a passenger carriage hands an item out (a layout anchor): the service counter (the urn) for
+ * drinks, the paper and breakfast; the linen cupboard for blankets, pillows, towels and bedding sets, and its
+ * hamper takes the used bedding.
+ */
+export function sourceAnchorFor(item: ItemKind): string {
+  switch (item) {
+    case 'tea':
+    case 'coffee':
+    case 'champagne':
+    case 'newspaper':
+    case 'breakfast':
+      return 'urn';
+    case 'blanket':
+    case 'pillow':
+    case 'towel':
+    case 'bedding':
+    case 'laundry':
+      return 'linen';
+    default:
+      return item;
+  }
+}
+
+/**
  * What the train needs carried right now. Supply shelves only hand out items somebody is waiting for, so the
  * conductor never ends up with an armful of things to throw away: one tea request means one tea, and a
  * shelf with nothing to give simply rests. Anything carried beyond the need is surplus and goes back on
@@ -21,7 +45,15 @@ export class Demand {
       case 'coffee':
       case 'champagne':
       case 'pillow':
+      case 'newspaper':
+      case 'breakfast':
         return this.requestNeed(kind);
+      case 'bedding':
+        // Fresh sets for the beds waiting to be turned around (stripped or still used) nobody on the staff has taken.
+        return this.w.train.beddingNeed();
+      case 'laundry':
+        // Used bedding is never wanted: it all goes to a linen cupboard's hamper.
+        return 0;
       case 'blanket':
         // Cabin requests, and the dome's guests who would like one for the view.
         return this.requestNeed(kind) + w.venues.need(kind);

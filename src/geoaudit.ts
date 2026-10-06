@@ -305,10 +305,13 @@ export function groupAudit(group: THREE.Object3D, walls: ObjBox[] = []): ClipIss
       if (objects[i].label.replace('~glow', '') === objects[j].label.replace('~glow', '') && objects[i].box.getCenter(v).distanceTo(objects[j].box.getCenter(new THREE.Vector3())) < 0.6) continue;
       check(objects[i], objects[j]);
     }
-    for (const w of walls) check(objects[i], w);
+    if (!IN_WALL.has(objects[i].label.split('#')[0])) for (const w of walls) check(objects[i], w);
   }
   return issues;
 }
+
+/** Hung inside a wall's window opening by design (session 22: the cabins' blinds), so never checked against walls. */
+const IN_WALL = new Set(['blind']);
 
 /** Containers and what they are built to hold (their stock sits inside their box on purpose). */
 const HOLDS: Record<string, string[]> = {
@@ -352,6 +355,14 @@ function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras
       const pieces = [MESS_PIECES[messTurn % MESS_PIECES.length]];
       view.setMess(c.index, pieces, BED_MESS[messTurn % BED_MESS.length], messTurn + 1);
       messTurn++;
+      // Session 22: every blind down (lights out), and every other bed stripped to its bare mattress.
+      if (!locked) {
+        view.setBlind(c.index, 1);
+        if (c.index % 2 === 1) {
+          view.setDirt(c.index, [false]);
+          view.setBedBare(c.index, true);
+        }
+      }
     });
     layout.bathrooms.forEach((b) => view.setBathroomLocked(b.index, locked));
     // Every comfort, so their props are checked against every tier's furniture.

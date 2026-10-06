@@ -45,8 +45,17 @@ export class Cabin {
   cleaner: Actor | null = null;
   /** What the last guest left behind (chosen as they get off; null: a default mess). */
   messPlan: { pieces: MessPiece[]; bed: BedMess; seed: number } | null = null;
+  /**
+   * The bed (session 22): used sets still on it (stripped at the room's pad, they go on your stack as laundry)
+   * and fresh sets made up on it. Made: every set fresh, nothing used. A new or reloaded room is made up.
+   */
+  linenUsed = 0;
+  linenFresh: number;
+  /** Fresh sets put on this bed since it was last stripped (the audit: never more than `sets`). */
+  setsThisTurn = 0;
 
-  constructor(readonly carriage: number, readonly layout: CabinLayout, originZ: number) {
+  constructor(readonly carriage: number, readonly layout: CabinLayout, originZ: number, readonly sets = 1) {
+    this.linenFresh = sets;
     this.id = `c${carriage}_${layout.index}`;
     const w = (p: Vec2): Vec2 => ({ x: p.x, z: p.z + originZ });
     this.center = w(layout.center);
@@ -65,8 +74,18 @@ export class Cabin {
     return this.layout.index;
   }
 
+  /** Litter on the floor, or the bed not made up: the room needs turning around before the next guest. */
   get isDirty(): boolean {
-    return this.dirty.some(Boolean);
+    return this.dirty.some(Boolean) || !this.made;
+  }
+
+  get made(): boolean {
+    return this.linenUsed === 0 && this.linenFresh >= this.sets;
+  }
+
+  /** Fresh sets this bed still needs. */
+  get setsNeeded(): number {
+    return Math.max(0, this.sets - this.linenFresh);
   }
 
   get isFree(): boolean {
@@ -123,6 +142,13 @@ const ROOM_DOOR_OPEN_RATE = 4.5;
 const ROOM_DOOR_CLOSE_RATE = 2.2;
 /** A cabin's mess clears away in this many visible steps while it is tidied. */
 const CLEAN_STEPS = 7;
+/** A room's lamp light at lights out (share of full), and how quickly the lights and blinds change. */
+const NIGHT_LIGHT = 0.15;
+const NIGHT_FADE = 2.5;
+const USED = [true];
+const CLEAN = [false];
+/** What a passenger carriage's service counter (the urn) hands out: drinks, the morning paper, breakfast trays. */
+const SERVICE_ITEMS: ItemKind[] = ['tea', 'coffee', 'champagne', 'newspaper', 'breakfast'];
 /** A room's broom icon shows when the guide's target is this close to its pad… */
 const CLEAN_ICON_FOCUS = 0.8;
 /** …or when the conductor is this close to it. */
@@ -561,8 +587,23 @@ export class TrainState {
       const view = this.views[cabin.carriage];
       if (!view) continue;
       if (cabin.messPlan) view.setMess(cabin.index, cabin.messPlan.pieces, cabin.messPlan.bed, cabin.messPlan.seed);
-      view.setDirt(cabin.index, cabin.dirty);
-      for (let i = 0; i < cabin.spotZones.length; i++) if (cabin.dirty[i]) view.setDirtFade(cabin.index, i, cabin.spotZones[i].progress, this.onMessPop);
+      // The slept-in bed and the litter show until stripped; then the bare mattress until it is made up.
+      const used = cabin.dirty[0] || cabin.linenUsed > 0;
+      view.setDirt(cabin.index, used ? USED : CLEAN);
+      if (used) view.setDirtFade(cabin.index, 0, cabin.spotZones[0]?.progress ?? 0, this.onMessPop);
+      view.setBedBare(cabin.index, !used && cabin.linenFresh < cabin.sets);
+      // Lights out (session 22): the room dims and the blinds come down while its guest sleeps.
+      const night = cabin.guest?.state === 'resting' ? 1 : 0;
+      const level = this.nightLevel.get(cabin.id) ?? 0;
+      const next = level + (night - level) * Math.min(1, dt * NIGHT_FADE);
+      const settled = Math.abs(night - next) < 0.01 ? night : next;
+      if (settled !== level) {
+        this.nightLevel.set(cabin.id, settled);
+        view.setBlind(cabin.index, Math.round(settled * 20) / 20);
+        const r = cabin.layout.room;
+        const originZ = carriageOriginZ(cabin.carriage);
+        w.stage?.dimmer.set(cabin.id, r.x0, r.z0 + originZ, r.x1, r.z1 + originZ, 1 - settled * (1 - NIGHT_LIGHT));
+      }
     }
     for (const bath of this.bathrooms) this.views[bath.carriage]?.setBathroomStock(bath.layout.index, bath.towels, bath.rolls);
     const supply = this.indexOfType('supply');
@@ -585,8 +626,9 @@ export class TrainState {
     const layout = view.layout;
     const originZ = carriageOriginZ(index);
 
+    const sets = this.classOf(index)?.beds ?? 1;
     for (const cl of layout.cabins) {
-      const cabin = new Cabin(index, cl, originZ);
+      const cabin = new Cabin(index, cl, originZ, sets);
       cabin.unlocked = this.cabinOpen(type, index, cl.index, view.tier);
       view.setCabinLocked(cl.index, !cabin.unlocked);
       this.cabins.push(cabin);
@@ -701,6 +743,9 @@ export class TrainState {
     this.litViews.length = 0;
     this.litViews.push(...this.views);
     this.w.stage.lightMap.setTrain(trainLightInput(this.views.map((view, i) => ({ layout: view.layout, originZ: carriageOriginZ(i), tier: view.tier, lamps: view.lampAnchors(carriageOriginZ(i)) }))));
+    // The rooms' lights-out map covers the whole train (session 22).
+    const last = this.views.length - 1;
+    this.w.stage.dimmer.setSpan(-HALF_WIDTH - 0.3, HALF_WIDTH + 0.3, carriageOriginZ(0) - 0.5, carriageOriginZ(last) + CARRIAGE_LENGTH + 0.5);
   }
 
   private savedTier(index: number): number {
@@ -845,8 +890,9 @@ export class TrainState {
       w.cash.remove(c.pileId);
     }
     const originZ = carriageOriginZ(index);
+    const sets = classOfTier(view.tier).beds;
     const fresh = view.layout.cabins.map((cl) => {
-      const cabin = new Cabin(index, cl, originZ);
+      const cabin = new Cabin(index, cl, originZ, sets);
       cabin.unlocked = true;
       view.setCabinLocked(cl.index, false);
       return cabin;
@@ -1055,61 +1101,125 @@ export class TrainState {
       x: spot.x,
       z: spot.z,
       radius: ZONE_RADIUS.spot,
-      // The one place to stand: a broom pad in the middle of the room, shown only while the room is dirty.
+      // The one place to stand in the room (session 22): strip the used bedding and clear the litter, then make
+      // the bed with a fresh set. Shown only while the room needs turning around.
       icon: 'broom',
+      iconFor: () => (cabin.dirty[i] || cabin.linenUsed > 0 ? 'broom' : 'bedding'),
       ring: true,
       hideWhenInactive: true,
-      active: () => cabin.dirty[i] && !cabin.guest,
-      // The broom floats only over the room the guide points at, or one the conductor is close to and nobody
-      // on the staff has taken: three rooms to tidy are three quiet pads, not three signs.
+      active: () => cabin.unlocked && !cabin.guest && (cabin.dirty[i] || !cabin.made),
+      // The icon floats only over the room the guide points at, or one the conductor is close to and nobody
+      // on the staff has taken: three rooms to turn around are three quiet pads, not three signs.
       showIcon: () => {
         const focus = w.guidance?.focus;
         if (focus && Math.hypot(focus.x - spot.x, focus.z - spot.z) < CLEAN_ICON_FOCUS) return true;
         return !cabin.cleaner && Math.hypot(w.player.pos.x - spot.x, w.player.pos.z - spot.z) < CLEAN_ICON_NEAR;
       },
-      stay: (zone, actor, dt) => {
-        const before = zone.progress;
-        zone.progress += (dt / w.econ.zones.cleanCabinSeconds) * actor.workMultiplier;
-        // Out comes the broom: a side-to-side sweep, brush sounds, a little dust at the feet. Each piece of
-        // mess pops away in turn (onMessPop) and the mat brightens back.
-        actor.view.act('sweep');
-        if (zone.progress < 1) {
-          const steps = CLEAN_STEPS;
-          if (Math.floor(zone.progress * steps) > Math.floor(before * steps)) {
-            w.audio.play('scrub', { volume: 0.4, pitch: 0.9 + zone.progress * 0.4 });
-            w.particles.emit('dust', actor.pos.x, FLOOR_Y + 0.1, actor.pos.z + 0.3, 3, 0.2);
-          }
-          return true;
-        }
-        zone.progress = 0;
-        cabin.dirty[i] = false;
-        w.events.emit('spot.cleaned', { x: spot.x, z: spot.z, byPlayer: actor.isPlayer });
-        if (!cabin.isDirty) {
-          cabin.cleaner = null;
-          // The after: bed made, floor clear, and a ring of sparkle round the whole room.
-          w.audio.play('sparkle', { volume: 0.7 });
-          w.audio.play('ding');
-          const room = cabin.layout.room;
-          const originZ = carriageOriginZ(cabin.carriage);
-          for (let k = 0; k < 10; k++) {
-            const a = (k / 10) * Math.PI * 2;
-            w.particles.emit('sparkle', (room.x0 + room.x1) / 2 + Math.cos(a) * 0.9, FLOOR_Y + 0.5, originZ + (room.z0 + room.z1) / 2 + Math.sin(a) * 0.8, 2, 0.25);
-          }
-          w.particles.emit('star', cabin.center.x, FLOOR_Y + 0.8, cabin.center.z, 8, 0.4);
-          const bed = this.views[cabin.carriage]?.cabinBeds[cabin.index];
-          if (bed) {
-            bed.scale.set(1, 0.85, 1);
-            w.tweens.run(0.45, (t) => bed.scale.set(1, 0.85 + 0.15 * t, 1), { ease: easeOutBack });
-          }
-          w.ui.floatIcon('check', cabin.center.x, FLOOR_Y + 1.6, cabin.center.z, 'info');
-          w.addStars(w.econ.stars.cabinCleaned * (this.classOf(cabin.carriage)?.stars ?? 1), 'clean', cabin.center);
-          if (actor.isPlayer) w.setFlag('firstCabinCleaned');
-          w.events.emit('cabin.cleaned', { byPlayer: actor.isPlayer, x: cabin.center.x, z: cabin.center.z });
-        }
-        return true;
-      },
+      stay: (zone, actor, dt) => (cabin.dirty[i] || cabin.linenUsed > 0 ? this.stripStay(cabin, i, zone, actor, dt) : this.makeStay(cabin, zone, actor, dt)),
     })));
   }
+
+  /**
+   * Stripping the bed and sweeping (session 22): out comes the broom, each piece of litter pops away in turn
+   * (onMessPop) and the used bedding comes off. Each used set goes on the stack as laundry; a fresh set already
+   * carried goes straight on (strip and make in one visit). What finds no room on the stack stays on the bed
+   * for the next visit.
+   */
+  private stripStay(cabin: Cabin, i: number, zone: Zone, actor: Actor, dt: number): boolean {
+    const w = this.w;
+    const canStrip = cabin.linenUsed > 0 && (actor.stack.has('bedding') || !actor.stack.isFull);
+    if (!cabin.dirty[i] && !canStrip) {
+      zone.progress = 0;
+      return false;
+    }
+    const before = zone.progress;
+    zone.progress += (dt / w.econ.zones.cleanCabinSeconds) * actor.workMultiplier;
+    actor.view.act('sweep');
+    if (zone.progress < 1) {
+      if (Math.floor(zone.progress * CLEAN_STEPS) > Math.floor(before * CLEAN_STEPS)) {
+        w.audio.play('scrub', { volume: 0.4, pitch: 0.9 + zone.progress * 0.4 });
+        w.particles.emit('dust', actor.pos.x, FLOOR_Y + 0.1, actor.pos.z + 0.3, 3, 0.2);
+      }
+      return true;
+    }
+    zone.progress = 0;
+    cabin.dirty[i] = false;
+    const bed = tmp.set((cabin.layout.bed.x0 + cabin.layout.bed.x1) / 2, FLOOR_Y + 0.5, (cabin.layout.bed.z0 + cabin.layout.bed.z1) / 2 + carriageOriginZ(cabin.carriage));
+    const bedPoint = new THREE.Vector3().copy(bed);
+    let stripped = 0;
+    while (cabin.linenUsed > 0) {
+      if (actor.stack.has('bedding')) {
+        actor.stack.remove('bedding', () => bedPoint);
+        this.putFreshSet(cabin);
+      } else if (actor.stack.isFull) break;
+      actor.stack.add('laundry', bedPoint);
+      cabin.linenUsed--;
+      stripped++;
+    }
+    if (stripped > 0) {
+      w.audio.play('pickup', { pitch: 0.8 });
+      w.events.emit('bed.stripped', { byPlayer: actor.isPlayer, x: cabin.center.x, z: cabin.center.z });
+    }
+    w.events.emit('spot.cleaned', { x: cabin.spots[i].x, z: cabin.spots[i].z, byPlayer: actor.isPlayer });
+    if (cabin.made) this.finishTurnaround(cabin, actor);
+    return true;
+  }
+
+  /** Making the bed: one fresh set from the stack at a time, smoothed on. */
+  private makeStay(cabin: Cabin, zone: Zone, actor: Actor, dt: number): boolean {
+    const w = this.w;
+    if (cabin.setsNeeded <= 0 || !actor.stack.has('bedding')) {
+      zone.progress = 0;
+      return false;
+    }
+    zone.progress += (dt / w.econ.zones.makeBedSeconds) * actor.workMultiplier;
+    actor.view.act('hug');
+    if (zone.progress < 1) return true;
+    zone.progress = 0;
+    const bed = new THREE.Vector3((cabin.layout.bed.x0 + cabin.layout.bed.x1) / 2, FLOOR_Y + 0.5, (cabin.layout.bed.z0 + cabin.layout.bed.z1) / 2 + carriageOriginZ(cabin.carriage));
+    actor.stack.remove('bedding', () => bed);
+    w.audio.play('soft', { volume: 0.6, pitch: 1.1 });
+    this.putFreshSet(cabin);
+    if (cabin.made) this.finishTurnaround(cabin, actor);
+    return true;
+  }
+
+  private putFreshSet(cabin: Cabin): void {
+    cabin.linenFresh = Math.min(cabin.sets, cabin.linenFresh + 1);
+    cabin.setsThisTurn++;
+    // The audit: never more fresh sets on a bed in one turnaround than it takes.
+    if (cabin.setsThisTurn > cabin.sets) this.audit.overSets++;
+  }
+
+  /** The room is ready for its next guest: bed made, floor clear, and a ring of sparkle round the whole room. */
+  private finishTurnaround(cabin: Cabin, actor: Actor): void {
+    const w = this.w;
+    cabin.cleaner = null;
+    this.audit.turnarounds++;
+    w.audio.play('sparkle', { volume: 0.7 });
+    w.audio.play('ding');
+    const room = cabin.layout.room;
+    const originZ = carriageOriginZ(cabin.carriage);
+    for (let k = 0; k < 10; k++) {
+      const a = (k / 10) * Math.PI * 2;
+      w.particles.emit('sparkle', (room.x0 + room.x1) / 2 + Math.cos(a) * 0.9, FLOOR_Y + 0.5, originZ + (room.z0 + room.z1) / 2 + Math.sin(a) * 0.8, 2, 0.25);
+    }
+    w.particles.emit('star', cabin.center.x, FLOOR_Y + 0.8, cabin.center.z, 8, 0.4);
+    const bed = this.views[cabin.carriage]?.cabinBeds[cabin.index];
+    if (bed) {
+      bed.scale.set(1, 0.85, 1);
+      w.tweens.run(0.45, (t) => bed.scale.set(1, 0.85 + 0.15 * t, 1), { ease: easeOutBack });
+    }
+    w.ui.floatIcon('check', cabin.center.x, FLOOR_Y + 1.6, cabin.center.z, 'info');
+    w.addStars(w.econ.stars.cabinCleaned * (this.classOf(cabin.carriage)?.stars ?? 1), 'clean', cabin.center);
+    if (actor.isPlayer) w.setFlag('firstCabinCleaned');
+    w.events.emit('cabin.cleaned', { byPlayer: actor.isPlayer, x: cabin.center.x, z: cabin.center.z });
+  }
+
+  /** The trip audit's share (session 22; the smoke run reads it): rooms turned around, any bed given too many sets. */
+  readonly audit = { turnarounds: 0, overSets: 0 };
+  /** Each room's lights-out amount (0 lit, 1 asleep), easing as guests go to sleep and wake. */
+  private readonly nightLevel = new Map<string, number>();
 
   private createBathroomZones(bath: Bathroom): void {
     const w = this.w;
@@ -1175,8 +1285,8 @@ export class TrainState {
       w.cash.create('desk', deskCash.x, deskCash.z);
       // The urn is the service counter (tea; coffee for Business, champagne for First and Royal); the linen
       // cupboard has blankets, pillows and fresh towels for Comfort-class guests.
-      this.sourceZone('src:tea', at('urn'), ['tea', 'coffee', 'champagne'], undefined, undefined, 'tea');
-      this.sourceZone('src:linen', at('linen'), ['blanket', 'pillow', 'towel']);
+      this.sourceZone('src:tea', at('urn'), SERVICE_ITEMS, undefined, undefined, 'tea');
+      this.linenZone('src:linen', at('linen'));
       this.luggageDropZone('rack:lobby', at('rack'));
       this.binZone('bin:lobby', at('bin'));
     }
@@ -1221,8 +1331,8 @@ export class TrainState {
     }
 
     if (type === 'sleeper') {
-      this.sourceZone(`src:tea:${index}`, at('urn'), ['tea', 'coffee', 'champagne'], undefined, undefined, 'tea');
-      this.sourceZone(`src:linen:${index}`, at('linen'), ['blanket', 'pillow', 'towel']);
+      this.sourceZone(`src:tea:${index}`, at('urn'), SERVICE_ITEMS, undefined, undefined, 'tea');
+      this.linenZone(`src:linen:${index}`, at('linen'));
     }
 
     // The washroom car keeps its own towels and rolls: it works the day it couples on.
@@ -1263,6 +1373,42 @@ export class TrainState {
     }));
   }
 
+  /**
+   * The linen cupboard (session 22): its hamper takes the used bedding (dropped first), then it hands out fresh
+   * bedding sets, blankets and towels to whoever needs them. One stop for the whole swap.
+   */
+  private linenZone(id: string, p: Vec2): void {
+    const w = this.w;
+    const point = new THREE.Vector3(p.x, FLOOR_Y + 1.0, p.z);
+    // The hamper stands in the cupboard's last third (CarriageView LINEN_SPLIT), behind and to the right of the pad.
+    const hamper = new THREE.Vector3(p.x + 0.45, FLOOR_Y + 0.55, p.z - 0.75);
+    const interval = w.econ.zones.pickupIntervalSeconds;
+    const specs: SourceSpec[] = [
+      { kind: 'laundry', point: () => hamper, stock: () => 0, take: () => undefined, giveBack: () => undefined, interval },
+      // Anything nobody needs any more goes back on the shelf (a spare fresh set, a blanket).
+      ...(['bedding', 'blanket', 'pillow', 'towel'] as ItemKind[]).map((kind) => ({ kind, point: () => point, stock: () => Infinity, take: () => undefined, giveBack: () => undefined, interval })),
+    ];
+    const pick = (actor: Actor): SourceSpec => {
+      const d = w.demand;
+      return specs.find((s) => s.giveBack && d.surplus(actor, s.kind) > 0) ?? specs.find((s) => d.wants(actor, s.kind)) ?? specs[1];
+    };
+    w.zones.add(new Zone({
+      id,
+      x: p.x,
+      z: p.z,
+      radius: ZONE_RADIUS.source,
+      icon: 'linen',
+      active: () => specs.some((s) => sourceActive(w, s)),
+      highlight: () => w.player.stack.has('laundry') || specs.some((s) => w.demand.playerWants(s.kind) > 0),
+      stay: (zone, actor, dt) => {
+        const spec = pick(actor);
+        const done = sourceStay(w, zone, actor, dt, spec);
+        if (done && spec.kind === 'laundry' && zone.repeat === interval) w.events.emit('laundry.dropped', { byPlayer: actor.isPlayer });
+        return done;
+      },
+    }));
+  }
+
   private luggageDropZone(id: string, p: Vec2): void {
     const w = this.w;
     w.zones.add(new Zone({
@@ -1292,7 +1438,8 @@ export class TrainState {
     const w = this.w;
     const target = new THREE.Vector3(p.x, FLOOR_Y + 0.5, p.z);
     const binnable = (actor: Actor): ItemKind | null => {
-      for (const kind of actor.stack.items) if (kind !== 'luggage' && w.demand.surplus(actor, kind) > 0) return kind;
+      // Bags go to the rack and used bedding to the linen cupboard's hamper, never in the bin.
+      for (const kind of actor.stack.items) if (kind !== 'luggage' && kind !== 'laundry' && w.demand.surplus(actor, kind) > 0) return kind;
       return null;
     };
     w.zones.add(new Zone({
@@ -1320,6 +1467,13 @@ export class TrainState {
         return true;
       },
     }));
+  }
+
+  /** Fresh bedding sets the rooms waiting to be turned around still need (rooms a staff member has taken aside). */
+  beddingNeed(): number {
+    let n = 0;
+    for (const cabin of this.cabins) if (cabin.unlocked && !cabin.guest && !cabin.cleaner) n += cabin.setsNeeded;
+    return n;
   }
 
   get allCabinsDirtyOrFull(): boolean {

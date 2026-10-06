@@ -14,7 +14,9 @@ export type IconName =
   // Session 20: a race to the next station against a rival.
   | 'flag'
   // Session 21: the cinema car.
-  | 'popcorn' | 'film';
+  | 'popcorn' | 'film'
+  // Session 22: one trip, one sleep (the morning paper, breakfast, a wake-up call, fresh bedding and laundry).
+  | 'newspaper' | 'breakfast' | 'wakeup' | 'bedding' | 'laundry';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -53,6 +55,86 @@ const star = (c: CanvasRenderingContext2D, cx: number, cy: number, outer: number
 };
 
 const ICONS: Record<IconName, Draw> = {
+  newspaper: (c) => ICONS.news(c),
+  bedding: (c) => ICONS.linen(c),
+  breakfast: (c) => {
+    // A breakfast tray: a croissant and a cup of coffee.
+    c.beginPath();
+    c.ellipse(50, 72, 42, 14, 0, 0, Math.PI * 2);
+    fillStroke(c, '#E2B653');
+    c.beginPath();
+    c.moveTo(16, 64);
+    c.quadraticCurveTo(26, 38, 46, 38);
+    c.quadraticCurveTo(62, 40, 64, 62);
+    c.quadraticCurveTo(54, 56, 48, 60);
+    c.quadraticCurveTo(34, 68, 24, 60);
+    c.closePath();
+    fillStroke(c, '#E7A84B', 5);
+    rr(c, 62, 34, 22, 26, 6);
+    fillStroke(c, '#FFFFFF', 5);
+    c.beginPath();
+    c.arc(86, 46, 6, -1.3, 1.3);
+    c.lineWidth = 4;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.fillStyle = '#5A3524';
+    c.fillRect(65, 37, 16, 5);
+  },
+  wakeup: (c) => {
+    // An alarm clock with its two bells: the wake-up call.
+    for (const x of [30, 70]) {
+      c.beginPath();
+      c.arc(x, 26, 11, Math.PI, 0);
+      c.closePath();
+      fillStroke(c, '#E2B653', 5);
+    }
+    c.beginPath();
+    c.moveTo(30, 84);
+    c.lineTo(24, 92);
+    c.moveTo(70, 84);
+    c.lineTo(76, 92);
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.beginPath();
+    c.arc(50, 56, 30, 0, Math.PI * 2);
+    fillStroke(c, '#E0567A');
+    c.beginPath();
+    c.arc(50, 56, 21, 0, Math.PI * 2);
+    fillStroke(c, CREAM, 4);
+    c.beginPath();
+    c.moveTo(50, 56);
+    c.lineTo(50, 42);
+    c.moveTo(50, 56);
+    c.lineTo(60, 61);
+    c.lineWidth = 5;
+    c.strokeStyle = INK;
+    c.stroke();
+  },
+  laundry: (c) => {
+    // A wicker basket heaped with crumpled sheets: used bedding for the laundry.
+    c.beginPath();
+    c.moveTo(22, 46);
+    c.quadraticCurveTo(30, 18, 48, 30);
+    c.quadraticCurveTo(62, 14, 78, 44);
+    c.closePath();
+    fillStroke(c, '#DCE3EA', 5);
+    c.beginPath();
+    c.moveTo(16, 44);
+    c.lineTo(84, 44);
+    c.lineTo(76, 86);
+    c.lineTo(24, 86);
+    c.closePath();
+    fillStroke(c, '#C99A5B');
+    c.strokeStyle = '#8E6A3C';
+    c.lineWidth = 4;
+    for (const y of [57, 70]) {
+      c.beginPath();
+      c.moveTo(20, y);
+      c.lineTo(80, y);
+      c.stroke();
+    }
+  },
   latte: (c) => {
     // A tall café glass with milky coffee, a foam crown and a heart drawn in it.
     c.beginPath();
@@ -1128,4 +1210,9 @@ export const ITEM_ICON: Record<string, IconName> = {
   roll: 'roll',
   luggage: 'luggage',
   crate: 'crate',
+  newspaper: 'newspaper',
+  breakfast: 'breakfast',
+  wakeup: 'wakeup',
+  bedding: 'bedding',
+  laundry: 'laundry',
 };

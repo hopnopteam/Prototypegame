@@ -22,6 +22,9 @@ const page = await context.newPage();
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('Failed to load resource')) errors.push(m.text()); });
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+// The trip debug log (session 22): one line on every guest phase change, read with dev logging on.
+const tripLines = [];
+page.on('console', (m) => { if (m.type() === 'log' && m.text().startsWith('[Trip]')) tripLines.push(m.text()); });
 const failures = [];
 const check = (ok, message) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${message}`); if (!ok) failures.push(message); };
 
@@ -32,6 +35,7 @@ await page.waitForTimeout(300);
 check(await page.evaluate(() => !!window.nightExpress && !document.querySelector('.splash')), 'boots straight into the game (no title screen)');
 // Tests drive the game themselves: skip the intro so it cannot unpause the game halfway through.
 await page.evaluate(() => window.nightExpress.skipIntro?.());
+await page.evaluate(() => { const g = window.nightExpress; g.data.settings.devTools = true; g.applySettings(); });
 
 // Record the journey phase and lifetime at every interstitial, so the §12 rules can be verified after.
 await page.evaluate(() => {
@@ -84,6 +88,7 @@ for (let t = 0; t < total; t += 5) {
       objective: g.data.objectives.index,
       comforts: g.data.route.unlocked.filter((id) => id.includes('.comfort_')).length,
       openCabins: g.train.openCabinCount(),
+      trip: { ...g.guests.audit, ...g.train.audit },
       positionsFinite: finite(g.player.pos) && g.guests.list.every((x) => finite(x.pos)) && g.staff.members.every((x) => finite(x.pos)),
     };
   });
@@ -106,6 +111,14 @@ check(snap.tiers.some((t) => t >= 1), `at least one carriage refurbished (tiers 
 check(snap.station.length >= 1, `station upgrades bought at stops (${snap.station.join(', ') || 'none'})`);
 check(snap.objective >= 12, `the objective chain kept moving (${snap.objective} goals done)`);
 check(snap.comforts >= 1, `comforts bought (${snap.comforts})`);
+// One trip, one sleep (session 22).
+const trip = snap.trip;
+check(trip.trips >= 10 && trip.sleeps >= 5, `guests made whole trips (${trip.trips} boarded, ${trip.sleeps} lights out, ${trip.requests} requests)`);
+check(trip.sleptTwice === 0, `no guest slept twice (${trip.sleptTwice})`);
+check(trip.repeats === 0 && trip.misplaced === 0, `every request fits its part of the night and class, none repeated (${trip.repeats} repeated, ${trip.misplaced} out of place)`);
+check(trip.turnarounds >= 5 && trip.overSets === 0, `rooms turned around with one bedding set per bed (${trip.turnarounds} rooms, ${trip.overSets} over)`);
+const phases = ['settling in', 'lights out', 'wake-up', 'arrival'].map((p) => tripLines.filter((l) => l.includes(`→ ${p}`)).length);
+check(phases.every((n) => n > 0), `a debug line on every guest phase change (settling in ${phases[0]}, lights out ${phases[1]}, wake-up ${phases[2]}, arrival ${phases[3]})`);
 
 const picks = await page.evaluate(() => window.__picks);
 check(picks.total > 10 && picks.unneeded === 0, `every pickup was needed (${picks.total} picked, ${picks.unneeded} unneeded, ${picks.returned} returned)`);

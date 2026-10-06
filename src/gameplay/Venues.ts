@@ -297,13 +297,13 @@ export class Venues {
   // ── Outings ────────────────────────────────────────────────────────────────────────────
 
   /** A resting guest might take an outing to a venue with room: true if they set off. */
-  tryOuting(guest: Guest): boolean {
+  /** An outing to a venue that suits the time of night (`when`) and has a seat; false when none does. */
+  tryOuting(guest: Guest, when: 'evening' | 'morning'): boolean {
     const w = this.w;
     if (!guest.cabin || guest.story || this.list.length === 0) return false;
-    if (!w.rng.chance(VENUE_TUNING.outingChance)) return false;
     const weights: Record<string, number> = {};
     for (const v of this.list) {
-      if (!v.freeSeat()) continue;
+      if (!v.freeSeat() || !VENUES[v.kind].when.includes(when)) continue;
       if ((v.kind === 'cafe' || v.kind === 'dome') && v.queue.length >= VENUE_TUNING.cafeQueueMax) continue;
       // The dome is for the ride: nobody goes up to watch a station platform.
       if (v.kind === 'dome' && w.journey.phase !== 'onTheMove') continue;

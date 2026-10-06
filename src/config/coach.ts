@@ -27,6 +27,10 @@ export const COACH_HINTS: CoachLineDef[] = [
   { id: 'request_fetch', icon: 'tea', text: 'Pick up' },
   { id: 'request_deliver', icon: 'heart', text: 'Deliver' },
   { id: 'dirty', icon: 'broom', text: 'Tidy up' },
+  // Session 22, turning a room around: used bedding to the linen cupboard, a fresh set from it, make the bed.
+  { id: 'dirty_laundry', icon: 'laundry', text: 'Laundry' },
+  { id: 'dirty_linen', icon: 'bedding', text: 'Fresh sheets' },
+  { id: 'dirty_make', icon: 'bedding', text: 'Make bed' },
   { id: 'station', icon: 'ticket', text: 'All aboard' },
   { id: 'hire', icon: 'person', text: 'Hire help' },
   { id: 'couple', icon: 'carriage', text: 'New carriage' },

@@ -66,6 +66,10 @@ export function windowSpacing(len: number): { count: number; slot: number; width
   return { count, slot, width: Math.min(0.9, slot - 0.45) };
 }
 const FLAT: PartStyle = { shade: 1 };
+/** Where the linen cupboard ends and its laundry hamper begins, as a share of the prop's width (session 22). */
+export const LINEN_SPLIT = 0.66;
+/** A bare mattress: blue-grey ticking stripes along its length (a stripped bed, session 22). */
+const TICKING: PartStyle = { pattern: PATTERN.stripesX, color2: '#9FB0C2', scale: 0.07, shade: 0.94 };
 /**
  * Heights (above the floor) of everything lying flat on it, each in its own layer at least 4 mm from the
  * next: rooms 0–6 mm, runners 12, cabin mess from 40.
@@ -246,6 +250,11 @@ interface Slot {
 }
 
 const tmpMatrix = new THREE.Matrix4();
+/**
+ * A blind hangs this far back from the outer face of the rooms' wall (the face the camera sees), in front of the
+ * lamplit glass and the sash bar: drawn down, it hides the lit window.
+ */
+const BLIND_INSET = 0.012;
 const tmpQuat = new THREE.Quaternion();
 const tmpPos = new THREE.Vector3();
 const ONE = new THREE.Vector3(1, 1, 1);
@@ -329,6 +338,12 @@ const PROPS_PER_SLICE = 4;
 export class CarriageView {
   readonly group = new THREE.Group();
   readonly cabinBeds: THREE.Group[] = [];
+  /** Each bed made up and stripped (session 22); one shows at a time. */
+  private readonly bedLooks: { made: THREE.Mesh; bare: THREE.Mesh }[] = [];
+  /** Window blinds in the cabins (session 22): down at lights out. One instanced draw for the carriage. */
+  private blinds: THREE.InstancedMesh | null = null;
+  private readonly blindSlots: { cabin: number; x: number; y: number; z: number; width: number }[] = [];
+  private readonly blindLevel: number[] = [];
   readonly bathroomFixtures: THREE.Group[] = [];
   readonly roomDoors: RoomDoor[] = [];
   /** Washing-machine drums: spun by animate() so the laundry is always going. */
@@ -408,6 +423,7 @@ export class CarriageView {
   *buildSteps(): Generator<void, void, void> {
     yield* this.buildStatic();
     yield* this.buildRooms();
+    this.buildBlinds();
     yield* this.buildVenue();
     this.buildRoomDoors();
     this.buildDoors();
@@ -471,6 +487,62 @@ export class CarriageView {
     if (mess.group.visible === dirty) return;
     mess.group.visible = dirty;
     if (dirty) this.setDirtFade(cabin, 0, 0);
+  }
+
+  /** A bed stripped of its bedding (true) or made up (false). */
+  setBedBare(cabin: number, bare: boolean): void {
+    const looks = this.bedLooks[cabin];
+    if (!looks || looks.bare.visible === bare) return;
+    looks.bare.visible = bare;
+    looks.made.visible = !bare;
+  }
+
+  /** A cabin's window blinds: 0 up, 1 down (lights out). */
+  setBlind(cabin: number, level: number): void {
+    const mesh = this.blinds;
+    if (!mesh || this.blindLevel[cabin] === level) return;
+    this.blindLevel[cabin] = level;
+    const scale = Math.max(0.001, level);
+    this.blindSlots.forEach((slot, i) => {
+      if (slot.cabin !== cabin) return;
+      tmpMatrix.makeScale(1, scale, slot.width).setPosition(slot.x, slot.y, slot.z);
+      mesh.setMatrixAt(i, tmpMatrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.visible = this.blindLevel.some((l) => l > 0);
+  }
+
+  /**
+   * Blinds for the cabins' windows on the rooms' outer wall (the face the camera looks at): a cream roller blind
+   * in each opening, in front of the lamplit glass, hung from its top so it unrolls downward. One instanced mesh;
+   * all up to start.
+   */
+  private buildBlinds(): void {
+    const [WY0, WY1] = this.layout.windowBand;
+    for (const wall of this.layout.walls) {
+      if (wall.kind !== 'exterior' || wall.x0 <= 0 || wall.z1 - wall.z0 < wall.x1 - wall.x0) continue;
+      const { count, slot, width } = windowSpacing(wall.z1 - wall.z0);
+      for (let i = 0; i < count; i++) {
+        const zc = wall.z0 + slot * (i + 0.5);
+        const cabin = this.layout.cabins.find((c) => zc - width / 2 > c.room.z0 && zc + width / 2 < c.room.z1);
+        if (cabin) this.blindSlots.push({ cabin: cabin.index, x: wall.x1 - BLIND_INSET, y: FLOOR_Y + WY1 - 0.006, z: zc, width: width - 0.03 });
+      }
+    }
+    if (this.blindSlots.length === 0) return;
+    // One metre wide and the band's height, hung from its top; each window scales it to its own width.
+    const height = WY1 - WY0 - 0.012;
+    const b = new GeoBuilder();
+    b.object('blind');
+    const fabric = this.finish.curtains ? this.finish.curtain ?? this.theme.curtain : '#EFE6D2';
+    b.box(0, -height / 2, 0, 0.006, height, 1, fabric, 0, { shade: 0.95 });
+    b.box(0, -height + 0.008, 0, 0.012, 0.016, 1, PALETTE.walnut, 0, FLAT);
+    const mesh = new THREE.InstancedMesh(b.build(), MATERIALS.solid, this.blindSlots.length);
+    this.blindSlots.forEach((slot, i) => mesh.setMatrixAt(i, tmpMatrix.makeScale(1, 0.001, slot.width).setPosition(slot.x, slot.y, slot.z)));
+    mesh.visible = false;
+    // Each blind is its own object for the clipping audit.
+    mesh.userData.stock = 'blind';
+    this.blinds = mesh;
+    this.group.add(mesh);
   }
 
   /**
@@ -1338,6 +1410,18 @@ export class CarriageView {
       mesh.receiveShadow = true;
       mesh.layers.enable(STATIC_CASTER_LAYER);
       bedGroup.add(mesh);
+      // The same bed stripped (session 22): shown instead while it waits for a fresh bedding set.
+      const bare = new GeoBuilder();
+      bare.object('bed');
+      buildProp(bare, new GeoBuilder(), { kind: 'bed', rect: cabin.bed, variant: 'bare' }, this.theme, this.tier);
+      const bareGeometry = bare.build();
+      bareGeometry.translate(-centerX, -FLOOR_Y, -centerZ);
+      const bareMesh = new THREE.Mesh(bareGeometry, MATERIALS.solid);
+      bareMesh.castShadow = true;
+      bareMesh.receiveShadow = true;
+      bareMesh.visible = false;
+      bedGroup.add(bareMesh);
+      this.bedLooks[cabin.index] = { made: mesh, bare: bareMesh };
       bedGroup.position.set(centerX, FLOOR_Y, centerZ);
       this.group.add(bedGroup);
       this.cabinBeds[cabin.index] = bedGroup;
@@ -1644,29 +1728,35 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
   const wood = tier <= 0 ? '#9C8570' : PALETTE.walnut;
   switch (prop.kind) {
     case 'bed': {
+      // Session 22: a stripped bed (its bedding taken off, waiting for a fresh set) shows the bare ticking mattress.
+      const bare = prop.variant === 'bare';
       if (tier <= 0) {
         // An iron cot: thin frame on legs, a thin mattress, a grey wool blanket, one flat pillow.
         for (const px of [r.x0 + 0.04, r.x1 - 0.04]) for (const pz of [r.z0 + 0.04, r.z1 - 0.04]) b.box(px, y + 0.14, pz, 0.04, 0.28, 0.04, PALETTE.iron, 0, FLAT);
         b.slab(r, y + 0.26, y + 0.3, PALETTE.iron, 0, 0, FLAT);
-        b.slab(r, y + 0.3, y + BED_TOP - 0.02, '#E9E2D5', 0, 0.04, { shade: 0.95 });
-        b.rounded(cx, y + BED_TOP + 0.02, r.z0 + 0.25, w - 0.3, 0.06, 0.26, 0.05, '#F1ECE3', { shade: 0.9 });
-        b.box(cx, y + BED_TOP, r.z0 + d * 0.64, w - 0.06, 0.05, d * 0.64, PALETTE.greyWool, 0, { shade: 0.95 });
+        b.slab(r, y + 0.3, y + BED_TOP - 0.02, '#E9E2D5', 0, 0.04, bare ? TICKING : { shade: 0.95 });
+        if (!bare) {
+          b.rounded(cx, y + BED_TOP + 0.02, r.z0 + 0.25, w - 0.3, 0.06, 0.26, 0.05, '#F1ECE3', { shade: 0.9 });
+          b.box(cx, y + BED_TOP, r.z0 + d * 0.64, w - 0.06, 0.05, d * 0.64, PALETTE.greyWool, 0, { shade: 0.95 });
+        }
         b.box(cx, y + 0.5, r.z0 + 0.02, w, 0.04, 0.04, PALETTE.iron, 0, FLAT);
         for (const px of [r.x0 + 0.04, r.x1 - 0.04]) b.box(px, y + 0.38, r.z0 + 0.02, 0.04, 0.3, 0.04, PALETTE.iron, 0, FLAT);
         break;
       }
       if (tier >= 4) {
-        buildGrandBed(b, r, theme, tier);
+        buildGrandBed(b, r, theme, tier, bare);
         break;
       }
       b.slab(r, y, y + 0.24, wood, 0, 0, { shade: 0.75 });
-      b.rounded(cx, y + 0.31, cz + 0.02, w - 0.06, BED_TOP - 0.24, d - 0.08, 0.06, PALETTE.mattress, { shade: 0.92 });
-      const pillows = tier >= 2 ? [-1, 1] : [0];
-      for (const side of pillows) b.rounded(cx + side * (w / 4 - 0.02), y + BED_TOP + 0.03, r.z0 + 0.27, tier >= 2 ? w / 2 - 0.1 : w - 0.3, 0.08, 0.26, 0.06, PALETTE.pillow, { shade: 0.9 });
-      const cover = tier >= 3 ? theme.deep : theme.blanket;
-      b.rounded(cx, y + BED_TOP - 0.005, r.z0 + d * 0.63, w - 0.02, 0.07, d * 0.68, 0.04, cover, { shade: 0.9 });
-      b.box(cx, y + BED_TOP + 0.03, r.z0 + d * 0.3, w - 0.02, 0.012, 0.1, PALETTE.linen, 0, FLAT);
-      if (tier >= 3) b.box(cx, y + BED_TOP + 0.031, r.z1 - 0.1, w - 0.02, 0.012, 0.05, PALETTE.gold, 0, FLAT);
+      b.rounded(cx, y + 0.31, cz + 0.02, w - 0.06, BED_TOP - 0.24, d - 0.08, 0.06, PALETTE.mattress, bare ? TICKING : { shade: 0.92 });
+      if (!bare) {
+        const pillows = tier >= 2 ? [-1, 1] : [0];
+        for (const side of pillows) b.rounded(cx + side * (w / 4 - 0.02), y + BED_TOP + 0.03, r.z0 + 0.27, tier >= 2 ? w / 2 - 0.1 : w - 0.3, 0.08, 0.26, 0.06, PALETTE.pillow, { shade: 0.9 });
+        const cover = tier >= 3 ? theme.deep : theme.blanket;
+        b.rounded(cx, y + BED_TOP - 0.005, r.z0 + d * 0.63, w - 0.02, 0.07, d * 0.68, 0.04, cover, { shade: 0.9 });
+        b.box(cx, y + BED_TOP + 0.03, r.z0 + d * 0.3, w - 0.02, 0.012, 0.1, PALETTE.linen, 0, FLAT);
+        if (tier >= 3) b.box(cx, y + BED_TOP + 0.031, r.z1 - 0.1, w - 0.02, 0.012, 0.05, PALETTE.gold, 0, FLAT);
+      }
       // Headboard: low and plain at tier 1, taller with a rounded rail from tier 2.
       const hb = tier >= 2 ? 0.62 : 0.4;
       b.box(cx, y + hb / 2 + 0.2, r.z0 + 0.04, w, hb, 0.08, wood, 0, { shade: 0.82 });
@@ -1710,17 +1800,32 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       break;
     }
     case 'linen': {
+      // Session 22: the linen cupboard (fresh bedding sets and blankets) with its laundry hamper beside it, where
+      // the used bedding goes: one stop for the swap. The hamper takes the last third of the footprint.
+      const split = r.x0 + w * LINEN_SPLIT;
+      const shelf = rect(r.x0, r.z0, split - 0.02, r.z1);
+      const sw = shelf.x1 - shelf.x0;
+      const scx = (shelf.x0 + shelf.x1) / 2;
       if (tier <= 0) {
-        b.box(cx, y + 0.3, cz, w, 0.6, d, '#A98D6F', 0, { pattern: PATTERN.stripesZ, color2: '#9C8264', scale: 0.14, shade: 0.8 });
-        for (let i = 0; i < 3; i++) b.rounded(cx + (i - 1) * w * 0.3, y + 0.66, cz, w * 0.26, 0.1, d - 0.12, 0.03, i === 1 ? '#EFEAE0' : PALETTE.greyWool, { shade: 0.9 });
-        break;
+        b.box(scx, y + 0.3, cz, sw, 0.6, d, '#A98D6F', 0, { pattern: PATTERN.stripesZ, color2: '#9C8264', scale: 0.14, shade: 0.8 });
+        for (let i = 0; i < 2; i++) b.rounded(scx + (i - 0.5) * sw * 0.48, y + 0.66, cz, sw * 0.42, 0.1, d - 0.12, 0.03, i === 1 ? '#EFEAE0' : PALETTE.greyWool, { shade: 0.9 });
+      } else {
+        b.slab(shelf, y, y + 0.9, wood, 0, 0, { shade: 0.7 });
+        const half = sw / 2;
+        for (let i = 0; i < 3; i++) {
+          b.rounded(shelf.x0 + half * 0.5, y + 0.96 + i * 0.1, cz, half - 0.08, 0.09, d - 0.14, 0.03, theme.blanket, { shade: 0.88 });
+          // Fresh bedding sets: white linen with a blue band, a pillow on top of the stack.
+          b.rounded(shelf.x0 + half * 1.5, y + 0.95 + i * 0.09, cz, half - 0.1, 0.08, d - 0.18, 0.03, '#F6F2EA', { shade: 0.9 });
+        }
+        b.rounded(shelf.x0 + half * 1.5, y + 1.26, cz, half - 0.14, 0.07, d - 0.24, 0.04, PALETTE.pillow, { shade: 0.9 });
       }
-      b.slab(r, y, y + 0.9, wood, 0, 0, { shade: 0.7 });
-      const half = w / 2;
-      for (let i = 0; i < 3; i++) {
-        b.rounded(r.x0 + half * 0.5, y + 0.96 + i * 0.1, cz, half - 0.12, 0.09, d - 0.14, 0.03, theme.blanket, { shade: 0.88 });
-        b.rounded(r.x0 + half * 1.5, y + 0.95 + i * 0.09, cz, half - 0.16, 0.08, d - 0.18, 0.04, PALETTE.pillow, { shade: 0.9 });
-      }
+      // The hamper: an open wicker basket with yesterday's sheets heaped in it.
+      const hx = (split + r.x1) / 2;
+      const hw = Math.min(r.x1 - split - 0.04, d - 0.06);
+      b.cylinder(hx, y + 0.24, cz, hw / 2, hw / 2 - 0.04, 0.48, '#C99A5B', 12, 'y', { pattern: PATTERN.stripesX, color2: '#A87A43', scale: 0.06, shade: 0.85 });
+      b.cylinder(hx, y + 0.485, cz, hw / 2 + 0.01, hw / 2 + 0.01, 0.03, '#A87A43', 12, 'y', FLAT);
+      b.sphere(hx - 0.05, y + 0.5, cz, hw * 0.3, '#DCE3EA', 1, 0.6, { shade: 0.85 });
+      b.sphere(hx + 0.06, y + 0.51, cz + 0.03, hw * 0.24, '#C9D2DC', 1, 0.6, { shade: 0.85 });
       break;
     }
     case 'rack':
@@ -1984,7 +2089,7 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
  * edge, plump pillows and a bolster. Royal: the same bed as a four-poster, turned walnut posts with gold finials
  * and a burgundy valance round the top (open above, so the sleeper stays in view).
  */
-function buildGrandBed(b: GeoBuilder, r: Rect, theme: CarriageTheme, tier: number): void {
+function buildGrandBed(b: GeoBuilder, r: Rect, theme: CarriageTheme, tier: number, bare = false): void {
   const y = FLOOR_Y;
   const cx = (r.x0 + r.x1) / 2;
   const cz = (r.z0 + r.z1) / 2;
@@ -1993,12 +2098,14 @@ function buildGrandBed(b: GeoBuilder, r: Rect, theme: CarriageTheme, tier: numbe
   const frame = tier >= 5 ? '#4A2A22' : PALETTE.walnutDark;
   b.slab(r, y, y + 0.24, frame, 0, 0, { shade: 0.75, surface: 'varnish' });
   b.slab(rect(r.x0 + 0.01, r.z0 + 0.01, r.x1 - 0.01, r.z1 - 0.01), y + 0.2, y + 0.23, PALETTE.gold, 0, 0.0, { shade: 1, surface: 'brass' });
-  b.rounded(cx, y + 0.31, cz + 0.02, w - 0.06, BED_TOP - 0.24, d - 0.08, 0.06, PALETTE.mattress, { shade: 0.92, surface: 'fabric' });
-  for (const side of [-1, 1]) b.rounded(cx + side * (w / 4 - 0.02), y + BED_TOP + 0.035, r.z0 + 0.27, w / 2 - 0.1, 0.1, 0.26, 0.07, PALETTE.pillow, { shade: 0.9, surface: 'fabric' });
-  b.cylinder(cx, y + BED_TOP + 0.05, r.z0 + 0.46, 0.055, 0.055, w - 0.24, theme.deep, 12, 'x', { shade: 0.9, surface: 'velvet' });
-  b.rounded(cx, y + BED_TOP - 0.005, r.z0 + d * 0.63, w - 0.02, 0.07, d * 0.68, 0.04, theme.blanket, { shade: 0.9, surface: 'velvet' });
-  b.box(cx, y + BED_TOP + 0.03, r.z0 + d * 0.3, w - 0.02, 0.012, 0.1, PALETTE.linen, 0, FLAT);
-  b.box(cx, y + BED_TOP + 0.031, r.z1 - 0.1, w - 0.02, 0.012, 0.05, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+  b.rounded(cx, y + 0.31, cz + 0.02, w - 0.06, BED_TOP - 0.24, d - 0.08, 0.06, PALETTE.mattress, bare ? { ...TICKING, surface: 'fabric' } : { shade: 0.92, surface: 'fabric' });
+  if (!bare) {
+    for (const side of [-1, 1]) b.rounded(cx + side * (w / 4 - 0.02), y + BED_TOP + 0.035, r.z0 + 0.27, w / 2 - 0.1, 0.1, 0.26, 0.07, PALETTE.pillow, { shade: 0.9, surface: 'fabric' });
+    b.cylinder(cx, y + BED_TOP + 0.05, r.z0 + 0.46, 0.055, 0.055, w - 0.24, theme.deep, 12, 'x', { shade: 0.9, surface: 'velvet' });
+    b.rounded(cx, y + BED_TOP - 0.005, r.z0 + d * 0.63, w - 0.02, 0.07, d * 0.68, 0.04, theme.blanket, { shade: 0.9, surface: 'velvet' });
+    b.box(cx, y + BED_TOP + 0.03, r.z0 + d * 0.3, w - 0.02, 0.012, 0.1, PALETTE.linen, 0, FLAT);
+    b.box(cx, y + BED_TOP + 0.031, r.z1 - 0.1, w - 0.02, 0.012, 0.05, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+  }
   // Headboard: buttoned velvet in a gilt frame.
   b.box(cx, y + 0.55, r.z0 + 0.04, w, 0.7, 0.08, frame, 0, { shade: 0.82, surface: 'varnish' });
   b.rounded(cx, y + 0.6, r.z0 + 0.095, w - 0.14, 0.5, 0.03, 0.08, theme.deep, { shade: 0.9, surface: 'velvet' });

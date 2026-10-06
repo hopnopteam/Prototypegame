@@ -3,6 +3,7 @@ import { VISUALS, type QualityTier, type TierSettings } from '../config/visuals'
 import { CameraRig } from './CameraRig';
 import { Lighting } from './Lighting';
 import { LightMap } from './LightMap';
+import { RoomDimmer } from './RoomDimmer';
 import { installGradedToneMapping } from './toneMap';
 import type { Particles } from './Particles';
 import { PostFx } from './PostFx';
@@ -42,6 +43,8 @@ export class Stage {
   readonly rig = new CameraRig();
   readonly lighting: Lighting;
   readonly lightMap = new LightMap();
+  /** Each room's lamps on or off (session 22: lights out, covered rooms). */
+  readonly dimmer = new RoomDimmer();
   /** Dynamic resolution: a share of the tier's pixel ratio (1 = full). */
   renderScale = 1;
   /** Off when a tier is forced for tools and screenshots (a software renderer is always "slow"). */
@@ -114,6 +117,7 @@ export class Stage {
     canvas.addEventListener('webglcontextrestored', () => {
       this.contextLost = false;
       this.lightMap.invalidate();
+      this.dimmer.invalidate();
       this.lighting.invalidateShadows();
       this.renderer.shadowMap.needsUpdate = true;
       this.judgeFrom = this.clock + VISUALS.quality.dynamicResolution.graceSeconds;
@@ -266,6 +270,7 @@ export class Stage {
     if (this.contextLost) return;
     this.trackFps(dt);
     this.lightMap.update();
+    this.dimmer.update();
     this.frameNo++;
     // Static shadows redraw only when the train changed; following shadows on the tier's cadence.
     if (this.lighting.shadowMode === 'static') {

@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { ARCHETYPES, COMMON_MESS, type ArchetypeDef, type MessPiece, type StoryDef } from '../config/content';
-import { CLASS_BY_ID, type ClassId, type ServiceNeed } from '../config/classes';
+import { CLASS_BY_ID, isDwellNeed, type ClassId, type ServiceNeed } from '../config/classes';
+import { log } from '../core/log';
 import type { Vec2 } from '../core/types';
+import { freshWish, nextTripPhase, rideProgress, type TripPhase } from '../sim/trip';
 import type { IconName } from '../ui/icons';
 import { BED_TOP, FLOOR_Y } from '../world/CarriageView';
 import { CharacterView, type CharacterLook } from '../world/CharacterView';
@@ -27,8 +29,14 @@ const BATHROOM_USE_SECONDS = 2.6;
 const BATHROOM_EMPTY_WAIT = 6;
 /** A seated guest's root sits this far above the floor so they rest on the mattress (hips 0.24 m up). */
 const SIT_ROOT = BED_TOP - 0.24;
-/** A guest back from the washroom sits only briefly before lying down again. */
+/** A guest back from the washroom or a venue sits a moment before anything else. */
 const RETURN_SETTLE_SECONDS = 0.8;
+/** Waking up: a stretch on the edge of the bed before the morning's request. */
+const WAKE_SECONDS = 1.2;
+/** How each part of a guest's trip is named in the debug log (the design's words). */
+const TRIP_LOG: Record<TripPhase | 'boarding' | 'arrival', string> = {
+  boarding: 'boarding', evening: 'settling in', night: 'lights out', morning: 'wake-up', arrival: 'arrival',
+};
 /** Steps in the "generous tip" ring drawn around a request bubble. */
 export const TIP_RING_STEPS = 12;
 
@@ -54,16 +62,31 @@ export class Guest {
   slow = false;
   /** Already grumbled about an empty washroom this visit. */
   complained = false;
-  /** Seconds to sit on the bed edge (reading) before lying down. */
+  /** Seconds to sit on the bed edge (reading) before anything else. */
   settleFor = 0;
-  nextRequestIn = 0;
   destinationStop = Infinity;
+  /**
+   * Session 22, one trip and one sleep: the stop they boarded at, which part of the night it is for them
+   * (evening, night, morning: never back), whether this part's request and outing have happened, seconds
+   * until the request, what they have asked for (never the same thing twice), and counts for the trip audit.
+   */
+  boardStop = 0;
+  trip: TripPhase = 'evening';
+  phaseRequested = false;
+  phaseOuting = false;
+  wishIn = 0;
+  readonly asked = new Set<ServiceNeed>();
+  sleptFor = 0;
+  sleeps = 0;
+  washes = 0;
+  /** This guest's own bedtime and waking (the trip's shares, moved a little per guest). */
+  readonly rules = { eveningEnd: 0.4, morningStart: 0.64, minSleepSeconds: 4 };
   happyTime = 0;
   hasLuggage = false;
   readonly childPos: Vec2;
   /** The class on their ticket: they board only a carriage of this class. */
   cls: ClassId;
-  /** Royal: the rest of the butler's list (asked for one after another, paid as one generous tip). */
+  /** Royal, in the morning: the rest of the butler's list (asked for one after another, paid as one generous tip). */
   pending: ServiceNeed[] = [];
   /** On an outing to a venue carriage (session 20): where, which seat, seated yet, paid yet. */
   outing: Outing | null = null;
@@ -105,6 +128,11 @@ export class Guests {
   private readonly tmp = new THREE.Vector3();
   private alightStagger = 0;
   private readonly bedsLeft = new Map<ClassId, number>();
+  /**
+   * The trip audit (session 22; the smoke run reads it): guests whose trip began, any who slept twice, any request
+   * repeated or out of its part of the night or class.
+   */
+  readonly audit = { trips: 0, sleeps: 0, sleptTwice: 0, repeats: 0, misplaced: 0, requests: 0 };
 
   constructor(private readonly w: World) {}
 
@@ -259,16 +287,18 @@ export class Guests {
   deliverStay(cabin: Cabin, zone: Zone, actor: Actor, dt: number): boolean {
     const need = this.requestFor(cabin);
     if (!need) return false;
-    if (need === 'turndown') {
-      // Turning the bed down: a moment at the bedside, folding the cover back.
-      zone.progress += (dt / this.w.econ.classes.turndownSeconds) * actor.workMultiplier;
-      actor.view.act('hug');
+    if (isDwellNeed(need)) {
+      // Turning the bed down (folding the cover back, a chocolate on the pillow) or a wake-up call (a knock at
+      // the door): a moment at the room, nothing to carry.
+      const seconds = need === 'turndown' ? this.w.econ.classes.turndownSeconds : this.w.econ.trip.wakeupSeconds;
+      zone.progress += (dt / seconds) * actor.workMultiplier;
+      actor.view.act(need === 'turndown' ? 'hug' : 'wave');
       if (zone.progress < 1) return true;
       zone.progress = 0;
       const guest = cabin.guest!;
       guest.request = null;
       this.w.audio.play('soft', { volume: 0.6, pitch: 1.2 });
-      this.fulfil(guest, 'turndown', actor.isPlayer);
+      this.fulfil(guest, need, actor.isPlayer);
       return true;
     }
     const item = need;
@@ -431,27 +461,36 @@ export class Guests {
         else if (w.train.freeCabin(guest.cls)) guest.view.showBubble('ticket', guest.cls);
         else guest.view.showBubble('noroom', 'alert');
         break;
-      case 'settling':
-        // Reading on the bed edge counts toward their first request.
-        guest.nextRequestIn -= dt;
-        if (guest.stateTime > guest.settleFor) this.setState(guest, 'resting');
+      case 'settling': {
+        // Awake in their room (evening or morning), sitting on the bed. Their stop may have come: off they get.
+        if (guest.destinationStop <= w.journey.stopSerial && w.journey.doorsOpen) {
+          this.startAlighting(guest);
+          break;
+        }
+        if (this.advanceTrip(guest, guest.stateTime < guest.settleFor)) break;
+        if (!guest.phaseRequested) {
+          // Reading on the bed edge counts toward the request.
+          guest.wishIn -= dt;
+          if (guest.wishIn <= 0 && this.requestsAllowed()) this.makeRequest(guest);
+        } else if (!guest.phaseOuting && guest.stateTime >= guest.settleFor) this.maybeOuting(guest);
         break;
+      }
       case 'resting':
-        // Their stop may have arrived while they were busy (bathroom, a request): get off now.
+        // Asleep: the only lights out of their trip. Their stop may have come while they slept: off they get.
         if (guest.destinationStop <= w.journey.stopSerial && w.journey.doorsOpen) {
           this.startAlighting(guest);
           break;
         }
         guest.view.showBubble('zzz', 'plain', 1.3);
-        guest.nextRequestIn -= dt;
-        if (guest.nextRequestIn <= 0 && this.requestsAllowed()) this.makeRequest(guest);
+        guest.sleptFor += dt;
+        this.advanceTrip(guest, false);
         break;
       case 'requesting':
         if (guest.destinationStop <= w.journey.stopSerial && w.journey.doorsOpen && guest.happyTime <= 0) {
           this.startAlighting(guest);
         } else if (guest.happyTime > 0) {
           guest.happyTime -= dt;
-          if (guest.happyTime <= 0) this.backToBed(guest);
+          if (guest.happyTime <= 0) this.afterRequest(guest);
         } else if (guest.request && guest.request !== 'bathroom') {
           guest.view.showBubble(guest.request as IconName, guest.slow ? 'alert' : guest.pending.length > 0 ? 'royal' : 'request', 1.85, this.tipRingStep(guest));
         }
@@ -517,39 +556,81 @@ export class Guests {
     return w.data.profile.ftue.first_unlock !== undefined && this.openRequests().length === 0 && !this.deskReady();
   }
 
-  /** What a guest of this class asks for: the class's own list, seasoned by what their kind likes best. */
-  private classRequest(guest: Guest, except?: ServiceNeed): ServiceNeed {
-    const cls = CLASS_BY_ID[guest.cls];
-    const liked = guest.archetype.requests as Partial<Record<ServiceNeed, number>>;
-    const weights: Partial<Record<ServiceNeed, number>> = {};
-    for (const [need, weight] of Object.entries(cls.requests) as [ServiceNeed, number][]) {
-      if (need === except || need === 'turndown') continue;
-      weights[need] = weight * (liked[need] ?? 1);
-    }
-    return this.w.rng.weighted(weights);
+  /** How far through their ride a guest is (0 when they board, 1 pulling into their stop). */
+  progressOf(guest: Guest): number {
+    if (!Number.isFinite(guest.destinationStop)) return 0;
+    const j = this.w.journey;
+    return rideProgress(guest.boardStop, guest.destinationStop, j.stopSerial, j.travelShare);
   }
 
+  /**
+   * Moves a guest on to the next part of their night when it is time (see sim/trip.ts), never back: lights out
+   * once nothing is pending, the morning once the night has run. True when they changed.
+   */
+  private advanceTrip(guest: Guest, busy: boolean): boolean {
+    const rules = this.w.econ.trip;
+    const progress = this.progressOf(guest);
+    const next = nextTripPhase(guest.trip, progress, busy, guest.sleptFor, guest.rules);
+    if (next === guest.trip) return false;
+    this.logTrip(guest, guest.trip, next, progress);
+    guest.trip = next;
+    guest.phaseRequested = false;
+    guest.phaseOuting = false;
+    guest.request = null;
+    guest.pending = [];
+    if (next === 'night') {
+      // Lights out: they lie down, the room dims and the blind comes down (TrainState shows it).
+      guest.sleptFor = 0;
+      guest.sleeps++;
+      this.audit.sleeps++;
+      if (guest.sleeps > 1) this.audit.sleptTwice++;
+      this.setState(guest, 'resting');
+      guest.view.showBubble(null);
+    } else {
+      // Morning: the lights come up, a stretch on the bed edge, then the morning's request.
+      this.setState(guest, 'settling');
+      guest.settleFor = WAKE_SECONDS;
+      guest.wishIn = WAKE_SECONDS + this.w.rng.range(...rules.requestDelay);
+      guest.view.showBubble(null);
+      guest.view.bounce(0.5);
+    }
+    return true;
+  }
+
+  private logTrip(guest: Guest, from: TripPhase | 'boarding', to: TripPhase | 'arrival', progress: number): void {
+    log.info('Trip', `guest ${guest.id} (${guest.archetype.id}, ${guest.cls}): ${TRIP_LOG[from]} → ${TRIP_LOG[to]} at ${Math.round(progress * 100)}% (stop ${this.w.journey.stopSerial}, ride ${guest.boardStop}→${guest.destinationStop})`);
+  }
+
+  /**
+   * This part of the night's one request: their story's next step, or one thing from their class's evening or
+   * morning list they have not asked for yet. Royal mornings bring the butler's whole list, one after another.
+   */
   private makeRequest(guest: Guest): void {
     const w = this.w;
-    const story = guest.story ? w.meta?.storyRequest(guest.story) : null;
-    let request: GuestRequest;
+    guest.phaseRequested = true;
     guest.pending = [];
-    if (story) request = story as GuestRequest;
-    else {
-      // Session 20: now and then the wish is an outing to a venue with room (a coffee, dinner, a drink, the view).
-      if (w.venues.tryOuting(guest)) return;
-      const bathroomOpen = w.train.bathrooms.some((b) => b.unlocked);
-      request = bathroomOpen && w.rng.chance(w.econ.guests.bathroomVisitWeight) ? 'bathroom' : this.classRequest(guest);
-      // Royal: the butler's list, two things at once.
-      if (request !== 'bathroom' && CLASS_BY_ID[guest.cls].butler) guest.pending = [this.classRequest(guest, request)];
+    const story = guest.story ? (w.meta?.storyRequest(guest.story) as ServiceNeed | null) : null;
+    let need: ServiceNeed | null = story;
+    if (!need) {
+      const cls = CLASS_BY_ID[guest.cls];
+      const pool = guest.trip === 'morning' ? cls.morning : cls.evening;
+      if (cls.butler && guest.trip === 'morning') {
+        const list = (Object.keys(pool) as ServiceNeed[]).filter((k) => !guest.asked.has(k));
+        need = list.shift() ?? null;
+        guest.pending = list;
+      } else need = freshWish(pool, guest.asked, w.rng.next());
+      // The audit: a class request must come from this part of the night's list.
+      if (need && !(need in pool)) this.audit.misplaced++;
     }
-    guest.request = request;
+    if (!need) return;
+    for (const n of [need, ...guest.pending]) {
+      if (guest.asked.has(n)) this.audit.repeats++;
+      guest.asked.add(n);
+    }
+    this.audit.requests++;
+    guest.request = need;
     guest.requestAt = w.time;
     guest.slow = false;
-    if (request === 'bathroom') {
-      this.goToBathroom(guest);
-      return;
-    }
     this.setState(guest, 'requesting');
     guest.happyTime = 0;
     if (guest.cabin) {
@@ -557,9 +638,28 @@ export class Guests {
       guest.pos.z = guest.cabin.center.z + 0.2;
       guest.mover.facing = -Math.PI / 2;
     }
-    guest.view.showBubble(request, guest.pending.length > 0 ? 'royal' : 'request', 1.85, TIP_RING_STEPS);
+    guest.view.showBubble(need as IconName, guest.pending.length > 0 ? 'royal' : 'request', 1.85, TIP_RING_STEPS);
     guest.view.act('wave', w.econ.guests.waveSeconds);
     w.audio.play('soft', { volume: 0.5 });
+  }
+
+  /**
+   * After their request, now and then an outing: a venue that suits the time of night with a free seat, or else
+   * a wash (at most once a trip). Never during the night.
+   */
+  private maybeOuting(guest: Guest): void {
+    const w = this.w;
+    const rules = w.econ.trip;
+    guest.phaseOuting = true;
+    if (guest.story || !w.rng.chance(rules.outingChance)) return;
+    if (guest.trip !== 'night' && w.venues.tryOuting(guest, guest.trip)) return;
+    const bathroomOpen = w.train.bathrooms.some((b) => b.unlocked);
+    if (!bathroomOpen || guest.washes >= rules.washroomsPerTrip || !w.rng.chance(rules.washroomChance)) return;
+    guest.washes++;
+    guest.request = 'bathroom';
+    guest.requestAt = w.time;
+    guest.slow = false;
+    this.goToBathroom(guest);
   }
 
   /** First and Royal: on arriving at the cabin the guest waits by the bed for it to be turned down. */
@@ -603,7 +703,7 @@ export class Guests {
     guest.view.bounce(1);
     guest.slow = false;
     w.events.emit('request.fulfilled', { item, tip, x: guest.pos.x, z: guest.pos.z, byPlayer, speedy: speed >= service.speedyTipMultiplier });
-    if (guest.story && item !== 'turndown') w.meta?.onStoryRequestDone(guest.story, item);
+    if (guest.story && !isDwellNeed(item)) w.meta?.onStoryRequestDone(guest.story, item);
     w.feedback.onRequestServed(guest, elapsed, byPlayer);
     // The butler's list: the next thing on it straight away.
     const next = guest.pending.shift();
@@ -617,23 +717,27 @@ export class Guests {
       w.ui.floatIcon('crown', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'star');
       w.particles.emit('sparkle', guest.pos.x, FLOOR_Y + 1.6, guest.pos.z, 14, 0.4);
     }
+    // The turndown leaves a chocolate on the pillow.
+    if (item === 'turndown') w.ui.floatIcon('turndown', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'info');
     guest.view.showBubble('heart', 'plain', 1.75);
     guest.happyTime = w.econ.guests.enjoySeconds;
-    // They enjoy it where you can see it: a sip of the tea, coffee or champagne, a hug of the pillow or blanket.
-    guest.view.act(item === 'tea' || item === 'coffee' || item === 'champagne' ? 'sip' : 'hug', w.econ.guests.enjoySeconds);
+    // They enjoy it where you can see it: a sip of the tea, coffee or champagne, the paper read, a hug of the blanket.
+    const drink = item === 'tea' || item === 'coffee' || item === 'champagne' || item === 'breakfast';
+    guest.view.act(drink ? 'sip' : item === 'newspaper' ? 'read' : item === 'wakeup' ? 'wave' : 'hug', w.econ.guests.enjoySeconds);
   }
 
-  private backToBed(guest: Guest): void {
-    this.setState(guest, 'resting');
+  /** Served: they sit back on the bed (the night comes when it is time, see advanceTrip). */
+  private afterRequest(guest: Guest): void {
+    this.setState(guest, 'settling');
+    guest.settleFor = 0;
     guest.view.showBubble(null);
-    guest.nextRequestIn = this.w.rng.range(...this.w.econ.guests.requestInterval);
   }
 
   private goToBathroom(guest: Guest): void {
     const bath = this.pickBathroom();
     if (!bath) {
       guest.request = null;
-      this.backToBed(guest);
+      this.afterRequest(guest);
       return;
     }
     guest.bathroom = bath;
@@ -707,7 +811,6 @@ export class Guests {
     guest.mover.go([...(path ?? []), cabin.bedSide], () => {
       this.setState(guest, 'settling');
       guest.settleFor = RETURN_SETTLE_SECONDS;
-      guest.nextRequestIn = w.rng.range(...w.econ.guests.requestInterval);
     });
   }
 
@@ -733,12 +836,26 @@ export class Guests {
     const early = w.data.route.stopsCompleted < w.econ.guests.earlyStopsOneLeg;
     const legs = early ? 1 : Number(w.rng.weighted(w.econ.guests.rideLegsWeights as unknown as Record<string, number>));
     guest.destinationStop = w.journey.stopSerial + (guest.story ? 2 : legs);
+    // One trip, one sleep: their night starts now.
+    guest.boardStop = w.journey.stopSerial;
+    guest.trip = 'evening';
+    guest.phaseRequested = false;
+    guest.phaseOuting = false;
+    guest.asked.clear();
+    guest.sleeps = 0;
+    guest.washes = 0;
+    guest.sleptFor = 0;
+    const trip = w.econ.trip;
+    guest.rules.eveningEnd = trip.eveningEnd + w.rng.range(-trip.jitter, trip.jitter);
+    guest.rules.morningStart = trip.morningStart + w.rng.range(-trip.jitter, trip.jitter);
+    guest.rules.minSleepSeconds = trip.minSleepSeconds;
+    guest.wishIn = w.econ.guests.settleSeconds + w.rng.range(...trip.requestDelay);
+    this.audit.trips++;
+    this.logTrip(guest, 'boarding', 'evening', this.progressOf(guest));
     this.setState(guest, 'toCabin');
     const deskNode = 'c0:desk';
     const path = w.map.nav.findPath(w.map.nearestNode(guest.pos.x, guest.pos.z) ?? deskNode, cabin.node);
     guest.mover.go([...(path ?? []), cabin.bedSide], () => {
-      const first = w.econ.guests.firstRequestDelay;
-      guest.nextRequestIn = w.rng.range(first[0], first[1]);
       // First and Royal: the bed is turned down before they turn in.
       if (CLASS_BY_ID[guest.cls].turndown && !guest.story) {
         this.askTurndown(guest);
@@ -775,7 +892,8 @@ export class Guests {
     if (!w.journey.doorsOpen) return;
     const cabin = guest.cabin;
     const fromBed = guest.inCabin;
-    // They leave a tip and a lived-in cabin behind.
+    this.logTrip(guest, guest.trip, 'arrival', this.progressOf(guest));
+    // They leave a tip and a lived-in cabin behind: the bed slept in, the used bedding on it, and litter.
     let tip = w.econ.money.alightTip * guest.archetype.tipMultiplier * w.tipMultiplier() * w.train.cabinTipMultiplier(cabin);
     if (w.train.luggageStored > 0) {
       w.train.luggageStored--;
@@ -785,6 +903,9 @@ export class Guests {
     w.cash.add(cabin.pileId, tipAmount, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
     cabin.messPlan = this.messFor(guest);
     cabin.dirty.fill(true);
+    cabin.linenUsed = cabin.sets;
+    cabin.linenFresh = 0;
+    cabin.setsThisTurn = 0;
     w.station.recordTip(tipAmount);
     guest.request = null;
     this.setState(guest, 'alighting');

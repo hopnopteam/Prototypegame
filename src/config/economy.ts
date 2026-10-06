@@ -94,8 +94,13 @@ export const ECONOMY = {
     binDwellSeconds: 0.45,
     pickupIntervalSeconds: 0.2,
     dropIntervalSeconds: 0.16,
-    /** Seconds to tidy a cabin, standing on its one spot (the mess clears away piece by piece). */
+    /**
+     * Seconds at a room's pad to strip the used bedding and clear the litter (the mess clears away piece by
+     * piece; the used set goes on your stack). Session 22: making the bed is a second, shorter step.
+     */
     cleanCabinSeconds: 2.6,
+    /** Seconds at the pad to put one fresh bedding set on a stripped bed. */
+    makeBedSeconds: 0.8,
     boardIntervalSeconds: 0.75,
     /** Staff work a little slower than the player, so doing it yourself always feels best. */
     staffWorkMultiplier: 0.8,
@@ -106,11 +111,6 @@ export const ECONOMY = {
 
   guests: {
     walkSpeed: 2.5,
-    /** Seconds after settling before the first request, and between requests. */
-    firstRequestDelay: [7, 12] as [number, number],
-    requestInterval: [14, 24] as [number, number],
-    /** Chance a request is a bathroom visit once a bathroom car exists. */
-    bathroomVisitWeight: 0.3,
     /** Legs a guest rides: weights for 1, 2 and 3 stations. */
     rideLegsWeights: { 1: 0.7, 2: 0.25, 3: 0.05 } as Record<1 | 2 | 3, number>,
     /** Guests waiting on the platform at a stop: free cabins + this many extra (who wait inside). */
@@ -124,9 +124,9 @@ export const ECONOMY = {
     initialGuests: 0,
     /** Until this many stops are done every guest rides exactly one leg: the opening is scripted, never luck. */
     earlyStopsOneLeg: 3,
-    /** Seconds a new guest sits on the bed edge reading before lying down (it counts toward their first request). */
+    /** Seconds a new guest sits on the bed edge reading when they first reach their room. */
     settleSeconds: 4,
-    /** Seconds a served guest enjoys it (sips the tea, hugs the pillow) before going back to bed. */
+    /** Seconds a served guest enjoys it (sips the tea, reads the paper) before sitting back down. */
     enjoySeconds: 2.2,
     /** Seconds a new request is announced with a wave. */
     waveSeconds: 1.4,
@@ -137,6 +137,36 @@ export const ECONOMY = {
    * now and then one of the next class up turns up too and waits on the platform with their ticket (they
    * cannot board yet): visible demand for the next upgrade, never a penalty.
    */
+  /**
+   * One trip, one sleep (session 22). Every guest's ride is one night, and its parts follow how far through
+   * the ride they are (0 when they board, 1 pulling into their stop), never going back:
+   * evening (one request, then perhaps an outing) → lights out (once) → morning (one request) → off at their stop.
+   * A guest still waiting for something when the evening ends finishes it first and sleeps a little less.
+   */
+  trip: {
+    /** The evening ends this far through the ride (lights out once nothing is pending). */
+    eveningEnd: 0.4,
+    /** Morning starts this far through the ride (and not before `minSleepSeconds` asleep). */
+    morningStart: 0.64,
+    /**
+     * Each guest's own bedtime and waking are moved by up to this share of the ride, so a carriage full of guests
+     * does not all fall asleep (and go quiet) at once.
+     */
+    jitter: 0.08,
+    /** Shortest night, however late the guest turned in. */
+    minSleepSeconds: 4,
+    /** Seconds after the evening or morning starts (or after settling in) before the request. */
+    requestDelay: [2, 4] as [number, number],
+    /** After their request, the chance of an outing (a venue with a seat, else the washroom). */
+    outingChance: 0.6,
+    /** Of those outings, the chance it is the washroom when no venue suits (or there is none). */
+    washroomChance: 0.5,
+    /** At most this many washroom visits per trip. */
+    washroomsPerTrip: 1,
+    /** Seconds at the room for a wake-up call (a knock at the door). */
+    wakeupSeconds: 0.9,
+  },
+
   classes: {
     /** Chance a traveller holds a ticket for the class above the train's best (once that class can be bought). */
     aspirantChance: 0.18,
@@ -157,9 +187,10 @@ export const ECONOMY = {
 
   money: {
     baseFare: 15,
-    alightTip: 8,
+    alightTip: 12,
     luggageTip: 4,
-    requestTip: 7,
+    /** Session 22: a guest asks once in the evening and once in the morning (was every ~20 s), so each request pays more. */
+    requestTip: 9,
     bathroomTip: 3,
     stationBonusCash: 18,
     /** The station bonus grows by this fraction for every carriage coupled. */
@@ -334,8 +365,9 @@ export const ECONOMY = {
   },
 
   stars: {
-    requestFulfilled: 1,
-    cabinCleaned: 1,
+    /** Session 22: one request per part of the night and a four-step turnaround, so each is worth more. */
+    requestFulfilled: 2,
+    cabinCleaned: 2,
     cleanStationStop: 3,
     staffHired: 2,
   },

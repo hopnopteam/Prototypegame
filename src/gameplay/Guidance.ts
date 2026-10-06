@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import type { ItemKind, Vec2 } from '../core/types';
+import { isDwellNeed } from '../config/classes';
+import { sourceAnchorFor } from './Demand';
 import { FLOOR_Y } from '../world/CarriageView';
 import { guideArrowTexture, makeSprite } from '../world/sprites';
 import { markWorldUi } from '../world/ZoneViews';
@@ -186,8 +188,9 @@ export class Guidance {
     if (tile && w.unlocks.remaining(tile.def.id) <= cash) return this.because('tile', tile.pos);
 
     const request = w.guests.openRequests().find((g) => !w.staff.isHandled(g));
-    if (request && request.request === 'turndown' && request.cabin) return this.because('deliver', request.cabin.center);
-    if (request && request.request && request.request !== 'bathroom' && request.request !== 'turndown') {
+    // A turndown or a wake-up call: straight to the room, nothing to fetch.
+    if (request && isDwellNeed(request.request) && request.cabin) return this.because('deliver', request.cabin.center);
+    if (request && request.request && request.request !== 'bathroom' && !isDwellNeed(request.request)) {
       const source = this.sourceFor(request.request, request.cabin?.carriage ?? 0);
       if (source) return this.because('fetch', source);
     }
@@ -196,10 +199,13 @@ export class Guidance {
     const job = w.venues.playerJob(player.pos);
     if (job) return this.because(job.reason, job.target);
 
-    const dirty = w.train.cabins.find((c) => c.isDirty && !c.guest && !c.cleaner);
+    // A room to turn around: strip it first (the pad); a stripped bed waits for a fresh set from the linen cupboard.
+    const dirty = w.train.cabins.find((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
     if (dirty) {
-      const i = dirty.dirty.findIndex(Boolean);
-      return this.because('clean', dirty.spots[i]);
+      const pad = dirty.spots[0] ?? dirty.center;
+      if (dirty.dirty.some(Boolean) || dirty.linenUsed > 0 || stack.has('bedding')) return this.because('clean', pad);
+      const linen = this.nearestAnchor('linen');
+      if (linen && !stack.isFull) return this.because('fetch', linen);
     }
 
     if (!stack.isFull) {
@@ -215,8 +221,23 @@ export class Guidance {
 
   private whereNeeded(items: ItemKind[]): Vec2 | null {
     const w = this.w;
+    // Used bedding goes to a linen cupboard's hamper; fresh sets to the nearest bed waiting for one.
+    if (items.includes('bedding')) {
+      const p = w.player.pos;
+      let best: Vec2 | null = null;
+      for (const c of w.train.cabins) {
+        if (!c.unlocked || c.guest || c.cleaner || c.setsNeeded <= 0) continue;
+        const pad = c.spots[0] ?? c.center;
+        if (!best || Math.hypot(pad.x - p.x, pad.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z)) best = pad;
+      }
+      if (best) return best;
+    }
+    if (items.includes('laundry')) {
+      const linen = this.nearestAnchor('linen');
+      if (linen) return linen;
+    }
     for (const guest of w.guests.openRequests()) {
-      if (guest.request && guest.request !== 'bathroom' && guest.request !== 'turndown' && items.includes(guest.request) && guest.cabin) return guest.cabin.center;
+      if (guest.request && guest.request !== 'bathroom' && !isDwellNeed(guest.request) && items.includes(guest.request) && guest.cabin) return guest.cabin.center;
     }
     const venue = w.venues.deliverPoint(items, w.player.pos);
     if (venue) return venue;
@@ -241,24 +262,29 @@ export class Guidance {
     const w = this.w;
     const map = w.map;
     if (item === 'towel' || item === 'roll') return w.train.supplySource(item, w.player.pos);
-    if (item === 'tea' || item === 'blanket' || item === 'pillow') {
-      const name = item === 'tea' ? 'urn' : item;
-      let best: Vec2 | null = null;
-      for (let i = 0; i < map.count; i++) {
-        if (!map.hasAnchor(i, name)) continue;
-        const a = map.anchor(i, name);
-        if (!best || Math.abs(a.z - w.player.pos.z) < Math.abs(best.z - w.player.pos.z)) best = a;
-      }
-      return best;
-    }
+    const name = sourceAnchorFor(item);
+    if (name === 'urn' || name === 'linen') return this.nearestAnchor(name);
     const supply = w.train.indexOfType('supply');
     if (item === 'crate' && supply !== null) return map.anchor(supply, 'crateDrop');
     return map.hasAnchor(0, 'bin') ? map.anchor(0, 'bin') : null;
   }
 
+  /** The nearest anchor of this name in any carriage (a linen cupboard, a service counter). */
+  private nearestAnchor(name: string): Vec2 | null {
+    const w = this.w;
+    const map = w.map;
+    let best: Vec2 | null = null;
+    for (let i = 0; i < map.count; i++) {
+      if (!map.hasAnchor(i, name)) continue;
+      const a = map.anchor(i, name);
+      if (!best || Math.abs(a.z - w.player.pos.z) < Math.abs(best.z - w.player.pos.z)) best = a;
+    }
+    return best;
+  }
+
   private sourceFor(item: ItemKind, carriage: number): Vec2 | null {
     const map = this.w.map;
-    const name = item === 'tea' ? 'urn' : item;
+    const name = sourceAnchorFor(item);
     if (map.hasAnchor(carriage, name)) return map.anchor(carriage, name);
     return map.hasAnchor(0, name) ? map.anchor(0, name) : null;
   }

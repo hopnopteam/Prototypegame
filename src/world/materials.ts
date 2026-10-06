@@ -132,6 +132,12 @@ export const LIGHT_UNIFORMS = {
   uNxLightBox: { value: new THREE.Vector4(0, -10, 0, -10) },
   uNxPlatMap: { value: null as THREE.Texture | null },
   uNxPlatBox: { value: new THREE.Vector4(0, -10, 0, -10) },
+  /**
+   * Session 22: each room's lamps on or off (world/RoomDimmer.ts): a small map over the train that scales the
+   * train's baked lamp light (1 lit, 0 dark), for lights out and a covered room. Same box packing as above.
+   */
+  uNxDimMap: { value: null as THREE.Texture | null },
+  uNxDimBox: { value: new THREE.Vector4(0, 0.5, 0, 0.5) },
   uNxLightOn: { value: 1 },
   /** Night amount scaling per-vertex glow (lamps, crystal). */
   uNxGlow: { value: 0 },
@@ -209,9 +215,12 @@ uniform sampler2D uNxLightMap;
 uniform vec4 uNxLightBox;
 uniform sampler2D uNxPlatMap;
 uniform vec4 uNxPlatBox;
+uniform sampler2D uNxDimMap;
+uniform vec4 uNxDimBox;
 uniform float uNxLightOn;
 vec4 nxBaked(vec3 p) {
   vec4 a = texture2D(uNxLightMap, p.xz * uNxLightBox.xz + uNxLightBox.yw);
+  a.rgb *= texture2D(uNxDimMap, p.xz * uNxDimBox.xz + uNxDimBox.yw).r;
   vec4 b = texture2D(uNxPlatMap, p.xz * uNxPlatBox.xz + uNxPlatBox.yw);
   return vec4(a.rgb + b.rgb, a.a * b.a);
 }
