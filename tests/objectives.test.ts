@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { REACTIONS } from '../src/config/chatter';
-import { DEFAULT_TRAIN } from '../src/config/content';
+import { DEFAULT_TRAIN, MAX_CARRIAGES } from '../src/config/content';
 import { OBJECTIVES } from '../src/config/objectives';
 import { buildUnlocks, refitMatches } from '../src/sim/unlockPlan';
 
@@ -30,7 +30,7 @@ describe('objective chain', () => {
 
   it('asks for the carriages in order and the levels in order', () => {
     const couplings = OBJECTIVES.filter((o) => o.event === 'coupling').map((o) => o.target);
-    expect(couplings).toEqual([1, 2, 3, 4]);
+    expect(couplings).toEqual(Array.from({ length: MAX_CARRIAGES - 1 }, (_, i) => i + 1));
     const levels = OBJECTIVES.filter((o) => o.event === 'level').map((o) => o.target);
     expect([...levels].sort((a, b) => a - b)).toEqual(levels);
   });

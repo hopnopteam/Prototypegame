@@ -1,5 +1,5 @@
 import type { ClassId, ServiceNeed } from '../config/classes';
-import type { CurrencyKind, ItemKind, JourneyPhase, StaffRole } from '../core/types';
+import type { CurrencyKind, ItemKind, JourneyPhase, StaffRole, VenueKind } from '../core/types';
 
 /** Every gameplay event. UI, audio, analytics, quests and FTUE all listen here instead of reaching in. */
 export interface GameEvents {
@@ -30,6 +30,14 @@ export interface GameEvents {
   'rush.bonus': { streak: number; cash: number };
   'conductor.upgraded': { key: string; level: number };
   'bathroom.used': { tipped: boolean };
+  /** Session 20, the venue carriages: something served at a venue (and what it paid). */
+  'rival.race': { rival: string; target: number; station: string };
+  'rival.raceResult': { rival: string; won: boolean };
+  'venue.served': { kind: VenueKind; item: ItemKind | 'usher'; amount: number; x: number; z: number; byPlayer: boolean };
+  'venue.cleared': { kind: VenueKind; byPlayer: boolean };
+  'venue.happyHour': { seconds: number };
+  'venue.scenic': { guests: number; amount: number };
+  'venue.opened': { kind: VenueKind; carriage: number };
   'bathroom.restocked': { byPlayer: boolean };
   'crate.delivered': Record<string, never>;
   'ftue.step': { step: string };

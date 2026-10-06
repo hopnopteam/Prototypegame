@@ -59,6 +59,7 @@ import { Objectives } from './Objectives';
 import { Feedback } from './Feedback';
 import { Flow } from './Flow';
 import { StaffManager } from './Staff';
+import { Venues } from './Venues';
 import { Station } from './Station';
 import { Tiles } from './Tiles';
 import { TrainNeeds } from './TrainNeeds';
@@ -122,6 +123,8 @@ export class Game implements World {
   readonly tiles: Tiles;
   readonly guests: Guests;
   readonly staff: StaffManager;
+  /** The venue carriages (session 20): café, dining car, bar lounge, observation dome. */
+  readonly venues: Venues;
   readonly station: Station;
   readonly player: Player;
   readonly guidance: Guidance;
@@ -242,6 +245,8 @@ export class Game implements World {
     this.scene.add(this.train.group);
     this.guests = new Guests(this);
     this.staff = new StaffManager(this);
+    this.venues = new Venues(this);
+    this.map.closedProps = (index) => this.venues.closedProps(index);
     this.station = new Station(this);
     this.tiles = new Tiles(this);
     this.meta = new Meta(this);
@@ -349,11 +354,12 @@ export class Game implements World {
   }
 
   fareMultiplier(): number {
-    return (1 + this.data.conductor.fareBonus * this.econ.conductor.fareBonus.perLevel) * (1 + this.data.meta.perks.fareBonus + this.stationPerks().fares);
+    return (1 + this.data.conductor.fareBonus * this.econ.conductor.fareBonus.perLevel) * (1 + this.data.meta.perks.fareBonus + this.stationPerks().fares) * this.venues.boost();
   }
 
+  /** Every tip on the train: perks, smart service cars, station upgrades, and the bar's Happy Hour. */
   tipMultiplier(): number {
-    return 1 + this.data.meta.perks.tipBonus + this.train.trainTipBonus() + this.stationPerks().tips;
+    return (1 + this.data.meta.perks.tipBonus + this.train.trainTipBonus() + this.stationPerks().tips) * this.venues.boost();
   }
 
   /** Station upgrades bought so far (exterior and marketing); cached until the next unlock. */
@@ -433,6 +439,7 @@ export class Game implements World {
     this.player.update(dt);
     this.zones.update(dt, [this.player, ...this.staff.members]);
     this.guests.update(dt);
+    this.venues.update(dt);
     this.staff.update(dt);
     this.crowd.update(dt);
     this.train.update(dt);

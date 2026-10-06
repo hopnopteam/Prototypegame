@@ -124,6 +124,7 @@ export class Objectives {
     e.on('luggage.loaded', () => this.count('luggage'));
     e.on('station.result', (r) => r.clean && this.count('perfectStop'));
     e.on('bathroom.restocked', () => this.count('restock'));
+    e.on('venue.served', () => this.count('venue'));
     e.on('carriage.refurbished', () => this.syncTotal());
     e.on('carriage.coupled', () => this.syncTotal());
     e.on('level.up', () => this.syncLevel());

@@ -1,4 +1,3 @@
-import { RIVALS } from '../config/press';
 import * as THREE from 'three';
 import { CARRIAGE_CATALOGUE, MAX_CARRIAGES, type BedMess, type ComfortKey, type MessPiece, type UnlockDef } from '../config/content';
 import { buildUnlocks, carriageChoices } from '../sim/unlockPlan';
@@ -186,7 +185,7 @@ export class TrainState {
     });
     document.fonts?.ready.then(() => this.loco.refreshName()).catch(() => undefined);
     // The pennants of every rival beaten fly from the engine (session 18).
-    const pennants = (): void => this.loco.setPennants(RIVALS.filter((r) => r.reputation <= this.w.data.route.stars).map((r) => ({ livery: r.livery, trim: r.trim })));
+    const pennants = (): void => this.loco.setPennants(this.w.press.pennants.map((r) => ({ livery: r.livery, trim: r.trim })));
     pennants();
     this.w.events.on('rival.overtaken', pennants);
     for (const type of this.w.data.route.carriages) this.addCarriage(type, false);
@@ -436,6 +435,14 @@ export class TrainState {
       case 'comfort':
         this.furnish(def.carriage, animate);
         break;
+      // The venue carriages (session 20): a table, stool or row; a menu or a station.
+      case 'seat':
+        if (def.group !== undefined) this.w.venues.openGroup(def.carriage, def.group, animate);
+        break;
+      case 'menu':
+      case 'station':
+        this.w.venues.applyKey(def.carriage, def.id.split('.')[1] ?? def.id, animate);
+        break;
       default:
         break;
     }
@@ -603,6 +610,8 @@ export class TrainState {
     this.createFixtureZones(index, type);
     this.comfortCounts[index] = this.comfortsOf(index).length;
     view.setComforts(this.comfortsOf(index));
+    // A venue gets its seats, pads and takings (session 20).
+    this.w.venues.addCarriage(index, type, view.tier);
     if (animate) this.popIn(view.group);
   }
 
@@ -636,6 +645,8 @@ export class TrainState {
     for (const cl of layout.cabins) view.setCabinLocked(cl.index, !this.cabinOpen(type, index, cl.index, view.tier));
     for (const bl of layout.bathrooms) view.setBathroomLocked(bl.index, bl.index !== 0 && !this.roomUnlocked('bathroom', index, bl.index));
     view.setComforts(this.comfortsOf(index));
+    // A venue rolls in with the tables it comes with.
+    if (layout.venue) for (const g of layout.venue.groups) view.setVenueGroupOpen(g.index, g.index < layout.venue.openGroups);
   }
 
   /**
@@ -762,6 +773,8 @@ export class TrainState {
     this.group.add(view.group);
     this.views[index] = view;
     this.tiers[index] = tier;
+    // A venue's tables, plates and extras on the rebuilt carriage, and its prices at the new tier.
+    this.w.venues.syncView(index);
     if (relayout) {
       this.relayoutCabins(index, view);
       this.rebuildMap();

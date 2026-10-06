@@ -1,7 +1,7 @@
 import type { ObjectiveDef } from '../config/objectives';
 import * as THREE from 'three';
 import type { ProductDef } from '../config/content';
-import { RIVALS, type CeremonyDef, type InterviewDef } from '../config/press';
+import type { CeremonyDef, InterviewDef } from '../config/press';
 import { damp, formatClock, formatNumber } from '../core/math';
 import type { CarriageType } from '../core/types';
 import type { StationResult } from '../gameplay/events';
@@ -9,13 +9,13 @@ import type { CoachAnchor } from '../gameplay/Coach';
 import type { Game } from '../gameplay/Game';
 import type { DoubleChoice, GameUi } from '../gameplay/GameUi';
 import type { OfferView } from '../gameplay/Monetization';
-import type { CeremonyResult, FrontPageReward, RivalWatch } from '../gameplay/Press';
+import type { CeremonyResult, FrontPageReward, RivalWatch, WireNews } from '../gameplay/Press';
 import type { CarriageChoiceView, FloatKind } from '../gameplay/UiApi';
 import type { NewsItem } from '../save/SaveData';
 import { forgetSize, h, icon, replayClass, setText, setVisible, sizeOf } from './dom';
 import type { IconName } from './icons';
 import { PressScreens } from './PressScreens';
-import { drawOwnerPortrait } from './portraits';
+import { drawOwnerPortrait, ownerPortrait } from './portraits';
 import { Screens } from './Screens';
 import { TrainMapUi } from './TrainMapUi';
 import { TILE_MARKER_ASPECT, TILE_MARKER_TIP, TILE_MARKER_WIDTH } from '../world/sprites';
@@ -82,6 +82,11 @@ const GUIDE_STEP_WORDS_SECONDS = 7;
 /** A new goal says what it is this long, then folds into its icon and count (tap it to read it again). */
 const GOAL_WORDS_SECONDS = 3.5;
 const MAX_TOASTS = 2;
+/** Seconds a news strip stays up, and the pause before the next one slides in (session 20). */
+const WIRE_SECONDS = 4.6;
+const WIRE_GAP_MS = 600;
+/** Strips waiting at most (older news simply drops off: what it paid is already in your pocket). */
+const MAX_WIRES_WAITING = 3;
 /** At most one guest reaction on screen, and a breather between them: personality, not chatter. */
 const SPEECH_GAP_SECONDS = 4;
 const RESULT_SECONDS = 5.5;
@@ -397,10 +402,13 @@ export class Ui implements GameUi {
     // Boost timers, at the foot of the rail.
     const boostLeft = (g.data.monetization.speedBoostUntil - Date.now()) / 1000;
     const doubled = g.data.monetization.doubleFaresStop !== null && g.data.monetization.doubleFaresStop >= g.journey.stopSerial && g.data.monetization.doubleFaresStop <= g.journey.stopSerial + 1;
-    const boostKey = `${boostLeft > 0 ? Math.ceil(boostLeft) : 0}|${doubled}`;
+    // Happy Hour in the bar lounge (session 20): tips and fares up on the whole train for a while.
+    const happy = g.venues.happyLeft;
+    const boostKey = `${boostLeft > 0 ? Math.ceil(boostLeft) : 0}|${doubled}|${happy > 0 ? Math.ceil(happy) : 0}`;
     if (this.boostLayer.dataset.key !== boostKey) {
       this.boostLayer.dataset.key = boostKey;
       this.boostLayer.replaceChildren();
+      if (happy > 0) this.boostLayer.append(h('div.badge.happy', { title: 'Happy Hour' }, icon('party', 24), h('span', { text: formatClock(happy) })));
       if (boostLeft > 0) this.boostLayer.append(h('div.badge', { title: 'Roller skates' }, icon('skate', 24), h('span', { text: formatClock(boostLeft) })));
       if (doubled) this.boostLayer.append(h('div.badge', { title: 'Double fares at the next stop' }, icon('double', 24), h('span', { text: '×2' })));
     }
@@ -417,7 +425,7 @@ export class Ui implements GameUi {
     this.reveal(hud.rival, race.visible);
     if (!race.visible) return;
     const face = race.humbled ?? race.next;
-    const key = face ? `${RIVALS.indexOf(face)}|${race.mood}` : 'top';
+    const key = face ? `${face.name}|${race.mood}` : 'top';
     if (key !== this.rivalKey) {
       this.rivalKey = key;
       setVisible(hud.rivalFace, face !== null);
@@ -427,18 +435,24 @@ export class Ui implements GameUi {
       hud.rival.title = label;
       hud.rival.setAttribute('aria-label', label);
     }
-    setText(hud.rivalRank, `#${race.rank}`);
+    // A race to the next station (session 20): the ring and the pill show your stars against their target.
+    const leg = race.leg;
+    hud.rival.classList.toggle('duel', leg !== null && !race.humbled);
+    setText(hud.rivalRank, leg && !race.humbled ? `${Math.min(leg.earned, leg.target)}/${leg.target}` : `#${race.rank}`);
     // The ring fills as the stars land (like the level star), and is full for a moment once a rival is passed.
     const span = Math.max(1, race.to - race.from);
-    const fill = race.humbled || !race.next ? 1 : Math.max(0, Math.min(race.fraction, (g.data.route.stars - this.pendingStars - race.from) / span));
+    const fill = leg && !race.humbled
+      ? Math.max(0, Math.min(1, leg.earned / Math.max(1, leg.target)))
+      : race.humbled || !race.next ? 1 : Math.max(0, Math.min(race.fraction, (g.data.route.stars - this.pendingStars - race.from) / span));
     const p = (Math.round(fill * 100) / 100).toFixed(2);
     if (hud.rival.style.getPropertyValue('--p') !== p) hud.rival.style.setProperty('--p', p);
     hud.rival.classList.toggle('near', race.mood === 'nervous' && !race.reaction && !race.humbled);
-    const reactKey = race.reaction ?? '';
+    const reaction: IconName | null = race.reaction ?? (leg && !race.humbled ? 'flag' : null);
+    const reactKey = reaction ?? '';
     if (reactKey !== this.rivalReactKey) {
       this.rivalReactKey = reactKey;
-      hud.rivalReact.replaceChildren(...(race.reaction ? [icon(race.reaction, 20)] : []));
-      setVisible(hud.rivalReact, race.reaction !== null);
+      hud.rivalReact.replaceChildren(...(reaction ? [icon(reaction, 20)] : []));
+      setVisible(hud.rivalReact, reaction !== null);
     }
   }
 
@@ -936,12 +950,56 @@ export class Ui implements GameUi {
   toast(text: string, iconName?: IconName): void {
     const el = h('div.toast', {}, iconName ? icon(iconName, 22) : null, h('span', { text }));
     this.toastLayer.appendChild(el);
-    while (this.toastLayer.children.length > MAX_TOASTS) this.toastLayer.firstElementChild?.remove();
+    for (let toasts = this.toastLayer.querySelectorAll('.toast'); toasts.length > MAX_TOASTS; toasts = this.toastLayer.querySelectorAll('.toast')) toasts[0].remove();
     this.rectTimer = 0;
     window.setTimeout(() => {
       el.classList.add('out');
       window.setTimeout(() => el.remove(), 320);
     }, TOAST_SECONDS * 1000);
+  }
+
+  /**
+   * The news strip (session 20): a slip of newsprint with the Gazette's masthead (or the rival's face), a few
+   * words and what it paid, sliding in above the offer slot and away again. One at a time; it waits while a
+   * sheet is open; it never pauses the game.
+   */
+  wire(news: WireNews): void {
+    this.wireQueue.push(news);
+    if (this.wireQueue.length > MAX_WIRES_WAITING) this.wireQueue.splice(0, this.wireQueue.length - MAX_WIRES_WAITING);
+    this.pumpWire();
+  }
+
+  private wireQueue: WireNews[] = [];
+  private wireEl: HTMLElement | null = null;
+
+  private pumpWire(): void {
+    if (this.wireEl || this.wireQueue.length === 0) return;
+    if (this.busy) {
+      window.setTimeout(() => this.pumpWire(), 800);
+      return;
+    }
+    const news = this.wireQueue.shift()!;
+    const face = news.rival ? ownerPortrait(news.rival, 30, news.tone === 'win' ? 'humbled' : 'smug') : icon(news.icon, 26);
+    const reward = news.reward;
+    const chips: HTMLElement[] = [];
+    if (reward?.cash) chips.push(h('span.pay', {}, icon('cash', 16), h('b', { text: `+${formatNumber(reward.cash)}` })));
+    if (reward?.gems) chips.push(h('span.pay', {}, icon('gem', 16), h('b', { text: `+${reward.gems}` })));
+    if (reward?.railMiles) chips.push(h('span.pay', {}, icon('miles', 16), h('b', { text: `+${reward.railMiles}` })));
+    const el = h(`div.wire.${news.tone}` as 'div', { role: 'status' },
+      h('span.mast', {}, face, news.rival && news.icon !== 'news' ? h('span.badge', {}, icon(news.icon, 14)) : null),
+      h('span.head', { text: news.headline }),
+      ...chips);
+    this.wireEl = el;
+    this.toastLayer.prepend(el);
+    this.rectTimer = 0;
+    window.setTimeout(() => {
+      el.classList.add('out');
+      window.setTimeout(() => {
+        el.remove();
+        this.wireEl = null;
+        window.setTimeout(() => this.pumpWire(), WIRE_GAP_MS);
+      }, 320);
+    }, WIRE_SECONDS * 1000);
   }
 
   stationBanner(title: string, extra?: IconName): void {

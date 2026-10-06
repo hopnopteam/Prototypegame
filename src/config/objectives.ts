@@ -13,7 +13,9 @@ import type { IconName } from '../ui/icons';
  */
 export type ObjectiveEvent =
   | 'checkIn' | 'collect' | 'unlock' | 'clean' | 'request' | 'board' | 'luggage' | 'perfectStop'
-  | 'restock' | 'coupling' | 'refurb' | 'level' | 'conductor' | 'rush' | 'station' | 'speedy';
+  | 'restock' | 'coupling' | 'refurb' | 'level' | 'conductor' | 'rush' | 'station' | 'speedy'
+  // Session 20: a guest served in a venue carriage (a coffee, a dinner, a cocktail, a seat in the dome).
+  | 'venue';
 
 export interface ObjectiveDef {
   id: string;
@@ -61,6 +63,9 @@ export const OBJECTIVES: ObjectiveDef[] = [
   { id: 'level_3', text: 'Reach level 3', icon: 'star', event: 'level', target: 3, reward: { gems: 8 } },
   { id: 'couple_3', text: 'Add a 4th carriage', icon: 'carriage', event: 'coupling', target: 3, reward: { cash: 70 }, stars: 4 },
   { id: 'speedy_3', text: '3 speedy serves', icon: 'bolt', event: 'speedy', target: 3, reward: { cash: 50 } },
+  // Session 20: the venues. A full train always has at least two (route 1 holds only five service cars).
+  { id: 'venue_table', text: 'Add a venue seat', icon: 'plus', event: 'unlock', filter: 'seat', target: 1, reward: { cash: 60 }, stars: 2 },
+  { id: 'venue_10', text: 'Serve 10 in venues', icon: 'latte', event: 'venue', target: 10, reward: { cash: 70, gems: 3 } },
   { id: 'station_3', text: '3 station upgrades', icon: 'megaphone', event: 'station', target: 3, reward: { cash: 80, gems: 3 } },
   { id: 'cleans_15', text: 'Tidy 15 cabins', icon: 'broom', event: 'clean', target: 15, reward: { cash: 70 } },
   { id: 'train_up', text: 'Train your staff', icon: 'plus', event: 'unlock', filter: 'staffUpgrade', target: 1, reward: { cash: 60 } },
@@ -69,13 +74,18 @@ export const OBJECTIVES: ObjectiveDef[] = [
   // The long game: the full train and the top of the league.
   { id: 'couple_4', text: 'Add a 5th carriage', icon: 'carriage', event: 'coupling', target: 4, reward: { cash: 120 }, stars: 5 },
   { id: 'comforts_8', text: 'Own 8 comforts', icon: 'heart', event: 'unlock', filter: 'comfort', target: 8, reward: { cash: 150 } },
+  { id: 'venue_seats_6', text: 'Own 6 venue seats', icon: 'plus', event: 'unlock', filter: 'seat', target: 6, reward: { cash: 160 }, stars: 3 },
   { id: 'checkins_40', text: 'Welcome 40 guests', icon: 'ticket', event: 'checkIn', target: 40, reward: { cash: 150, gems: 5 } },
   { id: 'perfect_5', text: '5 perfect stops', icon: 'star', event: 'perfectStop', target: 5, reward: { cash: 120, gems: 5 } },
   { id: 'level_5', text: 'Reach level 5', icon: 'star', event: 'level', target: 5, reward: { gems: 12 } },
   { id: 'luxury', text: 'A luxury carriage', icon: 'paint', event: 'refurb', filter: '3', target: 1, reward: { cash: 200, gems: 5 }, stars: 5 },
   { id: 'level_6', text: 'Reach level 6', icon: 'star', event: 'level', target: 6, reward: { gems: 15 } },
+  { id: 'couple_5', text: 'Add a 6th carriage', icon: 'carriage', event: 'coupling', target: 5, reward: { cash: 200 }, stars: 5 },
+  { id: 'venue_60', text: 'Serve 60 in venues', icon: 'cocktail', event: 'venue', target: 60, reward: { cash: 220, gems: 6 } },
   { id: 'class_first', text: 'First Class', icon: 'champagne', event: 'refurb', filter: 'class:first', target: 1, reward: { cash: 300, gems: 8 }, stars: 6 },
   { id: 'level_7', text: 'Reach level 7', icon: 'star', event: 'level', target: 7, reward: { gems: 18 } },
+  { id: 'couple_6', text: 'Add a 7th carriage', icon: 'carriage', event: 'coupling', target: 6, reward: { cash: 260 }, stars: 6 },
   { id: 'level_8', text: 'Reach level 8', icon: 'trophy', event: 'level', target: 8, reward: { gems: 25, railMiles: 10 } },
+  { id: 'couple_7', text: 'A full train', icon: 'carriage', event: 'coupling', target: 7, reward: { cash: 320, gems: 10 }, stars: 8 },
   { id: 'class_royal', text: 'Royal Suite', icon: 'crown', event: 'refurb', filter: 'class:royal', target: 1, reward: { gems: 30, railMiles: 10 }, stars: 8 },
 ];

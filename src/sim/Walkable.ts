@@ -4,6 +4,8 @@ import type { CarriageLayout } from '../world/layout';
 export interface PlacedLayout {
   layout: CarriageLayout;
   originZ: number;
+  /** Props not there yet (a venue's tables and extras still to buy, by prop index): they do not block. */
+  closed?: ReadonlySet<number>;
 }
 
 export interface WalkableOptions {
@@ -32,7 +34,8 @@ export class Walkable {
     const areas: Rect[] = [];
     const blocked: Rect[] = [];
 
-    for (const { layout, originZ } of carriages) {
+    for (const { layout, originZ, closed } of carriages) {
+      const skip = closed && closed.size > 0 ? new Set([...closed].map((i) => layout.props[i]?.rect)) : null;
       for (const room of layout.rooms) {
         areas.push(rect(room.x0 + r, room.z0 + r + originZ, room.x1 - r, room.z1 - r + originZ));
       }
@@ -46,6 +49,7 @@ export class Walkable {
         );
       }
       for (const b of layout.blocked) {
+        if (skip?.has(b)) continue;
         blocked.push(rect(b.x0 - r, b.z0 - r + originZ, b.x1 + r, b.z1 + r + originZ));
       }
     }

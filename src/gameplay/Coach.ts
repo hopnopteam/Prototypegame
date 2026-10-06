@@ -20,7 +20,10 @@ export interface CoachLine extends CoachLineDef {
 }
 
 /** Lessons that retire once the job is automated (nobody needs teaching a chore the staff now do). */
-const AUTOMATED_BY: Record<string, StaffRole> = { dirty: 'attendant', station: 'porter', washroom: 'attendant' };
+const AUTOMATED_BY: Record<string, StaffRole> = {
+  dirty: 'attendant', station: 'porter', washroom: 'attendant',
+  cafe: 'barista', dining: 'waiter', clear: 'waiter', bar: 'bartender', dome: 'host',
+};
 /** Lessons about conveniences: they retire after a while on screen even if unused. */
 const OPTIONAL = new Set(['map', 'miles']);
 
@@ -53,6 +56,8 @@ export class Coach {
     e.on('request.fulfilled', ({ item, byPlayer }) => byPlayer && item === 'turndown' && this.learn('turndown'));
     e.on('conductor.upgraded', () => this.learn('miles'));
     e.on('unlock.completed', ({ id }) => id.startsWith('st.') && this.learn('workshop'));
+    e.on('venue.served', ({ kind, byPlayer }) => byPlayer && this.learn(kind));
+    e.on('venue.cleared', ({ byPlayer }) => byPlayer && this.learn('clear'));
   }
 
   private done(id: string): boolean {
@@ -269,6 +274,12 @@ export class Coach {
         return { hud: 'map' };
       case 'miles':
         return { hud: 'conductor' };
+      case 'cafe':
+      case 'dining':
+      case 'clear':
+      case 'bar':
+      case 'dome':
+        return world(w.venues.lessonTarget(`venue_${id}`));
       default:
         return null;
     }
@@ -310,6 +321,12 @@ export class Coach {
         return w.train.count >= 3;
       case 'miles':
         return w.progression.isFeatureUnlocked('conductorUpgrades') && w.wallet.get('railMiles') > 0;
+      case 'cafe':
+      case 'dining':
+      case 'clear':
+      case 'bar':
+      case 'dome':
+        return w.venues.lessonTarget(`venue_${id}`) !== null;
       default:
         return false;
     }

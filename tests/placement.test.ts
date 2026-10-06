@@ -3,7 +3,7 @@ import type { CarriageType, Rect } from '../src/core/types';
 import { Walkable } from '../src/sim/Walkable';
 import { footprints, getLayout, HALF_WIDTH, CARRIAGE_LENGTH, layoutKey, QUEUE_SLOTS, type Footprint } from '../src/world/layout';
 
-const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper'];
+const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper', 'cafe', 'dining', 'bar', 'dome'];
 /** Every floor plan there is: passenger carriages have one per class (refit tiers 0–5). */
 const VARIANTS: { type: CarriageType; tier: number; name: string }[] = [];
 for (const type of TYPES) {
@@ -36,9 +36,16 @@ describe('placement: everything you walk over sits cleanly on the floor', () => 
     const walk = new Walkable(PLAYER_RADIUS);
     walk.rebuild([{ layout, originZ: 0 }], { doorsOpen: false, platform: null, rearDeck: null });
     const items = footprints(layout);
+    // A venue's tile stands where its table (or the piano) will be: until it is bought, that is open floor.
+    const walkWithout = (replaces: number[] | undefined): Walkable => {
+      if (!replaces?.length) return walk;
+      const open = new Walkable(PLAYER_RADIUS);
+      open.rebuild([{ layout, originZ: 0, closed: new Set(replaces) }], { doorsOpen: false, platform: null, rearDeck: null });
+      return open;
+    };
 
     it(`${type}: every zone, tile, pile and home is on walkable floor`, () => {
-      for (const f of items) expect(walk.isWalkable(f.x, f.z), `${type}.${f.id} at (${f.x.toFixed(2)}, ${f.z.toFixed(2)})`).toBe(true);
+      for (const f of items) expect(walkWithout(f.replaces).isWalkable(f.x, f.z), `${type}.${f.id} at (${f.x.toFixed(2)}, ${f.z.toFixed(2)})`).toBe(true);
     });
 
     it(`${type}: zones and piles do not reach into furniture`, () => {
@@ -54,7 +61,8 @@ describe('placement: everything you walk over sits cleanly on the floor', () => 
     it(`${type}: tiles lie flat on open floor (not under furniture)`, () => {
       for (const f of items) {
         if (f.kind !== 'tile') continue;
-        for (const p of layout.props) {
+        for (const [i, p] of layout.props.entries()) {
+          if (f.replaces?.includes(i)) continue;
           const into = intrusion(f, p.rect);
           expect(into, `${type}.${f.id} lies ${into.toFixed(2)} m under the ${p.kind}`).toBeLessThan(0.05);
         }

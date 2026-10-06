@@ -100,6 +100,8 @@ export class Station {
     });
     w.events.on('train.named', () => this.refreshMarketing());
     w.events.on('livery.changed', () => this.refreshMarketing());
+    // The rival you are chasing has their posters up on the platforms until yours go up (session 20).
+    w.events.on('rival.overtaken', () => this.refreshMarketing());
     document.fonts?.ready.then(() => this.refreshMarketing()).catch(() => undefined);
     this.view.setStationName(this.currentStation().name);
     // The sign is painted on canvas: repaint once the embedded display font is ready.
@@ -135,12 +137,21 @@ export class Station {
    * Marketing on show: posters of the train on every platform, a brass band at the door, and billboards in
    * the countryside. `fresh` plays the reveal (the band strikes up, confetti over the posters).
    */
+  private marketingKey = '';
+
   refreshMarketing(fresh = false): void {
     const w = this.w;
     const has = (key: string): boolean => w.unlocks.isUnlocked(`st.${key}`);
     const livery = w.currentLivery();
     const name = w.data.press.trainName ?? DEFAULT_TRAIN_NAME;
-    this.view.setMarketing({ posters: has('posters'), band: has('band') }, name, livery.body, livery.trim);
+    // Until you put up your own, the platforms carry the posters of the rival you are chasing (session 20): the
+    // league is out there in the world, and buying your posters (or passing them) takes the platform over.
+    const rival = !has('posters') && w.press?.race.visible ? w.press.race.next : null;
+    const marketingKey = `${rival?.name ?? ''}|${has('posters')}|${has('band')}|${has('billboard')}|${name}|${livery.body}`;
+    if (marketingKey === this.marketingKey && !fresh) return;
+    this.marketingKey = marketingKey;
+    if (rival) this.view.setMarketing({ posters: true, band: has('band') }, rival.name, rival.livery, rival.trim);
+    else this.view.setMarketing({ posters: has('posters'), band: has('band') }, name, livery.body, livery.trim);
     const boards = has('billboard');
     const key = `${boards}|${name}|${livery.body}`;
     if (key !== this.billboardKey) {
@@ -250,6 +261,8 @@ export class Station {
 
   onPhase(phase: JourneyPhase, previous: JourneyPhase): void {
     const w = this.w;
+    // The platform sliding in carries the posters of whoever you are chasing now.
+    if (phase === 'arriving') this.refreshMarketing();
     if (phase === 'departing' && previous === 'stationStop' && this.prologue) {
       // Leaving Millbrook: the doors close and the flag goes up, but it was not a stop of the ride (no ticket).
       this.prologue = false;

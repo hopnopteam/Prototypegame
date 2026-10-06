@@ -26,6 +26,7 @@ import type { Livery } from '../world/palette';
 import type { Stage } from '../world/Stage';
 import type { CashPiles } from './CashPiles';
 import type { Coach } from './Coach';
+import type { Venues } from './Venues';
 import type { Demand } from './Demand';
 import type { Feedback } from './Feedback';
 import type { Flow } from './Flow';
@@ -82,6 +83,8 @@ export interface World {
   readonly station: Station;
   readonly player: Player;
   readonly guidance: Guidance;
+  /** The venue carriages (session 20). */
+  readonly venues: Venues;
   /** The walkthrough and the one-time lessons (the guide arrow shows for a lesson about its own spot). */
   readonly coach: Coach;
   readonly meta: Meta;

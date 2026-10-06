@@ -42,6 +42,18 @@ DEFAULT_TRAIN.map((type) => ({ type })).slice(0, count).forEach((c, i) => {
   if (c.type === 'lobby') { if (tier <= 1) view.setCabinLocked(1, true); view.setDirt(0, [true]); view.setLuggageCount(3); }
   if (c.type === 'bathroom') { view.setBathroomLocked(1, true); view.setBathroomStock(0, 3, 2); }
   if (c.type === 'supply') view.setShelfStock(10, 12);
+  // Venues: every table open and every extra bought (?venue=0 shows only what a new one comes with).
+  const venue = view.layout.venue;
+  if (venue) {
+    const full = params.get('venue') !== '0';
+    for (const g of venue.groups) view.setVenueGroupOpen(g.index, full || g.index < venue.openGroups);
+    if (full) {
+      view.setVenueExtras(venue.extras.map((e) => e.key));
+      view.setVenueDirty(1, true);
+      view.setVenuePass(2);
+      view.setVenueSign('party', 0.6, false);
+    }
+  }
   // ?comforts=lamp,flowers,radio,soap,rail dresses the rooms.
   const comforts = params.get('comforts');
   if (comforts) view.setComforts(comforts.split(',') as ComfortKey[]);
@@ -89,6 +101,7 @@ const cash = new CashView(); stage.scene.add(cash.mesh);
 cash.createPile('desk', -1.62, FLOOR_Y, 3.95); cash.setPileCount('desk', 9);
 const particles = new Particles(); stage.scene.add(particles.points); stage.attachParticles(particles);
 particles.emit('smoke', loco.chimneyTop.x, loco.chimneyTop.y, loco.chimneyTop.z, 6);
+stage.rig.clampZ = [-40, 400];
 stage.rig.snapTo(camX, camZ);
 stage.rig.setZoom(Number(params.get('zoom') ?? '1'));
 let last = performance.now();

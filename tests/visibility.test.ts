@@ -10,7 +10,7 @@ import { footprints, getLayout, layoutKey, type CarriageLayout, type Footprint }
  * may sit there: every tile and pad must be in full view of the camera, from wherever it looks.
  */
 
-const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper'];
+const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper', 'cafe', 'dining', 'bar', 'dome'];
 const VARIANTS: { type: CarriageType; tier: number; name: string }[] = [];
 for (const type of TYPES) {
   const seen = new Set<string>();

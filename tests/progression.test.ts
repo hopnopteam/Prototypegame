@@ -135,16 +135,23 @@ describe('UnlockChain', () => {
 describe('carriage choice', () => {
   const none = { leftBehind: 0, luggageLeft: 0 };
 
-  it('recommends beds first, then a washroom car, then the stores it can use', () => {
+  it('recommends beds first, then the café, then a washroom car (the stores on offer once it is there)', () => {
     expect(carriageChoices(['lobby'], none)[0]).toEqual({ type: 'sleeper', reason: expect.any(String) });
     expect(carriageChoices(['lobby'], none).map((c) => c.type)).not.toContain('supply');
-    expect(carriageChoices(['lobby', 'sleeper'], none)[0].type).toBe('bathroom');
-    expect(carriageChoices(['lobby', 'sleeper', 'bathroom'], none)[0].type).toBe('supply');
+    expect(carriageChoices(['lobby', 'sleeper'], none)[0].type).toBe('cafe');
+    expect(carriageChoices(['lobby', 'sleeper', 'cafe'], none)[0].type).toBe('bathroom');
+    expect(carriageChoices(['lobby', 'sleeper', 'cafe', 'bathroom'], none).map((c) => c.type)).toContain('supply');
   });
 
-  it('recommends racks when bags were left behind, more beds when guests were', () => {
-    expect(carriageChoices(['lobby', 'sleeper', 'bathroom'], { leftBehind: 0, luggageLeft: 4 })[0].type).toBe('luggage');
-    expect(carriageChoices(['lobby', 'sleeper', 'bathroom', 'supply'], { leftBehind: 3, luggageLeft: 0 })[0].type).toBe('sleeper');
+  it('the recommended picks grow the default train', () => {
+    const train: CarriageType[] = ['lobby'];
+    while (train.length < DEFAULT_TRAIN.length) train.push(carriageChoices(train, none)[0].type);
+    expect(train).toEqual(DEFAULT_TRAIN);
+  });
+
+  it('offers racks when bags were left behind, recommends more beds when guests were', () => {
+    expect(carriageChoices(['lobby', 'sleeper', 'bathroom'], { leftBehind: 0, luggageLeft: 4 }).map((c) => c.type)).toContain('luggage');
+    expect(carriageChoices(['lobby', 'sleeper', 'cafe', 'bathroom'], { leftBehind: 3, luggageLeft: 0 })[0].type).toBe('sleeper');
     expect(carriageChoices(['lobby'], { leftBehind: 2, luggageLeft: 0 })[0].reason).toContain('beds');
   });
 

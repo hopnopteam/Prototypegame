@@ -1,4 +1,4 @@
-import { rect, type CarriageType, type Rect, type Vec2 } from '../core/types';
+import { rect, type CarriageType, type ItemKind, type Rect, type Vec2, type VenueKind } from '../core/types';
 
 /**
  * Carriage floor plans as pure data: rooms, doorways, furniture footprints, walls, nav nodes and anchors.
@@ -86,7 +86,12 @@ export const QUEUE_SLOTS: Vec2[] = [
 export type PropKind =
   | 'bed' | 'desk' | 'urn' | 'linen' | 'rack' | 'bin' | 'toilet' | 'sink' | 'bathtub'
   | 'shelfTowel' | 'shelfRoll' | 'crateBay' | 'bench' | 'luggageRack' | 'plant' | 'lamp' | 'washShelf'
-  | 'closet' | 'laundry' | 'table' | 'sofa' | 'bureau' | 'armchair' | 'wardrobe' | 'grandPiano' | 'dining';
+  | 'closet' | 'laundry' | 'table' | 'sofa' | 'bureau' | 'armchair' | 'wardrobe' | 'grandPiano' | 'dining'
+  // Session 20: the venue carriages' furniture.
+  | 'counter' | 'espresso' | 'pastryCase' | 'cafeTable' | 'chair' | 'range' | 'pass' | 'diningTable' | 'bar'
+  | 'stool' | 'domeSeat' | 'basket' | 'rope'
+  // What menu and station tiles add to a venue (shown once bought; see VenueLayout.extras).
+  | 'pastries' | 'beans' | 'wineRack' | 'aquarium' | 'bottles' | 'telescope';
 
 export interface PropDef {
   kind: PropKind;
@@ -163,8 +168,81 @@ export interface NavEdgeDef {
   door?: boolean;
 }
 
+/**
+ * A place a visiting guest sits in a venue carriage (session 20): a chair at a café or dining table, a bar stool,
+ * a lounge armchair, a dome seat. `group` is the table, stool or row it opens with (one unlock tile each).
+ */
+export interface VenueSeatLayout {
+  index: number;
+  group: number;
+  /** Where the guest sits (their root) and which way they face. */
+  sit: Vec2;
+  facing: number;
+  /** Where the server stands to serve or clear (null at the café: guests carry their own cup). */
+  serve: Vec2 | null;
+  /** The nav node beside the seat: guests walk there, then sit. */
+  node: string;
+  /** The seat's height (a bar stool is taller than a chair). */
+  top: number;
+}
+
+export interface VenueGroupLayout {
+  index: number;
+  /** Where its unlock tile stands while it is closed. */
+  tile: Vec2;
+  /** The furniture it opens (for the view: shown once open). */
+  props: number[];
+  /** Dining: the table's own takings pile. */
+  cash: Vec2 | null;
+}
+
+export interface VenueLayout {
+  kind: VenueKind;
+  seats: VenueSeatLayout[];
+  groups: VenueGroupLayout[];
+  /** Where each item is made: the espresso machine, the pastry case, the range, the bar, the blanket basket. */
+  stations: { item: ItemKind; pad: Vec2 }[];
+  /** Café: the serve pad and the queue in front of it; dome: the usher pad and the rope queue. */
+  counter: { pad: Vec2; queue: Vec2[]; facing: number } | null;
+  /** Dining: where the chef leaves finished plates for the waiter. */
+  pass: Vec2 | null;
+  /** The venue's takings pile (café counter, bar, dome); dining tables keep their own. */
+  cash: Vec2 | null;
+  /** Groups open from the start (the rest open a tile at a time). */
+  openGroups: number;
+  /** Where the party meter hangs (bar) or the view is announced (dome), above the floor. */
+  sign: Vec2 | null;
+  /**
+   * What a menu or station tile adds, by its unlock key (the pastries in the case, a second machine, the grand
+   * piano): props that show (and block the way) only once bought.
+   */
+  extras: { key: string; props: number[] }[];
+}
+
+/**
+ * Props that are not there yet in a venue: the tables, stools and rows still to buy, and the extras not
+ * bought. They neither show nor block the way (their tile sits where they will stand).
+ */
+export function closedVenueProps(layout: CarriageLayout, open: readonly boolean[], keys: ReadonlySet<string>): Set<number> {
+  const out = new Set<number>();
+  const venue = layout.venue;
+  if (!venue) return out;
+  for (const g of venue.groups) if (!open[g.index]) for (const i of g.props) out.add(i);
+  for (const e of venue.extras) if (!keys.has(e.key)) for (const i of e.props) out.add(i);
+  return out;
+}
+
+/** The middle of what an extra adds (where its arrival sparkles), in carriage coordinates. */
+export function extraCentre(layout: CarriageLayout, key: string): Vec2 | null {
+  const e = layout.venue?.extras.find((x) => x.key === key);
+  const p = e ? layout.props[e.props[0]] : undefined;
+  return p ? { x: (p.rect.x0 + p.rect.x1) / 2, z: (p.rect.z0 + p.rect.z1) / 2 } : null;
+}
+
 export interface CarriageLayout {
   type: CarriageType;
+  /** The venue carriages' tables, seats and stations (null in every other carriage). */
+  venue: VenueLayout | null;
   length: number;
   rooms: Rect[];
   connectors: Connector[];
@@ -187,7 +265,7 @@ class LayoutBuilder {
 
   constructor(type: CarriageType) {
     this.layout = {
-      type, length: CARRIAGE_LENGTH, rooms: [], connectors: [], blocked: [], walls: [], props: [],
+      type, venue: null, length: CARRIAGE_LENGTH, rooms: [], connectors: [], blocked: [], walls: [], props: [],
       cabins: [], bathrooms: [], anchors: {}, queue: [], nodes: [], edges: [], doors: [], frontNode: null, rearNode: 'vest_rear',
     };
   }
@@ -200,10 +278,11 @@ class LayoutBuilder {
     this.layout.connectors.push({ rect: rect(x0, z0, x1, z1), axis, door });
   }
 
-  prop(kind: PropKind, x0: number, z0: number, x1: number, z1: number, facing?: PropDef['facing'], blocks = true): void {
+  prop(kind: PropKind, x0: number, z0: number, x1: number, z1: number, facing?: PropDef['facing'], blocks = true): number {
     const r = rect(x0, z0, x1, z1);
     this.layout.props.push({ kind, rect: r, facing });
     if (blocks) this.layout.blocked.push(r);
+    return this.layout.props.length - 1;
   }
 
   wall(x0: number, z0: number, x1: number, z1: number, kind: WallBox['kind'] = 'interior', height = kind === 'exterior' ? EXTERIOR_WALL_HEIGHT : INTERIOR_WALL_HEIGHT): void {
@@ -613,12 +692,254 @@ function buildLuggage(): CarriageLayout {
   return b.layout;
 }
 
+
+/** Facing angles (as CharacterView takes them): toward +z, −z, +x, −x. */
+const FACE = { rear: 0, front: Math.PI, right: Math.PI / 2, left: -Math.PI / 2 };
+
+/** A venue's open floor: one room from the front vestibule to the rear one, and the spine of its walkway. */
+function venueShell(b: LayoutBuilder, front: number): void {
+  b.shell({ frontGangway: true, doors: false });
+  b.vestibules(front);
+  // Overlapping the front vestibule well, so the walkable floor runs on without a seam.
+  b.room(-INNER, front - 0.8, INNER, CARRIAGE_LENGTH - REAR_VESTIBULE + 0.8);
+  b.node('corr_end', 0, CARRIAGE_LENGTH - REAR_VESTIBULE + 0.35);
+}
+
+function newVenue(kind: VenueKind): VenueLayout {
+  return { kind, seats: [], groups: [], stations: [], counter: null, pass: null, cash: null, openGroups: 1, sign: null, extras: [] };
+}
+
+/**
+ * The café car: the counter along the right with the espresso machine and the pastry case on it; the queue
+ * lines up along its front, the serve pad between them. Round tables for two at the back.
+ */
+function buildCafe(): CarriageLayout {
+  const b = new LayoutBuilder('cafe');
+  const v = newVenue('cafe');
+  b.layout.venue = v;
+  const front = 2.0;
+  venueShell(b, front);
+  b.prop('counter', 1.42, 2.5, INNER, 7.2, 'left');
+  b.prop('espresso', 1.62, 2.72, 2.24, 3.42, 'left', false);
+  b.prop('pastryCase', 1.56, 5.75, 2.26, 6.95, 'left', false);
+  v.extras.push(
+    { key: 'menu_pastry', props: [b.prop('pastries', 1.66, 5.85, 2.16, 6.85, 'left', false)] },
+    { key: 'station_machine', props: [b.prop('espresso', 1.62, 3.62, 2.24, 4.3, 'left', false)] },
+    { key: 'menu_beans', props: [b.prop('beans', 1.62, 4.9, 2.24, 5.55, 'left', false)] },
+  );
+  v.stations.push({ item: 'latte', pad: { x: 0.98, z: 3.05 } }, { item: 'pastry', pad: { x: 0.98, z: 6.35 } });
+  v.counter = { pad: { x: 0.98, z: 4.5 }, queue: [{ x: 0.18, z: 4.5 }, { x: 0.18, z: 5.3 }, { x: 0.18, z: 6.1 }, { x: 0.18, z: 6.9 }], facing: FACE.right };
+  v.cash = { x: 0.98, z: 5.42 };
+  // Tables for two at the back, either side of a wide aisle; one is open from the start.
+  const rows = [9.2, 11.6, 14.0];
+  let group = 0;
+  b.node('cafe_front', 0, front + 0.4);
+  b.node('counter', -0.55, 4.5);
+  b.node('aisle_mid', -0.4, 7.9);
+  b.chain('vest_front', 'cafe_front', 'counter', 'aisle_mid');
+  let previous = 'aisle_mid';
+  for (const z of rows) {
+    const aisle = b.node(`aisle_${group}`, 0, z);
+    b.edge(previous, aisle);
+    previous = aisle;
+    for (const side of [-1, 1]) {
+      const x = side * 1.3;
+      const table = b.prop('cafeTable', x - 0.36, z - 0.36, x + 0.36, z + 0.36);
+      const c0 = b.prop('chair', x - 0.22, z - 0.98, x + 0.22, z - 0.56, 'rear');
+      const c1 = b.prop('chair', x - 0.22, z + 0.56, x + 0.22, z + 0.98, 'front');
+      const node = b.node(`table_${group}`, side * 0.5, z);
+      b.edge(aisle, node);
+      v.groups.push({ index: group, tile: { x, z }, props: [table, c0, c1], cash: null });
+      v.seats.push({ index: v.seats.length, group, sit: { x, z: z - 0.76 }, facing: FACE.rear, serve: null, node, top: 0.4 });
+      v.seats.push({ index: v.seats.length, group, sit: { x, z: z + 0.76 }, facing: FACE.front, serve: null, node, top: 0.4 });
+      group++;
+    }
+  }
+  b.chain(previous, 'corr_end', 'vest_rear');
+  v.openGroups = 1;
+  b.anchor('home_barista', -1.35, 3.3);
+  b.anchor('tile_up_barista', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_menu', -1.35, 5.7);
+  b.anchor('tile_station', -1.35, 7.5);
+  return b.layout;
+}
+
+/**
+ * The dining car: the kitchen up front (the range on the right, the pass across from it where the chef leaves
+ * plates), then window tables for two down both sides with the aisle between them.
+ */
+function buildDining(): CarriageLayout {
+  const b = new LayoutBuilder('dining');
+  const v = newVenue('dining');
+  b.layout.venue = v;
+  const front = 2.0;
+  venueShell(b, front);
+  b.prop('range', 1.5, 0.4, INNER, 3.2, 'left');
+  b.prop('pass', 0.55, 3.62, 1.5, 4.08, 'rear');
+  v.stations.push({ item: 'meal', pad: { x: 0.92, z: 1.85 } });
+  v.pass = { x: 0.98, z: 4.72 };
+  v.extras.push(
+    // On the lake side, where the camera sees them whole: a second range, the wine rack, the lobster tank.
+    { key: 'station_range', props: [b.prop('range', -INNER, 1.95, -1.62, 3.45, 'right')] },
+    { key: 'menu_roast', props: [b.prop('wineRack', -INNER, 3.75, -2.02, 5.0, 'right')] },
+    { key: 'menu_lobster', props: [b.prop('aquarium', -INNER, 0.15, -1.75, 0.85, 'right')] },
+  );
+  b.node('kitchen', -0.3, 2.3);
+  b.node('stove', 0.55, 1.9);
+  b.node('pass', 0.2, 4.75);
+  b.chain('vest_front', 'kitchen', 'pass');
+  b.edge('kitchen', 'stove');
+  const rows = [6.4, 9.0, 11.6, 14.2];
+  let group = 0;
+  let previous = 'pass';
+  for (const z of rows) {
+    const aisle = b.node(`aisle_${group}`, 0, z);
+    b.edge(previous, aisle);
+    previous = aisle;
+    for (const side of [-1, 1]) {
+      const wall = side * INNER;
+      const inner = side * 1.58;
+      const table = b.prop('diningTable', Math.min(wall, inner), z - 0.45, Math.max(wall, inner), z + 0.45);
+      const c0 = b.prop('chair', Math.min(wall, inner) + 0.14, z - 1.0, Math.max(wall, inner) - 0.14, z - 0.56, 'rear');
+      const c1 = b.prop('chair', Math.min(wall, inner) + 0.14, z + 0.56, Math.max(wall, inner) - 0.14, z + 1.0, 'front');
+      const node = b.node(`table_${group}`, side * 0.52, z);
+      b.edge(aisle, node);
+      const mid = (wall + inner) / 2;
+      // The tile reaches under the table a little, kept clear of the camera-side wall (which hides the floor by it).
+      v.groups.push({ index: group, tile: { x: side * 1.3, z }, props: [table, c0, c1], cash: { x: side * 1.0, z: z + 1.05 } });
+      v.seats.push({ index: v.seats.length, group, sit: { x: mid, z: z - 0.8 }, facing: FACE.rear, serve: { x: side * 1.0, z }, node, top: 0.4 });
+      group++;
+    }
+  }
+  b.chain(previous, 'corr_end', 'vest_rear');
+  v.openGroups = 2;
+  b.anchor('home_chef', -0.2, 2.9);
+  b.anchor('home_waiter', -1.45, 4.6);
+  b.anchor('tile_up_chef', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_up_waiter', -1.2, 15.75);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_menu', -1.45, 1.4);
+  b.anchor('tile_station', -1.3, 2.7);
+  return b.layout;
+}
+
+/**
+ * The bar lounge: the bar along the left with its stools, the mixing station at its end; armchairs round low
+ * tables at the back, and the corner where the grand piano goes.
+ */
+function buildBar(): CarriageLayout {
+  const b = new LayoutBuilder('bar');
+  const v = newVenue('bar');
+  b.layout.venue = v;
+  const front = 2.0;
+  venueShell(b, front);
+  b.prop('bar', -INNER, 2.5, -1.5, 8.4, 'right');
+  v.stations.push({ item: 'cocktail', pad: { x: -1.0, z: 1.85 } });
+  v.cash = { x: -0.3, z: 9.15 };
+  v.sign = { x: -1.9, z: 5.4 };
+  v.extras.push(
+    { key: 'station_piano', props: [b.prop('grandPiano', -INNER, 9.7, -1.3, 11.9)] },
+    { key: 'menu_cocktails', props: [b.prop('bottles', -INNER, 3.0, -2.0, 7.9, 'right', false)] },
+  );
+  b.node('bar_front', 0.3, 2.3);
+  b.node('bar_aisle', 0.6, 5.4);
+  b.chain('vest_front', 'bar_front', 'bar_aisle');
+  let group = 0;
+  for (const z of [3.1, 4.3, 5.5, 6.7, 7.9]) {
+    const stool = b.prop('stool', -1.28, z - 0.2, -0.88, z + 0.2);
+    const node = b.node(`stool_${group}`, 0.25, z);
+    b.edge('bar_aisle', node);
+    v.groups.push({ index: group, tile: { x: -0.62, z }, props: [stool], cash: null });
+    v.seats.push({ index: v.seats.length, group, sit: { x: -1.08, z }, facing: FACE.left, serve: { x: -0.32, z }, node, top: 0.62 });
+    group++;
+  }
+  // The lounge: armchairs on the right round low tables, a pair on the left by the piano's corner.
+  b.node('lounge', 0, 10.2);
+  b.edge('bar_aisle', 'lounge');
+  let previous = 'lounge';
+  for (const z of [10.6, 13.0, 15.2]) {
+    const node = b.node(`lounge_${group}`, 0.15, z);
+    b.edge(previous, node);
+    previous = node;
+    const chair = b.prop('armchair', 1.62, z - 0.36, 2.3, z + 0.36, 'left');
+    const table = b.prop('table', 0.98, z - 0.3, 1.42, z + 0.3);
+    v.groups.push({ index: group, tile: { x: 1.25, z: z - 0.95 }, props: [chair, table], cash: null });
+    v.seats.push({ index: v.seats.length, group, sit: { x: 1.92, z }, facing: FACE.left, serve: { x: 0.45, z: z - 0.62 }, node, top: 0.4 });
+    group++;
+  }
+  for (const z of [13.6, 15.4]) {
+    const chair = b.prop('armchair', -2.3, z - 0.36, -1.62, z + 0.36, 'right');
+    const node = b.node(`lounge_${group}`, -0.5, z);
+    b.edge(z < 14 ? 'lounge_6' : 'lounge_7', node);
+    v.groups.push({ index: group, tile: { x: -1.2, z }, props: [chair], cash: null });
+    v.seats.push({ index: v.seats.length, group, sit: { x: -1.92, z }, facing: FACE.right, serve: { x: -0.9, z: z - 0.62 }, node, top: 0.4 });
+    group++;
+  }
+  b.chain(previous, 'corr_end', 'vest_rear');
+  v.openGroups = 2;
+  b.anchor('home_bartender', 0.9, 1.6);
+  b.anchor('tile_up_bartender', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_menu', 1.3, 3.6);
+  b.anchor('tile_station', -1.5, 10.8);
+  return b.layout;
+}
+
+/**
+ * The observation dome: a glass roof over rows of plush seats facing the lake; guests wait at the rope up front
+ * to be shown in. The blanket basket stands at the back.
+ */
+function buildDome(): CarriageLayout {
+  const b = new LayoutBuilder('dome');
+  const v = newVenue('dome');
+  b.layout.venue = v;
+  const front = 2.0;
+  venueShell(b, front);
+  b.prop('rope', 0.35, 3.62, INNER - 0.05, 3.78, 'rear');
+  v.counter = { pad: { x: -0.22, z: 3.3 }, queue: [{ x: -1.0, z: 3.3 }, { x: -1.6, z: 2.6 }, { x: -1.6, z: 1.8 }, { x: -1.0, z: 1.2 }], facing: FACE.right };
+  b.prop('basket', 1.58, 15.3, 2.28, 15.9, 'left');
+  v.stations.push({ item: 'blanket', pad: { x: 1.15, z: 14.6 } });
+  v.cash = { x: -0.25, z: 14.8 };
+  v.sign = { x: 0.8, z: 9.0 };
+  v.extras.push({ key: 'menu_telescopes', props: [5.85, 9.25, 12.65].map((z) => b.prop('telescope', -INNER + 0.06, z - 0.22, -1.94, z + 0.22, 'right')) });
+  b.node('dome_front', 0.3, 2.4);
+  b.node('rope', -0.9, 4.2);
+  b.chain('vest_front', 'dome_front', 'rope');
+  let previous = 'rope';
+  let group = 0;
+  for (const z of [5.0, 6.7, 8.4, 10.1, 11.8, 13.5]) {
+    const node = b.node(`row_${group}`, -0.6, z);
+    b.edge(previous, node);
+    previous = node;
+    const s0 = b.prop('domeSeat', 0.32, z - 0.3, 0.92, z + 0.3, 'left');
+    const s1 = b.prop('domeSeat', 1.32, z - 0.3, 1.92, z + 0.3, 'left');
+    v.groups.push({ index: group, tile: { x: 1.12, z }, props: [s0, s1], cash: null });
+    v.seats.push({ index: v.seats.length, group, sit: { x: 0.62, z }, facing: FACE.left, serve: { x: -0.24, z }, node, top: 0.4 });
+    v.seats.push({ index: v.seats.length, group, sit: { x: 1.62, z }, facing: FACE.left, serve: { x: -0.24, z }, node, top: 0.4 });
+    group++;
+  }
+  b.node('basket', 0.4, 14.9);
+  b.edge(previous, 'basket');
+  b.chain('basket', 'corr_end', 'vest_rear');
+  v.openGroups = 1;
+  b.anchor('home_host', 0.5, 2.5);
+  b.anchor('tile_up_host', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_menu', -1.5, 7.6);
+  return b.layout;
+}
+
 const BUILDERS: Record<CarriageType, (tier: number) => CarriageLayout> = {
   lobby: buildLobby,
   sleeper: buildSleeper,
   bathroom: buildBathroom,
   supply: buildSupply,
   luggage: buildLuggage,
+  cafe: buildCafe,
+  dining: buildDining,
+  bar: buildBar,
+  dome: buildDome,
 };
 
 const cache = new Map<string, CarriageLayout>();
@@ -668,6 +989,8 @@ export const ZONE_RADIUS = {
   crate: 0.6,
   tile: 0.6,
   coupleTile: 0.8,
+  /** A venue's serve pads: beside a table, a stool or a dome row; the café counter and the dome's rope. */
+  serve: 0.42,
 } as const;
 /** Unlock tiles are squares this wide on the floor. */
 /** Unlock tiles: a metre square (session 15, was 1.2 m: the big plates would not fit clear of the walls). */
@@ -697,6 +1020,8 @@ export interface Footprint {
   /** Circle radius, or half the side for tiles. */
   r: number;
   group?: string;
+  /** Props that stand where this tile is once it is bought (a venue's table, the piano): it may lie under them. */
+  replaces?: number[];
 }
 
 export function footprints(layout: CarriageLayout): Footprint[] {
@@ -705,8 +1030,8 @@ export function footprints(layout: CarriageLayout): Footprint[] {
   const zone = (id: string, p: Vec2 | undefined, r: number, group?: string): void => {
     if (p) out.push({ id, kind: 'zone', x: p.x, z: p.z, r, group });
   };
-  const tile = (id: string, p: Vec2 | undefined, group?: string): void => {
-    if (p) out.push({ id, kind: 'tile', x: p.x, z: p.z, r: TILE_SIZE / 2, group });
+  const tile = (id: string, p: Vec2 | undefined, group?: string, replaces?: number[]): void => {
+    if (p) out.push({ id, kind: 'tile', x: p.x, z: p.z, r: TILE_SIZE / 2, group, replaces });
   };
   const pile = (id: string, p: Vec2 | undefined): void => {
     if (p) out.push({ id, kind: 'pile', x: p.x, z: p.z, r: 0.28 });
@@ -723,7 +1048,7 @@ export function footprints(layout: CarriageLayout): Footprint[] {
   zone('shelf_roll', a.shelf_roll, ZONE_RADIUS.source);
   zone('crateDrop', a.crateDrop, ZONE_RADIUS.crate);
   tile('tile_refurb', a.tile_refurb);
-  for (const role of ['attendant', 'porter', 'runner']) {
+  for (const role of ['attendant', 'porter', 'runner', 'barista', 'chef', 'waiter', 'bartender', 'host']) {
     // A staff member's hire tile sits on their home, then the training tile does: never together.
     tile(`tile_up_${role}`, a[`tile_up_${role}`], `staff_${role}`);
     tile(`hire_${role}`, a[`home_${role}`], `staff_${role}`);
@@ -733,6 +1058,27 @@ export function footprints(layout: CarriageLayout): Footprint[] {
     tile(`cabin_tile_${cabin.index}`, cabin.center, `cabin_${cabin.index}`);
     cabin.spots.forEach((s, i) => zone(`spot_${cabin.index}_${i}`, s, ZONE_RADIUS.spot, `cabin_${cabin.index}`));
     pile(`tips_${cabin.index}`, cabin.tipPile);
+  }
+  const venue = layout.venue;
+  if (venue) {
+    venue.stations.forEach((s, i) => zone(`station_${i}`, s.pad, ZONE_RADIUS.source));
+    if (venue.counter) {
+      zone('counter', venue.counter.pad, ZONE_RADIUS.serve);
+      venue.counter.queue.forEach((q, i) => out.push({ id: `queue_${i}`, kind: 'home', x: q.x, z: q.z, r: 0.26 }));
+    }
+    if (venue.pass) zone('pass', venue.pass, ZONE_RADIUS.source);
+    pile('venueCash', venue.cash ?? undefined);
+    const extras = (prefix: string): number[] => venue.extras.filter((e) => e.key.startsWith(prefix)).flatMap((e) => e.props);
+    tile('tile_menu', a.tile_menu, undefined, extras('menu_'));
+    tile('tile_station', a.tile_station, undefined, extras('station_'));
+    for (const g of venue.groups) {
+      tile(`group_tile_${g.index}`, g.tile, `group_${g.index}`, g.props);
+      if (g.cash) pile(`group_cash_${g.index}`, g.cash);
+    }
+    // Serve pads are shared by the seats round one table (one pad per table side).
+    const pads = new Map<string, { p: Vec2; group: number }>();
+    for (const seat of venue.seats) if (seat.serve) pads.set(`${seat.serve.x.toFixed(2)},${seat.serve.z.toFixed(2)}`, { p: seat.serve, group: seat.group });
+    for (const [key, pad] of pads) zone(`serve_${key}`, pad.p, ZONE_RADIUS.serve, `group_${pad.group}`);
   }
   for (const bath of layout.bathrooms) {
     zone(`restock_${bath.index}`, bath.restock, ZONE_RADIUS.restock, `bath_${bath.index}`);

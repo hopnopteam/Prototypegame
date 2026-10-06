@@ -20,9 +20,17 @@ export class Demand {
       case 'tea':
       case 'coffee':
       case 'champagne':
-      case 'blanket':
       case 'pillow':
         return this.requestNeed(kind);
+      case 'blanket':
+        // Cabin requests, and the dome's guests who would like one for the view.
+        return this.requestNeed(kind) + w.venues.need(kind);
+      case 'latte':
+      case 'pastry':
+      case 'meal':
+      case 'cocktail':
+        // What the venue carriages are waiting for (session 20).
+        return w.venues.need(kind);
       case 'towel':
         // Towels go to washrooms running low and to Comfort-class guests who ask for a fresh one.
         return this.bathroomNeed(kind) + this.requestNeed(kind);

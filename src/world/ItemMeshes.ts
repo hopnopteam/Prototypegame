@@ -15,6 +15,10 @@ export const ITEM_HEIGHT: Record<ItemKind, number> = {
   roll: 0.15,
   luggage: 0.3,
   crate: 0.34,
+  latte: 0.2,
+  pastry: 0.1,
+  meal: 0.2,
+  cocktail: 0.22,
 };
 
 const cache = new Map<ItemKind, THREE.BufferGeometry>();
@@ -74,6 +78,30 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       for (const x of [-0.14, 0.14]) b.box(x, 0.14, 0, 0.04, 0.285, 0.345, PALETTE.creamBand, 0, { shade: 1 });
       b.cylinder(0, 0.3, 0, 0.02, 0.02, 0.16, PALETTE.ink, 6, 'x');
       b.box(0.18, 0.22, 0.172, 0.08, 0.06, 0.004, PALETTE.linen, 0, { shade: 1 });
+      break;
+    case 'latte':
+      // A café glass of milky coffee with its foam, on a saucer.
+      b.cylinder(0, 0.008, 0, 0.09, 0.09, 0.016, PALETTE.porcelain, 14);
+      b.cylinder(0, 0.09, 0, 0.055, 0.045, 0.15, '#C99B6D', 14, 'y', { shade: 0.95, surface: 'glass' });
+      b.cylinder(0, 0.168, 0, 0.056, 0.056, 0.012, '#FBF1DF', 14, 'y', { shade: 1 });
+      break;
+    case 'pastry':
+      // A croissant on a little plate.
+      b.cylinder(0, 0.008, 0, 0.12, 0.12, 0.016, PALETTE.porcelain, 14);
+      b.add(new THREE.TorusGeometry(0.075, 0.035, 6, 12, Math.PI * 1.1).rotateX(Math.PI / 2).rotateY(Math.PI * 0.45), '#E2A04A', 0, 0.045, 0.02, 0, 0, 0, { shade: 0.9 });
+      break;
+    case 'meal':
+      // A plate under a silver cloche.
+      b.cylinder(0, 0.01, 0, 0.17, 0.17, 0.02, PALETTE.porcelain, 16);
+      b.sphere(0, 0.03, 0, 0.13, PALETTE.chrome, 1, 0.75, { shade: 0.95, surface: 'steel' });
+      b.sphere(0, 0.135, 0, 0.022, PALETTE.chrome, 0, 1, { shade: 1, surface: 'steel' });
+      break;
+    case 'cocktail':
+      // A coupe glass, pink, with a cherry, on a small silver tray.
+      b.rounded(0, 0.01, 0, 0.24, 0.02, 0.18, 0.04, PALETTE.chrome, { shade: 0.9, surface: 'steel' });
+      b.cylinder(0, 0.06, 0, 0.01, 0.02, 0.09, '#E8EEF2', 6, 'y', { surface: 'glass' });
+      b.cylinder(0, 0.13, 0, 0.07, 0.025, 0.06, '#F3A3B3', 12, 'y', { shade: 1, surface: 'glass' });
+      b.sphere(0.03, 0.17, 0, 0.016, '#C0485C', 0);
       break;
     case 'crate':
       b.box(0, 0.17, 0, 0.5, 0.34, 0.42, PALETTE.oak, 0, { pattern: PATTERN.stripesZ, color2: '#A87544', scale: 0.09, shade: 0.8 });

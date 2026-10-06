@@ -2,7 +2,7 @@ import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, type ProductDef } from '../c
 import { CLASSES } from '../config/classes';
 import { formatDuration, formatNumber } from '../core/math';
 import type { DoubleChoice } from '../gameplay/GameUi';
-import { CEREMONIES, INTERVIEWS, NOMINATION_LEVEL, RIVALS } from '../config/press';
+import { CEREMONIES, INTERVIEWS, NOMINATION_LEVEL } from '../config/press';
 import { conductorCost } from '../sim/meta';
 import { CARRIAGE_THEMES, LIVERIES, liveryFor } from '../world/palette';
 import { OUTFITS, type OutfitDef } from '../config/wardrobe';
@@ -155,7 +155,7 @@ export class Screens {
    */
   carriageChoice(choices: CarriageChoiceView[], onPick: (type: CarriageType) => void): void {
     let close: () => void = () => undefined;
-    const icons: Record<CarriageType, IconName> = { lobby: 'ticket', bathroom: 'bath', supply: 'towel', luggage: 'luggage', sleeper: 'bed' };
+    const icons: Record<CarriageType, IconName> = { lobby: 'ticket', bathroom: 'bath', supply: 'towel', luggage: 'luggage', sleeper: 'bed', cafe: 'latte', dining: 'meal', bar: 'cocktail', dome: 'binoculars' };
     const cards = choices.map((c, i) => {
       const theme = CARRIAGE_THEMES[c.type];
       return h(`button.carriage-card${i === 0 && c.reason ? '.recommended' : ''}` as 'button', {
@@ -185,7 +185,7 @@ export class Screens {
   private league(): HTMLElement {
     const g = this.game;
     const reputation = g.data.route.stars;
-    const rows = [...RIVALS.map((r) => ({ rival: r, name: r.name, owner: r.owner.name, rep: r.reputation, you: false, livery: r.livery })),
+    const rows = [...g.press.league.map((r) => ({ rival: r, name: r.name, owner: r.owner.name, rep: r.reputation, you: false, livery: r.livery })),
       { rival: null, name: g.press.trainName, owner: 'You', rep: reputation, you: true, livery: g.currentLivery().body }]
       .sort((a, b) => b.rep - a.rep || (a.you ? -1 : 1));
     return h('ol.league', {}, ...rows.map((row, i) => {
@@ -228,8 +228,12 @@ export class Screens {
           spoils.gems ? h('span.chip-s', {}, icon('gem', 14), String(spoils.gems)) : null,
         )
         : null,
+      // Session 20: the races to the next station, live and on the record.
+      race.leg
+        ? h('div.spoils-row.race-on', {}, icon('flag', 18), h('span.what', { text: `Race to ${race.leg.station}` }), h('span.chip-s', {}, icon('star', 14), `${Math.min(race.leg.earned, race.leg.target)}/${race.leg.target}`))
+        : null,
       this.league(),
-      h('p.small', { text: 'Stars come from building, tidying rooms, requests and perfect stops.' }),
+      h('p.small', { text: `Races won: ${g.data.press.rivals.wins} of ${g.data.press.rivals.races}. Beat a rival to a station for a purse; lose and they gain ground.` }),
     ], { className: 'league-sheet' });
   }
 

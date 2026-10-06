@@ -192,6 +192,10 @@ export class Guidance {
       if (source) return this.because('fetch', source);
     }
 
+    // The venues' guests waiting for their order, the café queue, the dome's rope, a dining table to clear.
+    const job = w.venues.playerJob(player.pos);
+    if (job) return this.because(job.reason, job.target);
+
     const dirty = w.train.cabins.find((c) => c.isDirty && !c.guest && !c.cleaner);
     if (dirty) {
       const i = dirty.dirty.findIndex(Boolean);
@@ -214,6 +218,8 @@ export class Guidance {
     for (const guest of w.guests.openRequests()) {
       if (guest.request && guest.request !== 'bathroom' && guest.request !== 'turndown' && items.includes(guest.request) && guest.cabin) return guest.cabin.center;
     }
+    const venue = w.venues.deliverPoint(items, w.player.pos);
+    if (venue) return venue;
     if (items.includes('luggage')) {
       const luggage = w.train.indexOfType('luggage');
       const lobbyFull = w.train.luggageStored >= w.econ.facilities.lobbyRackCapacity;

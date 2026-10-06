@@ -51,7 +51,23 @@ const ICON_BY_KIND: Record<UnlockDef['kind'], IconName> = {
   comfort: 'heart',
   exterior: 'paint',
   marketing: 'megaphone',
+  // Session 20: the venues (a seat tile shows the venue's own icon, see iconOf).
+  seat: 'plus',
+  menu: 'star',
+  station: 'gear',
 };
+
+/** A tile's icon: its kind's, or for a venue's seats and menus the venue's own (a cup, a cloche, a glass). */
+function iconOf(def: UnlockDef, type: string | undefined): IconName {
+  if (def.kind === 'seat' || def.kind === 'menu') {
+    if (def.id.endsWith('menu_pastry')) return 'pastry';
+    if (type === 'cafe') return 'latte';
+    if (type === 'dining') return 'meal';
+    if (type === 'bar') return 'cocktail';
+    if (type === 'dome') return 'binoculars';
+  }
+  return ICON_BY_KIND[def.kind];
+}
 
 /**
  * Unlock tiles on the floor (§4 "Unlock"): stand on one and cash streams from the conductor into it; when it
@@ -250,9 +266,10 @@ export class Tiles {
       }
       const focused = !!focus && Math.abs(focus.x - entry.pos.x) < 0.05 && Math.abs(focus.z - entry.pos.z) < 0.05;
       const marker = (focused || entry.age < NEW_TILE_MARKER_SECONDS || (affordable && !focus)) && entry.def.id !== this.taggedId;
-      entry.view.face.draw(ICON_BY_KIND[entry.def.kind], remaining, progress, affordable, active);
+      const icon = iconOf(entry.def, w.train.types[entry.def.carriage]);
+      entry.view.face.draw(icon, remaining, progress, affordable, active);
       // (Not while standing on it: the marker is hidden then, and each redraw is a texture upload.)
-      if (marker && !active) entry.view.marker.draw(ICON_BY_KIND[entry.def.kind], markerName(entry.def.label), remaining, affordable);
+      if (marker && !active) entry.view.marker.draw(icon, markerName(entry.def.label), remaining, affordable);
       entry.view.update(dt, affordable, active, marker);
       if (!active) {
         entry.stand = 0;
@@ -482,6 +499,15 @@ export class Tiles {
       case 'exterior':
       case 'marketing':
         return { ...STATION_TILE_POS[def.kind] };
+      case 'seat': {
+        const venue = w.venues.byCarriage(def.carriage);
+        const group = venue?.layout.groups.find((g) => g.index === def.group);
+        return venue && group ? venue.world(group.tile) : null;
+      }
+      case 'menu':
+        return map.hasAnchor(def.carriage, 'tile_menu') ? map.anchor(def.carriage, 'tile_menu') : null;
+      case 'station':
+        return map.hasAnchor(def.carriage, 'tile_station') ? map.anchor(def.carriage, 'tile_station') : null;
     }
   }
 }

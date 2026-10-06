@@ -251,6 +251,8 @@ const wordsOnScreen = () => {
     const t = walker.currentNode.textContent.trim();
     const el = walker.currentNode.parentElement;
     if (!t || !el || !vis(el)) continue;
+    // The news strip (session 20) is a deliberate moment like a card: a few words, a few seconds, for big news only.
+    if (el.closest('.wire')) continue;
     const n = (t.match(/[A-Za-z][A-Za-z'’]+/g) ?? []).length;
     if (n) texts.push(t);
     words += n;

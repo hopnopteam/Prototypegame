@@ -1,4 +1,5 @@
 import { STORIES } from '../config/content';
+import { VENUES } from '../config/venues';
 import {
   CEREMONIES,
   DEBUT_INTERVIEW,
@@ -17,8 +18,11 @@ import {
   type PressTrigger,
   type Rival,
   PRESS_PACING,
+  RACE_CHALLENGES,
+  RIVAL_MOVES,
   RIVAL_RACE,
 } from '../config/press';
+import type { IconName } from '../ui/icons';
 import type { NewsItem } from '../save/SaveData';
 import { awardProgress, cleanTrainName, fillTemplate, leagueStanding, raceProgress, rivalsPassed, type LeagueStanding, type RaceProgress } from '../sim/press';
 import type { DoubleChoice } from './GameUi';
@@ -48,10 +52,32 @@ export interface PressUi {
   showFrontPage(item: NewsItem, reward: FrontPageReward, gemCost: number, onCollect: (choice: DoubleChoice) => void): void;
   /** Rival Watch: a rival owner's taunt (and the last one you passed, grumbling), with the gap to close. */
   showRivalWatch(watch: RivalWatch, onDone: () => void): void;
+  /** The news strip (session 20): a few words that slide in at the foot of the screen and go; never a pause. */
+  wire(news: WireNews): void;
   /** A sheet is open; big moments wait. */
   readonly busy: boolean;
   /** The station's result ticket is on screen; press cards wait until it has gone. */
   readonly ticketUp: boolean;
+}
+
+/** One item on the news strip: a headline, the Gazette's (or a rival's) face, and what it paid. */
+export interface WireNews {
+  headline: string;
+  icon: IconName;
+  /** A rival's news shows their face instead of the paper. */
+  rival?: Rival | null;
+  reward?: FrontPageReward | null;
+  tone: 'news' | 'rival' | 'win';
+}
+
+/** A race to the next station against the rival you are chasing (session 20). */
+export interface RaceLeg {
+  rival: Rival;
+  index: number;
+  station: string;
+  /** Stars to earn before the train arrives, and earned so far this ride. */
+  target: number;
+  earned: number;
 }
 
 export interface RivalWatch {
@@ -77,6 +103,8 @@ export interface RaceView extends RaceProgress {
   humbled: Rival | null;
   /** A flinch at one of your big moments (a coupling, a refit), shown as an icon beside their face. */
   reaction: 'frown' | 'bolt' | null;
+  /** A race to the next station is on (session 20): the chip shows your stars against their target. */
+  leg: RaceLeg | null;
 }
 
 const { calmSeconds: CALM_SECONDS, gapSeconds: PRESS_GAP, afterSheetSeconds: AFTER_SHEET, maxWaitingFrontPages: MAX_WAITING_FRONT_PAGES, newsWeight: NEWS_WEIGHT } = PRESS_PACING;
@@ -101,7 +129,17 @@ export class Press {
   private reactionLeft = 0;
   private sinceReaction = RIVAL_RACE.reactGap;
   private raceStars = -1;
-  private readonly raceView: RaceView = { visible: false, next: null, from: 0, to: 0, fraction: 0, rank: 0, mood: 'smug', humbled: null, reaction: null };
+  private readonly raceView: RaceView = { visible: false, next: null, from: 0, to: 0, fraction: 0, rank: 0, mood: 'smug', humbled: null, reaction: null, leg: null };
+  /** The league as it stands: each rival's reputation plus what the races they won added (session 20). */
+  private leagueCache: Rival[] = RIVALS;
+  private leagueKey = '';
+  /** The race to the next station, if one is on; rides since the last one; stars at the last departure. */
+  private leg: RaceLeg | null = null;
+  private ridesSinceRace = 0;
+  private starsAtDeparture = -1;
+  private lastRideStars = 0;
+  /** Seconds into a ride before a rival pulls alongside with a challenge (-1: not this ride). */
+  private challengeIn = -1;
 
   constructor(private readonly w: World, private readonly ui: PressUi) {
     const p = this.state;
@@ -128,8 +166,10 @@ export class Press {
       if (r.clean) p.stats.perfectStops++;
       w.save.markDirty();
     });
-    e.on('carriage.coupled', ({ index }) => {
-      this.print('coupling', { carriage: w.train.carriageName(index), n: index + 1 });
+    e.on('carriage.coupled', ({ index, type }) => {
+      // A venue joining is its own news: it opens (session 20).
+      if (type === 'cafe' || type === 'dining' || type === 'bar' || type === 'dome') this.print('venue', { venue: VENUES[type].name });
+      else this.print('coupling', { carriage: w.train.carriageName(index), n: index + 1 });
       this.react('frown');
     });
     e.on('carriage.refurbished', ({ index, tier }) => {
@@ -140,9 +180,11 @@ export class Press {
       if (trigger) this.print(trigger, { carriage: w.train.carriageName(index) });
     });
     e.on('livery.changed', ({ name }) => this.print('livery', { livery: name }));
-    e.on('stars.added', () => {
+    e.on('stars.added', ({ amount }) => {
+      if (this.leg) this.leg.earned += amount;
       this.checkLeague();
       this.checkRivalTarget();
+      this.checkRace();
     });
     e.on('level.up', ({ level }) => {
       if (INTERVIEWS.some((i) => i.level === level) && !p.interviews.includes(level)) this.queue(`interview:${level}`);
@@ -154,8 +196,22 @@ export class Press {
       if (story) this.print('story', { story: `${story.name}'s Journey Ends Happily` });
     });
     e.on('journey.phase', ({ phase, previous }) => {
-      if (phase === 'onTheMove' && previous === 'departing') this.calm = CALM_SECONDS;
+      if (phase === 'onTheMove' && previous === 'departing') {
+        this.calm = CALM_SECONDS;
+        // A ride begins: what the last one earned (departure to arrival) sets the pace of any race on this one.
+        this.starsAtDeparture = w.data.route.stars;
+        this.ridesSinceRace++;
+        this.challengeIn = RIVAL_RACE.showdown.challengeDelay;
+      }
+      if (phase === 'arriving') {
+        this.challengeIn = -1;
+        if (this.starsAtDeparture >= 0) this.lastRideStars = w.data.route.stars - this.starsAtDeparture;
+        if (this.leg) this.loseRace(this.leg);
+      }
       if (phase === 'arriving' || phase === 'stationStop') this.calm = 0;
+    });
+    e.on('venue.happyHour', () => {
+      if (!p.fired.happyHour) this.print('happyHour');
     });
   }
 
@@ -177,7 +233,27 @@ export class Press {
   }
 
   get standing(): LeagueStanding {
-    return leagueStanding(this.w.data.route.stars, RIVALS);
+    return leagueStanding(this.w.data.route.stars, this.league);
+  }
+
+  /**
+   * The rivals with their reputation as it stands now: what they started with, plus what the races they won from
+   * you added (session 20). The same objects until a race changes it, so the HUD can compare them cheaply.
+   */
+  get league(): Rival[] {
+    const boost = this.state.rivals.boost;
+    const key = boost.join(',');
+    if (key !== this.leagueKey) {
+      this.leagueKey = key;
+      this.leagueCache = RIVALS.map((r, i) => (boost[i] ? { ...r, reputation: r.reputation + boost[i] } : r));
+      this.raceStars = -1;
+    }
+    return this.leagueCache;
+  }
+
+  /** A rival's place in the config list (stable whatever their reputation does). */
+  rivalIndex(rival: Rival): number {
+    return RIVALS.findIndex((r) => r.name === rival.name);
   }
 
   /** The race as the HUD's rival chip shows it (one object, refreshed in place). */
@@ -185,14 +261,17 @@ export class Press {
     const w = this.w;
     const v = this.raceView;
     // The standing only changes when stars do (the HUD asks every frame).
+    const league = this.league;
     if (w.data.route.stars !== this.raceStars) {
       this.raceStars = w.data.route.stars;
-      Object.assign(v, raceProgress(this.raceStars, RIVALS));
+      Object.assign(v, raceProgress(this.raceStars, league));
     }
+    v.leg = this.leg;
     v.visible = this.named && w.flow.allows('rivals');
     v.humbled = this.humbledLeft > 0 ? this.humbledShown : null;
     v.reaction = this.reactionLeft > 0 ? this.reaction : null;
-    v.mood = v.humbled ? 'humbled' : v.next && (v.fraction >= RIVAL_RACE.nearShare || v.reaction) ? 'nervous' : 'smug';
+    const legClose = !!this.leg && this.leg.earned >= this.leg.target * RIVAL_RACE.nearShare;
+    v.mood = v.humbled ? 'humbled' : v.next && (v.fraction >= RIVAL_RACE.nearShare || v.reaction || legClose) ? 'nervous' : 'smug';
     return v;
   }
 
@@ -205,6 +284,10 @@ export class Press {
   }
 
   update(dt: number): void {
+    if (this.challengeIn > 0) {
+      this.challengeIn -= dt;
+      if (this.challengeIn <= 0) this.maybeChallenge();
+    }
     this.sinceShown += dt;
     this.sinceReaction += dt;
     if (this.reactionLeft > 0) this.reactionLeft -= dt;
@@ -272,7 +355,7 @@ export class Press {
   // ─── Front pages ────────────────────────────────────────────────────────────
 
   /** Prints a story and queues its front page. Returns null before the train has a name. */
-  print(trigger: PressTrigger, vars: Record<string, string | number> = {}): NewsItem | null {
+  print(trigger: PressTrigger, vars: Record<string, string | number> = {}, extra?: { cash?: number; rival?: Rival }): NewsItem | null {
     const w = this.w;
     const p = this.state;
     if (!p.trainName && trigger !== 'named') return null;
@@ -298,10 +381,98 @@ export class Press {
     };
     p.items.unshift(item);
     if (p.items.length > PRESS_ARCHIVE) p.items.length = PRESS_ARCHIVE;
-    this.queue(`front:${item.id}`);
-    this.foldFrontPages();
+    if (trigger === 'named') {
+      // The debut is the one front page that still comes as a card (it opens the story).
+      this.queue(`front:${item.id}`);
+      this.foldFrontPages();
+    } else {
+      // Session 20 (owner: "news in the game without disrupting the gameplay flow"): every other story is a few
+      // words on the news strip, and what it is worth is paid on the spot.
+      const reward = this.rewardFor(item);
+      if (extra?.cash) reward.cash += extra.cash;
+      this.pay(reward);
+      this.ui.wire({ headline: item.headline, icon: trigger === 'raceWon' ? 'flag' : 'news', rival: extra?.rival ?? null, reward, tone: trigger === 'raceWon' ? 'win' : 'news' });
+    }
     w.analytics.log('press_printed', { trigger, level: item.level });
     return item;
+  }
+
+  private pay(reward: FrontPageReward): void {
+    const w = this.w;
+    if (reward.cash > 0) w.wallet.add('cash', reward.cash, 'press');
+    if (reward.gems > 0) w.wallet.add('gems', reward.gems, 'press');
+    if (reward.railMiles > 0) w.wallet.add('railMiles', reward.railMiles, 'press');
+    if (reward.cash > 0 || reward.gems > 0 || reward.railMiles > 0) w.audio.play('coin', { volume: 0.7 });
+  }
+
+  // ─── The race to the next station (session 20) ─────────────────────────────
+
+  /**
+   * A few seconds into a ride, the rival you are chasing may challenge you to a race to the next station: earn
+   * their target in stars before you arrive. Every other ride at most, once you have closed some of the gap.
+   */
+  private maybeChallenge(): void {
+    const w = this.w;
+    const cfg = RIVAL_RACE.showdown;
+    if (this.leg || !this.named || !w.flow.allows('rivals') || this.ridesSinceRace < cfg.everyLegs) return;
+    if (w.journey.phase !== 'onTheMove') return;
+    const race = this.race;
+    const next = race.next;
+    if (!next || race.fraction < cfg.minShare) return;
+    const index = this.rivalIndex(next);
+    const target = Math.max(cfg.minStars, Math.round(this.lastRideStars * cfg.pace));
+    const station = w.station.currentStation().name;
+    this.leg = { rival: next, index, station, target, earned: 0 };
+    this.ridesSinceRace = 0;
+    this.state.rivals.races++;
+    const challenge = RACE_CHALLENGES[this.state.rivals.races % RACE_CHALLENGES.length];
+    this.ui.wire({ headline: fillTemplate(challenge, { station }), icon: 'flag', rival: next, reward: null, tone: 'rival' });
+    w.audio.play('whistleShort');
+    w.events.emit('rival.race', { rival: next.name, target, station });
+    w.analytics.log('rival_race', { rival: next.name, target });
+  }
+
+  /** Stars landed: a race won the moment you reach their target. */
+  private checkRace(): void {
+    const leg = this.leg;
+    if (!leg || leg.earned < leg.target) return;
+    this.leg = null;
+    const w = this.w;
+    const cfg = RIVAL_RACE.showdown;
+    const p = this.state;
+    p.rivals.wins++;
+    // They lose a step they had gained; with none to lose, you gain a little ground on them.
+    const boost = p.rivals.boost;
+    const step = Math.round(RIVALS[leg.index].reputation * cfg.moveShare);
+    let bonus = 0;
+    if ((boost[leg.index] ?? 0) > 0) boost[leg.index] = Math.max(0, (boost[leg.index] ?? 0) - step);
+    else bonus = Math.max(1, Math.round((this.race.to - this.race.from) * cfg.bonusShare));
+    this.print('raceWon', { station: leg.station, rival: leg.rival.name }, { cash: cfg.purse * w.train.count, rival: leg.rival });
+    this.react('frown');
+    w.audio.play('fanfare');
+    w.particles.emit('confetti', w.player.pos.x, 2.6, w.player.pos.z, 30, 1.1);
+    w.save.markDirty();
+    w.events.emit('rival.raceResult', { rival: leg.rival.name, won: true });
+    if (bonus > 0) w.addStars(bonus, 'race', w.player.pos);
+  }
+
+  /** The train arrives with the target not reached: the rival got there first, and makes a move with it. */
+  private loseRace(leg: RaceLeg): void {
+    this.leg = null;
+    const w = this.w;
+    const cfg = RIVAL_RACE.showdown;
+    const boost = this.state.rivals.boost;
+    const step = Math.round(RIVALS[leg.index].reputation * cfg.moveShare);
+    const moves = Math.round((boost[leg.index] ?? 0) / Math.max(1, step));
+    let headline = `${leg.rival.name} got there first`;
+    if (moves < cfg.maxMoves && step > 0) {
+      while (boost.length <= leg.index) boost.push(0);
+      boost[leg.index] += step;
+      headline = `${leg.rival.name} ${RIVAL_MOVES[(leg.index + moves) % RIVAL_MOVES.length]}`;
+    }
+    this.ui.wire({ headline, icon: 'frown', rival: leg.rival, reward: null, tone: 'rival' });
+    w.save.markDirty();
+    w.events.emit('rival.raceResult', { rival: leg.rival.name, won: false });
   }
 
   private rewardFor(item: NewsItem): FrontPageReward {
@@ -330,7 +501,7 @@ export class Press {
     const p = this.state;
     const now = this.w.data.route.stars;
     if (now <= p.reputationSeen) return;
-    const passed = rivalsPassed(p.reputationSeen, now, RIVALS);
+    const passed = rivalsPassed(p.reputationSeen, now, this.league);
     p.reputationSeen = now;
     if (passed.length === 0) return;
     const standing = this.standing;
@@ -355,8 +526,10 @@ export class Press {
   private overtake(rival: Rival, rank: number): void {
     const w = this.w;
     const p = this.state;
-    const index = RIVALS.indexOf(rival);
+    const index = this.rivalIndex(rival);
     if (index < 0) return;
+    // Passed mid-race: the overtake is the win (its own celebration), the race simply ends.
+    if (this.leg && this.leg.index === index) this.leg = null;
     // Before the race is on screen (the opening), the spoils change hands quietly: one layer at a time.
     const shown = this.named && w.flow.allows('rivals');
     if (!shown) {
@@ -393,7 +566,7 @@ export class Press {
   /** Pennants of every rival passed, in the order they were beaten (hoisted on the locomotive). */
   get pennants(): Rival[] {
     const stars = this.w.data.route.stars;
-    return RIVALS.filter((r) => r.reputation <= stars);
+    return this.league.filter((r) => r.reputation <= stars);
   }
 
   // ─── Rival Watch ───────────────────────────────────────────────────────────
@@ -404,13 +577,13 @@ export class Press {
     if (!p.trainName || !p.interviews.includes(DEBUT_INTERVIEW)) return;
     const next = this.standing.next;
     if (!next) return;
-    const index = RIVALS.indexOf(next);
+    const index = this.rivalIndex(next);
     if (index < 0 || p.rivals.taunted.includes(index)) return;
     this.queue(`rival:${index}`);
   }
 
   private markHumbled(rival: Rival): void {
-    const index = RIVALS.indexOf(rival);
+    const index = this.rivalIndex(rival);
     const humbled = this.state.rivals.humbled;
     if (index >= 0 && !humbled.includes(index)) humbled.push(index);
   }
@@ -420,7 +593,7 @@ export class Press {
     const livery = w.currentLivery();
     return {
       rival,
-      rank: RIVALS.filter((r) => r.reputation > rival.reputation).length + 1,
+      rank: this.league.filter((r) => r.reputation > rival.reputation).length + 1,
       humbled,
       trainName: this.trainName,
       stars: w.data.route.stars,
@@ -439,7 +612,7 @@ export class Press {
   private showRival(index: number): void {
     const w = this.w;
     const p = this.state;
-    const rival = RIVALS[index];
+    const rival = this.league[index];
     if (!rival || p.rivals.taunted.includes(index)) return;
     p.rivals.taunted.push(index);
     const stars = w.data.route.stars;
@@ -449,7 +622,7 @@ export class Press {
       return;
     }
     // The last rival you passed whose grumble has not run yet.
-    const passed = RIVALS.map((r, i) => ({ r, i })).filter(({ r, i }) => r.reputation <= stars && !p.rivals.humbled.includes(i));
+    const passed = this.league.map((r, i) => ({ r, i })).filter(({ r, i }) => r.reputation <= stars && !p.rivals.humbled.includes(i));
     const humbled = passed.length > 0 ? passed[passed.length - 1] : null;
     for (const { i } of passed) p.rivals.humbled.push(i);
     w.save.markDirty();

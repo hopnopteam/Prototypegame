@@ -133,12 +133,12 @@ export interface SaveData {
     pending: string[];
     stats: { guests: number; perfectStops: number; requests: number; streak: number; weekGuests: number; lastWeeklyStop: number; lastQueueStop: number };
     reputationSeen: number;
-    /** Rival Watch: owners who have taunted you, and those whose grumble after being passed has run. */
     /**
      * Rival Watch and the race (session 18): taunted (their card has run), humbled (their grumble has run),
-     * prized (their spoils have been paid, once each).
+     * prized (their spoils have been paid, once each); session 20: boost (reputation each rival gained from the
+     * races they won), and your record in races (wins of races).
      */
-    rivals: { taunted: number[]; humbled: number[]; prized: number[] };
+    rivals: { taunted: number[]; humbled: number[]; prized: number[]; boost: number[]; wins: number; races: number };
   };
 }
 
@@ -189,7 +189,8 @@ export function createDefaultSave(now: number, installId: string): SaveData {
       pending: [],
       stats: { guests: 0, perfectStops: 0, requests: 0, streak: 0, weekGuests: 0, lastWeeklyStop: 0, lastQueueStop: -99 },
       reputationSeen: 0,
-      rivals: { taunted: [], humbled: [], prized: [] },
+      // boost: reputation each rival has gained from races they won (session 20); wins and races: your record.
+      rivals: { taunted: [], humbled: [], prized: [], boost: [], wins: 0, races: 0 },
     },
   };
 }

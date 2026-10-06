@@ -31,6 +31,10 @@ import { buildCobwebs, floorSteps, type WindowCorner } from './Floors';
 import { STATIC_CASTER_LAYER } from './Lighting';
 import type { LampAnchor } from './Lighting';
 import { REFLECT_LAYER } from './Water';
+import { buildBarBulbs, buildDomeCanopy, buildPassPlate, buildTableDirt, buildVenueProp } from './VenueProps';
+import { bubbleTexture, makeSprite } from './sprites';
+import { WORLD_UI_LAYER } from './CameraRig';
+import type { IconName } from '../ui/icons';
 
 /** Metres between ceiling lights along a room or corridor (lamp pools). */
 const LAMP_SPACING = 3.2;
@@ -297,6 +301,24 @@ export class CarriageView {
   readonly liveryBody: THREE.Material;
   readonly liveryTrim: THREE.Material;
 
+  /** Venue carriages (session 20): each table, stool or row of seats, shown once bought. */
+  private readonly venueGroups: THREE.Group[] = [];
+  /** The dining car's plates left on a table after a meal, per table. */
+  private readonly venueDirt: THREE.Group[] = [];
+  /** What menu and station tiles add (the pastries, a second machine, the piano, telescopes), by unlock key. */
+  private readonly venueExtras = new Map<string, THREE.Group>();
+  /** Plates waiting on the dining car's pass. */
+  private readonly passPlates: THREE.Group[] = [];
+  /** The bar's party bulbs: one mesh, lit a bulb at a time through its draw range. */
+  private barBulbs: THREE.Mesh | null = null;
+  private barBulbCount = 0;
+  private barLit = -1;
+  private barParty = false;
+  private clock = 0;
+  /** The dome's "next view" bubble. */
+  private venueSign: THREE.Sprite | null = null;
+  private venueSignKey = '';
+
   /**
    * `sliced`: build nothing yet; the owner runs `buildSteps()` a slice at a time over several frames (a refit or
    * a coupling during play must never stall a frame; session 16). Otherwise it is built at once (loading a save).
@@ -321,6 +343,7 @@ export class CarriageView {
   *buildSteps(): Generator<void, void, void> {
     yield* this.buildStatic();
     yield* this.buildRooms();
+    yield* this.buildVenue();
     this.buildRoomDoors();
     this.buildDoors();
     yield;
@@ -443,7 +466,8 @@ export class CarriageView {
     this.doorOpen = amount;
     for (const door of this.doors) {
       const closedZ = door.userData.closedZ as number;
-      door.position.z = closedZ + amount * (DOOR_Z1 - DOOR_Z0) * 0.92;
+      // Not quite the whole width: the open leaf stops clear of the first window frame along the wall.
+      door.position.z = closedZ + amount * (DOOR_Z1 - DOOR_Z0) * 0.88;
     }
   }
 
@@ -520,6 +544,159 @@ export class CarriageView {
    * Where this carriage's light comes from, for the lamp pools (carriage-local): a ceiling light every few
    * metres along each room and the corridor, like the lamps of a real sleeper, just above the cut-away walls.
    */
+  /** The height of the outside walls (the dome's glass rises from their top). */
+  private exteriorHeight(): number {
+    return this.layout.walls.find((w) => w.kind === 'exterior')?.height ?? 1.1;
+  }
+
+  /**
+   * A venue's furniture that comes and goes: each table, stool or row (shown once bought), the plates left on a
+   * dining table, what the menu and station tiles add, the plates on the pass and the bar's party bulbs. All
+   * hidden until the game says otherwise (Venues.syncView).
+   */
+  private *buildVenue(): Generator<void, void, void> {
+    const venue = this.layout.venue;
+    if (!venue) return;
+    const part = (build: (b: GeoBuilder, glow: GeoBuilder) => void, cast = true): THREE.Group => {
+      const b = new GeoBuilder();
+      const glow = new GeoBuilder();
+      build(b, glow);
+      const group = new THREE.Group();
+      if (!b.isEmpty) {
+        const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+        mesh.castShadow = cast;
+        mesh.receiveShadow = true;
+        if (cast) mesh.layers.enable(STATIC_CASTER_LAYER);
+        group.add(mesh);
+      }
+      if (!glow.isEmpty) group.add(new THREE.Mesh(glow.build(), MATERIALS.lamps));
+      group.visible = false;
+      this.group.add(group);
+      return group;
+    };
+    const props = (indices: number[]) => (b: GeoBuilder, glow: GeoBuilder): void => {
+      for (const i of indices) {
+        const prop = this.layout.props[i];
+        b.object(`prop:${prop.kind}`);
+        glow.object(`prop:${prop.kind}~glow`);
+        buildProp(b, glow, prop, this.theme, this.tier);
+        b.endObject();
+        glow.endObject();
+      }
+    };
+    for (const g of venue.groups) {
+      this.venueGroups[g.index] = part(props(g.props));
+      if (venue.kind === 'dining') {
+        const table = this.layout.props[g.props[0]];
+        this.venueDirt[g.index] = part((b) => {
+          b.object('venue:plates');
+          buildTableDirt(b, table);
+          b.endObject();
+        }, false);
+      }
+      yield;
+    }
+    for (const e of venue.extras) {
+      this.venueExtras.set(e.key, part(props(e.props)));
+      yield;
+    }
+    if (venue.kind === 'dining') {
+      const pass = this.layout.props.find((p) => p.kind === 'pass');
+      if (pass) {
+        const r = pass.rect;
+        const cz = (r.z0 + r.z1) / 2;
+        for (let i = 0; i < 3; i++) {
+          const x = r.x0 + 0.17 + i * ((r.x1 - r.x0 - 0.34) / 2);
+          this.passPlates.push(part((b) => {
+            b.object('venue:passPlate');
+            buildPassPlate(b, x, cz, this.tier);
+            b.endObject();
+          }, false));
+        }
+      }
+    }
+    const bar = this.layout.props.find((p) => p.kind === 'bar');
+    if (bar) {
+      const glow = new GeoBuilder();
+      buildBarBulbs(glow, bar);
+      const geometry = glow.build();
+      this.barBulbs = new THREE.Mesh(geometry, MATERIALS.lamps);
+      this.barBulbCount = 8;
+      this.group.add(this.barBulbs);
+      this.setBarLit(0);
+    }
+  }
+
+  /** A table, stool or row of seats bought (or not yet). */
+  setVenueGroupOpen(group: number, open: boolean): void {
+    const g = this.venueGroups[group];
+    if (!g || g.visible === open) return;
+    g.visible = open;
+    CarriageView.shadowEpoch++;
+    if (!open && this.venueDirt[group]) this.venueDirt[group].visible = false;
+  }
+
+  /** The plates a diner left on their table (until it is cleared). */
+  setVenueDirty(group: number, dirty: boolean): void {
+    const g = this.venueDirt[group];
+    if (g) g.visible = dirty && !!this.venueGroups[group]?.visible;
+  }
+
+  /** What has been bought from the menu and station tiles (by unlock key). */
+  setVenueExtras(keys: readonly string[]): void {
+    for (const [key, group] of this.venueExtras) {
+      const show = keys.includes(key);
+      if (group.visible !== show) CarriageView.shadowEpoch++;
+      group.visible = show;
+    }
+  }
+
+  /** Plates the chef has left on the pass. */
+  setVenuePass(count: number): void {
+    this.passPlates.forEach((p, i) => (p.visible = i < count));
+  }
+
+  /**
+   * The venue's meter. The bar: its eight bulbs light one by one as drinks are paid for and twinkle through
+   * Happy Hour. The dome: a small bubble over the seats while a view is coming up (the last third of the wait).
+   */
+  setVenueSign(icon: IconName, progress: number, active: boolean): void {
+    if (this.barBulbs) {
+      this.barParty = active;
+      if (!active) this.setBarLit(Math.floor(Math.max(0, Math.min(1, progress)) * this.barBulbCount + 1e-6));
+      return;
+    }
+    const sign = this.layout.venue?.sign;
+    if (!sign) return;
+    const show = progress > 0.66;
+    const ring = Math.round((1 - progress) * 12);
+    const key = show ? `${icon}:${ring}` : '';
+    if (key === this.venueSignKey) return;
+    this.venueSignKey = key;
+    if (!show) {
+      if (this.venueSign) this.venueSign.visible = false;
+      return;
+    }
+    const texture = bubbleTexture(icon, 'intent', ring);
+    if (!this.venueSign) {
+      this.venueSign = makeSprite(texture, 0.62);
+      this.venueSign.layers.set(WORLD_UI_LAYER);
+      this.venueSign.position.set(sign.x, FLOOR_Y + 1.7, sign.z);
+      this.group.add(this.venueSign);
+    }
+    (this.venueSign.material as THREE.SpriteMaterial).map = texture;
+    this.venueSign.visible = true;
+  }
+
+  private setBarLit(count: number): void {
+    if (!this.barBulbs || count === this.barLit) return;
+    this.barLit = count;
+    const index = this.barBulbs.geometry.index;
+    const total = index ? index.count : this.barBulbs.geometry.getAttribute('position').count;
+    this.barBulbs.geometry.setDrawRange(0, Math.round((total / this.barBulbCount) * count));
+    this.barBulbs.visible = count > 0;
+  }
+
   lampAnchors(originZ: number): LampAnchor[] {
     const out: LampAnchor[] = [];
     const y = FLOOR_Y + 1.25;
@@ -621,7 +798,15 @@ export class CarriageView {
     }
     yield;
     n = 0;
+    // A venue's tables and extras are built on their own (they appear when bought): see buildVenue.
+    const owned = new Set<PropDef>();
+    const venue = this.layout.venue;
+    if (venue) {
+      for (const g of venue.groups) for (const i of g.props) owned.add(this.layout.props[i]);
+      for (const e of venue.extras) for (const i of e.props) owned.add(this.layout.props[i]);
+    }
     for (const prop of this.layout.props) {
+      if (owned.has(prop)) continue;
       if (prop.kind === 'bed' || prop.kind === 'toilet' || prop.kind === 'sink' || prop.kind === 'bathtub' || prop.kind === 'washShelf') continue;
       if (prop.kind === 'plant' && this.tier < 2) continue;
       s.object(`prop:${prop.kind}`);
@@ -642,6 +827,7 @@ export class CarriageView {
     }
     this.buildDoorFrames(s);
     this.buildSpinners();
+    if (this.layout.type === 'dome') buildDomeCanopy(s, -HALF_WIDTH + WALL / 2, FLOOR_Y + this.exteriorHeight(), 0.5, CARRIAGE_LENGTH - 0.5, this.tier);
     yield;
 
     const add = (builder: GeoBuilder, material: THREE.Material, cast: boolean, receive: boolean, reflect = false): void => {
@@ -780,6 +966,8 @@ export class CarriageView {
 
   /** Per-frame life: the laundry turns. */
   animate(dt: number): void {
+    this.clock += dt;
+    if (this.barBulbs && this.barParty) this.setBarLit(Math.floor(this.clock * 6) % 2 === 0 ? this.barBulbCount : Math.floor(this.clock * 12) % this.barBulbCount);
     for (let i = 0; i < this.spinners.length; i++) this.spinners[i].rotation.y += dt * (2.6 + (i % 2) * 0.7);
   }
 
@@ -973,8 +1161,10 @@ export class CarriageView {
       const sink = this.layout.props.find((p) => p.kind === 'sink' && rectInside(p.rect, bath.room));
       if (sink && this.tier >= 1) {
         const cz = (sink.rect.z0 + sink.rect.z1) / 2;
-        s.box(INNER - 0.03, FLOOR_Y + 0.98, cz, 0.03, 0.32, 0.46, this.tier >= 3 ? PALETTE.gold : PALETTE.walnut, 0, FLAT);
-        s.box(INNER - 0.045, FLOOR_Y + 0.98, cz, 0.01, 0.26, 0.4, '#DDEEF3', 0, FLAT);
+        // Standing a little proud of the wall: where a window falls behind the sink, the mirror hangs in front of
+        // its curtains, never in the same plane.
+        s.box(INNER - 0.075, FLOOR_Y + 1.0, cz, 0.03, 0.28, 0.46, this.tier >= 3 ? PALETTE.gold : PALETTE.walnut, 0, FLAT);
+        s.box(INNER - 0.095, FLOOR_Y + 1.0, cz, 0.01, 0.22, 0.4, '#DDEEF3', 0, FLAT);
       }
     }
   }
@@ -1628,6 +1818,10 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       for (let i = 0; i < 3; i++) b.sphere(cx + 0.06 + (i - 1) * 0.03, y + 0.9 + (i % 2) * 0.02, cz + (i - 1) * 0.015, 0.025, '#C0485C', 1, 0.9);
       break;
     }
+    default:
+      // The venue carriages' furniture (session 20).
+      buildVenueProp(b, lamps, prop, theme, tier);
+      break;
   }
 }
 

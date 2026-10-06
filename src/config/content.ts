@@ -128,7 +128,11 @@ export const ARCHETYPES: ArchetypeDef[] = [
   },
 ];
 
-export type UnlockKind = 'cabin' | 'hire' | 'couple' | 'bathroom' | 'refurb' | 'staffUpgrade' | 'comfort' | 'exterior' | 'marketing';
+export type UnlockKind =
+  | 'cabin' | 'hire' | 'couple' | 'bathroom' | 'refurb' | 'staffUpgrade' | 'comfort' | 'exterior' | 'marketing'
+  // Session 20, the venue carriages: a table, stool or row of seats; a dearer menu; a second machine, range or
+  // the grand piano.
+  | 'seat' | 'menu' | 'station';
 
 /** Small comforts bought per carriage: each shows up in every room and lifts that carriage's tips. */
 export type ComfortKey = 'lamp' | 'flowers' | 'radio' | 'soap' | 'rail';
@@ -153,6 +157,8 @@ export interface UnlockDef {
    */
   tier?: number;
   comfort?: ComfortKey;
+  /** Venue carriages: the table, stool or row of seats a 'seat' tile opens. */
+  group?: number;
   /** What it does, in a few words, shown on the tile label so no purchase is a mystery. */
   effect: string;
 }
@@ -175,6 +181,7 @@ export interface UnlockTemplate {
   role?: StaffRole;
   tier?: number;
   comfort?: ComfortKey;
+  group?: number;
   effect: string;
 }
 
@@ -192,6 +199,8 @@ export interface CarriageDef {
   max: number;
   /** Offered only once the train has one of these. */
   needs?: CarriageType[];
+  /** Offered from this coupling on (the train already has this many carriages): venues join as the train grows. */
+  fromSlot?: number;
   /** Cabins in its floor plan (for train-wide cabin numbers on tiles). */
   cabins: number;
   /** What is inside, for the chooser card. */
@@ -258,6 +267,84 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'up_porter', kind: 'staffUpgrade', label: 'Porter Mastery', price: 1050, stars: 3, role: 'porter', requires: ['hire_porter'], flags: ['level_7'], effect: 'Faster, +1 carry' },
     ],
   },
+  // Session 20: the venue carriages (config/venues.ts has their mechanics). A table, stool or row is a 'seat' tile
+  // (it opens that group of seats); the menu tiles make dishes dearer; a 'station' adds a second machine or range
+  // or the bar's grand piano; each venue hires its own staff.
+  cafe: {
+    type: 'cafe', name: 'Café Car', pitch: 'Coffee & cakes', max: 1, fromSlot: 2, cabins: 0, inside: 'A counter, an espresso machine, tables for two',
+    unlocks: [
+      { key: 'table_1', kind: 'seat', label: 'Café Table', price: 70, stars: 2, group: 1, requires: ['couple'], effect: '+2 seats' },
+      { key: 'hire_barista', kind: 'hire', label: 'Barista', price: 150, stars: 3, role: 'barista', requires: ['couple'], effect: 'Brews & serves' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 110, stars: 3, tier: 1, requires: ['table_1'], effect: 'Prices +25%' },
+      { key: 'menu_pastry', kind: 'menu', label: 'Pastry Case', price: 130, stars: 2, requires: ['table_1'], effect: 'Croissants' },
+      { key: 'table_2', kind: 'seat', label: 'Café Table', price: 120, stars: 2, group: 2, requires: ['table_1'], effect: '+2 seats' },
+      { key: 'table_3', kind: 'seat', label: 'Café Table', price: 170, stars: 2, group: 3, requires: ['table_2'], effect: '+2 seats' },
+      { key: 'station_machine', kind: 'station', label: 'Second Machine', price: 220, stars: 2, requires: ['hire_barista', 'menu_pastry'], effect: 'Brews faster' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Café', price: 300, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Prices +60%' },
+      { key: 'menu_beans', kind: 'menu', label: 'Single Origin', price: 380, stars: 2, requires: ['menu_pastry', '@couple_3'], effect: 'Coffee ×1.5' },
+      { key: 'table_4', kind: 'seat', label: 'Café Table', price: 260, stars: 2, group: 4, requires: ['table_3', '@couple_3'], effect: '+2 seats' },
+      { key: 'table_5', kind: 'seat', label: 'Café Table', price: 320, stars: 2, group: 5, requires: ['table_4'], effect: '+2 seats' },
+      { key: 'up_barista', kind: 'staffUpgrade', label: 'Barista Training', price: 340, stars: 2, role: 'barista', requires: ['hire_barista', '@couple_4'], effect: 'Faster' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Grand Café', price: 700, stars: 5, tier: 3, requires: ['refurb_2', '@couple_5'], effect: 'Prices ×2.1' },
+    ],
+  },
+  dining: {
+    type: 'dining', name: 'Dining Car', pitch: 'Dinner service', max: 1, fromSlot: 3, cabins: 0, inside: 'A kitchen range, the pass, window tables',
+    unlocks: [
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 180, stars: 3, tier: 1, requires: ['couple'], effect: 'Prices +25%' },
+      { key: 'table_2', kind: 'seat', label: 'Dining Table', price: 160, stars: 2, group: 2, requires: ['couple'], effect: '+1 diner' },
+      { key: 'hire_chef', kind: 'hire', label: 'Chef', price: 260, stars: 3, role: 'chef', requires: ['couple'], effect: 'Cooks the orders' },
+      { key: 'table_3', kind: 'seat', label: 'Dining Table', price: 200, stars: 2, group: 3, requires: ['table_2'], effect: '+1 diner' },
+      { key: 'hire_waiter', kind: 'hire', label: 'Waiter', price: 320, stars: 3, role: 'waiter', requires: ['hire_chef'], effect: 'Serves & clears' },
+      { key: 'menu_roast', kind: 'menu', label: 'Roast Dinner', price: 360, stars: 2, requires: ['table_3'], effect: 'Dishes ×1.6' },
+      { key: 'table_4', kind: 'seat', label: 'Dining Table', price: 260, stars: 2, group: 4, requires: ['table_3', '@couple_4'], effect: '+1 diner' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Dining', price: 420, stars: 4, tier: 2, requires: ['refurb_1', '@couple_4'], effect: 'Prices +60%' },
+      { key: 'station_range', kind: 'station', label: 'Second Range', price: 380, stars: 2, requires: ['hire_chef', 'menu_roast'], effect: 'Cooks faster' },
+      { key: 'table_5', kind: 'seat', label: 'Dining Table', price: 320, stars: 2, group: 5, requires: ['table_4'], effect: '+1 diner' },
+      { key: 'table_6', kind: 'seat', label: 'Dining Table', price: 380, stars: 2, group: 6, requires: ['table_5', '@couple_5'], effect: '+1 diner' },
+      { key: 'table_7', kind: 'seat', label: 'Dining Table', price: 440, stars: 2, group: 7, requires: ['table_6'], effect: '+1 diner' },
+      { key: 'up_chef', kind: 'staffUpgrade', label: 'Chef Training', price: 520, stars: 2, role: 'chef', requires: ['hire_chef', '@couple_5'], effect: 'Faster' },
+      { key: 'up_waiter', kind: 'staffUpgrade', label: 'Waiter Training', price: 560, stars: 2, role: 'waiter', requires: ['hire_waiter', '@couple_5'], effect: 'Faster, +1 carry' },
+      { key: 'menu_lobster', kind: 'menu', label: 'Lobster Thermidor', price: 900, stars: 3, requires: ['menu_roast'], flags: ['level_5'], effect: 'Dishes ×1.5' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Orient Dining', price: 950, stars: 5, tier: 3, requires: ['refurb_2', '@couple_6'], effect: 'Prices ×2.1' },
+    ],
+  },
+  bar: {
+    type: 'bar', name: 'Bar Lounge', pitch: 'Happy hours', max: 1, fromSlot: 4, cabins: 0, inside: 'A bar with stools, a lounge, room for a piano',
+    unlocks: [
+      { key: 'stool_2', kind: 'seat', label: 'Bar Stool', price: 220, stars: 2, group: 2, requires: ['couple'], effect: '+1 seat' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 260, stars: 3, tier: 1, requires: ['couple'], effect: 'Prices +25%' },
+      { key: 'hire_bartender', kind: 'hire', label: 'Bartender', price: 380, stars: 3, role: 'bartender', requires: ['stool_2'], effect: 'Mixes & serves' },
+      { key: 'stool_3', kind: 'seat', label: 'Bar Stool', price: 260, stars: 2, group: 3, requires: ['stool_2'], effect: '+1 seat' },
+      { key: 'chair_5', kind: 'seat', label: 'Armchair', price: 300, stars: 2, group: 5, requires: ['stool_3'], effect: '+1 seat' },
+      { key: 'menu_cocktails', kind: 'menu', label: 'Cocktail List', price: 520, stars: 2, requires: ['stool_3', '@couple_5'], effect: 'Drinks ×1.5' },
+      { key: 'stool_4', kind: 'seat', label: 'Bar Stool', price: 340, stars: 2, group: 4, requires: ['stool_3', '@couple_5'], effect: '+1 seat' },
+      { key: 'chair_6', kind: 'seat', label: 'Armchair', price: 380, stars: 2, group: 6, requires: ['chair_5'], effect: '+1 seat' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy Lounge', price: 560, stars: 4, tier: 2, requires: ['refurb_1', '@couple_5'], effect: 'Prices +60%' },
+      { key: 'station_piano', kind: 'station', label: 'Grand Piano', price: 640, stars: 3, requires: ['hire_bartender', 'chair_5'], effect: 'Parties ×1.5' },
+      { key: 'chair_7', kind: 'seat', label: 'Armchair', price: 440, stars: 2, group: 7, requires: ['chair_6', '@couple_6'], effect: '+1 seat' },
+      { key: 'chair_8', kind: 'seat', label: 'Armchair', price: 480, stars: 2, group: 8, requires: ['chair_7'], effect: '+1 seat' },
+      { key: 'chair_9', kind: 'seat', label: 'Armchair', price: 520, stars: 2, group: 9, requires: ['chair_8'], effect: '+1 seat' },
+      { key: 'up_bartender', kind: 'staffUpgrade', label: 'Bartender Training', price: 660, stars: 2, role: 'bartender', requires: ['hire_bartender', '@couple_6'], effect: 'Faster' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Art Deco Bar', price: 1100, stars: 5, tier: 3, requires: ['refurb_2', '@couple_6'], effect: 'Prices ×2.1' },
+    ],
+  },
+  dome: {
+    type: 'dome', name: 'Observation Dome', pitch: 'Scenic views', max: 1, fromSlot: 5, cabins: 0, inside: 'A glass roof, rows of seats, the view',
+    unlocks: [
+      { key: 'row_1', kind: 'seat', label: 'Dome Row', price: 320, stars: 2, group: 1, requires: ['couple'], effect: '+2 seats' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repairs', price: 380, stars: 3, tier: 1, requires: ['couple'], effect: 'Views +25%' },
+      { key: 'hire_host', kind: 'hire', label: 'Host', price: 450, stars: 3, role: 'host', requires: ['row_1'], effect: 'Shows guests in' },
+      { key: 'row_2', kind: 'seat', label: 'Dome Row', price: 420, stars: 2, group: 2, requires: ['row_1'], effect: '+2 seats' },
+      { key: 'row_3', kind: 'seat', label: 'Dome Row', price: 520, stars: 2, group: 3, requires: ['row_2', '@couple_6'], effect: '+2 seats' },
+      { key: 'menu_telescopes', kind: 'menu', label: 'Telescopes', price: 800, stars: 3, requires: ['row_2', '@couple_6'], effect: 'Views ×1.6' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Brass & Glass', price: 760, stars: 4, tier: 2, requires: ['refurb_1', '@couple_6'], effect: 'Views +60%' },
+      { key: 'row_4', kind: 'seat', label: 'Dome Row', price: 620, stars: 2, group: 4, requires: ['row_3'], effect: '+2 seats' },
+      { key: 'row_5', kind: 'seat', label: 'Dome Row', price: 720, stars: 2, group: 5, requires: ['row_4', '@couple_7'], effect: '+2 seats' },
+      { key: 'up_host', kind: 'staffUpgrade', label: 'Host Training', price: 700, stars: 2, role: 'host', requires: ['hire_host', '@couple_7'], effect: 'Faster' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Starlight Dome', price: 1400, stars: 5, tier: 3, requires: ['refurb_2', '@couple_7'], effect: 'Views ×2.1' },
+    ],
+  },
   sleeper: {
     type: 'sleeper', name: 'Sleeper Car', pitch: '+6 berths', max: 2, cabins: 6, inside: '6 berths and a tea and linen nook',
     unlocks: [
@@ -283,10 +370,14 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
 };
 
 /** Types the player may choose at a coupling, in default order. */
-export const CHOOSABLE: CarriageType[] = ['bathroom', 'supply', 'sleeper', 'luggage'];
+export const CHOOSABLE: CarriageType[] = ['bathroom', 'sleeper', 'cafe', 'dining', 'bar', 'dome', 'supply', 'luggage'];
 
-/** The train a new player grows by following the recommended picks (previews and tests use it too). */
-export const DEFAULT_TRAIN: CarriageType[] = ['lobby', 'sleeper', 'bathroom', 'supply', 'luggage'];
+/**
+ * The train a new player grows by following the recommended picks (previews and tests use it too). Session 20:
+ * eight carriages, the venues joining as it grows (a café third, then the washrooms, the dining car, a second
+ * sleeper, the bar, the dome); the stores and luggage cars are the alternatives the player may pick instead.
+ */
+export const DEFAULT_TRAIN: CarriageType[] = ['lobby', 'sleeper', 'cafe', 'bathroom', 'dining', 'sleeper', 'bar', 'dome'];
 
 /** Couplings: each adds one carriage of the player's choice. */
 export interface CoupleSlot {
@@ -301,8 +392,12 @@ export const COUPLE_SLOTS: CoupleSlot[] = [
   // autopilot (~3:30 by hand), the last purchase of the opening (config: flow.openingTiles).
   { price: 140, stars: 6, requires: ['c0.hire_attendant'] },
   { price: 240, stars: 6, requires: ['couple_1'] },
-  { price: 380, stars: 8, requires: ['couple_2'] },
-  { price: 600, stars: 8, requires: ['couple_3'] },
+  { price: 320, stars: 8, requires: ['couple_2'] },
+  { price: 460, stars: 8, requires: ['couple_3'] },
+  // Session 20: three more couplings for the venues (route 1 holds eight carriages).
+  { price: 680, stars: 9, requires: ['couple_4'] },
+  { price: 940, stars: 10, requires: ['couple_5'] },
+  { price: 1250, stars: 10, requires: ['couple_6'] },
 ];
 /** Route 1 holds this many carriages: fewer than the catalogue offers, so every pick is a real choice. */
 export const MAX_CARRIAGES = COUPLE_SLOTS.length + 1;

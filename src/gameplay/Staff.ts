@@ -269,6 +269,9 @@ export class StaffManager {
         return this.porterTask(m);
       case 'runner':
         return this.runnerTask(m);
+      default:
+        // The venue carriages' staff (session 20): their jobs live with the venue.
+        return this.w.venues.taskFor(m);
     }
   }
 
@@ -295,7 +298,7 @@ export class StaffManager {
       };
     }
     if (guest && guest.cabin && guest.request && guest.request !== 'bathroom' && guest.request !== 'turndown') {
-      const item = guest.request;
+      const item = guest.request as ItemKind;
       const cabin = guest.cabin;
       const reserved = guest as Guest & { reservedBy?: StaffMember };
       reserved.reservedBy = m;
@@ -480,6 +483,9 @@ export class StaffManager {
         return supply !== null ? map.anchor(supply, 'crateDrop') : null;
       case 'luggage':
         return this.nearestRack(m.pos).pos;
+      default:
+        // Venue dishes are made for someone: left over, they are simply set down (the bin).
+        return null;
     }
   }
 

@@ -30,6 +30,7 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
         role: t.role,
         tier: t.tier,
         comfort: t.comfort,
+        group: t.group,
         effect: t.effect,
       });
     }
@@ -78,38 +79,48 @@ export function allowedCarriages(carriages: readonly CarriageType[]): CarriageTy
   const count = (t: CarriageType): number => carriages.filter((c) => c === t).length;
   return CHOOSABLE.filter((t) => {
     const entry = CARRIAGE_CATALOGUE[t];
-    return count(t) < entry.max && (entry.needs ?? []).every((n) => carriages.includes(n));
+    return count(t) < entry.max && (entry.needs ?? []).every((n) => carriages.includes(n)) && carriages.length >= (entry.fromSlot ?? 0);
   });
 }
 
 /**
- * Up to three cards for the chooser, the best pick first: beds first, then a washroom car, then racks if bags
- * were left behind, then the stores, then more beds if guests are still being turned away.
+ * Up to three cards for the chooser, the best pick first: beds first, then a washroom car, then the venues as
+ * they join (a café, the dining car), more beds if guests are still being turned away, racks if bags were left
+ * behind, the bar and the dome; the stores and luggage cars are always there as alternatives.
  */
 export function carriageChoices(carriages: readonly CarriageType[], signals: ChoiceSignals, limit = 3): CarriageChoice[] {
   const allowed = allowedCarriages(carriages);
   const has = (t: CarriageType): boolean => carriages.includes(t);
+  const sleepers = carriages.filter((t) => t === 'sleeper').length;
   let best: CarriageType | null = null;
   let reason: string | null = null;
-  if (!has('sleeper') && allowed.includes('sleeper')) {
-    // Beds first: every guest you turn away is a fare you missed.
-    best = 'sleeper';
-    reason = signals.leftBehind > 0 ? 'Guests need beds' : 'More beds';
-  } else if (!has('bathroom') && allowed.includes('bathroom')) {
-    best = 'bathroom';
-    reason = 'Guests want a loo';
-  } else if (signals.luggageLeft > 0 && allowed.includes('luggage')) {
-    best = 'luggage';
-    reason = 'Bags need racks';
-  } else if (has('bathroom') && !has('supply') && allowed.includes('supply')) {
-    best = 'supply';
-    reason = 'Keeps towels stocked';
-  } else if (signals.leftBehind > 0 && allowed.includes('sleeper')) {
-    best = 'sleeper';
-    reason = 'Guests need beds';
-  }
-  const ordered = best ? [best, ...allowed.filter((t) => t !== best)] : allowed;
-  return ordered.slice(0, limit).map((type, i) => ({ type, reason: i === 0 ? reason : null }));
+  const pick = (type: CarriageType, why: string): boolean => {
+    if (best || !allowed.includes(type)) return false;
+    best = type;
+    reason = why;
+    return true;
+  };
+  // Beds first (every guest turned away is a fare missed), then the café (session 20: the first venue, early, so
+  // the new gameplay arrives with the third carriage), then a washroom; guests left behind on the platform ask for
+  // the second sleeper next. Then the other venues as the train grows: the dining car, the bar, the dome.
+  if (!has('sleeper')) pick('sleeper', signals.leftBehind > 0 ? 'Guests need beds' : 'More beds');
+  if (!has('cafe')) pick('cafe', 'Guests want coffee');
+  if (!has('bathroom')) pick('bathroom', 'Guests want a loo');
+  if (signals.leftBehind > 0 && sleepers < 2) pick('sleeper', 'Guests need beds');
+  if (!has('dining')) pick('dining', 'Dinner is served');
+  if (sleepers < 2) pick('sleeper', 'More guests');
+  if (!has('bar')) pick('bar', 'Happy hours');
+  if (!has('dome')) pick('dome', 'Scenic views');
+  if (signals.luggageLeft > 0) pick('luggage', 'Bags need racks');
+  if (has('bathroom') && !has('supply')) pick('supply', 'Keeps towels stocked');
+  // The service cars stay on offer when they would help: bags left on the platform, a washroom to keep stocked.
+  const alternates: CarriageChoice[] = [];
+  if (signals.luggageLeft > 0 && allowed.includes('luggage') && best !== 'luggage') alternates.push({ type: 'luggage', reason: 'Bags need racks' });
+  if (has('bathroom') && !has('supply') && allowed.includes('supply') && best !== 'supply') alternates.push({ type: 'supply', reason: 'Keeps towels stocked' });
+  const first: CarriageChoice[] = best ? [{ type: best, reason }] : [];
+  const taken = new Set<CarriageType>([...first, ...alternates].map((c) => c.type));
+  const rest = allowed.filter((t) => !taken.has(t)).map((type) => ({ type, reason: null }));
+  return [...first, ...alternates.slice(0, Math.max(0, limit - 2)), ...rest, ...alternates.slice(Math.max(0, limit - 2))].slice(0, limit);
 }
 
 /** v2 → v3: ids tied to the old fixed carriage order become slot-relative ids. */

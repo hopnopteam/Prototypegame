@@ -10,10 +10,16 @@ import { Mover, type Actor } from './Actor';
 import type { Bathroom, Cabin } from './TrainState';
 import type { World } from './World';
 import type { Zone } from './Zones';
+import type { Outing } from './Venues';
 
 export type GuestState =
   | 'platform' | 'boarding' | 'queue' | 'toCabin' | 'settling' | 'resting' | 'requesting'
-  | 'toBathroom' | 'waitingBathroom' | 'inBathroom' | 'returning' | 'alighting' | 'leaving' | 'gone';
+  | 'toBathroom' | 'waitingBathroom' | 'inBathroom' | 'returning' | 'alighting' | 'leaving' | 'gone'
+  // Session 20: an outing to a venue carriage (walking there, in its queue, seated waiting, eating or watching).
+  | 'toVenue' | 'venueQueue' | 'seated' | 'consuming';
+
+/** Guest states on an outing to a venue (the venue runs them). */
+const OUTING_STATES: ReadonlySet<GuestState> = new Set<GuestState>(['toVenue', 'venueQueue', 'seated', 'consuming']);
 
 export type GuestRequest = ServiceNeed | 'bathroom';
 
@@ -59,6 +65,8 @@ export class Guest {
   cls: ClassId;
   /** Royal: the rest of the butler's list (asked for one after another, paid as one generous tip). */
   pending: ServiceNeed[] = [];
+  /** On an outing to a venue carriage (session 20): where, which seat, seated yet, paid yet. */
+  outing: Outing | null = null;
 
   constructor(readonly archetype: ArchetypeDef, x: number, z: number, speed: number, readonly story: StoryDef | null) {
     this.cls = archetype.cls;
@@ -355,6 +363,12 @@ export class Guests {
         guest.view.setPose('sleep', w.train.views[guest.cabin.carriage]?.blanketColor);
         guest.view.setPosition(guest.cabin.sleepPose.x, y + BED_TOP, guest.cabin.sleepPose.z);
         guest.view.setFacing(0);
+      } else if (guest.outing?.seated && (guest.state === 'seated' || guest.state === 'consuming')) {
+        // Sat at a venue's table, stool or dome seat.
+        const seat = guest.outing.seat;
+        guest.view.setPose('sit');
+        guest.view.setPosition(seat.sit.x, y + seat.layout.top - 0.24, seat.sit.z);
+        guest.view.setFacing(seat.layout.facing);
       } else if (guest.state === 'settling' && guest.cabin && !guest.mover.isMoving) {
         guest.view.setPose('sit');
         guest.view.setPosition(guest.cabin.sitPose.x, y + SIT_ROOT, guest.cabin.sitPose.z);
@@ -396,6 +410,9 @@ export class Guests {
       case 'queue':
         if (guest.arrivedInQueue && guest.stateTime > 2.5) guest.view.act('watch', 0.3);
         break;
+      case 'venueQueue':
+        if (guest.stateTime > 3) guest.view.act('watch', 0.3);
+        break;
       case 'inBathroom':
         guest.view.act('wash', 0.3);
         break;
@@ -404,6 +421,10 @@ export class Guests {
 
   private think(guest: Guest, dt: number): void {
     const w = this.w;
+    if (OUTING_STATES.has(guest.state)) {
+      w.venues.thinkGuest(guest, dt);
+      return;
+    }
     switch (guest.state) {
       case 'queue':
         if (guest.queueSlot !== 0 || !guest.arrivedInQueue) guest.view.showBubble(null);
@@ -513,8 +534,10 @@ export class Guests {
     const story = guest.story ? w.meta?.storyRequest(guest.story) : null;
     let request: GuestRequest;
     guest.pending = [];
-    if (story) request = story;
+    if (story) request = story as GuestRequest;
     else {
+      // Session 20: now and then the wish is an outing to a venue with room (a coffee, dinner, a drink, the view).
+      if (w.venues.tryOuting(guest)) return;
       const bathroomOpen = w.train.bathrooms.some((b) => b.unlocked);
       request = bathroomOpen && w.rng.chance(w.econ.guests.bathroomVisitWeight) ? 'bathroom' : this.classRequest(guest);
       // Royal: the butler's list, two things at once.
@@ -650,6 +673,16 @@ export class Guests {
     if (bath && bath.occupant === guest) bath.occupant = null;
     guest.bathroom = null;
     guest.request = null;
+    this.returnToCabin(guest);
+  }
+
+  /** The venue moves a guest on their outing from state to state. */
+  setOutingState(guest: Guest, state: GuestState): void {
+    this.setState(guest, state);
+  }
+
+  /** Back from a venue: to bed (or off the train, if their stop has come). */
+  returnFromOuting(guest: Guest): void {
     this.returnToCabin(guest);
   }
 
@@ -854,6 +887,7 @@ export class Guests {
 
   private destroy(guest: Guest): void {
     if (guest.story && guest.state !== 'leaving') this.w.meta?.onStoryGuestLost(guest.story);
+    this.w.venues?.releaseGuest(guest);
     guest.state = 'gone';
     if (guest.cabin && guest.cabin.guest === guest) guest.cabin.guest = null;
     if (guest.bathroom) {

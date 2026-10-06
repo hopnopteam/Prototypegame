@@ -7,7 +7,7 @@ import { bubbleTexture, makeSprite, type BubbleStyle } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 import type { CharacterBatch } from './CharacterBatch';
 
-export type HatKind = 'conductor' | 'boater' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'none';
+export type HatKind = 'conductor' | 'boater' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'toque' | 'none';
 export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'sash' | 'none';
 
 export interface CharacterLook {
@@ -62,7 +62,7 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
   if (look.moustache) {
     for (const side of [-1, 1]) b.add(new THREE.SphereGeometry(0.05, 10, 6).scale(1.3, 0.5, 0.6), look.hair, side * 0.045, HEAD_Y - 0.075, 0.232, 0, 0, side * -0.25, { shade: 1 });
   }
-  const hatted = look.hat === 'conductor' || look.hat === 'boater' || look.hat === 'cap' || look.hat === 'beanie' || look.hat === 'pillbox' || look.hat === 'tophat';
+  const hatted = look.hat === 'conductor' || look.hat === 'boater' || look.hat === 'cap' || look.hat === 'beanie' || look.hat === 'pillbox' || look.hat === 'tophat' || look.hat === 'toque';
   // Hair sits clearly outside the head where they overlap (near-coincident spheres flicker at the hairline).
   b.sphere(0, HEAD_Y + (hatted ? 0.03 : 0.07), -0.05, 0.268, look.hair, 2, 0.95, { shade: 0.85 });
 
@@ -111,6 +111,11 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
       b.cylinder(0, HEAD_Y + 0.2, -0.01, 0.32, 0.32, 0.03, look.hatColor ?? '#1E1B24', 20, 'y', { shade: 0.95, surface: 'leather' });
       b.cylinder(0, HEAD_Y + 0.37, -0.01, 0.2, 0.21, 0.32, look.hatColor ?? '#1E1B24', 18, 'y', { shade: 0.9, surface: 'leather' });
       b.cylinder(0, HEAD_Y + 0.25, -0.01, 0.212, 0.212, 0.06, look.bandColor ?? PALETTE.gold, 18, 'y', { shade: 1 });
+      break;
+    case 'toque':
+      // The chef's tall white hat: a band and a puffed crown.
+      b.cylinder(0, HEAD_Y + 0.25, -0.01, 0.22, 0.22, 0.12, PALETTE.linen, 16, 'y', { shade: 0.95 });
+      b.sphere(0, HEAD_Y + 0.42, -0.01, 0.26, PALETTE.linen, 2, 0.75, { shade: 0.9 });
       break;
     default:
       break;
@@ -638,6 +643,12 @@ export const STAFF_LOOKS: Record<string, CharacterLook> = {
   attendant: { body: '#7B5AA6', accent: '#7B5AA6', skin: '#E3AE87', hair: '#2F2520', pants: '#3F2F5A', hat: 'pillbox', accessory: 'apron', arms: true },
   porter: { body: '#C8453A', accent: '#C8453A', skin: '#C98E68', hair: '#1D1616', pants: '#3A2A2E', hat: 'pillbox', arms: true },
   runner: { body: '#E0A93B', accent: '#3F6E5A', skin: '#F2CFB3', hair: '#8C5A32', pants: '#5A4632', hat: 'cap', arms: true },
+  // The venue carriages' staff (session 20): each reads as their job at a glance.
+  barista: { body: '#6B4A36', accent: '#3F6E5A', skin: '#E9BC97', hair: '#3A2418', pants: '#2F2A28', hat: 'cap', accessory: 'apron', arms: true },
+  chef: { body: '#F2EEE6', accent: '#F2EEE6', skin: '#D9A07A', hair: '#2A1C16', pants: '#3B3B44', hat: 'toque', accessory: 'apron', arms: true, moustache: true },
+  waiter: { body: '#1F2433', accent: '#F2EEE6', skin: '#F0C8A8', hair: '#5A3A22', pants: '#1A1C26', accessory: 'flower', arms: true },
+  bartender: { body: '#8E2F45', accent: PALETTE.gold, skin: '#B97E5A', hair: '#141012', pants: '#22181C', hat: 'none', accessory: 'sash', arms: true },
+  host: { body: '#2E5A7A', accent: '#2E5A7A', skin: '#F2CFB3', hair: '#C9A15A', pants: '#22324A', hat: 'pillbox', arms: true },
 };
 
 function castsShadow<T extends THREE.Mesh>(mesh: T): T {

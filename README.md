@@ -29,6 +29,14 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 - **The opening:** a new game starts outside, on the Millbrook platform beside the train: collect the first
   traveller's ticket at the door, follow them in, check them in at the desk and build the cabin the second
   traveller needs. Every passenger in the game boards from a station platform.
+- **The venues:** from the third carriage on you can add a **Café Car**, a **Dining Car**, a **Bar Lounge** and an
+  **Observation Dome**. Guests resting in their cabins take outings to them: brew coffee for the café queue, cook
+  and serve dinner and clear the tables, mix cocktails until the bar's bulbs light up for Happy Hour, show guests
+  in under the dome's glass for the views. Each has its own tables, menus, staff and refits.
+- **News and rivals:** big moments arrive as a strip of newsprint at the foot of the screen (it pays on the spot
+  and never pauses the game). The rival you are chasing races you to the next station: beat their target in stars
+  before you arrive for a purse; lose and they gain a little ground. Their posters are on the platforms until
+  yours go up.
 - **Controls:** touch and drag anywhere for the floating joystick, read on screen: push up and the conductor walks
   straight up the screen, whatever the angle of the train (mouse drag, or WASD / arrow keys on desktop).
   Everything else is walk-over: stand in a zone and it acts.
@@ -77,9 +85,10 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | The sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, how celebrations ring out and keep the stage, the music's night filter | `src/config/audio.ts` |
 | The music (score: chords, melody, bass, drums) | `scripts/audio/build_music.py` renders `assets/audio/music_theme.mp3` from real piano, bass, guitar and drum recordings (credits in `assets/audio/CREDITS.md`); to use another track, replace the MP3 and set `loopSeconds` in `src/audio/music.ts` |
 | Floors by tier: broken planks and repairs, parquet, rugs | `src/world/Floors.ts` |
+| The venue carriages: what each sells and for how much, how long it takes to make and to enjoy, the staff, refit price steps, menu multipliers, how often guests take outings, the café queue, the party meter and Happy Hour, scenic views and blankets | `src/config/venues.ts` (their tiles and prices in `CARRIAGE_CATALOGUE`, `src/config/content.ts`; floor plans in `buildCafe`/`buildDining`/`buildBar`/`buildDome`, `src/world/layout.ts`; furniture by tier in `src/world/VenueProps.ts`) |
 | How passengers react (an icon per situation) | `src/config/chatter.ts` |
 | Content: stations, guest archetypes (with what each leaves behind), the carriage catalogue (each type's tiles incl. comforts, prices, limits and chooser text), coupling slots, station upgrades (exterior and marketing, with their bonuses), refurbishment tiers, stories, quests, products | `src/config/content.ts` |
-| The press: how it is paced (`PRESS_PACING`: one card per breather, the gap between cards, which news goes first), rival trains and their villainous owners (taunts, grumbles, portraits, the spoils each pays when overtaken), the race on the HUD (`RIVAL_RACE`: when a rival turns nervous, how long reactions show), front-page headlines and rewards per trigger, the Gazette debut interview and Rails Tonight interviews with perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
+| The press: how it is paced (`PRESS_PACING`: one card per breather, the gap between cards, which news goes first), rival trains and their villainous owners (taunts, grumbles, portraits, the spoils each pays when overtaken), the race on the HUD (`RIVAL_RACE`: when a rival turns nervous, how long reactions show; `RIVAL_RACE.showdown`: the races to the next station, their target, purse and what a rival gains when they win; `RIVAL_MOVES`, `RACE_CHALLENGES`), front-page headlines and rewards per trigger, the Gazette debut interview and Rails Tonight interviews with perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
 | Conductor outfits (earned and premium) and shoes by speed level | `src/config/wardrobe.ts` |
 | Walkthrough steps, one-time hints and the intro's camera beats and captions | `src/config/coach.ts` |
 | Carriage floor plans (passenger carriages: one per class, from six berths to one Royal Suite) | `src/world/layout.ts` |
@@ -98,7 +107,7 @@ src/
   save/       versioned JSON save (localStorage + backup + migrations)
   services/   ads, IAP, analytics, remote config: interfaces + mocks; native.ts (the iOS/Android app layer: saves, haptics, lifecycle)
   world/      Three.js: stage with quality tiers, dynamic resolution, shader warm-up and post-processing, the character batch (one draw for everyone), camera, lighting, the baked light map (lamp pools, window spill, contact shading), the lakeside (terrain, set pieces, water, reflections), ambient life, platform, carriages and class chips, train exterior, characters, conductor gear, particles, fireflies, the lobby cat, cash
-  gameplay/   Game (composition root), player, zones, tiles, guests, staff, station, train, guidance, coach, objectives, feedback, press, rush, meta, monetization, autopilot
+  gameplay/   Game (composition root), player, zones, tiles, guests, staff, venues, station, train, guidance, coach, objectives, feedback, press, rush, meta, monetization, autopilot
   audio/      WebAudio: synthesised effects, the music loop, haptics
   ui/         DOM HUD, sheets, icons, styles
 assets/audio/ the music (MP3) and its credits

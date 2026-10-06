@@ -153,6 +153,12 @@ export const CARRIAGE_THEMES: Record<CarriageType, CarriageTheme> = {
   bathroom: { wall: '#CCE5D8', wallLow: '#A9CDBB', carpet: '#EEF2EC', deep: '#5F9C86', blanket: '#EDA3AC', curtain: '#FFFDF8' },
   supply: { wall: '#EFDDAE', wallLow: '#D9C38D', carpet: '#E8DDC4', deep: '#C29A48', blanket: '#8FAE78', curtain: '#8FAE78' },
   luggage: { wall: '#EFD0BA', wallLow: '#DDB397', carpet: '#E9DACD', deep: '#A7705A', blanket: '#5E7FA0', curtain: '#5E7FA0' },
+  // Session 20: the venues. Café cream and pistachio, the dining car claret and linen, the bar teal and brass,
+  // the dome sky blue.
+  cafe: { wall: '#E9D9B8', wallLow: '#C7D3A8', carpet: '#EADFC9', deep: '#6E8B4E', blanket: '#C97C5D', curtain: '#E2B653' },
+  dining: { wall: '#EAD3CC', wallLow: '#C9A39B', carpet: '#EFE4D6', deep: '#8C2F3F', blanket: '#F4ECDD', curtain: '#E2B653' },
+  bar: { wall: '#BFD6D2', wallLow: '#8CB3AD', carpet: '#DCE4E0', deep: '#24585A', blanket: '#C0485C', curtain: '#E2B653' },
+  dome: { wall: '#CBDDEB', wallLow: '#A3C1D8', carpet: '#E2E8EC', deep: '#3E6A93', blanket: '#E9B949', curtain: '#E2B653' },
 };
 
 /**

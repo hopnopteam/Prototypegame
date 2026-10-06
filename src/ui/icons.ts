@@ -8,7 +8,11 @@ export type IconName =
   | 'heart' | 'bolt' | 'bag' | 'gear' | 'album' | 'calendar' | 'quest' | 'ticket' | 'check' | 'camera'
   | 'wrench' | 'skate' | 'hold' | 'chest' | 'noroom' | 'double' | 'box' | 'paint' | 'news' | 'trophy'
   | 'mic' | 'dash' | 'hand' | 'menu' | 'conductor' | 'linen' | 'megaphone' | 'smile' | 'frown'
-  | 'coffee' | 'champagne' | 'crown' | 'turndown';
+  | 'coffee' | 'champagne' | 'crown' | 'turndown'
+  // Session 20: the venue carriages.
+  | 'latte' | 'pastry' | 'meal' | 'cocktail' | 'binoculars' | 'party'
+  // Session 20: a race to the next station against a rival.
+  | 'flag';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -47,6 +51,153 @@ const star = (c: CanvasRenderingContext2D, cx: number, cy: number, outer: number
 };
 
 const ICONS: Record<IconName, Draw> = {
+  latte: (c) => {
+    // A tall café glass with milky coffee, a foam crown and a heart drawn in it.
+    c.beginPath();
+    c.moveTo(28, 26);
+    c.lineTo(72, 26);
+    c.lineTo(66, 84);
+    c.quadraticCurveTo(50, 90, 34, 84);
+    c.closePath();
+    fillStroke(c, '#C99B6D');
+    c.beginPath();
+    c.moveTo(29, 26);
+    c.lineTo(71, 26);
+    c.lineTo(69, 42);
+    c.quadraticCurveTo(50, 46, 31, 42);
+    c.closePath();
+    c.fillStyle = '#FBF1DF';
+    c.fill();
+    c.beginPath();
+    c.moveTo(28, 26);
+    c.lineTo(72, 26);
+    c.lineTo(66, 84);
+    c.quadraticCurveTo(50, 90, 34, 84);
+    c.closePath();
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.fillStyle = '#C0485C';
+    c.beginPath();
+    c.moveTo(50, 40);
+    c.bezierCurveTo(40, 33, 41, 26, 46, 26);
+    c.bezierCurveTo(49, 26, 50, 29, 50, 30);
+    c.bezierCurveTo(50, 29, 51, 26, 54, 26);
+    c.bezierCurveTo(59, 26, 60, 33, 50, 40);
+    c.fill();
+    c.strokeStyle = '#9A8F86';
+    c.lineWidth = 5;
+    for (const x of [42, 58]) {
+      c.beginPath();
+      c.moveTo(x, 18);
+      c.quadraticCurveTo(x + 6, 10, x, 2);
+      c.stroke();
+    }
+  },
+  pastry: (c) => {
+    // A golden croissant.
+    c.beginPath();
+    c.moveTo(12, 66);
+    c.quadraticCurveTo(22, 30, 50, 28);
+    c.quadraticCurveTo(78, 30, 88, 66);
+    c.quadraticCurveTo(76, 58, 70, 62);
+    c.quadraticCurveTo(50, 76, 30, 62);
+    c.quadraticCurveTo(24, 58, 12, 66);
+    c.closePath();
+    fillStroke(c, '#E7A84B');
+    c.strokeStyle = '#B5732C';
+    c.lineWidth = 5;
+    for (const x of [34, 50, 66]) {
+      c.beginPath();
+      c.moveTo(x, 34);
+      c.quadraticCurveTo(x + (x - 50) * 0.3, 50, x + (x - 50) * 0.1, 66);
+      c.stroke();
+    }
+  },
+  meal: (c) => {
+    // A silver cloche on a plate.
+    c.beginPath();
+    c.ellipse(50, 78, 42, 10, 0, 0, Math.PI * 2);
+    fillStroke(c, '#FFFFFF');
+    c.beginPath();
+    c.moveTo(16, 74);
+    c.quadraticCurveTo(18, 30, 50, 28);
+    c.quadraticCurveTo(82, 30, 84, 74);
+    c.closePath();
+    fillStroke(c, '#D7DEE6');
+    c.fillStyle = 'rgba(255,255,255,0.8)';
+    c.beginPath();
+    c.ellipse(36, 48, 6, 12, 0.5, 0, Math.PI * 2);
+    c.fill();
+    c.beginPath();
+    c.arc(50, 22, 7, 0, Math.PI * 2);
+    fillStroke(c, '#D7DEE6', 5);
+  },
+  cocktail: (c) => {
+    // A martini glass with a cherry and a little paper umbrella.
+    c.beginPath();
+    c.moveTo(16, 24);
+    c.lineTo(84, 24);
+    c.lineTo(50, 58);
+    c.closePath();
+    fillStroke(c, '#F3A3B3');
+    c.beginPath();
+    c.moveTo(50, 58);
+    c.lineTo(50, 84);
+    c.moveTo(32, 86);
+    c.lineTo(68, 86);
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.beginPath();
+    c.arc(42, 32, 6, 0, Math.PI * 2);
+    fillStroke(c, '#C0485C', 4);
+    c.beginPath();
+    c.moveTo(60, 30);
+    c.lineTo(76, 6);
+    c.lineWidth = 4;
+    c.stroke();
+    c.beginPath();
+    c.moveTo(62, 10);
+    c.quadraticCurveTo(76, -2, 90, 10);
+    c.closePath();
+    fillStroke(c, '#5BA8C9', 4);
+  },
+  binoculars: (c) => {
+    // A pair of brass binoculars: what the dome is for.
+    for (const x of [30, 70]) {
+      rr(c, x - 16, 34, 32, 44, 10);
+      fillStroke(c, '#3F4E66');
+      c.beginPath();
+      c.arc(x, 78, 14, 0, Math.PI * 2);
+      fillStroke(c, '#9FD3E8');
+    }
+    rr(c, 40, 40, 20, 18, 4);
+    fillStroke(c, '#E2B653');
+    rr(c, 20, 22, 20, 14, 4);
+    fillStroke(c, '#E2B653', 5);
+    rr(c, 60, 22, 20, 14, 4);
+    fillStroke(c, '#E2B653', 5);
+  },
+  party: (c) => {
+    // A music note in a burst of confetti: happy hour.
+    c.fillStyle = '#F2B233';
+    star(c, 50, 50, 46, 30);
+    c.fill();
+    c.lineWidth = 5;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.beginPath();
+    c.ellipse(40, 66, 10, 8, -0.4, 0, Math.PI * 2);
+    c.fillStyle = INK;
+    c.fill();
+    c.beginPath();
+    c.moveTo(48, 64);
+    c.lineTo(48, 26);
+    c.lineTo(66, 32);
+    c.lineWidth = 6;
+    c.stroke();
+  },
   coffee: (c) => {
     // A dark coffee in a cup on a saucer, steaming.
     c.beginPath();
@@ -649,6 +800,28 @@ const ICONS: Record<IconName, Draw> = {
     for (const y of [48, 56, 64]) c.fillRect(52, y, 24, 4);
     c.fillRect(24, 74, 52, 3);
   },
+  flag: (c) => {
+    // A chequered race flag on a pole.
+    rr(c, 22, 12, 7, 78, 3);
+    fillStroke(c, '#8E6A4C', 5);
+    c.beginPath();
+    c.moveTo(29, 16);
+    c.quadraticCurveTo(52, 8, 80, 18);
+    c.lineTo(80, 56);
+    c.quadraticCurveTo(52, 46, 29, 54);
+    c.closePath();
+    c.fillStyle = CREAM;
+    c.fill();
+    c.save();
+    c.clip();
+    c.fillStyle = INK;
+    for (let row = 0; row < 4; row++) for (let col = 0; col < 5; col++) if ((row + col) % 2 === 0) c.fillRect(29 + col * 10.2, 8 + row * 12, 10.2, 12);
+    c.restore();
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.lineJoin = 'round';
+    c.stroke();
+  },
   trophy: (c) => {
     // The Golden Whistle award.
     c.beginPath();
@@ -890,6 +1063,10 @@ export function iconCanvas(name: IconName, px = 64): HTMLCanvasElement {
 }
 
 export const ITEM_ICON: Record<string, IconName> = {
+  latte: 'latte',
+  pastry: 'pastry',
+  meal: 'meal',
+  cocktail: 'cocktail',
   coffee: 'coffee',
   champagne: 'champagne',
   turndown: 'turndown',

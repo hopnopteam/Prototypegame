@@ -321,6 +321,12 @@ const HOLDS: Record<string, string[]> = {
   'prop:desk': ['cat'],
   // An unmade bed is built on top of the made one.
   bed: ['mess:bed-unmade'],
+  // The venues (session 20): what stands on the café counter, the bar's back-bar, the pass and the tables.
+  'prop:counter': ['prop:espresso', 'prop:pastryCase', 'prop:pastries', 'prop:beans'],
+  'prop:pastryCase': ['prop:pastries'],
+  'prop:bar': ['prop:bottles'],
+  'prop:pass': ['venue:passPlate'],
+  'prop:diningTable': ['venue:plates'],
 };
 const holds = (container: string, item: string): boolean => (HOLDS[container] ?? []).includes(item.split('#')[0]);
 
@@ -353,6 +359,15 @@ function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras
     view.setShelfStock(99, 99);
     view.setLuggageCount(99);
     view.setDoorOpen(1);
+    // A venue at its fullest: every table, stool and row, every extra, plates on every table and on the pass.
+    if (layout.venue) {
+      for (const g of layout.venue.groups) {
+        view.setVenueGroupOpen(g.index, true);
+        view.setVenueDirty(g.index, true);
+      }
+      view.setVenueExtras(layout.venue.extras.map((e) => e.key));
+      view.setVenuePass(3);
+    }
     views.push(view);
     root.add(view.group);
   });

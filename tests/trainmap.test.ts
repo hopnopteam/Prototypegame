@@ -3,7 +3,7 @@ import { DEFAULT_TRAIN } from '../src/config/content';
 import { ECONOMY } from '../src/config/economy';
 import type { Vec2 } from '../src/core/types';
 import { TrainMap } from '../src/sim/TrainMap';
-import { carriageOriginZ, getLayout, PARTITION_X0, PARTITION_X1 } from '../src/world/layout';
+import { carriageOriginZ, closedVenueProps, footprints, getLayout, PARTITION_X0, PARTITION_X1 } from '../src/world/layout';
 
 const FULL_TRAIN = [...DEFAULT_TRAIN];
 const GRID = 0.05;
@@ -42,8 +42,20 @@ function reachable(map: TrainMap, start: Vec2): (p: Vec2, tolerance?: number) =>
   };
 }
 
+/**
+ * Every venue table open (the most furniture there can be) but no menu or station extra bought yet: their tiles
+ * stand where the extras will (session 20).
+ */
+function extrasClosed(map: TrainMap): void {
+  map.closedProps = (i) => {
+    const layout = map.layoutOf(i);
+    return closedVenueProps(layout, layout.venue?.groups.map(() => true) ?? [], new Set());
+  };
+}
+
 describe('TrainMap', () => {
   const map = new TrainMap(ECONOMY.player.radius);
+  extrasClosed(map);
   map.rebuild(FULL_TRAIN, false);
   const spawn = map.anchor(0, 'playerSpawn');
   const canReach = reachable(map, spawn);
@@ -68,6 +80,29 @@ describe('TrainMap', () => {
       }
       for (const bath of c.layout.bathrooms) {
         expect(canReach(map.toWorld(c.index, bath.restock)), `bathroom ${c.index}/${bath.index}`).toBe(true);
+      }
+    }
+  });
+
+  it('lets the player reach every venue pad, queue place, takings pile and tile', () => {
+    for (const c of map.carriages) {
+      if (!c.layout.venue) continue;
+      for (const f of footprints(c.layout)) {
+        if (f.replaces?.length) continue;
+        expect(canReach(map.toWorld(c.index, f)), `${c.layout.type} ${f.id}`).toBe(true);
+      }
+      for (const seat of c.layout.venue.seats) expect(map.nav.findPath(map.doors()[0].insideNode, map.nodeId(c.index, seat.node)), `${c.layout.type} seat ${seat.index}`).not.toBeNull();
+    }
+  });
+
+  it('with every venue extra bought (the piano, a second range…), everything else stays in reach', () => {
+    const full = new TrainMap(ECONOMY.player.radius);
+    full.rebuild(FULL_TRAIN, false);
+    const reach = reachable(full, full.anchor(0, 'playerSpawn'));
+    for (const c of full.carriages) {
+      for (const name of Object.keys(c.layout.anchors)) {
+        if (name === 'tile_menu' || name === 'tile_station') continue;
+        expect(reach(full.anchor(c.index, name)), `carriage ${c.index} anchor ${name}`).toBe(true);
       }
     }
   });
@@ -131,6 +166,7 @@ describe('TrainMap', () => {
     // Tiers 0–1 share the Basic plan tested above.
     for (let tier = 2; tier <= 5; tier++) {
       const m = new TrainMap(ECONOMY.player.radius);
+      extrasClosed(m);
       m.rebuild(FULL_TRAIN, false, true, FULL_TRAIN.map(() => tier));
       const reach = reachable(m, m.anchor(0, 'playerSpawn'));
       const from = m.doors()[0].insideNode;

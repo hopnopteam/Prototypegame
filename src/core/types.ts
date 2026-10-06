@@ -24,12 +24,18 @@ export const offsetRect = (r: Rect, dz: number): Rect => ({ x0: r.x0, z0: r.z0 +
 
 export const rectCenter = (r: Rect): Vec2 => ({ x: (r.x0 + r.x1) / 2, z: (r.z0 + r.z1) / 2 });
 
-export type ItemKind = 'tea' | 'coffee' | 'champagne' | 'blanket' | 'pillow' | 'towel' | 'roll' | 'luggage' | 'crate';
+export type ItemKind =
+  | 'tea' | 'coffee' | 'champagne' | 'blanket' | 'pillow' | 'towel' | 'roll' | 'luggage' | 'crate'
+  // Session 20: what the venue carriages make (café, dining car, bar lounge).
+  | 'latte' | 'pastry' | 'meal' | 'cocktail';
 
 export type CurrencyKind = 'cash' | 'gems' | 'railMiles';
 
-export type StaffRole = 'attendant' | 'porter' | 'runner';
+export type StaffRole = 'attendant' | 'porter' | 'runner' | 'barista' | 'chef' | 'waiter' | 'bartender' | 'host';
 
-export type CarriageType = 'lobby' | 'bathroom' | 'supply' | 'luggage' | 'sleeper';
+export type CarriageType = 'lobby' | 'bathroom' | 'supply' | 'luggage' | 'sleeper' | VenueKind;
+
+/** The venue carriages (session 20): each its own little game inside the train. */
+export type VenueKind = 'cafe' | 'dining' | 'bar' | 'dome';
 
 export type JourneyPhase = 'onTheMove' | 'arriving' | 'stationStop' | 'departing';

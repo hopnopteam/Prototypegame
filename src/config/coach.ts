@@ -35,6 +35,12 @@ export const COACH_HINTS: CoachLineDef[] = [
   { id: 'turndown', icon: 'turndown', text: 'Turn down' },
   { id: 'workshop', icon: 'megaphone', text: 'Station shop' },
   { id: 'washroom', icon: 'towel', text: 'Restock' },
+  // Session 20: the venue carriages, each taught the first time a guest waits there.
+  { id: 'cafe', icon: 'latte', text: 'Brew coffee' },
+  { id: 'dining', icon: 'meal', text: 'Serve dinner' },
+  { id: 'clear', icon: 'broom', text: 'Clear table' },
+  { id: 'bar', icon: 'cocktail', text: 'Mix drinks' },
+  { id: 'dome', icon: 'binoculars', text: 'Show in' },
   { id: 'map', icon: 'dash', text: 'Tap to dash' },
   { id: 'miles', icon: 'miles', text: 'Upgrades' },
 ];
