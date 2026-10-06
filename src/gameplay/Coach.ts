@@ -279,6 +279,7 @@ export class Coach {
       case 'clear':
       case 'bar':
       case 'dome':
+      case 'cinema':
         return world(w.venues.lessonTarget(`venue_${id}`));
       default:
         return null;
@@ -326,6 +327,7 @@ export class Coach {
       case 'clear':
       case 'bar':
       case 'dome':
+      case 'cinema':
         return w.venues.lessonTarget(`venue_${id}`) !== null;
       default:
         return false;

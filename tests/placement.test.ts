@@ -3,7 +3,7 @@ import type { CarriageType, Rect } from '../src/core/types';
 import { Walkable } from '../src/sim/Walkable';
 import { footprints, getLayout, HALF_WIDTH, CARRIAGE_LENGTH, layoutKey, QUEUE_SLOTS, type Footprint } from '../src/world/layout';
 
-const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper', 'cafe', 'dining', 'bar', 'dome'];
+const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper', 'cafe', 'dining', 'bar', 'dome', 'cinema'];
 /** Every floor plan there is: passenger carriages have one per class (refit tiers 0–5). */
 const VARIANTS: { type: CarriageType; tier: number; name: string }[] = [];
 for (const type of TYPES) {

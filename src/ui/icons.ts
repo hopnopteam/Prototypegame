@@ -12,7 +12,9 @@ export type IconName =
   // Session 20: the venue carriages.
   | 'latte' | 'pastry' | 'meal' | 'cocktail' | 'binoculars' | 'party'
   // Session 20: a race to the next station against a rival.
-  | 'flag';
+  | 'flag'
+  // Session 21: the cinema car.
+  | 'popcorn' | 'film';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -800,6 +802,54 @@ const ICONS: Record<IconName, Draw> = {
     for (const y of [48, 56, 64]) c.fillRect(52, y, 24, 4);
     c.fillRect(24, 74, 52, 3);
   },
+  popcorn: (c) => {
+    // A striped carton heaped with popcorn: the cinema's snack.
+    c.beginPath();
+    c.moveTo(22, 40);
+    c.lineTo(78, 40);
+    c.lineTo(68, 92);
+    c.lineTo(32, 92);
+    c.closePath();
+    c.fillStyle = '#FBF5EA';
+    c.fill();
+    c.save();
+    c.clip();
+    c.fillStyle = '#D9433F';
+    for (let i = 0; i < 4; i++) {
+      c.beginPath();
+      c.moveTo(22 + i * 16, 40);
+      c.lineTo(30 + i * 16, 40);
+      c.lineTo(36 + i * 9, 92);
+      c.lineTo(31 + i * 9, 92);
+      c.closePath();
+      c.fill();
+    }
+    c.restore();
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.lineJoin = 'round';
+    c.stroke();
+    for (const [x, y, r] of [[30, 34, 11], [46, 26, 13], [62, 30, 12], [74, 38, 9], [38, 18, 9], [56, 14, 9]]) {
+      c.beginPath();
+      c.arc(x, y, r, 0, Math.PI * 2);
+      fillStroke(c, '#FFE9A8', 4);
+    }
+  },
+  film: (c) => {
+    // A film reel: the cinema car.
+    c.beginPath();
+    c.arc(50, 50, 38, 0, Math.PI * 2);
+    fillStroke(c, '#3F4E66');
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      c.beginPath();
+      c.arc(50 + Math.cos(a) * 21, 50 + Math.sin(a) * 21, 9, 0, Math.PI * 2);
+      fillStroke(c, '#E2B653', 4);
+    }
+    c.beginPath();
+    c.arc(50, 50, 6, 0, Math.PI * 2);
+    fillStroke(c, CREAM, 4);
+  },
   flag: (c) => {
     // A chequered race flag on a pole.
     rr(c, 22, 12, 7, 78, 3);
@@ -1067,6 +1117,7 @@ export const ITEM_ICON: Record<string, IconName> = {
   pastry: 'pastry',
   meal: 'meal',
   cocktail: 'cocktail',
+  popcorn: 'popcorn',
   coffee: 'coffee',
   champagne: 'champagne',
   turndown: 'turndown',

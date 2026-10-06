@@ -59,7 +59,7 @@ export const OBJECTIVES: ObjectiveDef[] = [
   { id: 'comforts_3', text: 'Own 3 comforts', icon: 'heart', event: 'unlock', filter: 'comfort', target: 3, reward: { cash: 50 } },
   { id: 'hire_porter', text: 'Hire a Porter', icon: 'luggage', event: 'unlock', filter: 'hire:porter', target: 1, reward: { cash: 50 }, stars: 2 },
   { id: 'perfect_2', text: '2 perfect stops', icon: 'star', event: 'perfectStop', target: 2, reward: { cash: 40, gems: 3 } },
-  { id: 'refurb_3x', text: 'Refurbish 3 times', icon: 'paint', event: 'refurb', target: 3, reward: { cash: 60 }, stars: 3 },
+  { id: 'refurb_3x', text: 'Upgrade 3 times', icon: 'paint', event: 'refurb', target: 3, reward: { cash: 60 }, stars: 3 },
   { id: 'level_3', text: 'Reach level 3', icon: 'star', event: 'level', target: 3, reward: { gems: 8 } },
   { id: 'couple_3', text: 'Add a 4th carriage', icon: 'carriage', event: 'coupling', target: 3, reward: { cash: 70 }, stars: 4 },
   { id: 'speedy_3', text: '3 speedy serves', icon: 'bolt', event: 'speedy', target: 3, reward: { cash: 50 } },
@@ -86,6 +86,8 @@ export const OBJECTIVES: ObjectiveDef[] = [
   { id: 'level_7', text: 'Reach level 7', icon: 'star', event: 'level', target: 7, reward: { gems: 18 } },
   { id: 'couple_6', text: 'Add a 7th carriage', icon: 'carriage', event: 'coupling', target: 6, reward: { cash: 260 }, stars: 6 },
   { id: 'level_8', text: 'Reach level 8', icon: 'trophy', event: 'level', target: 8, reward: { gems: 25, railMiles: 10 } },
-  { id: 'couple_7', text: 'A full train', icon: 'carriage', event: 'coupling', target: 7, reward: { cash: 320, gems: 10 }, stars: 8 },
+  { id: 'couple_7', text: 'Add an 8th carriage', icon: 'carriage', event: 'coupling', target: 7, reward: { cash: 320 }, stars: 7 },
+  { id: 'venue_200', text: 'Serve 200 in venues', icon: 'film', event: 'venue', target: 200, reward: { cash: 380, gems: 8 } },
+  { id: 'couple_8', text: 'A full train', icon: 'carriage', event: 'coupling', target: 8, reward: { cash: 420, gems: 10 }, stars: 8 },
   { id: 'class_royal', text: 'Royal Suite', icon: 'crown', event: 'refurb', filter: 'class:royal', target: 1, reward: { gems: 30, railMiles: 10 }, stars: 8 },
 ];

@@ -1,5 +1,7 @@
 import { STORIES } from '../config/content';
 import { VENUES } from '../config/venues';
+import type { CarriageType, VenueKind } from '../core/types';
+import { isVenueType } from '../world/layout';
 import {
   CEREMONIES,
   DEBUT_INTERVIEW,
@@ -168,7 +170,7 @@ export class Press {
     });
     e.on('carriage.coupled', ({ index, type }) => {
       // A venue joining is its own news: it opens (session 20).
-      if (type === 'cafe' || type === 'dining' || type === 'bar' || type === 'dome') this.print('venue', { venue: VENUES[type].name });
+      if (isVenueType(type as CarriageType)) this.print('venue', { venue: VENUES[type as VenueKind].name });
       else this.print('coupling', { carriage: w.train.carriageName(index), n: index + 1 });
       this.react('frown');
     });

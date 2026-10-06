@@ -8,7 +8,7 @@ import { footprints, getLayout, layoutKey, PARTITION_X0, PARTITION_X1, ROOM_DOOR
  * room's furniture, its tiles and every wall but the partition it hangs in.
  */
 
-const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper', 'cafe', 'dining', 'bar', 'dome'];
+const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper', 'cafe', 'dining', 'bar', 'dome', 'cinema'];
 const { hingeInset: HINGE_INSET, meetGap: LEAF_MEET_GAP, swing: DOOR_SWING } = ROOM_DOOR;
 const HALF_THICK = ROOM_DOOR.thickness / 2;
 

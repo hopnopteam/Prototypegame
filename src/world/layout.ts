@@ -91,13 +91,19 @@ export type PropKind =
   | 'counter' | 'espresso' | 'pastryCase' | 'cafeTable' | 'chair' | 'range' | 'pass' | 'diningTable' | 'bar'
   | 'stool' | 'domeSeat' | 'basket' | 'rope'
   // What menu and station tiles add to a venue (shown once bought; see VenueLayout.extras).
-  | 'pastries' | 'beans' | 'wineRack' | 'aquarium' | 'bottles' | 'telescope';
+  | 'pastries' | 'beans' | 'wineRack' | 'aquarium' | 'bottles' | 'telescope'
+  // Session 21: the cinema car, and the venues' furnishings by refit tier (config: each venue's builder below).
+  | 'screen' | 'cinemaSeat' | 'projector' | 'concession' | 'popcornMachine' | 'candyCart' | 'speakers' | 'premiere'
+  | 'planter' | 'crates' | 'sideboard' | 'banquette' | 'loungeChair' | 'sideTable' | 'wallBoard' | 'coatStand'
+  | 'trolley' | 'reels' | 'cornerSofa';
 
 export interface PropDef {
   kind: PropKind;
   rect: Rect;
   /** Which way the prop faces, for props that have a front. */
   facing?: 'left' | 'right' | 'front' | 'rear';
+  /** Which venue a shared piece of furniture belongs to (a café sideboard holds cups, a bar's decanters). */
+  variant?: string;
 }
 
 export interface WallBox extends Rect {
@@ -217,6 +223,18 @@ export interface VenueLayout {
    * piano): props that show (and block the way) only once bought.
    */
   extras: { key: string; props: number[] }[];
+  /** The cinema: where the film is started (the projector's pad). */
+  projector: Vec2 | null;
+  /** Rugs, runners and carpets this refit lays (Floors.ts draws them). */
+  carpets: VenueCarpet[];
+}
+
+/** A venue's floor covering (session 21): each refit tier lays its own. */
+export type CarpetStyle = 'jute' | 'runner' | 'persian' | 'plaid' | 'theatre' | 'checker' | 'starry';
+
+export interface VenueCarpet {
+  rect: Rect;
+  style: CarpetStyle;
 }
 
 /**
@@ -241,6 +259,11 @@ export function extraCentre(layout: CarriageLayout, key: string): Vec2 | null {
 
 export interface CarriageLayout {
   type: CarriageType;
+  /**
+   * Height of the side windows above the floor (bottom, top). Session 21: the venue carriages set theirs above the
+   * table tops, like a real dining car (a table in front of a low window read as standing in it).
+   */
+  windowBand: [number, number];
   /** The venue carriages' tables, seats and stations (null in every other carriage). */
   venue: VenueLayout | null;
   length: number;
@@ -265,7 +288,7 @@ class LayoutBuilder {
 
   constructor(type: CarriageType) {
     this.layout = {
-      type, venue: null, length: CARRIAGE_LENGTH, rooms: [], connectors: [], blocked: [], walls: [], props: [],
+      type, windowBand: [...DEFAULT_WINDOW_BAND], venue: null, length: CARRIAGE_LENGTH, rooms: [], connectors: [], blocked: [], walls: [], props: [],
       cabins: [], bathrooms: [], anchors: {}, queue: [], nodes: [], edges: [], doors: [], frontNode: null, rearNode: 'vest_rear',
     };
   }
@@ -278,9 +301,9 @@ class LayoutBuilder {
     this.layout.connectors.push({ rect: rect(x0, z0, x1, z1), axis, door });
   }
 
-  prop(kind: PropKind, x0: number, z0: number, x1: number, z1: number, facing?: PropDef['facing'], blocks = true): number {
+  prop(kind: PropKind, x0: number, z0: number, x1: number, z1: number, facing?: PropDef['facing'], blocks = true, variant?: string): number {
     const r = rect(x0, z0, x1, z1);
-    this.layout.props.push({ kind, rect: r, facing });
+    this.layout.props.push(variant ? { kind, rect: r, facing, variant } : { kind, rect: r, facing });
     if (blocks) this.layout.blocked.push(r);
     return this.layout.props.length - 1;
   }
@@ -693,11 +716,16 @@ function buildLuggage(): CarriageLayout {
 }
 
 
+/** Side windows: the usual band, and the venue carriages' band above the table tops (session 21). */
+export const DEFAULT_WINDOW_BAND: readonly [number, number] = [0.44, 0.94];
+export const VENUE_WINDOW_BAND: readonly [number, number] = [0.79, 1.03];
+
 /** Facing angles (as CharacterView takes them): toward +z, −z, +x, −x. */
 const FACE = { rear: 0, front: Math.PI, right: Math.PI / 2, left: -Math.PI / 2 };
 
 /** A venue's open floor: one room from the front vestibule to the rear one, and the spine of its walkway. */
 function venueShell(b: LayoutBuilder, front: number): void {
+  b.layout.windowBand = [...VENUE_WINDOW_BAND];
   b.shell({ frontGangway: true, doors: false });
   b.vestibules(front);
   // Overlapping the front vestibule well, so the walkable floor runs on without a seam.
@@ -706,14 +734,22 @@ function venueShell(b: LayoutBuilder, front: number): void {
 }
 
 function newVenue(kind: VenueKind): VenueLayout {
-  return { kind, seats: [], groups: [], stations: [], counter: null, pass: null, cash: null, openGroups: 1, sign: null, extras: [] };
+  return { kind, seats: [], groups: [], stations: [], counter: null, pass: null, cash: null, openGroups: 1, sign: null, extras: [], projector: null, carpets: [] };
 }
 
 /**
- * The café car: the counter along the right with the espresso machine and the pastry case on it; the queue
- * lines up along its front, the serve pad between them. Round tables for two at the back.
+ * Session 21 (owner: "the interiors… should have levels of upgrades… make it more filled, alive and intentional"):
+ * every venue has a floor plan per refit tier. Its tables, seats, pads and tiles never move; what changes is how it
+ * is furnished: run-down (crates and makeshift furniture), repaired (plain and tidy), cosy (the venue's colours, rugs,
+ * plants, a sideboard that serves the room) and luxurious (each venue's own grand look). Every piece has a job where
+ * it stands: coats by the door, cups by the counter, spare chairs stacked out of the way, plants between tables.
  */
-function buildCafe(): CarriageLayout {
+const NEAR = INNER - 0.02;
+const LAKE = -INNER + 0.02;
+
+/** The café car: the counter along the right with the espresso machine and the pastry case on it; the queue
+ * lines up along its front, the serve pad between them. Round tables for two at the back. */
+function buildCafe(tier: number): CarriageLayout {
   const b = new LayoutBuilder('cafe');
   const v = newVenue('cafe');
   b.layout.venue = v;
@@ -730,7 +766,6 @@ function buildCafe(): CarriageLayout {
   v.stations.push({ item: 'latte', pad: { x: 0.98, z: 3.05 } }, { item: 'pastry', pad: { x: 0.98, z: 6.35 } });
   v.counter = { pad: { x: 0.98, z: 4.5 }, queue: [{ x: 0.18, z: 4.5 }, { x: 0.18, z: 5.3 }, { x: 0.18, z: 6.1 }, { x: 0.18, z: 6.9 }], facing: FACE.right };
   v.cash = { x: 0.98, z: 5.42 };
-  // Tables for two at the back, either side of a wide aisle; one is open from the start.
   const rows = [9.2, 11.6, 14.0];
   let group = 0;
   b.node('cafe_front', 0, front + 0.4);
@@ -745,8 +780,8 @@ function buildCafe(): CarriageLayout {
     for (const side of [-1, 1]) {
       const x = side * 1.3;
       const table = b.prop('cafeTable', x - 0.36, z - 0.36, x + 0.36, z + 0.36);
-      const c0 = b.prop('chair', x - 0.22, z - 0.98, x + 0.22, z - 0.56, 'rear');
-      const c1 = b.prop('chair', x - 0.22, z + 0.56, x + 0.22, z + 0.98, 'front');
+      const c0 = b.prop('chair', x - 0.22, z - 0.98, x + 0.22, z - 0.56, 'rear', true, 'cafe');
+      const c1 = b.prop('chair', x - 0.22, z + 0.56, x + 0.22, z + 0.98, 'front', true, 'cafe');
       const node = b.node(`table_${group}`, side * 0.5, z);
       b.edge(aisle, node);
       v.groups.push({ index: group, tile: { x, z }, props: [table, c0, c1], cash: null });
@@ -762,6 +797,28 @@ function buildCafe(): CarriageLayout {
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_menu', -1.35, 5.7);
   b.anchor('tile_station', -1.35, 7.5);
+
+  // The furnishings. The menu on the front wall, cups and sugar on the lake-side dresser beside the queue, coats by
+  // the door, plants between the tables, the cake trolley at the back.
+  b.prop('wallBoard', -1.42, WALL, -0.78, WALL + 0.05, 'rear', false, 'cafe');
+  if (tier <= 0) {
+    // A pop-up: sacks of beans and crates of cups where the dresser will go, a bucket of something green.
+    b.prop('crates', LAKE, 0.24, -1.55, 0.98, 'right', true, 'cafe');
+    b.prop('crates', LAKE, 4.5, -1.92, 5.3, 'right', true, 'cafe');
+    b.prop('planter', LAKE, 15.3, -1.92, 15.72, 'right', true, 'cafe');
+  } else {
+    b.prop('coatStand', LAKE, 0.28, -1.9, 0.7);
+    b.prop('sideboard', LAKE, 4.4, -1.92, 6.8, 'right', true, 'cafe');
+    for (const z of [7.55, 10.4, 12.8]) b.prop('planter', LAKE, z - 0.2, -1.92, z + 0.2, 'right', true, 'cafe');
+    b.prop('planter', 1.9, 15.25, NEAR, 15.67, 'left', true, 'low');
+  }
+  if (tier >= 2) {
+    b.prop('planter', 1.88, 0.26, NEAR, 0.7, 'left', true, 'low');
+    b.prop('trolley', LAKE, 15.15, -1.72, 16.2, 'right', true, 'cafe');
+  }
+  if (tier === 1) v.carpets.push({ rect: rect(-0.55, 8.1, 0.55, 16.3), style: 'jute' });
+  if (tier === 2) v.carpets.push({ rect: rect(-0.5, 2.3, 0.5, 16.3), style: 'runner' });
+  if (tier >= 3) v.carpets.push({ rect: rect(-INNER + 0.1, 8.0, INNER - 0.1, 16.3), style: 'checker' });
   return b.layout;
 }
 
@@ -769,7 +826,7 @@ function buildCafe(): CarriageLayout {
  * The dining car: the kitchen up front (the range on the right, the pass across from it where the chef leaves
  * plates), then window tables for two down both sides with the aisle between them.
  */
-function buildDining(): CarriageLayout {
+function buildDining(tier: number): CarriageLayout {
   const b = new LayoutBuilder('dining');
   const v = newVenue('dining');
   b.layout.venue = v;
@@ -798,11 +855,14 @@ function buildDining(): CarriageLayout {
     b.edge(previous, aisle);
     previous = aisle;
     for (const side of [-1, 1]) {
-      const wall = side * INNER;
+      // Session 21: the table stands a hand's width off the wall, under the window (not across it).
+      const wall = side * (INNER - 0.05);
       const inner = side * 1.58;
-      const table = b.prop('diningTable', Math.min(wall, inner), z - 0.45, Math.max(wall, inner), z + 0.45);
-      const c0 = b.prop('chair', Math.min(wall, inner) + 0.14, z - 1.0, Math.max(wall, inner) - 0.14, z - 0.56, 'rear');
-      const c1 = b.prop('chair', Math.min(wall, inner) + 0.14, z + 0.56, Math.max(wall, inner) - 0.14, z + 1.0, 'front');
+      const x0 = Math.min(wall, inner);
+      const x1 = Math.max(wall, inner);
+      const table = b.prop('diningTable', x0, z - 0.45, x1, z + 0.45);
+      const c0 = b.prop('chair', x0 + 0.12, z - 1.0, x1 - 0.12, z - 0.56, 'rear', true, 'dining');
+      const c1 = b.prop('chair', x0 + 0.12, z + 0.56, x1 - 0.12, z + 1.0, 'front', true, 'dining');
       const node = b.node(`table_${group}`, side * 0.52, z);
       b.edge(aisle, node);
       const mid = (wall + inner) / 2;
@@ -821,14 +881,30 @@ function buildDining(): CarriageLayout {
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_menu', -1.45, 1.4);
   b.anchor('tile_station', -1.3, 2.7);
+
+  // The furnishings: the dresser of plates and glasses at the back where the waiter lays up, plants in the gaps
+  // between the tables, coats at the back by the gangway, and a runner down the aisle once it is cosy.
+  const gaps = [7.7, 10.3, 12.9];
+  if (tier <= 0) {
+    b.prop('crates', LAKE, 15.3, -1.9, 16.35, 'right', true, 'dining');
+    b.prop('planter', LAKE, gaps[1] - 0.2, -1.94, gaps[1] + 0.2, 'right', true, 'dining');
+  } else {
+    b.prop('sideboard', LAKE, 15.3, -1.9, 16.38, 'right', true, 'dining');
+    for (const z of gaps) b.prop('planter', LAKE, z - 0.2, -1.94, z + 0.2, 'right', true, 'dining');
+    b.prop('coatStand', 1.92, 15.6, NEAR, 16.02);
+  }
+  if (tier >= 2) for (const z of gaps) b.prop('planter', 1.94, z - 0.2, NEAR, z + 0.2, 'left', true, 'low');
+  if (tier === 1) v.carpets.push({ rect: rect(-0.6, 5.3, 0.6, 16.3), style: 'jute' });
+  if (tier === 2) v.carpets.push({ rect: rect(-0.62, 5.3, 0.62, 16.3), style: 'runner' });
+  if (tier >= 3) v.carpets.push({ rect: rect(-0.75, 5.3, 0.75, 16.3), style: 'persian' });
   return b.layout;
 }
 
 /**
- * The bar lounge: the bar along the left with its stools, the mixing station at its end; armchairs round low
- * tables at the back, and the corner where the grand piano goes.
+ * The bar lounge: the bar along the lake side with its stools and the mixing station at its end; tub chairs round
+ * side tables down the right, a banquette at the back on the left, and the corner where the grand piano goes.
  */
-function buildBar(): CarriageLayout {
+function buildBar(tier: number): CarriageLayout {
   const b = new LayoutBuilder('bar');
   const v = newVenue('bar');
   b.layout.venue = v;
@@ -854,7 +930,7 @@ function buildBar(): CarriageLayout {
     v.seats.push({ index: v.seats.length, group, sit: { x: -1.08, z }, facing: FACE.left, serve: { x: -0.32, z }, node, top: 0.62 });
     group++;
   }
-  // The lounge: armchairs on the right round low tables, a pair on the left by the piano's corner.
+  // The lounge: tub chairs on the right round side tables, a banquette on the left by the piano's corner.
   b.node('lounge', 0, 10.2);
   b.edge('bar_aisle', 'lounge');
   let previous = 'lounge';
@@ -862,17 +938,18 @@ function buildBar(): CarriageLayout {
     const node = b.node(`lounge_${group}`, 0.15, z);
     b.edge(previous, node);
     previous = node;
-    const chair = b.prop('armchair', 1.62, z - 0.36, 2.3, z + 0.36, 'left');
-    const table = b.prop('table', 0.98, z - 0.3, 1.42, z + 0.3);
+    const chair = b.prop('loungeChair', 1.62, z - 0.36, 2.3, z + 0.36, 'left', true, 'bar');
+    const table = b.prop('sideTable', 0.98, z - 0.3, 1.42, z + 0.3, undefined, true, 'bar');
     v.groups.push({ index: group, tile: { x: 1.25, z: z - 0.95 }, props: [chair, table], cash: null });
     v.seats.push({ index: v.seats.length, group, sit: { x: 1.92, z }, facing: FACE.left, serve: { x: 0.45, z: z - 0.62 }, node, top: 0.4 });
     group++;
   }
-  for (const z of [13.6, 15.4]) {
-    const chair = b.prop('armchair', -2.3, z - 0.36, -1.62, z + 0.36, 'right');
+  for (const [z0, z1] of [[12.92, 14.28], [14.52, 15.88]]) {
+    const z = (z0 + z1) / 2;
+    const seat = b.prop('banquette', LAKE, z0, -1.66, z1, 'right', true, 'bar');
     const node = b.node(`lounge_${group}`, -0.5, z);
-    b.edge(z < 14 ? 'lounge_6' : 'lounge_7', node);
-    v.groups.push({ index: group, tile: { x: -1.2, z }, props: [chair], cash: null });
+    b.edge(z < 14.4 ? 'lounge_6' : 'lounge_7', node);
+    v.groups.push({ index: group, tile: { x: -1.2, z }, props: [seat], cash: null });
     v.seats.push({ index: v.seats.length, group, sit: { x: -1.92, z }, facing: FACE.right, serve: { x: -0.9, z: z - 0.62 }, node, top: 0.4 });
     group++;
   }
@@ -883,6 +960,22 @@ function buildBar(): CarriageLayout {
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_menu', 1.3, 3.6);
   b.anchor('tile_station', -1.5, 10.8);
+
+  // The furnishings: coats by the door, the ice and glasses on the service sideboard opposite the bar, a plant at
+  // the bar's end and in the back corner, the drinks trolley by the lounge; from the Luxury refit, the plaid carpet.
+  b.prop('wallBoard', -2.2, WALL, -1.1, WALL + 0.05, 'rear', false, 'bar');
+  if (tier <= 0) {
+    b.prop('crates', 1.6, 5.0, NEAR, 6.4, 'left', true, 'bar');
+    b.prop('crates', LAKE, 8.62, -1.86, 9.36, 'right', true, 'bar');
+  } else {
+    b.prop('coatStand', 1.9, 0.3, NEAR, 0.72);
+    b.prop('sideboard', 1.9, 5.0, NEAR, 7.4, 'left', true, 'bar');
+    b.prop('planter', LAKE, 8.7, -1.92, 9.28, 'right', true, 'bar');
+    b.prop('planter', 1.92, 15.8, NEAR, 16.3, 'left', true, 'low');
+  }
+  if (tier >= 2) b.prop('trolley', 1.82, 8.2, NEAR, 9.25, 'left', true, 'bar');
+  if (tier === 2) v.carpets.push({ rect: rect(0.55, 9.85, INNER - 0.1, 16.25), style: 'persian' });
+  if (tier >= 3) v.carpets.push({ rect: rect(-INNER + 0.1, 2.15, INNER - 0.1, 16.35), style: 'plaid' });
   return b.layout;
 }
 
@@ -890,7 +983,7 @@ function buildBar(): CarriageLayout {
  * The observation dome: a glass roof over rows of plush seats facing the lake; guests wait at the rope up front
  * to be shown in. The blanket basket stands at the back.
  */
-function buildDome(): CarriageLayout {
+function buildDome(tier: number): CarriageLayout {
   const b = new LayoutBuilder('dome');
   const v = newVenue('dome');
   b.layout.venue = v;
@@ -927,6 +1020,117 @@ function buildDome(): CarriageLayout {
   b.anchor('tile_up_host', -REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_menu', -1.5, 7.6);
+
+  // The furnishings: the route map on the front wall and the guidebooks and binoculars on the dresser below it, a
+  // lamp on a side table between the telescopes, plants at the back; a runner, then a starry carpet, under the rows.
+  b.prop('wallBoard', 1.0, WALL, 2.1, WALL + 0.05, 'rear', false, 'dome');
+  if (tier <= 0) {
+    b.prop('crates', 1.5, 0.3, NEAR, 1.3, 'left', true, 'dome');
+  } else {
+    b.prop('sideboard', 1.88, 0.3, NEAR, 1.9, 'left', true, 'dome');
+    b.prop('sideTable', LAKE, 10.5, -1.9, 10.98, undefined, true, 'dome');
+    b.prop('planter', LAKE, 15.5, -1.92, 15.95, 'right', true, 'dome');
+  }
+  if (tier >= 2) {
+    b.prop('sideTable', LAKE, 3.98, -1.9, 4.44, undefined, true, 'dome');
+    b.prop('planter', LAKE, 13.9, -1.92, 14.35, 'right', true, 'dome');
+  }
+  if (tier === 1) v.carpets.push({ rect: rect(-1.75, 4.3, -0.95, 14.1), style: 'jute' });
+  if (tier === 2) {
+    // A rug under the seats and a runner along the windows, where guests stand to look out.
+    v.carpets.push({ rect: rect(0.12, 4.3, 2.18, 14.1), style: 'runner' });
+    v.carpets.push({ rect: rect(-1.8, 4.3, -0.95, 14.1), style: 'runner' });
+  }
+  if (tier >= 3) v.carpets.push({ rect: rect(-INNER + 0.1, 4.15, INNER - 0.1, 14.3), style: 'starry' });
+  return b.layout;
+}
+
+/**
+ * The cinema car (session 21, owner: "add a small movie theatre"): the box office and popcorn counter by the door,
+ * two staggered rows of seats facing the screen on the lake side, the projector at the back. Guests take a seat and
+ * wait; start the film at the projector and every seat watching pays its ticket when it ends. Popcorn on the way.
+ */
+function buildCinema(tier: number): CarriageLayout {
+  const b = new LayoutBuilder('cinema');
+  const v = newVenue('cinema');
+  b.layout.venue = v;
+  const front = 2.0;
+  venueShell(b, front);
+  b.prop('concession', 1.42, 2.3, INNER, 4.9, 'left');
+  b.prop('popcornMachine', 1.62, 2.5, 2.24, 3.3, 'left', false);
+  v.stations.push({ item: 'popcorn', pad: { x: 0.98, z: 2.95 } });
+  v.cash = { x: 0.98, z: 4.35 };
+  b.prop('screen', -INNER, 6.8, -1.98, 12.8, 'right');
+  v.projector = { x: 0.95, z: 14.4 };
+  b.prop('projector', 1.5, 13.9, NEAR, 14.9, 'left');
+  v.extras.push(
+    { key: 'menu_snacks', props: [b.prop('candyCart', LAKE, 2.3, -1.72, 3.4, 'right')] },
+    { key: 'menu_premiere', props: [b.prop('premiere', -0.45, 0.3, 0.45, 5.5, 'rear', false), b.prop('speakers', LAKE, 4.25, -1.94, 4.75, 'right', true, 'spot')] },
+    { key: 'station_sound', props: [b.prop('speakers', LAKE, 6.12, -2.0, 6.68, 'right'), b.prop('speakers', LAKE, 12.92, -2.0, 13.48, 'right')] },
+  );
+  b.node('cin_front', 0.3, front + 0.4);
+  b.node('foyer', 0.3, 5.0);
+  b.node('cross_f', 1.1, 6.15);
+  b.node('strip_f', -0.4, 6.2);
+  b.chain('vest_front', 'cin_front', 'foyer', 'cross_f');
+  b.edge('cross_f', 'strip_f');
+  // Two rows facing the screen, staggered so every seat sees it: the front row's pairs, then the back row's between.
+  let group = 0;
+  let stripPrev = 'strip_f';
+  let walkPrev = 'cross_f';
+  const seat = (row: 'a' | 'b', c: number): void => {
+    const x0 = row === 'a' ? -1.5 : 0.0;
+    const x1 = x0 + 0.7;
+    const sitX = (x0 + x1) / 2 + 0.03;
+    const node = b.node(`row${row}_${group}`, row === 'a' ? -0.4 : 1.05, c);
+    if (row === 'a') {
+      b.edge(stripPrev, node);
+      stripPrev = node;
+    } else {
+      b.edge(walkPrev, node);
+      walkPrev = node;
+    }
+    const props = [b.prop('cinemaSeat', x0, c - 0.66, x1, c - 0.06, 'left'), b.prop('cinemaSeat', x0, c + 0.06, x1, c + 0.66, 'left')];
+    // From the Cosy refit a little table at the end of each pair holds the popcorn.
+    if (tier >= 2) props.push(b.prop('sideTable', x0 + 0.18, c + 0.7, x0 + 0.52, c + 1.0, undefined, true, 'cinema'));
+    v.groups.push({ index: group, tile: { x: (x0 + x1) / 2, z: c }, props, cash: null });
+    for (const dz of [-0.36, 0.36]) v.seats.push({ index: v.seats.length, group, sit: { x: sitX, z: c + dz }, facing: FACE.left, serve: { x: row === 'a' ? -0.4 : 1.05, z: c }, node, top: 0.42 });
+    group++;
+  };
+  seat('a', 7.4);
+  seat('b', 8.45);
+  seat('a', 9.5);
+  seat('b', 10.55);
+  seat('a', 11.6);
+  seat('b', 12.65);
+  b.node('cross_r', -0.4, 13.8);
+  b.edge(stripPrev, 'cross_r');
+  b.node('booth', 0.95, 14.4);
+  b.chain(walkPrev, 'booth', 'corr_end', 'vest_rear');
+  b.edge('cross_r', 'booth');
+  v.openGroups = 2;
+  b.anchor('home_projectionist', 0.9, 15.7);
+  b.anchor('tile_up_projectionist', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_menu', -1.3, 2.9);
+  b.anchor('tile_station', -1.3, 13.9);
+
+  // The furnishings: posters on the front wall, film reels and a bench in the back corner (then the corner sofa of a
+  // home cinema, then a velvet chaise), a coat stand by the door; carpets from the Cosy refit.
+  b.prop('wallBoard', -2.24, WALL, -1.0, WALL + 0.05, 'rear', false, 'cinema');
+  b.prop('wallBoard', 1.0, WALL, 2.24, WALL + 0.05, 'rear', false, 'cinema');
+  if (tier <= 0) {
+    b.prop('reels', LAKE, 14.7, -1.4, 16.3, 'right');
+    b.prop('crates', LAKE, 5.05, -1.9, 5.65, 'right', true, 'cinema');
+  } else {
+    b.prop('planter', LAKE, 5.1, -1.92, 5.56, 'right', true, 'cinema');
+    b.prop('coatStand', LAKE, 0.3, -1.9, 0.72);
+    if (tier === 1) b.prop('reels', LAKE, 15.1, -1.6, 16.3, 'right');
+    else b.prop('cornerSofa', LAKE, 15.0, -0.95, 16.35, 'right', true, 'cinema');
+    b.prop('planter', 1.92, 15.8, NEAR, 16.3, 'left', true, 'low');
+  }
+  if (tier === 2) v.carpets.push({ rect: rect(-1.85, 6.6, 0.9, 13.6), style: 'persian' });
+  if (tier >= 3) v.carpets.push({ rect: rect(-INNER + 0.1, 2.15, INNER - 0.1, 16.35), style: 'theatre' });
   return b.layout;
 }
 
@@ -940,12 +1144,19 @@ const BUILDERS: Record<CarriageType, (tier: number) => CarriageLayout> = {
   dining: buildDining,
   bar: buildBar,
   dome: buildDome,
+  cinema: buildCinema,
 };
+
+const VENUE_TYPES: ReadonlySet<CarriageType> = new Set<CarriageType>(['cafe', 'dining', 'bar', 'dome', 'cinema']);
+/** The venue carriages (session 20; the cinema since session 21). */
+export const isVenueType = (type: CarriageType): boolean => VENUE_TYPES.has(type);
 
 const cache = new Map<string, CarriageLayout>();
 
 /** Which floor plan a carriage uses at a refit tier: passenger carriages change plan with their class. */
 export function layoutKey(type: CarriageType, tier = 0): string {
+  // Session 21: a venue's furnishings change with every refit (its tables, seats and pads stay where they are).
+  if (isVenueType(type)) return `${type}:${Math.min(3, Math.max(0, tier))}`;
   if (type !== 'lobby' && type !== 'sleeper') return type;
   const t = Math.min(5, Math.max(0, tier));
   return `${type}:${t <= 1 ? 0 : t}`;

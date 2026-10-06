@@ -29,6 +29,7 @@ export class Demand {
       case 'pastry':
       case 'meal':
       case 'cocktail':
+      case 'popcorn':
         // What the venue carriages are waiting for (session 20).
         return w.venues.need(kind);
       case 'towel':

@@ -19,6 +19,7 @@ export const ITEM_HEIGHT: Record<ItemKind, number> = {
   pastry: 0.1,
   meal: 0.2,
   cocktail: 0.22,
+  popcorn: 0.24,
 };
 
 const cache = new Map<ItemKind, THREE.BufferGeometry>();
@@ -102,6 +103,11 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       b.cylinder(0, 0.06, 0, 0.01, 0.02, 0.09, '#E8EEF2', 6, 'y', { surface: 'glass' });
       b.cylinder(0, 0.13, 0, 0.07, 0.025, 0.06, '#F3A3B3', 12, 'y', { shade: 1, surface: 'glass' });
       b.sphere(0.03, 0.17, 0, 0.016, '#C0485C', 0);
+      break;
+    case 'popcorn':
+      // A red-and-white striped carton heaped with popcorn.
+      b.cylinder(0, 0.1, 0, 0.085, 0.06, 0.2, '#D9433F', 12, 'y', { pattern: PATTERN.stripesZ, color2: '#FBF5EA', scale: 0.05, shade: 0.95 });
+      for (const [x, z, y] of [[0, 0, 0.23], [0.04, 0.03, 0.215], [-0.04, 0.02, 0.215], [0.02, -0.04, 0.22], [-0.03, -0.03, 0.21]]) b.sphere(x, y, z, 0.035, '#FFF1C9', 1, 0.85, { shade: 1 });
       break;
     case 'crate':
       b.box(0, 0.17, 0, 0.5, 0.34, 0.42, PALETTE.oak, 0, { pattern: PATTERN.stripesZ, color2: '#A87544', scale: 0.09, shade: 0.8 });

@@ -65,6 +65,7 @@ function iconOf(def: UnlockDef, type: string | undefined): IconName {
     if (type === 'dining') return 'meal';
     if (type === 'bar') return 'cocktail';
     if (type === 'dome') return 'binoculars';
+    if (type === 'cinema') return def.id.endsWith('menu_snacks') ? 'popcorn' : 'film';
   }
   return ICON_BY_KIND[def.kind];
 }

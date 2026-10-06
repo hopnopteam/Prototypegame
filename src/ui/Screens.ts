@@ -155,7 +155,7 @@ export class Screens {
    */
   carriageChoice(choices: CarriageChoiceView[], onPick: (type: CarriageType) => void): void {
     let close: () => void = () => undefined;
-    const icons: Record<CarriageType, IconName> = { lobby: 'ticket', bathroom: 'bath', supply: 'towel', luggage: 'luggage', sleeper: 'bed', cafe: 'latte', dining: 'meal', bar: 'cocktail', dome: 'binoculars' };
+    const icons: Record<CarriageType, IconName> = { lobby: 'ticket', bathroom: 'bath', supply: 'towel', luggage: 'luggage', sleeper: 'bed', cafe: 'latte', dining: 'meal', bar: 'cocktail', dome: 'binoculars', cinema: 'film' };
     const cards = choices.map((c, i) => {
       const theme = CARRIAGE_THEMES[c.type];
       return h(`button.carriage-card${i === 0 && c.reason ? '.recommended' : ''}` as 'button', {

@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { STATIC_CASTER_LAYER } from './Lighting';
 import type { CarriageType } from '../core/types';
-import { CarriageView, FLOOR_Y, WINDOW_Y0, WINDOW_Y1, windowSpacing } from './CarriageView';
+import { CarriageView, FLOOR_Y, windowSpacing } from './CarriageView';
 import { GeoBuilder, mergePlanes, type PartStyle } from './geo';
-import { carriageOriginZ, DOOR_Z0, DOOR_Z1, getLayout, HALF_WIDTH } from './layout';
+import { carriageOriginZ, DEFAULT_WINDOW_BAND, DOOR_Z0, DOOR_Z1, getLayout, HALF_WIDTH } from './layout';
 import { MATERIALS } from './materials';
 import { PALETTE } from './palette';
 import { nameboardTexture } from './sprites';
@@ -69,6 +69,9 @@ export class ExteriorView {
       const type = types[index];
       const oz = carriageOriginZ(index);
       const layout = getLayout(type);
+      const [WINDOW_Y0] = layout.windowBand;
+      // The brass lamps hang on the piers between windows at the usual height whatever the windows do.
+      const WINDOW_Y1 = DEFAULT_WINDOW_BAND[1];
       let longest: { z0: number; z1: number; face: number; top: number } | null = null;
       for (const wall of layout.walls) {
         if (wall.kind !== 'exterior' || wall.z1 - wall.z0 < wall.x1 - wall.x0) continue;

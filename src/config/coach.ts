@@ -30,7 +30,7 @@ export const COACH_HINTS: CoachLineDef[] = [
   { id: 'station', icon: 'ticket', text: 'All aboard' },
   { id: 'hire', icon: 'person', text: 'Hire help' },
   { id: 'couple', icon: 'carriage', text: 'New carriage' },
-  { id: 'refurb', icon: 'paint', text: 'Refurbish' },
+  { id: 'refurb', icon: 'paint', text: 'Upgrade' },
   { id: 'class', icon: 'crown', text: 'Upgrade class' },
   { id: 'turndown', icon: 'turndown', text: 'Turn down' },
   { id: 'workshop', icon: 'megaphone', text: 'Station shop' },
@@ -41,6 +41,7 @@ export const COACH_HINTS: CoachLineDef[] = [
   { id: 'clear', icon: 'broom', text: 'Clear table' },
   { id: 'bar', icon: 'cocktail', text: 'Mix drinks' },
   { id: 'dome', icon: 'binoculars', text: 'Show in' },
+  { id: 'cinema', icon: 'film', text: 'Start the film' },
   { id: 'map', icon: 'dash', text: 'Tap to dash' },
   { id: 'miles', icon: 'miles', text: 'Upgrades' },
 ];

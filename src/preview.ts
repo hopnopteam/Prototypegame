@@ -30,6 +30,7 @@ stage.scene.add(loco.group);
 loco.setName(params.get('name') ?? 'The Night Owl');
 document.fonts?.ready.then(() => loco.refreshName()).catch(() => undefined);
 const count = Number(params.get('n') ?? '5');
+const views: CarriageView[] = [];
 // ?tier=2 shows every carriage at one tier; ?tiers=0123 sets them one by one. ?level= picks the livery.
 const tierParam = params.get('tier');
 const tiers = params.get('tiers') ?? '';
@@ -52,6 +53,8 @@ DEFAULT_TRAIN.map((type) => ({ type })).slice(0, count).forEach((c, i) => {
       view.setVenueDirty(1, true);
       view.setVenuePass(2);
       view.setVenueSign('party', 0.6, false);
+      // ?film=0 shows the cinema with no film on.
+      if (params.get('film') !== '0') view.setVenueFilm(0.4);
     }
   }
   // ?comforts=lamp,flowers,radio,soap,rail dresses the rooms.
@@ -59,6 +62,7 @@ DEFAULT_TRAIN.map((type) => ({ type })).slice(0, count).forEach((c, i) => {
   if (comforts) view.setComforts(comforts.split(',') as ComfortKey[]);
   if (platform) view.setDoorOpen(1);
   stage.scene.add(view.group);
+  views.push(view);
 });
 scenery.setSpan(carriageOriginZ(count - 1) + 14);
 if (platform) {
@@ -88,7 +92,7 @@ ARCHETYPES.forEach((a, i) => {
   if (i === 0) g.showBubble('tea');
   stage.scene.add(g.root);
 });
-['attendant', 'porter', 'runner'].forEach((r, i) => {
+(['attendant', 'porter', 'runner'] as const).forEach((r, i) => {
   const s = new CharacterView(STAFF_LOOKS[r]);
   s.setPosition(-1.4, FLOOR_Y, 7 + i * 1.2);
   stage.scene.add(s.root);
@@ -108,6 +112,7 @@ let last = performance.now();
 function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   scenery.update(dt, platform ? 0 : 14);
+  for (const v of views) v.animate(dt);
   loco.update(dt, 14);
   player.update(dt, 0); particles.update(dt); cash.update(dt); ring.update(dt); tile.update(dt, true, false);
   stage.rig.update(dt, camX, camZ);

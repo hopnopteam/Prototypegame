@@ -107,6 +107,24 @@ describe('TrainMap', () => {
     }
   });
 
+  it('every refit of every venue (its own furnishings) keeps every pad, tile and seat in reach', () => {
+    for (let tier = 0; tier <= 3; tier++) {
+      const m = new TrainMap(ECONOMY.player.radius);
+      extrasClosed(m);
+      m.rebuild(FULL_TRAIN, false, false, FULL_TRAIN.map((t) => (t === 'lobby' || t === 'sleeper' ? 0 : tier)));
+      const reach = reachable(m, m.anchor(0, 'playerSpawn'));
+      for (const c of m.carriages) {
+        if (!c.layout.venue) continue;
+        for (const f of footprints(c.layout)) {
+          if (f.replaces?.length) continue;
+          expect(reach(m.toWorld(c.index, f)), `${c.layout.type}@${tier} ${f.id}`).toBe(true);
+        }
+        for (const seat of c.layout.venue.seats) expect(m.nav.findPath(m.doors()[0].insideNode, m.nodeId(c.index, seat.node)), `${c.layout.type}@${tier} seat ${seat.index}`).not.toBeNull();
+      }
+    }
+    // Four whole-train flood fills: allow for a busy machine.
+  }, 60_000);
+
   it('lets the player reach the rear coupling tile', () => {
     expect(canReach(map.rearDeck().tile)).toBe(true);
   });

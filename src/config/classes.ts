@@ -13,7 +13,7 @@ export type ClassId = 'basic' | 'comfort' | 'business' | 'first' | 'royal';
 
 /** What a guest can ask for: an item brought to the cabin, the bed turned down, or (Royal) the butler. */
 /** What a guest asks for in their cabin (the venue carriages' dishes are ordered in the venue, not here). */
-export type ServiceNeed = Exclude<ItemKind, 'latte' | 'pastry' | 'meal' | 'cocktail'> | 'turndown';
+export type ServiceNeed = Exclude<ItemKind, 'latte' | 'pastry' | 'meal' | 'cocktail' | 'popcorn'> | 'turndown';
 
 export interface ClassDef {
   id: ClassId;

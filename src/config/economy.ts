@@ -370,6 +370,7 @@ export const ECONOMY = {
     waiter: { speed: 3.2, capacity: 2, homeIdleSeconds: 0.4 },
     bartender: { speed: 3.0, capacity: 1, homeIdleSeconds: 0.4 },
     host: { speed: 3.0, capacity: 1, homeIdleSeconds: 0.4 },
+    projectionist: { speed: 3.0, capacity: 1, homeIdleSeconds: 0.4 },
     /** Staff upgrade tiles: +speed fraction and +capacity per level. */
     upgradeSpeedPerLevel: 0.2,
     upgradeCapacityPerLevel: 1,

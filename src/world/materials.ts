@@ -32,6 +32,8 @@ export const PATTERN = {
   boards: 10,
   /** Chevron parquet: diagonal blocks mirrored column to column (luxurious rooms). `scale` is the column width. */
   chevron: 11,
+  /** Plaid (session 21, the bar's Luxury carpet): broad crossing bands with fine lines. `scale` is the band width. */
+  plaid: 12,
 } as const;
 
 const PATTERN_VERTEX_HEAD = /* glsl */ `
@@ -87,6 +89,13 @@ float patternMask(vec3 pos, vec3 n, vec2 pat) {
   if (type < 7.5) return sqw(h * 0.5);
   if (type < 8.5) return thin(h, 0.14);
   if (type < 9.5) return thin(p.x, 0.08) + thin(p.y * 0.23 + floor(p.x) * 0.37, 0.03);
+  if (type > 11.5) {
+    // Plaid: two crossing sets of broad bands (overlaps darkest) with a fine line through each band.
+    float a = sqw(p.x * 0.5);
+    float b = sqw(p.y * 0.5);
+    float lines = max(thin(p.x + 0.5, 0.07), thin(p.y + 0.5, 0.07));
+    return clamp((a + b) * 0.38 + lines * 0.75, 0.0, 1.0);
+  }
   if (type > 10.5) {
     // Chevron: columns of diagonal blocks, the diagonal flipping each column; each block its own tone.
     float c = floor(p.x);

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CLASS_BY_ID } from '../config/classes';
-import { VENUES, VENUE_MENUS, VENUE_TUNING } from '../config/venues';
+import { VENUES, VENUE_MENUS, VENUE_TUNING, type VenueCharge } from '../config/venues';
 import type { CarriageType, ItemKind, StaffRole, Vec2, VenueKind } from '../core/types';
 import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from '../world/CarriageView';
@@ -19,7 +19,8 @@ import { Zone } from './Zones';
  * bed. The player (or the venue's staff) makes what they order at the venue's station, carries it over and
  * hands it to them; the dining car's tables want clearing after each diner; every drink at the bar fills the
  * party meter (Happy Hour lifts tips and fares on the whole train); every scenic view pays the dome's seated
- * guests. Never a penalty: a guest kept waiting simply waits.
+ * guests; the cinema's films pay every seat that watched (session 21). Never a penalty: a guest kept waiting simply
+ * waits.
  */
 
 export type SeatState = 'locked' | 'free' | 'reserved' | 'waiting' | 'consuming' | 'dirty';
@@ -44,7 +45,7 @@ export class VenueSeat {
   orderAt = 0;
   /** A staff member on their way with it. */
   servedBy: StaffMember | null = null;
-  /** Dome: views watched this visit. */
+  /** Dome: views watched this visit. Cinema: 1 while watching the film that is on (0 waiting for the next). */
   views = 0;
   timer = 0;
   readonly sit: Vec2;
@@ -83,8 +84,15 @@ export class Venue {
   readonly keys = new Set<string>();
   tier = 0;
   readonly pileId: string;
+  /** Cinema: seconds left of the film on now (0: none on), and when the first guest sat down to wait for one. */
+  filmLeft = 0;
+  waitingSince = 0;
 
-  constructor(readonly w: World, readonly carriage: number, readonly kind: VenueKind, readonly layout: VenueLayout, readonly plan: CarriageLayout) {
+  /**
+   * The floor plan in use: a refit swaps it for its own tier's (session 21: the furnishings change, the tables, seats
+   * and pads stay where they were, so everything here carries on).
+   */
+  constructor(readonly w: World, readonly carriage: number, readonly kind: VenueKind, public layout: VenueLayout, public plan: CarriageLayout) {
     const originZ = carriageOriginZ(carriage);
     for (const s of layout.seats) this.seats.push(new VenueSeat(this, s, originZ));
     for (const g of layout.groups) {
@@ -109,19 +117,20 @@ export class Venue {
   }
 
   /** What one of these costs a guest: the menu, the refit, their purse and the train's boosts. */
-  priceFor(item: ItemKind | 'scenic' | 'usher', guest: Guest | null): number {
+  priceFor(item: VenueCharge | 'usher', guest: Guest | null): number {
     const w = this.w;
     const def = VENUES[this.kind];
     const t = VENUE_TUNING;
     let base: number;
     if (item === 'scenic') base = t.scenicTip;
     else if (item === 'usher') base = 2;
+    else if (item === 'ticket') base = t.cinema.ticket;
     else if (item === 'blanket') base = t.blanketTip;
     else base = def.products.find((p) => p.item === item)?.price ?? 5;
     let menu = 1;
     for (const key of this.keys) {
       const m = VENUE_MENUS[key];
-      if (m?.price && (item === 'meal' || item === 'cocktail' || item === 'scenic' || (item === 'latte' && key === 'menu_beans'))) menu *= m.price;
+      if (m && item !== 'usher' && m.items.includes(item)) menu *= m.price;
     }
     const tier = def.tierPrice[Math.min(def.tierPrice.length - 1, this.tier)] ?? 1;
     const purse = guest ? (1 + (CLASS_BY_ID[guest.cls].tip - 1) * t.classSpend) * guest.archetype.tipMultiplier : 1;
@@ -158,6 +167,21 @@ export class Venue {
   /** Seats waiting for this item that no staff member has taken on. */
   waitingFor(item: ItemKind): VenueSeat[] {
     return this.seats.filter((s) => s.state !== 'locked' && s.order === item && s.guest && !s.servedBy);
+  }
+
+  /** Cinema: guests sitting down waiting for the next film (not watching the one on). */
+  filmWaiting(): VenueSeat[] {
+    return this.seats.filter((s) => s.guest?.outing?.seated && s.views === 0);
+  }
+
+  /** Cinema: whether the projectionist should start a film now (a fair house, or the first guest has waited long). */
+  filmReady(): boolean {
+    if (this.filmLeft > 0) return false;
+    const waiting = this.filmWaiting().length;
+    if (waiting === 0) return false;
+    const open = this.seats.filter((s) => this.open[s.group]).length;
+    const c = VENUE_TUNING.cinema;
+    return waiting >= Math.max(1, Math.ceil(open * c.autoShare)) || this.w.time - this.waitingSince >= c.autoWait;
   }
 
   /** The queue's orders (café): every queued guest has chosen what they want. */
@@ -221,6 +245,11 @@ export class Venues {
     const view = this.w.train.views[index];
     if (!venue || !view) return;
     venue.tier = view.tier;
+    if (view.layout !== venue.plan && view.layout.venue) {
+      // The refit's own floor plan (its furnishings; TrainState rebuilds the map round it).
+      venue.plan = view.layout;
+      venue.layout = view.layout.venue;
+    }
     venue.layout.groups.forEach((g) => {
       view.setVenueGroupOpen(g.index, venue.open[g.index]);
       view.setVenueDirty(g.index, venue.dirty[g.index]);
@@ -306,7 +335,7 @@ export class Venues {
   }
 
   venueIcon(kind: VenueKind): IconName {
-    return kind === 'cafe' ? 'latte' : kind === 'dining' ? 'meal' : kind === 'bar' ? 'cocktail' : 'binoculars';
+    return kind === 'cafe' ? 'latte' : kind === 'dining' ? 'meal' : kind === 'bar' ? 'cocktail' : kind === 'cinema' ? 'film' : 'binoculars';
   }
 
   private walkTo(guest: Guest, spot: Vec2, onArrive: () => void, node?: string): void {
@@ -369,6 +398,12 @@ export class Venues {
       guest.view.showBubble(seat.order as IconName, 'request', 1.85);
       guest.view.act('wave', w.econ.guests.waveSeconds);
       w.audio.play('soft', { volume: 0.45 });
+    } else if (venue.kind === 'cinema') {
+      // Settles in for the next film (the one on, if any, is half over: they wait for the next).
+      seat.state = 'consuming';
+      seat.views = 0;
+      if (venue.filmWaiting().length === 1) venue.waitingSince = w.time;
+      guest.view.showBubble('film', 'intent', 1.85);
     } else {
       seat.state = 'consuming';
       guest.view.showBubble(null);
@@ -395,6 +430,12 @@ export class Venues {
       if (venue.kind === 'dome') {
         // Watching: views come round on their own (update); a blanket asked for shows its bubble.
         guest.view.showBubble(seat.order ? (seat.order as IconName) : null, 'request', 1.85);
+        return;
+      }
+      if (venue.kind === 'cinema') {
+        // Waiting for the film (a little reel), watching it, or wanting popcorn.
+        if (seat.order) guest.view.showBubble(seat.order as IconName, 'request', 1.85);
+        else guest.view.showBubble(seat.views === 0 ? 'film' : null, 'intent', 1.85);
         return;
       }
       if (seat.timer >= VENUES[venue.kind].consumeSeconds) this.finish(guest);
@@ -514,7 +555,13 @@ export class Venues {
       actor.stack.remove(item, () => tmp.set(seat.sit.x, FLOOR_Y + 0.9, seat.sit.z));
       seat.order = null;
       seat.servedBy = null;
-      if (item === 'blanket') {
+      if (item === 'popcorn') {
+        // The cinema: popcorn for the film (paid now; they stay for the rest of it).
+        const amount = venue.priceFor('popcorn', guest);
+        w.cash.add(venue.pileId, amount, tmp.set(seat.sit.x, FLOOR_Y + 1.1, seat.sit.z));
+        this.served(venue, guest, item, amount, actor);
+        guest.view.act('sip', 4);
+      } else if (item === 'blanket') {
         // The dome: a blanket for the view (a tip now; they stay for the rest of it).
         const amount = venue.priceFor('blanket', guest);
         w.cash.add(venue.pileId, amount, tmp.set(seat.sit.x, FLOOR_Y + 1.1, seat.sit.z));
@@ -551,7 +598,7 @@ export class Venues {
     return false;
   }
 
-  private served(venue: Venue, guest: Guest, item: ItemKind | 'usher', amount: number, actor: Actor): void {
+  private served(venue: Venue, guest: Guest, item: ItemKind | 'usher' | 'film', amount: number, actor: Actor): void {
     const w = this.w;
     guest.view.bounce(0.8);
     w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.5, guest.pos.z, 4, 0.2);
@@ -609,6 +656,56 @@ export class Venues {
     this.leave(guest);
   }
 
+  /**
+   * The cinema: the film starts for everyone seated (those who come in during it wait for the next). Some of them
+   * would like popcorn. False if nobody is there to watch.
+   */
+  private startFilm(venue: Venue, actor: Actor): boolean {
+    const w = this.w;
+    const audience = venue.filmWaiting();
+    if (audience.length === 0 || venue.filmLeft > 0) return false;
+    const c = VENUE_TUNING.cinema;
+    venue.filmLeft = c.filmSeconds;
+    for (const seat of audience) {
+      seat.views = 1;
+      if (!seat.order && w.rng.chance(c.popcornChance)) {
+        seat.order = 'popcorn';
+        seat.orderAt = w.time;
+      }
+    }
+    const p = venue.layout.projector ? venue.world(venue.layout.projector) : { x: 0, z: venue.originZ + 9 };
+    w.particles.emit('sparkle', p.x, FLOOR_Y + 1.2, p.z, 10, 0.4);
+    w.audio.play('sparkle', { pitch: 0.85 });
+    w.events.emit('venue.served', { kind: 'cinema', item: 'film', amount: 0, x: p.x, z: p.z, byPlayer: actor.isPlayer });
+    return true;
+  }
+
+  /** The film ends: every seat that watched it pays its ticket and goes back to bed happy. */
+  private endFilm(venue: Venue): void {
+    const w = this.w;
+    venue.filmLeft = 0;
+    let total = 0;
+    let guests = 0;
+    for (const seat of venue.seats) {
+      const guest = seat.guest;
+      const outing = guest?.outing;
+      if (!guest || !outing?.seated || seat.views !== 1) continue;
+      const amount = venue.priceFor('ticket', guest);
+      w.cash.add(venue.pileId, amount, tmp.set(seat.sit.x, FLOOR_Y + 1.2, seat.sit.z));
+      w.ui.floatIcon('film', seat.sit.x, FLOOR_Y + 1.9, seat.sit.z, 'star');
+      outing.paid = true;
+      total += amount;
+      guests++;
+      this.finish(guest);
+    }
+    if (venue.filmWaiting().length > 0) venue.waitingSince = w.time;
+    if (guests > 0) {
+      w.audio.play('heart', { volume: 0.8 });
+      w.addStars(VENUE_TUNING.stars * guests, 'venue', venue.world(venue.layout.projector ?? { x: 0, z: 9 }));
+      w.events.emit('venue.film', { guests, amount: total });
+    }
+  }
+
   update(dt: number): void {
     const w = this.w;
     if (this.happyLeft > 0) this.happyLeft = Math.max(0, this.happyLeft - dt);
@@ -623,6 +720,13 @@ export class Venues {
     for (const v of this.list) {
       // The bar's party meter and the dome's next view, on their signs.
       const view = w.train.views[v.carriage];
+      if (v.kind === 'cinema') {
+        if (v.filmLeft > 0) {
+          v.filmLeft = Math.max(0, v.filmLeft - dt);
+          if (v.filmLeft === 0) this.endFilm(v);
+        }
+        view?.setVenueFilm(v.filmLeft > 0 ? 1 - v.filmLeft / VENUE_TUNING.cinema.filmSeconds : -1);
+      }
       if (!view) continue;
       if (v.kind === 'bar') view.setVenueSign('party', this.happyLeft > 0 ? 1 : v.party / VENUE_TUNING.party.goal, this.happyLeft > 0);
       if (v.kind === 'dome') view.setVenueSign('binoculars', this.scenicTimer / VENUE_TUNING.scenicEverySeconds, false);
@@ -696,6 +800,10 @@ export class Venues {
         if (v.queue[0] && v.arrived.has(v.queue[0]) && v.layout.counter) offer('desk', v.world(v.layout.counter.pad));
         if (v.waitingFor('blanket').length > 0 && w.demand.playerWants('blanket') > 0) offer('fetch', v.stationFor('blanket'));
       }
+      if (v.kind === 'cinema' && v.staffCount('projectionist') === 0) {
+        if (v.filmReady() && v.layout.projector) offer('desk', v.world(v.layout.projector));
+        if (v.waitingFor('popcorn').length > 0 && w.demand.playerWants('popcorn') > 0) offer('fetch', v.stationFor('popcorn'));
+      }
     }
     return best;
   }
@@ -710,6 +818,7 @@ export class Venues {
       case 'waiter': return this.waiterTask(venue, m);
       case 'bartender': return this.serveTask(venue, m, 'cocktail');
       case 'host': return this.hostTask(venue, m);
+      case 'projectionist': return this.projectionistTask(venue, m);
       default: return null;
     }
   }
@@ -822,6 +931,23 @@ export class Venues {
     return this.serveTask(venue, m, 'blanket');
   }
 
+  /** The cinema's projectionist: starts a film when the house is fair (or someone has waited a while), else popcorn. */
+  private projectionistTask(venue: Venue, m: StaffMember): VenueTask | null {
+    const booth = venue.layout.projector ? venue.world(venue.layout.projector) : null;
+    if (booth && venue.filmReady() && !venue.queueServer) {
+      venue.queueServer = m;
+      return {
+        label: 'film', icon: 'film',
+        steps: [
+          { kind: 'goto', target: booth },
+          { kind: 'stand', until: () => venue.filmLeft > 0 || venue.filmWaiting().length === 0, timeout: 6 },
+        ],
+        release: () => { if (venue.queueServer === m) venue.queueServer = null; },
+      };
+    }
+    return this.serveTask(venue, m, 'popcorn');
+  }
+
   /** Where a lesson about this venue points (the coach): the station, the counter, the table, the rope. */
   lessonTarget(id: string): Vec2 | null {
     switch (id) {
@@ -850,6 +976,10 @@ export class Venues {
       case 'venue_dome': {
         const v = this.ofKind('dome');
         return v && v.queue[0] && v.arrived.has(v.queue[0]) && v.layout.counter ? v.world(v.layout.counter.pad) : null;
+      }
+      case 'venue_cinema': {
+        const v = this.ofKind('cinema');
+        return v && v.filmLeft === 0 && v.filmWaiting().length > 0 && v.layout.projector ? v.world(v.layout.projector) : null;
       }
       default:
         return null;
@@ -938,6 +1068,28 @@ export class Venues {
         },
       }));
     }
+    // The cinema's projector: stand there and the film starts for everyone seated.
+    if (layout.projector) {
+      const p = venue.world(layout.projector);
+      w.zones.add(new Zone({
+        id: `venue:${venue.carriage}:projector`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: 'film',
+        active: () => venue.filmLeft === 0 && venue.filmWaiting().length > 0,
+        highlight: () => venue.filmReady(),
+        stay: (zone, actor, dt) => {
+          if (venue.filmLeft > 0 || venue.filmWaiting().length === 0) {
+            zone.timer = 0;
+            zone.progress = 0;
+            return false;
+          }
+          zone.timer += dt * actor.workMultiplier;
+          zone.progress = Math.min(1, zone.timer / VENUE_TUNING.cinema.startSeconds);
+          if (zone.timer < VENUE_TUNING.cinema.startSeconds) return true;
+          zone.timer = 0;
+          zone.progress = 0;
+          return this.startFilm(venue, actor);
+        },
+      }));
+    }
     // Serve pads: one per table side, stool or dome row.
     const pads = new Map<string, { p: Vec2; group: number }>();
     for (const seat of venue.seats) if (seat.serve) pads.set(`${seat.serve.x.toFixed(2)},${seat.serve.z.toFixed(2)}`, { p: seat.serve, group: seat.group });
@@ -945,7 +1097,7 @@ export class Venues {
       const at = venue.seats.filter((s) => s.serve && Math.abs(s.serve.x - p.x) < 0.05 && Math.abs(s.serve.z - p.z) < 0.05);
       w.zones.add(new Zone({
         id: `venue:${venue.carriage}:serve:${key}`, x: p.x, z: p.z, radius: ZONE_RADIUS.serve,
-        icon: venue.kind === 'dining' ? 'meal' : venue.kind === 'bar' ? 'cocktail' : 'blanket',
+        icon: venue.kind === 'dining' ? 'meal' : venue.kind === 'bar' ? 'cocktail' : venue.kind === 'cinema' ? 'popcorn' : 'blanket',
         hideWhenInactive: true,
         active: () => venue.open[group] && (at.some((s) => !!s.order && !!s.guest) || (venue.kind === 'dining' && venue.dirty[group])),
         highlight: () => at.some((s) => !!s.order && w.player.stack.has(s.order)),

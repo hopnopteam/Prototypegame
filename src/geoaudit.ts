@@ -327,6 +327,8 @@ const HOLDS: Record<string, string[]> = {
   'prop:bar': ['prop:bottles'],
   'prop:pass': ['venue:passPlate'],
   'prop:diningTable': ['venue:plates'],
+  // Session 21: the cinema's popcorn machine stands on its counter.
+  'prop:concession': ['prop:popcornMachine'],
 };
 const holds = (container: string, item: string): boolean => (HOLDS[container] ?? []).includes(item.split('#')[0]);
 

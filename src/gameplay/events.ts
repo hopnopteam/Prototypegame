@@ -33,10 +33,12 @@ export interface GameEvents {
   /** Session 20, the venue carriages: something served at a venue (and what it paid). */
   'rival.race': { rival: string; target: number; station: string };
   'rival.raceResult': { rival: string; won: boolean };
-  'venue.served': { kind: VenueKind; item: ItemKind | 'usher'; amount: number; x: number; z: number; byPlayer: boolean };
+  'venue.served': { kind: VenueKind; item: ItemKind | 'usher' | 'film'; amount: number; x: number; z: number; byPlayer: boolean };
   'venue.cleared': { kind: VenueKind; byPlayer: boolean };
   'venue.happyHour': { seconds: number };
   'venue.scenic': { guests: number; amount: number };
+  /** A film ended at the cinema: everyone who watched paid their ticket. */
+  'venue.film': { guests: number; amount: number };
   'venue.opened': { kind: VenueKind; carriage: number };
   'bathroom.restocked': { byPlayer: boolean };
   'crate.delivered': Record<string, never>;

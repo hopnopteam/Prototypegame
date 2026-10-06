@@ -15,6 +15,9 @@ import type { ItemKind, StaffRole, VenueKind } from '../core/types';
  *   it is full it is Happy Hour: tips and fares on the whole train go up for a while.
  * - Observation Dome: show guests in at the rope, and they sit and watch. Each scenic view on the ride pays
  *   every seated guest's "wow"; a blanket keeps them cosy (and tipping).
+ * - Cinema Car (session 21): guests take a seat and wait for the film. Start it at the projector when you like:
+ *   every seat watching from the start pays its ticket when it ends, so a fuller house pays more (but nobody minds
+ *   a short wait). Popcorn from the counter for anyone who asks.
  *
  * Venue tiles: more tables or seats, menu upgrades (dearer dishes), a second machine or the grand piano,
  * staff (each venue its own), their training, and three refits (Repaired, Cosy, Luxurious) that dress the
@@ -78,17 +81,31 @@ export const VENUES: Record<VenueKind, VenueDef> = {
     roles: ['host'],
     tierPrice: [1, 1.25, 1.6, 2.1],
   },
+  cinema: {
+    kind: 'cinema', name: 'Cinema Car', visitWeight: 1.0,
+    products: [{ item: 'popcorn', price: 6, makeSeconds: 1.0 }],
+    consumeSeconds: 0,
+    roles: ['projectionist'],
+    tierPrice: [1, 1.25, 1.6, 2.1],
+  },
 };
 
-export const VENUE_KINDS: VenueKind[] = ['cafe', 'dining', 'bar', 'dome'];
+export const VENUE_KINDS: VenueKind[] = ['cafe', 'dining', 'bar', 'dome', 'cinema'];
 
-/** Price multipliers from menu tiles (by unlock key), and what else a tile changes. */
-export const VENUE_MENUS: Record<string, { price?: number }> = {
-  menu_beans: { price: 1.5 },
-  menu_roast: { price: 1.6 },
-  menu_lobster: { price: 1.5 },
-  menu_cocktails: { price: 1.5 },
-  menu_telescopes: { price: 1.6 },
+/** What a venue charges for: an item it makes, a scenic view (dome), a film ticket (cinema). */
+export type VenueCharge = ItemKind | 'scenic' | 'ticket';
+
+/** Price multipliers from menu and station tiles (by unlock key), and what each applies to. */
+export const VENUE_MENUS: Record<string, { price: number; items: VenueCharge[] }> = {
+  menu_beans: { price: 1.5, items: ['latte'] },
+  menu_roast: { price: 1.6, items: ['meal'] },
+  menu_lobster: { price: 1.5, items: ['meal'] },
+  menu_cocktails: { price: 1.5, items: ['cocktail'] },
+  menu_telescopes: { price: 1.6, items: ['scenic'] },
+  // Session 21, the cinema: premieres (a red carpet and spotlights), the candy cart, the speakers by the screen.
+  menu_premiere: { price: 1.6, items: ['ticket'] },
+  menu_snacks: { price: 1.5, items: ['popcorn'] },
+  station_sound: { price: 1.3, items: ['ticket'] },
 };
 
 export const VENUE_TUNING = {
@@ -123,4 +140,10 @@ export const VENUE_TUNING = {
   blanketTip: 5,
   /** Stars for each venue service (flat: class stars are for the rooms). */
   stars: 1,
+  /**
+   * Cinema: seconds standing at the projector to start a film, the film's length, each ticket (×menus, ×refit,
+   * ×purse), the chance a watching guest asks for popcorn, and when the projectionist starts one by themselves (this
+   * share of the open seats taken, or the first guest has waited this long).
+   */
+  cinema: { startSeconds: 1.2, filmSeconds: 22, ticket: 10, popcornChance: 0.5, autoShare: 0.6, autoWait: 14 },
 };

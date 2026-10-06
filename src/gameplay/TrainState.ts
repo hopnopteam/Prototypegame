@@ -776,9 +776,11 @@ export class TrainState {
     // A venue's tables, plates and extras on the rebuilt carriage, and its prices at the new tier.
     this.w.venues.syncView(index);
     if (relayout) {
-      this.relayoutCabins(index, view);
+      // A passenger class's rooms are rebuilt; a venue's refit only refurnishes it (session 21: its tables and pads
+      // stay put), so the map walks round the new furniture and nobody's errand is interrupted.
+      if (isPassengerType(type)) this.relayoutCabins(index, view);
       this.rebuildMap();
-      this.retireBerthTiles();
+      if (isPassengerType(type)) this.retireBerthTiles();
     }
     // Refresh stock visibility this frame rather than next.
     this.update(0);

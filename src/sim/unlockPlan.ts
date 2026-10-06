@@ -86,7 +86,7 @@ export function allowedCarriages(carriages: readonly CarriageType[]): CarriageTy
 /**
  * Up to three cards for the chooser, the best pick first: beds first, then a washroom car, then the venues as
  * they join (a café, the dining car), more beds if guests are still being turned away, racks if bags were left
- * behind, the bar and the dome; the stores and luggage cars are always there as alternatives.
+ * behind, the cinema, the bar and the dome; the stores and luggage cars are always there as alternatives.
  */
 export function carriageChoices(carriages: readonly CarriageType[], signals: ChoiceSignals, limit = 3): CarriageChoice[] {
   const allowed = allowedCarriages(carriages);
@@ -102,13 +102,14 @@ export function carriageChoices(carriages: readonly CarriageType[], signals: Cho
   };
   // Beds first (every guest turned away is a fare missed), then the café (session 20: the first venue, early, so
   // the new gameplay arrives with the third carriage), then a washroom; guests left behind on the platform ask for
-  // the second sleeper next. Then the other venues as the train grows: the dining car, the bar, the dome.
+  // the second sleeper next. Then the other venues as the train grows: the dining car, the cinema, the bar, the dome.
   if (!has('sleeper')) pick('sleeper', signals.leftBehind > 0 ? 'Guests need beds' : 'More beds');
   if (!has('cafe')) pick('cafe', 'Guests want coffee');
   if (!has('bathroom')) pick('bathroom', 'Guests want a loo');
   if (signals.leftBehind > 0 && sleepers < 2) pick('sleeper', 'Guests need beds');
   if (!has('dining')) pick('dining', 'Dinner is served');
   if (sleepers < 2) pick('sleeper', 'More guests');
+  if (!has('cinema')) pick('cinema', 'Films by night');
   if (!has('bar')) pick('bar', 'Happy hours');
   if (!has('dome')) pick('dome', 'Scenic views');
   if (signals.luggageLeft > 0) pick('luggage', 'Bags need racks');

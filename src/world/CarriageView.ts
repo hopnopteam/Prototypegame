@@ -1,6 +1,6 @@
 import { TrainCat } from './TrainCat';
 import * as THREE from 'three';
-import { rect, type CarriageType, type Rect } from '../core/types';
+import { rect, type CarriageType, type Rect, type VenueKind } from '../core/types';
 import type { ComfortKey } from '../config/content';
 import { buildBedMess, buildMessPiece, seeded, type BedMess, type MessPiece } from './Mess';
 import { GeoBuilder, PaneBuilder, type PartStyle } from './geo';
@@ -17,6 +17,7 @@ import {
   PARTITION_X1,
   REAR_VESTIBULE,
   WALL,
+  isVenueType,
   type CabinLayout,
   type CarriageLayout,
   type PropDef,
@@ -31,7 +32,7 @@ import { buildCobwebs, floorSteps, type WindowCorner } from './Floors';
 import { STATIC_CASTER_LAYER } from './Lighting';
 import type { LampAnchor } from './Lighting';
 import { REFLECT_LAYER } from './Water';
-import { buildBarBulbs, buildDomeCanopy, buildPassPlate, buildTableDirt, buildVenueProp } from './VenueProps';
+import { buildBarBulbs, buildDomeCanopy, buildPassPlate, buildTableDirt, buildVenueProp, projectorLens, screenArea } from './VenueProps';
 import { bubbleTexture, makeSprite } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 import type { IconName } from '../ui/icons';
@@ -51,6 +52,7 @@ export const BED_TOP = 0.4;
 
 /** Wall anatomy, in metres above the floor. */
 const WAINSCOT = 0.34;
+/** The usual side-window band (a carriage may set its own: `CarriageLayout.windowBand`). */
 export const WINDOW_Y0 = 0.44;
 export const WINDOW_Y1 = 0.94;
 const SKIN = 0.05;
@@ -120,6 +122,15 @@ const CLOCK_X = -1.03;
 const PICTURE_Y = INTERIOR_WALL_HEIGHT - 0.14;
 const RADIO_SHELF_Y = INTERIOR_WALL_HEIGHT - 0.32;
 
+/** The cinema's film: a few scenes, each four corner colours (top back, bottom front, bottom back, top front). */
+const FILM_SCENES: readonly (readonly (readonly number[])[])[] = [
+  [[0.25, 0.45, 0.85], [0.15, 0.45, 0.1], [0.1, 0.35, 0.08], [0.4, 0.6, 0.95]],
+  [[0.95, 0.5, 0.2], [0.45, 0.18, 0.08], [0.35, 0.14, 0.06], [1.0, 0.65, 0.3]],
+  [[0.12, 0.15, 0.5], [0.05, 0.06, 0.22], [0.08, 0.05, 0.18], [0.25, 0.25, 0.65]],
+  [[0.7, 0.7, 0.6], [0.3, 0.25, 0.2], [0.25, 0.2, 0.18], [0.85, 0.8, 0.7]],
+  [[0.85, 0.3, 0.45], [0.35, 0.08, 0.2], [0.25, 0.06, 0.15], [0.95, 0.45, 0.55]],
+];
+
 /** How a carriage looks at a refurbishment tier: the whole rags-to-riches story in one table. */
 interface Finish {
   wall: string;
@@ -139,13 +150,63 @@ interface Finish {
   roomScale: number;
   runner: { body: string; edge: string } | null;
   curtains: boolean;
+  /** The curtains' colour where it is not the carriage theme's (a venue's own). */
+  curtain?: string;
   /** 0 bare bulbs, 1 shaded lamps, 2 sconces, 3 brass sconces. */
   lamps: number;
+  /** Stacked white globe sconces (the bar's Luxury refit, from the owner's reference). */
+  globes?: boolean;
   decor: boolean;
+}
+
+/**
+ * The venues' walls by refit tier (session 21): worn, then plain cream, then the venue's own colours, then each one's
+ * grand finish (the café's green panelling, the dining car's walnut, the bar's warm wood under cream with globe
+ * sconces, the dome's midnight blue, the picture palace's mahogany under deep red).
+ */
+const VENUE_WALLS: Record<VenueKind, { wall: string; wallLow: string; panel?: string; cap?: string; curtain?: string }[]> = {
+  cafe: [
+    { wall: '#EFE6D3', wallLow: '#D3C6AA' },
+    { wall: '#EBDDBF', wallLow: '#8FA66A', curtain: '#E9D9A8' },
+    { wall: '#F1E6CF', wallLow: '#2F5A3E', panel: '#2F5A3E', cap: PALETTE.gold, curtain: '#F2E9D6' },
+  ],
+  dining: [
+    { wall: '#EFE5D8', wallLow: '#CDBCA9' },
+    { wall: '#EAD8CC', wallLow: '#8C2F3F', curtain: '#E2B653' },
+    { wall: '#F0E2CE', wallLow: PALETTE.walnut, panel: PALETTE.walnut, cap: PALETTE.gold, curtain: '#8C2F3F' },
+  ],
+  bar: [
+    { wall: '#E8E4DA', wallLow: '#A9BCB7' },
+    { wall: '#C9DBD7', wallLow: '#24585A', curtain: '#E2B653' },
+    { wall: '#F2EBDD', wallLow: '#5A3A28', panel: '#5A3A28', cap: PALETTE.brass, curtain: '#F2E9D6' },
+  ],
+  dome: [
+    { wall: '#E6EBEF', wallLow: '#BCCAD6' },
+    { wall: '#CBDDEB', wallLow: '#3E6A93', curtain: '#E2B653' },
+    { wall: '#D6DEEC', wallLow: '#22324F', panel: '#22324F', cap: PALETTE.gold, curtain: '#E2B653' },
+  ],
+  cinema: [
+    { wall: '#8C8590', wallLow: '#55505C', cap: '#3A3940' },
+    { wall: '#4A3F4E', wallLow: '#6B2A4A', cap: PALETTE.walnutDark, curtain: '#A3283A' },
+    { wall: '#7A2A30', wallLow: '#5A2C1E', panel: '#5A2C1E', cap: PALETTE.gold, curtain: '#8E1F2B' },
+  ],
+};
+
+function venueFinish(kind: VenueKind, tier: number): Finish | null {
+  if (tier <= 0) return null;
+  const w = VENUE_WALLS[kind][Math.min(3, tier) - 1];
+  const boards = { floor: PALETTE.boards, floorSeam: PALETTE.boardsSeam, floorPattern: PATTERN.boards, floorScale: 0.3, room: PALETTE.boards, roomSeam: PALETTE.boardsSeam, roomPattern: PATTERN.boards, roomScale: 0.3 };
+  return {
+    ...boards,
+    wall: w.wall, wallLow: w.wallLow, panelled: !!w.panel, panel: w.panel ?? PALETTE.walnut, cap: w.cap ?? PALETTE.walnut,
+    runner: null, curtains: tier >= 2, curtain: w.curtain, lamps: Math.min(3, tier), globes: kind === 'bar' && tier >= 3, decor: false,
+  };
 }
 
 function finishFor(type: CarriageType, tier: number, t: CarriageTheme): Finish {
   const tiled = type === 'bathroom';
+  const venue = isVenueType(type) ? venueFinish(type as VenueKind, tier) : null;
+  if (venue) return venue;
   if (isPassengerType(type) && tier >= 3) {
     // Business, First Class and the Royal Suite: panelled, a runner edged in silver or gold, brass sconces.
     const edge = tier === 3 ? '#C9D2DC' : PALETTE.gold;
@@ -315,6 +376,10 @@ export class CarriageView {
   private barLit = -1;
   private barParty = false;
   private clock = 0;
+  /** The cinema (session 21): the picture on the screen and the projector's beam, shown while a film is on. */
+  private filmPicture: THREE.Mesh | null = null;
+  private filmBeam: THREE.Mesh | null = null;
+  private filmOn = false;
   /** The dome's "next view" bubble. */
   private venueSign: THREE.Sprite | null = null;
   private venueSignKey = '';
@@ -615,6 +680,7 @@ export class CarriageView {
         }
       }
     }
+    if (venue.kind === 'cinema') this.buildFilm();
     const bar = this.layout.props.find((p) => p.kind === 'bar');
     if (bar) {
       const glow = new GeoBuilder();
@@ -625,6 +691,80 @@ export class CarriageView {
       this.group.add(this.barBulbs);
       this.setBarLit(0);
     }
+  }
+
+  /**
+   * The cinema's film: a picture on the screen whose colours drift scene to scene, and a soft beam from the
+   * projector's lens to it. Both additive like the headlight's beam (the same shader program, so a film starting
+   * never compiles one).
+   */
+  private buildFilm(): void {
+    const screen = this.layout.props.find((p) => p.kind === 'screen');
+    const projector = this.layout.props.find((p) => p.kind === 'projector');
+    if (!screen) return;
+    const a = screenArea(screen, this.tier);
+    const x = a.x + 0.004;
+    const quad = (points: number[][], colours: number[][]): THREE.BufferGeometry => {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(points.flat(), 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(colours.flat(), 3));
+      return geo;
+    };
+    const film = (opacity: number): THREE.MeshBasicMaterial => new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+    // Two triangles facing +x; colours are rewritten each frame while it plays.
+    const picture = quad(
+      [[x, a.y0, a.z0], [x, a.y0, a.z1], [x, a.y1, a.z1], [x, a.y0, a.z0], [x, a.y1, a.z1], [x, a.y1, a.z0]],
+      [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]],
+    );
+    this.filmPicture = new THREE.Mesh(picture, film(1));
+    this.filmPicture.visible = false;
+    this.filmPicture.renderOrder = 2;
+    this.group.add(this.filmPicture);
+    if (projector) {
+      const l = projectorLens(projector, this.tier);
+      const lens = [l.x, l.y, l.z];
+      const c = [[x, a.y0 + 0.06, a.z0 + 0.1], [x, a.y0 + 0.06, a.z1 - 0.1], [x, a.y1 - 0.06, a.z1 - 0.1], [x, a.y1 - 0.06, a.z0 + 0.1]];
+      const bright = [1, 0.92, 0.72];
+      const dim = [0.22, 0.2, 0.16];
+      const points: number[][] = [];
+      const colours: number[][] = [];
+      for (let i = 0; i < 4; i++) {
+        points.push(lens, c[i], c[(i + 1) % 4]);
+        colours.push(bright, dim, dim);
+      }
+      this.filmBeam = new THREE.Mesh(quad(points, colours), film(0.16));
+      this.filmBeam.visible = false;
+      this.filmBeam.renderOrder = 3;
+      this.group.add(this.filmBeam);
+    }
+  }
+
+  /** The film's progress (0..1), or below 0 when none is on: the picture and the beam show while it plays. */
+  setVenueFilm(progress: number): void {
+    const on = progress >= 0;
+    if (on === this.filmOn) return;
+    this.filmOn = on;
+    if (this.filmPicture) this.filmPicture.visible = on;
+    if (this.filmBeam) this.filmBeam.visible = on;
+  }
+
+  /** The picture's colours: a few "scenes" a couple of seconds each, the light flickering a little. */
+  private animateFilm(): void {
+    const mesh = this.filmPicture;
+    if (!mesh || !this.filmOn) return;
+    const n = FILM_SCENES.length;
+    const scene = Math.floor(Math.abs(this.clock) / 2.3);
+    const palette = FILM_SCENES[((scene % n) + n) % n];
+    const flicker = 0.92 + 0.08 * Math.sin(this.clock * 23) * Math.sin(this.clock * 7);
+    const colours = mesh.geometry.getAttribute('color') as THREE.BufferAttribute;
+    // Vertices 0, 3: bottom front; 1: bottom back; 2, 4: top back; 5: top front. Sky on top, ground below.
+    const set = (i: number, c: readonly number[]): void => {
+      colours.setXYZ(i, c[0] * flicker, c[1] * flicker, c[2] * flicker);
+    };
+    set(0, palette[1]); set(3, palette[1]); set(1, palette[2]);
+    set(2, palette[0]); set(4, palette[0]); set(5, palette[3]);
+    colours.needsUpdate = true;
+    if (this.filmBeam) (this.filmBeam.material as THREE.MeshBasicMaterial).opacity = 0.12 + 0.04 * flicker;
   }
 
   /** A table, stool or row of seats bought (or not yet). */
@@ -722,6 +862,7 @@ export class CarriageView {
   }
 
   dispose(): void {
+    for (const m of [this.filmPicture, this.filmBeam]) (m?.material as THREE.Material | undefined)?.dispose();
     this.group.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (mesh.isMesh && mesh.geometry && !(mesh.userData.shared as boolean)) mesh.geometry.dispose();
@@ -827,7 +968,10 @@ export class CarriageView {
     }
     this.buildDoorFrames(s);
     this.buildSpinners();
-    if (this.layout.type === 'dome') buildDomeCanopy(s, -HALF_WIDTH + WALL / 2, FLOOR_Y + this.exteriorHeight(), 0.5, CARRIAGE_LENGTH - 0.5, this.tier);
+    // The dome's glass: its own mesh that throws no shadow (session 21: as part of the shell it laid a dark band
+    // over the whole lake side of the room, which read as an empty, unlit half).
+    const canopy = new GeoBuilder();
+    if (this.layout.type === 'dome') buildDomeCanopy(canopy, -HALF_WIDTH + WALL / 2, FLOOR_Y + this.exteriorHeight(), 0.5, CARRIAGE_LENGTH - 0.5, this.tier);
     yield;
 
     const add = (builder: GeoBuilder, material: THREE.Material, cast: boolean, receive: boolean, reflect = false): void => {
@@ -843,6 +987,7 @@ export class CarriageView {
     };
     // Each merge is its own slice: the big ones (the shell, the floor) take a few milliseconds apiece.
     add(s, MATERIALS.solid, true, true);
+    add(canopy, MATERIALS.solid, false, true);
     yield;
     add(liv, this.liveryBody, true, true, true);
     add(trim, this.liveryTrim, false, true, true);
@@ -968,6 +1113,7 @@ export class CarriageView {
   animate(dt: number): void {
     this.clock += dt;
     if (this.barBulbs && this.barParty) this.setBarLit(Math.floor(this.clock * 6) % 2 === 0 ? this.barBulbCount : Math.floor(this.clock * 12) % this.barBulbCount);
+    this.animateFilm();
     for (let i = 0; i < this.spinners.length; i++) this.spinners[i].rotation.y += dt * (2.6 + (i % 2) * 0.7);
   }
 
@@ -979,7 +1125,7 @@ export class CarriageView {
       const { count, slot, width } = windowSpacing(wall.z1 - wall.z0);
       for (let i = 0; i < count; i++) {
         const zc = wall.z0 + slot * (i + 0.5);
-        out.push({ x: wall.x1, inward: 1, z0: zc - width / 2, z1: zc + width / 2, top: FLOOR_Y + WINDOW_Y1 });
+        out.push({ x: wall.x1, inward: 1, z0: zc - width / 2, z1: zc + width / 2, top: FLOOR_Y + this.layout.windowBand[1] });
       }
     }
     return out.sort((a, b) => a.z0 - b.z0);
@@ -1031,44 +1177,45 @@ export class CarriageView {
     const len = r.z1 - r.z0;
     const zr = (z0: number, z1: number, base: Rect): Rect => rect(base.x0, z0, base.x1, z1);
     const white = '#FFFFFF';
+    const [WY0, WY1] = this.layout.windowBand;
 
     // Below and above the windows: solid.
-    this.innerFinish(s, inner, FLOOR_Y, FLOOR_Y + WINDOW_Y0, rail);
-    this.innerFinish(s, inner, FLOOR_Y + WINDOW_Y1, FLOOR_Y + h, rail);
-    liv.slab(outer, 0.38, FLOOR_Y + WINDOW_Y0, white, 0, 0, { shade: 0.85 });
-    liv.slab(outer, FLOOR_Y + WINDOW_Y1, FLOOR_Y + h, white, 0, 0, FLAT);
+    this.innerFinish(s, inner, FLOOR_Y, FLOOR_Y + WY0, rail);
+    this.innerFinish(s, inner, FLOOR_Y + WY1, FLOOR_Y + h, rail);
+    liv.slab(outer, 0.38, FLOOR_Y + WY0, white, 0, 0, { shade: 0.85 });
+    liv.slab(outer, FLOOR_Y + WY1, FLOOR_Y + h, white, 0, 0, FLAT);
     trim.slab(rect(outer.x0 - (left ? 0.004 : 0), r.z0 + END_INSET, outer.x1 + (left ? 0 : 0.004), r.z1 - END_INSET), FLOOR_Y + 0.28, FLOOR_Y + 0.32, white, 0, 0, FLAT);
 
     const { count, slot, width } = windowSpacing(len);
     if (count === 0) {
-      this.innerFinish(s, inner, FLOOR_Y + WINDOW_Y0, FLOOR_Y + WINDOW_Y1, rail);
-      liv.slab(outer, FLOOR_Y + WINDOW_Y0, FLOOR_Y + WINDOW_Y1, white, 0, 0, FLAT);
+      this.innerFinish(s, inner, FLOOR_Y + WY0, FLOOR_Y + WY1, rail);
+      liv.slab(outer, FLOOR_Y + WY0, FLOOR_Y + WY1, white, 0, 0, FLAT);
     } else {
       let cursor = r.z0;
       for (let i = 0; i < count; i++) {
         const zc = r.z0 + slot * (i + 0.5);
         const w0 = zc - width / 2;
         const w1 = zc + width / 2;
-        this.innerFinish(s, zr(cursor, w0, inner), FLOOR_Y + WINDOW_Y0, FLOOR_Y + WINDOW_Y1, rail);
-        liv.slab(zr(cursor, w0, outer), FLOOR_Y + WINDOW_Y0, FLOOR_Y + WINDOW_Y1, white, 0, 0, FLAT);
+        this.innerFinish(s, zr(cursor, w0, inner), FLOOR_Y + WY0, FLOOR_Y + WY1, rail);
+        liv.slab(zr(cursor, w0, outer), FLOOR_Y + WY0, FLOOR_Y + WY1, white, 0, 0, FLAT);
         // The glass: a lamplit pane set back in the outer face (curtains painted on it from tier 2) and night
         // glass on the room side; a framed opening with a sash bar outside. Thin quads, so seen from above
         // nothing glows: the light shows on the faces and spills onto the ground (the light map).
         const outerFace = left ? r.x0 : r.x1;
         const out = left ? -1 : 1;
-        const y0 = FLOOR_Y + WINDOW_Y0;
-        const y1 = FLOOR_Y + WINDOW_Y1;
-        glass.paneX(outerFace - out * 0.035, y0, y1, w0, w1, out as 1 | -1, false, fin.curtains ? this.theme.curtain : '#FFFFFF');
+        const y0 = FLOOR_Y + WY0;
+        const y1 = FLOOR_Y + WY1;
+        glass.paneX(outerFace - out * 0.035, y0, y1, w0, w1, out as 1 | -1, false, fin.curtains ? fin.curtain ?? this.theme.curtain : '#FFFFFF');
         glass.paneX(innerFace - inward * 0.022, y0, y1, w0, w1, inward as 1 | -1, true);
         // The frame stands proud of the outer face (never sharing a face with the panels round it).
         trim.box(outerFace + out * 0.035, y0 - 0.016, zc, 0.07, 0.032, width + 0.1, white, 0, FLAT);
         trim.box(outerFace + out * 0.03, y1 + 0.014, zc, 0.06, 0.028, width + 0.1, white, 0, FLAT);
         for (const pz of [w0 - 0.016, w1 + 0.016]) trim.box(outerFace + out * 0.025, (y0 + y1) / 2, pz, 0.05, y1 - y0 - 0.004, 0.032, white, 0, FLAT);
         trim.box(outerFace - out * 0.026, y0 + (y1 - y0) * 0.64, zc, 0.012, 0.022, width - 0.004, white, 0, FLAT);
-        s.box(innerFace + inward * 0.025, FLOOR_Y + WINDOW_Y0 + 0.012, zc, 0.05, 0.024, width + 0.06, fin.cap, 0, FLAT);
+        s.box(innerFace + inward * 0.025, FLOOR_Y + WY0 + 0.012, zc, 0.05, 0.024, width + 0.06, fin.cap, 0, FLAT);
         if (fin.curtains) {
           for (const side of [-1, 1]) {
-            s.box(innerFace + inward * 0.03, FLOOR_Y + (WINDOW_Y0 + WINDOW_Y1) / 2 + 0.03, zc + side * (width / 2 - 0.02), 0.03, WINDOW_Y1 - WINDOW_Y0 + 0.06, 0.08, this.theme.curtain, 0, { shade: 0.82 });
+            s.box(innerFace + inward * 0.03, FLOOR_Y + (WY0 + WY1) / 2 + 0.03, zc + side * (width / 2 - 0.02), 0.03, WY1 - WY0 + 0.06, 0.08, fin.curtain ?? this.theme.curtain, 0, { shade: 0.82 });
           }
         }
         // Lamps between windows: a bare bulb in the old carriage, proper sconces once refurbished.
@@ -1079,6 +1226,12 @@ export class CarriageView {
             // Bare bulbs on a flex: plain, not yet shaded.
             s.box(innerFace + inward * 0.02, FLOOR_Y + 0.9, pz, 0.02, 0.1, 0.02, PALETTE.ink, 0, FLAT);
             lamps.sphere(innerFace + inward * 0.05, FLOOR_Y + 0.82, pz, 0.035, PALETTE.lampShade, 0, 1, FLAT);
+          } else if (fin.globes) {
+            // Two white globes stacked on a brass bracket (the bar's Luxury refit).
+            s.box(innerFace + inward * 0.03, FLOOR_Y + 0.62, pz, 0.06, 0.02, 0.025, PALETTE.brass, 0, { ...FLAT, surface: 'brass' });
+            s.box(innerFace + inward * 0.062, FLOOR_Y + 0.7, pz, 0.014, 0.16, 0.014, PALETTE.brass, 0, { ...FLAT, surface: 'brass' });
+            lamps.sphere(innerFace + inward * 0.062, FLOOR_Y + 0.69, pz, 0.042, '#FFF4DE', 1, 1, FLAT);
+            lamps.sphere(innerFace + inward * 0.062, FLOOR_Y + 0.8, pz, 0.036, '#FFF4DE', 1, 1, FLAT);
           } else {
             s.box(innerFace + inward * 0.035, FLOOR_Y + 0.72, pz, 0.07, 0.025, 0.025, fin.lamps >= 3 ? PALETTE.brass : fin.cap, 0, FLAT);
             lamps.cylinder(innerFace + inward * 0.09, FLOOR_Y + 0.78, pz, 0.04, 0.065, 0.09, PALETTE.lampShade, 10, 'y', { shade: 0.9 });
@@ -1086,8 +1239,8 @@ export class CarriageView {
         }
         cursor = w1;
       }
-      this.innerFinish(s, zr(cursor, r.z1, inner), FLOOR_Y + WINDOW_Y0, FLOOR_Y + WINDOW_Y1, rail);
-      liv.slab(zr(cursor, r.z1, outer), FLOOR_Y + WINDOW_Y0, FLOOR_Y + WINDOW_Y1, white, 0, 0, FLAT);
+      this.innerFinish(s, zr(cursor, r.z1, inner), FLOOR_Y + WY0, FLOOR_Y + WY1, rail);
+      liv.slab(zr(cursor, r.z1, outer), FLOOR_Y + WY0, FLOOR_Y + WY1, white, 0, 0, FLAT);
     }
     // Cap and cornice: the carriage outline you read from above, in the livery.
     liv.slab(rect(r.x0 - (left ? 0.05 : 0), r.z0, r.x1 + (left ? 0 : 0.05), r.z1), FLOOR_Y + h, FLOOR_Y + h + 0.05, white, 0, 0, { shade: 0.92 });

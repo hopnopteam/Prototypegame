@@ -159,6 +159,8 @@ export const CARRIAGE_THEMES: Record<CarriageType, CarriageTheme> = {
   dining: { wall: '#EAD3CC', wallLow: '#C9A39B', carpet: '#EFE4D6', deep: '#8C2F3F', blanket: '#F4ECDD', curtain: '#E2B653' },
   bar: { wall: '#BFD6D2', wallLow: '#8CB3AD', carpet: '#DCE4E0', deep: '#24585A', blanket: '#C0485C', curtain: '#E2B653' },
   dome: { wall: '#CBDDEB', wallLow: '#A3C1D8', carpet: '#E2E8EC', deep: '#3E6A93', blanket: '#E9B949', curtain: '#E2B653' },
+  // Session 21: the cinema, plum and gold (red velvet from the Luxury refit).
+  cinema: { wall: '#D9CBD6', wallLow: '#A88DA3', carpet: '#E6DCE2', deep: '#6B2A4A', blanket: '#B03A3E', curtain: '#A3283A' },
 };
 
 /**
@@ -174,7 +176,7 @@ export const CLASS_THEMES: Record<'comfort' | 'business' | 'first' | 'royal', Ca
 
 /** Tier names, shown on refurbishment tiles and in headlines. */
 /** Rags to riches: run-down → repaired (clean and plain) → cosy (its colours) → luxurious. */
-export const TIER_NAMES = ['Run-down', 'Repaired', 'Cosy', 'Luxurious'];
+export const TIER_NAMES = ['Run-down', 'Repaired', 'Cosy', 'Luxury'];
 
 /**
  * The train's paint job. Earned liveries follow its reputation (it looks as famous as it is); premium ones

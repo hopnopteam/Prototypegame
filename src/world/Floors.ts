@@ -313,6 +313,7 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
       // A coir doormat inside the platform door: the first thing a repaired lobby offers.
       rug(f, rect(INNER - 0.62, DOOR_Z0 + 0.12, INNER - 0.08, DOOR_Z1 - 0.12), FLOOR_Y, [{ color: '#8A6B45', inset: 0 }, { color: '#A8875B', inset: 0.04 }]);
     }
+    venueCarpets(f, layout, theme);
     return { queueBase };
   }
   // Cosy and Luxurious: one sound base of wide boards, rooms laid over it, and rugs.
@@ -361,7 +362,67 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
       ])
       : rug(f, area, FLOOR_Y, [{ color: theme.deep, inset: 0 }, { color: '#EFE5D2', inset: 0.06 }]);
   }
+  venueCarpets(f, layout, theme);
   return { queueBase };
+}
+
+/**
+ * A venue's floor coverings (session 21): each refit lays its own (a jute runner, the venue's runner, a Persian rug,
+ * the bar's plaid, the picture palace's red carpet, the café's marble checker, the dome's starry carpet). Plain
+ * layered slabs like every rug, the pattern only on the top one.
+ */
+function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageTheme): void {
+  const venue = layout.venue;
+  if (!venue) return;
+  const base = FLOOR_Y + ROOM_LIFT + 0.001;
+  const deep = theme.deep;
+  for (const c of venue.carpets) {
+    switch (c.style) {
+      case 'jute':
+        rug(f, c.rect, base, [{ color: '#A88E66', inset: 0 }, { color: '#C2AA82', inset: 0.04, pattern: { pattern: PATTERN.checker, color2: '#B59C74', scale: 0.05, shade: 1 } }]);
+        break;
+      case 'runner':
+        rug(f, c.rect, base, [
+          { color: '#C9A45C', inset: 0 },
+          { color: deep, inset: 0.04 },
+          { color: deep, inset: 0.1, pattern: { pattern: PATTERN.diamond, color2: shadeHex(deep, 16), scale: 0.22, shade: 1 } },
+        ]);
+        break;
+      case 'persian':
+        rug(f, c.rect, base, [
+          { color: '#3A1A22', inset: 0 },
+          { color: '#C9A45C', inset: 0.04 },
+          { color: '#EAD9B8', inset: 0.07 },
+          { color: deep, inset: 0.14, pattern: { pattern: PATTERN.diamond, color2: shadeHex(deep, 12), scale: 0.13, shade: 1 } },
+        ]);
+        break;
+      case 'plaid':
+        rug(f, c.rect, base, [
+          { color: '#4A3022', inset: 0 },
+          { color: '#C9AA82', inset: 0.06, pattern: { pattern: PATTERN.plaid, color2: '#6E4C34', scale: 0.2, shade: 1, surface: 'fabric' } },
+        ]);
+        break;
+      case 'theatre':
+        // A deep wine carpet with a small gold figure (the seats in brighter red stand out on it).
+        rug(f, c.rect, base, [
+          { color: '#C9A45C', inset: 0 },
+          { color: '#4E1420', inset: 0.05, pattern: { pattern: PATTERN.dots, color2: '#A47A3A', scale: 0.22, shade: 1, surface: 'velvet' } },
+        ]);
+        break;
+      case 'checker':
+        rug(f, c.rect, base, [
+          { color: '#5A564F', inset: 0 },
+          { color: '#EFE9DE', inset: 0.07, pattern: { pattern: PATTERN.checker, color2: '#8A847A', scale: 0.36, shade: 1, surface: 'marble' } },
+        ]);
+        break;
+      case 'starry':
+        rug(f, c.rect, base, [
+          { color: '#C9A45C', inset: 0 },
+          { color: '#2C3C62', inset: 0.05, pattern: { pattern: PATTERN.dots, color2: '#C9A45C', scale: 0.3, shade: 1 } },
+        ]);
+        break;
+    }
+  }
 }
 
 /** The Royal Suite: cream and grey marble in a checker, framed in dark red marble with a gold line. */

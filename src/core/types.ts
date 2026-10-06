@@ -27,15 +27,17 @@ export const rectCenter = (r: Rect): Vec2 => ({ x: (r.x0 + r.x1) / 2, z: (r.z0 +
 export type ItemKind =
   | 'tea' | 'coffee' | 'champagne' | 'blanket' | 'pillow' | 'towel' | 'roll' | 'luggage' | 'crate'
   // Session 20: what the venue carriages make (café, dining car, bar lounge).
-  | 'latte' | 'pastry' | 'meal' | 'cocktail';
+  | 'latte' | 'pastry' | 'meal' | 'cocktail'
+  // Session 21: the cinema's popcorn.
+  | 'popcorn';
 
 export type CurrencyKind = 'cash' | 'gems' | 'railMiles';
 
-export type StaffRole = 'attendant' | 'porter' | 'runner' | 'barista' | 'chef' | 'waiter' | 'bartender' | 'host';
+export type StaffRole = 'attendant' | 'porter' | 'runner' | 'barista' | 'chef' | 'waiter' | 'bartender' | 'host' | 'projectionist';
 
 export type CarriageType = 'lobby' | 'bathroom' | 'supply' | 'luggage' | 'sleeper' | VenueKind;
 
 /** The venue carriages (session 20): each its own little game inside the train. */
-export type VenueKind = 'cafe' | 'dining' | 'bar' | 'dome';
+export type VenueKind = 'cafe' | 'dining' | 'bar' | 'dome' | 'cinema';
 
 export type JourneyPhase = 'onTheMove' | 'arriving' | 'stationStop' | 'departing';

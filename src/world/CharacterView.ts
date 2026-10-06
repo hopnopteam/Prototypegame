@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { StaffRole } from '../core/types';
 import type { IconName } from '../ui/icons';
 import { GeoBuilder } from './geo';
 import { MATERIALS, SHADOW_GEOMETRY } from './materials';
@@ -639,7 +640,7 @@ export const CONDUCTOR_LOOK: CharacterLook = {
 };
 
 /** Staff uniforms: bellhop purple for attendants, signal red for porters, mustard for supply runners. */
-export const STAFF_LOOKS: Record<string, CharacterLook> = {
+export const STAFF_LOOKS: Record<StaffRole, CharacterLook> = {
   attendant: { body: '#7B5AA6', accent: '#7B5AA6', skin: '#E3AE87', hair: '#2F2520', pants: '#3F2F5A', hat: 'pillbox', accessory: 'apron', arms: true },
   porter: { body: '#C8453A', accent: '#C8453A', skin: '#C98E68', hair: '#1D1616', pants: '#3A2A2E', hat: 'pillbox', arms: true },
   runner: { body: '#E0A93B', accent: '#3F6E5A', skin: '#F2CFB3', hair: '#8C5A32', pants: '#5A4632', hat: 'cap', arms: true },
@@ -649,6 +650,8 @@ export const STAFF_LOOKS: Record<string, CharacterLook> = {
   waiter: { body: '#1F2433', accent: '#F2EEE6', skin: '#F0C8A8', hair: '#5A3A22', pants: '#1A1C26', accessory: 'flower', arms: true },
   bartender: { body: '#8E2F45', accent: PALETTE.gold, skin: '#B97E5A', hair: '#141012', pants: '#22181C', hat: 'none', accessory: 'sash', arms: true },
   host: { body: '#2E5A7A', accent: '#2E5A7A', skin: '#F2CFB3', hair: '#C9A15A', pants: '#22324A', hat: 'pillbox', arms: true },
+  // Session 21: the cinema's projectionist, in an usher's red jacket with gold braid and a cap.
+  projectionist: { body: '#A3283A', accent: PALETTE.gold, skin: '#E3AE87', hair: '#2A1C16', pants: '#22181C', hat: 'pillbox', accessory: 'sash', arms: true },
 };
 
 function castsShadow<T extends THREE.Mesh>(mesh: T): T {
