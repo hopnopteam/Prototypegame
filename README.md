@@ -26,9 +26,14 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   [`NATIVE.md`](NATIVE.md).
 - **Locally:** `npm install && npm run build`, then open `dist/index.html` in a browser. It works offline from
   disk; for a phone, serve the folder (`npx serve dist`) and open it on the same Wi-Fi, or copy the file over.
-- **The opening:** a new game starts outside, on the Millbrook platform beside the train: collect the first
-  traveller's ticket at the door, follow them in, check them in at the desk and build the cabin the second
-  traveller needs. Every passenger in the game boards from a station platform.
+- **The opening:** no intro; a new game starts at night on the Millbrook platform beside a covered train. Sell
+  the travellers their tickets at the booth, spend the first fare on **Open carriage** (the roof lifts, the lights
+  flicker on, the doors open), make up the first bed and the guest walks in; about a minute later the train leaves.
+  Every passenger buys a ticket at a station's booth and walks straight to a ready room (or waits in the lobby).
+- **One trip, one sleep:** each guest's ride is one night: one request in the evening, lights out once (the room
+  dims, the blind comes down), one request in the morning, then off at their stop. Their room is turned around
+  with bedding: strip it at the pad, swap the laundry for fresh sets at the linen cupboard, make the bed.
+- **Locked rooms** are covered with a padlocked lid and shut until bought; buying one plays a reveal.
 - **The venues:** from the third carriage on you can add a **Café Car**, a **Dining Car**, a **Cinema Car**, a
   **Bar Lounge** and an **Observation Dome**. Guests resting in their cabins take outings to them: brew coffee for
   the café queue, cook and serve dinner and clear the tables, start the film at the projector when the seats have
@@ -54,7 +59,7 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 | `npm run typecheck` | Strict TypeScript check |
 | `npm test` | Unit tests (vitest): journey phases, ad policy, economy, the generated unlock chain and carriage choice, carriage classes (each class earns more per carriage), the flow (the opening buyable in order, when each feature joins), room doors (every leaf swings clear of furniture in every plan), the rides' lengths, comforts, station upgrades, the objective chain, chatter, save/migrations, walkable map and routes in every class floor plan, furniture and pad placement, the light bake, the lakeside terrain (a continuous shoreline, nothing in the track bed or the boat lane) |
 | `npm run smoke` | Headless browser run: the autopilot plays the first 13 minutes and checks the §14 beats, the walkthrough, naming, the Gazette debut interview, a Rival Watch taunt and the press, a refurbishment, a station upgrade, the objective chain and comforts, that every pickup was needed, the ad rules, that a doorway shutting never traps the conductor, save/reload (unlocks and open cabins), draw calls and console errors |
-| `npm run audit:ui` | Checks the boot (no title screen, no sheet over the intro) and the intro caption, stages the busiest HUD moments and every menu at seven phone sizes (320×568 to 430×932), then samples live play, and fails on any overlap, clipped text or off-screen element, or on too much text in play (more than 3 words on screen on average or 8 at once, cards excluded) |
+| `npm run audit:ui` | Checks the boot (no title screen, no intro, no sheet over the opening, the game playing), stages the busiest HUD moments and every menu at seven phone sizes (320×568 to 430×932), then samples live play, and fails on any overlap, clipped text or off-screen element, or on too much text in play (more than 3 words on screen on average or 8 at once, cards excluded) |
 | `npm run audit:geo` | Builds every carriage at every tier (passenger carriages in each class's own floor plan through the Royal Suite, with their class furniture; all comforts, full stock, every guest type's mess and unmade bed), the locomotive, rear deck, exterior and platform, and fails on (1) any visible coplanar overlap of different surfaces (flicker) and (2) any two objects, or an object and a wall, passing through each other (clipping). Both must report 0 |
 | `npm run audit:audio` | Plays the built game with sound on, records the real output and fails if the theme does not decode, the next pass of the music is not queued exactly one loop apart, the output clips, goes silent once the theme is in, or audio logs an error; writes the recording to `dist/audio-check.wav` |
 | `npm run check` | Typecheck + tests + build (the tests include the camera-visibility check for every tile and pad, and walking into every room) |
@@ -94,7 +99,9 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | Content: stations, guest archetypes (with what each leaves behind), the carriage catalogue (each type's tiles incl. comforts, prices, limits and chooser text), coupling slots, station upgrades (exterior and marketing, with their bonuses), refurbishment tiers, stories, quests, products | `src/config/content.ts` |
 | The press: how it is paced (`PRESS_PACING`: one card per breather, the gap between cards, which news goes first), rival trains and their villainous owners (taunts, grumbles, portraits, the spoils each pays when overtaken), the race on the HUD (`RIVAL_RACE`: when a rival turns nervous, how long reactions show; `RIVAL_RACE.showdown`: the races to the next station, their target, purse and what a rival gains when they win; `RIVAL_MOVES`, `RACE_CHALLENGES`), front-page headlines and rewards per trigger, the Gazette debut interview and Rails Tonight interviews with perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
 | Conductor outfits (earned and premium) and shoes by speed level | `src/config/wardrobe.ts` |
-| Walkthrough steps, one-time hints and the intro's camera beats and captions | `src/config/coach.ts` |
+| Walkthrough steps and one-time hints | `src/config/coach.ts` |
+| One trip, one sleep: when the evening ends and the morning starts, the shortest night, request delay, outing and washroom chances, the wake-up call; each class's evening and morning requests and bedding sets per bed | `src/config/economy.ts` (`trip`), `src/config/classes.ts` (`evening`, `morning`, `beds`) |
+| The reveal of a covered room (lengths, lid lift, the lights' flicker, camera zoom); the station start's clock and hold cap | `src/config/economy.ts` (`reveal`, `flow.prologue.durationSec`/`holdCapSec`) |
 | Carriage floor plans (passenger carriages: one per class, from six berths to one Royal Suite) | `src/world/layout.ts` |
 | The lakeside: shoreline, ground height and colour (continuous functions, mirrored in the water shader), which set pieces pass and how they are dressed | `src/world/terrain.ts`, `src/world/Lakeside.ts` |
 | Colours: liveries (earned and premium), each carriage's pastel identity and the class themes (`CLASS_THEMES`), tier names | `src/world/palette.ts`; the lakeside set pieces: `src/world/Lakeside.ts`; material recipes: `src/world/surfaces.ts`; what each refurbishment tier looks like: `finishFor` and `buildProp` in `src/world/CarriageView.ts` |

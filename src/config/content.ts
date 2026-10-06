@@ -410,10 +410,10 @@ export interface CoupleSlot {
 }
 
 export const COUPLE_SLOTS: CoupleSlot[] = [
-  // Session 17: 140 (session 16: 150). Two guests ride the first leg now (the one at the desk and the traveller who
-  // boards at Millbrook), one fewer than the old walk-ins, so the first carriage still lands at about 3:00 on the
-  // autopilot (~3:30 by hand), the last purchase of the opening (config: flow.openingTiles).
-  { price: 140, stars: 6, requires: ['c0.hire_attendant'] },
+  // Session 22: 115 (session 17: 140). The station start takes about a minute and every guest asks twice a trip, so
+  // the first carriage lands at about 3:45 on the autopilot (~4:15 by hand), the last purchase of the opening
+  // (config: flow.openingTiles).
+  { price: 115, stars: 6, requires: ['c0.hire_attendant'] },
   { price: 240, stars: 6, requires: ['couple_1'] },
   { price: 320, stars: 8, requires: ['couple_2'] },
   { price: 460, stars: 8, requires: ['couple_3'] },
