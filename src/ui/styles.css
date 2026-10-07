@@ -646,3 +646,6 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
 }
+
+/* The live performance overlay (session 24; ?perf=1 or Developer tools): out of the HUD's way, never touchable. */
+.perf-overlay { position: absolute; z-index: 60; left: 6px; bottom: calc(var(--safe-bottom) + 6px); margin: 0; padding: 5px 7px; border-radius: 6px; background: rgba(12, 14, 24, 0.72); color: #CFF5D6; font: 600 10px/1.35 ui-monospace, Menlo, Consolas, monospace; white-space: pre; pointer-events: none; }

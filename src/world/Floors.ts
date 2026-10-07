@@ -583,6 +583,6 @@ function cobwebMaterial(): THREE.MeshBasicMaterial {
   // No mipmaps: the threads stay crisp rather than fading to nothing a few dozen pixels across.
   texture.generateMipmaps = false;
   texture.minFilter = THREE.LinearFilter;
-  webMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide, opacity: 1 });
+  webMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, opacity: 1 });
   return webMaterial;
 }

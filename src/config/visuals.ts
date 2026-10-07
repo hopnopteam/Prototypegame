@@ -83,6 +83,12 @@ export const VISUALS = {
      * a slow device). After `recoverSeconds` of smooth play it climbs back by `stepUp`. A remembered scale is
      * only a starting point (never below `rememberFloor`): every launch can climb back to full.
      */
+    /**
+     * Session 24, smooth for the whole session: the static train shadow (Low and Medium) is redrawn at most this
+     * often (seconds), however many things on the train change at once (a coupling's roll-in used to redraw the
+     * whole train's shadow every frame for 2.3 s, a long hitch on a phone with a long train).
+     */
+    staticShadowGap: 0.6,
     dynamicResolution: { slowFrameMs: 24, slowShare: 0.5, windowSeconds: 2, minScale: 0.8, stepDown: 0.1, stepUp: 0.05, recoverSeconds: 6, graceSeconds: 6, hitchMs: 120, hitchGraceSeconds: 2, rememberFloor: 0.9, startScale: { touch: 1, desktop: 1 } },
     /**
      * Auto: if it is still slow at the lowest render scale for `downgradeSeconds`, drop a tier (never below

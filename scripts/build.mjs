@@ -15,7 +15,8 @@ const options = {
   bundle: true,
   format: 'iife',
   target: ['es2020', 'safari15'],
-  minify: !watch,
+  // MINIFY=0 keeps names readable (profiling: MINIFY=0 OUT=profile.html).
+  minify: !watch && process.env.MINIFY !== '0',
   sourcemap: false,
   write: false,
   legalComments: 'none',

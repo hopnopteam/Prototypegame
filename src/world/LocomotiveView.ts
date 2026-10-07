@@ -4,7 +4,7 @@ import { CarriageView, FLOOR_Y } from './CarriageView';
 import { RIVALS } from '../config/press';
 import { GeoBuilder, PaneBuilder } from './geo';
 import { GANGWAY_LENGTH, LOCOMOTIVE_LENGTH } from './layout';
-import { MATERIALS, PATTERN } from './materials';
+import { ADD_GLOW, glowTexture, MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
 import { signTexture } from './sprites';
 import { REFLECT_LAYER } from './Water';
@@ -29,21 +29,9 @@ const BEAM_GEOMETRY = (() => {
 const POOL_GEOMETRY = new THREE.PlaneGeometry(2.8, 7.5).rotateX(-Math.PI / 2);
 
 /** A soft oval of warm light for the track ahead of the headlamp. */
-function poolTexture(): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = 64;
-  c.height = 128;
-  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
-  const g = ctx.createRadialGradient(32, 80, 2, 32, 70, 62);
-  g.addColorStop(0, 'rgba(255, 226, 170, 0.9)');
-  g.addColorStop(0.5, 'rgba(255, 210, 150, 0.35)');
-  g.addColorStop(1, 'rgba(255, 200, 140, 0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 64, 128);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
+/** The headlamp's pool on the track ahead (session 24: opaque and added; see glowTexture). */
+const POOL_TEXTURE = (): THREE.Texture => glowTexture(64, 128, 32, 75, 2, 62, [[0, 0.9], [0.5, 0.35], [1, 0]]);
+const POOL_COLOR = new THREE.Color('#FFE2AA');
 
 /** The cab roof's top, the row of flagpoles across it (half its span), their height and the flags' size. */
 const CAB_ROOF_TOP = 2.95;
@@ -72,8 +60,8 @@ export class LocomotiveView {
   private pennantKey = '';
   private readonly pennantLine: { from: THREE.Vector3; to: THREE.Vector3 };
   private readonly lampMaterial = new THREE.MeshBasicMaterial({ color: '#FFE3A8' });
-  private readonly beam = new THREE.Mesh(BEAM_GEOMETRY, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
-  private readonly pool = new THREE.Mesh(POOL_GEOMETRY, new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  private readonly beam = new THREE.Mesh(BEAM_GEOMETRY, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, fog: false }));
+  private readonly pool = new THREE.Mesh(POOL_GEOMETRY, new THREE.MeshBasicMaterial({ map: POOL_TEXTURE(), color: 0x000000, ...ADD_GLOW }));
 
   constructor() {
     const back = -GANGWAY_LENGTH;
@@ -247,7 +235,7 @@ export class LocomotiveView {
   setNight(night: number): void {
     this.lampMaterial.color.set('#FFE3A8').multiplyScalar(1 + 3 * night);
     (this.beam.material as THREE.MeshBasicMaterial).opacity = 0.14 * night;
-    (this.pool.material as THREE.MeshBasicMaterial).opacity = 0.55 * night;
+    (this.pool.material as THREE.MeshBasicMaterial).color.copy(POOL_COLOR).multiplyScalar(0.55 * night);
   }
 
   update(dt: number, speed: number): void {

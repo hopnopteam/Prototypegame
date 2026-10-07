@@ -274,7 +274,7 @@ export class Stage {
     this.frameNo++;
     // Static shadows redraw only when the train changed; following shadows on the tier's cadence.
     if (this.lighting.shadowMode === 'static') {
-      if (this.lighting.takeStaticRedraw()) this.renderer.shadowMap.needsUpdate = true;
+      if (this.lighting.takeStaticRedraw(this.clock, VISUALS.quality.staticShadowGap)) this.renderer.shadowMap.needsUpdate = true;
     } else if (this.frameNo % tierSettings(this.tier).shadowInterval === 0) this.renderer.shadowMap.needsUpdate = true;
     const cam = this.rig.camera;
     cam.updateMatrixWorld();

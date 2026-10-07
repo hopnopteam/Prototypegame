@@ -64,6 +64,13 @@ export class CashView {
   private readonly flights: Flight[] = [];
   private readonly drains: Drain[] = [];
 
+  /** Bills on show and the instance pool's size (the live performance overlay). */
+  stats(): { bills: number; capacity: number } {
+    let bills = 0;
+    for (let i = 0; i < this.high; i++) bills += this.used[i];
+    return { bills, capacity: CAPACITY };
+  }
+
   constructor() {
     // A banded bundle of notes: darker edge, paper band, a round emblem that reads at thumb size.
     const geometry = new GeoBuilder()

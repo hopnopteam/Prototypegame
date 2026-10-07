@@ -146,6 +146,11 @@ export class CharacterBatch {
     this.group.add(this.lit.mesh, this.solid.mesh, this.shadow.mesh);
   }
 
+  /** Characters drawn through the batch and the parts they are made of (the live performance overlay). */
+  stats(): { characters: number; parts: number } {
+    return { characters: this.roots.size, parts: this.parts.size };
+  }
+
   /** Draws this character (a CharacterView root) through the batch from the next frame. */
   register(root: THREE.Object3D): void {
     if (this.roots.has(root)) return;

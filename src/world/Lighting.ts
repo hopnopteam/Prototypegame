@@ -93,6 +93,7 @@ export class Lighting {
   shadowMode: 'follow' | 'static' = 'follow';
   /** Static mode: the map must be redrawn (the train changed). */
   private staticDirty = true;
+  private lastStaticRedraw = -Infinity;
   private trainZ: [number, number] = [-12, 16];
   private maxTexture = STATIC_MAX_SIZE;
   private readonly corner = new THREE.Vector3();
@@ -167,9 +168,14 @@ export class Lighting {
     this.staticDirty = true;
   }
 
-  /** Static mode: true once when the map must be redrawn (and fits the frustum round the train first). */
-  takeStaticRedraw(): boolean {
+  /**
+   * Static mode: true once when the map must be redrawn (and fits the frustum round the train first), at most
+   * once every `gap` seconds (`now` is the stage clock): changes in between are folded into the next redraw.
+   */
+  takeStaticRedraw(now: number, gap: number): boolean {
     if (this.shadowMode !== 'static' || !this.staticDirty || !this.sun.castShadow) return false;
+    if (now - this.lastStaticRedraw < gap) return false;
+    this.lastStaticRedraw = now;
     this.staticDirty = false;
     this.fitStatic();
     return true;

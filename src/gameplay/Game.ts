@@ -68,6 +68,8 @@ import { TrainNeeds } from './TrainNeeds';
 import { TrainState } from './TrainState';
 import type { World } from './World';
 import { ZoneSystem } from './Zones';
+import { PerfStats } from '../core/PerfStats';
+import { PerfOverlay, type PerfReport } from '../ui/PerfOverlay';
 
 /** Milliseconds of each frame given to rebuilds spread over frames (see core/Background). */
 const BACKGROUND_BUDGET_MS = 2;
@@ -75,6 +77,8 @@ const BACKGROUND_BUDGET_MS = 2;
  * Milliseconds of each frame shared by all spread-out work together (the next scenery stretch first, then
  * rebuilds, then the light bake): a phone keeps its 60 fps even while a coupling rebuilds everything.
  */
+/** The first minute is the walkthrough: idle seconds are counted after it (session 24). */
+const IDLE_GRACE_SECONDS = 60;
 const FRAME_WORK_MS = 2.5;
 /** Where the save lives (localStorage, mirrored into the app's own storage on iOS and Android). */
 export const SAVE_KEY = 'nightexpress.save';
@@ -154,6 +158,12 @@ export class Game implements World {
   private sessionSeconds = 0;
   private lastTrainSpeed = 0;
   private running = false;
+  private overlayRoot!: HTMLElement;
+  /** Real frame times for the performance overlay and the soak test (session 24). */
+  readonly perfStats = new PerfStats();
+  private perfOverlay: PerfOverlay | null = null;
+  /** Seconds of play (after the first minute) with no task to do: see `Guidance.idle` (session 24). */
+  idleSeconds = 0;
 
   constructor(canvas: HTMLCanvasElement, overlay: HTMLElement, readonly ui: GameUi) {
     // Remote config overrides a copy of the balance sheet, so tuning can change without an update.
@@ -260,6 +270,8 @@ export class Game implements World {
     this.objectives = new Objectives(this);
     this.feedback = new Feedback(this);
     this.input = new Input(canvas.parentElement ?? canvas, overlay);
+    this.overlayRoot = overlay;
+    if (new URLSearchParams(location.search).get('perf') === '1') this.setPerfOverlay(true);
     this.input.onFirstInteraction = () => this.audio.unlock();
     this.listenForAudioGesture();
 
@@ -406,6 +418,7 @@ export class Game implements World {
       if (!this.running) return;
       requestAnimationFrame(frame);
       if (now - this.lastFrame < this.stage.minFrameMs) return;
+      this.perfStats.sample(now - this.lastFrame);
       const real = Math.min(0.25, (now - this.lastFrame) / 1000);
       this.lastFrame = now;
       this.frame(real);
@@ -455,6 +468,7 @@ export class Game implements World {
     this.particles.update(dt, this.journey.speed);
     this.tweens.update(dt);
     this.guidance.update(dt);
+    if (this.guidance.idle && this.data.profile.lifetimePlaySeconds > IDLE_GRACE_SECONDS) this.idleSeconds += dt;
     this.coach.update(dt);
     this.monetization.update(dt);
     this.press.update(dt);
@@ -498,6 +512,52 @@ export class Game implements World {
     this.background.run(BACKGROUND_BUDGET_MS);
     this.characters.sync();
     this.stage.render(realDt);
+    this.perfOverlay?.update(realDt, () => this.perfReport());
+  }
+
+  /** The live performance overlay (`?perf=1` or Developer tools). */
+  setPerfOverlay(on: boolean): void {
+    if (on && !this.perfOverlay) this.perfOverlay = new PerfOverlay(this.overlayRoot);
+    if (!on && this.perfOverlay) {
+      this.perfOverlay.remove();
+      this.perfOverlay = null;
+    }
+  }
+
+  get perfOverlayOn(): boolean {
+    return this.perfOverlay !== null;
+  }
+
+  /** Everything the overlay and the soak test watch: frame time, the renderer's resources, the pools. */
+  perfReport(): PerfReport {
+    const frame = this.perfStats.summary();
+    const info = this.stage.renderer.info;
+    const memory = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+    const people = this.characters.stats();
+    const bills = this.cashView.stats();
+    const particles = this.particles.stats();
+    return {
+      fps: frame.fps,
+      avgMs: frame.avgMs,
+      worstMs: frame.worstMs,
+      hitches: this.perfStats.hitches,
+      calls: this.stage.drawCalls,
+      triangles: this.stage.triangles,
+      heapMB: memory ? memory.usedJSHeapSize / 1048576 : null,
+      geometries: info.memory.geometries,
+      textures: info.memory.textures,
+      programs: info.programs?.length ?? 0,
+      characters: people.characters,
+      parts: people.parts,
+      guests: this.guests.list.length,
+      staff: this.staff.members.length,
+      bills: bills.bills,
+      billCapacity: bills.capacity,
+      particles: particles.active,
+      particleCapacity: particles.capacity,
+      idleSeconds: this.idleSeconds,
+      playSeconds: this.lifetimeSeconds(),
+    };
   }
 
   /**

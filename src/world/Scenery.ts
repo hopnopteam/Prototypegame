@@ -3,7 +3,7 @@ import { frameWork } from '../core/Background';
 import { Rng } from '../core/Rng';
 import { GeoBuilder } from './geo';
 import { CHUNK, chunkSteps, FILL_KINDS, FILL_SLOTS, fillGeometries, LAND_DECK, runSteps, SHORE_DECK, type ChunkBuild, type DeckEntry, type FillKind, type LandKind, type PieceKind, type ShoreKind } from './Lakeside';
-import { MATERIALS, PATTERN } from './materials';
+import { ADD_GLOW, glowTexture, MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
 import { groundHeight, SCENERY_SPREAD, WORLD_TRACK_HALF } from './terrain';
 import { PlanarReflection, REFLECT_LAYER, Water } from './Water';
@@ -69,21 +69,8 @@ const EMPTY = new THREE.BufferGeometry();
 const built = (b: GeoBuilder): THREE.BufferGeometry | null => (b.isEmpty ? null : b.build());
 
 /** A soft round pool of lamplight on the ground (additive decal), drawn once. */
-function poolTexture(): THREE.Texture {
-  const c = document.createElement('canvas');
-  c.width = c.height = 64;
-  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
-  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, 'rgba(255,190,120,0.55)');
-  g.addColorStop(0.45, 'rgba(255,170,105,0.22)');
-  g.addColorStop(1, 'rgba(255,160,100,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 64, 64);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-const POOL_MATERIAL = new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+/** A lamp's warm pool on the ground (session 24: opaque and added, so it can never darken; see glowTexture). */
+const POOL_MATERIAL = new THREE.MeshBasicMaterial({ map: glowTexture(64, 64, 32, 32, 0, 32, [[0, 0.55], [0.45, 0.22], [1, 0]]), color: '#FFBE78', ...ADD_GLOW, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 
 function poolGeometry(pools: ChunkBuild['pools'], land: boolean, s0: number): THREE.BufferGeometry | null {
   const list = pools.filter((p) => p.land === land);
@@ -565,7 +552,7 @@ const BEAM_GEOMETRY = (() => {
   g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   return g;
 })();
-const BEAM_MATERIAL = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+const BEAM_MATERIAL = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, fog: false });
 
 /** A billboard on two posts, turned toward the camera; the poster face shares one material. */
 function buildBillboard(material: THREE.Material): THREE.Group {

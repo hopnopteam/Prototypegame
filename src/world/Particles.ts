@@ -56,6 +56,13 @@ export class Particles {
   private readonly material: THREE.ShaderMaterial;
   private readonly kinds = Object.keys(SPECS) as ParticleKind[];
 
+  /** How many particles are alive now, and how many the pool holds (the live performance overlay). */
+  stats(): { active: number; capacity: number } {
+    let active = 0;
+    for (let i = 0; i < this.capacity; i++) if (this.life[i] > 0) active++;
+    return { active, capacity: this.capacity };
+  }
+
   constructor(capacity = 900) {
     this.capacity = capacity;
     this.position = new Float32Array(capacity * 3);

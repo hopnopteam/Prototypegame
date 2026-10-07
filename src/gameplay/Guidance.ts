@@ -85,6 +85,14 @@ export class Guidance {
     this.updatePointer(target && !near ? target : null);
   }
 
+  /**
+   * Nothing to do right now (session 24's idle measure): no task anywhere, or only saving up for a tile.
+   * The overlay and the soak test count these seconds; the design target is almost none after the first minute.
+   */
+  get idle(): boolean {
+    return this.reason === 'none' || this.reason === 'save';
+  }
+
   /** The walkthrough, a first-time lesson about this very spot, or a nudge after a few idle seconds. */
   private shouldShow(): boolean {
     const w = this.w;

@@ -3,7 +3,7 @@ import { FLOOR_Y } from './CarriageView';
 import { GeoBuilder, mergePlanes } from './geo';
 import { carriageOriginZ, DOOR_Z0, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0 } from './layout';
 import { PLATFORM } from './platformLayout';
-import { MATERIALS, PATTERN } from './materials';
+import { ADD_GLOW, glowTexture, MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
 import { CharacterView, type CharacterAction, type CharacterLook } from './CharacterView';
 import { headlineTexture, posterTexture, signTexture } from './sprites';
@@ -67,24 +67,11 @@ const SEEING_OFF = [{ x: PLATFORM_X0 + 5.75, z: -9.35, facing: -Math.PI / 2 - 0.
 /** A seated townsperson's root above the floor (resting on a bench seat). */
 const BENCH_SIT_Y = 0.285;
 
-let glowMap: THREE.Texture | null = null;
-
-/** A soft round halo for the platform's lamps (drawn once, shared). */
-function glowTexture(): THREE.Texture {
-  if (glowMap) return glowMap;
-  const c = document.createElement('canvas');
-  c.width = c.height = 64;
-  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
-  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, 'rgba(255,255,255,0.9)');
-  g.addColorStop(0.35, 'rgba(255,255,255,0.35)');
-  g.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 64, 64);
-  glowMap = new THREE.CanvasTexture(c);
-  glowMap.colorSpace = THREE.SRGBColorSpace;
-  return glowMap;
-}
+/** A soft round halo for the platform's lamps (drawn once, shared): opaque, black at the edges (see glowTexture). */
+const LAMP_GLOW = (): THREE.Texture => glowTexture(64, 64, 32, 32, 0, 32, [[0, 0.8], [0.3, 0.26], [0.7, 0.06], [1, 0]]);
+/** The halo's brightness at full night (its colour is scaled; the blend adds it as it is). */
+const LAMP_GLOW_STRENGTH = 0.36;
+const LAMP_GLOW_COLOR = new THREE.Color(PALETTE.lampGlow);
 
 /** A pigeon about 0.3 m long, facing -z: grey body, a darker head with a green-violet neck, a tail. */
 function pigeonGeometry(): THREE.BufferGeometry {
@@ -599,7 +586,7 @@ export class PlatformView {
   }
 
   setNight(amount: number): void {
-    for (const glow of this.glows) (glow.material as THREE.SpriteMaterial).opacity = 0.55 * amount;
+    for (const glow of this.glows) (glow.material as THREE.SpriteMaterial).color.copy(LAMP_GLOW_COLOR).multiplyScalar(LAMP_GLOW_STRENGTH * amount);
   }
 }
 
@@ -908,7 +895,7 @@ function buildLampPost(b: GeoBuilder, lamps: GeoBuilder, x: number, z: number): 
 
 /** A soft halo round a platform lamp at night. */
 function lampGlow(x: number, y: number, z: number): THREE.Sprite {
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: PALETTE.lampGlow, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: LAMP_GLOW(), color: 0x000000, ...ADD_GLOW }));
   glow.scale.set(1.3, 1.3, 1);
   glow.position.set(x, y, z);
   return glow;

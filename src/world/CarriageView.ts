@@ -1000,7 +1000,7 @@ export class CarriageView {
       geo.setAttribute('color', new THREE.Float32BufferAttribute(colours.flat(), 3));
       return geo;
     };
-    const film = (opacity: number): THREE.MeshBasicMaterial => new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+    const film = (opacity: number): THREE.MeshBasicMaterial => new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, fog: false });
     // Two triangles facing +x; colours are rewritten each frame while it plays.
     const picture = quad(
       [[x, a.y0, a.z0], [x, a.y0, a.z1], [x, a.y1, a.z1], [x, a.y0, a.z0], [x, a.y1, a.z1], [x, a.y1, a.z0]],

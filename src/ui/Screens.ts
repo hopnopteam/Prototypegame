@@ -720,6 +720,7 @@ export class Screens {
       h('div.grid-3', {},
         b('×1', () => (g.timeScale = 1)), b('×3', () => (g.timeScale = 3)), b('×8', () => (g.timeScale = 8)),
         b('Next station', () => g.devSkipToStation()), b('Day cycle', () => g.setTimeOfDay(null)), b('Night', () => g.setTimeOfDay(0.8)),
+        b('Live stats', () => g.setPerfOverlay(!g.perfOverlayOn)),
       ),
       h('label', { style: { fontSize: '13px', fontWeight: '700' } }, 'Time of day', timeSlider),
       h('div.section-title', { text: 'Economy' }),

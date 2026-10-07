@@ -631,7 +631,11 @@ function buildTerrain(s0: number, land: LandKind): THREE.BufferGeometry {
   g.setAttribute('aColor2', new THREE.BufferAttribute(linear.slice(), 3));
   g.setAttribute('aPattern', new THREE.BufferAttribute(new Float32Array(count * 2), 2));
   const surface = new Float32Array(count * 4);
-  for (let i = 0; i < count; i++) surface.set([0.12, 0, 0, 1], i * 4);
+  // Smoothness 0.12 and full sheen (written in place: no array per vertex).
+  for (let i = 0; i < count; i++) {
+    surface[i * 4] = 0.12;
+    surface[i * 4 + 3] = 1;
+  }
   g.setAttribute('aSurface', new THREE.BufferAttribute(surface, 4));
   g.setIndex(indices);
   g.computeVertexNormals();

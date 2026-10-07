@@ -234,10 +234,19 @@ export function mergePlanes(planes: THREE.BufferGeometry[]): THREE.BufferGeometr
     const pos = p.getAttribute('position');
     const nor = p.getAttribute('normal');
     const tex = p.getAttribute('uv');
+    // Written in place (no small array per vertex).
     for (let i = 0; i < pos.count; i++) {
-      position.set([pos.getX(i), pos.getY(i), pos.getZ(i)], (v + i) * 3);
-      if (nor) normal.set([nor.getX(i), nor.getY(i), nor.getZ(i)], (v + i) * 3);
-      uv.set([tex.getX(i), tex.getY(i)], (v + i) * 2);
+      const o = (v + i) * 3;
+      position[o] = pos.getX(i);
+      position[o + 1] = pos.getY(i);
+      position[o + 2] = pos.getZ(i);
+      if (nor) {
+        normal[o] = nor.getX(i);
+        normal[o + 1] = nor.getY(i);
+        normal[o + 2] = nor.getZ(i);
+      }
+      uv[(v + i) * 2] = tex.getX(i);
+      uv[(v + i) * 2 + 1] = tex.getY(i);
     }
     const idx = p.getIndex();
     if (idx) for (let i = 0; i < idx.count; i++) index.push(idx.getX(i) + v);

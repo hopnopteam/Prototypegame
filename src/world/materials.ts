@@ -615,6 +615,50 @@ function paneMaterial(): THREE.ShaderMaterial {
  * (brass, varnish, velvet) and the baked light. Every quality tier uses these same materials, so the game
  * looks the same everywhere; tiers only change resolution and effects.
  */
+/**
+ * A soft glow that can only ever add light (session 24, owner: lamps drew as dark squares on a phone). The
+ * texture is opaque: white in the middle fading to pure black at the edges, and the blend is ONE + ONE, so
+ * whatever a device does with alpha, the black corners add nothing. Not tone-mapped and no fog, so black stays
+ * black (the night grade lifts the shadows: a tone-mapped black corner would add a faint blue square).
+ * `radial` draws the canvas: centre (cx, cy), inner and outer radius, and up to three stops of brightness.
+ */
+const glowTextures = new Map<string, THREE.CanvasTexture>();
+export function glowTexture(width: number, height: number, cx: number, cy: number, r0: number, r1: number, stops: [number, number][]): THREE.CanvasTexture {
+  const key = `${width}x${height}:${cx},${cy}:${r0},${r1}:${stops.join(';')}`;
+  const cached = glowTextures.get(key);
+  if (cached) return cached;
+  const c = document.createElement('canvas');
+  c.width = width;
+  c.height = height;
+  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, width, height);
+  const g = ctx.createRadialGradient(cx, cy, r0, cx, cy, r1);
+  for (const [at, v] of stops) {
+    const b = Math.round(255 * v);
+    g.addColorStop(at, `rgb(${b},${b},${b})`);
+  }
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, width, height);
+  const t = new THREE.CanvasTexture(c);
+  // Read as plain numbers: the stops are linear brightness (times `color`, which carries the hue).
+  t.colorSpace = THREE.NoColorSpace;
+  glowTextures.set(key, t);
+  return t;
+}
+
+/** Blending settings for `glowTexture` glows: added as they are (brightness through `color`, not opacity). */
+export const ADD_GLOW = {
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.CustomBlending,
+  blendSrc: THREE.OneFactor,
+  blendDst: THREE.OneFactor,
+  blendEquation: THREE.AddEquation,
+  toneMapped: false,
+  fog: false,
+} as const;
+
 export const MATERIALS = {
   /** The train, platform and props. */
   solid: lit({ vertexColors: true }, { pattern: true, surface: 'vertex', light: true }),
