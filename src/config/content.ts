@@ -228,7 +228,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'comfort_lamp', kind: 'comfort', label: 'Lamps', price: 85, stars: 2, comfort: 'lamp', requires: ['refurb_1', '@couple_1'], effect: 'Tips +20%' },
       { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 160, stars: 3, role: 'porter', requires: ['@couple_2'], effect: 'Check-in & bags' },
       { key: 'comfort_flowers', kind: 'comfort', label: 'Flowers', price: 150, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_2'], effect: 'Tips +20%' },
-      { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 240, stars: 2, role: 'attendant', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
+      { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 240, stars: 2, role: 'attendant', requires: ['hire_porter', '@couple_3'], effect: 'Serves guests too' },
       { key: 'comfort_radio', kind: 'comfort', label: 'Radios', price: 320, stars: 2, comfort: 'radio', requires: ['comfort_flowers', '@couple_3'], effect: 'Tips +20%' },
       { key: 'up_porter', kind: 'staffUpgrade', label: 'Faster Porter', price: 420, stars: 2, role: 'porter', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
       { key: 'refurb_3', kind: 'refurb', label: 'Business', price: 880, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_4'], effect: 'Fares ×5' },
@@ -375,14 +375,16 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 90, stars: 2, cabin: 1, requires: ['cabin_0'], effect: '+1 guest' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 120, stars: 3, tier: 1, requires: ['cabin_0'], effect: 'Fares +25%' },
       { key: 'comfort_lamp', kind: 'comfort', label: 'Lamps', price: 130, stars: 2, comfort: 'lamp', requires: ['refurb_1'], effect: 'Tips +20%' },
-      { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 150, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
+      // Session 24: the later beds cheaper (150/200/240/280 → 110/150/180/220): beds are the income, and the
+      // mid-game's long saves (95–115 s on the autopilot) were waits for them.
+      { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 110, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
       { key: 'refurb_2', kind: 'refurb', label: 'Comfort', price: 300, stars: 4, tier: 2, requires: ['cabin_1', 'refurb_1'], flags: ['level_2'], effect: '4 cabins · Fares ×2.5' },
-      { key: 'cabin_3', kind: 'cabin', label: 'Cabin {n}', price: 200, stars: 2, cabin: 3, requires: ['cabin_2', '@couple_2'], effect: '+1 guest' },
-      { key: 'cabin_4', kind: 'cabin', label: 'Cabin {n}', price: 240, stars: 2, cabin: 4, requires: ['cabin_3'], effect: '+1 guest' },
-      { key: 'cabin_5', kind: 'cabin', label: 'Cabin {n}', price: 280, stars: 2, cabin: 5, requires: ['cabin_4'], effect: '+1 guest' },
+      { key: 'cabin_3', kind: 'cabin', label: 'Cabin {n}', price: 150, stars: 2, cabin: 3, requires: ['cabin_2', '@couple_2'], effect: '+1 guest' },
+      { key: 'cabin_4', kind: 'cabin', label: 'Cabin {n}', price: 180, stars: 2, cabin: 4, requires: ['cabin_3'], effect: '+1 guest' },
+      { key: 'cabin_5', kind: 'cabin', label: 'Cabin {n}', price: 220, stars: 2, cabin: 5, requires: ['cabin_4'], effect: '+1 guest' },
       { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 240, stars: 3, role: 'attendant', requires: ['cabin_1', '@couple_2'], effect: 'Cleans cabins' },
       { key: 'comfort_flowers', kind: 'comfort', label: 'Flowers', price: 240, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_3'], effect: 'Tips +20%' },
-      { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 380, stars: 2, role: 'attendant', requires: ['hire_attendant', '@couple_3'], effect: 'Faster, +1 carry' },
+      { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 380, stars: 2, role: 'attendant', requires: ['hire_attendant', '@couple_3'], effect: 'Serves guests too' },
       { key: 'comfort_radio', kind: 'comfort', label: 'Radios', price: 420, stars: 2, comfort: 'radio', requires: ['comfort_flowers', '@couple_3'], effect: 'Tips +20%' },
       { key: 'refurb_3', kind: 'refurb', label: 'Business', price: 1350, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_4'], effect: '3 cabins · Fares ×5' },
       { key: 'refurb_4', kind: 'refurb', label: 'First Class', price: 2200, stars: 6, tier: 4, requires: ['refurb_3'], flags: ['level_6'], effect: '2 suites · Fares ×14' },
@@ -410,10 +412,10 @@ export interface CoupleSlot {
 }
 
 export const COUPLE_SLOTS: CoupleSlot[] = [
-  // Session 22: 115 (session 17: 140). The station start takes about a minute and every guest asks twice a trip, so
-  // the first carriage lands at about 3:45 on the autopilot (~4:15 by hand), the last purchase of the opening
-  // (config: flow.openingTiles).
-  { price: 115, stars: 6, requires: ['c0.hire_attendant'] },
+  // Session 22: 115 (session 17: 140). Session 24: 140 again, now that the night shift's shoes and the night owls
+  // add to the first rides' takings: the first carriage still lands at about three minutes on the autopilot, the
+  // last purchase of the opening (config: flow.openingTiles).
+  { price: 140, stars: 6, requires: ['c0.hire_attendant'] },
   { price: 240, stars: 6, requires: ['couple_1'] },
   { price: 320, stars: 8, requires: ['couple_2'] },
   { price: 460, stars: 8, requires: ['couple_3'] },
@@ -449,8 +451,8 @@ export interface StationUpgradeDef {
 export const STATION_UPGRADES: StationUpgradeDef[] = [
   { key: 'posters', kind: 'marketing', label: 'Posters', price: 80, stars: 3, requires: ['couple_1'], effect: '+1 traveller', bonus: { passengers: 1 } },
   { key: 'windowboxes', kind: 'exterior', label: 'Flower Boxes', price: 110, stars: 3, requires: ['couple_1'], effect: 'Tips +5%', bonus: { tips: 0.05 } },
-  { key: 'lamps', kind: 'exterior', label: 'Lamps', price: 200, stars: 3, requires: ['st.windowboxes', 'couple_2'], effect: 'Tips +5%', bonus: { tips: 0.05 } },
-  { key: 'billboard', kind: 'marketing', label: 'Billboards', price: 240, stars: 3, requires: ['st.posters', 'couple_2'], effect: '+1 traveller, VIPs', bonus: { passengers: 1, vip: 0.6 } },
+  { key: 'lamps', kind: 'exterior', label: 'Lamps', price: 160, stars: 3, requires: ['st.windowboxes', 'couple_2'], effect: 'Tips +5%', bonus: { tips: 0.05 } },
+  { key: 'billboard', kind: 'marketing', label: 'Billboards', price: 190, stars: 3, requires: ['st.posters', 'couple_2'], effect: '+1 traveller, VIPs', bonus: { passengers: 1, vip: 0.6 } },
   { key: 'lining', kind: 'exterior', label: 'Gold Trim', price: 340, stars: 4, requires: ['st.lamps', 'couple_3'], effect: 'Fares +5%', bonus: { fares: 0.05 } },
   { key: 'band', kind: 'marketing', label: 'Band', price: 460, stars: 4, requires: ['st.billboard', 'couple_3'], effect: '+1 traveller', bonus: { passengers: 1, stationBonus: 0.5 } },
   { key: 'nameboards', kind: 'exterior', label: 'Name Signs', price: 520, stars: 4, requires: ['st.lining', 'couple_4'], effect: 'Fares +5%', bonus: { fares: 0.05 } },

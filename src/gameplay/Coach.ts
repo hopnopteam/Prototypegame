@@ -47,6 +47,7 @@ export class Coach {
     const e = w.events;
     e.on('request.fulfilled', ({ byPlayer }) => byPlayer && this.learn('request'));
     e.on('cabin.cleaned', ({ byPlayer }) => byPlayer && this.learn('dirty'));
+    e.on('shoes.shined', ({ byPlayer }) => byPlayer && this.learn('shoes'));
     e.on('guest.boarded', ({ byPlayer }) => byPlayer && this.learn('station'));
     e.on('bathroom.restocked', ({ byPlayer }) => byPlayer && this.learn('washroom'));
     e.on('staff.hired', () => this.learn('hire'));
@@ -255,6 +256,8 @@ export class Coach {
       }
       case 'station':
         return world(w.station.boardingPoint());
+      case 'shoes':
+        return world(w.train.shoesToShine(w.player.pos)?.shoePad);
       case 'hire':
         return world(w.tiles.list.find((t) => t.def.kind === 'hire')?.pos);
       case 'couple':
@@ -305,6 +308,8 @@ export class Coach {
         return w.train.cabins.some((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
       case 'station':
         return w.journey.phase === 'stationStop' && w.guests.canBoard();
+      case 'shoes':
+        return w.train.shoesToShine(w.player.pos) !== null;
       case 'hire':
         return w.tiles.list.some((t) => t.def.kind === 'hire');
       case 'couple':

@@ -100,6 +100,9 @@ export class Guest {
   paid = false;
   /** Session 24: booked a table at the desk for the evening; their evening outing goes to a venue. */
   booked = false;
+  /** Session 24, a night owl: stays up later and asks for a nightcap (`owlWish` until they have; `owlNow` while choosing). */
+  owlWish = false;
+  owlNow = false;
   /**
    * Session 23, the ticket queue: where on the platform they are headed (`q0` the window, `q3` fourth in line,
    * `w1` the second place by the bench, `d` by the door with a ticket), whether they have got there, and the
@@ -718,6 +721,12 @@ export class Guests {
           // Reading on the bed edge counts toward the request.
           guest.wishIn -= dt;
           if (guest.wishIn <= 0 && this.requestsAllowed()) this.makeRequest(guest);
+        } else if (guest.owlWish && guest.trip === 'evening' && this.progressOf(guest) >= guest.rules.eveningEnd - w.econ.trip.owl.later) {
+          // A night owl, still up when the others turn in: one more thing before lights out.
+          guest.owlWish = false;
+          guest.owlNow = true;
+          guest.phaseRequested = false;
+          guest.wishIn = w.rng.range(...w.econ.trip.requestDelay);
         } else if (!guest.phaseOuting && guest.stateTime >= guest.settleFor) this.maybeOuting(guest);
         break;
       }
@@ -832,8 +841,12 @@ export class Guests {
       if (guest.sleeps > 1) this.audit.sleptTwice++;
       this.setState(guest, 'resting');
       guest.view.showBubble(null);
+      // The night shift: their shoes go out by the door to be polished.
+      if (guest.cabin) this.w.train.leaveShoes(guest.cabin);
     } else {
-      // Morning: the lights come up, a stretch on the bed edge, then the morning's request.
+      // Morning: the lights come up, a stretch on the bed edge, then the morning's request. Their shoes come in
+      // (polished ones leave a tip).
+      if (guest.cabin) this.w.train.takeShoes(guest.cabin, guest);
       this.setState(guest, 'settling');
       guest.settleFor = WAKE_SECONDS;
       guest.wishIn = WAKE_SECONDS + this.w.rng.range(...rules.requestDelay);
@@ -859,7 +872,8 @@ export class Guests {
     let need: ServiceNeed | null = story;
     if (!need) {
       const cls = CLASS_BY_ID[guest.cls];
-      const pool = guest.trip === 'morning' ? cls.morning : cls.evening;
+      const pool = guest.owlNow ? w.econ.trip.owl.pool : guest.trip === 'morning' ? cls.morning : cls.evening;
+      guest.owlNow = false;
       if (cls.butler && guest.trip === 'morning') {
         const list = (Object.keys(pool) as ServiceNeed[]).filter((k) => !guest.asked.has(k));
         need = list.shift() ?? null;
@@ -1121,6 +1135,10 @@ export class Guests {
     guest.sleptFor = 0;
     const trip = w.econ.trip;
     guest.rules.eveningEnd = trip.eveningEnd + w.rng.range(-trip.jitter, trip.jitter);
+    // A night owl stays up a while longer for a nightcap (the morning still comes after their shortest night).
+    guest.owlWish = !guest.story && w.rng.chance(trip.owl.chance);
+    guest.owlNow = false;
+    if (guest.owlWish) guest.rules.eveningEnd += trip.owl.later;
     guest.rules.morningStart = trip.morningStart + w.rng.range(-trip.jitter, trip.jitter);
     guest.rules.minSleepSeconds = trip.minSleepSeconds;
     guest.wishIn = w.econ.guests.settleSeconds + w.rng.range(...trip.requestDelay);
@@ -1161,6 +1179,8 @@ export class Guests {
     if (!w.journey.doorsOpen) return;
     const cabin = guest.cabin;
     const fromBed = guest.inCabin;
+    // Slept right through to their stop: they pick their shoes up on the way out.
+    if (cabin.shoes !== 'none') w.train.takeShoes(cabin, guest);
     this.logTrip(guest, guest.trip, 'arrival', this.progressOf(guest));
     // They leave a tip and a lived-in cabin behind: the bed slept in and something of theirs on the floor.
     let tip = w.econ.money.alightTip * guest.archetype.tipMultiplier * w.tipMultiplier() * w.train.cabinTipMultiplier(cabin);

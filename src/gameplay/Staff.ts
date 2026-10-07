@@ -283,8 +283,9 @@ export class StaffManager {
 
   private attendantTask(m: StaffMember): Task | null {
     const w = this.w;
-    // 1. Answer a request in this carriage.
-    const guest = w.guests.openRequests().find((g) => g.cabin && this.inScope(m, g.cabin.carriage) && !(g as Guest & { reservedBy?: StaffMember }).reservedBy);
+    // 1. Answer a request in this carriage, once trained to serve (session 24: until then requests are the conductor's).
+    const serves = m.level >= w.econ.staff.attendantServesFromLevel;
+    const guest = serves ? w.guests.openRequests().find((g) => g.cabin && this.inScope(m, g.cabin.carriage) && !(g as Guest & { reservedBy?: StaffMember }).reservedBy) : undefined;
     if (guest && guest.cabin && isDwellNeed(guest.request)) {
       // Turning a First or Royal bed down, or a wake-up call: straight to the cabin, a moment at the room.
       const cabin = guest.cabin;
@@ -331,6 +332,18 @@ export class StaffManager {
         { kind: 'stand', until: () => !cabin.isDirty, timeout: 8 },
       ];
       return { label: 'clean', icon: 'broom', steps, release: () => { if (cabin.cleaner === m) cabin.cleaner = null; } };
+    }
+    // 3. The night shift: a sleeping guest's shoes by their door, once the attendant is trained for it.
+    const shoes = serves ? w.train.shoesToShine(m.pos, m.carriage) : null;
+    if (shoes) {
+      return {
+        label: 'shoes', icon: 'shoe',
+        steps: [
+          { kind: 'goto', target: shoes.shoePad },
+          { kind: 'stand', until: () => shoes.shoes !== 'dirty', timeout: 6 },
+        ],
+        release: () => undefined,
+      };
     }
     return this.returnTask(m);
   }

@@ -6,12 +6,13 @@ import { ClassChips } from '../world/ClassChips';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Rect, Vec2 } from '../core/types';
 import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
-import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, GANGWAY_LENGTH, LOCOMOTIVE_LENGTH, REAR_DECK_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, layoutKey, ZONE_RADIUS, type BathroomLayout, type CabinLayout } from '../world/layout';
+import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, GANGWAY_LENGTH, LOCOMOTIVE_LENGTH, REAR_DECK_LENGTH, carriageOriginZ, doorTileSpot, getLayout, HALF_WIDTH, layoutKey, PARTITION_X0, ZONE_RADIUS, type BathroomLayout, type CabinLayout } from '../world/layout';
+import { shoesGeometry } from '../world/Shoes';
 import { ExteriorView } from '../world/ExteriorView';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { buildRearDeck } from '../world/RearDeck';
-import { clipSide, swapMaterials } from '../world/materials';
+import { clipSide, MATERIALS, swapMaterials } from '../world/materials';
 import { trainLightInput } from '../world/trainLight';
 import { TIER_NAMES } from '../world/palette';
 import type { Actor } from './Actor';
@@ -20,6 +21,11 @@ import { sourceActive, sourceStay, type SourceSpec } from './Pickup';
 import type { World } from './World';
 import type { IconName } from '../ui/icons';
 import { Zone } from './Zones';
+
+/** How far into the corridor the shoes stand from the cabin partition (metres). */
+const SHOE_OFFSET = 0.36;
+/** Shoes are drawn a little larger than life so they read at phone size (like the rooms' mess, 1.35×). */
+const SHOE_SCALE = 1.4;
 
 export class Cabin {
   readonly id: string;
@@ -47,6 +53,13 @@ export class Cabin {
   wasDirty = false;
   /** What the last guest left behind (chosen as they get off; null: a default mess). */
   messPlan: { pieces: MessPiece[]; bed: BedMess; seed: number } | null = null;
+  /** The night shift (session 24): the guest's shoes outside the door, waiting to be polished or polished. */
+  shoes: 'none' | 'dirty' | 'shined' = 'none';
+  shoeZone: Zone | null = null;
+  shoeMesh: THREE.Mesh | null = null;
+  /** The pad by the door (corridor side) and where the shoes stand. */
+  readonly shoePad: Vec2;
+  readonly shoeSpot: Vec2;
   constructor(readonly carriage: number, readonly layout: CabinLayout, originZ: number) {
     this.id = `c${carriage}_${layout.index}`;
     const w = (p: Vec2): Vec2 => ({ x: p.x, z: p.z + originZ });
@@ -60,6 +73,9 @@ export class Cabin {
     this.tipPile = w(layout.tipPile);
     this.node = `c${carriage}:${layout.node}`;
     this.pileId = `cabin:${this.id}`;
+    this.shoePad = w(doorTileSpot(layout.door));
+    // A step out from the knee-high partition, so the camera sees them over it.
+    this.shoeSpot = { x: PARTITION_X0 - SHOE_OFFSET, z: (layout.door[0] + layout.door[1]) / 2 + originZ };
   }
 
   get index(): number {
@@ -926,6 +942,8 @@ export class TrainState {
     for (const c of old) {
       w.zones.remove(c.requestZone);
       for (const z of c.spotZones) w.zones.remove(z);
+      w.zones.remove(c.shoeZone);
+      if (c.shoeMesh) w.scene.remove(c.shoeMesh);
       cash += w.cash.valueOf(c.pileId);
       w.cash.remove(c.pileId);
     }
@@ -1167,6 +1185,98 @@ export class TrainState {
       },
       stay: (zone, actor, dt) => this.cleanStay(cabin, i, zone, actor, dt),
     })));
+    cabin.shoeZone = w.zones.add(new Zone({
+      id: `shoes:${cabin.id}`,
+      kind: 'work',
+      x: cabin.shoePad.x,
+      z: cabin.shoePad.z,
+      radius: ZONE_RADIUS.spot,
+      icon: 'shoe',
+      ring: true,
+      hideWhenInactive: true,
+      active: () => cabin.shoes === 'dirty',
+      stay: (zone, actor, dt) => this.shineStay(cabin, zone, actor, dt),
+    }));
+  }
+
+  // ─── The night shift (session 24) ───────────────────────────────────────────
+
+  /** Lights out: the guest's shoes go out by the door, scuffed from the day. */
+  leaveShoes(cabin: Cabin): void {
+    if (cabin.shoes !== 'none') return;
+    cabin.shoes = 'dirty';
+    this.showShoes(cabin, false);
+  }
+
+  /**
+   * Morning (or their stop, if they slept through to it): the guest takes their shoes in. Polished ones earn a
+   * tip in the room; scuffed ones are simply taken in, nothing lost.
+   */
+  takeShoes(cabin: Cabin, guest: Guest): void {
+    const w = this.w;
+    const shined = cabin.shoes === 'shined';
+    cabin.shoes = 'none';
+    if (cabin.shoeMesh) cabin.shoeMesh.visible = false;
+    if (!shined) return;
+    const night = w.econ.night;
+    const tip = Math.max(1, Math.round(night.shineTip * (CLASSES.find((c) => c.id === guest.cls)?.tip ?? 1) * w.tipMultiplier()));
+    w.cash.add(cabin.pileId, tip, this.tmpShoe.set(cabin.shoeSpot.x, FLOOR_Y + 0.4, cabin.shoeSpot.z));
+    guest.view.showBubble('heart', 'plain', 1.7);
+    w.ui.floatText(`+${tip}`, cabin.center.x, FLOOR_Y + 1.9, cabin.center.z, 'cash');
+  }
+
+  /** A pair of shoes waiting to be polished, nearest a point (for the guide and the attendant). */
+  shoesToShine(near: Vec2, carriage: number | null = null): Cabin | null {
+    let best: Cabin | null = null;
+    let bestD = Infinity;
+    for (const c of this.cabins) {
+      if (c.shoes !== 'dirty' || (carriage !== null && c.carriage !== carriage)) continue;
+      const d = Math.hypot(c.shoePad.x - near.x, c.shoePad.z - near.z);
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    return best;
+  }
+
+  private readonly tmpShoe = new THREE.Vector3();
+
+  private showShoes(cabin: Cabin, shined: boolean): void {
+    if (!cabin.shoeMesh) {
+      const mesh = new THREE.Mesh(shoesGeometry(false), MATERIALS.solid);
+      mesh.castShadow = false;
+      mesh.position.set(cabin.shoeSpot.x, FLOOR_Y, cabin.shoeSpot.z);
+      // Toes toward the corridor, as left by the door.
+      mesh.rotation.y = -Math.PI / 2;
+      mesh.scale.setScalar(SHOE_SCALE);
+      this.w.scene.add(mesh);
+      cabin.shoeMesh = mesh;
+    }
+    cabin.shoeMesh.geometry = shoesGeometry(shined);
+    cabin.shoeMesh.visible = true;
+  }
+
+  /** Polishing: a brisk rub with both hands, a few sparkles, then they gleam. */
+  private shineStay(cabin: Cabin, zone: Zone, actor: Actor, dt: number): boolean {
+    const w = this.w;
+    if (cabin.shoes !== 'dirty') return false;
+    const before = zone.progress;
+    zone.progress += (dt / w.econ.night.shineSeconds) * actor.workMultiplier;
+    actor.view.act('wash');
+    if (Math.floor(zone.progress * 3) > Math.floor(before * 3)) w.audio.play('scrub', { volume: 0.3, pitch: 1.4 });
+    if (zone.progress < 1) return true;
+    zone.progress = 0;
+    cabin.shoes = 'shined';
+    this.showShoes(cabin, true);
+    w.particles.emit('sparkle', cabin.shoeSpot.x, FLOOR_Y + 0.25, cabin.shoeSpot.z, 8, 0.25);
+    w.audio.play('sparkle', { volume: 0.5, pitch: 1.2 });
+    if (cabin.shoeMesh) {
+      const mesh = cabin.shoeMesh;
+      w.tweens.run(0.35, (t) => mesh.scale.setScalar(SHOE_SCALE * (1 + 0.25 * Math.sin(t * Math.PI))));
+    }
+    w.events.emit('shoes.shined', { x: cabin.shoePad.x, z: cabin.shoePad.z, byPlayer: actor.isPlayer });
+    return true;
   }
 
   /**

@@ -17,8 +17,8 @@ export type IconName =
   | 'popcorn' | 'film'
   // Session 22: one trip, one sleep (the morning paper, breakfast, a wake-up call).
   | 'newspaper' | 'breakfast' | 'wakeup'
-  // Session 24: the cabin key handed over at the desk.
-  | 'key';
+  // Session 24: the cabin key handed over at the desk; shoes to shine on the night shift.
+  | 'key' | 'shoe';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -918,6 +918,27 @@ const ICONS: Record<IconName, Draw> = {
     fillStroke(c, '#E2B653');
     rr(c, 14, 62, 30, 22, 6);
     fillStroke(c, '#C0485C', 5);
+  },
+  shoe: (c) => {
+    // A polished brown shoe with a gleam on the toe: the night shift's shoe shine.
+    c.beginPath();
+    c.moveTo(14, 70);
+    c.lineTo(14, 40);
+    c.quadraticCurveTo(16, 30, 30, 32);
+    c.lineTo(44, 34);
+    c.quadraticCurveTo(52, 50, 66, 52);
+    c.lineTo(80, 55);
+    c.quadraticCurveTo(92, 58, 90, 70);
+    c.closePath();
+    fillStroke(c, '#7A4A2E');
+    rr(c, 10, 68, 84, 10, 4);
+    fillStroke(c, '#3A2A24', 5);
+    c.beginPath();
+    c.moveTo(70, 59);
+    c.quadraticCurveTo(80, 59, 84, 64);
+    c.lineWidth = 5;
+    c.strokeStyle = '#F6E7C8';
+    c.stroke();
   },
   film: (c) => {
     // A film reel: the cinema car.

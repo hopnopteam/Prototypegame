@@ -22,6 +22,7 @@ export class Rush {
     e.on('guest.keyed', ({ byPlayer, x, z }) => byPlayer && this.service({ x, z }));
     e.on('request.fulfilled', ({ byPlayer, x, z }) => byPlayer && this.service({ x, z }));
     e.on('cabin.cleaned', ({ byPlayer, x, z }) => byPlayer && this.service({ x, z }));
+    e.on('shoes.shined', ({ byPlayer, x, z }) => byPlayer && this.service({ x, z }));
     e.on('luggage.loaded', ({ byPlayer }) => byPlayer && this.service(this.w.player.pos));
   }
 

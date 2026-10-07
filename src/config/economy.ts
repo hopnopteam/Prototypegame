@@ -1,3 +1,5 @@
+import type { ServiceNeed } from './classes';
+
 /**
  * THE balance sheet. Every number a designer tunes lives here (prices and unlock order live in content.ts).
  * Remote config can override any leaf by its dotted path, e.g. "ads.minIntervalSeconds".
@@ -25,7 +27,7 @@ export const ECONOMY = {
      * which couples about as the second station comes into view to fill it; the third is a little longer again.
      */
     earlyLegSeconds: [90, 120] as number[],
-    moveSeconds: 150,
+    moveSeconds: 120,
     arrivingSeconds: 6,
     stationSeconds: 40,
     departingSeconds: 6,
@@ -153,6 +155,17 @@ export const ECONOMY = {
     reserveFee: 5,
   },
 
+  /**
+   * The night shift (session 24, owner: "the player should almost never be idle… night work pays off in the
+   * morning"): at lights out a guest leaves their shoes outside the door; stand on the pad there to polish them.
+   * In the morning they find them shining and leave a tip in the room (× their class's tip multiplier); shoes
+   * nobody polished are simply taken in, nothing lost.
+   */
+  night: {
+    shineSeconds: 1.3,
+    shineTip: 4,
+  },
+
   trip: {
     /** The evening ends this far through the ride (lights out once nothing is pending). */
     eveningEnd: 0.4,
@@ -160,9 +173,10 @@ export const ECONOMY = {
     morningStart: 0.64,
     /**
      * Each guest's own bedtime and waking are moved by up to this share of the ride, so a carriage full of guests
-     * does not all fall asleep (and go quiet) at once.
+     * does not all fall asleep (and go quiet) at once. Session 24: 0.12 (was 0.08), so bedtimes, shoes by the doors
+     * and wake-ups come one after another rather than in a wave.
      */
-    jitter: 0.08,
+    jitter: 0.12,
     /** Shortest night, however late the guest turned in. */
     minSleepSeconds: 4,
     /** Seconds after the evening or morning starts (or after settling in) before the request. */
@@ -175,6 +189,11 @@ export const ECONOMY = {
     washroomsPerTrip: 1,
     /** Seconds at the room for a wake-up call (a knock at the door). */
     wakeupSeconds: 0.9,
+    /**
+     * Night owls (session 24, the night shift): this share of guests stays up `later` (a share of the ride) past
+     * their bedtime and asks for one more thing before lights out, a nightcap from `pool` they have not had yet.
+     */
+    owl: { chance: 0.25, later: 0.14, pool: { tea: 1, blanket: 1 } as Partial<Record<ServiceNeed, number>> },
   },
 
   /**
@@ -478,6 +497,12 @@ export const ECONOMY = {
     bartender: { speed: 3.0, capacity: 1, homeIdleSeconds: 0.4 },
     host: { speed: 3.0, capacity: 1, homeIdleSeconds: 0.4 },
     projectionist: { speed: 3.0, capacity: 1, homeIdleSeconds: 0.4 },
+    /**
+     * Session 24 (owner: "the player should almost never be idle"): a new Attendant cleans and restocks (what its
+     * tile says); answering guests' requests and polishing shoes come with its training (this staff level, the
+     * "Faster Attendant" tile). Until then those are the conductor's, so hiring help never leaves them idle.
+     */
+    attendantServesFromLevel: 2,
     /** Staff upgrade tiles: +speed fraction and +capacity per level. */
     upgradeSpeedPerLevel: 0.2,
     upgradeCapacityPerLevel: 1,

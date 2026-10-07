@@ -7,7 +7,7 @@ import { guideArrowTexture, makeSprite } from '../world/sprites';
 import { markWorldUi } from '../world/ZoneViews';
 import type { World } from './World';
 
-export type GuidanceReason = 'none' | 'board' | 'luggage' | 'deliver' | 'return' | 'cash' | 'desk' | 'tile' | 'fetch' | 'clean' | 'save';
+export type GuidanceReason = 'none' | 'board' | 'luggage' | 'deliver' | 'return' | 'cash' | 'desk' | 'tile' | 'fetch' | 'clean' | 'shine' | 'save';
 
 export interface PointerState {
   x: number;
@@ -211,6 +211,10 @@ export class Guidance {
     // A used room to tidy: its pad.
     const dirty = w.train.cabins.find((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
     if (dirty) return this.because('clean', dirty.spots[0] ?? dirty.center);
+
+    // The night shift: shoes by a sleeping guest's door (the attendant takes their own carriage's).
+    const shoes = w.train.shoesToShine(player.pos);
+    if (shoes && !w.staff.members.some((m) => m.role === 'attendant' && m.carriage === shoes.carriage && m.level >= w.econ.staff.attendantServesFromLevel)) return this.because('shine', shoes.shoePad);
 
     if (!stack.isFull) {
       for (const kind of ['towel', 'roll'] as const) {
