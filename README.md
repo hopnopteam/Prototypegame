@@ -68,6 +68,7 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 | `npm run audit:ui` | Checks the boot (no title screen, no sheet over the intro; once it is skipped, no caption left and the game playing), stages the busiest HUD moments and every menu at seven phone sizes (320×568 to 430×932), then samples live play, and fails on any overlap, clipped text or off-screen element, or on too much text in play (more than 3 words on screen on average or 8 at once, cards excluded) |
 | `npm run audit:geo` | Builds every carriage at every tier (passenger carriages in each class's own floor plan through the Royal Suite, with their class furniture; all comforts, full stock, every guest type's mess and unmade bed), the locomotive, rear deck, exterior and platform, and fails on (1) any visible coplanar overlap of different surfaces (flicker) and (2) any two objects, or an object and a wall, passing through each other (clipping). Both must report 0 |
 | `npm run audit:audio` | Plays the built game with sound on, records the real output and fails if the theme does not decode, the next pass of the music is not queued exactly one loop apart, the output clips, goes silent once the theme is in, or audio logs an error; writes the recording to `dist/audio-check.wav` |
+| `npm run soak` | Plays a long accelerated session on the autopilot (`npm run soak -- 40 120`: minutes, seconds between samples) and fails on anything that grows without the train (heap, geometries, textures), a shader compiled mid-game, a material re-flagged every frame, or a broken budget (heap, draw calls, triangles, simulation time, page elements); writes `dist/soak.json` |
 | `npm run check` | Typecheck + tests + build (the tests include the camera-visibility check for every tile and pad, and walking into every room) |
 | `npm run app:sync` | Builds and copies the game into the iOS and Android projects (`app:ios` / `app:android` also open Xcode / Android Studio; `app:assets` redraws the app icon and launch screens) |
 
@@ -84,6 +85,7 @@ carriage, character and prop (`?t=0.82` time of day, `&z=` camera position, `&zo
 Settings (gear) → **Developer tools** on → **Open developer tools**: skip to the next station, set the time of
 day, fund the next tile, **Creative Mode** (hides the UI and grants cash for recording ad footage), camera zoom,
 mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest analytics events.
+**Live stats** (in Developer tools, or `?perf=1` on the page) shows fps, frame times and hitches, draw calls, triangles, heap, GPU resources, people, pools and the seconds the conductor had nothing to do.
 `window.nightExpress` exposes the game object in the browser console.
 
 ## Where to tune things
@@ -106,6 +108,11 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | The press: how it is paced (`PRESS_PACING`: one card per breather, the gap between cards, which news goes first), rival trains and their villainous owners (taunts, grumbles, portraits, the spoils each pays when overtaken), front-page headlines and rewards per trigger, the Gazette debut interview and Rails Tonight interviews with perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
 | Conductor outfits (earned and premium) and shoes by speed level | `src/config/wardrobe.ts` |
 | Walkthrough steps and one-time hints | `src/config/coach.ts` |
+| Pads: the colour for each kind of job (work, pick up, drop off) | `src/world/palette.ts` (`zoneWork`, `zonePickup`, `zoneDrop`) |
+| The station result card and the perfect streak (`money.perfectStreakStep`/`perfectStreakMax`), the camera's glance at missed travellers (`feedback.missedGlide`) | `src/config/economy.ts` |
+| The desk: check-in time (`zones.checkInSeconds`) and the evening table booking (`desk`) | `src/config/economy.ts` |
+| The night shift: shoes (`night`: polish time, tip), night owls (`trip.owl`), how spread out bedtimes are (`trip.jitter`), when the Attendant starts serving guests (`staff.attendantServesFromLevel`) | `src/config/economy.ts` |
+| The rival's dare: the dares (what is counted, target, stations), the prize, the win headline, each owner's gloat | `src/config/press.ts` (`RIVAL_DARES`, `DARE_REWARD`, `DARE_WON_HEADLINE`, `RIVALS[].owner.gloat`) |
 | One trip, one sleep: when the evening ends and the morning starts, the shortest night, request delay, outing and washroom chances, the wake-up call; each class's evening and morning requests | `src/config/economy.ts` (`trip`), `src/config/classes.ts` (`evening`, `morning`) |
 | How guests differ (looks per type, skin tones, hair colours, heights) and what they do while waiting | `src/config/crowd.ts` |
 | Where everything stands on a platform (ticket stand, queue, door, barrow, walkway, benches) | `src/world/platformLayout.ts` |
