@@ -1,7 +1,21 @@
 import type * as THREE from 'three';
 import type { IconName } from '../ui/icons';
+import { PALETTE } from '../world/palette';
 import { markWorldUi, ZoneRing } from '../world/ZoneViews';
 import type { Actor } from './Actor';
+
+/**
+ * What kind of job a pad is (session 24, My Perfect Hotel's pads): its colour says it, the white icon on it says
+ * which job. Work (tidy, sell tickets, start the film), pick up (an urn, a shelf, a stand), drop off (a rack, a
+ * washroom's shelf, a guest waiting for it).
+ */
+export type ZoneKind = 'work' | 'pickup' | 'drop';
+
+const KIND_COLOR: Record<ZoneKind, string> = {
+  work: PALETTE.zoneWork,
+  pickup: PALETTE.zonePickup,
+  drop: PALETTE.zoneDrop,
+};
 
 export interface ZoneOptions {
   id: string;
@@ -13,6 +27,8 @@ export interface ZoneOptions {
   staff?: boolean;
   /** Draw a floor ring. Cash piles and tiles have their own visuals. */
   ring?: boolean;
+  /** The kind of job, which colours the pad (an explicit `color` wins). */
+  kind?: ZoneKind;
   color?: string;
   /** Whether the zone can do anything right now; inactive zones dim or hide. */
   active?: () => boolean;
@@ -66,7 +82,7 @@ export class Zone {
     this.staff = opts.staff ?? true;
     this.priority = opts.priority ?? 0;
     this.iconName = opts.icon ?? null;
-    this.ring = opts.ring === false ? null : new ZoneRing(opts.radius, opts.icon ?? null, opts.color);
+    this.ring = opts.ring === false ? null : new ZoneRing(opts.radius, opts.icon ?? null, opts.color ?? (opts.kind ? KIND_COLOR[opts.kind] : undefined));
     this.ring?.setPosition(opts.x, opts.z);
   }
 
@@ -103,8 +119,11 @@ export class Zone {
     const active = this.isActive();
     this.ring.visible = this.enabled && (active || !this.opts.hideWhenInactive);
     this.ring.dimmed = !active;
-    this.ring.highlight = active && !!this.opts.highlight?.();
-    this.ring.iconShown = !this.opts.showIcon || this.opts.showIcon();
+    const lit = active && !!this.opts.highlight?.();
+    this.ring.highlight = lit;
+    // Session 24: the icon floats only over a pad that wants you now (lit, or simply active for a pad with no
+    // notion of "wanted"); the rest of the time the icon printed on the pad says what it is.
+    this.ring.iconShown = (this.opts.highlight ? lit : active) && (!this.opts.showIcon || this.opts.showIcon());
     if (this.opts.iconFor && active) {
       const name = this.opts.iconFor();
       if (name !== this.iconName) {

@@ -522,6 +522,7 @@ export class Station {
     // their ticket and walks back along the platform to the door. Nobody walks through the server's spot.
     this.boardingZone = w.zones.add(new Zone({
       id: 'board',
+      kind: 'work',
       x: PLATFORM.serve.x,
       z: PLATFORM.serve.z,
       radius: 0.6,
@@ -566,6 +567,7 @@ export class Station {
     };
     this.luggageZone = w.zones.add(new Zone({
       id: 'luggagePile',
+      kind: 'pickup',
       x: pile.x,
       z: pile.z,
       radius: 0.62,
@@ -595,6 +597,7 @@ export class Station {
     };
     this.vendorZone = w.zones.add(new Zone({
       id: 'vendor',
+      kind: 'pickup',
       x: vendor.x,
       z: vendor.z,
       radius: 0.6,

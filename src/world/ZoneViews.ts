@@ -3,7 +3,7 @@ import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from './CarriageView';
 import { createZoneMaterial } from './materials';
 import { PALETTE } from './palette';
-import { bubbleTexture, makeSprite, TILE_MARKER_ASPECT, TILE_MARKER_WIDTH, TileFace, TileMarker } from './sprites';
+import { bubbleTexture, floorIconTexture, makeSprite, TILE_MARKER_ASPECT, TILE_MARKER_WIDTH, TileFace, TileMarker } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 
 const RING_GEOMETRY = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
@@ -15,17 +15,31 @@ export function markWorldUi(object: THREE.Object3D): void {
   object.traverse((o) => o.layers.set(WORLD_UI_LAYER));
 }
 
+/** How long a pad's pop lasts when its job is done (seconds), and how much it grows. */
+const DONE_POP_SECONDS = 0.28;
+const DONE_POP_SCALE = 0.16;
+
 export class ZoneRing {
   readonly group = new THREE.Group();
   private readonly material: THREE.ShaderMaterial;
   private readonly icon: THREE.Sprite | null;
+  private readonly ring: THREE.Mesh;
+  private readonly size: number;
   private time = Math.random() * 5;
   private lit = false;
   private litAmount = 0;
+  private lastProgress = 0;
+  private popT = DONE_POP_SECONDS;
 
+  /**
+   * Session 24: the pad wears its colour (the kind of job) with the job's white icon printed on it; the icon also
+   * floats over it, but only while the pad wants you (`iconShown`, decided by the zone), so a room of pads is calm.
+   */
   constructor(radius: number, icon: IconName | null, color = PALETTE.zone, iconHeight = 0.9) {
-    this.material = createZoneMaterial(color);
+    this.material = createZoneMaterial(color, icon ? floorIconTexture(icon) : null);
     const ring = new THREE.Mesh(RING_GEOMETRY, this.material);
+    this.ring = ring;
+    this.size = radius * 2;
     ring.scale.set(radius * 2, 1, radius * 2);
     // Above the cabin mat's top layer (3 cm), so a mat never hides a pad.
     ring.position.y = FLOOR_Y + 0.036;
@@ -45,6 +59,9 @@ export class ZoneRing {
   }
 
   set progress(value: number) {
+    // A job done (the fill went back to empty from nearly full): the pad pops.
+    if (value < 0.05 && this.lastProgress > 0.85) this.popT = 0;
+    this.lastProgress = value;
     this.material.uniforms.uProgress.value = value;
   }
 
@@ -65,19 +82,24 @@ export class ZoneRing {
     this.lit = value;
   }
 
+  private iconAllowed = true;
+
   set iconShown(value: boolean) {
-    if (this.icon) this.icon.visible = value;
+    this.iconAllowed = value;
   }
 
   /** A pad whose job changes (a room's pad: strip the bed, then make it) shows the icon of the job now. */
   setIcon(name: IconName): void {
+    this.material.uniforms.uIcon.value = floorIconTexture(name);
+    this.material.uniforms.uHasIcon.value = 1;
     if (!this.icon) return;
     const material = this.icon.material as THREE.SpriteMaterial;
     material.map = bubbleTexture(name, 'plain');
   }
 
   set dimmed(value: boolean) {
-    this.material.uniforms.uOpacity.value = value ? 0.35 : 1;
+    // Resting pads stay readable (their colour says what they are), just quieter than one that is ready.
+    this.material.uniforms.uOpacity.value = value ? 0.72 : 1;
     if (this.icon) (this.icon.material as THREE.SpriteMaterial).opacity = value ? 0.4 : 1;
   }
 
@@ -87,7 +109,11 @@ export class ZoneRing {
     const lit = this.litAmount;
     this.material.uniforms.uTime.value = this.time;
     this.material.uniforms.uLit.value = lit;
+    this.popT = Math.min(DONE_POP_SECONDS, this.popT + dt);
+    const pop = 1 + DONE_POP_SCALE * Math.sin((this.popT / DONE_POP_SECONDS) * Math.PI);
+    this.ring.scale.set(this.size * pop, 1, this.size * pop);
     if (this.icon) {
+      this.icon.visible = this.iconAllowed;
       this.icon.position.y = FLOOR_Y + 0.9 + lit * 0.25 + Math.sin(this.time * (2.2 + lit * 3)) * (0.06 + lit * 0.08);
       const s = 0.5 + lit * 0.18;
       this.icon.scale.set(s, s, 1);

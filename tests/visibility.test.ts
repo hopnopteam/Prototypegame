@@ -125,3 +125,33 @@ describe('visibility: covered rooms never hide a tile or a pad', () => {
     });
   }
 });
+
+/**
+ * Session 24 (owner: "in the café car they are misaligned and partly hidden… never hidden behind walls or
+ * counters at the diagonal camera angle"): furniture hides the floor behind it too. A counter, a range or a
+ * stand of shelves stands between the camera and a pad on its far side, so every pad must also be in view over
+ * the tall furniture (every venue extra bought, the worst case). Heights are the furniture's solid body.
+ */
+const OCCLUDER_HEIGHT: Partial<Record<string, number>> = {
+  counter: 0.95, concession: 0.95, espresso: 1.4, pastryCase: 1.3, pastries: 1.1, beans: 1.2, range: 0.95, pass: 1.0,
+  bar: 1.05, desk: 0.9, urn: 1.2, linen: 1.7, closet: 1.8, shelfTowel: 0.65, shelfRoll: 0.65, crateBay: 0.95, laundry: 1.0,
+  popcornMachine: 1.5, projector: 1.05, wineRack: 1.6, aquarium: 1.2, candyCart: 1.1, sideboard: 1.0, bureau: 1.3,
+  wardrobe: 1.9, luggageRack: 0.95, rack: 0.95,
+};
+
+describe('visibility: pads in view over the furniture too', () => {
+  for (const { type, tier, name } of VARIANTS) {
+    const layout = getLayout(type, tier);
+    const boxes: WallBox[] = [];
+    for (const p of layout.props) {
+      const h = OCCLUDER_HEIGHT[p.kind];
+      if (h) boxes.push({ ...p.rect, height: h, kind: 'interior' });
+    }
+    it(`${name}: pads clear of tall furniture`, () => {
+      for (const f of footprints(layout)) {
+        if (f.kind !== 'zone') continue;
+        expect(visibleShare(layout, f, boxes), `${name}.${f.id} at (${f.x.toFixed(2)}, ${f.z.toFixed(2)})`).toBeGreaterThanOrEqual(0.9);
+      }
+    });
+  }
+});

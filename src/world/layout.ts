@@ -532,18 +532,22 @@ function buildLobby(tier: number): CarriageLayout {
 
   // The staff lane behind the desk runs between it and the outer wall.
   const lane = (-INNER + -1.55) / 2;
-  b.anchor('deskService', lane, 3.4);
-  b.anchor('deskCash', lane, 4.75);
+  // Session 24: whoever works the desk stands at its end nearest the camera (behind it they were half hidden by it),
+  // and its takings stack up just past that end.
+  b.anchor('deskService', lane, 4.75);
+  b.anchor('deskCash', -1.1, 5.1);
   b.anchor('startCash', -1.75, 5.55);
   b.anchor('playerSpawn', 0.0, 5.25);
   b.anchor('urn', out(-2.0), 1.12);
   b.anchor('linen', 0.15, 1.12);
   b.anchor('blanket', 0.15, 1.12);
   b.anchor('pillow', 0.15, 1.12);
-  b.anchor('rack', out(1.3), 6.75);
-  b.anchor('bin', out(1.66), 5.1);
-  b.anchor('home_attendant', 0.0, 6.9);
-  b.anchor('tile_up_attendant', 0.0, 6.9);
+  // Session 24: a step out from the rack, clear of its hidden band as the camera sees it.
+  b.anchor('rack', 0.72, 6.75);
+  // Session 24: a step toward the desk, out of the rack's hidden band as the camera sees it.
+  b.anchor('bin', out(1.66), 4.72);
+  b.anchor('home_attendant', -0.55, 6.95);
+  b.anchor('tile_up_attendant', -0.55, 6.95);
   // The porter's post is at the carriage's back door, out of the busy lobby.
   b.anchor('home_porter', -REAR_TILE_X, REAR_TILE_Z);
   // Between jobs the porter waits behind the desk, like a receptionist, not in the gangway everyone uses.
@@ -686,7 +690,8 @@ function buildSupply(): CarriageLayout {
   b.prop('laundry', out(1.95), 11.6, INNER, 13.2, 'left');
   b.anchor('shelf_towel', out(-1.2), 4.8);
   b.anchor('shelf_roll', out(1.2), 4.8);
-  b.anchor('crateDrop', out(1.2), 8.6);
+  // Session 24: a step out from the crate bay, clear of its hidden band as the camera sees it.
+  b.anchor('crateDrop', 0.5, 8.6);
   b.anchor('home_runner', 0.1, 12.5);
   b.anchor('tile_up_runner', 0.1, 12.5);
   b.anchor('bin', out(-1.2), 15.4);
@@ -751,6 +756,9 @@ const LAKE = -INNER + 0.02;
 
 /** The café car: the counter along the right with the espresso machine and the pastry case on it; the queue
  * lines up along its front, the serve pad between them. Round tables for two at the back. */
+/** Where the café's work pads stand (x): out of the counter's hidden band as the camera sees it (session 24). */
+const CAFE_PAD_X = 0.4;
+
 function buildCafe(tier: number): CarriageLayout {
   const b = new LayoutBuilder('cafe');
   const v = newVenue('cafe');
@@ -765,13 +773,16 @@ function buildCafe(tier: number): CarriageLayout {
     { key: 'station_machine', props: [b.prop('espresso', 1.62, 3.62, 2.24, 4.3, 'left', false)] },
     { key: 'menu_beans', props: [b.prop('beans', 1.62, 4.9, 2.24, 5.55, 'left', false)] },
   );
-  v.stations.push({ item: 'latte', pad: { x: 0.98, z: 3.05 } }, { item: 'pastry', pad: { x: 0.98, z: 6.35 } });
-  v.counter = { pad: { x: 0.98, z: 4.5 }, queue: [{ x: 0.18, z: 4.5 }, { x: 0.18, z: 5.3 }, { x: 0.18, z: 6.1 }, { x: 0.18, z: 6.9 }], facing: FACE.right };
-  v.cash = { x: 0.98, z: 5.42 };
+  // Session 24 (owner: "in the café car they are misaligned and partly hidden"): the camera looks over the counter
+  // from the platform side, so a pad right against it was half hidden behind it. The pads stand a step out from the
+  // counter on one line, evenly spaced, the queue a step further into the room.
+  v.stations.push({ item: 'latte', pad: { x: CAFE_PAD_X, z: 3.05 } }, { item: 'pastry', pad: { x: CAFE_PAD_X, z: 6.35 } });
+  v.counter = { pad: { x: CAFE_PAD_X, z: 4.7 }, queue: [{ x: -0.55, z: 4.7 }, { x: -0.55, z: 5.5 }, { x: -0.55, z: 6.3 }, { x: -0.55, z: 7.1 }], facing: FACE.right };
+  v.cash = { x: 1.05, z: 5.55 };
   const rows = [9.2, 11.6, 14.0];
   let group = 0;
   b.node('cafe_front', 0, front + 0.4);
-  b.node('counter', -0.55, 4.5);
+  b.node('counter', -0.55, 4.7);
   b.node('aisle_mid', -0.4, 7.9);
   b.chain('vest_front', 'cafe_front', 'counter', 'aisle_mid');
   let previous = 'aisle_mid';
@@ -836,7 +847,8 @@ function buildDining(tier: number): CarriageLayout {
   venueShell(b, front);
   b.prop('range', 1.5, 0.4, INNER, 3.2, 'left');
   b.prop('pass', 0.55, 3.62, 1.5, 4.08, 'rear');
-  v.stations.push({ item: 'meal', pad: { x: 0.92, z: 1.85 } });
+  // Session 24: a step out from the range, where the camera sees the whole pad over it.
+  v.stations.push({ item: 'meal', pad: { x: 0.48, z: 1.85 } });
   v.pass = { x: 0.98, z: 4.72 };
   v.extras.push(
     // On the lake side, where the camera sees them whole: a second range, the wine rack, the lobster tank.
@@ -1060,7 +1072,9 @@ function buildCinema(tier: number): CarriageLayout {
   venueShell(b, front);
   b.prop('concession', 1.42, 2.3, INNER, 4.9, 'left');
   b.prop('popcornMachine', 1.62, 2.5, 2.24, 3.3, 'left', false);
-  v.stations.push({ item: 'popcorn', pad: { x: 0.98, z: 2.95 } });
+  // Session 24: at the counter's end nearest the camera, where nothing stands between them (a pad against its
+  // side was half hidden behind it).
+  v.stations.push({ item: 'popcorn', pad: { x: 1.0, z: 5.45 } });
   v.cash = { x: 0.98, z: 4.35 };
   b.prop('screen', -INNER, 6.8, -1.98, 12.8, 'right');
   v.projector = { x: 0.95, z: 14.4 };

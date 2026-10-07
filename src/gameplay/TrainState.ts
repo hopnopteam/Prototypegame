@@ -1136,6 +1136,7 @@ export class TrainState {
     w.cash.create(cabin.pileId, cabin.tipPile.x, cabin.tipPile.z);
     cabin.requestZone = w.zones.add(new Zone({
       id: `req:${cabin.id}`,
+      kind: 'drop',
       x: cabin.center.x,
       z: cabin.center.z,
       radius: ZONE_RADIUS.request,
@@ -1147,6 +1148,7 @@ export class TrainState {
     }));
     cabin.spotZones = cabin.spots.map((spot, i) => w.zones.add(new Zone({
       id: `spot:${cabin.id}:${i}`,
+      kind: 'work',
       x: spot.x,
       z: spot.z,
       radius: ZONE_RADIUS.spot,
@@ -1226,6 +1228,7 @@ export class TrainState {
     w.cash.create(bath.pileId, bath.restock.x + BATH_PILE_OFFSET.x, bath.restock.z + BATH_PILE_OFFSET.z);
     w.zones.add(new Zone({
       id: `restock:${bath.id}`,
+      kind: 'drop',
       x: bath.restock.x,
       z: bath.restock.z,
       radius: ZONE_RADIUS.restock,
@@ -1273,6 +1276,7 @@ export class TrainState {
       const desk = at('deskService');
       w.zones.add(new Zone({
         id: 'desk',
+        kind: 'work',
         x: desk.x,
         z: desk.z,
         radius: ZONE_RADIUS.desk,
@@ -1304,6 +1308,7 @@ export class TrainState {
       const crate = at('crateDrop');
       w.zones.add(new Zone({
         id: 'crateDrop',
+        kind: 'drop',
         x: crate.x,
         z: crate.z,
         radius: ZONE_RADIUS.crate,
@@ -1366,6 +1371,7 @@ export class TrainState {
       z: p.z,
       radius: ZONE_RADIUS.source,
       icon: icon ?? (items.length > 1 ? 'linen' : items[0]),
+      kind: 'pickup',
       active: () => specs.some((s) => sourceActive(w, s)),
       highlight: () => specs.some((s) => w.demand.playerWants(s.kind) > 0 && s.stock() > 0),
       stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, pick(actor)),
@@ -1380,6 +1386,7 @@ export class TrainState {
       z: p.z,
       radius: ZONE_RADIUS.rack,
       icon: 'luggage',
+      kind: 'drop',
       active: () => this.luggageStored < this.luggageCapacity && (w.player.stack.has('luggage') || w.staff.anyCarrying('luggage')),
       hideWhenInactive: false,
       stay: (zone, actor, dt) => {

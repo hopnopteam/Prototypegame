@@ -1012,7 +1012,7 @@ export class Venues {
         // The dome's basket: blankets for anyone who wants one (a plain source, no making).
         const spec: SourceSpec = { kind: 'blanket', point: () => tmp.set(p.x + 0.6, FLOOR_Y + 0.7, p.z + 0.4), stock: () => Infinity, take: () => undefined, giveBack: () => undefined, interval: w.econ.zones.pickupIntervalSeconds };
         w.zones.add(new Zone({
-          id: `venue:${venue.carriage}:basket`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: 'blanket',
+          id: `venue:${venue.carriage}:basket`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: 'blanket', kind: 'pickup',
           active: () => w.demand.playerWants('blanket') > 0 || w.staff.members.some((m) => w.demand.wants(m, 'blanket')) || w.demand.surplus(w.player, 'blanket') > 0,
           highlight: () => venue.waitingFor('blanket').length > 0 && w.demand.playerWants('blanket') > 0,
           stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, spec),
@@ -1020,7 +1020,7 @@ export class Venues {
         continue;
       }
       w.zones.add(new Zone({
-        id: `venue:${venue.carriage}:${item}`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: item as IconName,
+        id: `venue:${venue.carriage}:${item}`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: item as IconName, kind: 'pickup',
         active: () => (item !== 'pastry' || venue.keys.has('menu_pastry')) && (w.demand.playerWants(item) > 0 || w.staff.members.some((m) => m.carriage === venue.carriage && (w.demand.wants(m, item) || (m.role === 'chef' && item === 'meal')))),
         highlight: () => w.demand.playerWants(item) > 0,
         stay: (zone, actor, dt) => this.makeStay(venue, item, zone, actor, dt, p),
@@ -1036,7 +1036,7 @@ export class Venues {
         interval: w.econ.zones.pickupIntervalSeconds,
       };
       w.zones.add(new Zone({
-        id: `venue:${venue.carriage}:pass`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: 'meal',
+        id: `venue:${venue.carriage}:pass`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: 'meal', kind: 'pickup',
         active: () => venue.pass > 0,
         highlight: () => venue.pass > 0 && w.demand.playerWants('meal') > 0,
         stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, spec),
@@ -1047,6 +1047,7 @@ export class Venues {
       const cafe = venue.kind === 'cafe';
       w.zones.add(new Zone({
         id: `venue:${venue.carriage}:counter`, x: p.x, z: p.z, radius: ZONE_RADIUS.serve, icon: cafe ? 'cash' : 'binoculars',
+        kind: cafe ? 'drop' : 'work',
         active: () => !!venue.queue[0] && venue.arrived.has(venue.queue[0]),
         stay: (zone, actor, dt) => {
           const head = venue.queue[0];
@@ -1072,7 +1073,7 @@ export class Venues {
     if (layout.projector) {
       const p = venue.world(layout.projector);
       w.zones.add(new Zone({
-        id: `venue:${venue.carriage}:projector`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: 'film',
+        id: `venue:${venue.carriage}:projector`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: 'film', kind: 'work',
         active: () => venue.filmLeft === 0 && venue.filmWaiting().length > 0,
         highlight: () => venue.filmReady(),
         stay: (zone, actor, dt) => {
@@ -1098,6 +1099,7 @@ export class Venues {
       w.zones.add(new Zone({
         id: `venue:${venue.carriage}:serve:${key}`, x: p.x, z: p.z, radius: ZONE_RADIUS.serve,
         icon: venue.kind === 'dining' ? 'meal' : venue.kind === 'bar' ? 'cocktail' : venue.kind === 'cinema' ? 'popcorn' : 'blanket',
+        kind: 'drop',
         hideWhenInactive: true,
         active: () => venue.open[group] && (at.some((s) => !!s.order && !!s.guest) || (venue.kind === 'dining' && venue.dirty[group])),
         highlight: () => at.some((s) => !!s.order && w.player.stack.has(s.order)),

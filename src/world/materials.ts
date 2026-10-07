@@ -721,19 +721,21 @@ export const SHADOW_GEOMETRY = new THREE.CircleGeometry(0.3, 20).rotateX(-Math.P
  * Radial-fill ring for walk-over zones: a soft outline that sweeps clockwise as the action completes.
  * One tiny shader instead of rebuilding ring geometry every frame.
  */
-export function createZoneMaterial(color: string): THREE.ShaderMaterial {
+export function createZoneMaterial(color: string, icon: THREE.Texture | null = null): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
     uniforms: {
       uColor: { value: new THREE.Color(color) },
-      uFill: { value: new THREE.Color(PALETTE.zoneWorking) },
       uLitColor: { value: new THREE.Color(PALETTE.zoneActive) },
       uProgress: { value: 0 },
       uPulse: { value: 0 },
       uOpacity: { value: 1 },
       uTime: { value: 0 },
       uLit: { value: 0 },
+      uIcon: { value: icon ?? ZONE_NO_ICON },
+      uHasIcon: { value: icon ? 1 : 0 },
+      uIconAngle: { value: (VISUALS.camera.trainYawDeg * Math.PI) / 180 },
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
@@ -744,13 +746,15 @@ export function createZoneMaterial(color: string): THREE.ShaderMaterial {
     `,
     fragmentShader: /* glsl */ `
       uniform vec3 uColor;
-      uniform vec3 uFill;
       uniform vec3 uLitColor;
       uniform float uProgress;
       uniform float uPulse;
       uniform float uOpacity;
       uniform float uTime;
       uniform float uLit;
+      uniform sampler2D uIcon;
+      uniform float uHasIcon;
+      uniform float uIconAngle;
       varying vec2 vUv;
       #include <common>
       // Rounded square: a painted floor pad, like a station marking.
@@ -764,19 +768,29 @@ export function createZoneMaterial(color: string): THREE.ShaderMaterial {
         float aa = fwidth(d) * 1.2;
         float inside = 1.0 - smoothstep(-aa, aa, d);
         if (inside <= 0.0) discard;
-        // A game marking, never furniture: a bold white border with a thin dark outline (reads on any floor),
-        // a light wash inside, a green sweep while it works, gold when it wants you.
+        // Session 24 (My Perfect Hotel's pads): a soft colour for the kind of job, a white border, the job's white
+        // icon printed in the middle (turned to read upright on screen), a white sweep while it works, warm gold
+        // when it wants you.
         float outline = smoothstep(-0.05 - aa, -0.05 + aa, d) * inside;
-        float border = smoothstep(-0.2 - aa, -0.2 + aa, d) * inside;
+        float border = smoothstep(-0.18 - aa, -0.18 + aa, d) * inside;
         float angle = atan(p.x, p.y);
         float a = (angle + PI) / (2.0 * PI);
-        float filled = step(a, uProgress) * step(0.001, uProgress);
+        float working = step(0.001, uProgress);
+        float filled = step(a, uProgress) * working;
         float breathe = 0.5 + 0.5 * sin(uTime * 4.0);
-        vec3 edge = mix(mix(uColor, uLitColor, uLit), uFill, step(0.001, uProgress));
-        vec3 color = mix(mix(vec3(1.0, 0.99, 0.96), uLitColor, uLit * 0.2), uFill, filled * 0.9);
-        color = mix(color, edge, border);
-        color = mix(color, vec3(0.17, 0.15, 0.21), outline * 0.5);
-        float alpha = inside * (0.2 + 0.2 * uLit * breathe + 0.6 * filled + 0.1 * uPulse) + border * 0.85;
+        // The night grade dulls flat colour, so the pad's colour is lifted to read as itself on every tier.
+        vec3 base = mix(uColor, uLitColor, uLit * 0.35) * 1.35;
+        // While it works the part still to fill dims and the filled part brightens, so the sweep reads on any colour.
+        vec3 color = mix(base, base * 0.62, working * (1.0 - filled));
+        color = mix(color, mix(base, vec3(1.0), 0.35), filled);
+        color = mix(color, vec3(0.95), border);
+        color = mix(color, vec3(0.17, 0.15, 0.21), outline * 0.45);
+        float c = cos(uIconAngle);
+        float s = sin(uIconAngle);
+        vec2 ip = vec2(c * p.x - s * p.y, s * p.x + c * p.y) / 1.45 + 0.5;
+        float icon = uHasIcon * texture2D(uIcon, ip).a * step(0.0, ip.x) * step(ip.x, 1.0) * step(0.0, ip.y) * step(ip.y, 1.0);
+        color = mix(color, vec3(0.95), icon * 0.95);
+        float alpha = inside * (0.78 + 0.12 * uLit * breathe + 0.1 * filled + 0.1 * uPulse) + border * 0.9 + icon * 0.9;
         gl_FragColor = vec4(color, min(1.0, alpha) * uOpacity);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -784,6 +798,10 @@ export function createZoneMaterial(color: string): THREE.ShaderMaterial {
     `,
   });
 }
+
+/** A transparent 1×1 stand-in for pads without an icon (the shader always samples something). */
+const ZONE_NO_ICON = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
+ZONE_NO_ICON.needsUpdate = true;
 
 /** Repaints the locomotive and rear deck (livery parts are white in geometry and take the material colour). */
 export function setLivery(body: string, trim: string): void {

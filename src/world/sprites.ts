@@ -54,6 +54,25 @@ const RING_STEPS = 12;
  * Speech-bubble texture with an icon, cached per icon + style + ring step. The ring is the generous-tip
  * window on a request: a gold arc that shrinks as it runs out.
  */
+const floorIcons = new Map<IconName, THREE.CanvasTexture>();
+/**
+ * A pad's icon as a white glyph printed on the floor (session 24, My Perfect Hotel's pads): the icon drawn once,
+ * then every pixel it covers painted white, so it reads as a clean sign on any colour of pad.
+ */
+export function floorIconTexture(icon: IconName): THREE.CanvasTexture {
+  const cached = floorIcons.get(icon);
+  if (cached) return cached;
+  const [c, ctx] = canvas(128);
+  drawIcon(ctx, icon, 16, 16, 96);
+  ctx.globalCompositeOperation = 'source-in';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, 128, 128);
+  ctx.globalCompositeOperation = 'source-over';
+  const t = finishTexture(c);
+  floorIcons.set(icon, t);
+  return t;
+}
+
 export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ring = -1): THREE.CanvasTexture {
   const key = `${icon}:${style}:${ring}`;
   const cached = bubbleCache.get(key);
