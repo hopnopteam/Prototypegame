@@ -113,27 +113,91 @@ export function buildMessPiece(b: GeoBuilder, piece: MessPiece, y: number): void
 export const MESS_PIECES = Object.keys(FLOOR) as MessPiece[];
 
 /**
- * The bed they slept in, on top of the made one (session 17, owner: "a better unified system to represent room being
- * dirty that doesn't look thrown together"): one look in every room, in that room's own colours. The duvet is
- * kicked down into a soft roll across the foot with one corner thrown back, and the creased white sheet shows where
- * they lay. `w`/`d` are the free mattress area below the pillows, `top` the made cover's surface, `color` the
- * cover and `fold` its underside.
+ * The bed they slept in, on top of the made one (session 17: one look in every room, in that room's own colours;
+ * session 23: in pieces, so tidying it is something you watch happen). Each piece is built round its own pivot, at
+ * the made cover's surface (y 0), so the room can flatten it, pull it up the bed or turn it back:
+ * the creased white sheet where they lay, the duvet kicked down into a roll across the foot, one corner thrown back,
+ * and the pillow knocked askew. `w`/`d` are the free mattress area below the pillows.
  */
-export function buildBedMess(b: GeoBuilder, w: number, d: number, top: number, color: string, fold: string): void {
+export interface BedMessParts {
+  /** Each piece and where its pivot sits, from the bed's centre (x, z). */
+  sheet: { build: (b: GeoBuilder) => void; x: number; z: number };
+  duvet: { build: (b: GeoBuilder) => void; x: number; z: number };
+  corner: { build: (b: GeoBuilder) => void; x: number; z: number; ry: number };
+}
+
+export function bedMessParts(w: number, d: number, color: string, fold: string): BedMessParts {
   const sheet = PALETTE.linen;
-  // From below the pillows (and a grand bed's bolster) to where the duvet roll begins.
   const head = -d / 2 + 0.3;
   const roll = d * 0.16;
   const sheetLength = roll - head + 0.04;
-  b.rounded(0, top + 0.012, head + sheetLength / 2, w * 0.92, 0.024, sheetLength, 0.012, sheet, { shade: 0.97 });
-  // Two soft creases where they turned over.
-  b.rounded(-w * 0.12, top + 0.03, head + sheetLength * 0.35, w * 0.46, 0.022, 0.05, 0.011, sheet, { shade: 0.9 }, 0.3);
-  b.rounded(w * 0.14, top + 0.03, head + sheetLength * 0.68, w * 0.38, 0.022, 0.05, 0.011, sheet, { shade: 0.9 }, -0.25);
-  // The duvet kicked down into a roll across the foot…
   const rollLength = d / 2 - roll;
-  b.rounded(0, top + 0.06, roll + rollLength / 2, w, 0.12, rollLength, 0.06, color, { shade: 0.92 }, 0.04);
-  // …with one corner thrown back up the bed, its underside showing.
-  b.rounded(w * 0.22, top + 0.036, roll - 0.1, w * 0.38, 0.05, 0.3, 0.025, fold, { shade: 0.9 }, 0.45);
+  return {
+    sheet: {
+      x: 0, z: head + sheetLength / 2,
+      build: (b) => {
+        b.rounded(0, 0.012, 0, w * 0.92, 0.024, sheetLength, 0.012, sheet, { shade: 0.97 });
+        // Two soft creases where they turned over.
+        b.rounded(-w * 0.12, 0.03, -sheetLength * 0.15, w * 0.46, 0.022, 0.05, 0.011, sheet, { shade: 0.9 }, 0.3);
+        b.rounded(w * 0.14, 0.03, sheetLength * 0.18, w * 0.38, 0.022, 0.05, 0.011, sheet, { shade: 0.9 }, -0.25);
+      },
+    },
+    duvet: {
+      x: 0, z: roll + rollLength / 2,
+      build: (b) => {
+        b.rounded(0, 0.06, 0, w, 0.12, rollLength, 0.06, color, { shade: 0.92 }, 0.04);
+        // A fold along its top, where it was kicked down.
+        b.rounded(0, 0.118, -rollLength * 0.18, w * 0.94, 0.02, rollLength * 0.3, 0.01, fold, { shade: 0.95 }, 0.04);
+      },
+    },
+    corner: {
+      x: w * 0.22, z: roll - 0.1, ry: 0.45,
+      build: (b) => b.rounded(0, 0.036, 0, w * 0.38, 0.05, 0.3, 0.025, fold, { shade: 0.9 }),
+    },
+  };
+}
+
+/** A pillow knocked askew, dented where a head lay; sits on top of the made bed's own. */
+export function buildMessPillow(b: GeoBuilder, w: number): void {
+  b.rounded(0, 0.045, 0, w, 0.09, 0.26, 0.06, PALETTE.pillow, { shade: 0.88 });
+  b.rounded(0.02, 0.094, 0.01, w * 0.45, 0.008, 0.12, 0.004, '#E9E4DA', { shade: 1 });
+}
+
+/**
+ * The little things swept up round the cleaning spot (session 23): a crumpled paper ball, a paper cup on its side, a
+ * banana peel, a sweet wrapper and a dust bunny. Strong shapes and colours, so they read at play distance.
+ */
+export type LitterKind = 'paper' | 'cup' | 'peel' | 'wrapper' | 'dust';
+export const LITTER_KINDS: LitterKind[] = ['paper', 'cup', 'peel', 'wrapper', 'dust'];
+export function buildLitter(b: GeoBuilder, kind: LitterKind): void {
+  switch (kind) {
+    case 'paper':
+      // A crumpled ball: two lumpy low-detail spheres.
+      b.sphere(0, 0.05, 0, 0.055, '#F4F1EA', 0, 0.9, { shade: 0.95 });
+      b.sphere(0.03, 0.04, 0.02, 0.035, '#E6E1D6', 0, 1, { shade: 0.95 });
+      break;
+    case 'cup':
+      // A paper cup lying on its side, a red band round it.
+      b.cylinder(0, 0.04, 0, 0.04, 0.03, 0.11, '#F2EEE6', 10, 'x', { shade: 0.95 });
+      b.cylinder(0.012, 0.04, 0, 0.0415, 0.037, 0.03, '#C8463E', 10, 'x', { shade: 1 });
+      break;
+    case 'peel':
+      // A banana peel: three yellow flaps round a little brown stalk.
+      for (const a of [0, 2.1, 4.2]) b.box(Math.cos(a) * 0.045, 0.008, Math.sin(a) * 0.045, 0.085, 0.014, 0.035, '#E8C547', -a, { shade: 1 });
+      b.sphere(0, 0.018, 0, 0.022, '#D9B23A', 0, 0.8, { shade: 1 });
+      b.box(0.0, 0.034, 0, 0.014, 0.022, 0.014, '#6B4A2A', 0, { shade: 1 });
+      break;
+    case 'wrapper':
+      b.box(0, 0.007, 0, 0.11, 0.014, 0.07, '#D8524A', 0.3, { shade: 1 });
+      b.box(0, 0.016, 0, 0.05, 0.004, 0.032, '#F2D58C', 0.3, { shade: 1 });
+      // Twisted ends.
+      b.box(-0.07, 0.0045, -0.02, 0.03, 0.008, 0.04, '#B8423B', 0.3, { shade: 1 });
+      b.box(0.07, 0.0045, 0.02, 0.03, 0.008, 0.04, '#B8423B', 0.3, { shade: 1 });
+      break;
+    case 'dust':
+      for (const [x, z, r] of [[0, 0, 0.05], [0.045, 0.02, 0.034], [-0.04, 0.025, 0.03], [0.01, -0.04, 0.028]]) b.sphere(x, r * 0.6, z, r, '#A9A196', 1, 0.6, { shade: 0.95 });
+      break;
+  }
 }
 
 export const BED_MESS: BedMess[] = ['unmade'];

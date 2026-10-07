@@ -254,9 +254,9 @@ export class Tiles {
     const cash = w.wallet.get('cash');
     let anyShort = false;
     const atStation = w.journey.phase === 'stationStop';
-    // One focus at a time (session 16, owner: "so many pointers… multiple at once"): while the guide arrow is
-    // up, only its target tile wears a floating marker (and a tile that has just appeared, for a moment); when
-    // the arrow rests, so do affordable tiles. Any other tile is just its plate on the floor (icon and price).
+    // Every upgrade always in view (session 23, owner: "upgrades aren't visible"): every tile on show wears its
+    // floating marker. The one that matters now is the loudest (session 16, one focus at a time): the guide's
+    // target, a tile that has just appeared and any you can afford are full size; the rest are smaller and softer.
     const focus = w.guidance.focus;
     for (const entry of this.entries.values()) {
       if (isStation(entry.def)) {
@@ -274,12 +274,13 @@ export class Tiles {
         this.shortTileRemaining = remaining;
       }
       const focused = !!focus && Math.abs(focus.x - entry.pos.x) < 0.05 && Math.abs(focus.z - entry.pos.z) < 0.05;
-      const marker = (focused || entry.age < NEW_TILE_MARKER_SECONDS || (affordable && !focus)) && entry.def.id !== this.taggedId;
+      const marker = entry.def.id !== this.taggedId;
+      const quiet = !focused && entry.age >= NEW_TILE_MARKER_SECONDS && !affordable;
       const icon = iconOf(entry.def, w.train.types[entry.def.carriage]);
       entry.view.face.draw(icon, remaining, progress, affordable, active);
       // (Not while standing on it: the marker is hidden then, and each redraw is a texture upload.)
       if (marker && !active) entry.view.marker.draw(icon, markerName(entry.def.label), remaining, affordable);
-      entry.view.update(dt, affordable, active, marker);
+      entry.view.update(dt, affordable, active, marker, quiet);
       if (!active) {
         entry.stand = 0;
         entry.paidThisVisit = 0;

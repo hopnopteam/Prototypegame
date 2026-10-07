@@ -297,7 +297,9 @@ export function groupAudit(group: THREE.Object3D, walls: ObjBox[] = []): ClipIss
     issues.push({ a: a.label, b: b.label, carriage: group.name, at: [+c.x.toFixed(2), +c.y.toFixed(2), +(c.z - group.position.z).toFixed(2)], overlap: [+ox.toFixed(3), +oy.toFixed(3), +oz.toFixed(3)] });
   };
   for (let i = 0; i < objects.length; i++) {
+    if (DRAPED.has(objects[i].label)) continue;
     for (let j = i + 1; j < objects.length; j++) {
+      if (DRAPED.has(objects[j].label)) continue;
       // Stock of one kind stacks by design (a towel on a towel), and a rack or shelf holds its own stock.
       if (objects[i].label.split('#')[0] === objects[j].label.split('#')[0] && objects[i].label.includes('#')) continue;
       if (holds(objects[i].label, objects[j].label) || holds(objects[j].label, objects[i].label)) continue;
@@ -312,6 +314,11 @@ export function groupAudit(group: THREE.Object3D, walls: ObjBox[] = []): ClipIss
 
 /** Hung inside a wall's window opening by design (session 22: the cabins' blinds), so never checked against walls. */
 const IN_WALL = new Set(['blind']);
+/**
+ * Draped over everything by design (session 23: the canvas sheet over the opening's covered carriage): a cloth
+ * resting on the walls and hanging over the windows, so its box holds the whole carriage. Never clip-checked.
+ */
+const DRAPED = new Set(['roof']);
 
 /** Containers and what they are built to hold (their stock sits inside their box on purpose). */
 const HOLDS: Record<string, string[]> = {
@@ -322,8 +329,10 @@ const HOLDS: Record<string, string[]> = {
   'prop:washShelf': ['stock:towel', 'stock:roll'],
   // The lobby cat curls up on the reception desk.
   'prop:desk': ['cat'],
-  // An unmade bed is built on top of the made one.
-  bed: ['mess:bed-unmade'],
+  // An unmade bed is built on top of the made one, in pieces that lie on one another (session 23).
+  bed: ['mess:bed-sheet', 'mess:bed-duvet', 'mess:bed-corner', 'mess:bed-pillow'],
+  'mess:bed-duvet': ['mess:bed-corner', 'mess:bed-sheet'],
+  'mess:bed-sheet': ['mess:bed-corner', 'mess:bed-pillow'],
   // The venues (session 20): what stands on the café counter, the bar's back-bar, the pass and the tables.
   'prop:counter': ['prop:espresso', 'prop:pastryCase', 'prop:pastries', 'prop:beans'],
   'prop:pastryCase': ['prop:pastries'],
@@ -332,6 +341,11 @@ const HOLDS: Record<string, string[]> = {
   'prop:diningTable': ['venue:plates'],
   // Session 21: the cinema's popcorn machine stands on its counter.
   'prop:concession': ['prop:popcornMachine'],
+  // Session 23, the platform: what stands on the ticket stand, the station house's lit windows and lanterns on its
+  // face, a lamp post's lanterns.
+  'platform:ticketStand': ['platform:ticketRack', 'platform:cashTin', 'platform:bell', 'platform:standLamp', 'platform:standLamp~glow'],
+  'platform:stationHouse': ['platform:houseWindow~glow', 'platform:doorLantern~glow'],
+  'platform:lampPost': ['platform:lampPost~glow'],
 };
 const holds = (container: string, item: string): boolean => (HOLDS[container] ?? []).includes(item.split('#')[0]);
 

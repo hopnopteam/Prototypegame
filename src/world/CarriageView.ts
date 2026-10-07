@@ -2,7 +2,7 @@ import { TrainCat } from './TrainCat';
 import * as THREE from 'three';
 import { rect, type CarriageType, type Rect, type VenueKind } from '../core/types';
 import type { ComfortKey } from '../config/content';
-import { buildBedMess, buildMessPiece, seeded, type BedMess, type MessPiece } from './Mess';
+import { bedMessParts, buildLitter, buildMessPiece, buildMessPillow, LITTER_KINDS, seeded, type BedMess, type MessPiece } from './Mess';
 import { GeoBuilder, PaneBuilder, type PartStyle } from './geo';
 import {
   CARRIAGE_LENGTH,
@@ -74,11 +74,6 @@ const FLAT: PartStyle = { shade: 1 };
  * Heights (above the floor) of everything lying flat on it, each in its own layer at least 4 mm from the
  * next: rooms 0–6 mm, runners 12, cabin mess from 40.
  */
-/** Each piece of a cabin's mess is swept in to the broom over this share of the tidying. */
-const MESS_POP = 0.2;
-/** How high a swept piece hops on its way in (metres). */
-const MESS_HOP = 0.35;
-/** A hex colour lightened (+) or darkened (−). */
 /** Trims and rails stop this short of a wall's ends, so their end faces never share a plane with it. */
 const END_INSET = 0.006;
 /** A rect shortened at both ends of its long axis. */
@@ -99,13 +94,47 @@ const MESS_TIP_CLEAR = 0.56;
 /** …and clear of a nightstand at the bed's head (from the head wall). */
 const MESS_HEAD_CLEAR = 0.62;
 
+/** What each piece of a used room does as it arrives and as it is tidied (session 23). */
+type MessRole = 'floor' | 'litter' | 'sheet' | 'duvet' | 'corner' | 'pillow';
+
+interface MessPart {
+  mesh: THREE.Mesh;
+  role: MessRole;
+  /** Its order within its kind (litter is swept up one bit after another). */
+  k: number;
+  home: { x: number; y: number; z: number; ry: number; scale: number };
+}
+
 interface CabinMess {
   group: THREE.Group;
   items: THREE.Mesh[];
+  parts: MessPart[];
   key: string;
   /** The cleaning spot: swept pieces fly here. */
   heart: { x: number; z: number };
+  /** The made pillow under the askew one (where it is put back). */
+  pillowHome: { x: number; z: number };
+  /** Seconds since the guest left (the room "arrives" untidy over a moment), and the tidy's progress (0..1). */
+  appear: number;
+  clean: number;
 }
+
+/** A little overshoot as something pops into place (0..1 in, a touch past 1 near the end, then 1). */
+function easeOutBackLite(t: number): number {
+  const c = 1.6;
+  const u = t - 1;
+  return t <= 0 ? 0 : 1 + (c + 1) * u * u * u + c * u * u;
+}
+
+/** Seconds the used room takes to show up as its guest gets up and goes (the bed rumples, things drop). */
+const MESS_APPEAR_SECONDS = 1.1;
+/**
+ * Litter round the cleaning spot: how far out (beyond the conductor's feet, still on the room's clear floor), at
+ * which angles (never toward the doorway, at angle π), and how big.
+ */
+const LITTER_RING = [0.5, 0.56, 0.48, 0.54];
+const LITTER_ANGLES = [0.55, 2.2, 4.0, 5.5];
+const LITTER_SCALE = 1.35;
 
 
 /** The washroom stock stand: panel width, board tops and overall height (metres above the floor). */
@@ -485,7 +514,7 @@ export class CarriageView {
     if (door) door.locked = locked;
   }
 
-  /** A cabin after its guest leaves: an unmade heap on the bed, a pillow on the floor, litter, stains. */
+  /** A cabin after its guest leaves: the bed they slept in, something of theirs on the floor, dust and crumbs. */
   setDirt(cabin: number, spots: boolean[]): void {
     const mess = this.mess[cabin];
     if (!mess) return;
@@ -493,7 +522,16 @@ export class CarriageView {
     const dirty = spots.some(Boolean) && !this.cabinLocked[cabin];
     if (mess.group.visible === dirty) return;
     mess.group.visible = dirty;
-    if (dirty) this.setDirtFade(cabin, 0, 0);
+    mess.clean = 0;
+    if (dirty) this.poseMess(mess);
+  }
+
+  /** The guest has just got up and gone: the room turns untidy over a moment instead of all at once. */
+  playMessArrival(cabin: number): void {
+    const mess = this.mess[cabin];
+    if (!mess) return;
+    mess.appear = 0;
+    this.poseMess(mess);
   }
 
   /**
@@ -658,42 +696,108 @@ export class CarriageView {
   }
 
   /**
-   * Tidying (0..1): one after another, each piece is swept in to the broom (a hop and a shrink toward the
-   * cleaning spot) and pops; last of all the bed straightens flat.
-   * `onPop` hears each piece as it vanishes (world position), for the puff and the sound.
+   * Tidying (0..1, session 23: something you watch happen). The dust, crumbs and wrapper are swept in to the broom
+   * one after another and puff away; their thing on the floor is picked up (up into the conductor's hands, gone);
+   * then the bed: the pillow is put straight with a plump, the thrown-back corner turned down, the creased sheet
+   * smoothed, and the duvet pulled up the bed and flat. `onPop` hears each swept piece go (world position).
    */
   setDirtFade(cabin: number, _spot: number, progress: number, onPop?: (x: number, y: number, z: number) => void): void {
     const mess = this.mess[cabin];
-    if (!mess) return;
-    const n = mess.items.length;
-    mess.items.forEach((item, k) => {
-      const home = item.userData.home as { x: number; y: number; z: number; scale: number };
-      const gone = (k + 1) / (n + 1);
-      const t = Math.min(1, Math.max(0, (progress - (gone - MESS_POP)) / MESS_POP));
-      const visible = t < 1;
-      if (item.visible && !visible && onPop) {
-        item.getWorldPosition(tmpPos);
-        onPop(tmpPos.x, FLOOR_Y + 0.25, tmpPos.z);
-      }
-      item.visible = visible;
-      if (k === n - 1) {
-        // The unmade bed smooths down into the made one.
-        const flat = t * t;
-        item.scale.set(1, Math.max(0.001, 1 - flat), 1);
-        item.position.y = home.y + (BED_TOP + 0.03) * flat;
-        return;
-      }
-      const p = t * t * (3 - 2 * t);
-      item.position.set(
-        home.x + (mess.heart.x - home.x) * p,
-        home.y + Math.sin(p * Math.PI) * MESS_HOP,
-        home.z + (mess.heart.z - home.z) * p,
-      );
-      item.scale.setScalar(Math.max(0.001, home.scale * (1 - 0.8 * p)));
-    });
+    if (!mess || !mess.group.visible) return;
+    const before = mess.clean;
+    mess.clean = progress;
+    if (progress === before && mess.appear >= MESS_APPEAR_SECONDS) return;
+    this.poseMess(mess, onPop, before);
   }
 
-
+  /** Where every piece of a used room is now, from how far it has arrived and how far it has been tidied. */
+  private poseMess(mess: CabinMess, onPop?: (x: number, y: number, z: number) => void, before = mess.clean): void {
+    const a = Math.min(1, mess.appear / MESS_APPEAR_SECONDS);
+    const c = mess.clean;
+    const window = (t: number, from: number, span: number): number => Math.min(1, Math.max(0, (t - from) / span));
+    const smooth = (t: number): number => t * t * (3 - 2 * t);
+    const hide = (part: MessPart, gone: boolean, pop: boolean): void => {
+      if (part.mesh.visible && gone && pop && onPop && c > before) {
+        part.mesh.getWorldPosition(tmpPos);
+        onPop(tmpPos.x, tmpPos.y + 0.15, tmpPos.z);
+      }
+      part.mesh.visible = !gone;
+    };
+    for (const part of mess.parts) {
+      const { mesh, home } = part;
+      mesh.position.set(home.x, home.y, home.z);
+      mesh.rotation.set(0, home.ry, 0);
+      mesh.scale.setScalar(home.scale);
+      switch (part.role) {
+        case 'litter': {
+          // Arriving: each bit pops into place. Tidying: swept along the floor to the broom, a few little hops.
+          const show = easeOutBackLite(window(a, 0.3 + part.k * 0.08, 0.25));
+          const t = window(c, 0.04 + part.k * 0.09, 0.2);
+          const e = smooth(t);
+          mesh.position.set(home.x + (mess.heart.x - home.x) * e, home.y + Math.abs(Math.sin(e * Math.PI * 3)) * 0.04, home.z + (mess.heart.z - home.z) * e);
+          mesh.scale.setScalar(Math.max(0.001, home.scale * show * (1 - 0.6 * e)));
+          hide(part, t >= 1, true);
+          break;
+        }
+        case 'floor': {
+          // Arriving: it drops from their hand and bounces. Tidying: picked up, up into the conductor's hands.
+          const drop = window(a, 0.45, 0.4);
+          const fall = drop < 0.7 ? 1 - (drop / 0.7) ** 2 : Math.sin(((drop - 0.7) / 0.3) * Math.PI) * 0.12;
+          const t = window(c, 0.34, 0.22);
+          const e = smooth(t);
+          mesh.position.set(
+            home.x + (mess.heart.x - home.x) * e,
+            home.y + 0.55 * fall * (drop > 0 ? 1 : 0) + (0.95 * e + Math.sin(e * Math.PI) * 0.3),
+            home.z + (mess.heart.z - home.z) * e,
+          );
+          mesh.rotation.y = home.ry + (1 - drop) * 1.2 + e * 2.5;
+          mesh.scale.setScalar(Math.max(0.001, home.scale * (drop > 0 ? 1 : 0.001) * (1 - 0.6 * e)));
+          hide(part, t >= 1, true);
+          break;
+        }
+        case 'pillow': {
+          // Knocked askew as they get up; put straight with a plump, then it is the made pillow again.
+          const askew = smooth(window(a, 0, 0.45));
+          const t = window(c, 0.52, 0.18);
+          const e = smooth(t);
+          const k = askew * (1 - e);
+          mesh.position.set(mess.pillowHome.x + (home.x - mess.pillowHome.x) * k, home.y, mess.pillowHome.z + (home.z - mess.pillowHome.z) * k);
+          mesh.rotation.y = home.ry * k;
+          const plump = Math.sin(e * Math.PI) * 0.18;
+          mesh.scale.set(1 + plump, Math.max(0.001, (0.82 + 0.18 * (1 - askew)) * (1 + plump)), 1 + plump);
+          hide(part, t >= 1, false);
+          break;
+        }
+        case 'corner': {
+          const up = smooth(window(a, 0.1, 0.4));
+          const t = window(c, 0.56, 0.16);
+          const e = smooth(t);
+          mesh.rotation.y = home.ry * up * (1 - e);
+          mesh.scale.set(1, Math.max(0.001, up * (1 - 0.9 * e)), 1);
+          hide(part, t >= 1, false);
+          break;
+        }
+        case 'sheet': {
+          const up = smooth(window(a, 0, 0.35));
+          const t = window(c, 0.6, 0.3);
+          mesh.scale.set(1, Math.max(0.001, up * (1 - smooth(t))), 1);
+          hide(part, t >= 1, false);
+          break;
+        }
+        case 'duvet': {
+          // Kicked down into a roll as they get up; pulled back up the bed and smoothed flat.
+          const kicked = smooth(window(a, 0, 0.5));
+          const t = window(c, 0.62, 0.34);
+          const e = smooth(t);
+          const spread = 1 - kicked + e;
+          mesh.position.z = home.z - Math.min(1, spread) * mesh.userData.reach;
+          mesh.scale.set(1, Math.max(0.001, 0.15 + 0.85 * kicked * (1 - e)), 1 + 0.9 * Math.min(1, spread));
+          hide(part, t >= 1, false);
+          break;
+        }
+      }
+    }
+  }
 
   setBathroomStock(bathroom: number, towels: number, rolls: number): void {
     // A locked washroom shows nothing inside (session 22).
@@ -1188,16 +1292,17 @@ export class CarriageView {
   }
 
   /**
-   * The mess a guest leaves: a crumpled heap of bedding on the bed, the pillow on the floor, yesterday's
-   * paper, a cup on its side, and a couple of stains. Each piece is its own small mesh so it can pop away
-   * as the cabin is tidied; the neat bed underneath is what's left.
+   * The mess a guest leaves: the bed they slept in (in pieces, so tidying it can be watched), one thing of theirs
+   * on the floor beside it, and a little dust and litter round the cleaning spot. Each piece is its own small
+   * mesh; the neat bed underneath is what is left.
    */
   private buildMess(cabin: CabinLayout): CabinMess {
     const group = new THREE.Group();
     group.visible = false;
     this.group.add(group);
     const heart = cabin.spots[0] ?? cabin.center;
-    const mess: CabinMess = { group, items: [], key: '', heart: { x: heart.x, z: heart.z } };
+    const pillowZ = cabin.bed.z0 + 0.27;
+    const mess: CabinMess = { group, items: [], parts: [], key: '', heart: { x: heart.x, z: heart.z }, pillowHome: { x: (cabin.bed.x0 + cabin.bed.x1) / 2, z: pillowZ }, appear: MESS_APPEAR_SECONDS, clean: 0 };
     this.mess[cabin.index] = mess;
     // A default mess (previews and the audit); the game sets each guest's own with setMess().
     this.setMess(cabin.index, ['newspaper'], 'unmade', 1);
@@ -1205,9 +1310,8 @@ export class CarriageView {
   }
 
   /**
-   * What the last guest left: one thing of theirs on the floor beside the bed (always the same place, clear of
-   * the cleaning pad, the tip and the nightstand), then the bed they slept in, in the order they get tidied (the
-   * bed last: the big reveal).
+   * What the last guest left: their thing on the floor beside the bed (always the same place, clear of the
+   * cleaning pad, the tip and the nightstand), a few bits of litter round the pad, and the bed in its pieces.
    */
   setMess(cabinIndex: number, pieces: readonly MessPiece[], bed: BedMess, seed: number): void {
     const mess = this.mess[cabinIndex];
@@ -1221,30 +1325,50 @@ export class CarriageView {
       item.geometry.dispose();
     }
     mess.items.length = 0;
+    mess.parts.length = 0;
     const rand = seeded(seed);
     const floor = FLOOR_Y + LIFT;
-    const add = (build: (b: GeoBuilder) => void, x: number, y: number, z: number, ry: number, scale: number, name: string): void => {
+    const add = (role: MessRole, k: number, build: (b: GeoBuilder) => void, x: number, y: number, z: number, ry: number, scale: number, name: string): THREE.Mesh => {
       const b = new GeoBuilder();
       build(b);
       const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
       mesh.userData.object = `mess:${name}`;
-      mesh.userData.home = { x, y, z, scale };
-      mesh.castShadow = true;
+      mesh.castShadow = role === 'floor' || role === 'duvet' || role === 'pillow';
       mesh.position.set(x, y, z);
       mesh.rotation.y = ry;
       mesh.scale.setScalar(scale);
       mess.group.add(mesh);
       mess.items.push(mesh);
+      mess.parts.push({ mesh, role, k, home: { x, y, z, ry, scale } });
+      return mesh;
     };
+    // Litter round the cleaning spot (inside the pad's clear floor), turned at random.
+    const litter = 3 + Math.floor(rand() * 2);
+    for (let k = 0; k < litter; k++) {
+      const angle = LITTER_ANGLES[k] + (rand() - 0.5) * 0.3;
+      const r = LITTER_RING[k];
+      add('litter', k, (b) => buildLitter(b, LITTER_KINDS[(k + seed) % LITTER_KINDS.length]), mess.heart.x + Math.cos(angle) * r, floor, mess.heart.z + Math.sin(angle) * r, rand() * Math.PI, LITTER_SCALE, 'litter');
+    }
     const slot = this.messSlot(cabin);
     const piece = pieces[0];
     // Quarter turns only: a piece's square cell stays a square cell.
-    if (piece) add((b) => buildMessPiece(b, piece, 0), slot.x, floor, slot.z, Math.floor(rand() * 4) * (Math.PI / 2), MESS_SCALE, piece);
+    if (piece) add('floor', 0, (b) => buildMessPiece(b, piece, 0), slot.x, floor, slot.z, Math.floor(rand() * 4) * (Math.PI / 2), MESS_SCALE, piece);
+    // The bed: its pieces sit on the made cover, round their own pivots.
     const r = cabin.bed;
     const w = r.x1 - r.x0 - 0.1;
     const d = r.z1 - r.z0 - 0.3;
-    add((b) => buildBedMess(b, w, d, BED_TOP + 0.03, this.blanketColor, shadeHex(this.blanketColor, -26)), (r.x0 + r.x1) / 2, FLOOR_Y, (r.z0 + r.z1) / 2 + 0.1, 0, 1, `bed-${bed}`);
-    if (mess.group.visible) this.setDirtFade(cabinIndex, 0, 0);
+    const cx = (r.x0 + r.x1) / 2;
+    const cz = (r.z0 + r.z1) / 2 + 0.1;
+    const top = FLOOR_Y + BED_TOP + 0.03;
+    const parts = bedMessParts(w, d, this.blanketColor, shadeHex(this.blanketColor, -26));
+    add('sheet', 0, parts.sheet.build, cx + parts.sheet.x, top, cz + parts.sheet.z, 0, 1, 'bed-sheet');
+    const duvet = add('duvet', 0, parts.duvet.build, cx + parts.duvet.x, top, cz + parts.duvet.z, 0, 1, 'bed-duvet');
+    // How far up the bed it travels as it is pulled up (to cover where they lay).
+    duvet.userData.reach = d * 0.32;
+    add('corner', 0, parts.corner.build, cx + parts.corner.x, top, cz + parts.corner.z, parts.corner.ry, 1, 'bed-corner');
+    const pillowW = Math.min(0.62, w - 0.3);
+    add('pillow', 0, (b) => buildMessPillow(b, pillowW), mess.pillowHome.x + 0.07, top + 0.075, mess.pillowHome.z + 0.06, 0.32, 1, 'bed-pillow');
+    if (mess.group.visible) this.poseMess(mess);
   }
 
   /** Where a guest's one floor piece lies: beside the middle of the bed, nudged clear of the tip and the head. */
@@ -1292,6 +1416,11 @@ export class CarriageView {
   /** Per-frame life: the laundry turns. */
   animate(dt: number): void {
     this.clock += dt;
+    for (const mess of this.mess) {
+      if (!mess || !mess.group.visible || mess.appear >= MESS_APPEAR_SECONDS) continue;
+      mess.appear = Math.min(MESS_APPEAR_SECONDS, mess.appear + dt);
+      this.poseMess(mess);
+    }
     if (this.barBulbs && this.barParty) this.setBarLit(Math.floor(this.clock * 6) % 2 === 0 ? this.barBulbCount : Math.floor(this.clock * 12) % this.barBulbCount);
     this.animateFilm();
     for (let i = 0; i < this.spinners.length; i++) this.spinners[i].rotation.y += dt * (2.6 + (i % 2) * 0.7);

@@ -108,7 +108,7 @@ check(snap.staff >= 2, `${snap.staff} staff after ${fmt(snap.life)} (want 2+)`);
 check(snap.coachDone, 'the four-step walkthrough completed');
 check(!!snap.named && snap.stories >= 3, `the train was named ("${snap.named}") and made the paper ${snap.stories} times`);
 check(snap.debut, 'the Gazette interviewed the conductor after the first stop');
-check(snap.taunts >= 1, `a rival owner taunted the train in Rival Watch (${snap.taunts})`);
+check(snap.taunts >= 1, `a rival owner's taunt came on the news strip (${snap.taunts})`);
 check(snap.tiers.some((t) => t >= 1), `at least one carriage refurbished (tiers ${snap.tiers.join(',')})`);
 check(snap.station.length >= 1, `station upgrades bought at stops (${snap.station.join(', ') || 'none'})`);
 check(snap.objective >= 12, `the objective chain kept moving (${snap.objective} goals done)`);

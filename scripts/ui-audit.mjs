@@ -92,6 +92,16 @@ const auditPage = () => {
   return issues;
 };
 
+/**
+ * Waits for every entrance animation to finish (looping ones aside), so a slow software-rendered frame never
+ * leaves a card mid-slide when the layout is measured (session 23: a 3 s SwiftShader frame froze the ticket
+ * 23 px above its place, over the route line).
+ */
+const settle = (page) => page.waitForFunction(
+  () => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity),
+  null, { timeout: 8000 },
+).catch(() => undefined);
+
 for (const [width, height] of SIZES) {
   const page = await browser.newPage({ viewport: { width, height } });
   const errors = [];
@@ -100,20 +110,25 @@ for (const [width, height] of SIZES) {
   await page.waitForTimeout(700);
   const report = (label, issues) => { for (const issue of issues) problems.push(`${width}×${height} ${label}: ${issue}`); };
 
-  // Boot (session 22: no title screen and no intro): a brand-new player is straight into play on the Millbrook
-  // platform, with no splash, no caption card and no sheet on top, the walkthrough's first cue showing.
+  // Boot (session 23: no title screen; the short story intro is back for a brand-new player): no splash and no
+  // sheet over the intro; once it is skipped (or over) the game is playing with no caption left on screen.
   await page.waitForTimeout(500);
   report('boot', await page.evaluate(() => {
     const out = [];
     if (document.querySelector('.splash')) out.push('a title screen is showing');
-    if (document.querySelector('.scrim')) out.push('a sheet opened over the opening');
-    const cap = document.querySelector('.cine-caption');
-    if (cap && !cap.hidden && cap.getBoundingClientRect().width > 0) out.push('an intro caption is showing');
-    if (window.nightExpress.paused) out.push('the game is not playing');
+    if (document.querySelector('.scrim')) out.push('a sheet opened over the intro');
     return out;
   }));
   await page.evaluate(() => window.nightExpress.skipIntro?.());
   await page.waitForTimeout(300);
+  report('after the intro', await page.evaluate(() => {
+    const out = [];
+    const cap = document.querySelector('.cine-caption');
+    if (cap && !cap.hidden && cap.getBoundingClientRect().width > 0) out.push('an intro caption is still showing');
+    if (window.nightExpress.paused) out.push('the game is not playing');
+    if (document.querySelector('.scrim')) out.push('a sheet opened over the opening');
+    return out;
+  }));
 
   // Busiest HUD: maxed numbers, longest station name, everything that can share the screen at once.
   await page.evaluate(() => {
@@ -135,6 +150,7 @@ for (const [width, height] of SIZES) {
     for (const type of ['bathroom', 'supply', 'luggage', 'sleeper']) { g.train.coupleNext(type); g.simulate(3.5); }
   });
   await page.waitForTimeout(700);
+  await settle(page);
   report('busy HUD', await page.evaluate(auditPage));
   // The coach line takes the ticket's slot once the ticket is gone.
   await page.evaluate(() => {

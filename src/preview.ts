@@ -40,7 +40,14 @@ DEFAULT_TRAIN.map((type) => ({ type })).slice(0, count).forEach((c, i) => {
   const tier = tierParam !== null ? Number(tierParam) : Number(tiers[i] ?? '0');
   const view = new CarriageView(getLayout(c.type, tier), i, tier);
   view.group.position.z = carriageOriginZ(i);
-  if (c.type === 'lobby') { if (tier <= 1) view.setCabinLocked(1, true); view.setDirt(0, [true]); view.setLuggageCount(3); }
+  if (c.type === 'lobby') {
+    if (tier <= 1) view.setCabinLocked(1, true);
+    view.setDirt(0, [true]); view.setLuggageCount(3);
+    // ?clean=0.5 poses the used room halfway through its tidy; ?clean=arrive plays its arrival.
+    const clean = params.get('clean');
+    if (clean === 'arrive') view.playMessArrival(0);
+    else if (clean !== null) view.setDirtFade(0, 0, Number(clean));
+  }
   if (c.type === 'bathroom') { view.setBathroomLocked(1, true); view.setBathroomStock(0, 3, 2); }
   if (c.type === 'supply') view.setShelfStock(10, 12);
   // Venues: every table open and every extra bought (?venue=0 shows only what a new one comes with).

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { ARCHETYPES, COMMON_MESS, type ArchetypeDef, type MessPiece, type StoryDef } from '../config/content';
 import { CLASS_BY_ID, isDwellNeed, type ClassId, type ServiceNeed } from '../config/classes';
+import { CROWD, IDLES, type IdleAction } from '../config/crowd';
 import { log } from '../core/log';
 import type { Vec2 } from '../core/types';
 import { freshWish, nextTripPhase, rideProgress, type TripPhase } from '../sim/trip';
@@ -107,20 +108,26 @@ export class Guest {
   order = 0;
   /** Just came out of the station house: walks in along the walkway first. */
   late = false;
+  /** Session 23: what they do while standing about, for how much longer, and when the next one comes. */
+  idleAct: IdleAction = 'watch';
+  idleLeft = 0;
+  idleIn = 1 + Math.random() * 3;
 
-  constructor(readonly archetype: ArchetypeDef, x: number, z: number, speed: number, readonly story: StoryDef | null) {
+  constructor(readonly archetype: ArchetypeDef, x: number, z: number, speed: number, readonly story: StoryDef | null, variant = 0) {
     this.cls = archetype.cls;
     this.pos = { x, z };
     this.childPos = { x, z: z + 0.6 };
     this.mover = new Mover(this.pos, speed);
     const colors = story ? story.colors : archetype.colors;
-    const look: CharacterLook = {
+    const base: CharacterLook = {
       ...colors,
       accessory: story ? (story.id === 'priya' ? 'camera' : 'none') : archetype.accessory === 'child' ? 'none' : archetype.accessory,
       hat: story?.id === 'walter' ? 'conductor' : story ? 'none' : archetype.hat ?? 'none',
       hatColor: story ? undefined : archetype.hatColor,
     };
-    this.view = new CharacterView(look);
+    const look = story ? base : guestLook(base, archetype, variant);
+    const [short, tall] = CROWD.height;
+    this.view = new CharacterView(look, story ? 1 : short + (tall - short) * Math.random());
     this.child = !story && archetype.accessory === 'child'
       ? new CharacterView({ body: '#F2C94C', accent: '#E26D8C', skin: colors.skin, hair: colors.hair, hat: 'none' }, 0.62)
       : null;
@@ -133,6 +140,34 @@ export class Guest {
   get aboard(): boolean {
     return this.state !== 'platform' && this.state !== 'leaving' && this.state !== 'gone';
   }
+}
+
+/**
+ * One of a guest type's few looks (session 23): look 0 is the type's own; the others change the skin tone, the
+ * hair (never a grandma's silver), the coat's shade, add spectacles or long hair, and sometimes leave the hat off.
+ * The bounded set keeps the body geometries cached (types × variants).
+ */
+function guestLook(base: CharacterLook, archetype: ArchetypeDef, v: number): CharacterLook {
+  if (v === 0) return base;
+  const a = ARCHETYPES.indexOf(archetype);
+  const silver = /^#(E|F)/i.test(archetype.colors.hair);
+  const casualHat = base.hat === 'cap' || base.hat === 'beanie' || base.hat === 'boater';
+  return {
+    ...base,
+    skin: CROWD.skinTones[(a * 3 + v * 2) % CROWD.skinTones.length],
+    hair: silver ? base.hair : CROWD.hairColours[(a + v * 2) % CROWD.hairColours.length],
+    body: v === 2 ? shadeHex(base.body, 18) : v === 3 ? shadeHex(base.body, -16) : base.body,
+    hat: v === 3 && casualHat ? 'none' : base.hat,
+    glasses: (a + v) % 3 === 0,
+    longHair: v % 2 === 1 && base.hat !== 'bun' && base.hat !== 'crown',
+  };
+}
+
+/** A hex colour lightened (+) or darkened (−) by `amount` per channel. */
+function shadeHex(hex: string, amount: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = (v: number): number => Math.max(0, Math.min(255, v + amount));
+  return `#${((c((n >> 16) & 255) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
 }
 
 /**
@@ -152,6 +187,8 @@ export class Guests {
   readonly audit = { trips: 0, sleeps: 0, sleptTwice: 0, repeats: 0, misplaced: 0, requests: 0 };
   /** Arrival order on the platform (the queue keeps it). */
   private arrivals = 0;
+  /** Guests created so far: their look variant turns over with it (no game randomness). */
+  private looks = 0;
 
   constructor(private readonly w: World) {}
 
@@ -577,12 +614,13 @@ export class Guests {
         guest.view.setPose('sit');
         guest.view.setPosition(guest.cabin.sitPose.x, y + SIT_ROOT, guest.cabin.sitPose.z);
         guest.view.setFacing(-Math.PI / 2);
-        if (guest.settleFor > 1) guest.view.act('read', 0.3);
+        // New aboard, they read the paper before turning in; up in the morning, a big stretch.
+        if (guest.settleFor > 1) guest.view.act(guest.sleeps > 0 ? 'yawn' : 'read', 0.3);
       } else {
         guest.view.setPose('stand');
         guest.view.setPosition(guest.pos.x, y, z);
         guest.view.setFacing(guest.mover.facing);
-        this.idleAction(guest);
+        this.idleAction(guest, dt);
       }
       guest.view.update(dt, guest.mover.speedNow);
 
@@ -602,25 +640,62 @@ export class Guests {
     }
   }
 
-  /** What someone standing about does with their hands: watches in queues, waves at the train. */
-  private idleAction(guest: Guest): void {
+  /** What someone standing about does: waves at the train coming in, washes at the sink, and otherwise their own idles. */
+  private idleAction(guest: Guest, dt: number): void {
     const w = this.w;
-    if (guest.mover.isMoving) return;
+    if (guest.mover.isMoving) {
+      guest.idleLeft = 0;
+      guest.idleIn = Math.max(guest.idleIn, 1.2);
+      return;
+    }
     switch (guest.state) {
       case 'platform':
         if (w.journey.phase === 'arriving') guest.view.act('wave', 0.3);
-        else if (guest.stateTime > 2) guest.view.act('watch', 0.3);
+        else if (guest.stateTime > 1.5) this.idle(guest, dt);
         break;
       case 'queue':
-        if (guest.arrivedInQueue && guest.stateTime > 2.5) guest.view.act('watch', 0.3);
+        if (guest.arrivedInQueue && guest.stateTime > 2) this.idle(guest, dt);
         break;
       case 'venueQueue':
-        if (guest.stateTime > 3) guest.view.act('watch', 0.3);
+        if (guest.stateTime > 2.5) this.idle(guest, dt);
         break;
       case 'inBathroom':
         guest.view.act('wash', 0.3);
         break;
     }
+  }
+
+  /**
+   * Session 23, a livelier crowd: every few seconds someone waiting does something that suits them (checks the
+   * time, looks about, takes a call), and two people standing together now and then chat. Visual only: it uses
+   * no game randomness, so the simulation is the same with or without it.
+   */
+  private idle(guest: Guest, dt: number): void {
+    if (guest.idleLeft > 0) {
+      guest.idleLeft -= dt;
+      guest.view.act(guest.idleAct, 0.3);
+      return;
+    }
+    guest.idleIn -= dt;
+    if (guest.idleIn > 0) return;
+    const [g0, g1] = CROWD.idleGap;
+    const [s0, s1] = CROWD.idleSeconds;
+    const seconds = s0 + (s1 - s0) * Math.random();
+    const list = IDLES[guest.archetype.id] ?? ['watch', 'look'];
+    let act = list[Math.floor(Math.random() * list.length)];
+    if (Math.random() < CROWD.chatChance) {
+      const near = this.list.find((o) => o !== guest && o.state === guest.state && !o.mover.isMoving && o.idleLeft <= 0
+        && Math.hypot(o.pos.x - guest.pos.x, o.pos.z - guest.pos.z) < CROWD.chatDistance);
+      if (near) {
+        act = 'chat';
+        near.idleAct = 'chat';
+        near.idleLeft = seconds;
+        near.idleIn = g0 + (g1 - g0) * Math.random();
+      }
+    }
+    guest.idleAct = act;
+    guest.idleLeft = seconds;
+    guest.idleIn = g0 + (g1 - g0) * Math.random();
   }
 
   private think(guest: Guest, dt: number): void {
@@ -1194,7 +1269,7 @@ export class Guests {
 
   private create(archetype: ArchetypeDef, x: number, z: number, story: StoryDef | null): Guest {
     const speed = this.w.econ.guests.walkSpeed * archetype.speedMultiplier;
-    const guest = new Guest(archetype, x, z, speed, story);
+    const guest = new Guest(archetype, x, z, speed, story, this.looks++ % CROWD.variants);
     this.w.scene.add(guest.view.root);
     if (guest.child) this.w.scene.add(guest.child.root);
     this.list.push(guest);

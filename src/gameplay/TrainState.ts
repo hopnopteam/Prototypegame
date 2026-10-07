@@ -43,6 +43,8 @@ export class Cabin {
   spotZones: Zone[] = [];
   /** Staff member walking here to clean it. */
   cleaner: Actor | null = null;
+  /** Untidy last frame (so the room's arrival animation plays once, as the guest leaves). */
+  wasDirty = false;
   /** What the last guest left behind (chosen as they get off; null: a default mess). */
   messPlan: { pieces: MessPiece[]; bed: BedMess; seed: number } | null = null;
   constructor(readonly carriage: number, readonly layout: CabinLayout, originZ: number) {
@@ -612,6 +614,10 @@ export class TrainState {
       if (!view) continue;
       if (cabin.messPlan) view.setMess(cabin.index, cabin.messPlan.pieces, cabin.messPlan.bed, cabin.messPlan.seed);
       view.setDirt(cabin.index, cabin.dirty);
+      // The guest has just gone: the room turns untidy over a moment (session 23), not all at once.
+      const dirtyNow = cabin.isDirty;
+      if (dirtyNow && !cabin.wasDirty) view.playMessArrival(cabin.index);
+      cabin.wasDirty = dirtyNow;
       for (let i = 0; i < cabin.spotZones.length; i++) if (cabin.dirty[i]) view.setDirtFade(cabin.index, i, cabin.spotZones[i].progress, this.onMessPop);
       // Lights out (session 22): the room dims and the blinds come down while its guest sleeps.
       const night = cabin.guest?.state === 'resting' ? 1 : 0;

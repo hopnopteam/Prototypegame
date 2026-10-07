@@ -5,7 +5,7 @@ import { carriageOriginZ, DOOR_Z0, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X
 import { PLATFORM } from './platformLayout';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
-import { CharacterView, type CharacterLook } from './CharacterView';
+import { CharacterView, type CharacterAction, type CharacterLook } from './CharacterView';
 import { headlineTexture, posterTexture, signTexture } from './sprites';
 import type { Rect } from '../core/types';
 import type { LampAnchor } from './Lighting';
@@ -26,9 +26,9 @@ const BAND_LOOK: CharacterLook = { body: '#C0485C', accent: '#E2B04A', skin: '#F
 const BAND_SKIN = ['#F1C7A6', '#C98E66', '#8D5A3C'];
 /** Where the band stands (by the way in from the station, clear of the queue and the walkway) and what each one plays. */
 const BAND: { x: number; z: number; instrument: 'tuba' | 'drum' | 'trumpet' }[] = [
-  { x: PLATFORM_X0 + 2.2, z: -8.0, instrument: 'trumpet' },
-  { x: PLATFORM_X0 + 3.05, z: -8.7, instrument: 'tuba' },
-  { x: PLATFORM_X0 + 3.9, z: -8.0, instrument: 'drum' },
+  { x: PLATFORM_X0 + 2.0, z: -8.0, instrument: 'trumpet' },
+  { x: PLATFORM_X0 + 3.05, z: -8.9, instrument: 'tuba' },
+  { x: PLATFORM_X0 + 4.1, z: -8.0, instrument: 'drum' },
 ];
 const BEAT_SECONDS = 0.5;
 /** The station master stands by the front of the train and waves the green flag at departure. */
@@ -48,6 +48,24 @@ const SIGN_POST_HALF = 1.25;
 /** The kiosk's vendor, behind the counter. */
 const VENDOR_LOOK: CharacterLook = { body: '#3F7A5E', accent: '#F4EEE2', skin: '#E8B894', hair: '#5B3A29', pants: '#2F3A33', hat: 'cap', hatColor: '#3F7A5E', arms: true };
 const PIGEON_FLY_SECONDS = 3.2;
+
+/**
+ * Townsfolk (session 23, owner: "don't make the world feel lifeless"): people who are not travelling. Two have come
+ * to see someone off and stand by the railing ahead of the kiosk; two more sit on the first bench behind the train
+ * (when the platform is long enough to have one). They look about, read, chat and take calls, and wave the train
+ * off when the flag goes up. Out of everyone's way, and purely for show.
+ */
+interface Townsperson { view: CharacterView; idles: CharacterAction[]; act: CharacterAction; left: number; next: number; seated: boolean }
+const TOWNSFOLK: { look: CharacterLook; seated: boolean; idles: CharacterAction[] }[] = [
+  { look: { body: '#B5543A', accent: '#F2E3C6', skin: '#C98E68', hair: '#1D1616', pants: '#3A2E2A', hat: 'none', longHair: true }, seated: false, idles: ['look', 'chat', 'watch'] },
+  { look: { body: '#4F6E8C', accent: '#E8D29A', skin: '#F1C7A5', hair: '#8C5A32', pants: '#2E3442', hat: 'boater', glasses: true }, seated: false, idles: ['chat', 'look', 'phone'] },
+  { look: { body: '#7A6A9A', accent: '#F4EEE2', skin: '#EDBE9A', hair: '#E6E6E6', pants: '#3A3440', hat: 'none', glasses: true }, seated: true, idles: ['read', 'read', 'look'] },
+  { look: { body: '#6B8F5E', accent: '#F2C94C', skin: '#A86E4E', hair: '#3A2418', pants: '#33402E', hat: 'cap', hatColor: '#3F5A3A' }, seated: true, idles: ['look', 'phone', 'yawn'] },
+];
+/** Where the two seeing someone off stand: by the back railing between the kiosk and the way in. */
+const SEEING_OFF = [{ x: PLATFORM_X0 + 5.75, z: -9.35, facing: -Math.PI / 2 - 0.5 }, { x: PLATFORM_X0 + 5.3, z: -9.95, facing: -Math.PI / 2 + 0.35 }];
+/** A seated townsperson's root above the floor (resting on a bench seat). */
+const BENCH_SIT_Y = 0.285;
 
 let glowMap: THREE.Texture | null = null;
 
@@ -115,6 +133,9 @@ export class PlatformView {
   private beat = 0;
   private marketing: MarketingState = { posters: false, band: false };
   private readonly master: CharacterView;
+  private readonly townsfolk: Townsperson[] = [];
+  /** The first bench behind the train (for show), where two townsfolk sit; null when the platform has none. */
+  private showBench: Rect | null = null;
   private readonly headlineMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
   private headline = '';
   length = 0;
@@ -151,9 +172,18 @@ export class PlatformView {
     this.vendorView = new CharacterView(VENDOR_LOOK);
     this.vendorView.leans = false;
     this.vendorView.root.userData.object = 'character:newsvendor';
-    this.vendorView.setPosition(KIOSK_POS.x + 0.78, FLOOR_Y, KIOSK_POS.z + 0.15);
-    this.vendorView.setFacing(-Math.PI / 2 - 0.35);
+    // Behind the counter (the kiosk faces the platform's rear, where the camera is).
+    this.vendorView.setPosition(KIOSK_POS.x + 0.1, FLOOR_Y, KIOSK_POS.z - 0.9);
+    this.vendorView.setFacing(0.25);
     this.group.add(this.vendorView.root);
+    for (const t of TOWNSFOLK) {
+      const view = new CharacterView(t.look);
+      view.leans = false;
+      if (t.seated) view.setPose('sit');
+      this.group.add(view.root);
+      this.townsfolk.push({ view, idles: t.idles, act: t.idles[0], left: 0, next: 1 + Math.random() * 3, seated: t.seated });
+    }
+    this.placeTownsfolk();
     // The luggage on the barrow: every bag slot built once, the first `count` drawn (session 23).
     const bags = buildBarrowBags();
     this.bags = new THREE.Mesh(bags.geometry, MATERIALS.solid);
@@ -240,8 +270,11 @@ export class PlatformView {
       || (z > PLATFORM.bench.z0 - margin && z < PLATFORM.bench.z1 + margin)
       || Math.abs(z - PLATFORM.kiosk.z) < 0.8 + margin;
     const lampX = x1 - 0.55;
+    const lampZs: number[] = [];
+    let showBench: Rect | null = null as Rect | null;
     for (let z = z0 + 3; z < z1 - 2; z += LAMP_STEP) {
       if (blockedZ(z, 0.6)) continue;
+      lampZs.push(z);
       buildLampPost(props, lamps, lampX, z);
       anchors.push({ x: lampX - 0.7, y: FLOOR_Y + 2.1, z, strength: 1 });
       for (const dz of [-0.24, 0.24]) glows.push(lampGlow(lampX, FLOOR_Y + 2.42, z + dz));
@@ -268,9 +301,13 @@ export class PlatformView {
 
     // Benches along the back railing behind the train (for show), and the one where travellers with no bed wait.
     buildBench(props, PLATFORM.bench);
-    for (let z = Math.max(PLATFORM.barrow.z1 + 4, z0 + 6); z < z1 - 3; z += 11) {
-      buildBench(props, { x0: x1 - 0.85, z0: z - 1.1, x1: x1 - 0.45, z1: z + 1.1 });
-    }
+    // Behind the train, between a lamp post and the flower tub after it, every other post.
+    lampZs.filter((z) => z > PLATFORM.barrow.z1 + 2 && z + LAMP_STEP / 2 < z1 - 2).forEach((z, i) => {
+      if (i % 2 !== 0) return;
+      const bench = { x0: x1 - 0.85, z0: z + 0.4, x1: x1 - 0.45, z1: z + 2.6 };
+      buildBench(props, bench);
+      if (!showBench) showBench = bench;
+    });
 
     // Sign posts under the name board, either side of the way in.
     for (const dx of [-SIGN_POST_HALF, SIGN_POST_HALF]) props.object('platform:signPost').box(PLATFORM.sign.x + dx, FLOOR_Y + 1.15, PLATFORM.sign.z, 0.08, 2.3, 0.08, PALETTE.navy, 0, { shade: 0.9 });
@@ -336,6 +373,46 @@ export class PlatformView {
     if (this.vendor) this.group.add(this.vendor);
     this.buildPosters();
     this.perchPigeons(x1);
+    this.showBench = showBench;
+    this.placeTownsfolk();
+  }
+
+  /** The two seeing someone off by the railing; the two on the bench behind the train (hidden if there is none). */
+  private placeTownsfolk(): void {
+    let standing = 0;
+    let seated = 0;
+    for (const t of this.townsfolk) {
+      if (!t.seated) {
+        const spot = SEEING_OFF[standing++ % SEEING_OFF.length];
+        t.view.setPosition(spot.x, FLOOR_Y, spot.z);
+        t.view.setFacing(spot.facing);
+        continue;
+      }
+      const bench = this.showBench;
+      t.view.root.visible = bench !== null;
+      if (!bench) continue;
+      const cz = (bench.z0 + bench.z1) / 2;
+      t.view.setPosition((bench.x0 + bench.x1) / 2 - 0.03, FLOOR_Y + BENCH_SIT_Y, cz + (seated++ === 0 ? -0.5 : 0.5));
+      t.view.setFacing(-Math.PI / 2);
+    }
+  }
+
+  /** Townsfolk idle (a look about, the paper, a call, a chat) and wave when the flag goes up. */
+  private animateTownsfolk(dt: number): void {
+    const waving = this.master.waving;
+    for (const t of this.townsfolk) {
+      if (!t.view.root.visible) continue;
+      if (waving) t.view.act('wave', 0.3);
+      else if (t.left > 0) {
+        t.left -= dt;
+        t.view.act(t.act, 0.3);
+      } else if ((t.next -= dt) <= 0) {
+        t.act = t.idles[Math.floor(Math.random() * t.idles.length)];
+        t.left = 2.5 + Math.random() * 2.5;
+        t.next = 2 + Math.random() * 4;
+      }
+      t.view.update(dt, 0);
+    }
   }
 
   /** Every pigeon back on the railing (a new station's platform). */
@@ -415,6 +492,7 @@ export class PlatformView {
   animate(dt: number): void {
     this.master.update(dt, 0);
     this.animatePigeons(dt);
+    this.animateTownsfolk(dt);
     if (!this.marketing.band || this.band.length === 0) return;
     this.beat += dt;
     const onBeat = this.beat >= BEAT_SECONDS;
@@ -686,7 +764,7 @@ function buildBarrow(b: GeoBuilder): void {
   const y = FLOOR_Y;
   b.object('platform:barrow');
   // The iron frame: two rails along the bed and cross members.
-  for (const dx of [-w / 2 + 0.06, w / 2 - 0.06]) b.box(cx + dx, y + 0.38, cz, 0.05, 0.06, d, PALETTE.iron, 0, { shade: 0.85, surface: 'iron' });
+  for (const dx of [-w / 2 + 0.1, w / 2 - 0.1]) b.box(cx + dx, y + 0.38, cz, 0.05, 0.06, d, PALETTE.iron, 0, { shade: 0.85, surface: 'iron' });
   for (const dz of [-d / 2 + 0.06, 0, d / 2 - 0.06]) b.box(cx, y + 0.38, cz + dz, w - 0.08, 0.05, 0.05, PALETTE.iron, 0, { shade: 0.85, surface: 'iron' });
   // Five oak slats with gaps.
   const slats = 5;

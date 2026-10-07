@@ -99,6 +99,9 @@ export class ZoneRing {
 const PAD_HEIGHT = 0.06;
 /** How high a tile's marker floats over the floor: above the room walls, below the HUD's reach. */
 const MARKER_HEIGHT = 1.3;
+/** A quiet marker (not affordable, not the focus) is this much smaller and this much more transparent. */
+const QUIET_SHRINK = 0.2;
+const QUIET_FADE = 0.2;
 /** Where a tile's floating marker hangs (world height); the close-up label takes its exact place. */
 export const TILE_MARKER_Y = FLOOR_Y + MARKER_HEIGHT;
 /** Lip colours by state (the face's border colour, a shade darker). */
@@ -132,6 +135,8 @@ export class TileView {
   readonly face = new TileFace();
   /** Floats over the plate: what it is and what it costs, never hidden behind a wall. */
   readonly marker = new TileMarker();
+  /** How quiet its marker is now (0 loud, 1 quiet), eased so a tile turning affordable grows smoothly. */
+  private quiet = 0;
   private readonly pad = new THREE.Group();
   private readonly plane: THREE.Mesh;
   private readonly lip: THREE.Mesh;
@@ -168,8 +173,12 @@ export class TileView {
     this.group.position.set(x, 0, z);
   }
 
-  /** `marker`: whether the floating marker shows (the close-up label takes its place near the conductor). */
-  update(dt: number, affordable: boolean, active: boolean, marker = true): void {
+  /**
+   * `marker`: whether the floating marker shows (the close-up label takes its place near the conductor);
+   * `quiet`: a tile you cannot afford yet and the guide is not pointing at wears a smaller, softer marker
+   * (session 23: every upgrade always in view, the one that matters now the loudest).
+   */
+  update(dt: number, affordable: boolean, active: boolean, marker = true, quiet = false): void {
     this.time += dt;
     this.popT = Math.min(1, this.popT + dt * 3);
     const appear = this.popT < 1 ? 0.4 + 0.6 * Math.sin(this.popT * Math.PI * 0.5) * 1.08 : 1;
@@ -180,7 +189,10 @@ export class TileView {
     // The marker bobs gently, and steps aside while you stand on the tile (the plate shows the fill).
     this.marker.sprite.visible = marker && !active;
     this.marker.sprite.position.y = FLOOR_Y + MARKER_HEIGHT + Math.sin(this.time * 2.2) * 0.04;
-    this.marker.sprite.scale.set(TILE_MARKER_WIDTH * appear, TILE_MARKER_WIDTH * TILE_MARKER_ASPECT * appear, 1);
+    this.quiet += ((quiet ? 1 : 0) - this.quiet) * Math.min(1, dt * 6);
+    const size = appear * (1 - QUIET_SHRINK * this.quiet);
+    this.marker.sprite.scale.set(TILE_MARKER_WIDTH * size, TILE_MARKER_WIDTH * TILE_MARKER_ASPECT * size, 1);
+    (this.marker.sprite.material as THREE.SpriteMaterial).opacity = 1 - QUIET_FADE * this.quiet;
     if (!this.locked) this.setLip(active ? 'active' : affordable ? 'affordable' : 'idle');
   }
 

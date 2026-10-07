@@ -28,6 +28,9 @@ export interface CharacterLook {
   bandColor?: string;
   /** Shoe colour (the conductor's shoes change with speed upgrades). */
   shoe?: string;
+  /** Session 23, a crowd of individuals: round spectacles, and hair that falls to the shoulders. */
+  glasses?: boolean;
+  longHair?: boolean;
 }
 
 const HIP_Y = 0.36;
@@ -65,7 +68,17 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
   }
   const hatted = look.hat === 'conductor' || look.hat === 'boater' || look.hat === 'cap' || look.hat === 'beanie' || look.hat === 'pillbox' || look.hat === 'tophat' || look.hat === 'toque';
   // Hair sits clearly outside the head where they overlap (near-coincident spheres flicker at the hairline).
-  b.sphere(0, HEAD_Y + (hatted ? 0.03 : 0.07), -0.05, 0.268, look.hair, 2, 0.95, { shade: 0.85 });
+  // Session 23: under a hat it sits further back, so the two surfaces cross at a steeper angle (the hairline of
+  // the platform's band and station master flickered once nothing stood over them).
+  if (hatted) b.sphere(0, HEAD_Y + 0.05, -0.08, 0.264, look.hair, 2, 0.95, { shade: 0.85 });
+  else b.sphere(0, HEAD_Y + 0.085, -0.095, 0.28, look.hair, 2, 0.95, { shade: 0.85 });
+  // Long hair falls down the back of the head to the shoulders.
+  if (look.longHair) b.rounded(0, HEAD_Y - 0.13, -0.19, 0.44, 0.36, 0.16, 0.08, look.hair, { shade: 0.85 });
+  if (look.glasses) {
+    // Round wire spectacles over the eyes, a bridge between them.
+    for (const x of [-0.085, 0.085]) b.add(new THREE.TorusGeometry(0.05, 0.009, 5, 14), '#2B2733', x, HEAD_Y + 0.015, 0.262, 0, 0, 0, { shade: 1 });
+    b.box(0, HEAD_Y + 0.025, 0.268, 0.07, 0.012, 0.012, '#2B2733', 0, { shade: 1 });
+  }
 
   switch (look.hat) {
     case 'conductor': {
@@ -225,8 +238,8 @@ function eyelidGeometry(skin: string): THREE.BufferGeometry {
  * Little things people do (the world reacts to them): sweeping a cabin, reading on the bed, sipping the tea
  * you brought, checking a watch in the queue, washing hands, stamping tickets, hugging a pillow.
  */
-export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'wash' | 'stamp' | 'hug' | 'wave';
-type PropKind = 'broom' | 'paper' | 'cup' | 'stamp' | 'bundle';
+export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'wash' | 'stamp' | 'hug' | 'wave' | 'look' | 'phone' | 'chat' | 'yawn';
+type PropKind = 'broom' | 'paper' | 'cup' | 'stamp' | 'bundle' | 'phone';
 
 const propCache = new Map<PropKind, THREE.BufferGeometry>();
 /** Hand-held props, built once and shared (positioned for the body group, facing +z). */
@@ -260,6 +273,11 @@ function propGeometry(kind: PropKind): THREE.BufferGeometry {
     case 'bundle':
       // A pillow or folded blanket hugged to the chest.
       b.rounded(0, 0, 0, 0.36, 0.22, 0.14, 0.06, '#FFFFFF', style);
+      break;
+    case 'phone':
+      // A phone held to the ear (rides in the right hand), its screen lit.
+      b.rounded(0, 0, 0, 0.05, 0.13, 0.018, 0.008, '#25222B', style);
+      b.box(0, 0.005, 0.0095, 0.038, 0.1, 0.002, '#9FD3E8', 0, { shade: 1 });
       break;
   }
   g = b.build();
@@ -302,7 +320,7 @@ export class CharacterView {
   private actionTime = 0;
   private actionClock = 0;
   private readonly props = new Map<PropKind, THREE.Mesh>();
-  private cupInHand: THREE.Mesh | null = null;
+  private readonly inHand = new Map<PropKind, THREE.Mesh>();
   /** The whole train's sway (radians about x): everyone lurches when it brakes or pulls away. */
   static lean = 0;
   /** Aboard the train (sways with it); people on the platform or by the line stand still. */
@@ -417,15 +435,16 @@ export class CharacterView {
     this.props.set(kind, mesh);
   }
 
-  /** The tea cup rides in the right hand (it follows the arm up to the mouth). */
-  private showCup(on: boolean): void {
-    if (on && !this.cupInHand) {
-      this.cupInHand = new THREE.Mesh(propGeometry('cup'), MATERIALS.character);
-      this.cupInHand.userData.shared = true;
-      this.cupInHand.position.set(0, -0.36, 0.06);
-      this.arms[1].add(this.cupInHand);
+  /** The tea cup and the phone ride in the right hand (they follow the arm up to the mouth or the ear). */
+  private showInHand(kind: PropKind | null): void {
+    if (kind && !this.inHand.has(kind)) {
+      const mesh = new THREE.Mesh(propGeometry(kind), MATERIALS.character);
+      mesh.userData.shared = true;
+      mesh.position.set(0, kind === 'phone' ? -0.37 : -0.36, kind === 'phone' ? 0.03 : 0.06);
+      this.arms[1].add(mesh);
+      this.inHand.set(kind, mesh);
     }
-    if (this.cupInHand) this.cupInHand.visible = on;
+    for (const [k, mesh] of this.inHand) mesh.visible = k === kind;
   }
 
   /** Arms, body and props for the current action (after the walk cycle has had its say). */
@@ -438,7 +457,7 @@ export class CharacterView {
     const a = this.action;
     const spec = ACTION_PROPS[a];
     this.showProp(spec ? spec.kind : null);
-    this.showCup(a === 'sip');
+    this.showInHand(a === 'sip' ? 'cup' : a === 'phone' ? 'phone' : null);
     if (a === 'none') return;
     const t = this.actionClock;
     const ease = Math.min(1, dt * 12);
@@ -491,6 +510,37 @@ export class CharacterView {
       case 'wave':
         aim(1, -2.75, 0.25 + Math.sin(t * 9) * 0.4);
         break;
+      case 'look': {
+        // Looking about: a slow turn one way, a pause, then the other (hands behind the back).
+        aim(0, 0.35, 0.05);
+        aim(1, 0.35, -0.05);
+        const k = t % 5;
+        const side = k < 1.2 ? Math.sin((k / 1.2) * Math.PI * 0.5) : k < 2.4 ? 1 : k < 3.6 ? Math.cos(((k - 2.4) / 1.2) * Math.PI) : -1 + Math.min(1, (k - 3.6) / 1.4);
+        this.body.rotation.y = side * 0.55;
+        break;
+      }
+      case 'phone':
+        // On the phone: the hand at the ear, the other on the hip, a nod now and then.
+        aim(1, -2.35, -0.55);
+        aim(0, 0.2, 0.45);
+        this.body.rotation.x += Math.max(0, Math.sin(t * 2.2)) * 0.06;
+        break;
+      case 'chat': {
+        // Talking with their hands: one gesture, then the other, a little bob.
+        const g = Math.sin(t * 4.2);
+        aim(0, -0.7 - Math.max(0, g) * 0.6, 0.35);
+        aim(1, -0.7 - Math.max(0, -g) * 0.6, -0.35);
+        this.body.position.y += Math.abs(Math.sin(t * 4.2)) * 0.015;
+        break;
+      }
+      case 'yawn': {
+        // A big stretch: both arms up overhead, leaning back, then down again.
+        const k = Math.min(1, t / 0.5) * (t > 1.6 ? Math.max(0, 1 - (t - 1.6) / 0.5) : 1);
+        aim(0, -2.9 * k, 0.35 * k);
+        aim(1, -2.9 * k, -0.35 * k);
+        this.body.rotation.x -= 0.12 * k;
+        break;
+      }
     }
   }
 
