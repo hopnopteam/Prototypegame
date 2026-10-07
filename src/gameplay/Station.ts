@@ -10,6 +10,7 @@ import { PlatformView } from '../world/PlatformView';
 import { PLATFORM } from '../world/platformLayout';
 import { billboardTexture } from '../world/sprites';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
+import { nextStreak, stopRating, streakBonus } from '../sim/stationResult';
 import type { StationResult } from './events';
 import { sourceActive, sourceStay, type SourceSpec } from './Pickup';
 import { platformLightInput } from '../world/trainLight';
@@ -59,6 +60,8 @@ export class Station {
   private tipsThisStop = 0;
   private starsAtArrival = 0;
   private luggageLoadedThisStop = 0;
+  /** Fares sold at the ticket stand this stop (session 24: the result card's total). */
+  private faresThisStop = 0;
   private readonly tmp = new THREE.Vector3();
   /**
    * The opening at Millbrook (config: flow `prologue`): the train stands at the platform with the clock held
@@ -75,6 +78,7 @@ export class Station {
     w.scene.add(this.view.group);
     w.events.on('luggage.loaded', () => this.luggageLoadedThisStop++);
     w.events.on('guest.alighted', () => this.alightedThisStop++);
+    w.events.on('guest.checkedIn', ({ fare }) => { this.faresThisStop += fare; });
     w.events.on('guest.boarded', ({ byPlayer }) => {
       this.boardedThisStop++;
       if (this.prologue && byPlayer && !this.prologueTicketsDone) {
@@ -279,6 +283,7 @@ export class Station {
       this.boardedThisStop = 0;
       this.alightedThisStop = 0;
       this.tipsThisStop = 0;
+      this.faresThisStop = 0;
       this.luggageLoadedThisStop = 0;
       this.starsAtArrival = w.progression.stars;
       w.guests.onStationStop(w.journey.stopSerial);
@@ -460,20 +465,49 @@ export class Station {
     const waiting = Math.min(onPlatform, w.guests.bedsFree());
     const leftBehind = onPlatform - waiting;
     // The first in line had the beds (they carry no "no room" sign), so they are the ones who missed it.
-    w.feedback.onDeparture(platform.slice(0, waiting), platform.slice(waiting));
+    const missed = platform.slice(0, waiting);
+    w.feedback.onDeparture(missed, platform.slice(waiting));
     const storageFull = w.train.luggageStored >= w.train.luggageCapacity;
-    const clean = waiting === 0 && (this.luggagePile === 0 || storageFull);
+    const bagsDone = this.luggagePile === 0 || storageFull;
+    const clean = waiting === 0 && bagsDone;
+    const money = w.econ.money;
+    const route = w.data.route;
+    // The perfect streak (session 24): each perfect stop in a row grows the bonus; any other stop starts again.
+    route.perfectStreak = nextStreak(route.perfectStreak ?? 0, clean);
     let bonusCash = 0;
+    let streakExtra = 0;
     if (clean) {
-      bonusCash = Math.round(w.econ.money.stationBonusCash * (1 + w.econ.money.stationBonusPerCarriage * (w.train.count - 1)) * (1 + w.stationPerks().stationBonus));
+      const base = money.stationBonusCash * (1 + money.stationBonusPerCarriage * (w.train.count - 1)) * (1 + w.stationPerks().stationBonus);
+      const bonus = streakBonus(base, route.perfectStreak, money.perfectStreakStep, money.perfectStreakMax);
+      bonusCash = bonus.total;
+      streakExtra = bonus.extra;
       const door = w.map.doors()[0];
       w.cash.add('bonus', bonusCash, this.tmp.set(door.inside.x + 0.5, FLOOR_Y + 1.5, door.inside.z));
       w.addStars(w.econ.stars.cleanStationStop, 'cleanStop', door.inside);
       w.particles.emit('star', door.inside.x, FLOOR_Y + 1.2, door.inside.z, 16, 0.5);
       w.particles.emit('confetti', door.inside.x, FLOOR_Y + 2.2, door.inside.z, 40, 0.8);
-      w.audio.play('chest');
+      const p = w.player.pos;
+      w.particles.emit('confetti', p.x, FLOOR_Y + 2.4, p.z, 30, 0.7);
+      w.audio.play('perfect');
+      w.audio.play('chest', { volume: 0.7 });
       w.haptics.success();
       w.meta.onCleanStop();
+    }
+    // Those who missed it wave their tickets from the platform, and the camera glances back at them once the
+    // soft cues are on (nothing is taken: the card shows what their fares would have been).
+    const showMissed = missed.length > 0 && w.feedback.cuesOn;
+    let missedFare = 0;
+    for (const guest of missed) missedFare += w.guests.estimatedFare(guest);
+    if (showMissed) {
+      let x = 0;
+      let z = 0;
+      for (const guest of missed) {
+        guest.view.act('waveTicket', w.econ.feedback.missedGlide.seconds + 1.5);
+        x += guest.pos.x;
+        z += guest.pos.z;
+      }
+      const glide = w.econ.feedback.missedGlide;
+      if (!w.stage.rig.focusing) w.stage.rig.focusOn(this.tmp.set(x / missed.length, 0, z / missed.length + this.platformOffset), glide.seconds, glide.zoom);
     }
     const result: StationResult = {
       stationName: this.currentStation().name,
@@ -487,6 +521,12 @@ export class Station {
       stars: w.progression.stars - this.starsAtArrival,
       clean,
       bonusCash,
+      rating: stopRating(waiting, bagsDone),
+      earned: this.faresThisStop + this.tipsThisStop,
+      streak: route.perfectStreak,
+      streakBonus: streakExtra,
+      missedFare,
+      showMissed,
     };
     w.data.route.stopsCompleted++;
     w.save.markDirty();

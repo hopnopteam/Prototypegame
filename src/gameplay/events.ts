@@ -67,4 +67,16 @@ export interface StationResult {
   stars: number;
   clean: boolean;
   bonusCash: number;
+  /** Session 24, the result card: 1–3 stars (everyone with a bed aboard, the bags loaded; both is a perfect 3). */
+  rating: number;
+  /** Fares sold at this stop plus the tips left by those who got off. */
+  earned: number;
+  /** Perfect stops in a row, this one included (0 after any other stop). */
+  streak: number;
+  /** The share of `bonusCash` the streak added. */
+  streakBonus: number;
+  /** What the travellers who missed the train would have paid (shown, never taken). */
+  missedFare: number;
+  /** The misses are shown (the soft cues are on): the red line, the "aww", the glance at the platform. */
+  showMissed: boolean;
 }

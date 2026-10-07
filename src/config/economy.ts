@@ -235,6 +235,13 @@ export const ECONOMY = {
     stationBonusCash: 18,
     /** The station bonus grows by this fraction for every carriage coupled. */
     stationBonusPerCarriage: 0.3,
+    /**
+     * Session 24, the perfect streak: every perfect stop in a row adds this share to the station bonus (×1, ×1.25,
+     * ×1.5 …) for up to `perfectStreakMax` steps. Any other stop simply starts the count again: the streak is a
+     * bonus to keep, never something taken away.
+     */
+    perfectStreakStep: 0.25,
+    perfectStreakMax: 6,
     startingCash: 0,
     /**
      * Loose cash on the floor at the very start. Session 16: none (it pulled the first step away from the guest
@@ -268,6 +275,11 @@ export const ECONOMY = {
    * to improve. They switch on only once the basics are learnt.
    */
   feedback: {
+    /**
+     * Session 24: when travellers who had a bed miss the train (once the cues are on), the camera glides to them
+     * on the platform for this long, waving their tickets, before coming back (zoom as in `flow.reveal`).
+     */
+    missedGlide: { seconds: 2.2, zoom: 1.05 },
     /** Cues start at this route level... */
     cuesFromLevel: 2,
     /** ...or after this many station stops, whichever comes first. */

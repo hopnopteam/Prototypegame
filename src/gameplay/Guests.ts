@@ -406,6 +406,17 @@ export class Guests {
     return guest.pos.z < PLATFORM.toDoor.z - 0.3 ? [PLATFORM.toDoor] : [];
   }
 
+  /**
+   * What a traveller's ticket would have cost (session 24: shown on the result card when they miss the train,
+   * never taken): a free room of their class if there is one, else their class's own fare.
+   */
+  estimatedFare(guest: Guest): number {
+    const w = this.w;
+    const room = w.train.freeCabin(guest.cls);
+    const multiplier = room ? w.train.fareMultiplier(room) : CLASS_BY_ID[guest.cls].fare;
+    return Math.round(w.econ.money.baseFare * multiplier * guest.archetype.fareMultiplier * w.fareMultiplier());
+  }
+
   /** The fare, paid at the booth: cash on the booth's pile, the bell, a little bounce. */
   private sellTicket(guest: Guest, cabin: Cabin, byPlayer: boolean): void {
     const w = this.w;

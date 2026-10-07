@@ -85,6 +85,8 @@ export interface SaveData {
     stationIndex: number;
     legsCompleted: number;
     stopsCompleted: number;
+    /** Perfect stops in a row (session 24): each one grows the station bonus; any other stop starts again. */
+    perfectStreak: number;
   };
   staff: Record<string, { level: number }>;
   conductor: { speed: number; capacity: number; fareBonus: number };
@@ -150,7 +152,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {} },
     settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {}, qualityPolicy: 0 },
     wallet: { cash: 0, gems: 0, railMiles: 0 },
-    route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0 },
+    route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0, perfectStreak: 0 },
     staff: {},
     conductor: { speed: 0, capacity: 0, fareBonus: 0 },
     facilities: { supplyTowel: -1, supplyRoll: -1, bathrooms: [] },

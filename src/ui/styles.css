@@ -297,6 +297,22 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .ticket .rows .warn { background: #FBE3A1; }
 .ticket .rows .bad { background: #F3D3CE; color: #8E2F2F; }
 
+/* Session 24: the station result is one big card: a headline band, three stars, then the numbers. */
+.ticket.result { flex-direction: column; align-items: stretch; width: min(270px, calc(100% - 2 * var(--middle-left))); text-align: center; }
+.ticket.result .band { background: var(--navy); color: var(--cream); padding: 7px 10px 6px; border-bottom: 2.5px dashed var(--cream); }
+.ticket.result.perfect .band { background: var(--mustard); color: var(--ink); border-bottom-color: var(--cream); }
+.ticket.result h3 { font-size: clamp(15px, 4.6vw, 19px); letter-spacing: 0.08em; }
+.ticket.result .stars { display: flex; justify-content: center; gap: 6px; padding: 7px 0 3px; }
+.ticket.result .stars i { display: block; width: 30px; height: 30px; animation: starPop 420ms cubic-bezier(.2,1.6,.4,1) both; }
+.ticket.result .stars i .ico { width: 30px; height: 30px; }
+.ticket.result .stars i.off { filter: grayscale(1) brightness(1.25); opacity: 0.38; }
+@keyframes starPop { from { transform: scale(0) rotate(-40deg); opacity: 0; } }
+.ticket.result .rows { justify-content: center; padding: 0 8px 6px; }
+.ticket.result .rows:last-child { padding-bottom: 9px; }
+.ticket.result .rows .streak { background: var(--raspberry); color: var(--cream); padding-left: 4px; }
+.ticket.result .rows .bad { background: #F7DEDA; color: #B5473F; padding-left: 7px; }
+.ticket.result .rows .lost .ico { filter: grayscale(0.6); opacity: 0.7; }
+
 /* ── Coach line, tile labels, train map ──────────────── */
 /* Coach line: a label right where the action is, with a tail pointing at it. */
 .guide { position: absolute; left: 0; top: 0; z-index: 6; display: flex; align-items: center; gap: 6px; max-width: 200px; padding: 5px 11px 5px 5px; border-radius: 16px; background: var(--mustard); border: var(--line); box-shadow: 0 3px 0 var(--ink); font-weight: 800; font-size: 13px; line-height: 1.15; will-change: transform; pointer-events: none; }

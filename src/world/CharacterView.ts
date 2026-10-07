@@ -238,8 +238,8 @@ function eyelidGeometry(skin: string): THREE.BufferGeometry {
  * Little things people do (the world reacts to them): sweeping a cabin, reading on the bed, sipping the tea
  * you brought, checking a watch in the queue, washing hands, stamping tickets, hugging a pillow.
  */
-export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'wash' | 'stamp' | 'hug' | 'wave' | 'look' | 'phone' | 'chat' | 'yawn';
-type PropKind = 'broom' | 'paper' | 'cup' | 'stamp' | 'bundle' | 'phone';
+export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'wash' | 'stamp' | 'hug' | 'wave' | 'look' | 'phone' | 'chat' | 'yawn' | 'waveTicket';
+type PropKind = 'broom' | 'paper' | 'cup' | 'stamp' | 'bundle' | 'phone' | 'ticket';
 
 const propCache = new Map<PropKind, THREE.BufferGeometry>();
 /** Hand-held props, built once and shared (positioned for the body group, facing +z). */
@@ -273,6 +273,11 @@ function propGeometry(kind: PropKind): THREE.BufferGeometry {
     case 'bundle':
       // A pillow or folded blanket hugged to the chest.
       b.rounded(0, 0, 0, 0.36, 0.22, 0.14, 0.06, '#FFFFFF', style);
+      break;
+    case 'ticket':
+      // A train ticket waved overhead (session 24: travellers who missed the train), cream with a red band.
+      b.box(0, 0, 0, 0.13, 0.08, 0.008, '#FBF3DF', 0, style);
+      b.box(-0.035, 0, 0.0045, 0.025, 0.08, 0.002, '#C0485C', 0, { shade: 1 });
       break;
     case 'phone':
       // A phone held to the ear (rides in the right hand), its screen lit.
@@ -440,7 +445,7 @@ export class CharacterView {
     if (kind && !this.inHand.has(kind)) {
       const mesh = new THREE.Mesh(propGeometry(kind), MATERIALS.character);
       mesh.userData.shared = true;
-      mesh.position.set(0, kind === 'phone' ? -0.37 : -0.36, kind === 'phone' ? 0.03 : 0.06);
+      mesh.position.set(0, kind === 'phone' ? -0.37 : kind === 'ticket' ? -0.42 : -0.36, kind === 'phone' ? 0.03 : 0.06);
       this.arms[1].add(mesh);
       this.inHand.set(kind, mesh);
     }
@@ -457,7 +462,7 @@ export class CharacterView {
     const a = this.action;
     const spec = ACTION_PROPS[a];
     this.showProp(spec ? spec.kind : null);
-    this.showInHand(a === 'sip' ? 'cup' : a === 'phone' ? 'phone' : null);
+    this.showInHand(a === 'sip' ? 'cup' : a === 'phone' ? 'phone' : a === 'waveTicket' ? 'ticket' : null);
     if (a === 'none') return;
     const t = this.actionClock;
     const ease = Math.min(1, dt * 12);
@@ -509,6 +514,11 @@ export class CharacterView {
         break;
       case 'wave':
         aim(1, -2.75, 0.25 + Math.sin(t * 9) * 0.4);
+        break;
+      case 'waveTicket':
+        // Waving the ticket overhead, a little hop now and then: "wait for me!"
+        aim(1, -2.85, 0.2 + Math.sin(t * 10) * 0.45);
+        this.body.position.y += Math.max(0, Math.sin(t * 5)) * 0.04;
         break;
       case 'look': {
         // Looking about: a slow turn one way, a pause, then the other (hands behind the back).

@@ -5,7 +5,9 @@ import { MUSIC } from './music';
 export type Sfx =
   | 'pop' | 'pickup' | 'drop' | 'cash' | 'coin' | 'bell' | 'ding' | 'scrub' | 'sparkle' | 'clunk'
   | 'whistle' | 'whistleShort' | 'fanfare' | 'levelup' | 'punch' | 'whoosh' | 'click' | 'chime'
-  | 'soft' | 'door' | 'chest' | 'unlock' | 'heart' | 'flush' | 'miss' | 'grumble';
+  | 'soft' | 'door' | 'chest' | 'unlock' | 'heart' | 'flush' | 'miss' | 'grumble'
+  // Session 24: the station result card.
+  | 'perfect' | 'aww';
 
 /**
  * Every sound in the game. Effects are synthesised with WebAudio (short, warm cues: no files, work
@@ -379,6 +381,21 @@ export class AudioEngine {
         // A soft "wah-wah": something slipped by, nothing lost for good.
         this.tone(t, 392 * p, 370 * p, 0.16, 'triangle', 0.13 * v);
         this.tone(t + 0.17, 330 * p, 262 * p, 0.3, 'triangle', 0.13 * v);
+        break;
+      case 'perfect': {
+        // "All aboard!": a quick bright run up, a bell chord on top that rings out, and the chest's sparkle.
+        const tail = AUDIO.tail;
+        [784, 988, 1175, 1568].forEach((f, i) => this.tone(t + i * 0.085, f, f, 0.12, 'triangle', 0.17 * v, 0.003, this.sfx, true));
+        this.ring(t + 0.34, 1568, 'triangle', 0.1 * v, tail.hold, tail.release);
+        this.ring(t + 0.34, 2093, 'sine', 0.06 * v, tail.hold, tail.release * 1.1);
+        this.play('sparkle', { volume: v });
+        break;
+      }
+      case 'aww':
+        // A fond, voice-like "aww" that falls away: they will catch the next train.
+        this.tone(t, 523 * p, 392 * p, 0.6, 'triangle', 0.1 * v, 0.07);
+        this.tone(t, 659 * p, 494 * p, 0.6, 'sine', 0.045 * v, 0.07);
+        this.noise(t, 0.45, 'bandpass', 900, 0.025 * v);
         break;
       case 'grumble':
         this.tone(t, 150 * p, 132 * p, 0.14, 'sawtooth', 0.035 * v);

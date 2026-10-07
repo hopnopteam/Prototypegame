@@ -125,7 +125,7 @@ export class Feedback {
   onDeparture(missed: Guest[], noBed: Guest[]): void {
     const w = this.w;
     if (missed.length > 0 && this.cuesOn) {
-      w.audio.play('miss');
+      w.audio.play('aww');
       this.nudge(w.econ.feedback.mood.missed * Math.min(3, missed.length));
       for (const guest of missed) {
         guest.view.showBubble('clock', 'alert');

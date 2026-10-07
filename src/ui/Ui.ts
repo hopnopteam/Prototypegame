@@ -1011,29 +1011,49 @@ export class Ui implements GameUi {
     this.announcements.push({ play, expires: (this.game?.time ?? 0) + maxDelay });
   }
 
+  /**
+   * The station result (session 24, owner: "one big card… headline, 3 stars, Boarded 10/10, total earned,
+   * bonus, no other text"): a headline, three stars that pop in (grey for what was missed), who boarded, what the
+   * stop earned and the bonus with its perfect streak. Missed travellers (once the soft cues are on) add one soft
+   * red line with the fares they would have paid: shown, never taken.
+   */
   showResult(result: StationResult): void {
     this.dismissResult();
-    const chip = (name: IconName, text: string, cls = ''): HTMLElement => h(`span${cls}` as 'span', {}, icon(name, 16), text);
-    const rows = h('div.rows', {},
-      chip('person', String(result.boarded)),
-      chip('cash', formatNumber(result.tips)),
-      chip('star', `+${result.stars}`),
+    const chip = (name: IconName | null, text: string, cls = ''): HTMLElement => h(`span${cls}` as 'span', {}, name ? icon(name, 16) : null, text);
+    const headline = result.clean ? 'All aboard!' : result.rating === 2 ? 'Nice stop!' : 'Off we go!';
+    const stars = h('div.stars', {});
+    for (let i = 0; i < 3; i++) {
+      const star = h(`i${i < result.rating ? '.on' : '.off'}` as 'i', {}, icon('star', 30));
+      star.style.animationDelay = `${0.25 + i * 0.16}s`;
+      stars.appendChild(star);
+    }
+    const due = result.boarded + result.waiting;
+    const boarded = h('div.rows', {},
+      chip('person', `Boarded ${result.boarded}/${due}`),
       result.luggageTotal > 0 ? chip('luggage', `${result.luggageLoaded}/${result.luggageTotal}`) : null,
+      // Travellers with no free bed: demand for cabins, never a miss.
+      result.leftBehind > 0 ? chip('noroom', String(result.leftBehind), '.warn') : null,
+    );
+    const money = h('div.rows', {},
+      chip('cash', `+${formatNumber(result.earned)}`),
       result.clean ? chip('chest', `+${formatNumber(result.bonusCash)}`, '.bonus') : null,
+      result.clean && result.streak >= 2 ? chip('bolt', `×${result.streak}`, '.streak') : null,
     );
-    // Who did not come along, as icons: no free bed (demand for cabins), or missed once the soft cues are on.
-    const missedCue = !result.clean && result.waiting > 0 && this.game.feedback.cuesOn;
-    if (result.leftBehind > 0) rows.appendChild(chip('noroom', String(result.leftBehind), '.warn'));
-    if (!result.clean && result.waiting > 0) rows.appendChild(chip(missedCue ? 'person' : 'clock', String(result.waiting), missedCue ? '.bad.crossed' : ''));
-    const body = h('div.body', {},
-      result.clean ? h('div.head', {}, h('h3', { text: 'Perfect!' })) : null,
-      rows,
+    const missed = result.showMissed
+      ? h('div.rows', {}, chip(null, `${result.waiting} missed`, '.bad'), chip('cash', `−${formatNumber(result.missedFare)}`, '.bad.lost'))
+      : null;
+    const el = h(`div.ticket.result${result.clean ? '.perfect' : ''}${result.showMissed ? '.missed' : ''}` as 'div', {
+      role: 'status',
+      'aria-label': `${result.stationName}: ${result.boarded} of ${due} boarded, ${result.earned} earned`,
+      onclick: () => this.dismissResult(),
+    },
+      h('div.band', {}, h('h3', { text: headline })),
+      stars,
+      boarded,
+      money,
+      missed,
     );
-    const el = h('div.ticket', { role: 'status', 'aria-label': `${result.stationName}: ${result.boarded} boarded, ${result.tips} in tips, ${result.stars} stars`, onclick: () => this.dismissResult() },
-      h('div.stub', {}, icon('ticket', 30)),
-      body,
-    );
-    // The ticket replaces this stop's arrival banner if it is somehow still up (they share the middle column).
+    // The card replaces this stop's arrival banner if it is somehow still up (they share the middle column).
     this.root.querySelectorAll('.banner').forEach((b) => b.remove());
     this.root.appendChild(el);
     this.root.classList.add('has-ticket');

@@ -35,7 +35,7 @@ export const AUDIO = {
    * them meant coins scooped or a tile bought just after an upgrade made no sound at all, which read as the
    * audio cutting out.
    */
-  celebration: { cues: ['fanfare', 'levelup'], holdOff: 1.4, duck: 0.35, quiet: ['ding', 'chest', 'heart', 'unlock', 'chime', 'coin', 'pop', 'sparkle', 'bell'] },
+  celebration: { cues: ['fanfare', 'levelup', 'perfect'], holdOff: 1.4, duck: 0.35, quiet: ['ding', 'chest', 'heart', 'unlock', 'chime', 'coin', 'pop', 'sparkle', 'bell'] },
   music: {
     /** Seconds to fade the theme in at the start (and after it is switched back on) and out when switched off. */
     fadeIn: 1.2,
