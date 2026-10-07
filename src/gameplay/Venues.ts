@@ -298,6 +298,18 @@ export class Venues {
 
   /** A resting guest might take an outing to a venue with room: true if they set off. */
   /** An outing to a venue that suits the time of night (`when`) and has a seat; false when none does. */
+  /**
+   * A venue the desk can book a table in for tonight (session 24): open in the evening with a free seat (the dome
+   * only on the move), as its icon for the guest's bubble; null when there is none yet.
+   */
+  bookable(): IconName | null {
+    for (const v of this.list) {
+      if (!v.freeSeat() || !VENUES[v.kind].when.includes('evening')) continue;
+      return this.venueIcon(v.kind);
+    }
+    return null;
+  }
+
   tryOuting(guest: Guest, when: 'evening' | 'morning'): boolean {
     const w = this.w;
     if (!guest.cabin || guest.story || this.list.length === 0) return false;

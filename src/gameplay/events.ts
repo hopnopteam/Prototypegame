@@ -6,6 +6,8 @@ export interface GameEvents {
   'currency.changed': { kind: CurrencyKind; amount: number; delta: number; source: string };
   'cash.collected': { amount: number; x: number; z: number };
   'guest.checkedIn': { fare: number; x: number; z: number; byPlayer: boolean };
+  /** Session 24: a ticketed guest was handed their cabin key at the desk (and perhaps booked a table). */
+  'guest.keyed': { x: number; z: number; byPlayer: boolean; booked: boolean };
   'guest.boarded': { byPlayer: boolean };
   'guest.alighted': { tip: number };
   'request.fulfilled': { item: ServiceNeed; tip: number; x: number; z: number; byPlayer: boolean; speedy: boolean };

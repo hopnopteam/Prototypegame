@@ -369,13 +369,15 @@ export class StaffManager {
           release: () => (m.wantItems = {}),
         };
       }
-    } else if (!luggageCarPorter && w.guests.deskReady() && !this.someoneAt('desk', m)) {
+    }
+    // The desk (session 24: every ticketed guest is handed their key there), whenever nobody waits at the stand.
+    if (!luggageCarPorter && w.guests.deskReady() && !this.someoneAt('desk', m)) {
       const desk = w.map.anchor(0, 'deskService');
       return {
-        label: 'desk', icon: 'ticket',
+        label: 'desk', icon: 'key',
         steps: [
           { kind: 'goto', target: desk, node: 'c0:desk' },
-          { kind: 'stand', until: () => !w.guests.deskReady() || w.journey.doorsOpen, timeout: 20 },
+          { kind: 'stand', until: () => !w.guests.deskReady() || (w.journey.doorsOpen && w.guests.canBoard()), timeout: 20 },
         ],
         release: () => this.releaseRole('desk', m),
         ...this.claimRole('desk', m),

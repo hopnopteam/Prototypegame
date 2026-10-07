@@ -98,6 +98,8 @@ export class Guest {
    * themselves once it is made up.
    */
   paid = false;
+  /** Session 24: booked a table at the desk for the evening; their evening outing goes to a venue. */
+  booked = false;
   /**
    * Session 23, the ticket queue: where on the platform they are headed (`q0` the window, `q3` fourth in line,
    * `w1` the second place by the bench, `d` by the door with a ticket), whether they have got there, and the
@@ -366,8 +368,9 @@ export class Guests {
   }
 
   /**
-   * A paid traveller boards: straight to their room if one of their class is made up, else in through the door to
-   * the lobby's waiting line. While the opening's carriage is still covered they wait by its door.
+   * A paid traveller boards: in through the door to the reception desk's line, where they are handed the key to a
+   * room of their class (session 24: the ticket stand sells the fare, the desk checks them in). While the opening's
+   * carriage is still covered they wait by its door.
    */
   private boardPaid(guest: Guest): void {
     const w = this.w;
@@ -385,13 +388,9 @@ export class Guests {
       return;
     }
     if (!w.journey.doorsOpen) return;
-    const room = w.train.freeCabin(guest.cls);
-    if (room) {
-      this.walkIn(guest, room);
-      return;
-    }
     const door = w.map.doors()[0];
     guest.onPlatform = false;
+    guest.spot = null;
     guest.view.showBubble(null);
     guest.state = 'boarding';
     guest.stateTime = 0;
@@ -435,19 +434,6 @@ export class Guests {
     w.feedback.onCheckIn(guest);
   }
 
-  /** A ticketed traveller walks aboard to their room: back to the door, in, along the corridor, to the bed. */
-  private walkIn(guest: Guest, cabin: Cabin): void {
-    const w = this.w;
-    const door = w.map.doors()[0];
-    const route = this.toTheDoor(guest);
-    guest.onPlatform = false;
-    guest.spot = null;
-    guest.view.showBubble(null);
-    this.assignRoom(guest, cabin);
-    const path = w.map.nav.findPath(door.insideNode, cabin.node);
-    guest.mover.go([...route, door.outside, door.inside, ...(path ?? []), cabin.bedSide], () => this.arriveAtRoom(guest));
-  }
-
   /** The guest waiting at the desk, if one has reached it. */
   deskGuest(): Guest | null {
     return this.hasGuestAtDesk() ? this.queue[0] : null;
@@ -461,11 +447,10 @@ export class Guests {
 
   hasGuestAtDesk(): boolean {
     const first = this.queue[0];
-    // Session 22: travellers pay at the ticket booth; one waiting in the lobby has paid and needs no check-in.
-    return !!first && first.arrivedInQueue && first.state === 'queue' && !first.paid;
+    return !!first && first.arrivedInQueue && first.state === 'queue';
   }
 
-  /** Desk zone: check the first guest in, if there is a clean cabin of their class for them. */
+  /** Desk zone: hand the first guest the key to a clean cabin of their class, if there is one. */
   deskStay(zone: Zone, actor: Actor, dt: number): boolean {
     this.callForward();
     const guest = this.queue[0];
@@ -717,24 +702,9 @@ export class Guests {
     }
     switch (guest.state) {
       case 'queue':
-        // A paid traveller waiting in the lobby walks to a room of their class the moment one is made up.
-        if (guest.paid && guest.arrivedInQueue) {
-          const room = w.train.freeCabin(guest.cls);
-          if (room) {
-            const i = this.queue.indexOf(guest);
-            if (i >= 0) this.queue.splice(i, 1);
-            this.reflowQueue();
-            this.assignRoom(guest, room);
-            guest.view.showBubble(null);
-            const path = w.map.nav.findPath(w.map.nearestNode(guest.pos.x, guest.pos.z) ?? 'c0:lobby_front', room.node);
-            guest.mover.go([...(path ?? []), room.bedSide], () => this.arriveAtRoom(guest));
-            break;
-          }
-          guest.view.showBubble(guest.queueSlot === 0 ? 'noroom' : null, 'alert');
-          break;
-        }
+        // Waiting at the desk for a key: the first in line shows it once a room of their class is made up.
         if (guest.queueSlot !== 0 || !guest.arrivedInQueue) guest.view.showBubble(null);
-        else if (w.train.freeCabin(guest.cls)) guest.view.showBubble('ticket', guest.cls);
+        else if (w.train.freeCabin(guest.cls)) guest.view.showBubble('key', guest.cls);
         else guest.view.showBubble('noroom', 'alert');
         break;
       case 'settling': {
@@ -927,6 +897,11 @@ export class Guests {
     const w = this.w;
     const rules = w.econ.trip;
     guest.phaseOuting = true;
+    // A table booked at the desk is kept (session 24): the evening's outing, if a seat is free.
+    if (guest.booked && guest.trip === 'evening' && w.venues.tryOuting(guest, 'evening')) {
+      guest.booked = false;
+      return;
+    }
     if (guest.story || !w.rng.chance(rules.outingChance)) return;
     if (guest.trip !== 'night' && w.venues.tryOuting(guest, guest.trip)) return;
     const bathroomOpen = w.train.bathrooms.some((b) => b.unlocked);
@@ -1090,28 +1065,39 @@ export class Guests {
     });
   }
 
+  /**
+   * Check-in (session 24): the fare was paid at the ticket stand, so the desk hands over the cabin key (no second
+   * payment) and, now and then, books the guest a table for the evening in a venue: the desk's one extra, a small
+   * fee of its own. Then the guest walks to their room.
+   */
   private checkIn(guest: Guest, cabin: Cabin, actor: Actor): void {
     const w = this.w;
-    const money = w.econ.money;
-    const doubled = w.data.monetization.doubleFaresStop !== null && w.data.monetization.doubleFaresStop >= w.journey.stopSerial;
-    const fare = Math.round(money.baseFare * w.train.fareMultiplier(cabin) * guest.archetype.fareMultiplier * w.fareMultiplier() * (doubled ? 2 : 1));
-    w.cash.add('desk', fare, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
-    w.audio.play('bell');
+    const desk = w.econ.desk;
+    w.audio.play('ding', { pitch: 1.15 });
+    w.audio.play('pop', { pitch: 1.2, volume: 0.6 });
     w.haptics.light();
-    w.ui.floatText(`+${fare}`, guest.pos.x, FLOOR_Y + 1.9, guest.pos.z, 'cash');
-    guest.view.showBubble(null);
+    w.ui.floatIcon('key', guest.pos.x, FLOOR_Y + 1.9, guest.pos.z, 'info');
     guest.view.bounce(0.7);
     actor.view.bounce(0.4);
-
+    const venue = !guest.story && w.venues.bookable();
+    const booked = !!venue && w.rng.chance(desk.reserveChance);
+    if (venue && booked) {
+      const fee = Math.max(1, Math.round(desk.reserveFee * CLASS_BY_ID[guest.cls].tip * w.tipMultiplier()));
+      guest.booked = true;
+      w.cash.add('desk', fee, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
+      w.ui.floatText(`+${fee}`, guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'cash');
+      guest.view.showBubble(venue, 'intent', 1.85);
+      guest.view.act('wave', 0.8);
+    } else {
+      guest.view.showBubble(null);
+    }
     this.queue.shift();
     this.reflowQueue();
     this.assignRoom(guest, cabin);
-    const deskNode = 'c0:desk';
-    const path = w.map.nav.findPath(w.map.nearestNode(guest.pos.x, guest.pos.z) ?? deskNode, cabin.node);
+    const path = w.map.nav.findPath(w.map.nearestNode(guest.pos.x, guest.pos.z) ?? 'c0:desk', cabin.node);
     guest.mover.go([...(path ?? []), cabin.bedSide], () => this.arriveAtRoom(guest));
-    w.events.emit('guest.checkedIn', { fare, x: guest.pos.x, z: guest.pos.z, byPlayer: actor.isPlayer });
-    if (guest.story) w.meta?.onStoryGuestCheckedIn(guest.story);
-    w.feedback.onCheckIn(guest);
+    w.events.emit('guest.keyed', { x: guest.pos.x, z: guest.pos.z, byPlayer: actor.isPlayer, booked });
+    w.ftue('first_key');
   }
 
   /** A room is theirs: where they get off, and the start of their night (one trip, one sleep). */

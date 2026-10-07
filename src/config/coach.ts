@@ -20,6 +20,8 @@ export const COACH_STEPS: CoachLineDef[] = [
   { id: 'tickets', icon: 'ticket', text: 'Sell tickets' },
   { id: 'cash', icon: 'cash', text: 'Grab it' },
   { id: 'tile', icon: 'carriage', text: 'Open' },
+  // Session 24: inside, the desk hands each ticketed guest the key to their cabin.
+  { id: 'key', icon: 'key', text: 'Hand keys' },
 ];
 
 export const COACH_HINTS: CoachLineDef[] = [
@@ -48,7 +50,7 @@ export const COACH_HINTS: CoachLineDef[] = [
 
 /** While the walkthrough waits for enough cash to build, the coach names what the arrow points at. */
 export const COACH_GUIDANCE_LINES: Record<string, CoachLineDef> = {
-  desk: { id: 'g_desk', icon: 'ticket', text: 'Check in' },
+  desk: { id: 'g_desk', icon: 'key', text: 'Hand keys' },
   cash: { id: 'g_cash', icon: 'cash', text: 'Grab it' },
   clean: { id: 'g_clean', icon: 'broom', text: 'Tidy up' },
   fetch: { id: 'g_fetch', icon: 'tea', text: 'Pick up' },

@@ -16,7 +16,9 @@ export type IconName =
   // Session 21: the cinema car.
   | 'popcorn' | 'film'
   // Session 22: one trip, one sleep (the morning paper, breakfast, a wake-up call).
-  | 'newspaper' | 'breakfast' | 'wakeup';
+  | 'newspaper' | 'breakfast' | 'wakeup'
+  // Session 24: the cabin key handed over at the desk.
+  | 'key';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -891,6 +893,31 @@ const ICONS: Record<IconName, Draw> = {
       c.arc(x, y, r, 0, Math.PI * 2);
       fillStroke(c, '#FFE9A8', 4);
     }
+  },
+  key: (c) => {
+    // A brass cabin key with a round bow and a red tag: checked in at the desk.
+    c.beginPath();
+    c.arc(30, 40, 17, 0, Math.PI * 2);
+    c.moveTo(38, 40);
+    c.arc(30, 40, 7, 0, Math.PI * 2, true);
+    fillStroke(c, '#E2B653');
+    c.beginPath();
+    c.moveTo(45, 35);
+    c.lineTo(88, 35);
+    c.lineTo(88, 47);
+    c.lineTo(82, 47);
+    c.lineTo(82, 58);
+    c.lineTo(73, 58);
+    c.lineTo(73, 47);
+    c.lineTo(66, 47);
+    c.lineTo(66, 55);
+    c.lineTo(58, 55);
+    c.lineTo(58, 47);
+    c.lineTo(45, 47);
+    c.closePath();
+    fillStroke(c, '#E2B653');
+    rr(c, 14, 62, 30, 22, 6);
+    fillStroke(c, '#C0485C', 5);
   },
   film: (c) => {
     // A film reel: the cinema car.

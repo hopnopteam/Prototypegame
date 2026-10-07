@@ -90,6 +90,7 @@ export const ECONOMY = {
   },
 
   zones: {
+    /** Session 24: handing a ticketed guest their cabin key at the desk (the fare was paid at the ticket stand). */
     checkInSeconds: 0.9,
     /** Stand this long at a shelf before the first item comes off it, so walking past never grabs anything. */
     pickupDwellSeconds: 0.3,
@@ -142,6 +143,16 @@ export const ECONOMY = {
    * evening (one request, then perhaps an outing) → lights out (once) → morning (one request) → off at their stop.
    * A guest still waiting for something when the evening ends finishes it first and sleeps a little less.
    */
+  /**
+   * The reception desk (session 24): the ticket stand sells the fare; the desk hands each ticketed guest the key
+   * to their cabin and sells the one extra: a table booked for the evening in a venue (once one is open). The
+   * booking is the desk's own small fee (× the class's tip multiplier); the guest still pays at the venue.
+   */
+  desk: {
+    reserveChance: 0.35,
+    reserveFee: 5,
+  },
+
   trip: {
     /** The evening ends this far through the ride (lights out once nothing is pending). */
     eveningEnd: 0.4,

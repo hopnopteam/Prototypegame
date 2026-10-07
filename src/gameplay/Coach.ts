@@ -211,6 +211,9 @@ export class Coach {
         return ftue.first_cash !== undefined;
       case 'tile':
         return ftue.first_unlock !== undefined;
+      case 'key':
+        // (Saves from before session 24 had no desk step: their first stop is long behind them.)
+        return ftue.first_key !== undefined || w.data.route.stopsCompleted > 0;
       default:
         return true;
     }
@@ -240,6 +243,8 @@ export class Coach {
       }
       case 'tile':
         return world(w.tiles.cheapest()?.pos);
+      case 'key':
+        return w.guests.deskReady() ? world(w.map.anchor(0, 'deskService')) : null;
       case 'request': {
         const guest = w.guests.openRequests().find((g) => !w.staff.isHandled(g));
         return world(guest?.cabin?.center);

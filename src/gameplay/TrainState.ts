@@ -1280,7 +1280,7 @@ export class TrainState {
         x: desk.x,
         z: desk.z,
         radius: ZONE_RADIUS.desk,
-        icon: 'ticket',
+        icon: 'key',
         active: () => w.guests.hasGuestAtDesk(),
         stay: (zone, actor, dt) => w.guests.deskStay(zone, actor, dt),
       }));

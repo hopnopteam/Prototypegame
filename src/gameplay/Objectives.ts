@@ -108,7 +108,8 @@ export class Objectives {
   init(): void {
     const e = this.w.events;
     const w = this.w;
-    e.on('guest.checkedIn', () => this.count('checkIn'));
+    // Session 24: checking in is handing over the key at the desk (the ticket stand's sales count as boarding).
+    e.on('guest.keyed', () => this.count('checkIn'));
     e.on('cash.collected', () => this.count('collect'));
     e.on('unlock.completed', ({ id }) => {
       const u = w.unlocks.get(id);
