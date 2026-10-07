@@ -1,3 +1,5 @@
+import type { IconName } from '../ui/icons';
+
 /**
  * The press content pack: the in-universe world that notices your train. Everything here is data, so new
  * routes, seasons and brand events can bring their own rivals, headlines, interviews and awards.
@@ -27,6 +29,8 @@ export interface RivalOwner {
   taunt: { headline: string; body: string };
   /** What they splutter once you pass them. */
   humbled: string;
+  /** Session 24: what they crow when you miss one of their dares ({train} is your train). */
+  gloat: string;
   /** How many carriages their train has in the Gazette photo (always more than yours, at first). */
   carriages: number;
 }
@@ -66,6 +70,7 @@ export const RIVALS: Rival[] = [
       look: { skin: '#F0C8A8', hair: '#6B6B6B', hat: 'tophat', face: 'moustache' },
       taunt: { headline: '“One Carriage? How Adorable.”', body: 'Sir Reginald Soot of the Puffing Billy chuckles into his waistcoat. “My coal bunker is bigger than {train}.”' },
       humbled: 'Beginner\'s luck! My chimney was sulking.',
+      gloat: 'Ha! {train} runs on hope and hot air.',
     },
     spoils: { what: 'Their coal contract', perk: { kind: 'speedBonus', amount: 0.03, label: 'Walk +3%' }, cashPerCarriage: 10 },
   },
@@ -76,6 +81,7 @@ export const RIVALS: Rival[] = [
       look: { skin: '#F4D3BC', hair: '#B7B0C8', hat: 'bun', face: 'lorgnette' },
       taunt: { headline: '“Letters Travel Better Than Their Guests!”', body: '“We deliver on time. {train} delivers… eventually,” sniffs Lady Mildred of the Midnight Mail.' },
       humbled: 'Return to sender! This is most irregular.',
+      gloat: 'Missed it! Rather like {train} misses its stations.',
     },
     spoils: { what: 'The mail contract', perk: { kind: 'fareBonus', amount: 0.02, label: 'Fares +2%' }, cashPerCarriage: 12 },
   },
@@ -86,6 +92,7 @@ export const RIVALS: Rival[] = [
       look: { skin: '#E9B89A', hair: '#C2562E', hat: 'tam', face: 'beard' },
       taunt: { headline: '“A Wee Train for Wee People.”', body: '“Our tartan seats have seen more miles than their paint,” booms The McTavish from the Highland Rambler.' },
       humbled: 'Och! My bagpipes will hear of this.',
+      gloat: 'Och, told ye! {train} couldnae manage it.',
     },
     spoils: { what: 'Their tartan blankets', perk: { kind: 'tipBonus', amount: 0.03, label: 'Tips +3%' }, cashPerCarriage: 15, gems: 5 },
   },
@@ -96,6 +103,7 @@ export const RIVALS: Rival[] = [
       look: { skin: '#F6DCC8', hair: '#E8E2D6', hat: 'tiara', face: 'pearls' },
       taunt: { headline: '“Tea at Four. Sharp. Unlike Some.”', body: '“One simply cannot sleep on a train that pours at five past,” says the Duchess, stroking her poodle.' },
       humbled: 'Five past four! The poodle is inconsolable.',
+      gloat: 'Not quite, dear. The poodle did better.',
     },
     spoils: { what: 'Her four o\'clock tea', perk: { kind: 'tipBonus', amount: 0.03, label: 'Tips +3%' }, cashPerCarriage: 20, gems: 5 },
   },
@@ -106,6 +114,7 @@ export const RIVALS: Rival[] = [
       look: { skin: '#EFCFB4', hair: '#E3C16F', hat: 'goggles', face: 'scarf' },
       taunt: { headline: '“Speed Is Luxury, Darling.”', body: 'Baron von Zoom polishes his goggles. “By the time {train} pours the tea, we have arrived.”' },
       humbled: 'Impossible! I was… letting them win.',
+      gloat: 'Too slow, darling! Far too slow.',
     },
     spoils: { what: 'Their racing timetable', perk: { kind: 'speedBonus', amount: 0.03, label: 'Walk +3%' }, cashPerCarriage: 25, gems: 8 },
   },
@@ -116,6 +125,7 @@ export const RIVALS: Rival[] = [
       look: { skin: '#F2D0B6', hair: '#3B3A40', hat: 'bowler', face: 'monocle' },
       taunt: { headline: '“New Money Smells of Paint.”', body: '“Our carpets are older than their conductor,” sniffs Cornelius Gold III of the Blue Pullman.' },
       humbled: 'My monocle fell in my soup.',
+      gloat: 'As expected. New money, old excuses.',
     },
     spoils: { what: 'Their old-money regulars', perk: { kind: 'fareBonus', amount: 0.03, label: 'Fares +3%' }, cashPerCarriage: 30, gems: 8 },
   },
@@ -126,10 +136,47 @@ export const RIVALS: Rival[] = [
       look: { skin: '#F1CDB5', hair: '#1F1B24', hat: 'feather', face: 'lashes' },
       taunt: { headline: '“Five Golden Whistles. They Have… a Whistle.”', body: '“Number one is a lonely place, darling. Let\'s keep it that way,” purrs Madame Noir of the Orient Belle.' },
       humbled: 'Enjoy it, darling. While it lasts.',
+      gloat: 'Pity, darling. Do try again.',
     },
     spoils: { what: 'The Golden Whistle route', perk: { kind: 'fareBonus', amount: 0.05, label: 'Fares +5%' }, cashPerCarriage: 40, gems: 15 },
   },
 ];
+
+/**
+ * The rival's dare (session 24, owner: "a named rival… a challenge per edition with visible progress… never a
+ * penalty"): in the calm after a departure the rival you are chasing dares you on the news strip, a small chip
+ * in the right rail tracks it (their face, the dare's icon, a ring that fills), and in the calm after the
+ * deadline station the paper settles it: a front page and the reward if you made it, their gloat and the next
+ * dare if not (nothing is taken). Counted from the moment it is dared; staff work counts too.
+ */
+export type DareMetric = 'board' | 'requests' | 'tidy' | 'shoes' | 'perfect' | 'keys';
+
+export interface RivalDare {
+  id: string;
+  metric: DareMetric;
+  icon: IconName;
+  /** The dare in the rival's words ({n} the target, {station} the last station of it). */
+  dare: string;
+  /** The target: base plus this many per carriage of yours (rounded), so it grows with the train. */
+  base: number;
+  perCarriage: number;
+  /** Stations it runs over (it is settled as the train leaves the last). */
+  stops: number;
+}
+
+export const RIVAL_DARES: RivalDare[] = [
+  { id: 'tickets', metric: 'board', icon: 'ticket', dare: 'Bet you can\'t sell {n} tickets by {station}.', base: 3, perCarriage: 2, stops: 2 },
+  { id: 'requests', metric: 'requests', icon: 'tea', dare: '{n} requests served by {station}? Never.', base: 3, perCarriage: 2, stops: 1 },
+  { id: 'shoes', metric: 'shoes', icon: 'shoe', dare: 'My boots outshine yours. Polish {n} pairs by {station}!', base: 2, perCarriage: 1, stops: 1 },
+  { id: 'tidy', metric: 'tidy', icon: 'broom', dare: 'Tidy {n} rooms by {station}? Ha!', base: 2, perCarriage: 1, stops: 2 },
+  { id: 'keys', metric: 'keys', icon: 'key', dare: 'Hand out {n} keys by {station}. I dare you.', base: 3, perCarriage: 2, stops: 2 },
+  { id: 'perfect', metric: 'perfect', icon: 'chest', dare: 'Two perfect stops by {station}? Not you.', base: 2, perCarriage: 0, stops: 2 },
+];
+
+/** What a dare met pays (on the strip, at once): cash per carriage of yours, and a few stars. */
+export const DARE_REWARD = { cashPerCarriage: 25, stars: 4 };
+/** The front page when a dare is met ({train}, {rival} the owner). */
+export const DARE_WON_HEADLINE = '{train} Takes {rival}\'s Dare!';
 
 /** Offered on the naming card; the player can type their own. */
 export const TRAIN_NAME_SUGGESTIONS = ['The Night Owl', 'Silver Swallow', 'Moonlight Limited', 'The Dandelion', 'Lucky Clover', 'The Starling'];

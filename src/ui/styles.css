@@ -166,6 +166,14 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .hud-row .menu-btn { flex: none; margin-left: auto; }
 .side .dot, .hud-row .dot { position: absolute; top: -7px; right: -7px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--raspberry); color: var(--cream); font-size: 12px; font-weight: 800; line-height: 17px; border: 2px solid var(--ink); box-sizing: border-box; }
 .side button.glow { animation: glow 1.4s ease-in-out infinite; }
+/* The rival's dare (session 24): their face, ringed by how far along the dare is; its icon; the count. */
+.side button.rival { border-radius: 50%; padding: 0; background: conic-gradient(#7FD36A calc(var(--p, 0) * 360deg), #3B3045 0); overflow: visible; }
+.side button.rival .portrait { width: 30px; height: 30px; border-radius: 50%; display: block; box-shadow: 0 0 0 2px var(--ink); }
+.side button.rival .dare-icon { position: absolute; left: -7px; top: -7px; width: 20px; height: 20px; border-radius: 50%; background: var(--cream); border: 2px solid var(--ink); display: grid; place-items: center; }
+.side button.rival .dare-icon .ico { width: 15px; height: 15px; }
+.side button.rival .rk { position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%); min-width: 30px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: var(--raspberry); color: var(--cream); border: 2px solid var(--ink); font-size: 10.5px; font-weight: 800; line-height: 12px; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.side button.rival.met { background: conic-gradient(#FFD35C 360deg, #FFD35C 0); animation: glow 1.4s ease-in-out infinite; }
+.side button.rival.met .rk { background: #3F8A4C; }
 @keyframes glow { 50% { box-shadow: 0 3px 0 var(--ink), 0 0 0 5px #F2B23399; } }
 
 /* ── The one bottom slot: a rewarded offer ─────────────── */
@@ -231,7 +239,9 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 }
 .wire .np-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 2px; margin-bottom: 4px; border-bottom: 3px double #2B2420; }
 .wire .np-mast { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; }
-.wire .np-kick { font-family: var(--font); font-size: 9.5px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #6B5B4A; white-space: nowrap; }
+.wire .np-kick { font-family: var(--font); font-size: 9.5px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #6B5B4A; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* On the narrowest phones the masthead gives the kicker room (it ran past the slip's edge at 320 px). */
+@media (max-width: 340px) { .wire .np-mast { font-size: 9.5px; letter-spacing: 0.08em; } .wire .np-kick { letter-spacing: 0.06em; } }
 .wire.rival .np-kick { color: var(--raspberry-dark); }
 .wire.win .np-kick { color: #9A6A14; }
 .wire .np-body { display: flex; align-items: center; gap: 8px; }

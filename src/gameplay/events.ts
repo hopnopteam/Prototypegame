@@ -54,6 +54,8 @@ export interface GameEvents {
   'train.named': { name: string };
   'awards.presented': { level: number; won: number };
   'rival.taunted': { rival: string };
+  /** Session 24: the rival's dare was met before its deadline (the front page follows in the next calm). */
+  'rival.dareMet': { rival: string };
   /** You passed a rival in the league (session 18): their spoils are paid and their pennant goes up. */
   'rival.overtaken': { index: number; rank: number };
 }

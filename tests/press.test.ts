@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { CEREMONIES, DEBUT_INTERVIEW, HEADLINES, INTERVIEWS, RIVALS } from '../src/config/press';
 import { ECONOMY } from '../src/config/economy';
 import { awardProgress, cleanTrainName, fillTemplate, leagueStanding, raceProgress, rivalsPassed } from '../src/sim/press';
+import { dareTarget, nextDare } from '../src/sim/press';
+import { RIVAL_DARES } from '../src/config/press';
 
 describe('press', () => {
   it('fills headline tokens and drops unknown ones', () => {
@@ -85,5 +87,33 @@ describe('press', () => {
   it('has a headline for every trigger and an answer for every interview', () => {
     for (const [trigger, list] of Object.entries(HEADLINES)) expect(list.length, trigger).toBeGreaterThan(0);
     for (const interview of INTERVIEWS) expect(interview.answers.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('the rival\'s dare (session 24)', () => {
+  it('grows the target with the train and never asks for nothing', () => {
+    expect(dareTarget(3, 2, 1)).toBe(5);
+    expect(dareTarget(3, 2, 4)).toBe(11);
+    expect(dareTarget(0, 0, 3)).toBe(1);
+  });
+
+  it('takes the dares in turn, skipping any that cannot be met yet', () => {
+    const list = ['a', 'b', 'c'];
+    expect(nextDare(list, 0, () => true)).toBe('a');
+    expect(nextDare(list, 4, () => true)).toBe('b');
+    expect(nextDare(list, 1, (x) => x !== 'b')).toBe('c');
+    expect(nextDare(list, 0, () => false)).toBeNull();
+  });
+
+  it('every rival can gloat and every dare is complete', () => {
+    for (const rival of RIVALS) expect(rival.owner.gloat.length).toBeGreaterThan(0);
+    const ids = new Set<string>();
+    for (const dare of RIVAL_DARES) {
+      expect(ids.has(dare.id)).toBe(false);
+      ids.add(dare.id);
+      expect(dare.stops).toBeGreaterThanOrEqual(1);
+      expect(dare.dare).toContain('{station}');
+      expect(dareTarget(dare.base, dare.perCarriage, 1)).toBeGreaterThanOrEqual(1);
+    }
   });
 });

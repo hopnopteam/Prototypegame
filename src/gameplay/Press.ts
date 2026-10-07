@@ -1,15 +1,18 @@
-import { STORIES } from '../config/content';
+import { STATIONS, STORIES } from '../config/content';
 import { VENUES } from '../config/venues';
 import type { CarriageType, VenueKind } from '../core/types';
 import { isVenueType } from '../world/layout';
 import {
   CEREMONIES,
+  DARE_REWARD,
+  DARE_WON_HEADLINE,
   DEBUT_INTERVIEW,
   DEFAULT_TRAIN_NAME,
   FRONT_PAGE_REWARDS,
   HEADLINES,
   INTERVIEWS,
   PRESS_ARCHIVE,
+  RIVAL_DARES,
   RIVALS,
   TOP_RANK_NEWS,
   TRAIN_NAME_MAX,
@@ -18,12 +21,14 @@ import {
   type CeremonyDef,
   type InterviewDef,
   type PressTrigger,
+  type DareMetric,
   type Rival,
+  type RivalDare,
   PRESS_PACING,
 } from '../config/press';
 import type { IconName } from '../ui/icons';
 import type { NewsItem } from '../save/SaveData';
-import { awardProgress, cleanTrainName, fillTemplate, leagueStanding, rivalsPassed, type LeagueStanding } from '../sim/press';
+import { awardProgress, cleanTrainName, dareTarget, fillTemplate, leagueStanding, nextDare, rivalsPassed, type LeagueStanding } from '../sim/press';
 import type { DoubleChoice } from './GameUi';
 import type { World } from './World';
 
@@ -124,12 +129,19 @@ export class Press {
     });
     e.on('request.fulfilled', () => {
       p.stats.requests++;
+      this.countDare('requests');
     });
     e.on('station.result', (r) => {
       if (w.data.route.stopsCompleted >= 1) this.queue('name');
       if (r.clean) p.stats.perfectStops++;
+      if (r.clean) this.countDare('perfect');
       w.save.markDirty();
     });
+    // What the rival's dare counts (session 24): the train's work, the staff's included.
+    e.on('guest.boarded', () => this.countDare('board'));
+    e.on('cabin.cleaned', () => this.countDare('tidy'));
+    e.on('shoes.shined', () => this.countDare('shoes'));
+    e.on('guest.keyed', () => this.countDare('keys'));
     e.on('carriage.coupled', ({ index, type }) => {
       // A venue joining is its own news: it opens (session 20).
       if (isVenueType(type as CarriageType)) this.print('venue', { venue: VENUES[type as VenueKind].name });
@@ -158,8 +170,10 @@ export class Press {
     e.on('journey.phase', ({ phase, previous }) => {
       if (phase === 'onTheMove' && previous === 'departing') {
         this.calm = CALM_SECONDS;
-        // A rival's taunt held back for the calm after a station comes now.
-        if (this.tauntDue !== null) this.rivalNews(this.tauntDue);
+        // The rival's dare is settled or dared in this calm (once the station ticket has gone); a rival who has
+        // not had their say yet says it with their dare, so their taunt waits for that.
+        this.dareBreak = true;
+        if (this.tauntDue !== null && !this.daresOpen()) this.rivalNews(this.tauntDue);
       }
       if (phase === 'arriving' || phase === 'stationStop') this.calm = 0;
     });
@@ -230,6 +244,11 @@ export class Press {
     this.sinceShown += dt;
     if (this.calm > 0) this.calm -= dt;
     this.quiet = this.ui.busy ? 0 : this.quiet + dt;
+    // The paper's dare comes in the calm after a departure, once the station's card has gone (session 24).
+    if (this.dareBreak && this.calm > 0 && !this.ui.ticketUp && !this.ui.busy) {
+      this.dareBreak = false;
+      this.dareEdition();
+    }
     const p = this.state;
     if (p.pending.length === 0 || this.ui.busy || this.w.train.coupling) return;
     // One card per breather after a departure, once the ticket has gone and the screen has been quiet a
@@ -441,7 +460,8 @@ export class Press {
     if (!next) return;
     const index = this.rivalIndex(next);
     if (index < 0 || p.rivals.taunted.includes(index)) return;
-    if (w.journey.phase === 'onTheMove' && this.calm > 0) this.rivalNews(index);
+    // With no dare running, the rival's first word comes with their dare in the next departure's calm.
+    if (w.journey.phase === 'onTheMove' && this.calm > 0 && p.dare !== null) this.rivalNews(index);
     else this.tauntDue = index;
   }
 
@@ -474,6 +494,118 @@ export class Press {
       headline: `${rival.owner.name}: ${fillTemplate(rival.owner.taunt.headline, { train: this.trainName })}`,
       icon: 'trophy', rival, reward: null, tone: 'rival', kicker: 'Rival Watch', note: `Pass ${rival.name}: ${rival.spoils.perk.label}`, league: this.leagueRows(),
     });
+  }
+
+  // ─── The rival's dare (session 24) ─────────────────────────────────────────
+
+  /** A departure's calm is due to settle or issue a dare. */
+  private dareBreak = false;
+
+  /** Dares start with the rivals' news: once the train is named, interviewed, and the rivals' feature is open. */
+  daresOpen(): boolean {
+    const p = this.state;
+    return !!p.trainName && p.interviews.includes(DEBUT_INTERVIEW) && this.w.flow.allows('rivals');
+  }
+
+  /** The dare running now, for the HUD: its rival, icon, count and target (null between editions). */
+  get dare(): { rival: Rival; icon: IconName; progress: number; target: number } | null {
+    const d = this.state.dare;
+    if (!d) return null;
+    const def = RIVAL_DARES.find((x) => x.id === d.id);
+    const rival = this.league[d.rival];
+    if (!def || !rival) return null;
+    return { rival, icon: def.icon, progress: d.progress, target: d.target };
+  }
+
+  private countDare(metric: DareMetric): void {
+    const d = this.state.dare;
+    if (!d || d.progress >= d.target) return;
+    const def = RIVAL_DARES.find((x) => x.id === d.id);
+    if (def?.metric !== metric) return;
+    d.progress++;
+    this.w.save.markDirty();
+    if (d.progress === d.target) {
+      // Done before the deadline: a little cheer now, the front page in the next calm.
+      this.w.audio.play('chime', { volume: 0.6 });
+      this.w.events.emit('rival.dareMet', { rival: this.league[d.rival]?.name ?? '' });
+    }
+  }
+
+  /**
+   * One edition of the rival's dare, in the calm after a departure: a dare whose last station is behind is
+   * settled (met: a front page and the prize; missed: the rival's gloat, and the next dare at once), and with
+   * none running the rival you are chasing makes a new one. Never a penalty.
+   */
+  private dareEdition(): void {
+    const w = this.w;
+    const p = this.state;
+    if (!this.daresOpen()) return;
+    const d = p.dare;
+    if (d && w.data.route.stopsCompleted < d.endsAtStop) return;
+    if (d) {
+      const rival = this.league[d.rival] ?? RIVALS[0];
+      p.dare = null;
+      if (d.progress >= d.target) {
+        p.dares.won++;
+        const cash = DARE_REWARD.cashPerCarriage * w.train.count;
+        w.addStars(DARE_REWARD.stars, 'dare');
+        this.pay({ cash, gems: 0, railMiles: 0 });
+        this.ui.wire({
+          headline: fillTemplate(DARE_WON_HEADLINE, { train: this.trainName, rival: rival.owner.name }),
+          icon: 'news', rival, reward: { cash, gems: 0, railMiles: 0 }, tone: 'win', kicker: 'Front page',
+        });
+        w.audio.play('fanfare', { volume: 0.7 });
+        w.analytics.log('rival_dare', { result: 'won', rival: rival.name });
+        w.save.markDirty();
+        return;
+      }
+      p.dares.lost++;
+      w.analytics.log('rival_dare', { result: 'lost', rival: rival.name });
+      // The gloat and the next dare on one strip: nothing is taken, there is just another go.
+      this.issueDare(fillTemplate(rival.owner.gloat, { train: this.trainName }));
+      return;
+    }
+    this.issueDare(null);
+  }
+
+  private issueDare(gloat: string | null): void {
+    const w = this.w;
+    const p = this.state;
+    // The rival you are chasing; at the top of the league, the champion you dethroned wants a rematch.
+    const rival = this.standing.next ?? this.league.reduce((a, b) => (b.reputation > a.reputation ? b : a));
+    const index = this.rivalIndex(rival);
+    const def = nextDare(RIVAL_DARES, p.dares.issued, (x: RivalDare) => this.dareUsable(x));
+    if (!def || index < 0) return;
+    const target = dareTarget(def.base, def.perCarriage, w.train.count);
+    const station = STATIONS[(w.journey.stationIndex + def.stops - 1) % STATIONS.length].name;
+    p.dare = { id: def.id, rival: index, target, progress: 0, endsAtStop: w.data.route.stopsCompleted + def.stops, station };
+    p.dares.issued++;
+    const dareText = fillTemplate(def.dare, { n: target, station });
+    // A rival's first word comes with their dare: their taunt, the dare under it, and the league round you.
+    const first = !p.rivals.taunted.includes(index);
+    if (first) p.rivals.taunted.push(index);
+    if (this.tauntDue === index) this.tauntDue = null;
+    const cash = DARE_REWARD.cashPerCarriage * w.train.count;
+    this.ui.wire({
+      headline: `${rival.owner.name}: “${gloat ?? (first ? fillTemplate(rival.owner.taunt.headline, { train: this.trainName }).replace(/[“”]/g, '') : dareText)}”`,
+      icon: def.icon,
+      rival,
+      reward: null,
+      tone: 'rival',
+      kicker: gloat ? 'Rival watch · missed' : 'Rival’s dare',
+      note: gloat || first ? `${dareText} Prize ${cash}` : `Prize ${cash}`,
+      league: first ? this.leagueRows() : undefined,
+    });
+    w.events.emit('rival.taunted', { rival: rival.name });
+    w.analytics.log('rival_dare', { result: 'issued', dare: def.id, target, rival: rival.name });
+    w.save.markDirty();
+  }
+
+  /** A dare that can be met with the train as it is (shoes need beds, a perfect stop needs stops ahead). */
+  private dareUsable(def: RivalDare): boolean {
+    const w = this.w;
+    if (def.metric === 'shoes' || def.metric === 'tidy' || def.metric === 'requests') return w.train.cabins.some((c) => c.unlocked);
+    return true;
   }
 
   // ─── Big moments ───────────────────────────────────────────────────────────

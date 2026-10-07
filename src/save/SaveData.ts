@@ -141,6 +141,12 @@ export interface SaveData {
      * races they won), and your record in races (wins of races).
      */
     rivals: { taunted: number[]; humbled: number[]; prized: number[]; boost: number[]; wins: number; races: number };
+    /**
+     * Session 24, the rival's dare: the one running (null between editions: its config id, the rival's index, the
+     * target, the count so far, the stop it ends with and that station's name) and your record.
+     */
+    dare: { id: string; rival: number; target: number; progress: number; endsAtStop: number; station: string } | null;
+    dares: { won: number; lost: number; issued: number };
   };
 }
 
@@ -193,6 +199,8 @@ export function createDefaultSave(now: number, installId: string): SaveData {
       reputationSeen: 0,
       // boost: reputation each rival has gained from races they won (session 20); wins and races: your record.
       rivals: { taunted: [], humbled: [], prized: [], boost: [], wins: 0, races: 0 },
+      dare: null,
+      dares: { won: 0, lost: 0, issued: 0 },
     },
   };
 }

@@ -73,3 +73,19 @@ export function cleanTrainName(raw: string, max: number, fallback: string): stri
   const name = raw.replace(/[\u0000-\u001f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, max).trim();
   return name.length > 0 ? name : fallback;
 }
+
+/**
+ * The rival's dare (session 24): the target grows with the train (a base plus so many per carriage, at least 1),
+ * and the dares come round in turn, skipping any that cannot be met yet.
+ */
+export function dareTarget(base: number, perCarriage: number, carriages: number): number {
+  return Math.max(1, Math.round(base + perCarriage * carriages));
+}
+
+export function nextDare<T>(dares: readonly T[], issued: number, usable: (dare: T) => boolean): T | null {
+  for (let k = 0; k < dares.length; k++) {
+    const dare = dares[(issued + k) % dares.length];
+    if (usable(dare)) return dare;
+  }
+  return null;
+}

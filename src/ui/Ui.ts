@@ -15,7 +15,7 @@ import type { NewsItem } from '../save/SaveData';
 import { forgetSize, h, icon, replayClass, setText, setVisible, sizeOf } from './dom';
 import type { IconName } from './icons';
 import { PressScreens } from './PressScreens';
-import { ownerPortrait } from './portraits';
+import { drawOwnerPortrait, ownerPortrait } from './portraits';
 import { Screens } from './Screens';
 import { TrainMapUi } from './TrainMapUi';
 import { TILE_MARKER_ASPECT, TILE_MARKER_TIP, TILE_MARKER_WIDTH } from '../world/sprites';
@@ -130,7 +130,10 @@ export class Ui implements GameUi {
     level: HTMLButtonElement; levelBadge: HTMLElement; levelCount: HTMLElement;
     journey: HTMLElement; journeyTrain: HTMLElement; journeyFill: HTMLElement; journeyClock: HTMLElement;
     side: HTMLElement; menu: HTMLButtonElement; menuDot: HTMLElement; shop: HTMLButtonElement; conductor: HTMLButtonElement; conductorDot: HTMLElement;
+    dare: HTMLButtonElement; dareFace: HTMLCanvasElement; dareIcon: HTMLElement; dareCount: HTMLElement;
   };
+  /** What the dare chip shows (rival and icon), so its face is redrawn only when that changes. */
+  private dareKey = '';
   private displayedCash = 0;
   private lastCash = 0;
   private readonly objective: { el: HTMLElement; icon: HTMLElement; text: HTMLElement; fill: HTMLElement; count: HTMLElement; reward: HTMLElement; key: string; words: number };
@@ -192,7 +195,15 @@ export class Ui implements GameUi {
     const conductor = button('conductor', 'Conductor: upgrades and outfits', () => this.screens.upgrades());
     conductor.appendChild(conductorDot);
     this.boostLayer = h('div.boost');
-    const side = h('div.side', {}, shop, conductor, this.boostLayer);
+    // The rival's dare (session 24): their face ringed by how far along the dare is, its icon, the count; tap for
+    // the league.
+    const dareFace = h('canvas.portrait', { width: 72, height: 72 }) as HTMLCanvasElement;
+    const dareIcon = h('span.dare-icon');
+    const dareCount = h('span.rk');
+    const dare = button('trophy', 'Rival\'s dare', () => this.screens.leagueSheet());
+    dare.classList.add('rival');
+    dare.replaceChildren(dareFace, dareIcon, dareCount);
+    const side = h('div.side', {}, shop, conductor, dare, this.boostLayer);
 
     this.floatLayer = h('div.floats');
     this.burst.value = h('span', { text: '+0' });
@@ -228,7 +239,7 @@ export class Ui implements GameUi {
     root.append(this.caption.el, skip);
     root.append(this.floatLayer, this.tileTag.el, this.rushChip.el, this.guide.el, top, this.objective.el, side, this.trainMap.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
 
-    this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyTrain, journeyFill, journeyClock, side, menu, menuDot, shop, conductor, conductorDot };
+    this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyTrain, journeyFill, journeyClock, side, menu, menuDot, shop, conductor, conductorDot, dare, dareFace, dareIcon, dareCount };
     window.addEventListener('resize', () => {
       this.rectTimer = 0;
       this.snapTimer = 0;
@@ -380,6 +391,8 @@ export class Ui implements GameUi {
     if (hud.journey.getAttribute('aria-label') !== journeyLabel) hud.journey.setAttribute('aria-label', journeyLabel);
 
 
+    this.updateDare();
+
     const affordable = upgradesOpen && this.screens.affordableUpgrades() > 0;
     setVisible(hud.conductorDot, affordable);
     hud.conductor.classList.toggle('glow', affordable);
@@ -400,6 +413,31 @@ export class Ui implements GameUi {
       if (boostLeft > 0) this.boostLayer.append(h('div.badge', { title: 'Roller skates' }, icon('skate', 24), h('span', { text: formatClock(boostLeft) })));
       if (doubled) this.boostLayer.append(h('div.badge', { title: 'Double fares at the next stop' }, icon('double', 24), h('span', { text: '×2' })));
     }
+  }
+
+  /**
+   * The rival's dare chip (session 24): the face of the rival who dared you, ringed by how far along it is, the
+   * dare's icon in a badge and the count; gold once it is met (the front page follows in the next calm).
+   */
+  private updateDare(): void {
+    const hud = this.hud;
+    const dare = this.game.press.dare;
+    this.reveal(hud.dare, dare !== null);
+    if (!dare) return;
+    const key = `${dare.rival.name}|${dare.icon}`;
+    if (key !== this.dareKey) {
+      this.dareKey = key;
+      drawOwnerPortrait(hud.dareFace, dare.rival.owner.look, dare.rival.livery, dare.rival.trim, 'smug');
+      hud.dareIcon.replaceChildren(icon(dare.icon, 16));
+      const label = `${dare.rival.owner.name}'s dare`;
+      hud.dare.title = label;
+      hud.dare.setAttribute('aria-label', label);
+    }
+    const met = dare.progress >= dare.target;
+    setText(hud.dareCount, `${Math.min(dare.progress, dare.target)}/${dare.target}`);
+    const p = (Math.round(Math.min(1, dare.progress / Math.max(1, dare.target)) * 100) / 100).toFixed(2);
+    if (hud.dare.style.getPropertyValue('--p') !== p) hud.dare.style.setProperty('--p', p);
+    hud.dare.classList.toggle('met', met);
   }
 
   /** Shows an element with a little pop the first time it appears; keeps its layout slot while hidden. */
