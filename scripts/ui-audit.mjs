@@ -173,7 +173,7 @@ for (const [width, height] of SIZES) {
     ['progress', 'window.nightExpress.ui.screens.progress()'],
     ['naming', "window.nightExpress.ui.showNaming(['The Night Owl', 'Silver Swallow', 'Moonlight Limited', 'The Dandelion', 'Lucky Clover', 'The Starling'], () => {})"],
     ['interview', "window.nightExpress.ui.showInterview({ level: 4, show: 'tv', question: 'The Orient Belle calls you \"a local line with ideas\". Your reply?', answers: [{ text: 'See you at the Golden Whistles.', perk: { kind: 'fareBonus', amount: 0.06, label: 'Fares +6%' } }, { text: 'Our passengers would disagree.', perk: { kind: 'tipBonus', amount: 0.08, label: 'Tips +8%' } }, { text: 'Local, and proud of it.', perk: { kind: 'speedBonus', amount: 0.06, label: 'Walk +6%' } }] }, 'The Moonlight Limited', () => {})"],
-    ['rival watch', 'window.nightExpress.press.devShowRival(1)'],
+    ['rival news', 'window.nightExpress.press.devShowRival(1)'],
     ['gazette interview', "window.nightExpress.ui.showInterview({ level: 0, show: 'gazette', question: 'A new sleeper on the country line! What makes a good night train?', answers: [{ text: 'Tea, served before you ask.', perk: { kind: 'tipBonus', amount: 0.06, label: 'Tips +6%' } }, { text: 'Fair fares for a fine bed.', perk: { kind: 'fareBonus', amount: 0.05, label: 'Fares +5%' } }, { text: 'A conductor who never stops moving.', perk: { kind: 'speedBonus', amount: 0.05, label: 'Walk +5%' } }] }, 'The Moonlight Limited', () => {})"],
     ['ceremony', "const a = [{ id: 'popular', name: 'People\\'s Favourite', hint: 'Carry 250 guests.', stat: 'guests', target: 250, reward: { gems: 25, railMiles: 5 } }, { id: 'sleeper', name: 'Sleeper Train of the Year', hint: 'Top the Countryside League.', stat: 'rankOne', target: 0, reward: { gems: 40, railMiles: 8 } }, { id: 'spotless', name: 'Spotless Service', hint: 'Make 6 perfect station stops.', stat: 'perfectStops', target: 6, reward: { gems: 15, railMiles: 3 } }]; window.nightExpress.ui.showCeremony({ level: 8, title: 'Golden Whistle: Grand Final', awards: a }, [{ award: a[0], won: true, fresh: true, have: 250, need: 250 }, { award: a[1], won: true, fresh: true, have: 1, need: 1 }, { award: a[2], won: false, fresh: false, have: 4, need: 6 }], 'The Moonlight Limited', () => {})"],
   ];
@@ -183,7 +183,7 @@ for (const [width, height] of SIZES) {
       g.data.meta.postcards = ['millbrook', 'hazelford', 'larkspur-halt'];
       new Function(s)();
     }, script);
-    await page.waitForTimeout(label === 'ceremony' ? 3000 : label === 'front page' || label === 'rival watch' ? 1200 : 350);
+    await page.waitForTimeout(label === 'ceremony' ? 3000 : label === 'front page' || label === 'rival news' ? 1200 : 350);
     // Let entrance animations settle (a slow frame can leave a sheet mid-slide).
     await page.evaluate(() => Promise.race([
       Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))),

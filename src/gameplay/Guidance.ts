@@ -17,7 +17,8 @@ export interface PointerState {
 }
 
 /** Screen-edge pointer insets in CSS pixels (top clears the HUD bars, right clears the side buttons). */
-const POINTER_INSET = { top: 124, right: 84, left: 64, side: 36 };
+/** The edge pointer is for spots off the screen (session 23: not for one merely beside the side buttons). */
+const POINTER_INSET = { top: 124, right: 26, left: 26, side: 36 };
 const IDLE_BEFORE_HINT = 3;
 /**
  * Session 20 (owner: "the amount of arrow pointing… is quite insane and very distracting"): after the first-minute
@@ -199,14 +200,9 @@ export class Guidance {
     const job = w.venues.playerJob(player.pos);
     if (job) return this.because(job.reason, job.target);
 
-    // A room to turn around: strip it first (the pad); a stripped bed waits for a fresh set from the linen cupboard.
+    // A used room to tidy: its pad.
     const dirty = w.train.cabins.find((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
-    if (dirty) {
-      const pad = dirty.spots[0] ?? dirty.center;
-      if (dirty.dirty.some(Boolean) || dirty.linenUsed > 0 || stack.has('bedding')) return this.because('clean', pad);
-      const linen = this.nearestAnchor('linen');
-      if (linen && !stack.isFull) return this.because('fetch', linen);
-    }
+    if (dirty) return this.because('clean', dirty.spots[0] ?? dirty.center);
 
     if (!stack.isFull) {
       for (const kind of ['towel', 'roll'] as const) {
@@ -221,21 +217,6 @@ export class Guidance {
 
   private whereNeeded(items: ItemKind[]): Vec2 | null {
     const w = this.w;
-    // Used bedding goes to a linen cupboard's hamper; fresh sets to the nearest bed waiting for one.
-    if (items.includes('bedding')) {
-      const p = w.player.pos;
-      let best: Vec2 | null = null;
-      for (const c of w.train.cabins) {
-        if (!c.unlocked || c.guest || c.cleaner || c.setsNeeded <= 0) continue;
-        const pad = c.spots[0] ?? c.center;
-        if (!best || Math.hypot(pad.x - p.x, pad.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z)) best = pad;
-      }
-      if (best) return best;
-    }
-    if (items.includes('laundry')) {
-      const linen = this.nearestAnchor('linen');
-      if (linen) return linen;
-    }
     for (const guest of w.guests.openRequests()) {
       if (guest.request && guest.request !== 'bathroom' && !isDwellNeed(guest.request) && items.includes(guest.request) && guest.cabin) return guest.cabin.center;
     }

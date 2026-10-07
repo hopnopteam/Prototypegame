@@ -22,8 +22,6 @@ export const ITEM_HEIGHT: Record<ItemKind, number> = {
   popcorn: 0.24,
   newspaper: 0.06,
   breakfast: 0.16,
-  bedding: 0.2,
-  laundry: 0.22,
 };
 
 const cache = new Map<ItemKind, THREE.BufferGeometry>();
@@ -128,18 +126,6 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       b.cylinder(0.12, 0.07, 0.04, 0.045, 0.036, 0.07, PALETTE.porcelain, 12);
       b.cylinder(0.12, 0.106, 0.04, 0.04, 0.04, 0.004, '#5A3524', 12, 'y', { shade: 1 });
       b.cylinder(0.12, 0.05, -0.08, 0.03, 0.03, 0.04, '#C0485C', 10, 'y', { shade: 1, surface: 'glass' });
-      break;
-    case 'bedding':
-      // A fresh bedding set: folded white linen with a pillow on top, tied with a blue band.
-      b.rounded(0, 0.06, 0, 0.44, 0.12, 0.32, 0.03, '#F6F2EA', { shade: 0.9 });
-      b.box(0, 0.06, 0, 0.06, 0.124, 0.324, '#7D9CBB', 0, { shade: 1 });
-      b.rounded(0, 0.16, 0, 0.36, 0.08, 0.24, 0.05, PALETTE.pillow, { shade: 0.9 });
-      break;
-    case 'laundry':
-      // Used bedding bundled up for the laundry: a crumpled heap of sheet with the cover's colour showing.
-      b.sphere(-0.07, 0.09, 0, 0.13, '#DCE3EA', 1, 0.7, { shade: 0.85 });
-      b.sphere(0.08, 0.08, 0.03, 0.11, '#C9D2DC', 1, 0.7, { shade: 0.85 });
-      b.sphere(0.02, 0.15, -0.04, 0.09, '#B7A79A', 1, 0.7, { shade: 0.85 });
       break;
     case 'crate':
       b.box(0, 0.17, 0, 0.5, 0.34, 0.42, PALETTE.oak, 0, { pattern: PATTERN.stripesZ, color2: '#A87544', scale: 0.09, shade: 0.8 });

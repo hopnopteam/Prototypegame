@@ -1,3 +1,4 @@
+import { platformObstacles } from '../world/platformLayout';
 import type { CarriageType, Rect, Vec2 } from '../core/types';
 import {
   carriageOriginZ,
@@ -16,7 +17,10 @@ export interface PlacedCarriage extends PlacedLayout {
   type: CarriageType;
 }
 
-const PLATFORM_SPINE_X = PLATFORM_X0 + 1.9;
+/** The platform's walkway (session 23: outside the ticket stand's lane, so staff never cut through the queue). */
+const PLATFORM_SPINE_X = PLATFORM_X0 + 4.5;
+/** The ticket stand, the luggage barrow, the bench and the newsstand (session 23). */
+const PLATFORM_BLOCKED = platformObstacles();
 const PLATFORM_SPINE_STEP = 4;
 
 /**
@@ -191,6 +195,7 @@ export class TrainMap {
       doorsOpen: this.doorsOpen,
       doorsSealed: this.sealed,
       platform: this.doorsOpen ? this.platformRoom() : null,
+      platformBlocked: PLATFORM_BLOCKED,
       rearDeck: this.rearDeckEnabled ? this.rearDeck().room : null,
     });
   }

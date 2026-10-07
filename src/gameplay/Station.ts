@@ -7,6 +7,7 @@ import { createItemMesh } from '../world/ItemMeshes';
 import { PLATFORM_X0 } from '../world/layout';
 import { CLASSES, type ClassId } from '../config/classes';
 import { PlatformView } from '../world/PlatformView';
+import { PLATFORM } from '../world/platformLayout';
 import { billboardTexture } from '../world/sprites';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
 import type { StationResult } from './events';
@@ -31,10 +32,11 @@ function shuffled<T>(items: readonly T[], rng: { next(): number }): T[] {
 }
 
 const BILLBOARD_COUNT = 3;
-/** Where the first travellers wait on the Millbrook platform (along the lobby, in the opening's view). */
-const PROLOGUE_WAIT_Z = 5.9;
-/** Where a new game's conductor stands on the platform, from the lobby door's outside point (session 19). */
-const PROLOGUE_SPAWN = { dx: 1.3, dz: 2.3 };
+/** Where a new game's conductor stands on the platform: a few steps from the ticket stand's serving side. */
+const PROLOGUE_SPAWN = { x: PLATFORM.serve.x + 0.35, z: PLATFORM.serve.z + 1.7 };
+/** Travellers who turn up during a stop (out of the station house), and the window of the stop they come in. */
+const LATECOMERS: [number, number] = [0, 2];
+const LATE_WINDOW: [number, number] = [5, 22];
 
 /**
  * The journey rhythm made physical (§5): the platform glides in and stops at the doors, guests board and
@@ -48,7 +50,6 @@ export class Station {
   private luggageTotal = 0;
   vendorCrates = 0;
   private spawnedForStop = -1;
-  private readonly luggageMeshes: THREE.Mesh[] = [];
   private readonly crateMeshes: THREE.Mesh[] = [];
   private boardingZone!: Zone;
   private luggageZone!: Zone;
@@ -83,9 +84,9 @@ export class Station {
     });
   }
 
-  /** Where a new game's conductor starts: on the Millbrook platform, a few steps from the door and the travellers. */
-  static prologueSpawn(door: { outside: Vec2 }): Vec2 {
-    return { x: door.outside.x + PROLOGUE_SPAWN.dx, z: door.outside.z + PROLOGUE_SPAWN.dz };
+  /** Where a new game's conductor starts: on the Millbrook platform, a few steps from the ticket stand. */
+  static prologueSpawn(_door: { outside: Vec2 }): Vec2 {
+    return { ...PROLOGUE_SPAWN };
   }
 
   init(): void {
@@ -98,8 +99,6 @@ export class Station {
     });
     w.events.on('train.named', () => this.refreshMarketing());
     w.events.on('livery.changed', () => this.refreshMarketing());
-    // The rival you are chasing has their posters up on the platforms until yours go up (session 20).
-    w.events.on('rival.overtaken', () => this.refreshMarketing());
     document.fonts?.ready.then(() => this.refreshMarketing()).catch(() => undefined);
     this.view.setStationName(this.currentStation().name);
     // The sign is painted on canvas: repaint once the embedded display font is ready.
@@ -142,14 +141,10 @@ export class Station {
     const has = (key: string): boolean => w.unlocks.isUnlocked(`st.${key}`);
     const livery = w.currentLivery();
     const name = w.data.press.trainName ?? DEFAULT_TRAIN_NAME;
-    // Until you put up your own, the platforms carry the posters of the rival you are chasing (session 20): the
-    // league is out there in the world, and buying your posters (or passing them) takes the platform over.
-    const rival = !has('posters') && w.press?.race.visible ? w.press.race.next : null;
-    const marketingKey = `${rival?.name ?? ''}|${has('posters')}|${has('band')}|${has('billboard')}|${name}|${livery.body}`;
+    const marketingKey = `${has('posters')}|${has('band')}|${has('billboard')}|${name}|${livery.body}`;
     if (marketingKey === this.marketingKey && !fresh) return;
     this.marketingKey = marketingKey;
-    if (rival) this.view.setMarketing({ posters: true, band: has('band') }, rival.name, rival.livery, rival.trim);
-    else this.view.setMarketing({ posters: has('posters'), band: has('band') }, name, livery.body, livery.trim);
+    this.view.setMarketing({ posters: has('posters'), band: has('band') }, name, livery.body, livery.trim);
     const boards = has('billboard');
     const key = `${boards}|${name}|${livery.body}`;
     if (key !== this.billboardKey) {
@@ -194,9 +189,8 @@ export class Station {
     const luggage = train.indexOfType('luggage');
     if (!this.platformBuilt) this.buildPlatform();
     else this.platformBuildAt = this.w.time + PLATFORM_REBUILD_DELAY;
+    void luggage;
     if (!this.luggageZone) return;
-    const pile = PlatformView.luggagePilePosition(luggage);
-    this.luggageZone.moveTo(pile.x, pile.z);
     if (supply !== null) {
       const vendor = PlatformView.vendorPosition(supply);
       this.vendorZone.moveTo(vendor.x, vendor.z);
@@ -206,12 +200,12 @@ export class Station {
   }
 
   /**
-   * A brand-new game opens here (session 17, owner: "where guests are coming from"): standing at Millbrook,
-   * doors open, the platform alongside. Session 19: the conductor starts outside with the travellers and
-   * collects the first one's ticket at the door; that traveller walks in to the desk and the game moves inside.
-   * The other waits with a "no room" sign, because the one ready cabin is spoken for. Build a cabin and they
-   * walk aboard; once everyone the train has a bed for is inside, the last call sounds and it pulls out.
-   * Passengers only ever come from a station platform.
+   * A brand-new game opens here (session 17, owner: "where guests are coming from"; session 22: the station start;
+   * session 23: paced as a story). Night at Millbrook, the old carriage covered beside the platform, the clock held.
+   * The first traveller waits at the ticket stand's window; the next comes out of the station house a few seconds
+   * later. Each ticket's fare pays for a room: the first opens the carriage (the reveal), the next builds a cabin.
+   * Once the carriage is open the clock starts; the train leaves when it runs out, waiting a little for anyone
+   * with a ticket still outside. Passengers only ever come from a station platform.
    */
   startPrologue(): void {
     const w = this.w;
@@ -221,25 +215,27 @@ export class Station {
     this.prologueTicketsDone = false;
     this.spawnedForStop = j.stopSerial;
     w.map.setDoorsOpen(true);
-    w.train.setDoors(true);
+    // The covered carriage's doors stay shut until its reveal opens them.
+    if (!w.train.covered) w.train.setDoors(true);
     this.platformOffset = 0;
     this.view.setOffset(0);
     this.view.setHeadline(`${this.currentStation().name} awaits the night train`);
-    const count = w.econ.flow.prologue.travellers;
-    w.guests.spawnPlatformGuests(this.prologueSpots(count), null, new Array<ClassId>(count).fill('basic'), w.econ.flow.prologue.archetypes);
+    const rules = w.econ.flow.prologue;
+    w.guests.spawnPlatformGuests([PLATFORM.window], null, ['basic'], rules.archetypes.slice(0, 1));
+    this.prologueArrivals = rules.arrivals.slice(1, rules.travellers).map((at, i) => ({ at, archetype: rules.archetypes[i + 1] }));
     w.audio.setStationAmbience(true);
-    // Session 22: the first stop's clock runs from the first frame (it waits for the first guest if need be).
     this.prologueClock = 0;
-    j.release(w.econ.flow.prologue.durationSec);
   }
 
-  /** Seconds since the opening began (the clock may hold for the first guest up to `holdCapSec` past its end). */
+  /** Seconds since play began at Millbrook, and the travellers still to come out of the station house. */
   private prologueClock = 0;
+  private prologueArrivals: { at: number; archetype?: string }[] = [];
+  /** When the opening's carriage was opened (prologue clock), or null while it is still covered. */
+  private prologueOpenedAt: number | null = null;
 
   /**
-   * At Millbrook (session 22): the first ticket is the conductor's to sell; after it, whoever has a room ready
-   * buys theirs by themselves and walks aboard. The clock runs, but waits for the first guest to be aboard (at
-   * most `holdCapSec` past its end); anyone else left on the platform waits for the next train.
+   * At Millbrook: travellers arrive on time, the clock starts once the carriage is opened, and the train waits a
+   * little for anyone with a ticket still on the platform.
    */
   private updatePrologue(dt: number): void {
     const w = this.w;
@@ -250,15 +246,24 @@ export class Station {
     }
     const rules = w.econ.flow.prologue;
     this.prologueClock += dt;
+    while (this.prologueArrivals.length > 0 && this.prologueClock >= this.prologueArrivals[0].at) {
+      const next = this.prologueArrivals.shift();
+      w.guests.spawnLatecomer('basic', next?.archetype);
+    }
+    if (j.held) {
+      if (w.train.covered) return;
+      this.prologueOpenedAt = this.prologueClock;
+      j.release(rules.afterOpenSec);
+      return;
+    }
     // Everyone with a ticket aboard (or the cap reached): the clock runs out and the train leaves.
-    const allAboard = this.prologueTicketsDone && !w.guests.list.some((g) => g.paid && (g.state === 'platform' || g.state === 'boarding'));
-    if (!allAboard && this.prologueClock < rules.durationSec + rules.holdCapSec && j.timeLeft < j.lastCallSeconds + 1) j.extend(dt);
+    const outside = w.guests.list.some((g) => g.paid && (g.state === 'platform' || g.state === 'boarding'));
+    const late = this.prologueClock - (this.prologueOpenedAt ?? 0) > rules.afterOpenSec + rules.holdCapSec;
+    if (outside && !late && j.timeLeft < j.lastCallSeconds + 1) j.extend(dt);
   }
 
   onPhase(phase: JourneyPhase, previous: JourneyPhase): void {
     const w = this.w;
-    // The platform sliding in carries the posters of whoever you are chasing now.
-    if (phase === 'arriving') this.refreshMarketing();
     if (phase === 'departing' && previous === 'stationStop' && this.prologue) {
       // Leaving Millbrook: the doors close and the flag goes up, but it was not a stop of the ride (no ticket).
       this.prologue = false;
@@ -305,6 +310,7 @@ export class Station {
     const w = this.w;
     const j = w.journey;
     if (this.prologue) this.updatePrologue(_dt);
+    this.updateLatecomers();
     const toStop = j.distanceToStop;
     const sinceDeparture = j.distanceSinceDeparture;
     const length = this.view.length;
@@ -359,10 +365,15 @@ export class Station {
     const early = crowd && w.data.route.stopsCompleted < 2 ? econ.minBoarders : 1;
     // Marketing (posters, billboard, band) draws a few more travellers each stop.
     const count = Math.max(early, Math.min(econ.maxBoarders, free + extra + w.stationPerks().passengers));
-    const spots = this.waitingSpots(count);
+    const spots = new Array<Vec2>(count).fill(PLATFORM.window);
     const story = w.meta.storyGuestForStop();
     const guests = w.guests.spawnPlatformGuests(spots, story, this.travellerClasses(stopSerial, count));
-    this.luggagePile = guests.filter((g) => g.hasLuggage).length;
+    this.luggagePile = Math.min(this.view.barrowCapacity, guests.filter((g) => g.hasLuggage).length);
+    // A traveller or two turns up during the stop, out of the station house (once the crowd is part of the ride).
+    this.latecomers.length = 0;
+    if (crowd) {
+      for (let n = w.rng.int(LATECOMERS[0], LATECOMERS[1]); n > 0; n--) this.latecomers.push(w.rng.range(LATE_WINDOW[0], LATE_WINDOW[1]));
+    }
     this.luggageTotal = this.luggagePile;
     this.vendorCrates = w.train.hasSupplyCar() ? w.econ.facilities.vendorCratesPerStop : 0;
     this.layoutPlatformItems();
@@ -390,26 +401,23 @@ export class Station {
     return shuffled(out, w.rng);
   }
 
-  /**
-   * At Millbrook the travellers wait further down the platform, beside the lobby's windows, where the opening's
-   * camera (on the desk) sees them; boarding, they walk along the platform to the door.
-   */
-  private prologueSpots(count: number): Vec2[] {
-    const door = this.w.map.doors()[0];
-    const spots: Vec2[] = [];
-    for (let i = 0; i < count; i++) spots.push({ x: door.outside.x - 0.25 + (i % 2) * 0.6, z: PROLOGUE_WAIT_Z + i * 0.7 });
-    return spots;
-  }
+  /** Seconds into this stop each latecomer turns up (session 23). */
+  private readonly latecomers: number[] = [];
 
-  private waitingSpots(count: number): Vec2[] {
-    const door = this.w.map.doors()[0];
-    const spots: Vec2[] = [];
-    for (let i = 0; i < count; i++) {
-      const col = i % 3;
-      const row = Math.floor(i / 3);
-      spots.push({ x: door.outside.x + 1.3 + col * 0.75, z: door.outside.z - 1.2 + row * 0.8 + (col % 2) * 0.25 });
+  /** Latecomers come out of the station house while the stop is on (never in its last few seconds). */
+  private updateLatecomers(): void {
+    const w = this.w;
+    const j = w.journey;
+    if (j.phase !== 'stationStop' || this.prologue || this.latecomers.length === 0) return;
+    if (j.timeLeft < j.lastCallSeconds + 4) {
+      this.latecomers.length = 0;
+      return;
     }
-    return spots;
+    for (let i = this.latecomers.length - 1; i >= 0; i--) {
+      if (j.time < this.latecomers[i]) continue;
+      this.latecomers.splice(i, 1);
+      w.guests.spawnLatecomer(this.travellerClasses(j.stopSerial, 1)[0]);
+    }
   }
 
   private closeDoors(): void {
@@ -508,20 +516,22 @@ export class Station {
 
   private createZones(): void {
     const w = this.w;
-    const door = w.map.doors()[0];
-    // The fares paid at the ticket booth stack up beside it (session 22).
-    const cashAt = PlatformView.boothCashPosition();
-    w.cash.create('booth', cashAt.x, cashAt.z);
+    // The fares paid at the ticket stand stack up a step from the server, toward the door (session 23).
+    w.cash.create('booth', PLATFORM.till.x, PLATFORM.till.z);
+    // Session 23: whoever sells tickets stands behind the stand's counter; the traveller at its window pays, takes
+    // their ticket and walks back along the platform to the door. Nobody walks through the server's spot.
     this.boardingZone = w.zones.add(new Zone({
       id: 'board',
-      x: door.outside.x + 0.15,
-      z: door.outside.z,
+      x: PLATFORM.serve.x,
+      z: PLATFORM.serve.z,
       radius: 0.6,
       icon: 'ticket',
       active: () => w.journey.doorsOpen && w.guests.canBoard(),
       hideWhenInactive: true,
       stay: (zone, actor, dt) => {
         if (!w.guests.canBoard()) return false;
+        // Facing the window over the counter, stamping the ticket.
+        actor.view.act('stamp');
         zone.progress += (dt / w.econ.zones.boardIntervalSeconds) * actor.workMultiplier;
         if (zone.progress < 1) return true;
         zone.progress = 0;
@@ -535,11 +545,14 @@ export class Station {
       },
     }));
 
-    const pile = PlatformView.luggagePilePosition(w.train.indexOfType('luggage'));
+    const pile = PLATFORM.luggagePad;
     const luggagePoint = new THREE.Vector3();
     const luggageSpec: SourceSpec = {
       kind: 'luggage',
-      point: () => luggagePoint.set(this.luggageZone.x, FLOOR_Y + 0.4, this.luggageZone.z + 0.8),
+      point: () => {
+        const bag = PlatformView.bagPosition(this.luggagePile - 1);
+        return luggagePoint.set(bag.x, bag.y, bag.z);
+      },
       stock: () => (w.journey.doorsOpen ? this.luggagePile : 0),
       take: () => {
         this.luggagePile--;
@@ -593,19 +606,10 @@ export class Station {
     }));
   }
 
-  /** Suitcases and crates on the platform, as children of the platform so they glide with it. */
+  /** Bags on the luggage barrow and crates at the vendor, as part of the platform so they glide with it. */
   private layoutPlatformItems(): void {
     const group = this.view.group;
-    while (this.luggageMeshes.length < this.luggagePile) {
-      const mesh = createItemMesh('luggage');
-      group.add(mesh);
-      this.luggageMeshes.push(mesh);
-    }
-    this.luggageMeshes.forEach((mesh, i) => {
-      mesh.visible = i < this.luggagePile;
-      if (this.luggageZone) mesh.position.set(this.luggageZone.x + ((i % 2) - 0.5) * 0.55, FLOOR_Y + 0.22 + Math.floor(i / 4) * 0.3, this.luggageZone.z + 0.9 + (Math.floor(i / 2) % 2) * 0.4);
-      mesh.rotation.y = (i % 3) * 0.3;
-    });
+    this.view.setBarrowBags(this.luggagePile);
     while (this.crateMeshes.length < this.vendorCrates) {
       const mesh = createItemMesh('crate');
       group.add(mesh);

@@ -30,9 +30,8 @@ export type ItemKind =
   | 'latte' | 'pastry' | 'meal' | 'cocktail'
   // Session 21: the cinema's popcorn.
   | 'popcorn'
-  // Session 22: the morning paper and breakfast tray, and the bedding: a fresh set (pillow and linen) and the
-  // used set stripped off a bed.
-  | 'newspaper' | 'breakfast' | 'bedding' | 'laundry';
+  // Session 22: the morning paper and the breakfast tray.
+  | 'newspaper' | 'breakfast';
 
 export type CurrencyKind = 'cash' | 'gems' | 'railMiles';
 

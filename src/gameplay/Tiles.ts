@@ -5,6 +5,7 @@ import { EVENTS } from '../services/analytics';
 import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from '../world/CarriageView';
 import { carriageOriginZ, COUPLE_TILE_SIZE, doorTileSpot, STATION_TILE_POS, TILE_SIZE, ZONE_RADIUS } from '../world/layout';
+import { PLATFORM } from '../world/platformLayout';
 import { markWorldUi, TileView } from '../world/ZoneViews';
 import type { World } from './World';
 import { Zone } from './Zones';
@@ -37,8 +38,6 @@ interface TileEntry {
 const NEW_TILE_MARKER_SECONDS = 4;
 
 /** A tile's name as its marker shows it: the essential word or two ("Comfort", not "Comfort Class"). */
-/** The Open carriage tile, from the lobby door's outside point: on the platform, toward the front of the door. */
-const OPEN_TILE = { dx: 0.35, dz: -1.4 };
 
 function markerName(label: string): string {
   return label.replace(/ Class$/, '').replace(/^(Hire|Buy|Add) /, '').replace(/^Upgrade /, '');
@@ -107,6 +106,11 @@ export class Tiles {
     const availableIds = new Set(available.map((d) => d.id));
     for (const [id, entry] of this.entries) {
       if (!availableIds.has(id)) this.removeEntry(id, entry);
+    }
+    // Nothing new appears while a reveal plays (the opening's carriage coming open): it has the stage.
+    if (w.reveal?.busy) {
+      this.refreshPreview();
+      return;
     }
     // Station upgrades: the next of each kind waits on the platform (shown only while the train is in), once
     // the flow has reached the station workshop.
@@ -484,10 +488,8 @@ export class Tiles {
     const map = w.map;
     switch (def.kind) {
       // The opening's covered carriage (session 22): its tile waits on the platform beside its door.
-      case 'open': {
-        const door = map.doors()[0];
-        return { x: door.outside.x + OPEN_TILE.dx, z: door.outside.z + OPEN_TILE.dz };
-      }
+      case 'open':
+        return { ...PLATFORM.openTile };
       // A locked room is shut and covered (session 22): its tile waits in the corridor at its door.
       case 'cabin': {
         const cabin = w.train.cabins.find((c) => c.carriage === def.carriage && c.index === def.cabin);

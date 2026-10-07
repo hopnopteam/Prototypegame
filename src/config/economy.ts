@@ -83,7 +83,11 @@ export const ECONOMY = {
    * The camera eases in when you step into a cabin or washroom (framing the room), out on the platform
    * and a touch out while you stride down the train, leading the way you are going.
    */
-  camera: { roomZoom: 0.9, roomBias: 0.22, platformZoom: 1.1, strideZoom: 0.04, travelZoom: 1.08, lead: 0.8 },
+  camera: {
+    roomZoom: 0.9, roomBias: 0.22, platformZoom: 1.1, strideZoom: 0.04, travelZoom: 1.08, lead: 0.8,
+    /** Session 23: on the Millbrook platform, while the carriage is still covered, the view leans this far toward it. */
+    prologueLean: { x: 0.7, z: 0.9 },
+  },
 
   zones: {
     checkInSeconds: 0.9,
@@ -94,13 +98,8 @@ export const ECONOMY = {
     binDwellSeconds: 0.45,
     pickupIntervalSeconds: 0.2,
     dropIntervalSeconds: 0.16,
-    /**
-     * Seconds at a room's pad to strip the used bedding and clear the litter (the mess clears away piece by
-     * piece; the used set goes on your stack). Session 22: making the bed is a second, shorter step.
-     */
+    /** Seconds at a room's pad to tidy it (the mess clears away piece by piece, the bed is made last). */
     cleanCabinSeconds: 2.6,
-    /** Seconds at the pad to put one fresh bedding set on a stripped bed. */
-    makeBedSeconds: 0.8,
     boardIntervalSeconds: 0.75,
     /** Staff work a little slower than the player, so doing it yourself always feels best. */
     staffWorkMultiplier: 0.8,
@@ -172,19 +171,41 @@ export const ECONOMY = {
    * furniture pops in. The first room of each kind gets the long version.
    */
   reveal: {
-    shortSeconds: 0.9,
-    longSeconds: 2.2,
-    /** Share of the reveal the lid takes to lift off, and how high it rises. */
-    lidShare: 0.45,
+    /** Session 23: longer and more detailed (owner: "far, far better… more detailed animation"). */
+    shortSeconds: 1.5,
+    longSeconds: 2.8,
+    /** The padlock's wiggle (share of the reveal); it springs open and hops off over a little longer. */
+    lockShare: 0.13,
+    /** When the lid starts to lift (share), how long it takes (share) and how high it rises (metres). */
+    lidAt: 0.22,
+    lidShare: 0.32,
     lidLift: 0.9,
-    /** When the lights start to come on and the furniture pops in (shares of the reveal). */
-    lightsAt: 0.3,
-    furnitureAt: 0.45,
+    /** When the lights start to come on and the furniture drops in (shares of the reveal). */
+    lightsAt: 0.42,
+    furnitureAt: 0.55,
     /** The lights' blinks as they come on (lamp light, 0 dark to 1 lit); the short reveal keeps the last two. */
     flicker: [0.7, 0.1, 0.9, 0.35, 1] as number[],
     /** How close the camera eases in for a long reveal. */
     zoom: 1.2,
+    /**
+     * The opening's covered carriage (seconds from the purchase): the canvas billows and its ropes snap (one every
+     * `ropeEvery` of its progress from `ropesFrom`), it slides off over `tarpSeconds`; the lights come on in slices
+     * front to back, the blinds roll up, the beds drop in, and at `seconds` the doors open with a fanfare.
+     */
+    carriage: {
+      seconds: 4.2,
+      zoom: 1.3,
+      tarpSeconds: 2.5,
+      ropesFrom: 0.04,
+      ropeEvery: 0.045,
+      lightsAt: 1.5,
+      lightEvery: 0.22,
+      blindsAt: 1.9,
+      blindSeconds: 1.5,
+      furnitureAt: 2.5,
+    },
   },
+
 
   classes: {
     /** Chance a traveller holds a ticket for the class above the train's best (once that class can be bought). */
@@ -325,20 +346,24 @@ export const ECONOMY = {
      */
     prologue: {
       travellers: 2,
-      boardDelay: 0.6,
+      /**
+       * Session 23 (owner: "the starting section… moves way too fast… make it actually very good"): the first
+       * traveller waits at the ticket stand's window; the others come out of the station house this many seconds
+       * into play, one after another, so each ticket is its own moment.
+       */
+      arrivals: [0, 3.5] as number[],
+      /**
+       * The clock is held (no countdown) until the first carriage is opened; then the train leaves this many
+       * seconds later, waiting (at most `holdCapSec` more) for anyone with a ticket still on the platform. The
+       * conductor is never left behind.
+       */
+      afterOpenSec: 32,
+      holdCapSec: 45,
+      /** The last call chimes this long before the doors close. */
       lastCallSeconds: 6,
       /**
-       * Session 22, the station start: a new game's first stop lasts this long (the clock runs from the first
-       * frame) and happens once. The train stands covered; the first ticket opens the first carriage, its first
-       * bed is made up, the guest walks in. If the first guest is not aboard when the clock runs out it waits for
-       * them, at most `holdCapSec` more; the conductor is never left behind.
-       */
-      durationSec: 60,
-      holdCapSec: 90,
-      /**
-       * Who waits on the platform, in order. The first pays a full fare (a backpacker), so their fare always
-       * buys the first cabin: a cheaper archetype (a student pays 14 of the 15) left the opening with no way to
-       * earn the last coin (session 19).
+       * Who comes for the night train, in order. The first pays a full fare (a backpacker), so their fare always
+       * opens the carriage: a cheaper archetype (a student pays 14 of the 15) once soft-locked the opening.
        */
       archetypes: ['backpacker', 'student'] as string[],
     },

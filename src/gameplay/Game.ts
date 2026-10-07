@@ -1,3 +1,4 @@
+import { PLATFORM } from '../world/platformLayout';
 import { INTRO_BEATS } from '../config/coach';
 import * as THREE from 'three';
 import { AudioEngine } from '../audio/AudioEngine';
@@ -516,6 +517,11 @@ export class Game implements World {
       oz = ((room.z0 + room.z1) / 2 - p.pos.z) * cam.roomBias;
     } else if (p.pos.x > HALF_WIDTH + 0.3) {
       zoom = cam.platformZoom;
+      // At Millbrook the old carriage is the star: the view leans toward it from the ticket stand.
+      if (this.station.prologue && this.train.covered) {
+        ox -= cam.prologueLean.x;
+        oz += cam.prologueLean.z;
+      }
     }
     const v = p.velocity;
     const speed = Math.hypot(v.x, v.z);
@@ -778,11 +784,12 @@ export class Game implements World {
       this.finishIntro();
       return;
     }
+    // Session 23: the engine at Millbrook, then the old carriage under its canvas, then the ticket stand and its queue.
     const target = next.focus === 'locomotive'
       ? new THREE.Vector3(1.6, 0, -4.2)
       : next.focus === 'lobby'
-        ? new THREE.Vector3(0.3, 0, 5.2)
-        : new THREE.Vector3(this.player.pos.x, 0, this.player.pos.z + 0.6);
+        ? new THREE.Vector3(0.6, 0, 8.0)
+        : new THREE.Vector3(PLATFORM.window.x + 0.9, 0, PLATFORM.window.z + 0.4);
     this.stage.rig.focusOn(target, next.seconds + 0.6, next.zoom, 1.5);
     this.ui.showCaption({ kicker: next.kicker, text: next.text });
   }

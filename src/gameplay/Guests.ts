@@ -8,6 +8,7 @@ import type { IconName } from '../ui/icons';
 import { BED_TOP, FLOOR_Y } from '../world/CarriageView';
 import { CharacterView, type CharacterLook } from '../world/CharacterView';
 import { BED_MESS } from '../world/Mess';
+import { PLATFORM, QUEUE_SPOTS, queueSpot, waitingSpot } from '../world/platformLayout';
 import { Mover, type Actor } from './Actor';
 import type { Bathroom, Cabin } from './TrainState';
 import type { World } from './World';
@@ -96,6 +97,16 @@ export class Guest {
    * themselves once it is made up.
    */
   paid = false;
+  /**
+   * Session 23, the ticket queue: where on the platform they are headed (`q0` the window, `q3` fourth in line,
+   * `w1` the second place by the bench, `d` by the door with a ticket), whether they have got there, and the
+   * order they arrived in (the queue keeps it).
+   */
+  spot: string | null = null;
+  atSpot = false;
+  order = 0;
+  /** Just came out of the station house: walks in along the walkway first. */
+  late = false;
 
   constructor(readonly archetype: ArchetypeDef, x: number, z: number, speed: number, readonly story: StoryDef | null) {
     this.cls = archetype.cls;
@@ -139,6 +150,8 @@ export class Guests {
    * repeated or out of its part of the night or class.
    */
   readonly audit = { trips: 0, sleeps: 0, sleptTwice: 0, repeats: 0, misplaced: 0, requests: 0 };
+  /** Arrival order on the platform (the queue keeps it). */
+  private arrivals = 0;
 
   constructor(private readonly w: World) {}
 
@@ -169,12 +182,101 @@ export class Guests {
       guest.cls = cls;
       guest.state = 'platform';
       guest.onPlatform = true;
+      guest.order = this.arrivals++;
       guest.mover.facing = -Math.PI / 2 + (this.w.rng.next() - 0.5) * 0.8;
-      // Bags join the flow from the second station (config: flow).
+      // Bags join the flow from the second station (config: flow); they wait on the luggage barrow.
       guest.hasLuggage = this.w.flow.allows('luggage') && this.w.rng.chance(this.w.econ.guests.luggageChance);
       created.push(guest);
     });
+    // Everyone straight to their place: the queue at the ticket stand, or the bench if there is no bed for them.
+    this.arrangePlatform(true);
     return created;
+  }
+
+  /**
+   * A traveller who arrives during the stop (session 23: the platform comes alive): out of the station house
+   * doors, in through the gate and along the walkway to the end of the queue (or the bench). They carry their own
+   * small bag.
+   */
+  spawnLatecomer(cls: ClassId, archetype?: string): Guest {
+    const door = PLATFORM.houseDoor;
+    const guest = this.create(this.pickArchetype(cls, archetype), door.x, door.z, null);
+    guest.cls = cls;
+    guest.state = 'platform';
+    guest.onPlatform = true;
+    guest.order = this.arrivals++;
+    guest.late = true;
+    guest.mover.facing = -Math.PI / 2;
+    this.arrangePlatform(false);
+    return guest;
+  }
+
+  /**
+   * Where everyone on the platform stands (session 23): travellers with a bed this stop queue at the ticket stand
+   * in the order they arrived, the rest wait by the bench with a "no room" sign; when a bed opens they walk over and
+   * join the queue's end, and the queue moves up as each ticket is sold. `snap` puts them there at once.
+   */
+  arrangePlatform(snap: boolean): void {
+    const w = this.w;
+    const j = w.journey;
+    const serial = j.phase === 'stationStop' ? j.stopSerial : j.stopSerial + 1;
+    const prologue = w.station.prologue;
+    const waiting = this.list.filter((g) => g.state === 'platform' && !g.paid);
+    waiting.sort((a, b) => a.order - b.order);
+    this.bedsLeft.clear();
+    let q = 0;
+    let k = 0;
+    for (const guest of waiting) {
+      let eligible = prologue;
+      if (!prologue) {
+        if (!this.bedsLeft.has(guest.cls)) this.bedsLeft.set(guest.cls, this.bedsFree(serial, guest.cls));
+        const beds = this.bedsLeft.get(guest.cls) ?? 0;
+        eligible = beds > 0;
+        if (eligible) this.bedsLeft.set(guest.cls, beds - 1);
+      }
+      // A ticket in their class's colour, or a "no room" sign: they cannot board this time.
+      if (eligible) guest.view.showBubble('ticket', guest.cls, 1.85);
+      else guest.view.showBubble('noroom', 'alert', 1.85);
+      const key = eligible && q < QUEUE_SPOTS ? `q${q++}` : `w${k++}`;
+      if (key !== guest.spot) this.sendToSpot(guest, key, snap);
+    }
+  }
+
+  private spotPosition(key: string): Vec2 {
+    const i = Number(key.slice(1));
+    return key[0] === 'q' ? queueSpot(i) : waitingSpot(i);
+  }
+
+  /** Each place in the queue faces the one ahead of it (the window faces the counter); the bench faces the train. */
+  private spotFacing(key: string): number {
+    if (key[0] === 'w') return -Math.PI / 2 + (Number(key.slice(1)) % 3 - 1) * 0.35;
+    const i = Number(key.slice(1));
+    if (i === 0) return Math.PI / 2;
+    const here = queueSpot(i);
+    const ahead = queueSpot(i - 1);
+    return Math.atan2(ahead.x - here.x, ahead.z - here.z);
+  }
+
+  private sendToSpot(guest: Guest, key: string, snap: boolean): void {
+    const target = this.spotPosition(key);
+    guest.spot = key;
+    guest.atSpot = false;
+    const arrive = (): void => {
+      guest.atSpot = true;
+      guest.stateTime = 0;
+      guest.mover.facing = this.spotFacing(key);
+    };
+    if (snap) {
+      guest.mover.stop();
+      guest.pos.x = target.x;
+      guest.pos.z = target.z;
+      arrive();
+      return;
+    }
+    // Out of the station house they come along the walkway first, then over to their place.
+    const route = guest.late ? [PLATFORM.entrance, PLATFORM.concourse[2], target] : [target];
+    guest.late = false;
+    guest.mover.go(route, arrive);
   }
 
   platformGuests(): Guest[] {
@@ -189,66 +291,63 @@ export class Guests {
     return Math.max(0, this.w.train.openCabinCount(cls) - this.stayingPast(stopSerial, cls));
   }
 
-  /** The next platform guest with a bed of their class waiting for them (and the train open to walk into). */
-  private nextBoarder(stopSerial = this.w.journey.stopSerial): Guest | null {
-    if (this.w.train.covered) return null;
-    const free = new Map<ClassId, number>();
-    for (const guest of this.list) {
-      if (guest.state !== 'platform' || guest.paid) continue;
-      if (!free.has(guest.cls)) free.set(guest.cls, this.bedsFree(stopSerial, guest.cls));
-      if ((free.get(guest.cls) ?? 0) > 0) return guest;
-    }
-    return null;
+  /** The traveller at the ticket stand's window, if they have reached it (and the platform is alongside). */
+  private atWindow(): Guest | null {
+    if (this.w.journey.phase !== 'stationStop') return null;
+    return this.list.find((g) => g.state === 'platform' && !g.paid && g.spot === 'q0' && g.atSpot) ?? null;
   }
 
-  /**
-   * Someone on the platform has a bed of their class waiting for them (and the conductor can board them: at
-   * Millbrook, before the first departure, travellers step aboard by themselves as rooms open).
-   */
+  /** Someone is queueing for a ticket (the window's pad lights up as they step up to it). */
   canBoard(): boolean {
-    return this.nextBoarder() !== null || this.openingTicket() !== null;
+    if (this.w.journey.phase !== 'stationStop') return false;
+    return this.list.some((g) => g.state === 'platform' && !g.paid && g.spot === 'q0');
   }
 
-  /**
-   * The opening (session 22): at Millbrook every traveller buys a ticket at the booth while the train is still
-   * covered (each fare pays for a room: the first opens the carriage, the next builds a cabin), then waits on the
-   * platform and walks aboard once their room is ready.
-   */
-  private openingTicket(): Guest | null {
-    if (!this.w.station.prologue) return null;
-    return this.list.find((g) => g.state === 'platform' && !g.paid) ?? null;
-  }
-
-  /** Someone on the platform has a bed of their class (whoever boards them). */
+  /** Someone on the platform has a bed of their class this stop (they are in the ticket queue). */
   hasBoarder(): boolean {
-    return this.nextBoarder() !== null;
+    return this.list.some((g) => g.state === 'platform' && !g.paid && g.spot !== null && g.spot[0] === 'q');
   }
 
   /**
-   * The ticket booth (session 22, in place of the desk): the next traveller with a room ready pays their fare at
-   * the booth and walks straight to their room. In the opening the first ticket is sold before any room is ready:
-   * that traveller waits on the platform with it.
+   * The ticket stand (session 22; session 23: a queue at its window): the traveller at the window pays their fare
+   * and walks back along the platform to the door and on to their room (in the opening, while the carriage is still
+   * covered, they wait by its door with their ticket). The queue moves up behind them.
    */
   boardNext(byPlayer = false): Guest | null {
     const w = this.w;
-    const guest = w.station.prologue ? this.openingTicket() : this.nextBoarder();
+    const guest = this.atWindow();
     if (!guest) return null;
     // The fare is that of a room of their class (theirs once one is ready).
     const room = w.train.freeCabin(guest.cls) ?? w.train.cabins.find((c) => w.train.cabinClass(c) === guest.cls) ?? w.train.cabins[0];
     if (!room) return null;
     this.sellTicket(guest, room, byPlayer);
     guest.paid = true;
+    guest.spot = null;
     this.boardPaid(guest);
+    this.arrangePlatform(false);
     return guest;
   }
 
   /**
    * A paid traveller boards: straight to their room if one of their class is made up, else in through the door to
-   * the lobby's waiting line. While the opening's carriage is still covered they wait on the platform.
+   * the lobby's waiting line. While the opening's carriage is still covered they wait by its door.
    */
   private boardPaid(guest: Guest): void {
     const w = this.w;
-    if (w.train.covered || !w.journey.doorsOpen) return;
+    // While the opening's carriage is covered, and while it comes open (the doors open last), they wait by its door.
+    if (w.train.covered || w.reveal?.busy) {
+      if (guest.spot === 'd') return;
+      const waiting = this.list.filter((g) => g.state === 'platform' && g.paid && g.spot === 'd').length;
+      const spot = PLATFORM.doorWait[waiting % PLATFORM.doorWait.length];
+      guest.spot = 'd';
+      guest.atSpot = false;
+      guest.mover.go([PLATFORM.toDoor, spot], () => {
+        guest.atSpot = true;
+        guest.mover.facing = -Math.PI / 2;
+      });
+      return;
+    }
+    if (!w.journey.doorsOpen) return;
     const room = w.train.freeCabin(guest.cls);
     if (room) {
       this.walkIn(guest, room);
@@ -262,7 +361,12 @@ export class Guests {
     guest.queueSlot = this.queue.length;
     guest.arrivedInQueue = false;
     this.queue.push(guest);
-    guest.mover.go([door.outside, door.inside, this.slotPosition(guest.queueSlot)], () => this.arriveInQueue(guest));
+    guest.mover.go([...this.toTheDoor(guest), door.outside, door.inside, this.slotPosition(guest.queueSlot)], () => this.arriveInQueue(guest));
+  }
+
+  /** From the ticket queue's side of the platform, back along the edge toward the door. */
+  private toTheDoor(guest: Guest): Vec2[] {
+    return guest.pos.z < PLATFORM.toDoor.z - 0.3 ? [PLATFORM.toDoor] : [];
   }
 
   /** The fare, paid at the booth: cash on the booth's pile, the bell, a little bounce. */
@@ -283,15 +387,17 @@ export class Guests {
     w.feedback.onCheckIn(guest);
   }
 
-  /** A ticketed traveller walks aboard to their room: in through the door, along the corridor, to the bed. */
+  /** A ticketed traveller walks aboard to their room: back to the door, in, along the corridor, to the bed. */
   private walkIn(guest: Guest, cabin: Cabin): void {
     const w = this.w;
     const door = w.map.doors()[0];
+    const route = this.toTheDoor(guest);
     guest.onPlatform = false;
+    guest.spot = null;
     guest.view.showBubble(null);
     this.assignRoom(guest, cabin);
     const path = w.map.nav.findPath(door.insideNode, cabin.node);
-    guest.mover.go([door.outside, door.inside, ...(path ?? []), cabin.bedSide], () => this.arriveAtRoom(guest));
+    guest.mover.go([...route, door.outside, door.inside, ...(path ?? []), cabin.bedSide], () => this.arriveAtRoom(guest));
   }
 
   /** The guest waiting at the desk, if one has reached it. */
@@ -439,29 +545,13 @@ export class Guests {
   update(dt: number): void {
     const w = this.w;
     const platformOffset = w.station.platformOffset;
-    // Everyone on the platform holds up a ticket in their class's colour; those beyond the free beds of their
-    // class hold up a "no room" sign instead: they cannot board this time.
-    const atStation = w.journey.phase === 'stationStop' || w.journey.phase === 'arriving';
-    const serial = w.journey.phase === 'arriving' ? w.journey.stopSerial + 1 : w.journey.stopSerial;
-    this.bedsLeft.clear();
+    // Everyone on the platform is in their place: the ticket queue (a ticket in their class's colour) or the
+    // bench (a "no room" sign: no bed for them this time). Paid travellers board once the train is open.
+    if (this.list.some((g) => g.state === 'platform')) this.arrangePlatform(false);
     for (const guest of this.list) {
-      if (guest.state !== 'platform') continue;
-      if (guest.paid) {
-        // Their ticket is bought: once the train is open they board (to their room, or the waiting line).
-        guest.view.showBubble('check', 'plain', 1.85);
-        this.boardPaid(guest);
-        continue;
-      }
-      if (!atStation) {
-        guest.view.showBubble('ticket', guest.cls, 1.85);
-        continue;
-      }
-      if (!this.bedsLeft.has(guest.cls)) this.bedsLeft.set(guest.cls, this.bedsFree(serial, guest.cls));
-      const beds = this.bedsLeft.get(guest.cls) ?? 0;
-      if (beds > 0) {
-        this.bedsLeft.set(guest.cls, beds - 1);
-        guest.view.showBubble('ticket', guest.cls, 1.85);
-      } else guest.view.showBubble('noroom', 'alert', 1.85);
+      if (guest.state !== 'platform' || !guest.paid) continue;
+      guest.view.showBubble('check', 'plain', 1.85);
+      this.boardPaid(guest);
     }
     for (const guest of [...this.list]) {
       guest.stateTime += dt;
@@ -1000,7 +1090,7 @@ export class Guests {
     const cabin = guest.cabin;
     const fromBed = guest.inCabin;
     this.logTrip(guest, guest.trip, 'arrival', this.progressOf(guest));
-    // They leave a tip and a lived-in cabin behind: the bed slept in, the used bedding on it, and litter.
+    // They leave a tip and a lived-in cabin behind: the bed slept in and something of theirs on the floor.
     let tip = w.econ.money.alightTip * guest.archetype.tipMultiplier * w.tipMultiplier() * w.train.cabinTipMultiplier(cabin);
     if (w.train.luggageStored > 0) {
       w.train.luggageStored--;
@@ -1010,9 +1100,6 @@ export class Guests {
     w.cash.add(cabin.pileId, tipAmount, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
     cabin.messPlan = this.messFor(guest);
     cabin.dirty.fill(true);
-    cabin.linenUsed = cabin.sets;
-    cabin.linenFresh = 0;
-    cabin.setsThisTurn = 0;
     w.station.recordTip(tipAmount);
     guest.request = null;
     this.setState(guest, 'alighting');
@@ -1023,8 +1110,9 @@ export class Guests {
     // have them walk straight through the walls to reach it.
     const from = fromBed ? cabin.node : (w.map.nearestNode(guest.pos.x, guest.pos.z) ?? cabin.node);
     const path = w.map.nav.findPath(from, door.outsideNode);
-    const exit = { x: door.outside.x + 2.2, z: door.outside.z - 3 - w.rng.next() * 3 };
-    guest.mover.go([...(path ?? [door.inside, door.outside]), exit], () => this.finishAlighting(guest, false));
+    // Off along the platform's walkway (clear of the ticket queue) to the station house doors.
+    const exit = [...PLATFORM.concourse, PLATFORM.entrance, PLATFORM.houseDoor];
+    guest.mover.go([...(path ?? [door.inside, door.outside]), ...exit], () => this.finishAlighting(guest, false));
     w.feedback.onAlight(guest);
   }
 
@@ -1037,7 +1125,7 @@ export class Guests {
     if (teleported) {
       const door = w.map.doors()[0];
       guest.pos.x = door.outside.x + 1.5;
-      guest.pos.z = door.outside.z - 2;
+      guest.pos.z = door.outside.z - 0.6;
     }
     guest.view.showBubble('heart', 'plain', 1.7);
     w.events.emit('guest.alighted', { tip: 0 });

@@ -13,9 +13,9 @@ export type ClassId = 'basic' | 'comfort' | 'business' | 'first' | 'royal';
 
 /**
  * What a guest asks for in their cabin: an item brought to them, the bed turned down, or a wake-up call (a knock
- * at the door). The venue carriages' dishes are ordered in the venue, and bedding is the room's, not a request.
+ * at the door). The venue carriages' dishes are ordered in the venue.
  */
-export type ServiceNeed = Exclude<ItemKind, 'latte' | 'pastry' | 'meal' | 'cocktail' | 'popcorn' | 'bedding' | 'laundry'> | 'turndown' | 'wakeup';
+export type ServiceNeed = Exclude<ItemKind, 'latte' | 'pastry' | 'meal' | 'cocktail' | 'popcorn'> | 'turndown' | 'wakeup';
 
 /** Asked for by standing at the room a moment (no item to carry). */
 export const isDwellNeed = (need: ServiceNeed | 'bathroom' | null): need is 'turndown' | 'wakeup' => need === 'turndown' || need === 'wakeup';
@@ -49,8 +49,6 @@ export interface ClassDef {
    */
   evening: Partial<Record<ServiceNeed, number>>;
   morning: Partial<Record<ServiceNeed, number>>;
-  /** Fresh bedding sets a bed takes (pillow and linen together): one for a single bed, two for a double. */
-  beds: number;
   /** First and Royal: the bed is turned down when the guest arrives. */
   turndown: boolean;
   /** Royal: the morning comes as the butler's list (everything on `morning`, one after another), paid as one generous tip. */
@@ -64,27 +62,27 @@ export const CLASSES: ClassDef[] = [
   {
     id: 'basic', name: 'Basic', chip: 'BASIC', tier: 0, level: 1,
     livery: { body: '#4F5D55', trim: '#B9C2B5' }, color: '#6E7D72', ink: '#FFFFFF',
-    fare: 1, tip: 1, stars: 1, evening: { blanket: 1 }, morning: { wakeup: 1 }, beds: 1, turndown: false, butler: false, adds: 'clean', icon: 'broom',
+    fare: 1, tip: 1, stars: 1, evening: { blanket: 1 }, morning: { wakeup: 1 }, turndown: false, butler: false, adds: 'clean', icon: 'broom',
   },
   {
     id: 'comfort', name: 'Comfort', chip: 'COMFORT', tier: 2, level: 2,
     livery: { body: '#2C7A76', trim: '#EAD9B0' }, color: '#2F8F89', ink: '#FFFFFF',
-    fare: 2.5, tip: 2, stars: 2, evening: { tea: 1 }, morning: { towel: 1 }, beds: 1, turndown: false, butler: false, adds: 'towel', icon: 'towel',
+    fare: 2.5, tip: 2, stars: 2, evening: { tea: 1 }, morning: { towel: 1 }, turndown: false, butler: false, adds: 'towel', icon: 'towel',
   },
   {
     id: 'business', name: 'Business', chip: 'BUSINESS', tier: 3, level: 4,
     livery: { body: '#233A5E', trim: '#C9D2DC' }, color: '#2D4C7C', ink: '#FFFFFF',
-    fare: 5, tip: 3.5, stars: 3, evening: { newspaper: 1 }, morning: { coffee: 1 }, beds: 2, turndown: false, butler: false, adds: 'coffee', icon: 'coffee',
+    fare: 5, tip: 3.5, stars: 3, evening: { newspaper: 1 }, morning: { coffee: 1 }, turndown: false, butler: false, adds: 'coffee', icon: 'coffee',
   },
   {
     id: 'first', name: 'First Class', chip: 'FIRST CLASS', tier: 4, level: 6,
     livery: { body: '#243F7E', trim: '#E2B653' }, color: '#2B4FA0', ink: '#FFE2A0',
-    fare: 14, tip: 7, stars: 5, evening: { champagne: 1 }, morning: { breakfast: 1 }, beds: 2, turndown: true, butler: false, adds: 'champagne', icon: 'champagne',
+    fare: 14, tip: 7, stars: 5, evening: { champagne: 1 }, morning: { breakfast: 1 }, turndown: true, butler: false, adds: 'champagne', icon: 'champagne',
   },
   {
     id: 'royal', name: 'Royal Suite', chip: 'ROYAL SUITE', tier: 5, level: 8,
     livery: { body: '#6A1E2E', trim: '#E2B653' }, color: '#8A2A3E', ink: '#FFE2A0',
-    fare: 40, tip: 18, stars: 10, evening: { champagne: 1 }, morning: { breakfast: 1, coffee: 1 }, beds: 2, turndown: true, butler: true, adds: 'butler', icon: 'crown',
+    fare: 40, tip: 18, stars: 10, evening: { champagne: 1 }, morning: { breakfast: 1, coffee: 1 }, turndown: true, butler: true, adds: 'butler', icon: 'crown',
   },
 ];
 

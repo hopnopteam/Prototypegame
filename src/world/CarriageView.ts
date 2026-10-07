@@ -70,10 +70,6 @@ export function windowSpacing(len: number): { count: number; slot: number; width
   return { count, slot, width: Math.min(0.9, slot - 0.45) };
 }
 const FLAT: PartStyle = { shade: 1 };
-/** Where the linen cupboard ends and its laundry hamper begins, as a share of the prop's width (session 22). */
-export const LINEN_SPLIT = 0.66;
-/** A bare mattress: blue-grey ticking stripes along its length (a stripped bed, session 22). */
-const TICKING: PartStyle = { pattern: PATTERN.stripesX, color2: '#9FB0C2', scale: 0.07, shade: 0.94 };
 /**
  * Heights (above the floor) of everything lying flat on it, each in its own layer at least 4 mm from the
  * next: rooms 0–6 mm, runners 12, cabin mess from 40.
@@ -342,8 +338,6 @@ const PROPS_PER_SLICE = 4;
 export class CarriageView {
   readonly group = new THREE.Group();
   readonly cabinBeds: THREE.Group[] = [];
-  /** Each bed made up and stripped (session 22); one shows at a time. */
-  private readonly bedLooks: { made: THREE.Mesh; bare: THREE.Mesh }[] = [];
   /** Window blinds in the cabins (session 22): down at lights out. One instanced draw for the carriage. */
   private blinds: THREE.InstancedMesh | null = null;
   private readonly blindSlots: { cabin: number; x: number; y: number; z: number; width: number }[] = [];
@@ -508,23 +502,23 @@ export class CarriageView {
    * inward, so it never hides more of the corridor than the walls already do. `takeCover` hands a lid to the
    * reveal, which lifts it away.
    */
-  private readonly covers = new Map<string, THREE.Mesh>();
+  private readonly covers = new Map<string, THREE.Group>();
 
   private setCover(key: string, room: Rect, on: boolean): void {
     const lid = this.covers.get(key);
     if (on && !lid) {
-      const mesh = buildCover(room);
-      this.covers.set(key, mesh);
-      this.group.add(mesh);
+      const group = buildCover(room);
+      this.covers.set(key, group);
+      this.group.add(group);
     } else if (!on && lid) {
       this.covers.delete(key);
       this.group.remove(lid);
-      lid.geometry.dispose();
+      disposeTree(lid);
     }
   }
 
   /** A room's lid, taken off the carriage for the reveal to lift away (it disposes of it); null if it has none. */
-  takeCover(key: string): THREE.Mesh | null {
+  takeCover(key: string): THREE.Group | null {
     const lid = this.covers.get(key) ?? null;
     if (lid) this.covers.delete(key);
     return lid;
@@ -560,14 +554,6 @@ export class CarriageView {
     }
   }
 
-  /** A bed stripped of its bedding (true) or made up (false). */
-  setBedBare(cabin: number, bare: boolean): void {
-    const looks = this.bedLooks[cabin];
-    if (!looks || looks.bare.visible === bare) return;
-    looks.bare.visible = bare;
-    looks.made.visible = !bare;
-  }
-
   /** A cabin's window blinds: 0 up, 1 down (lights out). */
   setBlind(cabin: number, level: number): void {
     if (!this.blinds || this.blindLevel[cabin] === level) return;
@@ -583,13 +569,29 @@ export class CarriageView {
   }
 
   private allBlinds = 0;
+  /** The reveal rolls every blind up one after another, front to back (0 all down … 1 all up), or null. */
+  private blindSweep: number | null = null;
+
+  /** Session 23: the opening reveal's blinds, rolling up in a wave along the carriage. */
+  setBlindSweep(t: number | null): void {
+    if (this.blindSweep === t) return;
+    this.blindSweep = t;
+    this.layBlinds();
+  }
 
   private layBlinds(): void {
     const mesh = this.blinds;
     if (!mesh) return;
     let any = false;
+    const n = this.blindSlots.length;
     this.blindSlots.forEach((slot, i) => {
-      const level = Math.max(slot.cabin >= 0 ? (this.blindLevel[slot.cabin] ?? 0) : 0, this.allBlinds);
+      let all = this.allBlinds;
+      if (this.blindSweep !== null) {
+        // Slots run front to back along the wall; each rolls up over a third of the sweep, a little after the last.
+        const k = Math.min(1, Math.max(0, (this.blindSweep * (n + 2) - i) / 3));
+        all = 1 - k * k * (3 - 2 * k);
+      }
+      const level = Math.max(slot.cabin >= 0 ? (this.blindLevel[slot.cabin] ?? 0) : 0, all);
       if (level > 0) any = true;
       tmpMatrix.makeScale(1, Math.max(0.001, level), slot.width).setPosition(slot.x, slot.y, slot.z);
       mesh.setMatrixAt(i, tmpMatrix);
@@ -1516,18 +1518,6 @@ export class CarriageView {
       mesh.receiveShadow = true;
       mesh.layers.enable(STATIC_CASTER_LAYER);
       bedGroup.add(mesh);
-      // The same bed stripped (session 22): shown instead while it waits for a fresh bedding set.
-      const bare = new GeoBuilder();
-      bare.object('bed');
-      buildProp(bare, new GeoBuilder(), { kind: 'bed', rect: cabin.bed, variant: 'bare' }, this.theme, this.tier);
-      const bareGeometry = bare.build();
-      bareGeometry.translate(-centerX, -FLOOR_Y, -centerZ);
-      const bareMesh = new THREE.Mesh(bareGeometry, MATERIALS.solid);
-      bareMesh.castShadow = true;
-      bareMesh.receiveShadow = true;
-      bareMesh.visible = false;
-      bedGroup.add(bareMesh);
-      this.bedLooks[cabin.index] = { made: mesh, bare: bareMesh };
       bedGroup.position.set(centerX, FLOOR_Y, centerZ);
       this.group.add(bedGroup);
       this.cabinBeds[cabin.index] = bedGroup;
@@ -1826,35 +1816,29 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
   const wood = tier <= 0 ? '#9C8570' : PALETTE.walnut;
   switch (prop.kind) {
     case 'bed': {
-      // Session 22: a stripped bed (its bedding taken off, waiting for a fresh set) shows the bare ticking mattress.
-      const bare = prop.variant === 'bare';
       if (tier <= 0) {
         // An iron cot: thin frame on legs, a thin mattress, a grey wool blanket, one flat pillow.
         for (const px of [r.x0 + 0.04, r.x1 - 0.04]) for (const pz of [r.z0 + 0.04, r.z1 - 0.04]) b.box(px, y + 0.14, pz, 0.04, 0.28, 0.04, PALETTE.iron, 0, FLAT);
         b.slab(r, y + 0.26, y + 0.3, PALETTE.iron, 0, 0, FLAT);
-        b.slab(r, y + 0.3, y + BED_TOP - 0.02, '#E9E2D5', 0, 0.04, bare ? TICKING : { shade: 0.95 });
-        if (!bare) {
-          b.rounded(cx, y + BED_TOP + 0.02, r.z0 + 0.25, w - 0.3, 0.06, 0.26, 0.05, '#F1ECE3', { shade: 0.9 });
-          b.box(cx, y + BED_TOP, r.z0 + d * 0.64, w - 0.06, 0.05, d * 0.64, PALETTE.greyWool, 0, { shade: 0.95 });
-        }
+        b.slab(r, y + 0.3, y + BED_TOP - 0.02, '#E9E2D5', 0, 0.04, { shade: 0.95 });
+        b.rounded(cx, y + BED_TOP + 0.02, r.z0 + 0.25, w - 0.3, 0.06, 0.26, 0.05, '#F1ECE3', { shade: 0.9 });
+        b.box(cx, y + BED_TOP, r.z0 + d * 0.64, w - 0.06, 0.05, d * 0.64, PALETTE.greyWool, 0, { shade: 0.95 });
         b.box(cx, y + 0.5, r.z0 + 0.02, w, 0.04, 0.04, PALETTE.iron, 0, FLAT);
         for (const px of [r.x0 + 0.04, r.x1 - 0.04]) b.box(px, y + 0.38, r.z0 + 0.02, 0.04, 0.3, 0.04, PALETTE.iron, 0, FLAT);
         break;
       }
       if (tier >= 4) {
-        buildGrandBed(b, r, theme, tier, bare);
+        buildGrandBed(b, r, theme, tier);
         break;
       }
       b.slab(r, y, y + 0.24, wood, 0, 0, { shade: 0.75 });
-      b.rounded(cx, y + 0.31, cz + 0.02, w - 0.06, BED_TOP - 0.24, d - 0.08, 0.06, PALETTE.mattress, bare ? TICKING : { shade: 0.92 });
-      if (!bare) {
-        const pillows = tier >= 2 ? [-1, 1] : [0];
-        for (const side of pillows) b.rounded(cx + side * (w / 4 - 0.02), y + BED_TOP + 0.03, r.z0 + 0.27, tier >= 2 ? w / 2 - 0.1 : w - 0.3, 0.08, 0.26, 0.06, PALETTE.pillow, { shade: 0.9 });
-        const cover = tier >= 3 ? theme.deep : theme.blanket;
-        b.rounded(cx, y + BED_TOP - 0.005, r.z0 + d * 0.63, w - 0.02, 0.07, d * 0.68, 0.04, cover, { shade: 0.9 });
-        b.box(cx, y + BED_TOP + 0.03, r.z0 + d * 0.3, w - 0.02, 0.012, 0.1, PALETTE.linen, 0, FLAT);
-        if (tier >= 3) b.box(cx, y + BED_TOP + 0.031, r.z1 - 0.1, w - 0.02, 0.012, 0.05, PALETTE.gold, 0, FLAT);
-      }
+      b.rounded(cx, y + 0.31, cz + 0.02, w - 0.06, BED_TOP - 0.24, d - 0.08, 0.06, PALETTE.mattress, { shade: 0.92 });
+      const pillows = tier >= 2 ? [-1, 1] : [0];
+      for (const side of pillows) b.rounded(cx + side * (w / 4 - 0.02), y + BED_TOP + 0.03, r.z0 + 0.27, tier >= 2 ? w / 2 - 0.1 : w - 0.3, 0.08, 0.26, 0.06, PALETTE.pillow, { shade: 0.9 });
+      const cover = tier >= 3 ? theme.deep : theme.blanket;
+      b.rounded(cx, y + BED_TOP - 0.005, r.z0 + d * 0.63, w - 0.02, 0.07, d * 0.68, 0.04, cover, { shade: 0.9 });
+      b.box(cx, y + BED_TOP + 0.03, r.z0 + d * 0.3, w - 0.02, 0.012, 0.1, PALETTE.linen, 0, FLAT);
+      if (tier >= 3) b.box(cx, y + BED_TOP + 0.031, r.z1 - 0.1, w - 0.02, 0.012, 0.05, PALETTE.gold, 0, FLAT);
       // Headboard: low and plain at tier 1, taller with a rounded rail from tier 2.
       const hb = tier >= 2 ? 0.62 : 0.4;
       b.box(cx, y + hb / 2 + 0.2, r.z0 + 0.04, w, hb, 0.08, wood, 0, { shade: 0.82 });
@@ -1898,32 +1882,17 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       break;
     }
     case 'linen': {
-      // Session 22: the linen cupboard (fresh bedding sets and blankets) with its laundry hamper beside it, where
-      // the used bedding goes: one stop for the swap. The hamper takes the last third of the footprint.
-      const split = r.x0 + w * LINEN_SPLIT;
-      const shelf = rect(r.x0, r.z0, split - 0.02, r.z1);
-      const sw = shelf.x1 - shelf.x0;
-      const scx = (shelf.x0 + shelf.x1) / 2;
       if (tier <= 0) {
-        b.box(scx, y + 0.3, cz, sw, 0.6, d, '#A98D6F', 0, { pattern: PATTERN.stripesZ, color2: '#9C8264', scale: 0.14, shade: 0.8 });
-        for (let i = 0; i < 2; i++) b.rounded(scx + (i - 0.5) * sw * 0.48, y + 0.66, cz, sw * 0.42, 0.1, d - 0.12, 0.03, i === 1 ? '#EFEAE0' : PALETTE.greyWool, { shade: 0.9 });
-      } else {
-        b.slab(shelf, y, y + 0.9, wood, 0, 0, { shade: 0.7 });
-        const half = sw / 2;
-        for (let i = 0; i < 3; i++) {
-          b.rounded(shelf.x0 + half * 0.5, y + 0.96 + i * 0.1, cz, half - 0.08, 0.09, d - 0.14, 0.03, theme.blanket, { shade: 0.88 });
-          // Fresh bedding sets: white linen with a blue band, a pillow on top of the stack.
-          b.rounded(shelf.x0 + half * 1.5, y + 0.95 + i * 0.09, cz, half - 0.1, 0.08, d - 0.18, 0.03, '#F6F2EA', { shade: 0.9 });
-        }
-        b.rounded(shelf.x0 + half * 1.5, y + 1.26, cz, half - 0.14, 0.07, d - 0.24, 0.04, PALETTE.pillow, { shade: 0.9 });
+        b.box(cx, y + 0.3, cz, w, 0.6, d, '#A98D6F', 0, { pattern: PATTERN.stripesZ, color2: '#9C8264', scale: 0.14, shade: 0.8 });
+        for (let i = 0; i < 3; i++) b.rounded(cx + (i - 1) * w * 0.3, y + 0.66, cz, w * 0.26, 0.1, d - 0.12, 0.03, i === 1 ? '#EFEAE0' : PALETTE.greyWool, { shade: 0.9 });
+        break;
       }
-      // The hamper: an open wicker basket with yesterday's sheets heaped in it.
-      const hx = (split + r.x1) / 2;
-      const hw = Math.min(r.x1 - split - 0.04, d - 0.06);
-      b.cylinder(hx, y + 0.24, cz, hw / 2, hw / 2 - 0.04, 0.48, '#C99A5B', 12, 'y', { pattern: PATTERN.stripesX, color2: '#A87A43', scale: 0.06, shade: 0.85 });
-      b.cylinder(hx, y + 0.485, cz, hw / 2 + 0.01, hw / 2 + 0.01, 0.03, '#A87A43', 12, 'y', FLAT);
-      b.sphere(hx - 0.05, y + 0.5, cz, hw * 0.3, '#DCE3EA', 1, 0.6, { shade: 0.85 });
-      b.sphere(hx + 0.06, y + 0.51, cz + 0.03, hw * 0.24, '#C9D2DC', 1, 0.6, { shade: 0.85 });
+      b.slab(r, y, y + 0.9, wood, 0, 0, { shade: 0.7 });
+      const half = w / 2;
+      for (let i = 0; i < 3; i++) {
+        b.rounded(r.x0 + half * 0.5, y + 0.96 + i * 0.1, cz, half - 0.12, 0.09, d - 0.14, 0.03, theme.blanket, { shade: 0.88 });
+        b.rounded(r.x0 + half * 1.5, y + 0.95 + i * 0.09, cz, half - 0.16, 0.08, d - 0.18, 0.04, PALETTE.pillow, { shade: 0.9 });
+      }
       break;
     }
     case 'rack':
@@ -2188,7 +2157,7 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
  * and a brass padlock on it. The sides slope more gently than the camera looks down, so the lid never hides any
  * of the corridor the walls do not already hide.
  */
-function buildCover(room: Rect): THREE.Mesh {
+function buildCover(room: Rect): THREE.Group {
   const x0 = room.x0 - 0.07;
   const x1 = room.x1;
   const z0 = room.z0 - 0.06;
@@ -2208,8 +2177,11 @@ function buildCover(room: Rect): THREE.Mesh {
     [[x0, yb, z1], [x1, yb, z1], [tx1, yt, tz1], [tx0, yt, tz1]],
     [[tx0, yt, tz0], [tx0, yt, tz1], [tx1, yt, tz1], [tx1, yt, tz0]],
   ];
+  const cx = (tx0 + tx1) / 2;
+  const cz = (tz0 + tz1) / 2;
+  // Built round the lid's centre, so the reveal can lift and tilt it from there.
   const positions: number[] = [];
-  for (const [a, b2, c, d] of quads) positions.push(...a, ...b2, ...c, ...a, ...c, ...d);
+  for (const [a, b2, c, d] of quads) for (const v of [a, b2, c, a, c, d]) positions.push(v[0] - cx, v[1] - yt, v[2] - cz);
   const shell = new THREE.BufferGeometry();
   shell.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   shell.computeVertexNormals();
@@ -2217,50 +2189,211 @@ function buildCover(room: Rect): THREE.Mesh {
   b.object('cover');
   b.add(shell, '#5E6B78', 0, 0, 0, 0, 0, 0, { pattern: PATTERN.stripesX, color2: '#56626E', scale: 0.12, shade: 0.92 });
   // A cream band round the top's edge, standing proud of it.
-  const cx = (tx0 + tx1) / 2;
-  const cz = (tz0 + tz1) / 2;
-  b.box(cx, yt + 0.008, tz0 + 0.02, tx1 - tx0, 0.016, 0.04, '#EFE6D2', 0, FLAT);
-  b.box(cx, yt + 0.008, tz1 - 0.02, tx1 - tx0, 0.016, 0.04, '#EFE6D2', 0, FLAT);
-  // The padlock: a brass body with a keyhole and its shackle, standing on the top.
-  b.rounded(cx, yt + 0.13, cz, 0.1, 0.24, 0.28, 0.04, PALETTE.brass, { shade: 1, surface: 'brass' });
-  b.add(new THREE.TorusGeometry(0.09, 0.024, 6, 16, Math.PI), PALETTE.brass, cx, yt + 0.25, cz, 0, Math.PI / 2, 0, { shade: 1, surface: 'brass' });
-  const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
-  mesh.receiveShadow = true;
-  mesh.userData.room = true;
-  return mesh;
+  b.box(0, 0.008, tz0 + 0.02 - cz, tx1 - tx0, 0.016, 0.04, '#EFE6D2', 0, FLAT);
+  b.box(0, 0.008, tz1 - 0.02 - cz, tx1 - tx0, 0.016, 0.04, '#EFE6D2', 0, FLAT);
+  const group = new THREE.Group();
+  group.position.set(cx, yt, cz);
+  group.userData.room = true;
+  const lid = new THREE.Mesh(b.build(), MATERIALS.solid);
+  lid.receiveShadow = true;
+  group.add(lid);
+  // The padlock standing on the top (session 23: its own pieces, so the reveal can spring it open): a brass body
+  // and a shackle that swings up on one leg.
+  const lock = new THREE.Group();
+  lock.name = 'padlock';
+  const body = new GeoBuilder();
+  body.object('cover:padlock');
+  body.rounded(0, 0.13, 0, 0.1, 0.24, 0.28, 0.04, PALETTE.brass, { shade: 1, surface: 'brass' });
+  body.box(0.052, 0.12, 0, 0.004, 0.06, 0.03, PALETTE.ink, 0, FLAT);
+  lock.add(new THREE.Mesh(body.build(), MATERIALS.solid));
+  const shackle = new GeoBuilder();
+  shackle.object('cover:shackle');
+  // Hinged on its back leg (z −0.09): the arch reaches over to the front leg at z +0.09.
+  shackle.add(new THREE.TorusGeometry(0.09, 0.024, 6, 16, Math.PI), PALETTE.brass, 0, 0, 0.09, 0, Math.PI / 2, 0, { shade: 1, surface: 'brass' });
+  const arm = new THREE.Mesh(shackle.build(), MATERIALS.solid);
+  arm.name = 'shackle';
+  arm.position.set(0, 0.25, -0.09);
+  lock.add(arm);
+  group.add(lock);
+  return group;
 }
 
 /**
  * The roof over the opening's covered carriage (session 22): two slate slopes from eaves just above the walls'
  * cornice to a cream ridge, closed at both ends, a little wider than the carriage.
  */
+/** Rope ties across the canvas, along the carriage (session 23). */
+const TARP_TIES = [1.6, 4.9, 8.2, 11.5, 14.8];
+/** The canvas's cross-section, from the lake side's hem over the ridge to the platform side's hem. */
+function tarpProfile(): { x: number; y: number }[] {
+  const ye = FLOOR_Y + EXTERIOR_WALL_HEIGHT + 0.06;
+  const hw = HALF_WIDTH;
+  const half = [
+    { x: -hw - 0.14, y: ye - 0.46 },
+    { x: -hw - 0.13, y: ye - 0.2 },
+    { x: -hw - 0.08, y: ye - 0.02 },
+    { x: -hw + 0.12, y: ye + 0.1 },
+    { x: -hw + 0.7, y: ye + 0.24 },
+    { x: -1.15, y: ye + 0.34 },
+    { x: 0, y: ye + 0.42 },
+  ];
+  return [...half, ...half.slice(0, -1).reverse().map((p) => ({ x: -p.x, y: p.y }))];
+}
+
+/**
+ * The covered carriage (session 23, owner: "the reveal of the train… an animation that actually feels nice"): a
+ * weathered canvas sheet thrown over the open-topped carriage, sagging between rope ties, its hems hanging over the
+ * windows and flaps down over both ends. `deformTarp` billows it, snaps the ropes and slides it off for the reveal.
+ * Each vertex keeps its rest position and where it lies on the sheet, so the animation is one pass over them.
+ */
 function buildCarriageRoof(): THREE.Mesh {
-  const x0 = -HALF_WIDTH - 0.06;
-  const x1 = HALF_WIDTH + 0.06;
-  const z0 = -0.02;
-  const z1 = CARRIAGE_LENGTH + 0.02;
-  const ye = FLOOR_Y + EXTERIOR_WALL_HEIGHT + 0.08;
-  const yr = ye + 0.5;
-  const positions: number[] = [];
-  const quad = (a: number[], b2: number[], c: number[], d: number[]): void => {
-    positions.push(...a, ...b2, ...c, ...a, ...c, ...d);
+  const profile = tarpProfile();
+  // Resample the profile evenly, so the sheet's folds are even across it.
+  const lengths = [0];
+  for (let i = 1; i < profile.length; i++) lengths.push(lengths[i - 1] + Math.hypot(profile[i].x - profile[i - 1].x, profile[i].y - profile[i - 1].y));
+  const total = lengths[lengths.length - 1];
+  const across = 28;
+  const pts: { x: number; y: number; u: number }[] = [];
+  for (let i = 0; i <= across; i++) {
+    const at = (i / across) * total;
+    let k = 1;
+    while (k < lengths.length - 1 && lengths[k] < at) k++;
+    const t = (at - lengths[k - 1]) / Math.max(1e-6, lengths[k] - lengths[k - 1]);
+    pts.push({ x: profile[k - 1].x + (profile[k].x - profile[k - 1].x) * t, y: profile[k - 1].y + (profile[k].y - profile[k - 1].y) * t, u: i / across });
+  }
+  const ye = FLOOR_Y + EXTERIOR_WALL_HEIGHT + 0.06;
+  const z0 = -0.16;
+  const z1 = CARRIAGE_LENGTH + 0.16;
+  const rows = 54;
+  // The sheet's rest shape: it sags between the ties on top and crinkles a little everywhere.
+  const rest = (p: { x: number; y: number }, z: number): [number, number, number] => {
+    const top = Math.min(1, Math.max(0, (p.y - ye + 0.05) / 0.45));
+    let tie = Infinity;
+    for (const t of TARP_TIES) tie = Math.min(tie, Math.abs(z - t));
+    const sag = 0.07 * top * Math.min(1, tie / 1.65) ** 2;
+    const crinkle = 0.012 * Math.sin(z * 4.3 + p.x * 3.1) + 0.008 * Math.sin(z * 9.1 - p.x * 5.3);
+    // Hems flare out a touch where they hang (no flat sheet edge).
+    const hang = 1 - top;
+    return [p.x + Math.sign(p.x) * hang * 0.03 * Math.sin(z * 2.2), p.y - sag + crinkle, z];
   };
-  quad([x0, ye, z1], [x0, ye, z0], [0, yr, z0], [0, yr, z1]);
-  quad([x1, ye, z0], [x1, ye, z1], [0, yr, z1], [0, yr, z0]);
-  positions.push(x0, ye, z0, x1, ye, z0, 0, yr, z0);
-  positions.push(x1, ye, z1, x0, ye, z1, 0, yr, z1);
-  // The underside, so nothing shows through from below the eaves.
-  quad([x0, ye, z0], [x0, ye, z1], [x1, ye, z1], [x1, ye, z0]);
-  const shell = new THREE.BufferGeometry();
-  shell.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  shell.computeVertexNormals();
+  const positions: number[] = [];
+  const params: number[] = [];
+  const push = (p: { x: number; y: number; u: number }, z: number): void => {
+    positions.push(...rest(p, z));
+    params.push(p.u, (z - z0) / (z1 - z0));
+  };
+  for (let r = 0; r < rows; r++) {
+    const za = z0 + ((z1 - z0) * r) / rows;
+    const zb = z0 + ((z1 - z0) * (r + 1)) / rows;
+    for (let i = 0; i < across; i++) {
+      const a = pts[i];
+      const c = pts[i + 1];
+      // Wound to face up and out (the camera looks down on it).
+      push(a, zb); push(c, za); push(a, za);
+      push(a, zb); push(c, zb); push(c, za);
+    }
+  }
+  // End flaps: the sheet hangs down over each end, from its edge to the hem.
+  for (const [z, dir] of [[z0, -1], [z1, 1]] as const) {
+    for (let i = 0; i < across; i++) {
+      const a = pts[i];
+      const c = pts[i + 1];
+      const lowA = { x: a.x * 0.98, y: ye - 0.46, u: a.u };
+      const lowC = { x: c.x * 0.98, y: ye - 0.46, u: c.u };
+      const quad = dir > 0 ? [a, lowA, lowC, a, lowC, c] : [a, c, lowC, a, lowC, lowA];
+      for (const p of quad) {
+        positions.push(p.x, p.y, z + dir * 0.012);
+        params.push(p.u, dir > 0 ? 1 : 0);
+      }
+    }
+  }
+  const cloth = new THREE.BufferGeometry();
+  cloth.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  cloth.computeVertexNormals();
   const b = new GeoBuilder();
   b.object('roof');
-  b.add(shell, '#5E6B78', 0, 0, 0, 0, 0, 0, { pattern: PATTERN.stripesZ, color2: '#56626E', scale: 0.18, shade: 0.92 });
-  b.box(0, yr + 0.02, CARRIAGE_LENGTH / 2, 0.12, 0.05, CARRIAGE_LENGTH + 0.06, '#EFE6D2', 0, FLAT);
+  b.add(cloth, '#B5A486', 0, 0, 0, 0, 0, 0, { pattern: PATTERN.stripesZ, color2: '#A69576', scale: 0.55, shade: 0.94, surface: 'fabric' });
+  const clothVerts = positions.length / 3;
+  // The rope ties: a dark band over the sheet at each tie, from hem to hem.
+  for (const tz of TARP_TIES) {
+    const band: number[] = [];
+    for (let i = 0; i < across; i++) {
+      const a = rest(pts[i], tz);
+      const c = rest(pts[i + 1], tz);
+      const lift = 0.016;
+      band.push(a[0], a[1] + lift, tz - 0.035, a[0], a[1] + lift, tz + 0.035, c[0], c[1] + lift, tz + 0.035);
+      band.push(a[0], a[1] + lift, tz - 0.035, c[0], c[1] + lift, tz + 0.035, c[0], c[1] + lift, tz - 0.035);
+    }
+    const rope = new THREE.BufferGeometry();
+    rope.setAttribute('position', new THREE.Float32BufferAttribute(band, 3));
+    rope.computeVertexNormals();
+    b.add(rope, '#6B5236', 0, 0, 0, 0, 0, 0, { shade: 1 });
+  }
   const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
   mesh.receiveShadow = true;
+  const pos = mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+  mesh.userData.tarp = {
+    rest: Float32Array.from(pos.array as Float32Array),
+    params: Float32Array.from(params),
+    clothVerts,
+    ropeVerts: (pos.count - clothVerts) / TARP_TIES.length,
+  };
   return mesh;
+}
+
+/**
+ * The canvas coming off (0..1 over the reveal's opening seconds): it billows in waves along the carriage, its rope
+ * ties snap one by one (`ropesGone` of them, front to back), then it slides off toward the lake, lifting as it
+ * goes, and drops away. Rope `i` is gone once `ropesGone > i`.
+ */
+export function deformTarp(mesh: THREE.Mesh, progress: number, ropesGone: number): void {
+  const tarp = mesh.userData.tarp as { rest: Float32Array; params: Float32Array; clothVerts: number; ropeVerts: number } | undefined;
+  if (!tarp) return;
+  const pos = mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+  const out = pos.array as Float32Array;
+  const p = Math.min(1, Math.max(0, progress));
+  const billow = Math.min(1, p / 0.3) * (1 - Math.max(0, (p - 0.75) / 0.25));
+  const slide = Math.max(0, (p - 0.32) / 0.68);
+  const ease = slide * slide;
+  const ye = FLOOR_Y + EXTERIOR_WALL_HEIGHT;
+  for (let v = 0; v < tarp.clothVerts; v++) {
+    const u = tarp.params[v * 2];
+    const along = tarp.params[v * 2 + 1];
+    const rx = tarp.rest[v * 3];
+    const ry = tarp.rest[v * 3 + 1];
+    const rz = tarp.rest[v * 3 + 2];
+    // Waves run along the sheet and lift its middle most; the side being pulled leads the slide.
+    const wave = Math.sin(along * 14 - p * 22) * 0.5 + 0.5;
+    const middle = Math.sin(u * Math.PI);
+    const lift = billow * (0.1 + 0.22 * wave) * middle;
+    const lead = 1 + (1 - u) * 0.35;
+    out[v * 3] = rx - ease * (5.5 * lead) - slide * 0.4 * Math.sin(along * Math.PI);
+    out[v * 3 + 1] = ry + lift + Math.sin(slide * Math.PI) * 0.9 * middle - ease * Math.max(0, ry - ye + 2.2) * 0.9;
+    out[v * 3 + 2] = rz + slide * 0.25 * Math.sin(u * Math.PI * 2 + along * 3);
+  }
+  // Ropes follow the sheet until they snap, then they are gone.
+  for (let v = tarp.clothVerts; v < pos.count; v++) {
+    const tie = Math.floor((v - tarp.clothVerts) / tarp.ropeVerts);
+    if (tie < ropesGone) {
+      out[v * 3 + 1] = -50;
+      continue;
+    }
+    out[v * 3] = tarp.rest[v * 3];
+    out[v * 3 + 1] = tarp.rest[v * 3 + 1] + billow * 0.04;
+    out[v * 3 + 2] = tarp.rest[v * 3 + 2];
+  }
+  pos.needsUpdate = true;
+  mesh.geometry.computeVertexNormals();
+  const fade = Math.max(0, (p - 0.8) / 0.2);
+  mesh.scale.setScalar(Math.max(0.001, 1 - fade * fade));
+}
+
+/** Where each rope tie crosses the carriage (local z), for the little puffs as they snap. */
+export const TARP_TIE_Z: readonly number[] = TARP_TIES;
+
+/** Frees every mesh's geometry under an object (the shared materials stay). */
+export function disposeTree(root: THREE.Object3D): void {
+  root.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
 }
 
 /**
@@ -2268,7 +2401,7 @@ function buildCarriageRoof(): THREE.Mesh {
  * edge, plump pillows and a bolster. Royal: the same bed as a four-poster, turned walnut posts with gold finials
  * and a burgundy valance round the top (open above, so the sleeper stays in view).
  */
-function buildGrandBed(b: GeoBuilder, r: Rect, theme: CarriageTheme, tier: number, bare = false): void {
+function buildGrandBed(b: GeoBuilder, r: Rect, theme: CarriageTheme, tier: number): void {
   const y = FLOOR_Y;
   const cx = (r.x0 + r.x1) / 2;
   const cz = (r.z0 + r.z1) / 2;
@@ -2277,14 +2410,12 @@ function buildGrandBed(b: GeoBuilder, r: Rect, theme: CarriageTheme, tier: numbe
   const frame = tier >= 5 ? '#4A2A22' : PALETTE.walnutDark;
   b.slab(r, y, y + 0.24, frame, 0, 0, { shade: 0.75, surface: 'varnish' });
   b.slab(rect(r.x0 + 0.01, r.z0 + 0.01, r.x1 - 0.01, r.z1 - 0.01), y + 0.2, y + 0.23, PALETTE.gold, 0, 0.0, { shade: 1, surface: 'brass' });
-  b.rounded(cx, y + 0.31, cz + 0.02, w - 0.06, BED_TOP - 0.24, d - 0.08, 0.06, PALETTE.mattress, bare ? { ...TICKING, surface: 'fabric' } : { shade: 0.92, surface: 'fabric' });
-  if (!bare) {
-    for (const side of [-1, 1]) b.rounded(cx + side * (w / 4 - 0.02), y + BED_TOP + 0.035, r.z0 + 0.27, w / 2 - 0.1, 0.1, 0.26, 0.07, PALETTE.pillow, { shade: 0.9, surface: 'fabric' });
-    b.cylinder(cx, y + BED_TOP + 0.05, r.z0 + 0.46, 0.055, 0.055, w - 0.24, theme.deep, 12, 'x', { shade: 0.9, surface: 'velvet' });
-    b.rounded(cx, y + BED_TOP - 0.005, r.z0 + d * 0.63, w - 0.02, 0.07, d * 0.68, 0.04, theme.blanket, { shade: 0.9, surface: 'velvet' });
-    b.box(cx, y + BED_TOP + 0.03, r.z0 + d * 0.3, w - 0.02, 0.012, 0.1, PALETTE.linen, 0, FLAT);
-    b.box(cx, y + BED_TOP + 0.031, r.z1 - 0.1, w - 0.02, 0.012, 0.05, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
-  }
+  b.rounded(cx, y + 0.31, cz + 0.02, w - 0.06, BED_TOP - 0.24, d - 0.08, 0.06, PALETTE.mattress, { shade: 0.92, surface: 'fabric' });
+  for (const side of [-1, 1]) b.rounded(cx + side * (w / 4 - 0.02), y + BED_TOP + 0.035, r.z0 + 0.27, w / 2 - 0.1, 0.1, 0.26, 0.07, PALETTE.pillow, { shade: 0.9, surface: 'fabric' });
+  b.cylinder(cx, y + BED_TOP + 0.05, r.z0 + 0.46, 0.055, 0.055, w - 0.24, theme.deep, 12, 'x', { shade: 0.9, surface: 'velvet' });
+  b.rounded(cx, y + BED_TOP - 0.005, r.z0 + d * 0.63, w - 0.02, 0.07, d * 0.68, 0.04, theme.blanket, { shade: 0.9, surface: 'velvet' });
+  b.box(cx, y + BED_TOP + 0.03, r.z0 + d * 0.3, w - 0.02, 0.012, 0.1, PALETTE.linen, 0, FLAT);
+  b.box(cx, y + BED_TOP + 0.031, r.z1 - 0.1, w - 0.02, 0.012, 0.05, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
   // Headboard: buttoned velvet in a gilt frame.
   b.box(cx, y + 0.55, r.z0 + 0.04, w, 0.7, 0.08, frame, 0, { shade: 0.82, surface: 'varnish' });
   b.rounded(cx, y + 0.6, r.z0 + 0.095, w - 0.14, 0.5, 0.03, 0.08, theme.deep, { shade: 0.9, surface: 'velvet' });

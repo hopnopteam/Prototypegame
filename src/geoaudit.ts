@@ -355,14 +355,8 @@ function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras
       const pieces = [MESS_PIECES[messTurn % MESS_PIECES.length]];
       view.setMess(c.index, pieces, BED_MESS[messTurn % BED_MESS.length], messTurn + 1);
       messTurn++;
-      // Session 22: every blind down (lights out), and every other bed stripped to its bare mattress.
-      if (!locked) {
-        view.setBlind(c.index, 1);
-        if (c.index % 2 === 1) {
-          view.setDirt(c.index, [false]);
-          view.setBedBare(c.index, true);
-        }
-      }
+      // Session 22: every blind down (lights out).
+      if (!locked) view.setBlind(c.index, 1);
     });
     layout.bathrooms.forEach((b) => view.setBathroomLocked(b.index, locked));
     // Session 22: the opening's covered first carriage (its roof on, every blind down).

@@ -15,8 +15,8 @@ export type IconName =
   | 'flag'
   // Session 21: the cinema car.
   | 'popcorn' | 'film'
-  // Session 22: one trip, one sleep (the morning paper, breakfast, a wake-up call, fresh bedding and laundry).
-  | 'newspaper' | 'breakfast' | 'wakeup' | 'bedding' | 'laundry';
+  // Session 22: one trip, one sleep (the morning paper, breakfast, a wake-up call).
+  | 'newspaper' | 'breakfast' | 'wakeup';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -56,7 +56,6 @@ const star = (c: CanvasRenderingContext2D, cx: number, cy: number, outer: number
 
 const ICONS: Record<IconName, Draw> = {
   newspaper: (c) => ICONS.news(c),
-  bedding: (c) => ICONS.linen(c),
   breakfast: (c) => {
     // A breakfast tray: a croissant and a cup of coffee.
     c.beginPath();
@@ -110,30 +109,6 @@ const ICONS: Record<IconName, Draw> = {
     c.lineWidth = 5;
     c.strokeStyle = INK;
     c.stroke();
-  },
-  laundry: (c) => {
-    // A wicker basket heaped with crumpled sheets: used bedding for the laundry.
-    c.beginPath();
-    c.moveTo(22, 46);
-    c.quadraticCurveTo(30, 18, 48, 30);
-    c.quadraticCurveTo(62, 14, 78, 44);
-    c.closePath();
-    fillStroke(c, '#DCE3EA', 5);
-    c.beginPath();
-    c.moveTo(16, 44);
-    c.lineTo(84, 44);
-    c.lineTo(76, 86);
-    c.lineTo(24, 86);
-    c.closePath();
-    fillStroke(c, '#C99A5B');
-    c.strokeStyle = '#8E6A3C';
-    c.lineWidth = 4;
-    for (const y of [57, 70]) {
-      c.beginPath();
-      c.moveTo(20, y);
-      c.lineTo(80, y);
-      c.stroke();
-    }
   },
   latte: (c) => {
     // A tall café glass with milky coffee, a foam crown and a heart drawn in it.
@@ -1213,6 +1188,4 @@ export const ITEM_ICON: Record<string, IconName> = {
   newspaper: 'newspaper',
   breakfast: 'breakfast',
   wakeup: 'wakeup',
-  bedding: 'bedding',
-  laundry: 'laundry',
 };

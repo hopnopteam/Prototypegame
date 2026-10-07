@@ -321,25 +321,16 @@ export class StaffManager {
       steps.push({ kind: 'do', fn: () => this.binLeftovers(m) });
       return { label: 'request', icon: item, steps, release: () => { reserved.reservedBy = undefined; m.wantItems = {}; } };
     }
-    // 2. Turn a room around in this carriage (session 22): fresh bedding from the linen cupboard first (any
-    //    laundry carried goes in its hamper there), then strip, sweep and make the bed in one visit. The used
-    //    bedding goes back to the hamper afterwards (as surplus, see returnTask).
+    // 2. Tidy a used room in this carriage: one visit to its pad.
     const cabin = w.train.cabins.find((c) => this.inScope(m, c.carriage) && c.unlocked && c.isDirty && !c.guest && !c.cleaner);
     if (cabin) {
       cabin.cleaner = m;
-      const steps: Step[] = [];
-      const sets = Math.min(cabin.setsNeeded, m.stack.capacity);
-      const linen = this.nearestSource('bedding', m.carriage);
-      if (linen && m.stack.countOf('bedding') < sets) {
-        steps.push({ kind: 'do', fn: () => (m.wantItems = { bedding: sets }) });
-        steps.push({ kind: 'goto', target: linen });
-        steps.push({ kind: 'stand', until: () => m.stack.countOf('bedding') >= sets && !m.stack.has('laundry'), timeout: 4 });
-      }
       const spot = cabin.spots[0] ?? cabin.center;
-      steps.push({ kind: 'goto', target: spot, node: cabin.node });
-      steps.push({ kind: 'stand', until: () => !cabin.isDirty, timeout: 8 });
-      steps.push({ kind: 'do', fn: () => (m.wantItems = {}) });
-      return { label: 'clean', icon: 'broom', steps, release: () => { m.wantItems = {}; if (cabin.cleaner === m) cabin.cleaner = null; } };
+      const steps: Step[] = [
+        { kind: 'goto', target: spot, node: cabin.node },
+        { kind: 'stand', until: () => !cabin.isDirty, timeout: 8 },
+      ];
+      return { label: 'clean', icon: 'broom', steps, release: () => { if (cabin.cleaner === m) cabin.cleaner = null; } };
     }
     return this.returnTask(m);
   }
@@ -489,8 +480,6 @@ export class StaffManager {
       case 'pillow':
       case 'newspaper':
       case 'breakfast':
-      case 'bedding':
-      case 'laundry':
         return this.nearestSource(kind, m.carriage);
       case 'towel':
       case 'roll':
@@ -511,7 +500,7 @@ export class StaffManager {
 
   private nearestSource(item: ItemKind, carriage: number): Vec2 | null {
     const map = this.w.map;
-    // The urn serves drinks, the paper and breakfast; the linen cupboard blankets, pillows, towels and bedding.
+    // The urn serves drinks, the paper and breakfast; the linen cupboard blankets, pillows and towels.
     const name = sourceAnchorFor(item);
     const candidates: Vec2[] = [];
     for (let i = 0; i < map.count; i++) if (map.hasAnchor(i, name) && (map.layoutOf(i).type === 'lobby' || map.layoutOf(i).type === 'sleeper')) candidates.push(map.anchor(i, name));

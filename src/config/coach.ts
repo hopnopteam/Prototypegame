@@ -15,12 +15,11 @@ export interface CoachLineDef {
 
 export const COACH_STEPS: CoachLineDef[] = [
   { id: 'walk', icon: 'hand', text: 'Drag to walk' },
-  // Session 22, the station start: sell the first ticket at the booth, grab the fare, open the covered carriage,
-  // make up its first bed; the guest walks in.
+  // Session 22, the station start: sell the first ticket at the booth, grab the fare, open the covered carriage;
+  // the guest walks in.
   { id: 'tickets', icon: 'ticket', text: 'Sell tickets' },
   { id: 'cash', icon: 'cash', text: 'Grab it' },
   { id: 'tile', icon: 'carriage', text: 'Open' },
-  { id: 'bed', icon: 'bedding', text: 'Make bed' },
 ];
 
 export const COACH_HINTS: CoachLineDef[] = [
@@ -28,10 +27,6 @@ export const COACH_HINTS: CoachLineDef[] = [
   { id: 'request_fetch', icon: 'tea', text: 'Pick up' },
   { id: 'request_deliver', icon: 'heart', text: 'Deliver' },
   { id: 'dirty', icon: 'broom', text: 'Tidy up' },
-  // Session 22, turning a room around: used bedding to the linen cupboard, a fresh set from it, make the bed.
-  { id: 'dirty_laundry', icon: 'laundry', text: 'Laundry' },
-  { id: 'dirty_linen', icon: 'bedding', text: 'Fresh sheets' },
-  { id: 'dirty_make', icon: 'bedding', text: 'Make bed' },
   { id: 'station', icon: 'ticket', text: 'All aboard' },
   { id: 'hire', icon: 'person', text: 'Hire help' },
   { id: 'couple', icon: 'carriage', text: 'New carriage' },
@@ -76,7 +71,7 @@ export interface IntroBeat {
 
 export const INTRO_BEATS: IntroBeat[] = [
   { focus: 'locomotive', seconds: 2.6, zoom: 1.4, kicker: 'Millbrook · 11:40 pm', text: 'The night train is boarding' },
-  { focus: 'lobby', seconds: 2.3, zoom: 1.05, text: 'One tired old carriage…' },
+  { focus: 'lobby', seconds: 2.4, zoom: 1.2, text: 'One tired old carriage…' },
   { focus: 'conductor', seconds: 2.3, zoom: 0.92, text: '…and passengers waiting!' },
 ];
 

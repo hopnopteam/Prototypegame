@@ -9,13 +9,13 @@ import type { CoachAnchor } from '../gameplay/Coach';
 import type { Game } from '../gameplay/Game';
 import type { DoubleChoice, GameUi } from '../gameplay/GameUi';
 import type { OfferView } from '../gameplay/Monetization';
-import type { CeremonyResult, FrontPageReward, RivalWatch, WireNews } from '../gameplay/Press';
+import type { CeremonyResult, FrontPageReward, LeagueRow, WireNews } from '../gameplay/Press';
 import type { CarriageChoiceView, FloatKind } from '../gameplay/UiApi';
 import type { NewsItem } from '../save/SaveData';
 import { forgetSize, h, icon, replayClass, setText, setVisible, sizeOf } from './dom';
 import type { IconName } from './icons';
 import { PressScreens } from './PressScreens';
-import { drawOwnerPortrait, ownerPortrait } from './portraits';
+import { ownerPortrait } from './portraits';
 import { Screens } from './Screens';
 import { TrainMapUi } from './TrainMapUi';
 import { TILE_MARKER_ASPECT, TILE_MARKER_TIP, TILE_MARKER_WIDTH } from '../world/sprites';
@@ -84,6 +84,8 @@ const GOAL_WORDS_SECONDS = 3.5;
 const MAX_TOASTS = 2;
 /** Seconds a news strip stays up, and the pause before the next one slides in (session 20). */
 const WIRE_SECONDS = 4.6;
+/** A league story stays a little longer (there is a table to read). */
+const WIRE_LEAGUE_SECONDS = 6.4;
 const WIRE_GAP_MS = 600;
 /** Strips waiting at most (older news simply drops off: what it paid is already in your pocket). */
 const MAX_WIRES_WAITING = 3;
@@ -128,11 +130,7 @@ export class Ui implements GameUi {
     level: HTMLButtonElement; levelBadge: HTMLElement; levelCount: HTMLElement;
     journey: HTMLElement; journeyTrain: HTMLElement; journeyFill: HTMLElement; journeyClock: HTMLElement;
     side: HTMLElement; menu: HTMLButtonElement; menuDot: HTMLElement; shop: HTMLButtonElement; conductor: HTMLButtonElement; conductorDot: HTMLElement;
-    rival: HTMLButtonElement; rivalFace: HTMLCanvasElement; rivalTrophy: HTMLElement; rivalRank: HTMLElement; rivalReact: HTMLElement;
   };
-  /** What the rival chip shows now (face and mood, reaction), so it is redrawn only when that changes. */
-  private rivalKey = '';
-  private rivalReactKey = '';
   private displayedCash = 0;
   private lastCash = 0;
   private readonly objective: { el: HTMLElement; icon: HTMLElement; text: HTMLElement; fill: HTMLElement; count: HTMLElement; reward: HTMLElement; key: string; words: number };
@@ -193,16 +191,8 @@ export class Ui implements GameUi {
     const conductorDot = h('span.dot', { hidden: true });
     const conductor = button('conductor', 'Conductor: upgrades and outfits', () => this.screens.upgrades());
     conductor.appendChild(conductorDot);
-    // The race (session 18): the next rival's face, ringed by how much of the gap is closed; tap for the league.
-    const rivalFace = h('canvas.portrait', { width: 72, height: 72 }) as HTMLCanvasElement;
-    const rivalTrophy = h('span.trophy', { hidden: true }, icon('trophy', 24));
-    const rivalRank = h('span.rk');
-    const rivalReact = h('span.react', { hidden: true });
-    const rival = button('trophy', 'Countryside League', () => this.screens.leagueSheet());
-    rival.classList.add('rival');
-    rival.replaceChildren(rivalFace, rivalTrophy, rivalRank, rivalReact);
     this.boostLayer = h('div.boost');
-    const side = h('div.side', {}, shop, conductor, rival, this.boostLayer);
+    const side = h('div.side', {}, shop, conductor, this.boostLayer);
 
     this.floatLayer = h('div.floats');
     this.burst.value = h('span', { text: '+0' });
@@ -238,7 +228,7 @@ export class Ui implements GameUi {
     root.append(this.caption.el, skip);
     root.append(this.floatLayer, this.tileTag.el, this.rushChip.el, this.guide.el, top, this.objective.el, side, this.trainMap.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
 
-    this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyTrain, journeyFill, journeyClock, side, menu, menuDot, shop, conductor, conductorDot, rival, rivalFace, rivalTrophy, rivalRank, rivalReact };
+    this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyTrain, journeyFill, journeyClock, side, menu, menuDot, shop, conductor, conductorDot };
     window.addEventListener('resize', () => {
       this.rectTimer = 0;
       this.snapTimer = 0;
@@ -258,7 +248,6 @@ export class Ui implements GameUi {
       if (delta <= 0 || kind === 'railMiles') return;
       replayClass(kind === 'cash' ? this.hud.cash : this.hud.gems, ['bump']);
     });
-    game.events.on('rival.overtaken', () => replayClass(this.hud.rival, ['overtaken']));
   }
 
   // ─── Per-frame ──────────────────────────────────────────────────────────────
@@ -390,7 +379,6 @@ export class Ui implements GameUi {
     const journeyLabel = stopped ? `${g.station.currentStation().name}: departs in ${formatClock(j.timeLeft)}` : `Next: ${g.station.currentStation().name}`;
     if (hud.journey.getAttribute('aria-label') !== journeyLabel) hud.journey.setAttribute('aria-label', journeyLabel);
 
-    this.updateRival();
 
     const affordable = upgradesOpen && this.screens.affordableUpgrades() > 0;
     setVisible(hud.conductorDot, affordable);
@@ -411,48 +399,6 @@ export class Ui implements GameUi {
       if (happy > 0) this.boostLayer.append(h('div.badge.happy', { title: 'Happy Hour' }, icon('party', 24), h('span', { text: formatClock(happy) })));
       if (boostLeft > 0) this.boostLayer.append(h('div.badge', { title: 'Roller skates' }, icon('skate', 24), h('span', { text: formatClock(boostLeft) })));
       if (doubled) this.boostLayer.append(h('div.badge', { title: 'Double fares at the next stop' }, icon('double', 24), h('span', { text: '×2' })));
-    }
-  }
-
-  /**
-   * The rival chip: the face of the rival you are chasing (smug, nervous as you close in, scowling for a
-   * moment once passed), a ring that fills as the stars land, your rank, and a flinch at your big moments.
-   */
-  private updateRival(): void {
-    const g = this.game;
-    const hud = this.hud;
-    const race = g.press.race;
-    this.reveal(hud.rival, race.visible);
-    if (!race.visible) return;
-    const face = race.humbled ?? race.next;
-    const key = face ? `${face.name}|${race.mood}` : 'top';
-    if (key !== this.rivalKey) {
-      this.rivalKey = key;
-      setVisible(hud.rivalFace, face !== null);
-      setVisible(hud.rivalTrophy, face === null);
-      if (face) drawOwnerPortrait(hud.rivalFace, face.owner.look, face.livery, face.trim, race.mood);
-      const label = face && race.next ? `Countryside League: #${race.rank}, next ${race.next.name}` : `Countryside League: #${race.rank}`;
-      hud.rival.title = label;
-      hud.rival.setAttribute('aria-label', label);
-    }
-    // A race to the next station (session 20): the ring and the pill show your stars against their target.
-    const leg = race.leg;
-    hud.rival.classList.toggle('duel', leg !== null && !race.humbled);
-    setText(hud.rivalRank, leg && !race.humbled ? `${Math.min(leg.earned, leg.target)}/${leg.target}` : `#${race.rank}`);
-    // The ring fills as the stars land (like the level star), and is full for a moment once a rival is passed.
-    const span = Math.max(1, race.to - race.from);
-    const fill = leg && !race.humbled
-      ? Math.max(0, Math.min(1, leg.earned / Math.max(1, leg.target)))
-      : race.humbled || !race.next ? 1 : Math.max(0, Math.min(race.fraction, (g.data.route.stars - this.pendingStars - race.from) / span));
-    const p = (Math.round(fill * 100) / 100).toFixed(2);
-    if (hud.rival.style.getPropertyValue('--p') !== p) hud.rival.style.setProperty('--p', p);
-    hud.rival.classList.toggle('near', race.mood === 'nervous' && !race.reaction && !race.humbled);
-    const reaction: IconName | null = race.reaction ?? (leg && !race.humbled ? 'flag' : null);
-    const reactKey = reaction ?? '';
-    if (reactKey !== this.rivalReactKey) {
-      this.rivalReactKey = reactKey;
-      hud.rivalReact.replaceChildren(...(reaction ? [icon(reaction, 20)] : []));
-      setVisible(hud.rivalReact, reaction !== null);
     }
   }
 
@@ -612,7 +558,8 @@ export class Ui implements GameUi {
    */
   private updateGuide(dt: number): void {
     const g = this.game;
-    const line = this.hidden || this.screens.isOpen ? null : g.coach.current;
+    // Nothing points or talks over the story shots (the intro).
+    const line = this.hidden || this.screens.isOpen || g.inIntro ? null : g.coach.current;
     // The walk gesture gives way to a centre card or a toast (it would sit on top of them).
     const busyCentre = this.root.classList.contains('has-card') || this.toastLayer.childElementCount > 0;
     const gestureOn = !!line && 'gesture' in line.anchor && !busyCentre;
@@ -857,7 +804,7 @@ export class Ui implements GameUi {
   private updatePointer(): void {
     const p = this.game.guidance.pointer;
     // The coach label already points the way when it is up.
-    const show = p.visible && !this.hidden && this.guide.el.hidden;
+    const show = p.visible && !this.hidden && this.guide.el.hidden && !this.game.inIntro;
     setVisible(this.pointerEl, show);
     if (show) this.pointerEl.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${p.angle}rad)`;
   }
@@ -979,27 +926,51 @@ export class Ui implements GameUi {
       return;
     }
     const news = this.wireQueue.shift()!;
-    const face = news.rival ? ownerPortrait(news.rival, 30, news.tone === 'win' ? 'humbled' : 'smug') : icon(news.icon, 26);
+    const pic = news.rival ? ownerPortrait(news.rival, 34, news.tone === 'win' ? 'humbled' : 'smug') : icon(news.icon, 26);
     const reward = news.reward;
     const chips: HTMLElement[] = [];
     if (reward?.cash) chips.push(h('span.pay', {}, icon('cash', 16), h('b', { text: `+${formatNumber(reward.cash)}` })));
     if (reward?.gems) chips.push(h('span.pay', {}, icon('gem', 16), h('b', { text: `+${reward.gems}` })));
     if (reward?.railMiles) chips.push(h('span.pay', {}, icon('miles', 16), h('b', { text: `+${reward.railMiles}` })));
+    const league = news.league?.length ? h('ol.np-league', {}, ...news.league.map((row) => this.leagueLine(row))) : null;
+    // Session 23 (owner: "better the design language of the newspaper and rivals"): a slip of the Rail Gazette,
+    // its masthead over a double rule, the story in a serif, and the league round your place when it is league
+    // news. It never pauses the game; tap a league story for the whole table, or any other to clear it.
     const el = h(`div.wire.${news.tone}` as 'div', { role: 'status' },
-      h('span.mast', {}, face, news.rival && news.icon !== 'news' ? h('span.badge', {}, icon(news.icon, 14)) : null),
-      h('span.head', { text: news.headline }),
-      ...chips);
-    this.wireEl = el;
-    this.toastLayer.prepend(el);
-    this.rectTimer = 0;
-    window.setTimeout(() => {
+      h('div.np-head', {}, h('span.np-mast', { text: 'The Rail Gazette' }), h('span.np-kick', { text: news.kicker ?? 'Late edition' })),
+      h('div.np-body', {}, h('span.np-pic', {}, pic), h('span.np-headline', { text: news.headline }), ...chips),
+      news.note ? h('div.np-note', { text: news.note }) : null,
+      league);
+    const seconds = league ? WIRE_LEAGUE_SECONDS : WIRE_SECONDS;
+    let gone = false;
+    const dismiss = (): void => {
+      if (gone) return;
+      gone = true;
       el.classList.add('out');
       window.setTimeout(() => {
         el.remove();
         this.wireEl = null;
         window.setTimeout(() => this.pumpWire(), WIRE_GAP_MS);
       }, 320);
-    }, WIRE_SECONDS * 1000);
+    };
+    el.addEventListener('click', () => {
+      if (league) this.screens.leagueSheet();
+      dismiss();
+    });
+    this.wireEl = el;
+    this.toastLayer.prepend(el);
+    this.rectTimer = 0;
+    window.setTimeout(dismiss, seconds * 1000);
+  }
+
+  /** One line of the league on the news strip: the place, the train's livery, its name and its stars. */
+  private leagueLine(row: LeagueRow): HTMLElement {
+    return h(`li${row.you ? '.you' : ''}${row.up ? '.up' : ''}` as 'li', {},
+      h('span.rk', { text: String(row.rank) }),
+      h('span.sw', { style: { background: `linear-gradient(${row.livery} 62%, ${row.trim} 62% 78%, ${row.livery} 78%)` } }),
+      h('span.nm', { text: row.name }),
+      row.up ? h('span.arrow', { text: '▲' }) : null,
+      h('span.st', {}, icon('star', 12), formatNumber(row.stars)));
   }
 
   stationBanner(title: string, extra?: IconName): void {
@@ -1134,9 +1105,6 @@ export class Ui implements GameUi {
     this.pressScreens.frontPage(item, reward, gemCost, onCollect);
   }
 
-  showRivalWatch(watch: RivalWatch, onDone: () => void): void {
-    this.pressScreens.rivalWatch(watch, onDone);
-  }
 
   // ─── Mock presenters ────────────────────────────────────────────────────────
 

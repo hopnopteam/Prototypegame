@@ -200,18 +200,22 @@ export class Screens {
     }));
   }
 
-  /** The rival chip's sheet: who is next, how far, what passing them is worth, and the whole league. */
+  /**
+   * The league (session 23: from the menu, or a tap on a league story on the news strip): who is next, how far,
+   * what passing them is worth, and the whole table.
+   */
   leagueSheet(): void {
     const g = this.game;
-    const race = g.press.race;
-    const next = race.next;
+    const standing = g.press.standing;
+    const next = standing.next;
     const stars = g.data.route.stars;
-    const pct = Math.round(race.fraction * 100);
+    const below = g.press.league.filter((r) => r.reputation <= stars).reduce((m, r) => Math.max(m, r.reputation), 0);
+    const pct = next ? Math.max(4, Math.min(100, Math.round(((stars - below) / Math.max(1, next.reputation - below)) * 100))) : 100;
     const spoils = next?.spoils;
     this.sheet('Countryside League', 'trophy', [
       next && spoils
         ? h('div.race-card', {},
-          ownerPortrait(next, 72, race.mood === 'humbled' ? 'smug' : race.mood),
+          ownerPortrait(next, 72, pct >= 80 ? 'nervous' : 'smug'),
           h('div.info', {},
             h('b', { text: next.owner.name }),
             h('small', { text: next.name }),
@@ -228,12 +232,7 @@ export class Screens {
           spoils.gems ? h('span.chip-s', {}, icon('gem', 14), String(spoils.gems)) : null,
         )
         : null,
-      // Session 20: the races to the next station, live and on the record.
-      race.leg
-        ? h('div.spoils-row.race-on', {}, icon('flag', 18), h('span.what', { text: `Race to ${race.leg.station}` }), h('span.chip-s', {}, icon('star', 14), `${Math.min(race.leg.earned, race.leg.target)}/${race.leg.target}`))
-        : null,
       this.league(),
-      h('p.small', { text: `Races won: ${g.data.press.rivals.wins} of ${g.data.press.rivals.races}. Beat a rival to a station for a purse; lose and they gain ground.` }),
     ], { className: 'league-sheet' });
   }
 
@@ -255,7 +254,8 @@ export class Screens {
       );
     const standing = g.press.standing;
     close = this.sheet('Menu', 'menu', [
-      row('trophy', 'League & level', `#${standing.rank} of ${standing.total} · route level ${g.progression.level}`, go(() => this.progress())),
+      row('trophy', 'League', `#${standing.rank} of ${standing.total}`, go(() => this.leagueSheet())),
+      row('star', 'Route level', `Level ${g.progression.level}`, go(() => this.progress())),
       g.meta.questsUnlocked() || g.meta.loginUnlocked() ? row('calendar', 'Daily', 'Calendar and quests', go(() => this.daily()), dailyCount) : null,
       g.data.meta.postcards.length > 0 ? row('album', 'Postcards', `${g.data.meta.postcards.length} collected`, go(() => this.album())) : null,
       row('gear', 'Settings', 'Sound, vibration, more', go(() => this.settings())),

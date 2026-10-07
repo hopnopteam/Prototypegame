@@ -12,6 +12,7 @@ interface Body {
 
 /** Guest states where the guest is standing somewhere on the train floor (not in bed, not on the platform). */
 const FLOOR_STATES: ReadonlySet<GuestState> = new Set<GuestState>(['boarding', 'queue', 'toCabin', 'settling', 'requesting', 'toBathroom', 'waitingBathroom', 'returning', 'alighting', 'toVenue', 'venueQueue']);
+const PLATFORM_STATES: ReadonlySet<GuestState> = new Set<GuestState>(['platform', 'leaving']);
 const WALKING_STATES: ReadonlySet<GuestState> = new Set<GuestState>(['boarding', 'toCabin', 'toBathroom', 'returning', 'alighting', 'toVenue']);
 
 const MIN_GAP = 0.5;
@@ -19,7 +20,13 @@ const STANDING_GIVE = 0.5;
 const RETURN_SPEED = 1.2;
 /** Rotates each push a little so two people meeting head-on in a corridor both keep right. */
 const KEEP_RIGHT = 0.5;
-const PLAYER_GIVE = 0.35;
+/**
+ * Session 23 (owner: "NPCs push the player and it breaks the flow"): the conductor is never pushed by anyone on
+ * the move; walkers step round them. Only against someone holding their ground (staff at a job) do both give a
+ * little, so nobody ends up inside anyone.
+ */
+const PLAYER_GIVE = 0;
+const PLAYER_GIVE_AGAINST_STILL = 0.35;
 
 /**
  * Personal space: after everyone has moved, people closer than a shoulder-width are eased apart, so guests,
@@ -44,9 +51,12 @@ export class Crowd {
     for (const m of w.staff.members) bodies.push({ pos: m.pos, give: m.mover.isMoving ? 1 : m.isIdle ? STANDING_GIVE : 0, standing: false });
     const walk = w.map.walk;
     this.seen.clear();
+    // On the platform too while the train is in (its coordinates are the world's then): the ticket queue, the
+    // bench, those walking to the door or off to the station house.
+    const platformIn = w.journey.phase === 'stationStop';
     for (const g of w.guests.list) {
-      if (g.onPlatform || !FLOOR_STATES.has(g.state)) continue;
-      const walking = WALKING_STATES.has(g.state) && g.mover.isMoving;
+      if (g.onPlatform ? !platformIn || !PLATFORM_STATES.has(g.state) : !FLOOR_STATES.has(g.state)) continue;
+      const walking = (WALKING_STATES.has(g.state) || g.onPlatform) && g.mover.isMoving;
       const standing = !walking && !g.mover.isMoving;
       bodies.push({ pos: g.pos, give: walking ? 1 : STANDING_GIVE, standing });
       if (!standing) continue;
@@ -71,7 +81,10 @@ export class Crowd {
       const a = bodies[i];
       for (let j = i + 1; j < bodies.length; j++) {
         const b = bodies[j];
-        const total = a.give + b.give;
+        let ga = a.give;
+        let gb = b.give;
+        if (i === 0 && gb === 0) ga = PLAYER_GIVE_AGAINST_STILL;
+        const total = ga + gb;
         if (total <= 0) continue;
         let dx = b.pos.x - a.pos.x;
         let dz = b.pos.z - a.pos.z;
@@ -92,8 +105,8 @@ export class Crowd {
         const pl = Math.hypot(px, pz);
         const ux = (px / pl) * overlap;
         const uz = (pz / pl) * overlap;
-        if (a.give > 0) walk.move(a.pos, -ux * (a.give / total), -uz * (a.give / total));
-        if (b.give > 0) walk.move(b.pos, ux * (b.give / total), uz * (b.give / total));
+        if (ga > 0) walk.move(a.pos, -ux * (ga / total), -uz * (ga / total));
+        if (gb > 0) walk.move(b.pos, ux * (gb / total), uz * (gb / total));
       }
     }
   }

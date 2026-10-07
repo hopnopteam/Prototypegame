@@ -6,8 +6,7 @@ type StaffLike = Actor & { wantItems?: Partial<Record<ItemKind, number>> };
 
 /**
  * Which counter in a passenger carriage hands an item out (a layout anchor): the service counter (the urn) for
- * drinks, the paper and breakfast; the linen cupboard for blankets, pillows, towels and bedding sets, and its
- * hamper takes the used bedding.
+ * drinks, the paper and breakfast; the linen cupboard for blankets, pillows and towels.
  */
 export function sourceAnchorFor(item: ItemKind): string {
   switch (item) {
@@ -20,8 +19,6 @@ export function sourceAnchorFor(item: ItemKind): string {
     case 'blanket':
     case 'pillow':
     case 'towel':
-    case 'bedding':
-    case 'laundry':
       return 'linen';
     default:
       return item;
@@ -48,12 +45,6 @@ export class Demand {
       case 'newspaper':
       case 'breakfast':
         return this.requestNeed(kind);
-      case 'bedding':
-        // Fresh sets for the beds waiting to be turned around (stripped or still used) nobody on the staff has taken.
-        return this.w.train.beddingNeed();
-      case 'laundry':
-        // Used bedding is never wanted: it all goes to a linen cupboard's hamper.
-        return 0;
       case 'blanket':
         // Cabin requests, and the dome's guests who would like one for the view.
         return this.requestNeed(kind) + w.venues.need(kind);

@@ -57,51 +57,6 @@ export interface Rival {
   spoils: RivalSpoils;
 }
 
-/**
- * The race up the league (session 18): the next rival's portrait rides on the HUD with a ring that fills as
- * your stars close the gap; their face changes as you close in, they flinch at your big moments, and passing
- * them pays their spoils. No card: the race is always in view, never in the way.
- */
-export const RIVAL_RACE = {
-  /**
-   * Session 20 (owner: "rival watch needs a revamp… far more dynamic… feel they are in this world"): the rival you
-   * are chasing challenges you to a race to the next station. Earn their target in stars before you arrive and you
-   * win a purse and knock them back a step; miss it and they make a move (in the news) that widens the gap a little.
-   * Nothing of yours is ever taken.
-   */
-  showdown: {
-    /** Share of the gap to the next rival you must have closed before they start racing you. */
-    minShare: 0.15,
-    /** Rides between two races (a breather in between). */
-    everyLegs: 2,
-    /** Seconds into a ride before the rival pulls alongside with their challenge (after the departure's calm beat). */
-    challengeDelay: 6,
-    /** The target: the stars you earned on the last ride (departure to arrival), times this: your own pace, a touch harder. */
-    pace: 1.05,
-    minStars: 6,
-    /** Winning pays this much cash per carriage, and the rival loses one of their moves (or you gain this share of the gap in stars). */
-    purse: 25,
-    bonusShare: 0.08,
-    /** Losing: the rival makes a move worth this share of their reputation, at most `maxMoves` times each. */
-    moveShare: 0.04,
-    maxMoves: 3,
-  },
-  /** Share of the gap closed (from the rival below to this one) when their face turns nervous and the ring glows. */
-  nearShare: 0.8,
-  /** Seconds a reaction (a flinch at a coupling or a refit, a nervous glance) stays on the chip. */
-  reactSeconds: 2.6,
-  /** Seconds between two reactions at least. */
-  reactGap: 40,
-  /** Seconds the humbled owner stays on the chip after you pass them, before the next rival takes their place. */
-  humbledSeconds: 2.4,
-};
-
-/** What a rival does with a race they win (the strip says "{their train} {move}"): short, and in keeping with a train. */
-export const RIVAL_MOVES = ['hires a famous chef', 'adds a Dining Car', 'buys a grand piano', 'opens a Café Car', 'adds a glass Dome', 'gilds the carriages', 'hires a brass band', 'repaints in gold'];
-
-/** What a rival says at the start of a race (on the strip, beside their face). */
-export const RACE_CHALLENGES = ['Race you to {station}!', 'First to {station}?', '{station}. You and me.', 'Catch me at {station}!'];
-
 /** The Countryside League. The player starts at the bottom; overtaking the Orient Belle makes you #1. */
 export const RIVALS: Rival[] = [
   {
@@ -189,7 +144,7 @@ export const DEFAULT_TRAIN_NAME = 'The Night Express';
  */
 export type PressTrigger = 'named' | 'coupling' | 'refurb3' | 'firstClass' | 'royal' | 'livery' | 'topThree' | 'champion' | 'guests100' | 'story'
   // Session 20: a venue opens, the first Happy Hour, a race to a station won.
-  | 'venue' | 'happyHour' | 'raceWon';
+  | 'venue' | 'happyHour';
 
 /**
  * How the press is paced (session 14, owner: "the interview, the Gazette… come very quickly all at once"):
@@ -205,7 +160,7 @@ export const PRESS_PACING = {
   /** Front pages waiting at most; beyond this the least important pays out with a toast instead. */
   maxWaitingFrontPages: 2,
   /** How much each kind of news matters when several wait for the same breather. */
-  newsWeight: { named: 10, royal: 9, champion: 9, firstClass: 8, topThree: 7, coupling: 6, venue: 6, raceWon: 5, story: 5, refurb3: 5, livery: 4, guests100: 4, happyHour: 3 } as Record<PressTrigger, number>,
+  newsWeight: { named: 10, royal: 9, champion: 9, firstClass: 8, topThree: 7, coupling: 6, venue: 6, story: 5, refurb3: 5, livery: 4, guests100: 4, happyHour: 3 } as Record<PressTrigger, number>,
 };
 
 export interface HeadlineDef {
@@ -238,15 +193,12 @@ export const HEADLINES: Record<PressTrigger, HeadlineDef[]> = {
   // Session 20: news on the strip (no card), each a few words.
   venue: [{ headline: '{venue} Now Open!', body: '{train} opens its {venue}. The queue starts at once.' }],
   happyHour: [{ headline: 'Happy Hour Aboard!', body: 'The bar lounge of {train} is in full swing.' }],
-  raceWon: [{ headline: 'First to {station}!', body: '{train} beats {rival} into {station}.' }],
 };
 
 /** What each front page pays when you read it (cash scales with the train's length). */
 export const FRONT_PAGE_REWARDS: Record<PressTrigger, { gems?: number; railMiles?: number; cashPerCarriage?: number }> = {
   venue: { cashPerCarriage: 20 },
   happyHour: { gems: 2 },
-  // The race pays its own purse (RIVAL_RACE.showdown).
-  raceWon: {},
   named: { gems: 5 },
   coupling: { cashPerCarriage: 30 },
   refurb3: { gems: 10 },

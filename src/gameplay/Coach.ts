@@ -156,7 +156,7 @@ export class Coach {
         continue;
       }
       if (!this.hintActive(hint.id)) continue;
-      const line = hint.id === 'request' ? this.requestStage() : hint.id === 'dirty' ? this.turnaroundStage() : hint;
+      const line = hint.id === 'request' ? this.requestStage() : hint;
       const anchor = this.anchorFor(line.id);
       if (!anchor || !this.agrees(anchor)) continue;
       this.show(line, anchor);
@@ -185,17 +185,6 @@ export class Coach {
     return find('request');
   }
 
-  /** Turning a room around is taught step by step: strip it, laundry to the cupboard, a fresh set, make the bed. */
-  private turnaroundStage(): CoachLineDef {
-    const w = this.w;
-    const find = (id: string): CoachLineDef => COACH_HINTS.find((h) => h.id === id) ?? COACH_HINTS[0];
-    const stack = w.player.stack;
-    if (stack.has('laundry')) return find('dirty_laundry');
-    if (w.guidance.reason === 'fetch') return find('dirty_linen');
-    if (stack.has('bedding') && (w.guidance.reason === 'clean' || w.guidance.reason === 'deliver')) return find('dirty_make');
-    return find('dirty');
-  }
-
   private canAffordTile(): boolean {
     const tile = this.w.tiles.cheapest();
     return !!tile && this.w.unlocks.remaining(tile.def.id) <= this.w.wallet.get('cash');
@@ -218,9 +207,6 @@ export class Coach {
         return Math.hypot(w.player.pos.x - this.spawn.x, w.player.pos.z - this.spawn.z) > WALK_METRES || ftue.first_checkin !== undefined;
       case 'tickets':
         return w.station.prologueTicketsDone || !w.station.prologue || ftue.first_checkin !== undefined;
-      case 'bed':
-        // The first bed made up (the opening's bare bed), or a returning game with nothing bare to make.
-        return ftue.first_clean !== undefined || !w.train.cabins.some((c) => c.unlocked && !c.made && !c.guest);
       case 'cash':
         return ftue.first_cash !== undefined;
       case 'tile':
@@ -232,7 +218,7 @@ export class Coach {
 
   private anchorFor(id: string): CoachAnchor | null {
     // Guidance lines and the two request stages follow the guidance arrow's target.
-    if (id.startsWith('g_') || id === 'request_fetch' || id === 'request_deliver' || id.startsWith('dirty_')) {
+    if (id.startsWith('g_') || id === 'request_fetch' || id === 'request_deliver') {
       const target = this.w.guidance.bestTarget();
       return target ? { world: target } : null;
     }
@@ -248,8 +234,6 @@ export class Coach {
         return w.player.idleSeconds > COACH_GESTURE_DELAY ? { gesture: true } : null;
       case 'tickets':
         return world(w.station.boardingPoint());
-      case 'bed':
-        return world(w.guidance.bestTarget());
       case 'cash': {
         const pile = w.cash.nearestWithCash(w.player.pos);
         return pile && pile.value >= 1 ? world({ x: pile.x, z: pile.z }) : null;
@@ -313,7 +297,7 @@ export class Coach {
       case 'request':
         return w.guests.openRequests().some((g) => g.request && g.request !== 'bathroom' && !w.staff.isHandled(g));
       case 'dirty':
-        return w.player.stack.has('laundry') || w.train.cabins.some((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
+        return w.train.cabins.some((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
       case 'station':
         return w.journey.phase === 'stationStop' && w.guests.canBoard();
       case 'hire':

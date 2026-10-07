@@ -15,6 +15,8 @@ export interface WalkableOptions {
   /** Session 22: the opening's covered carriage keeps its platform doors shut (the platform stays walkable). */
   doorsSealed?: boolean;
   platform: Rect | null;
+  /** Session 23: what stands on the platform (the ticket stand, the luggage barrow, a bench): nobody walks through. */
+  platformBlocked?: readonly Rect[];
   rearDeck: Rect | null;
 }
 
@@ -63,6 +65,7 @@ export class Walkable {
     for (const extra of [options.platform, options.rearDeck]) {
       if (extra) areas.push(rect(extra.x0 + r, extra.z0 + r, extra.x1 - r, extra.z1 - r));
     }
+    if (options.platform) for (const b of options.platformBlocked ?? []) blocked.push(rect(b.x0 - r, b.z0 - r, b.x1 + r, b.z1 + r));
 
     this.areas = areas.filter((a) => a.x1 > a.x0 && a.z1 > a.z0);
     this.blocked = blocked;

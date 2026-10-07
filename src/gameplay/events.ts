@@ -11,9 +11,6 @@ export interface GameEvents {
   'request.fulfilled': { item: ServiceNeed; tip: number; x: number; z: number; byPlayer: boolean; speedy: boolean };
   'cabin.cleaned': { byPlayer: boolean; x: number; z: number };
   'spot.cleaned': { x: number; z: number; byPlayer: boolean };
-  /** Session 22: a used bed stripped (its bedding is laundry now), and laundry dropped in a linen cupboard's hamper. */
-  'bed.stripped': { byPlayer: boolean; x: number; z: number };
-  'laundry.dropped': { byPlayer: boolean };
   /** Session 22: the opening's covered carriage opened. */
   'carriage.opened': Record<string, never>;
   'item.picked': { item: ItemKind; byPlayer: boolean };
@@ -36,8 +33,6 @@ export interface GameEvents {
   'conductor.upgraded': { key: string; level: number };
   'bathroom.used': { tipped: boolean };
   /** Session 20, the venue carriages: something served at a venue (and what it paid). */
-  'rival.race': { rival: string; target: number; station: string };
-  'rival.raceResult': { rival: string; won: boolean };
   'venue.served': { kind: VenueKind; item: ItemKind | 'usher' | 'film'; amount: number; x: number; z: number; byPlayer: boolean };
   'venue.cleared': { kind: VenueKind; byPlayer: boolean };
   'venue.happyHour': { seconds: number };
