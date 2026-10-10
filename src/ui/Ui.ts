@@ -1,7 +1,7 @@
 import type { ObjectiveDef } from '../config/objectives';
 import * as THREE from 'three';
 import type { ProductDef } from '../config/content';
-import type { CeremonyDef, InterviewDef } from '../config/press';
+import type { InterviewDef, WhistleDef } from '../config/press';
 import { MONETIZATION_ENABLED } from '../config/economy';
 import { damp, formatClock, formatNumber } from '../core/math';
 import type { CarriageType } from '../core/types';
@@ -10,7 +10,7 @@ import type { CoachAnchor } from '../gameplay/Coach';
 import type { Game } from '../gameplay/Game';
 import type { DoubleChoice, GameUi } from '../gameplay/GameUi';
 import type { OfferView } from '../gameplay/Monetization';
-import type { CeremonyResult, FrontPageReward, LeagueRow, WireNews } from '../gameplay/Press';
+import type { FrontPageReward, LeagueRow, WireNews } from '../gameplay/Press';
 import type { CarriageChoiceView, FloatKind } from '../gameplay/UiApi';
 import type { NewsItem } from '../save/SaveData';
 import { forgetSize, h, icon, replayClass, setText, setVisible, sizeOf } from './dom';
@@ -1189,9 +1189,10 @@ export class Ui implements GameUi {
     this.pressScreens.interview(def, trainName, onAnswer);
   }
 
-  showCeremony(def: CeremonyDef, results: CeremonyResult[], trainName: string, onDone: () => void): void {
-    this.pressScreens.ceremony(def, results, trainName, onDone);
+  showCeremony(def: WhistleDef, trainName: string, reward: FrontPageReward, onDone: () => void): void {
+    this.pressScreens.ceremony(def, trainName, reward, onDone);
   }
+
 
   showFrontPage(item: NewsItem, reward: FrontPageReward, gemCost: number, onCollect: (choice: DoubleChoice) => void): void {
     this.pressScreens.frontPage(item, reward, gemCost, onCollect);

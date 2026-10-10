@@ -8,8 +8,8 @@ export type Sfx =
   | 'soft' | 'door' | 'chest' | 'unlock' | 'heart' | 'flush' | 'miss' | 'grumble'
   // Session 24: the station result card.
   | 'perfect' | 'aww'
-  // Fix list 4.3: the station clock's last ten seconds.
-  | 'tick';
+  // Fix list 4.3: the station clock's last ten seconds; 4.4: the Golden Whistle ceremony's own music.
+  | 'tick' | 'ceremony';
 
 /**
  * Every sound in the game. Effects are synthesised with WebAudio (short, warm cues: no files, work
@@ -396,6 +396,27 @@ export class AudioEngine {
         this.ring(t + 0.34, 1568, 'triangle', 0.1 * v, tail.hold, tail.release);
         this.ring(t + 0.34, 2093, 'sine', 0.06 * v, tail.hold, tail.release * 1.1);
         this.play('sparkle', { volume: v });
+        break;
+      }
+      case 'ceremony': {
+        // The Golden Whistle (fix list 4.4): a timpani roll, three brass chords climbing (C, F, G) and a grand C
+        // that rings out under a sparkle of bells: about five seconds, the theme ducked beneath it.
+        const tail = AUDIO.tail;
+        for (let i = 0; i < 6; i++) this.tone(t + i * 0.09, 110, 82, 0.22, 'sine', (0.14 + i * 0.03) * v, 0.004);
+        const chords = [[262, 330, 392, 523], [349, 440, 523, 698], [392, 494, 587, 784]];
+        chords.forEach((chord, c) => {
+          const at = t + 0.6 + c * 0.62;
+          this.tone(at, 98 + c * 12, 70, 0.3, 'sine', 0.22 * v, 0.004);
+          chord.forEach((f, i) => {
+            this.tone(at, f, f, 0.55, 'triangle', (i === 3 ? 0.09 : 0.07) * v, 0.02, this.sfx, true);
+            this.tone(at, f * 2, f * 2, 0.5, 'sine', 0.025 * v, 0.03, this.sfx, true);
+          });
+        });
+        const top = t + 0.6 + 3 * 0.62;
+        this.tone(top, 131, 98, 0.6, 'sine', 0.28 * v, 0.004);
+        [523, 659, 784, 1046].forEach((f, i) => this.ring(top, f, 'triangle', (i === 3 ? 0.1 : 0.075) * v, tail.hold * 2.2, tail.release * 1.6));
+        this.ring(top, 262, 'sine', 0.08 * v, tail.hold * 2.2, tail.release * 1.6);
+        [1568, 2093, 2637, 3136, 2637, 3136].forEach((f, i) => this.ring(top + 0.18 + i * 0.12, f, 'sine', 0.035 * v, 0.05, 0.7));
         break;
       }
       case 'aww':

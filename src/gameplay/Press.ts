@@ -3,7 +3,8 @@ import { VENUES } from '../config/venues';
 import type { CarriageType, VenueKind } from '../core/types';
 import { isVenueType } from '../world/layout';
 import {
-  CEREMONIES,
+  GOLDEN_WHISTLES,
+  type WhistleDef,
   DARE_REWARD,
   DARE_WON_HEADLINE,
   DEBUT_INTERVIEW,
@@ -17,8 +18,6 @@ import {
   TOP_RANK_NEWS,
   TRAIN_NAME_MAX,
   TRAIN_NAME_SUGGESTIONS,
-  type AwardDef,
-  type CeremonyDef,
   type InterviewDef,
   type PressTrigger,
   type DareMetric,
@@ -28,18 +27,9 @@ import {
 } from '../config/press';
 import type { IconName } from '../ui/icons';
 import type { NewsItem } from '../save/SaveData';
-import { awardProgress, cleanTrainName, dareTarget, fillTemplate, leagueStanding, nextDare, rivalsPassed, type LeagueStanding } from '../sim/press';
+import { cleanTrainName, dareTarget, fillTemplate, leagueStanding, nextDare, rivalsPassed, type LeagueStanding } from '../sim/press';
 import type { DoubleChoice } from './GameUi';
 import type { World } from './World';
-
-export interface CeremonyResult {
-  award: AwardDef;
-  won: boolean;
-  /** Won just now (rewards are granted once). */
-  fresh: boolean;
-  have: number;
-  need: number;
-}
 
 export interface FrontPageReward {
   cash: number;
@@ -51,7 +41,8 @@ export interface FrontPageReward {
 export interface PressUi {
   showNaming(suggestions: string[], onDone: (name: string) => void): void;
   showInterview(def: InterviewDef, trainName: string, onAnswer: (index: number) => void): void;
-  showCeremony(def: CeremonyDef, results: CeremonyResult[], trainName: string, onDone: () => void): void;
+  /** The Golden Whistle ceremony (fix list 4.4): spotlights, the trophy, the crowd, confetti and its own music. */
+  showCeremony(def: WhistleDef, trainName: string, reward: FrontPageReward, onDone: () => void): void;
   /** The celebratory front page: the story, a photo of the train, and a reward to collect (×2 optional). */
   showFrontPage(item: NewsItem, reward: FrontPageReward, gemCost: number, onCollect: (choice: DoubleChoice) => void): void;
   /** The news strip (session 20): a few words that slide in at the foot of the screen and go; never a pause. */
@@ -133,6 +124,7 @@ export class Press {
     });
     e.on('station.result', (r) => {
       if (w.data.route.stopsCompleted >= 1) this.queue('name');
+      this.countWhistle(r.rating5);
       if (r.clean) p.stats.perfectStops++;
       if (r.clean) this.countDare('perfect');
       w.save.markDirty();
@@ -160,7 +152,6 @@ export class Press {
     });
     e.on('level.up', ({ level }) => {
       if (INTERVIEWS.some((i) => i.level === level) && !p.interviews.includes(level)) this.queue(`interview:${level}`);
-      if (CEREMONIES.some((c) => c.level === level) && !p.ceremonies.includes(level)) this.queue(`ceremony:${level}`);
     });
     e.on('story.step', ({ id, done }) => {
       if (!done) return;
@@ -267,7 +258,7 @@ export class Press {
       const trigger = this.itemFor(key)?.trigger as PressTrigger | undefined;
       return trigger === 'named' ? 85 : 40 + (trigger ? NEWS_WEIGHT[trigger] ?? 0 : 0);
     }
-    if (key.startsWith('ceremony:')) return 45;
+    if (key.startsWith('whistle:')) return 95;
     if (key.startsWith('interview:')) return 44;
     return 20;
   }
@@ -631,7 +622,8 @@ export class Press {
     if (key === 'name') this.showNaming();
     else if (key.startsWith('front:')) this.showFrontPage(Number(key.split(':')[1]));
     else if (key.startsWith('interview:')) this.showInterview(Number(key.split(':')[1]));
-    else if (key.startsWith('ceremony:')) this.showCeremony(Number(key.split(':')[1]));
+    else if (key.startsWith('whistle:')) this.showWhistle(Number(key.split(':')[1]));
+    // Session 8's level ceremonies are no longer held: an old save's waiting one is simply dropped.
   }
 
   private showNaming(): void {
@@ -667,30 +659,37 @@ export class Press {
     });
   }
 
-  private showCeremony(level: number): void {
+  /** The next Golden Whistle to win (null once all are won). */
+  get nextWhistle(): { def: WhistleDef; streak: number } | null {
+    const wh = this.state.whistle;
+    const def = GOLDEN_WHISTLES[wh?.won ?? 0];
+    return def ? { def, streak: wh.streak } : null;
+  }
+
+  /** A stop's Train Rating counts toward the next Golden Whistle: at its bar or better, one more in the run. */
+  private countWhistle(rating: number): void {
+    const p = this.state;
+    p.whistle ??= { won: 0, streak: 0 };
+    const def = GOLDEN_WHISTLES[p.whistle.won];
+    if (!def || p.pending.some((k) => k.startsWith('whistle:'))) return;
+    p.whistle.streak = rating >= def.minRating - 1e-6 ? p.whistle.streak + 1 : 0;
+    if (p.whistle.streak >= def.stops) this.queue(`whistle:${p.whistle.won}`);
+    this.w.save.markDirty();
+  }
+
+  private showWhistle(index: number): void {
     const w = this.w;
     const p = this.state;
-    const def = CEREMONIES.find((c) => c.level === level);
-    if (!def || p.ceremonies.includes(level)) return;
-    const rank = this.standing.rank;
-    // Anything missed at an earlier ceremony gets a second chance: nothing is lost for good.
-    const encore = CEREMONIES.filter((c) => c.level < level).flatMap((c) => c.awards).filter((a) => !p.awards.includes(a.id));
-    const awards = [...def.awards, ...encore];
-    const results: CeremonyResult[] = awards.map((award) => {
-      const progress = awardProgress(award, p.stats, rank);
-      const fresh = progress.won && !p.awards.includes(award.id);
-      return { award, won: progress.won, fresh, have: progress.have, need: progress.need };
-    });
-    p.ceremonies.push(level);
-    for (const r of results) {
-      if (!r.fresh) continue;
-      p.awards.push(r.award.id);
-      w.wallet.add('gems', r.award.reward.gems, `award:${r.award.id}`);
-      w.wallet.add('railMiles', r.award.reward.railMiles, `award:${r.award.id}`);
-    }
+    const def = GOLDEN_WHISTLES[index];
+    if (!def || p.whistle.won !== index) return;
+    p.whistle.won++;
+    p.whistle.streak = 0;
+    const reward: FrontPageReward = { cash: def.reward.cashPerCarriage * w.train.count, gems: def.reward.gems, railMiles: def.reward.railMiles };
     w.save.markDirty();
-    this.ui.showCeremony({ ...def, awards }, results, this.trainName, () => {
-      w.events.emit('awards.presented', { level, won: results.filter((r) => r.fresh).length });
+    w.analytics.log('award_won', { award: def.id, stops: def.stops, rating: def.minRating, minute: Math.round(w.lifetimeSeconds() / 60) });
+    this.ui.showCeremony(def, this.trainName, reward, () => {
+      this.pay(reward);
+      w.events.emit('awards.presented', { level: index, won: 1 });
     });
   }
 }

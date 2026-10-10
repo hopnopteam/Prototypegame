@@ -3,7 +3,7 @@ import { CLASSES } from '../config/classes';
 import { ECONOMY, MONETIZATION_ENABLED } from '../config/economy';
 import { formatDuration, formatNumber } from '../core/math';
 import type { DoubleChoice } from '../gameplay/GameUi';
-import { CEREMONIES, INTERVIEWS, NOMINATION_LEVEL } from '../config/press';
+import { INTERVIEWS } from '../config/press';
 import { conductorCost } from '../sim/meta';
 import { CARRIAGE_THEMES, LIVERIES, liveryFor } from '../world/palette';
 import { OUTFITS, type OutfitDef } from '../config/wardrobe';
@@ -265,6 +265,17 @@ export class Screens {
     ], { className: 'menu-sheet' });
   }
 
+  /** The next Golden Whistle (fix list 4.4): the Train Rating to hold and how many stops in a row so far. */
+  private whistleGoal(): HTMLElement[] {
+    const next = this.game.press.nextWhistle;
+    if (!next) return [h('div.section-title', { text: 'Golden Whistle' }), h('p', { text: 'Every Golden Whistle won. A legend of the line.' })];
+    const pct = Math.round((next.streak / next.def.stops) * 100);
+    return [
+      h('div.section-title', { text: `Golden Whistle: ${next.def.name}` }),
+      h('div.quest', {}, icon('trophy', 30), h('div.info', {}, `${next.streak} / ${next.def.stops} stops in a row at ${next.def.minRating.toFixed(1)}★`, h('div.bar', {}, h('i', { style: { width: `${pct}%` } })))),
+    ];
+  }
+
   /** Tap the level ring: where you are, what the next level brings, and who to overtake. */
   progress(): void {
     const g = this.game;
@@ -282,6 +293,7 @@ export class Screens {
         : h('div.quest', {}, icon('star', 30), h('div.info', {}, `${lp.current} / ${lp.needed} stars to level ${next}`, h('div.bar', {}, h('i', { style: { width: `${pct}%` } })))),
       reward ? h('div.section-title', { text: `Level ${next} brings` }) : null,
       reward ? h('ul.perks', {}, ...[`+${reward.railMiles} Rail Miles and +${formatNumber(reward.cash)} Fares`, ...perks].map((t) => h('li', { text: t }))) : null,
+      ...this.whistleGoal(),
       h('div.section-title', { text: 'Countryside League' }),
       h('p', { text: standing.next ? `Overtake ${standing.next.owner.name}'s ${standing.next.name} in ${formatNumber(standing.next.reputation - g.data.route.stars)} stars.` : 'Number one: the best sleeper on the line.' }),
       this.league(),
@@ -849,9 +861,6 @@ export function levelPerks(level: number): string[] {
   const outfit = OUTFITS.find((o) => o.minLevel === level);
   if (outfit && level > 1) perks.push(`New outfit: ${outfit.name}`);
   if (INTERVIEWS.some((i) => i.level === level)) perks.push('A Rails Tonight interview');
-  if (level === NOMINATION_LEVEL) perks.push('A Golden Whistle nomination');
-  const ceremony = CEREMONIES.find((c) => c.level === level);
-  if (ceremony) perks.push(ceremony.title);
   return perks;
 }
 

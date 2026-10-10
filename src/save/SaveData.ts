@@ -133,6 +133,8 @@ export interface SaveData {
     interviews: number[];
     ceremonies: number[];
     awards: string[];
+    /** Fix list 4.4: Golden Whistles won so far and the current run of stops at the next one's rating. */
+    whistle: { won: number; streak: number };
     /** Moments waiting for a calm beat to be shown: 'name', 'interview:2', 'ceremony:5'. */
     pending: string[];
     stats: { guests: number; perfectStops: number; requests: number; streak: number; weekGuests: number; lastWeeklyStop: number; lastQueueStop: number };
@@ -196,6 +198,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
       interviews: [],
       ceremonies: [],
       awards: [],
+      whistle: { won: 0, streak: 0 },
       pending: [],
       stats: { guests: 0, perfectStops: 0, requests: 0, streak: 0, weekGuests: 0, lastWeeklyStop: 0, lastQueueStop: -99 },
       reputationSeen: 0,

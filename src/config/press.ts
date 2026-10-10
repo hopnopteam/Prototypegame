@@ -322,6 +322,7 @@ export const INTERVIEWS: InterviewDef[] = [
 
 export type AwardStat = 'always' | 'perfectStops' | 'requests' | 'guests' | 'rankOne';
 
+/** Session 8's level-judged awards (kept for `awardProgress` and old saves; the Golden Whistles replace them). */
 export interface AwardDef {
   id: string;
   name: string;
@@ -338,10 +339,7 @@ export interface CeremonyDef {
   awards: AwardDef[];
 }
 
-/**
- * The Golden Whistle Awards: a ceremony at these route levels. Each award is judged on how you actually
- * played, so the show reflects your train; anything you miss is simply "nominated, next year".
- */
+/** Session 8's ceremonies at route levels 5 and 8 (no longer held: see GOLDEN_WHISTLES). */
 export const CEREMONIES: CeremonyDef[] = [
   {
     level: 5,
@@ -360,6 +358,26 @@ export const CEREMONIES: CeremonyDef[] = [
       { id: 'sleeper', name: 'Sleeper Train of the Year', hint: 'Top the Countryside League.', stat: 'rankOne', target: 0, reward: { gems: 40, railMiles: 8 } },
     ],
   },
+];
+
+/**
+ * Fix list 4.4 (owner: "the award ceremony should be grand and hard to earn… a high Train Rating sustained over
+ * many stops… spotlight, trophy, crowd, confetti, special music"). The Golden Whistles, won in order: hold the
+ * Train Rating at `minRating` or better for `stops` station stops in a row (a stop below it starts the count again,
+ * nothing else is lost). The ceremony comes in the calm after the departure that earns it.
+ */
+export interface WhistleDef {
+  id: string;
+  name: string;
+  minRating: number;
+  stops: number;
+  reward: { cashPerCarriage: number; railMiles: number; gems: number };
+}
+
+export const GOLDEN_WHISTLES: WhistleDef[] = [
+  { id: 'rising', name: 'Rising Star', minRating: 4.3, stops: 8, reward: { cashPerCarriage: 60, railMiles: 6, gems: 20 } },
+  { id: 'service', name: 'Service of the Year', minRating: 4.6, stops: 12, reward: { cashPerCarriage: 120, railMiles: 10, gems: 40 } },
+  { id: 'grand', name: 'Sleeper Train of the Year', minRating: 4.8, stops: 16, reward: { cashPerCarriage: 250, railMiles: 16, gems: 80 } },
 ];
 
 /** Route level at which the nomination is announced (a promise the player can see coming). */

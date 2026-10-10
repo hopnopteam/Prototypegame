@@ -1,8 +1,8 @@
-import { INTERVIEW_HOSTS, TRAIN_NAME_MAX, type CeremonyDef, type InterviewDef } from '../config/press';
+import { INTERVIEW_HOSTS, TRAIN_NAME_MAX, type InterviewDef, type WhistleDef } from '../config/press';
 import { MONETIZATION_ENABLED } from '../config/economy';
 import { formatNumber } from '../core/math';
 import type { DoubleChoice } from '../gameplay/GameUi';
-import type { CeremonyResult, FrontPageReward } from '../gameplay/Press';
+import type { FrontPageReward } from '../gameplay/Press';
 import type { NewsItem } from '../save/SaveData';
 import { h, icon } from './dom';
 import type { Screens } from './Screens';
@@ -64,25 +64,51 @@ export class PressScreens {
     ], { closable: false, center: true, className: 'interview' });
   }
 
-  ceremony(def: CeremonyDef, results: CeremonyResult[], trainName: string, onDone: () => void): void {
-    let close: () => void = () => undefined;
-    const rows = results.map((r, i) => h(`div.award${r.won ? '.won' : ''}` as 'div', { style: { animationDelay: `${0.5 + i * 0.7}s` } },
-      h('div.medal', {}, icon('trophy', 34)),
-      h('div.info', {},
-        h('b', { text: r.award.name }),
-        r.won
-          ? h('span', { text: `Winner: ${trainName}` })
-          : h('span', { text: `Nominated. ${r.award.hint}${r.need > 1 ? ` (${r.have}/${r.need})` : ''}` }),
+  /**
+   * The Golden Whistle ceremony (fix list 4.4): the stage goes dark, two spotlights sweep and find the trophy, the
+   * crowd at the foot of the screen cheers, confetti falls, and the ceremony's own music plays with the theme
+   * ducked beneath it. The award, the train's name and the prize, then Collect.
+   */
+  ceremony(def: WhistleDef, trainName: string, reward: FrontPageReward, onDone: () => void): void {
+    const g = this.game;
+    const chips: HTMLElement[] = [];
+    if (reward.cash > 0) chips.push(h('span', {}, icon('cash', 26), `+${formatNumber(reward.cash)}`));
+    if (reward.gems > 0) chips.push(h('span', {}, icon('gem', 24), `+${reward.gems}`));
+    if (reward.railMiles > 0) chips.push(h('span', {}, icon('miles', 24), `+${reward.railMiles}`));
+    const shades = ['#3A2E5C', '#463868', '#33284F', '#51406F'];
+    const crowd = h('div.crowd', { 'aria-hidden': 'true' }, ...Array.from({ length: 18 }, (_, i) => h(`i${i % 3 === 1 ? '.arms' : ''}` as 'i', {
+      style: { '--d': `${((i * 0.173) % 0.5).toFixed(2)}s`, '--h': `${46 + ((i * 37) % 28)}px`, background: shades[i % shades.length], color: shades[i % shades.length] },
+    })));
+    const colours = ['#FFD45A', '#E8577A', '#6CBF7C', '#5FA3E0', '#F2E3C6', '#EDA94E'];
+    const confetti = h('div.confetti', { 'aria-hidden': 'true' }, ...Array.from({ length: 36 }, (_, i) => h('i', {
+      style: { left: `${(i * 37) % 100}%`, background: colours[i % colours.length], '--d': `${((i * 0.29) % 3).toFixed(2)}s`, '--x': `${((i * 53) % 60) - 30}px` },
+    })));
+    let done = false;
+    const finish = (): void => {
+      if (done) return;
+      done = true;
+      stage.classList.add('out');
+      window.setTimeout(() => stage.remove(), 320);
+      this.screens.release();
+      onDone();
+    };
+    const stage = h('div.scrim.center.ceremony-stage', { role: 'dialog', 'aria-label': `The Golden Whistle: ${def.name}` },
+      h('div.beam.l'), h('div.beam.r'), confetti,
+      h('div.ceremony-card', {},
+        h('div.kicker', { text: 'The Golden Whistle' }),
+        h('div.cup', {}, icon('trophy', 132)),
+        h('h3', { text: def.name }),
+        h('p.train', { text: trainName }),
+        chips.length > 0 ? h('div.reward', {}, ...chips) : null,
+        h('button.btn.green', { 'data-default': '', onclick: () => finish() }, 'Collect'),
       ),
-      r.fresh ? h('div.prize', {}, icon('gem', 16), String(r.award.reward.gems), icon('miles', 16), String(r.award.reward.railMiles)) : null,
-    ));
-    const wins = results.filter((r) => r.won).length;
-    close = this.screens.sheet(def.title, 'trophy', [
-      h('p.lead', { text: wins > 0 ? 'And the Golden Whistle goes to…' : 'A night to remember. Next time, the Whistle is yours.' }),
-      ...rows,
-      h('button.btn.primary', { 'data-default': '', onclick: () => { close(); onDone(); } }, 'Collect'),
-    ], { closable: false, center: true, className: 'ceremony' });
-    this.game.audio.play('fanfare');
+      crowd,
+    );
+    this.ui.root.appendChild(stage);
+    this.screens.hold();
+    g.audio.play('ceremony');
+    g.haptics.success();
+    window.setTimeout(() => g.audio.play('heart', { volume: 0.5 }), 900);
   }
 
   /**
