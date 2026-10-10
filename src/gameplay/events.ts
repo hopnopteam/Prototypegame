@@ -81,6 +81,9 @@ export interface StationResult {
   streak: number;
   /** The share of `bonusCash` the streak added. */
   streakBonus: number;
+  /** The Train Rating after this stop (1..5) and how much this stop moved it (fix list 4.2). */
+  rating5: number;
+  ratingDelta: number;
   /** What the travellers who missed the train would have paid (shown, never taken). */
   missedFare: number;
   /** The misses are shown (the soft cues are on): the red line, the "aww", the glance at the platform. */

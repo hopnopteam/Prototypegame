@@ -44,6 +44,11 @@ export const ECONOMY = {
     cruiseSpeed: 14,
     /** How long before the doors close the "last call" chime and hold-the-train offer appear. */
     lastCallSeconds: 12,
+    /**
+     * Fix list 4.3, the station clock: big on the route line during a stop, yellow from `yellowAt` seconds left,
+     * red and pulsing from `redAt`, a tick every second from `tickFrom`, and a warning whistle at `whistleAt`.
+     */
+    timer: { yellowAt: 20, redAt: 10, tickFrom: 10, whistleAt: 10 },
     /** Legs per full day→dusk→night→dawn cycle. */
     legsPerDayCycle: 4,
   },
@@ -336,6 +341,26 @@ export const ECONOMY = {
     noWashroomSeconds: 110,
     /** Service mood (0 grumpy … 1 delighted): colours what new passengers have heard and their reviews. */
     mood: { start: 0.6, rest: 0.6, driftPerMinute: 0.06, fast: 0.05, slow: -0.08, missed: -0.08, perfectStop: 0.06, emptyWashroom: -0.05 },
+  },
+
+  /**
+   * Fix list 4.2, the Train Rating (owner: "a simple rating out of 5 stars… built from recent station results…
+   * always recoverable; nothing already earned is taken away"). Each stop scores 0..1 from who boarded, the bags and
+   * the service mood (`weights`); the rating is 1 + 4 × the average of the last `window` stops, `start` before the
+   * first. Effects are ×1 at 3 stars and move in straight lines to the 1-star and 5-star values:
+   * - `fill`: the share of free beds that get a traveller at a stop (at 1 star some beds stay empty).
+   * - `extraTravellers`: more travellers beyond the beds at 5 stars (demand for the next cabin or class).
+   * - `richer`: the chance of first-class and VIP guests and of aspirants for the next class up.
+   * - `tips`: every tip on the train.
+   */
+  rating: {
+    start: 3,
+    window: 5,
+    weights: { boarded: 0.6, bags: 0.2, service: 0.2 },
+    fill: { low: 0.65, high: 1 },
+    extraTravellers: { high: 2 },
+    richer: { low: 0.5, high: 2 },
+    tips: { low: 0.8, high: 1.25 },
   },
 
   /** What a departing guest leaves behind: pieces from their archetype's pool, sometimes a common one. */

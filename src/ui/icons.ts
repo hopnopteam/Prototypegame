@@ -18,7 +18,9 @@ export type IconName =
   // Session 22: one trip, one sleep (the morning paper, breakfast, a wake-up call).
   | 'newspaper' | 'breakfast' | 'wakeup'
   // Session 24: the cabin key handed over at the desk; shoes to shine on the night shift.
-  | 'key' | 'shoe';
+  | 'key' | 'shoe'
+  // Fix list 4.1: a passenger who missed the train; 4.2: the Train Rating.
+  | 'angry';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -692,6 +694,29 @@ const ICONS: Record<IconName, Draw> = {
     c.lineCap = 'round';
     c.beginPath();
     c.arc(50, 78, 16, 1.2 * Math.PI, 1.8 * Math.PI);
+    c.stroke();
+  },
+  angry: (c) => {
+    // Red in the face, brows down in a V, a tight frown: they missed the train.
+    c.beginPath();
+    c.arc(50, 52, 38, 0, Math.PI * 2);
+    fillStroke(c, '#E8674F');
+    c.strokeStyle = INK;
+    c.lineWidth = 6;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.moveTo(27, 34);
+    c.lineTo(43, 42);
+    c.moveTo(73, 34);
+    c.lineTo(57, 42);
+    c.stroke();
+    c.fillStyle = INK;
+    c.beginPath();
+    c.arc(38, 50, 5, 0, Math.PI * 2);
+    c.arc(62, 50, 5, 0, Math.PI * 2);
+    c.fill();
+    c.beginPath();
+    c.arc(50, 82, 14, 1.15 * Math.PI, 1.85 * Math.PI);
     c.stroke();
   },
   heart: (c) => {

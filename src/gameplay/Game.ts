@@ -24,6 +24,7 @@ import { Autopilot } from './Autopilot';
 import { Journey } from '../sim/Journey';
 import { offlineEarnings, conductorCost } from '../sim/meta';
 import { Progression } from '../sim/Progression';
+import { ratingEffect, trainRating } from '../sim/stationResult';
 import { TrainMap } from '../sim/TrainMap';
 import { UnlockChain } from '../sim/UnlockChain';
 import { buildUnlocks, stationPerks, type StationPerks } from '../sim/unlockPlan';
@@ -376,7 +377,13 @@ export class Game implements World {
 
   /** Every tip on the train: perks, smart service cars, station upgrades, and the bar's Happy Hour. */
   tipMultiplier(): number {
-    return (1 + this.data.meta.perks.tipBonus + this.train.trainTipBonus() + this.stationPerks().tips) * this.venues.boost();
+    const r = this.econ.rating.tips;
+    return (1 + this.data.meta.perks.tipBonus + this.train.trainTipBonus() + this.stationPerks().tips) * this.venues.boost() * ratingEffect(this.trainRating(), r.low, r.high);
+  }
+
+  /** The Train Rating, 1..5 stars, from the recent station stops (fix list 4.2; config: rating). */
+  trainRating(): number {
+    return trainRating(this.data.route.recentStops ?? [], this.econ.rating.start);
   }
 
   /** Station upgrades bought so far (exterior and marketing); cached until the next unlock. */

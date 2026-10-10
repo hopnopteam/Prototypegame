@@ -15,6 +15,7 @@ import type { Bathroom, Cabin } from './TrainState';
 import type { World } from './World';
 import type { Zone } from './Zones';
 import type { Outing } from './Venues';
+import { ratingEffect } from '../sim/stationResult';
 
 export type GuestState =
   | 'platform' | 'boarding' | 'queue' | 'toCabin' | 'settling' | 'resting' | 'requesting'
@@ -41,6 +42,8 @@ const TRIP_LOG: Record<TripPhase | 'boarding' | 'arrival', string> = {
 };
 
 let nextId = 1;
+/** Longest a missed traveller stomps toward the station house before slipping away (fix list 4.1). */
+const STORM_OFF_SECONDS = 7;
 
 export class Guest {
   readonly id = nextId++;
@@ -51,6 +54,8 @@ export class Guest {
   state: GuestState = 'platform';
   stateTime = 0;
   onPlatform = false;
+  /** Missed the train and storming off the platform (fix list 4.1): stomps until the walk is over, then goes. */
+  storming = false;
   cabin: Cabin | null = null;
   bathroom: Bathroom | null = null;
   queueSlot = -1;
@@ -565,6 +570,26 @@ export class Guests {
   }
 
   /** The platform has gone: anyone still standing on it waits for the next train. */
+  /**
+   * Fix list 4.1 (owner: "missed passengers should leave angry… their fare is lost"): a traveller who had a bed but
+   * was never sold a ticket goes red in the face and stomps off along the platform to the station house. They never
+   * come back for a later train.
+   */
+  stormOff(guest: Guest, delay: number): void {
+    const w = this.w;
+    if (guest.state !== 'platform') return;
+    guest.paid = false;
+    this.setState(guest, 'leaving');
+    guest.storming = true;
+    guest.view.showBubble('angry', 'alert', 1.85);
+    guest.mover.stop();
+    w.tweens.delay(delay, () => {
+      if (guest.state !== 'leaving') return;
+      w.particles.emit('dust', guest.pos.x, FLOOR_Y + 0.2, guest.pos.z + w.station.platformOffset, 6, 0.25);
+      guest.mover.go([...PLATFORM.concourse, PLATFORM.entrance, PLATFORM.houseDoor]);
+    });
+  }
+
   removePlatformGuests(): number {
     let removed = 0;
     for (const guest of [...this.list]) {
@@ -783,6 +808,12 @@ export class Guests {
         break;
       }
       case 'leaving':
+        if (guest.storming) {
+          guest.view.act('stomp', 0.3);
+          if (guest.mover.isMoving && guest.stateTime < STORM_OFF_SECONDS) break;
+          guest.storming = false;
+          guest.stateTime = 0;
+        }
         if (guest.stateTime > 1.6) {
           const s = Math.max(0, 1 - (guest.stateTime - 1.6) * 3);
           guest.view.root.scale.setScalar(s);
@@ -1269,7 +1300,9 @@ export class Guests {
   private pickArchetype(cls: ClassId, force?: string): ArchetypeDef {
     if (force) return ARCHETYPES.find((a) => a.id === force) ?? ARCHETYPES[0];
     const weights: Record<string, number> = {};
-    const vipBoost = 1 + this.w.stationPerks().vip;
+    // Billboards and the Train Rating (fix list 4.2) both draw the grandest guests.
+    const r = this.w.econ.rating.richer;
+    const vipBoost = (1 + this.w.stationPerks().vip) * ratingEffect(this.w.trainRating(), r.low, r.high);
     for (const a of ARCHETYPES) if (a.cls === cls) weights[a.id] = a.id === 'vip' || a.id === 'celebrity' ? a.weight * vipBoost : a.weight;
     const id = this.w.rng.weighted(weights);
     return ARCHETYPES.find((a) => a.id === id) ?? ARCHETYPES[0];

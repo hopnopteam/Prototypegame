@@ -124,9 +124,21 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .journey .train .ico { width: 16px; height: 16px; }
 .journey .clock { flex: none; min-width: 42px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--teal); color: var(--cream); border: 2px solid var(--ink); font-weight: 800; font-size: 13px; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; box-sizing: border-box; }
 .journey .clock:empty { display: none; }
+/* The Train Rating (fix list 4.2): grey stars with the gold ones laid over them up to the rating. */
+.journey .rating { position: relative; flex: none; display: flex; height: 16px; }
+.journey .rating[hidden] { display: none; }
+.journey .rating > span { display: flex; gap: 1px; white-space: nowrap; }
+.journey .rating .ico { width: 14px; height: 14px; flex: none; }
+.journey .rating .base .ico { filter: grayscale(1) brightness(0.55); opacity: 0.75; }
+.journey .rating .fill { position: absolute; left: 0; top: 0; bottom: 0; overflow: hidden; width: 60%; transition: width 600ms cubic-bezier(.2,1,.4,1); }
+.journey .rating.bump { animation: bump 420ms cubic-bezier(.2,1.6,.4,1); }
 .journey.stop .fill { background: linear-gradient(#7FD1C5, var(--teal)); }
 .journey.stop .track::after { background: var(--teal); }
-.journey.urgent .clock { background: var(--raspberry); animation: pulse 700ms ease-in-out infinite; }
+/* Fix list 4.3: during a stop the route line grows and the clock is a big pill (yellow, then red and pulsing). */
+.journey.stop { height: 26px; }
+.journey.stop .clock { height: 26px; min-width: 62px; padding: 0 10px; border-radius: 13px; font-size: 20px; line-height: 22px; border-width: 2.5px; box-shadow: 0 3px 0 var(--ink); }
+.journey.warn .clock { background: linear-gradient(#FFE08A, var(--mustard)); color: var(--ink); }
+.journey.urgent .clock { background: var(--raspberry); color: var(--cream); animation: pulse 700ms ease-in-out infinite; }
 @keyframes pulse { 50% { transform: scale(1.12); } }
 
 /* ── Goal chip (middle column, shares the ticket's slot): icon, bar, count, reward; words only when new ── */

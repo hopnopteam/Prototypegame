@@ -125,12 +125,9 @@ export class Feedback {
   onDeparture(missed: Guest[], noBed: Guest[]): void {
     const w = this.w;
     if (missed.length > 0 && this.cuesOn) {
-      w.audio.play('aww');
+      // They storm off (Guests.stormOff): a grumble, not a fond "aww".
+      w.audio.play('grumble');
       this.nudge(w.econ.feedback.mood.missed * Math.min(3, missed.length));
-      for (const guest of missed) {
-        guest.view.showBubble('frown', 'alert');
-        w.ui.floatIcon('person', guest.pos.x, FLOOR_Y + FLOAT_HEIGHT, guest.pos.z, 'miss', true);
-      }
       this.maybeSay('missedTrain', missed[0], 1);
     } else if (noBed.length > 0) {
       this.maybeSay('noBed', noBed[0], 0.5);

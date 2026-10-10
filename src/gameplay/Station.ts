@@ -10,7 +10,7 @@ import { PlatformView } from '../world/PlatformView';
 import { PLATFORM } from '../world/platformLayout';
 import { billboardTexture } from '../world/sprites';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
-import { nextStreak, stopRating, streakBonus } from '../sim/stationResult';
+import { nextStreak, ratingEffect, stopQuality, stopRating, streakBonus } from '../sim/stationResult';
 import type { StationResult } from './events';
 import { sourceActive, sourceStay, type SourceSpec } from './Pickup';
 import { platformLightInput } from '../world/trainLight';
@@ -311,9 +311,31 @@ export class Station {
     this.w.audio.play('chime');
   }
 
+  /** The last whole second the station clock ticked on (fix list 4.3). */
+  private lastTick = -1;
+
+  /** The station clock's last seconds: a tick each second and a warning whistle before the doors close. */
+  private updateClock(): void {
+    const w = this.w;
+    const j = w.journey;
+    if (j.phase !== 'stationStop' || j.held) {
+      this.lastTick = -1;
+      return;
+    }
+    const timer = w.econ.journey.timer;
+    const second = Math.ceil(j.timeLeft);
+    if (second === this.lastTick || second <= 0) return;
+    const first = this.lastTick < 0;
+    this.lastTick = second;
+    if (first) return;
+    if (second === timer.whistleAt) w.audio.play('whistleShort', { volume: 0.8 });
+    if (second <= timer.tickFrom) w.audio.play('tick', { pitch: second <= 3 ? 1.25 : 1 });
+  }
+
   update(_dt: number): void {
     const w = this.w;
     const j = w.journey;
+    this.updateClock();
     if (this.prologue) this.updatePrologue(_dt);
     this.updateLatecomers();
     const toStop = j.distanceToStop;
@@ -368,8 +390,13 @@ export class Station {
     const crowd = w.flow.allows('crowd');
     const extra = crowd ? w.rng.int(econ.extraBoarders[0], econ.extraBoarders[1]) : 0;
     const early = crowd && w.data.route.stopsCompleted < 2 ? econ.minBoarders : 1;
-    // Marketing (posters, billboard, band) draws a few more travellers each stop.
-    const count = Math.max(early, Math.min(econ.maxBoarders, free + extra + w.stationPerks().passengers));
+    // Marketing (posters, billboard, band) draws a few more travellers each stop. The Train Rating (fix list 4.2):
+    // a well-rated train fills every bed and draws a crowd beyond them; a poorly rated one leaves beds empty.
+    const rating = w.trainRating();
+    const r = w.econ.rating;
+    const filled = crowd ? Math.round(free * Math.min(1, ratingEffect(rating, r.fill.low, r.fill.high))) : free;
+    const drawn = crowd && rating > 3 ? Math.round(((rating - 3) / 2) * r.extraTravellers.high) : 0;
+    const count = Math.max(early, Math.min(econ.maxBoarders, filled + extra + drawn + w.stationPerks().passengers));
     const spots = new Array<Vec2>(count).fill(PLATFORM.window);
     const story = w.meta.storyGuestForStop();
     const guests = w.guests.spawnPlatformGuests(spots, story, this.travellerClasses(stopSerial, count));
@@ -400,7 +427,8 @@ export class Station {
     const weights: Partial<Record<ClassId, number>> = {};
     for (const [cls, n] of capacity) weights[cls] = n;
     while (out.length < count) {
-      if (above && w.progression.level >= above.level && w.rng.chance(w.econ.classes.aspirantChance)) out.push(above.id);
+      const richer = ratingEffect(w.trainRating(), w.econ.rating.richer.low, w.econ.rating.richer.high);
+      if (above && w.progression.level >= above.level && w.rng.chance(w.econ.classes.aspirantChance * richer)) out.push(above.id);
       else out.push(capacity.size > 0 ? w.rng.weighted(weights) : 'basic');
     }
     return shuffled(out, w.rng);
@@ -493,19 +521,19 @@ export class Station {
       w.haptics.success();
       w.meta.onCleanStop();
     }
-    // Those who missed it wave their tickets from the platform, and the camera glances back at them once the
-    // soft cues are on (nothing is taken: the card shows what their fares would have been).
+    // Fix list 4.1: those who missed it go red in the face and stomp off to the station house, their fares lost
+    // for good; the camera glances back at them once the soft cues are on, and the card shows the fares lost.
     const showMissed = missed.length > 0 && w.feedback.cuesOn;
     let missedFare = 0;
     for (const guest of missed) missedFare += w.guests.estimatedFare(guest);
+    let x = 0;
+    let z = 0;
+    missed.forEach((guest, i) => {
+      x += guest.pos.x;
+      z += guest.pos.z;
+      w.guests.stormOff(guest, 0.25 + i * 0.3);
+    });
     if (showMissed) {
-      let x = 0;
-      let z = 0;
-      for (const guest of missed) {
-        guest.view.act('waveTicket', w.econ.feedback.missedGlide.seconds + 1.5);
-        x += guest.pos.x;
-        z += guest.pos.z;
-      }
       const glide = w.econ.feedback.missedGlide;
       if (!w.stage.rig.focusing) w.stage.rig.focusOn(this.tmp.set(x / missed.length, 0, z / missed.length + this.platformOffset), glide.seconds, glide.zoom);
     }
@@ -527,7 +555,17 @@ export class Station {
       streakBonus: streakExtra,
       missedFare,
       showMissed,
+      rating5: 0,
+      ratingDelta: 0,
     };
+    // The Train Rating (fix list 4.2): this stop's quality joins the recent ones.
+    const before = w.trainRating();
+    const quality = stopQuality(this.boardedThisStop, waiting, this.luggageLoadedThisStop, this.luggageTotal, bagsDone, w.feedback.mood, w.econ.rating.weights);
+    const recent = (route.recentStops ??= []);
+    recent.push(Math.round(quality * 1000) / 1000);
+    while (recent.length > w.econ.rating.window) recent.shift();
+    result.rating5 = w.trainRating();
+    result.ratingDelta = result.rating5 - before;
     w.data.route.stopsCompleted++;
     w.save.markDirty();
     w.analytics.log(EVENTS.stationResult, {
@@ -537,6 +575,7 @@ export class Station {
       bonus: result.clean,
       luggage_loaded: result.luggageLoaded,
       stop_number: w.data.route.stopsCompleted,
+      train_rating: Math.round(result.rating5 * 10) / 10,
     });
     w.events.emit('station.result', result);
     w.ui.showResult(result);

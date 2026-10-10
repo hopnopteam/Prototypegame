@@ -130,6 +130,7 @@ export class Ui implements GameUi {
     top: HTMLElement; cash: HTMLElement; cashVal: HTMLElement; gems: HTMLElement; gemsVal: HTMLElement;
     level: HTMLButtonElement; levelBadge: HTMLElement; levelCount: HTMLElement;
     journey: HTMLElement; journeyTrain: HTMLElement; journeyFill: HTMLElement; journeyClock: HTMLElement;
+    rating: HTMLElement; ratingFill: HTMLElement;
     side: HTMLElement; menu: HTMLButtonElement; menuDot: HTMLElement; shop: HTMLButtonElement; conductor: HTMLButtonElement; conductorDot: HTMLElement;
     dare: HTMLButtonElement; dareFace: HTMLCanvasElement; dareIcon: HTMLElement; dareCount: HTMLElement;
   };
@@ -182,7 +183,11 @@ export class Ui implements GameUi {
     const journeyTrain = h('div.train', {}, icon('carriage', 18));
     const journeyFill = h('i.fill');
     const journeyClock = h('span.clock');
-    const journey = h('div.journey', { 'aria-label': 'Journey' }, h('div.track', {}, journeyFill, journeyTrain), journeyClock);
+    // The Train Rating (fix list 4.2): five stars at the head of the route line, gold up to the rating.
+    const stars = (): HTMLElement[] => Array.from({ length: 5 }, () => icon('star', 14));
+    const ratingFill = h('span.fill', {}, ...stars());
+    const rating = h('div.rating', { role: 'img', 'aria-label': 'Train rating' }, h('span.base', {}, ...stars()), ratingFill);
+    const journey = h('div.journey', { 'aria-label': 'Journey' }, rating, h('div.track', {}, journeyFill, journeyTrain), journeyClock);
 
     const button = (name: IconName, label: string, onclick: () => void): HTMLButtonElement =>
       h('button', { 'aria-label': label, title: label, onclick: () => this.tap(onclick) }, icon(name, 26));
@@ -242,7 +247,7 @@ export class Ui implements GameUi {
     root.append(this.caption.el, skip);
     root.append(this.floatLayer, this.tileTag.el, this.rushChip.el, this.guide.el, top, this.objective.el, side, this.trainMap.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
 
-    this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyTrain, journeyFill, journeyClock, side, menu, menuDot, shop, conductor, conductorDot, dare, dareFace, dareIcon, dareCount };
+    this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyTrain, journeyFill, journeyClock, rating, ratingFill, side, menu, menuDot, shop, conductor, conductorDot, dare, dareFace, dareIcon, dareCount };
     window.addEventListener('resize', () => {
       this.rectTimer = 0;
       this.snapTimer = 0;
@@ -383,7 +388,10 @@ export class Ui implements GameUi {
     // A held stop (the opening at Millbrook) has no clock: the train leaves once its passengers are aboard.
     const stopped = j.phase === 'stationStop' && !j.held;
     hud.journey.classList.toggle('stop', stopped);
-    hud.journey.classList.toggle('urgent', stopped && j.timeLeft <= g.econ.journey.lastCallSeconds);
+    // Fix list 4.3: a big clock while stopped, yellow and then red (pulsing) as departure nears.
+    const timer = g.econ.journey.timer;
+    hud.journey.classList.toggle('warn', stopped && j.timeLeft <= timer.yellowAt && j.timeLeft > timer.redAt);
+    hud.journey.classList.toggle('urgent', stopped && j.timeLeft <= timer.redAt);
     // On the move the train rides the line toward the station; at a stop the line drains toward departure.
     const progress = stopped ? Math.max(0, Math.min(1, j.timeLeft / Math.max(1, j.duration))) : j.phase === 'arriving' || j.phase === 'departing' ? (j.phase === 'arriving' ? 1 : 0) : j.legProgress;
     const pct = `${Math.round(progress * 1000) / 10}%`;
@@ -395,6 +403,7 @@ export class Ui implements GameUi {
 
 
     this.updateDare();
+    this.updateRating();
 
     const affordable = upgradesOpen && this.screens.affordableUpgrades() > 0;
     setVisible(hud.conductorDot, affordable);
@@ -441,6 +450,27 @@ export class Ui implements GameUi {
     const p = (Math.round(Math.min(1, dare.progress / Math.max(1, dare.target)) * 100) / 100).toFixed(2);
     if (hud.dare.style.getPropertyValue('--p') !== p) hud.dare.style.setProperty('--p', p);
     hud.dare.classList.toggle('met', met);
+  }
+
+  private ratingShown = '';
+
+  /** The Train Rating's stars (fix list 4.2): filled to the rating, a bump when a stop moves it. */
+  private updateRating(): void {
+    const g = this.game;
+    const hud = this.hud;
+    const show = !!g.data.profile.flags.firstStationDone;
+    hud.rating.hidden = !show;
+    if (!show) return;
+    const value = Math.round(g.trainRating() * 10) / 10;
+    const key = value.toFixed(1);
+    if (key === this.ratingShown) return;
+    const changed = this.ratingShown !== '';
+    this.ratingShown = key;
+    hud.ratingFill.style.width = `${(value / 5) * 100}%`;
+    const label = `Train rating ${key} of 5`;
+    hud.rating.title = label;
+    hud.rating.setAttribute('aria-label', label);
+    if (changed) replayClass(hud.rating, ['bump']);
   }
 
   /** Shows an element with a little pop the first time it appears; keeps its layout slot while hidden. */

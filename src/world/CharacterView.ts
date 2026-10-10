@@ -240,7 +240,7 @@ function eyelidGeometry(skin: string): THREE.BufferGeometry {
  * Little things people do (the world reacts to them): sweeping a cabin, reading on the bed, sipping the tea
  * you brought, checking a watch in the queue, washing hands, stamping tickets, hugging a pillow.
  */
-export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'wash' | 'stamp' | 'hug' | 'wave' | 'look' | 'phone' | 'chat' | 'yawn' | 'waveTicket';
+export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'wash' | 'stamp' | 'hug' | 'wave' | 'look' | 'phone' | 'chat' | 'yawn' | 'waveTicket' | 'stomp';
 type PropKind = 'broom' | 'paper' | 'cup' | 'stamp' | 'bundle' | 'phone' | 'ticket';
 
 const propCache = new Map<PropKind, THREE.BufferGeometry>();
@@ -517,6 +517,16 @@ export class CharacterView {
       case 'wave':
         aim(1, -2.75, 0.25 + Math.sin(t * 9) * 0.4);
         break;
+      case 'stomp': {
+        // Fix list 4.1: missed the train and storming off: fists low and pumping, leaning into each heavy step.
+        const beat = Math.sin(t * 10);
+        aim(0, beat * 0.7, 0.18);
+        aim(1, -beat * 0.7, -0.18);
+        this.body.position.y += Math.abs(beat) * 0.07;
+        this.body.rotation.x += 0.2;
+        this.body.rotation.z = beat * 0.07;
+        break;
+      }
       case 'waveTicket':
         // Waving the ticket overhead, a little hop now and then: "wait for me!"
         aim(1, -2.85, 0.2 + Math.sin(t * 10) * 0.45);

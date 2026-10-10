@@ -7,7 +7,9 @@ export type Sfx =
   | 'whistle' | 'whistleShort' | 'fanfare' | 'levelup' | 'punch' | 'whoosh' | 'click' | 'chime'
   | 'soft' | 'door' | 'chest' | 'unlock' | 'heart' | 'flush' | 'miss' | 'grumble'
   // Session 24: the station result card.
-  | 'perfect' | 'aww';
+  | 'perfect' | 'aww'
+  // Fix list 4.3: the station clock's last ten seconds.
+  | 'tick';
 
 /**
  * Every sound in the game. Effects are synthesised with WebAudio (short, warm cues: no files, work
@@ -347,6 +349,11 @@ export class AudioEngine {
         break;
       case 'click':
         this.tone(t, 900, 900, 0.025, 'sine', 0.12 * v);
+        break;
+      case 'tick':
+        // A wooden clock tick: a bright knock that falls away at once.
+        this.tone(t, 1900 * p, 1300 * p, 0.04, 'triangle', 0.16 * v, 0.001);
+        this.tone(t, 620 * p, 520 * p, 0.05, 'sine', 0.08 * v, 0.001);
         break;
       case 'chime':
         [1318, 1046, 784].forEach((f, i) => (i === 2 ? this.ring(t + i * 0.22, f * p, 'sine', 0.15 * v, 0.05, 0.9) : this.tone(t + i * 0.22, f * p, f * p, 0.6, 'sine', 0.15 * v, 0.002, this.sfx, true)));
