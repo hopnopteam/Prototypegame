@@ -1,4 +1,5 @@
 import { INTERVIEW_HOSTS, TRAIN_NAME_MAX, type CeremonyDef, type InterviewDef } from '../config/press';
+import { MONETIZATION_ENABLED } from '../config/economy';
 import { formatNumber } from '../core/math';
 import type { DoubleChoice } from '../gameplay/GameUi';
 import type { CeremonyResult, FrontPageReward } from '../gameplay/Press';
@@ -110,10 +111,10 @@ export class PressScreens {
       photo,
       h('h3', { text: item.headline }),
       chips.length > 0 ? h('div.reward', {}, ...chips) : null,
-      h('div.btn-row', {},
+      MONETIZATION_ENABLED ? h('div.btn-row', {},
         h('button.btn.primary', { onclick: () => finish('ad') }, icon('ad', 22), '×2 Free'),
         h('button.btn.gem', { onclick: () => finish('gems'), disabled: g.wallet.get('gems') < gemCost }, icon('gem', 20), `×2 · ${gemCost}`),
-      ),
+      ) : null,
       h('button.btn.green', { 'data-default': '', onclick: () => finish('none') }, 'Collect'),
     );
     const scrim = h('div.scrim.center.press-scrim', {}, h('div.rays'), paper);

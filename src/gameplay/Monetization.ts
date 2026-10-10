@@ -1,4 +1,5 @@
 import { PRODUCTS, type ProductDef } from '../config/content';
+import { MONETIZATION_ENABLED } from '../config/economy';
 import type { IconName } from '../ui/icons';
 import { EVENTS } from '../services/analytics';
 import type { InterstitialVerdict } from '../sim/AdPolicy';
@@ -14,6 +15,8 @@ export interface OfferView {
   label: string;
   detail: string;
   gemCost: number;
+  /** Earned in play (monetization off): one tap, no ad and no gems. */
+  free?: boolean;
 }
 
 export interface MonetizationHooks {
@@ -51,15 +54,54 @@ export class Monetization {
     w.events.on('journey.phase', ({ phase }) => {
       if (phase === 'departing') this.onDeparting();
     });
-    w.events.on('station.result', () => {
+    w.events.on('station.result', ({ clean, streak }) => {
       // A station result is a natural break: the only moment (besides session start) for the ticket offer.
       if (this.canOfferFirstClass()) w.tweens.delay(4.5, () => this.offerFirstClass('station_break'));
+      if (!this.enabled && clean) this.earnStreakPerks(streak);
     });
     w.events.on('carriage.coupled', () => w.setFlag('firstCarriageCoupled'));
   }
 
+  /** The config switch: off, there are no ads, offers or purchases and their rewards are earned in play. */
+  get enabled(): boolean {
+    return MONETIZATION_ENABLED;
+  }
+
   get noForcedAds(): boolean {
-    return this.w.iap.isOwned('first_class_ticket');
+    return !this.enabled || this.w.iap.isOwned('first_class_ticket');
+  }
+
+  /** The Conductor's Scooter: bought (monetization on) or a route level's reward (off). */
+  get scooterOwned(): boolean {
+    const w = this.w;
+    return w.iap.isOwned('conductor_scooter') || (!this.enabled && w.progression.level >= w.econ.perks.scooterLevel);
+  }
+
+  /** "Hold the train" is a free button once a stop from this route level (monetization off). */
+  get holdEarned(): boolean {
+    return !this.enabled && this.w.progression.level >= this.w.econ.perks.holdTrainLevel;
+  }
+
+  /**
+   * Station streaks pay what ads used to (monetization off): roller skates every `skatesStreak` perfect stops in a
+   * row, double fares at the next stop every `doubleFaresStreak`.
+   */
+  private earnStreakPerks(streak: number): void {
+    const w = this.w;
+    const perks = w.econ.perks;
+    if (streak <= 0) return;
+    if (streak % perks.skatesStreak === 0) {
+      w.data.monetization.speedBoostUntil = Date.now() + w.econ.rewarded.speedBoost.durationSeconds * 1000;
+      w.events.emit('boost.changed', {});
+      w.tweens.delay(1.2, () => w.ui.toast(`Streak ${streak}`, 'skate'));
+      w.analytics.log('perk_earned', { perk: 'skates', streak });
+    }
+    if (streak % perks.doubleFaresStreak === 0) {
+      w.data.monetization.doubleFaresStop = w.journey.stopSerial + 1;
+      w.tweens.delay(2.4, () => w.ui.toast('×2 next stop', 'double'));
+      w.analytics.log('perk_earned', { perk: 'doubleFares', streak });
+    }
+    w.save.markDirty();
   }
 
   /** Which stop a rewarded ad "belongs to" for the no-interstitial-after-rewarded rule. */
@@ -80,7 +122,7 @@ export class Monetization {
     for (const offer of next.slice(0, 1)) {
       if (!this.shown.has(offer.id)) {
         this.shown.add(offer.id);
-        this.w.analytics.log(EVENTS.rewardedOfferShown, { placement: offer.id });
+        this.w.analytics.log(offer.free ? 'perk_offered' : EVENTS.rewardedOfferShown, { placement: offer.id });
       }
     }
     for (const id of [...this.shown]) if (next[0]?.id !== id) this.shown.delete(id);
@@ -109,6 +151,7 @@ export class Monetization {
 
   private computeOffers(): OfferView[] {
     const w = this.w;
+    if (!this.enabled) return this.earnedOffers();
     const r = w.econ.rewarded;
     const m = w.data.monetization;
     const life = w.lifetimeSeconds();
@@ -143,6 +186,15 @@ export class Monetization {
     return out;
   }
 
+  /** Monetization off: the slot only ever holds what was earned in play (hold the train, once a stop). */
+  private earnedOffers(): OfferView[] {
+    const w = this.w;
+    const j = w.journey;
+    if (!this.holdEarned || j.phase !== 'stationStop' || j.held || j.holdUsed || j.timeLeft > w.econ.journey.lastCallSeconds) return [];
+    if (w.guests.platformGuests().length === 0 && w.station.luggagePile <= 0) return [];
+    return [{ id: 'holdTheTrain', icon: 'hold', label: `+${w.econ.journey.holdTheTrainSeconds}s`, detail: 'Hold the train', gemCost: 0, free: true }];
+  }
+
   cashStashAmount(): number {
     const r = this.w.econ.rewarded.cashStash;
     const target = this.w.tiles.shortTileRemaining || this.w.tiles.cheapest()?.def.price || 0;
@@ -153,13 +205,18 @@ export class Monetization {
   async accept(id: OfferId, payWithGems: boolean): Promise<boolean> {
     const offer = this.offers.find((o) => o.id === id);
     if (!offer) return false;
+    if (offer.free) {
+      this.grant(id);
+      this.w.analytics.log('perk_used', { perk: id });
+      return true;
+    }
     return this.runRewarded(id, payWithGems, offer.gemCost, () => this.grant(id));
   }
 
   /** Shared path for every rewarded placement (offers, level-up ×2, offline ×2, login ×2). */
   async runRewarded(placement: string, payWithGems: boolean, gemCost: number, grant: () => void): Promise<boolean> {
     const w = this.w;
-    if (this.busy) return false;
+    if (this.busy || !this.enabled) return false;
     w.analytics.log(EVENTS.rewardedOfferAccepted, { placement, method: payWithGems ? 'gems' : 'ad' });
     if (payWithGems) {
       if (!w.wallet.trySpend('gems', gemCost, `rewarded:${placement}`)) {
@@ -239,6 +296,7 @@ export class Monetization {
 
   private async onDeparting(): Promise<void> {
     const w = this.w;
+    if (!this.enabled) return;
     const verdict = w.adPolicy.checkInterstitial({
       phase: w.journey.phase,
       lifetimeSeconds: w.lifetimeSeconds(),
@@ -264,7 +322,7 @@ export class Monetization {
 
   canOfferFirstClass(): boolean {
     const w = this.w;
-    return !this.noForcedAds && !this.firstClassPending && w.flag('firstCarriageCoupled') && w.lifetimeSeconds() >= w.econ.offers.firstClassMinLifetimeMinutes * 60;
+    return this.enabled && !this.noForcedAds && !this.firstClassPending && w.flag('firstCarriageCoupled') && w.lifetimeSeconds() >= w.econ.offers.firstClassMinLifetimeMinutes * 60;
   }
 
   /** Session start is the other natural moment for the ticket offer (after the first milestone). */
@@ -301,6 +359,7 @@ export class Monetization {
 
   async purchase(productId: string, discounted = false): Promise<boolean> {
     const w = this.w;
+    if (!this.enabled) return false;
     const product = PRODUCTS.find((p) => p.id === productId);
     if (!product) return false;
     this.hooks.setAdPlaying(true);

@@ -735,6 +735,7 @@ export class Game implements World {
     }
     const outfit = OUTFITS.find((o) => o.minLevel === level);
     if (outfit && level > 1) this.ui.toast('New outfit', 'conductor');
+    if (!this.monetization.enabled && level === this.econ.perks.scooterLevel) this.ui.toast('Scooter!', 'skate');
     const reward = this.progression.rewardFor(level);
     this.analytics.log(EVENTS.routeLevelUp, { level, time: Math.round(this.lifetimeSeconds()) });
     this.events.emit('level.up', { level });

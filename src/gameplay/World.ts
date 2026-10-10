@@ -35,6 +35,7 @@ import type { DoubleChoice } from './GameUi';
 import type { Guests } from './Guests';
 import type { Guidance } from './Guidance';
 import type { Meta } from './Meta';
+import type { Monetization } from './Monetization';
 import type { Player } from './Player';
 import type { Press } from './Press';
 import type { StaffManager } from './Staff';
@@ -91,6 +92,8 @@ export interface World {
   /** The walkthrough and the one-time lessons (the guide arrow shows for a lesson about its own spot). */
   readonly coach: Coach;
   readonly meta: Meta;
+  /** Ads, offers and purchases behind the `MONETIZATION_ENABLED` switch, and what is earned instead when it is off. */
+  readonly monetization: Monetization;
   readonly press: Press;
   readonly demand: Demand;
   readonly feedback: Feedback;

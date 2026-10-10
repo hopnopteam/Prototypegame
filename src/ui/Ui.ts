@@ -2,6 +2,7 @@ import type { ObjectiveDef } from '../config/objectives';
 import * as THREE from 'three';
 import type { ProductDef } from '../config/content';
 import type { CeremonyDef, InterviewDef } from '../config/press';
+import { MONETIZATION_ENABLED } from '../config/economy';
 import { damp, formatClock, formatNumber } from '../core/math';
 import type { CarriageType } from '../core/types';
 import type { StationResult } from '../gameplay/events';
@@ -190,7 +191,9 @@ export class Ui implements GameUi {
     menu.classList.add('menu-btn');
     menu.appendChild(menuDot);
     const top = h('div.hud-top', {}, h('div.hud-row', {}, level, cash, gems, menu), journey);
-    const shop = button('bag', 'Shop', () => this.screens.store());
+    // Monetization off (config: MONETIZATION_ENABLED), the shop is gone and its button opens the Paint Shop:
+    // liveries earned by level, the rest for gems earned in play.
+    const shop = MONETIZATION_ENABLED ? button('bag', 'Shop', () => this.screens.store()) : button('paint', 'Paint Shop', () => this.screens.paintSheet());
     const conductorDot = h('span.dot', { hidden: true });
     const conductor = button('conductor', 'Conductor: upgrades and outfits', () => this.screens.upgrades());
     conductor.appendChild(conductorDot);
@@ -463,8 +466,9 @@ export class Ui implements GameUi {
         h('div.chip', { title: offer.detail, 'aria-label': offer.detail },
           icon(offer.icon, 30),
           h('b.val', { text: offer.label }),
-          h('button.watch', { 'aria-label': `Watch an ad: ${offer.detail}`, onclick: () => void this.game.monetization.accept(offer.id, false) }, icon('ad', 24)),
-          h('button.gems', { 'aria-label': `Pay ${offer.gemCost} gems: ${offer.detail}`, onclick: () => void this.game.monetization.accept(offer.id, true) }, icon('gem', 18), String(offer.gemCost)),
+          offer.free ? h('button.take', { 'aria-label': offer.detail, onclick: () => void this.game.monetization.accept(offer.id, false) }, icon('check', 24)) : null,
+          offer.free ? null : h('button.watch', { 'aria-label': `Watch an ad: ${offer.detail}`, onclick: () => void this.game.monetization.accept(offer.id, false) }, icon('ad', 24)),
+          offer.free ? null : h('button.gems', { 'aria-label': `Pay ${offer.gemCost} gems: ${offer.detail}`, onclick: () => void this.game.monetization.accept(offer.id, true) }, icon('gem', 18), String(offer.gemCost)),
         ),
       ),
     );

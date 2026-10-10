@@ -188,6 +188,7 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .chip button { height: 36px; min-width: 40px; border-radius: 12px; border: var(--line); font-weight: 800; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 0 8px; cursor: pointer; flex: none; box-sizing: border-box; }
 .chip .watch { background: var(--mustard); box-shadow: 0 3px 0 var(--mustard-dark); }
 .chip .gems { background: var(--powder); box-shadow: 0 3px 0 #7FA9C4; }
+.chip .take { background: #8FD19E; box-shadow: 0 3px 0 #4F9A64; }
 .chip button:active { transform: translateY(2px); box-shadow: none; }
 
 .boost { display: flex; flex-direction: column; gap: 8px; }

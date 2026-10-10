@@ -71,7 +71,7 @@ export class Player implements Actor {
   speed(): number {
     const w = this.w;
     let speed = w.econ.player.moveSpeed * (1 + w.data.conductor.speed * w.econ.conductor.speed.perLevel) * (1 + w.data.meta.perks.speedBonus);
-    if (w.iap.isOwned('conductor_scooter')) speed *= 1 + SCOOTER_SPEED_BONUS;
+    if (w.monetization.scooterOwned) speed *= 1 + SCOOTER_SPEED_BONUS;
     if (Date.now() < w.data.monetization.speedBoostUntil) speed *= w.econ.rewarded.speedBoost.multiplier;
     return speed;
   }
@@ -178,7 +178,7 @@ export class Player implements Actor {
       capacityLevel: w.data.conductor.capacity,
       charmLevel: w.data.conductor.fareBonus,
       skating: this.boosted,
-      scooter: w.iap.isOwned('conductor_scooter'),
+      scooter: w.monetization.scooterOwned,
       doubled: m.doubleFaresStop !== null && m.doubleFaresStop >= w.journey.stopSerial && m.doubleFaresStop <= w.journey.stopSerial + 1,
       carrying: !this.stack.isEmpty,
     });

@@ -1,6 +1,14 @@
 import type { ServiceNeed } from './classes';
 
 /**
+ * The one switch for every ad, offer, store and real-money purchase (fix list after the 1.3-hour playtest:
+ * "everything must be unlockable through play"). Off: no forced or rewarded ads, no offer chip, no store, no ×2
+ * buttons, no First Class Ticket; what used to need an ad or a purchase is earned instead (`perks` below). The code
+ * stays so it can come back: set this to true. Analytics and retention tracking run either way.
+ */
+export const MONETIZATION_ENABLED = false;
+
+/**
  * THE balance sheet. Every number a designer tunes lives here (prices and unlock order live in content.ts).
  * Remote config can override any leaf by its dotted path, e.g. "ads.minIntervalSeconds".
  * Times are seconds, distances metres, money in Fares unless noted.
@@ -554,6 +562,15 @@ export const ECONOMY = {
     /** Only automated income accrues offline, and at a reduced rate, so playing always beats waiting. */
     efficiency: 0.6,
   },
+
+  /**
+   * What used to come from an ad or a purchase, earned in play while `MONETIZATION_ENABLED` is off.
+   * - `holdTrainLevel`: from this route level, "Hold the train" (+15 s, once a stop) is a free button at last call.
+   * - `skatesStreak`: a perfect-stop streak this long puts the conductor on roller skates (`rewarded.speedBoost`).
+   * - `doubleFaresStreak`: every this many perfect stops in a row, fares at the next stop are doubled.
+   * - `scooterLevel`: the Conductor's Scooter (+25% walking, for good) is this route level's reward.
+   */
+  perks: { holdTrainLevel: 3, skatesStreak: 3, doubleFaresStreak: 5, scooterLevel: 6 },
 
   offers: {
     /** First Class Ticket: first shown after the first carriage couples, and never in the first 5 minutes. */

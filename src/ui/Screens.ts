@@ -1,5 +1,6 @@
 import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, type ProductDef } from '../config/content';
 import { CLASSES } from '../config/classes';
+import { ECONOMY, MONETIZATION_ENABLED } from '../config/economy';
 import { formatDuration, formatNumber } from '../core/math';
 import type { DoubleChoice } from '../gameplay/GameUi';
 import { CEREMONIES, INTERVIEWS, NOMINATION_LEVEL } from '../config/press';
@@ -125,6 +126,8 @@ export class Screens {
   // ─── Rewards ────────────────────────────────────────────────────────────────
 
   private doubleButtons(gemCost: number, finish: (choice: DoubleChoice) => void): HTMLElement {
+    // Monetization off: no ×2 for an ad or gems, just collect.
+    if (!MONETIZATION_ENABLED) return h('button.btn.green', { 'data-default': '', onclick: () => finish('none') }, 'Collect');
     return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
       h('div.btn-row', {},
         h('button.btn.primary', { onclick: () => finish('ad') }, icon('ad', 24), '×2 Free'),
@@ -375,6 +378,15 @@ export class Screens {
     g.analytics.log('iap_offer_shown', { product: 'store', trigger: 'store_button' });
   }
 
+  /** Monetization off, the side rail's paint button opens the Paint Shop on its own (no store around it). */
+  paintSheet(): void {
+    let close: () => void = () => undefined;
+    close = this.sheet('Paint Shop', 'paint', [
+      h('p', { text: 'New liveries come with route levels; the rest are bought with gems you earn on the line.' }),
+      this.paintShop(() => { close(); this.paintSheet(); }),
+    ]);
+  }
+
   /** Liveries: earned ones by reputation, premium ones for gems. Cosmetic only. */
   private paintShop(refresh: () => void): HTMLElement {
     const g = this.game;
@@ -589,7 +601,7 @@ export class Screens {
         const gemCost = g.econ.rewarded.loginDouble.gemCost;
         parts.push(h('div.btn-row', {},
           h('button.btn.green', { onclick: () => { meta.claimLogin(false); g.audio.play('chest'); reopen(); } }, 'Claim'),
-          h('button.btn.primary', {
+          !MONETIZATION_ENABLED ? null : h('button.btn.primary', {
             onclick: () => {
               close();
               void g.monetization.runRewarded('loginDouble', false, gemCost, () => { meta.claimLogin(true); g.audio.play('chest'); }).then((ok) => { if (!ok) meta.claimLogin(false); });
@@ -653,7 +665,7 @@ export class Screens {
       this.qualityPicker(),
       toggle('Developer tools', s.devTools, (v) => (s.devTools = v)),
       s.devTools ? h('button.btn.primary', { onclick: () => { close(); this.devPanel(); } }, icon('wrench', 24), 'Open developer tools') : null,
-      h('button.btn', {
+      !MONETIZATION_ENABLED ? null : h('button.btn', {
         onclick: async () => {
           const owned = await g.iap.restore();
           g.ui.toast(owned.length ? `Restored: ${owned.length} purchase${owned.length > 1 ? 's' : ''}` : 'Nothing to restore', 'check');
@@ -826,6 +838,9 @@ export function levelPerks(level: number): string[] {
     5: 'Regular passengers with stories',
   };
   if (features[level]) perks.push(features[level]);
+  // Monetization off: what used to be an ad or a purchase is a level's reward (config: perks).
+  if (!MONETIZATION_ENABLED && level === ECONOMY.perks.holdTrainLevel) perks.push('Hold the train at last call');
+  if (!MONETIZATION_ENABLED && level === ECONOMY.perks.scooterLevel) perks.push("The Conductor's Scooter");
   // A new carriage class to upgrade to (Basic is where every carriage starts).
   const cls = CLASSES.find((c) => c.level === level && c.tier > 0);
   if (cls) perks.push(`${cls.name} carriages`);

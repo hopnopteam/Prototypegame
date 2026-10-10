@@ -128,6 +128,9 @@ check(picks.total > 10 && picks.unneeded === 0, `every pickup was needed (${pick
 const ads = await page.evaluate(() => window.__interstitials);
 const minLife = 600;
 check(ads.every((a) => a.phase === 'departing'), `every interstitial in the Departing phase (${ads.length} shown)`);
+// Monetization is off by default (config: MONETIZATION_ENABLED): no forced ad may show at all.
+const monetized = await page.evaluate(() => window.nightExpress.monetization.enabled);
+if (!monetized) check(ads.length === 0, 'no forced ads with monetization off');
 check(ads.every((a) => a.life >= minLife), 'no interstitial before minute 10 of lifetime play');
 check(ads.every((a, i) => i === 0 || a.life - ads[i - 1].life >= 180), 'interstitials at least 3 minutes apart');
 
