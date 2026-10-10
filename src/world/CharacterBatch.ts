@@ -26,6 +26,8 @@ const FORGET_FRAMES = 600;
 
 interface Part {
   readonly mesh: THREE.Mesh;
+  /** The geometry it was adopted with: a part whose mesh changes geometry (a new outfit) is adopted again. */
+  readonly geometry: THREE.BufferGeometry;
   readonly batch: Batch;
   readonly id: number;
   readonly mask: number;
@@ -209,7 +211,14 @@ export class CharacterBatch {
     }
     const mesh = object as THREE.Mesh;
     if (mesh.isMesh && !(mesh as THREE.InstancedMesh).isInstancedMesh) {
-      const part = this.parts.get(mesh) ?? this.adopt(mesh);
+      let found = this.parts.get(mesh);
+      // Fix list 3.3 (an outfit chosen in the wardrobe never showed): a part keeps drawing the geometry it was
+      // adopted with, so a mesh given a new one (setLook) goes back and comes in again with it.
+      if (found && found.geometry !== mesh.geometry) {
+        this.release(found);
+        found = undefined;
+      }
+      const part = found ?? this.adopt(mesh);
       if (part) {
         part.seen = frame;
         if (part.highlight !== highlight) {
@@ -233,7 +242,7 @@ export class CharacterBatch {
     const m = mesh.material;
     const batch = m === MATERIALS.character ? this.lit : m === MATERIALS.solid ? this.solid : m === MATERIALS.shadow ? this.shadow : null;
     if (!batch || !batch.accepts(mesh.geometry)) return null;
-    const part: Part = { mesh, batch, id: batch.add(mesh.geometry), mask: mesh.layers.mask, seen: 0, highlight: false };
+    const part: Part = { mesh, geometry: mesh.geometry, batch, id: batch.add(mesh.geometry), mask: mesh.layers.mask, seen: 0, highlight: false };
     // The mesh itself no longer draws on any camera (the batch draws it).
     mesh.layers.mask = 0;
     this.parts.set(mesh, part);

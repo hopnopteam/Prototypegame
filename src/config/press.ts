@@ -75,7 +75,7 @@ export const RIVALS: Rival[] = [
     spoils: { what: 'Their coal contract', perk: { kind: 'speedBonus', amount: 0.03, label: 'Walk +3%' }, cashPerCarriage: 10 },
   },
   {
-    name: 'Midnight Mail', reputation: 100, blurb: 'Carries letters. Occasionally people.', livery: '#4A4E69', trim: '#C9A45C',
+    name: 'Midnight Mail', reputation: 140, blurb: 'Carries letters. Occasionally people.', livery: '#4A4E69', trim: '#C9A45C',
     owner: {
       name: 'Lady Mildred Postlethwaite', title: 'postmistress general', carriages: 4,
       look: { skin: '#F4D3BC', hair: '#B7B0C8', hat: 'bun', face: 'lorgnette' },
@@ -86,7 +86,7 @@ export const RIVALS: Rival[] = [
     spoils: { what: 'The mail contract', perk: { kind: 'fareBonus', amount: 0.02, label: 'Fares +2%' }, cashPerCarriage: 12 },
   },
   {
-    name: 'Highland Rambler', reputation: 200, blurb: 'Tartan seats, strong opinions.', livery: '#5E7F5A', trim: '#B8483E',
+    name: 'Highland Rambler', reputation: 380, blurb: 'Tartan seats, strong opinions.', livery: '#5E7F5A', trim: '#B8483E',
     owner: {
       name: 'The McTavish', title: 'laird of the Rambler', carriages: 5,
       look: { skin: '#E9B89A', hair: '#C2562E', hat: 'tam', face: 'beard' },
@@ -97,7 +97,7 @@ export const RIVALS: Rival[] = [
     spoils: { what: 'Their tartan blankets', perk: { kind: 'tipBonus', amount: 0.03, label: 'Tips +3%' }, cashPerCarriage: 15, gems: 5 },
   },
   {
-    name: 'Duchess of Dover', reputation: 330, blurb: 'Serves tea at exactly 4 o\'clock.', livery: '#8E6A8C', trim: '#EAD9A8',
+    name: 'Duchess of Dover', reputation: 750, blurb: 'Serves tea at exactly 4 o\'clock.', livery: '#8E6A8C', trim: '#EAD9A8',
     owner: {
       name: 'Duchess Wilhelmina', title: 'of Dover, and of tea', carriages: 5,
       look: { skin: '#F6DCC8', hair: '#E8E2D6', hat: 'tiara', face: 'pearls' },
@@ -108,7 +108,7 @@ export const RIVALS: Rival[] = [
     spoils: { what: 'Her four o\'clock tea', perk: { kind: 'tipBonus', amount: 0.03, label: 'Tips +3%' }, cashPerCarriage: 20, gems: 5 },
   },
   {
-    name: 'The Silver Arrow', reputation: 480, blurb: 'Fast, shiny, a little smug.', livery: '#9AA3AD', trim: '#2E2D34',
+    name: 'The Silver Arrow', reputation: 1300, blurb: 'Fast, shiny, a little smug.', livery: '#9AA3AD', trim: '#2E2D34',
     owner: {
       name: 'Baron von Zoom', title: 'fastest man on rails', carriages: 6,
       look: { skin: '#EFCFB4', hair: '#E3C16F', hat: 'goggles', face: 'scarf' },
@@ -119,7 +119,7 @@ export const RIVALS: Rival[] = [
     spoils: { what: 'Their racing timetable', perk: { kind: 'speedBonus', amount: 0.03, label: 'Walk +3%' }, cashPerCarriage: 25, gems: 8 },
   },
   {
-    name: 'The Blue Pullman', reputation: 640, blurb: 'Old money on new rails.', livery: '#34507A', trim: '#D9B45A',
+    name: 'The Blue Pullman', reputation: 2100, blurb: 'Old money on new rails.', livery: '#34507A', trim: '#D9B45A',
     owner: {
       name: 'Cornelius Gold III', title: 'old money', carriages: 7,
       look: { skin: '#F2D0B6', hair: '#3B3A40', hat: 'bowler', face: 'monocle' },
@@ -130,7 +130,7 @@ export const RIVALS: Rival[] = [
     spoils: { what: 'Their old-money regulars', perk: { kind: 'fareBonus', amount: 0.03, label: 'Fares +3%' }, cashPerCarriage: 30, gems: 8 },
   },
   {
-    name: 'Orient Belle', reputation: 820, blurb: 'Five-time Golden Whistle winner.', livery: '#7A2E3A', trim: '#E2B653',
+    name: 'Orient Belle', reputation: 3200, blurb: 'Five-time Golden Whistle winner.', livery: '#7A2E3A', trim: '#E2B653',
     owner: {
       name: 'Madame Valentina Noir', title: 'five-time champion', carriages: 8,
       look: { skin: '#F1CDB5', hair: '#1F1B24', hat: 'feather', face: 'lashes' },

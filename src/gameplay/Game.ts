@@ -734,7 +734,13 @@ export class Game implements World {
       }
     }
     const outfit = OUTFITS.find((o) => o.minLevel === level);
-    if (outfit && level > 1) this.ui.toast('New outfit', 'conductor');
+    // A newly earned outfit goes straight on (fix list 3.3: an unlock should show on the conductor at once; the
+    // wardrobe can change it back).
+    if (outfit && level > 1) {
+      this.data.cosmetics.outfit = outfit.id;
+      this.ui.toast('New outfit', 'conductor');
+      this.particles.emit('sparkle', this.player.pos.x, FLOOR_Y + 1.2, this.player.pos.z, 18, 0.5);
+    }
     if (!this.monetization.enabled && level === this.econ.perks.scooterLevel) this.ui.toast('Scooter!', 'skate');
     const reward = this.progression.rewardFor(level);
     this.analytics.log(EVENTS.routeLevelUp, { level, time: Math.round(this.lifetimeSeconds()) });

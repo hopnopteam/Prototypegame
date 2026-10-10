@@ -585,6 +585,7 @@ export class TrainState {
     this.loco.setNight(w.stage.lighting.night);
 
     for (const view of this.views) view.animate(dt);
+    this.tidyShoes();
     this.publishLamps();
     this.publishShadows();
     // Class badges arrive with the classes themselves (the Comfort refit comes after the first coupling).
@@ -1194,7 +1195,7 @@ export class TrainState {
       icon: 'shoe',
       ring: true,
       hideWhenInactive: true,
-      active: () => cabin.shoes === 'dirty',
+      active: () => cabin.shoes === 'dirty' && !!cabin.guest,
       stay: (zone, actor, dt) => this.shineStay(cabin, zone, actor, dt),
     }));
   }
@@ -1225,12 +1226,33 @@ export class TrainState {
     w.ui.floatText(`+${tip}`, cabin.center.x, FLOOR_Y + 1.9, cabin.center.z, 'cash');
   }
 
+  /**
+   * Shoes go with their guest (fix list 3.2: polishing jobs were left by doors after the guest had gone). Taken in
+   * without a tip: whoever was in the room is no longer aboard. The paths that move a guest (`rehome`) or take them
+   * off (`Guests.destroy`) call this straight away; the check each frame is the safety net for any other.
+   */
+  clearShoes(cabin: Cabin): void {
+    if (cabin.shoes === 'none') return;
+    cabin.shoes = 'none';
+    if (cabin.shoeMesh) cabin.shoeMesh.visible = false;
+    if (cabin.shoeZone) cabin.shoeZone.progress = 0;
+  }
+
+  private tidyShoes(): void {
+    for (const c of this.cabins) {
+      if (c.shoes === 'none' || (c.guest && c.guest.cabin === c)) continue;
+      // Counted for the smoke run: every path that takes a guest away should have taken their shoes in already.
+      this.audit.orphanShoes++;
+      this.clearShoes(c);
+    }
+  }
+
   /** A pair of shoes waiting to be polished, nearest a point (for the guide and the attendant). */
   shoesToShine(near: Vec2, carriage: number | null = null): Cabin | null {
     let best: Cabin | null = null;
     let bestD = Infinity;
     for (const c of this.cabins) {
-      if (c.shoes !== 'dirty' || (carriage !== null && c.carriage !== carriage)) continue;
+      if (c.shoes !== 'dirty' || !c.guest || (carriage !== null && c.carriage !== carriage)) continue;
       const d = Math.hypot(c.shoePad.x - near.x, c.shoePad.z - near.z);
       if (d < bestD) {
         bestD = d;
@@ -1328,7 +1350,7 @@ export class TrainState {
   }
 
   /** The trip audit's share (session 22; the smoke run reads it): rooms turned around. */
-  readonly audit = { turnarounds: 0 };
+  readonly audit = { turnarounds: 0, orphanShoes: 0 };
   /** Each room's lights-out amount (0 lit, 1 asleep), easing as guests go to sleep and wake. */
   private readonly nightLevel = new Map<string, number>();
 

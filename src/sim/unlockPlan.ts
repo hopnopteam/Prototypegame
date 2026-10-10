@@ -1,6 +1,14 @@
 import { CARRIAGE_CATALOGUE, CHOOSABLE, COUPLE_SLOTS, LEGACY_TRAIN, MAX_CARRIAGES, SLOT_PRICE_STEP, STATION_UPGRADES, type UnlockDef } from '../config/content';
 import { CLASS_BY_ID, isPassengerType, type ClassId } from '../config/classes';
 import type { CarriageType } from '../core/types';
+import { ECONOMY } from '../config/economy';
+
+/** The late-game price curve (config: priceCurve): unchanged up to `from`, up to `max` times by `to`. */
+export function curvedPrice(price: number, curve = ECONOMY.priceCurve): number {
+  if (price <= curve.from) return price;
+  const t = Math.min(1, Math.log(price / curve.from) / Math.log(curve.to / curve.from));
+  return Math.round(price * (1 + (curve.max - 1) * t));
+}
 
 /** A tile's id: the carriage slot it lives in plus its key in that carriage's catalogue entry. */
 export const tileId = (carriage: number, key: string): string => `c${carriage}.${key}`;
@@ -20,7 +28,7 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
         id: tileId(index, t.key),
         kind: t.kind,
         label: t.label.replace('{n}', String(cabinsBefore + (t.cabin ?? 0) + 1)),
-        price: Math.round(t.price * scale),
+        price: curvedPrice(Math.round(t.price * scale)),
         stars: t.stars,
         carriage: index,
         requires: t.requires.map((r) => (r === 'couple' ? `couple_${index}` : r.startsWith('@') ? r.slice(1) : tileId(index, r))),
@@ -37,11 +45,11 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
     cabinsBefore += entry.cabins;
   });
   for (const u of STATION_UPGRADES) {
-    defs.push({ id: `st.${u.key}`, kind: u.kind, label: u.label, price: u.price, stars: u.stars, carriage: -1, requires: u.requires, effect: u.effect });
+    defs.push({ id: `st.${u.key}`, kind: u.kind, label: u.label, price: curvedPrice(u.price), stars: u.stars, carriage: -1, requires: u.requires, effect: u.effect });
   }
   COUPLE_SLOTS.forEach((slot, i) => {
     const n = i + 1;
-    defs.push({ id: `couple_${n}`, kind: 'couple', label: 'New Carriage', price: slot.price, stars: slot.stars, carriage: n, requires: slot.requires, effect: 'You choose what joins the train' });
+    defs.push({ id: `couple_${n}`, kind: 'couple', label: 'New Carriage', price: curvedPrice(slot.price), stars: slot.stars, carriage: n, requires: slot.requires, effect: 'You choose what joins the train' });
   });
   return defs;
 }

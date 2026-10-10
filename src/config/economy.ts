@@ -475,10 +475,15 @@ export const ECONOMY = {
   },
 
   progression: {
-    /** Stars needed to reach each route level (index 0 = level 1). Route 1 maxes at level 8. */
-    levelThresholds: [0, 75, 170, 290, 420, 560, 710, 880],
+    /**
+     * Stars needed to reach each route level (index 0 = level 1). Route 1 maxes at level 8. Fix list 2.2 (the
+     * 1.3-hour playtest: "the content took about an hour"): spread over about two hours, the first quarter hour as
+     * fast as before (level 2 ~5 min, 3 ~11) and each later level a little further off than the last (4 ~20,
+     * 5 ~33, 6 ~50, 7 ~75, 8 ~105 on the autopilot); was 880 stars for level 8 (~39 min).
+     */
+    levelThresholds: [0, 75, 175, 360, 700, 1250, 2200, 3400],
     levelRailMiles: [0, 3, 4, 5, 6, 8, 10, 12],
-    levelCash: [0, 80, 150, 250, 400, 600, 850, 1200],
+    levelCash: [0, 80, 150, 300, 550, 900, 1400, 2200],
     /** Feature gates by route level (§9: introduce each layer after the one below is understood). */
     unlockLevels: {
       conductorUpgrades: 2,
@@ -506,11 +511,11 @@ export const ECONOMY = {
     host: { speed: 3.0, capacity: 1, homeIdleSeconds: 0.4 },
     projectionist: { speed: 3.0, capacity: 1, homeIdleSeconds: 0.4 },
     /**
-     * Session 24 (owner: "the player should almost never be idle"): a new Attendant cleans and restocks (what its
-     * tile says); answering guests' requests and polishing shoes come with its training (this staff level, the
-     * "Faster Attendant" tile). Until then those are the conductor's, so hiring help never leaves them idle.
+     * The staff level from which the Attendant also answers guests' requests and polishes shoes (besides tidying).
+     * Fix list 3.1 (owner: "the assistant no longer does all the tasks it used to"): 1 again, from the moment it is
+     * hired (session 24 had held these back until its training, level 2).
      */
-    attendantServesFromLevel: 2,
+    attendantServesFromLevel: 1,
     /** Staff upgrade tiles: +speed fraction and +capacity per level. */
     upgradeSpeedPerLevel: 0.2,
     upgradeCapacityPerLevel: 1,
@@ -571,6 +576,13 @@ export const ECONOMY = {
    * - `scooterLevel`: the Conductor's Scooter (+25% walking, for good) is this route level's reward.
    */
   perks: { holdTrainLevel: 3, skatesStreak: 3, doubleFaresStreak: 5, scooterLevel: 6 },
+
+  /**
+   * Fix list 2.2: later purchases cost gently more, so the train fills out over about two hours with no wall.
+   * A tile priced at or under `from` is unchanged; above it the price grows with the log of the price, to `max`
+   * times at `to` and beyond (couplings, carriage tiles and station upgrades alike). Applied in `buildUnlocks`.
+   */
+  priceCurve: { from: 300, to: 4000, max: 1.3 },
 
   offers: {
     /** First Class Ticket: first shown after the first carriage couples, and never in the first 5 minutes. */

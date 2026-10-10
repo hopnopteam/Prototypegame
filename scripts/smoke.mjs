@@ -119,6 +119,7 @@ check(trip.trips >= 10 && trip.sleeps >= 5, `guests made whole trips (${trip.tri
 check(trip.sleptTwice === 0, `no guest slept twice (${trip.sleptTwice})`);
 check(trip.repeats === 0 && trip.misplaced === 0, `every request fits its part of the night and class, none repeated (${trip.repeats} repeated, ${trip.misplaced} out of place)`);
 check(trip.turnarounds >= 5, `rooms tidied between guests (${trip.turnarounds} rooms)`);
+check(trip.orphanShoes === 0, `no shoes left by a door after their guest had gone (${trip.orphanShoes})`);
 const phases = ['settling in', 'lights out', 'wake-up', 'arrival'].map((p) => tripLines.filter((l) => l.includes(`→ ${p}`)).length);
 check(phases.every((n) => n > 0), `a debug line on every guest phase change (settling in ${phases[0]}, lights out ${phases[1]}, wake-up ${phases[2]}, arrival ${phases[3]})`);
 

@@ -96,7 +96,7 @@ export class Feedback {
     }
     if (elapsed >= f.slowRequestSeconds && this.cuesOn) {
       this.nudge(f.mood.slow);
-      w.ui.floatIcon('clock', guest.pos.x, FLOOR_Y + FLOAT_HEIGHT, guest.pos.z, 'miss');
+      w.ui.floatIcon('frown', guest.pos.x, FLOOR_Y + FLOAT_HEIGHT, guest.pos.z, 'miss');
       this.maybeSay('slowService', guest, 0.7);
       return;
     }
@@ -128,7 +128,7 @@ export class Feedback {
       w.audio.play('aww');
       this.nudge(w.econ.feedback.mood.missed * Math.min(3, missed.length));
       for (const guest of missed) {
-        guest.view.showBubble('clock', 'alert');
+        guest.view.showBubble('frown', 'alert');
         w.ui.floatIcon('person', guest.pos.x, FLOOR_Y + FLOAT_HEIGHT, guest.pos.z, 'miss', true);
       }
       this.maybeSay('missedTrain', missed[0], 1);

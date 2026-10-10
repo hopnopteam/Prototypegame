@@ -38,6 +38,8 @@ const SHOULDER_Y = 0.78;
 const HEAD_Y = 1.02;
 export const STACK_BASE_Y = 0.76;
 const SHOE = '#2A2433';
+/** World size of a guest's request bubble (fix list 3.4: smaller, was 0.9). */
+const BUBBLE_SIZE = 0.74;
 
 const bodyCache = new Map<string, THREE.BufferGeometry>();
 const limbCache = new Map<string, THREE.BufferGeometry>();
@@ -597,7 +599,10 @@ export class CharacterView {
     if (this.bubble) this.bubble.position.z = this.bubbleZ;
   }
 
-  /** `ring` (0..steps, or -1 for none) draws the generous-tip ring around a request bubble. */
+  /**
+   * `ring` (0..steps, or -1 for none) draws a ring around the bubble. Fix list 3.4 (owner: "no countdowns over
+   * passengers"): gameplay no longer passes one; quick service still earns the bigger tip, unseen.
+   */
   showBubble(icon: IconName | null, style: BubbleStyle = 'request', height = 1.85, ring = -1): void {
     const key = icon ? `${icon}:${style}:${ring}` : '';
     if (key === this.bubbleKey) return;
@@ -608,7 +613,8 @@ export class CharacterView {
       return;
     }
     if (!this.bubble) {
-      this.bubble = makeSprite(bubbleTexture(icon, style, ring), 0.9);
+      // Fix list 3.4: a small bubble with just the wanted thing (was 0.9, with a countdown ring round it).
+      this.bubble = makeSprite(bubbleTexture(icon, style, ring), BUBBLE_SIZE);
       // Bubbles are world UI: hidden with the pads on the title screen and in the intro.
       this.bubble.layers.set(WORLD_UI_LAYER);
       this.root.add(this.bubble);

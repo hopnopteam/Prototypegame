@@ -39,8 +39,6 @@ const WAKE_SECONDS = 1.2;
 const TRIP_LOG: Record<TripPhase | 'boarding' | 'arrival', string> = {
   boarding: 'boarding', evening: 'settling in', night: 'lights out', morning: 'wake-up', arrival: 'arrival',
 };
-/** Steps in the "generous tip" ring drawn around a request bubble. */
-export const TIP_RING_STEPS = 12;
 
 let nextId = 1;
 
@@ -747,7 +745,7 @@ export class Guests {
           guest.happyTime -= dt;
           if (guest.happyTime <= 0) this.afterRequest(guest);
         } else if (guest.request && guest.request !== 'bathroom') {
-          guest.view.showBubble(guest.request as IconName, guest.slow ? 'alert' : guest.pending.length > 0 ? 'royal' : 'request', 1.85, this.tipRingStep(guest));
+          guest.view.showBubble(guest.request as IconName, guest.slow ? 'alert' : guest.pending.length > 0 ? 'royal' : 'request', 1.85);
         }
         break;
       case 'waitingBathroom': {
@@ -794,13 +792,6 @@ export class Guests {
       default:
         break;
     }
-  }
-
-  /** The ring around a request bubble shrinks as the generous-tip window runs out (never a penalty). */
-  private tipRingStep(guest: Guest): number {
-    const elapsed = this.w.time - guest.requestAt;
-    const fraction = 1 - elapsed / this.w.econ.service.quickSeconds;
-    return fraction <= 0 ? -1 : Math.ceil(fraction * TIP_RING_STEPS);
   }
 
   private requestsAllowed(): boolean {
@@ -898,7 +889,7 @@ export class Guests {
       guest.pos.z = guest.cabin.center.z + 0.2;
       guest.mover.facing = -Math.PI / 2;
     }
-    guest.view.showBubble(need as IconName, guest.pending.length > 0 ? 'royal' : 'request', 1.85, TIP_RING_STEPS);
+    guest.view.showBubble(need as IconName, guest.pending.length > 0 ? 'royal' : 'request', 1.85);
     guest.view.act('wave', w.econ.guests.waveSeconds);
     w.audio.play('soft', { volume: 0.5 });
   }
@@ -941,7 +932,7 @@ export class Guests {
       guest.pos.z = guest.cabin.center.z + 0.2;
       guest.mover.facing = -Math.PI / 2;
     }
-    guest.view.showBubble('turndown', 'request', 1.85, TIP_RING_STEPS);
+    guest.view.showBubble('turndown', 'request', 1.85);
     guest.view.act('wave', w.econ.guests.waveSeconds);
   }
 
@@ -975,7 +966,7 @@ export class Guests {
     if (next) {
       guest.request = next;
       guest.requestAt = w.time;
-      guest.view.showBubble(next as IconName, guest.pending.length > 0 ? 'royal' : 'request', 1.85, TIP_RING_STEPS);
+      guest.view.showBubble(next as IconName, guest.pending.length > 0 ? 'royal' : 'request', 1.85);
       return;
     }
     if (listDone) {
@@ -1297,7 +1288,10 @@ export class Guests {
     if (guest.story && guest.state !== 'leaving') this.w.meta?.onStoryGuestLost(guest.story);
     this.w.venues?.releaseGuest(guest);
     guest.state = 'gone';
-    if (guest.cabin && guest.cabin.guest === guest) guest.cabin.guest = null;
+    if (guest.cabin && guest.cabin.guest === guest) {
+      this.w.train.clearShoes(guest.cabin);
+      guest.cabin.guest = null;
+    }
     if (guest.bathroom) {
       if (guest.bathroom.occupant === guest) guest.bathroom.occupant = null;
       const i = guest.bathroom.waiting.indexOf(guest);
@@ -1328,6 +1322,8 @@ export class Guests {
     moving.sort((a, b) => Number(b.inCabin) - Number(a.inCabin));
     for (const guest of moving) {
       const from = guest.cabin as Cabin;
+      // Their shoes come in with them (a polished pair still earns its tip).
+      if (from.shoes !== 'none') w.train.takeShoes(from, guest);
       if (from.guest === guest) from.guest = null;
       const room = fresh.find((c) => c.isFree) ?? w.train.freeCabin(guest.cls) ?? w.train.cabins.find((c) => c.isFree) ?? null;
       if (!room) {

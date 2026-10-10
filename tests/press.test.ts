@@ -20,9 +20,9 @@ describe('press', () => {
   });
 
   it('reports every rival passed in one jump, in order', () => {
-    const passed = rivalsPassed(20, 300, RIVALS).map((r) => r.name);
+    const passed = rivalsPassed(20, 400, RIVALS).map((r) => r.name);
     expect(passed).toEqual(['Puffing Billy', 'Midnight Mail', 'Highland Rambler']);
-    expect(rivalsPassed(300, 300, RIVALS)).toEqual([]);
+    expect(rivalsPassed(400, 400, RIVALS)).toEqual([]);
   });
 
   it('measures the race to the next rival from the one below', () => {

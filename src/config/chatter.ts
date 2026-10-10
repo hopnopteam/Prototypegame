@@ -30,8 +30,8 @@ export const REACTIONS: Record<ChatterSituation, Reaction> = {
   boardBadBuzz: { icon: 'frown' },
   // Requests.
   fastService: { icon: 'bolt' },
-  slowService: { icon: 'clock' },
-  waitingLong: { icon: 'clock' },
+  slowService: { icon: 'frown' },
+  waitingLong: { icon: 'frown' },
   deskWaiting: { icon: 'ticket' },
   // Getting off: a one-look review.
   reviewGood: { icon: 'heart' },
