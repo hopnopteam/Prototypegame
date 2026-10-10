@@ -35,6 +35,10 @@ export interface ArchetypeDef {
   cls: ClassId;
   /** How often they turn up among travellers of their class. */
   weight: number;
+  /**
+   * Fix list 2.3 ("every number on screen logical"): 1 for everyone, so a ticket always costs its class's fare
+   * (a Basic ticket is 15, whoever buys it). Personality shows in the tips instead.
+   */
   fareMultiplier: number;
   tipMultiplier: number;
   speedMultiplier: number;
@@ -62,12 +66,12 @@ export type BedMess = 'unmade';
 export const COMMON_MESS: MessPiece[] = ['paperBalls', 'wrappers', 'cup'];
 
 /**
- * Who travels, class by class. Fares and tips come mostly from the class (config/classes.ts); the archetype's
- * own multipliers are a light seasoning on top (a grandma tips a little more, a backpacker a little less).
+ * Who travels, class by class. Fares come from the class alone (config/classes.ts); the archetype's tip multiplier
+ * is a light seasoning on top (a grandma or a celebrity tips more, a student a little less).
  */
 export const ARCHETYPES: ArchetypeDef[] = [
   {
-    id: 'student', label: 'Student', cls: 'basic', weight: 3, fareMultiplier: 0.95, tipMultiplier: 0.9, speedMultiplier: 1.14, minCarriages: 1,
+    id: 'student', label: 'Student', cls: 'basic', weight: 3, fareMultiplier: 1, tipMultiplier: 0.9, speedMultiplier: 1.14, minCarriages: 1,
     colors: { body: '#D9A03F', accent: '#34507A', skin: '#E8B894', hair: '#2E2420' }, accessory: 'backpack', hat: 'cap', requests: { pillow: 2, tea: 1.5 },
     mood: 'smile',
     mess: ['wrappers', 'paperBalls', 'book', 'socks'],
@@ -91,7 +95,7 @@ export const ARCHETYPES: ArchetypeDef[] = [
     mess: ['yarn', 'book', 'cup', 'newspaper'],
   },
   {
-    id: 'family', label: 'Family', cls: 'comfort', weight: 2, fareMultiplier: 1.15, tipMultiplier: 1.05, speedMultiplier: 0.95, minCarriages: 1,
+    id: 'family', label: 'Family', cls: 'comfort', weight: 2, fareMultiplier: 1, tipMultiplier: 1.15, speedMultiplier: 0.95, minCarriages: 1,
     colors: { body: '#4F86B8', accent: '#F2C94C', skin: '#E3AE87', hair: '#2F2520' }, accessory: 'child', requests: { blanket: 1.5, towel: 1.2 },
     mood: 'smile',
     mess: ['teddy', 'toyTrain', 'appleCore', 'wrappers'],
@@ -103,19 +107,19 @@ export const ARCHETYPES: ArchetypeDef[] = [
     mess: ['newspaper', 'papers', 'cup', 'paperBalls'],
   },
   {
-    id: 'newlyweds', label: 'Newlyweds', cls: 'first', weight: 1.5, fareMultiplier: 1.05, tipMultiplier: 1.25, speedMultiplier: 1, minCarriages: 1,
+    id: 'newlyweds', label: 'Newlyweds', cls: 'first', weight: 1.5, fareMultiplier: 1, tipMultiplier: 1.3, speedMultiplier: 1, minCarriages: 1,
     colors: { body: '#FBF3E4', accent: '#E8849A', skin: '#EDBE9A', hair: '#5A3B2A' }, accessory: 'flower', requests: { champagne: 2 },
     mood: 'heart',
     mess: ['petals', 'champagne', 'cards', 'cup'],
   },
   {
-    id: 'vip', label: 'VIP', cls: 'first', weight: 2, fareMultiplier: 1.1, tipMultiplier: 1.2, speedMultiplier: 0.9, minCarriages: 1,
+    id: 'vip', label: 'VIP', cls: 'first', weight: 2, fareMultiplier: 1, tipMultiplier: 1.3, speedMultiplier: 0.9, minCarriages: 1,
     colors: { body: '#C8A27A', accent: '#E3B352', skin: '#F0C6A2', hair: '#1E1A18' }, accessory: 'furcoat', requests: { champagne: 1.5, coffee: 1.2 },
     mood: 'gem',
     mess: ['boa', 'champagne', 'cards', 'petals'],
   },
   {
-    id: 'celebrity', label: 'Celebrity', cls: 'first', weight: 1.2, fareMultiplier: 1.15, tipMultiplier: 1.3, speedMultiplier: 0.95, minCarriages: 1,
+    id: 'celebrity', label: 'Celebrity', cls: 'first', weight: 1.2, fareMultiplier: 1, tipMultiplier: 1.4, speedMultiplier: 0.95, minCarriages: 1,
     colors: { body: '#23202B', accent: '#E2B653', skin: '#C98E68', hair: '#1D1616' }, accessory: 'flower', hat: 'tophat', requests: { champagne: 2 },
     mood: 'star',
     mess: ['champagne', 'cards', 'boa', 'petals'],
@@ -223,7 +227,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 45, stars: 3, role: 'attendant', requires: ['cabin_1'], flags: ['firstCabinCleaned'], effect: 'Cleans cabins' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 60, stars: 3, tier: 1, requires: ['hire_attendant'], effect: 'Fares +25%' },
       // Session 17: 30 (was 35). Bought on the first leg for the travellers waiting at the first stop.
-      { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 30, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
+      { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 25, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
       { key: 'refurb_2', kind: 'refurb', label: 'Comfort', price: 150, stars: 4, tier: 2, requires: ['refurb_1', '@couple_1'], flags: ['level_2'], effect: '2 cabins · Fares ×2.5' },
       { key: 'comfort_lamp', kind: 'comfort', label: 'Lamps', price: 85, stars: 2, comfort: 'lamp', requires: ['refurb_1', '@couple_1'], effect: 'Tips +20%' },
       { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 160, stars: 3, role: 'porter', requires: ['@couple_2'], effect: 'Check-in & bags' },

@@ -412,8 +412,8 @@ export const ECONOMY = {
       /** The last call chimes this long before the doors close. */
       lastCallSeconds: 6,
       /**
-       * Who comes for the night train, in order. The first pays a full fare (a backpacker), so their fare always
-       * opens the carriage: a cheaper archetype (a student pays 14 of the 15) once soft-locked the opening.
+       * Who comes for the night train, in order. Fix list 2.3: every Basic ticket is 15, so the first fare opens the
+       * carriage (15) and the second builds Cabin 2 (15): the first prices are exactly the first earnings.
        */
       archetypes: ['backpacker', 'student'] as string[],
     },
