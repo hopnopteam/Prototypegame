@@ -308,6 +308,20 @@ export class Stage {
   private pinnedCount = 0;
 
   /**
+   * Finishes every compiled program now (fix list 2.1, the startup hitch). A program compiled in the background
+   * is only linked and read back (its uniforms and attributes) the first time something draws with it, and that
+   * waits for the driver: compiled for a part that is hidden at first (a covered room, the world UI, a reveal's
+   * dust), it stalled the frame that first showed it. Asking for the uniforms here takes that wait during loading.
+   */
+  private finishPrograms(): void {
+    for (const program of this.renderer.info.programs ?? []) {
+      const p = program as unknown as { getUniforms?: () => unknown; getAttributes?: () => unknown };
+      p.getUniforms?.();
+      p.getAttributes?.();
+    }
+  }
+
+  /**
    * Compiles every shader the game will need before the first frame. A shader first met mid-game (the
    * refurbishment wipe's clipped materials, a poster's texture, a new carriage) is compiled on the spot,
    * which stalls a phone for a few hundred milliseconds right at a big moment. Everything already built
@@ -357,14 +371,35 @@ export class Stage {
     for (const material of sprites) group.add(Object.assign(new THREE.Sprite(material), { frustumCulled: false }));
     this.scene.add(group);
     const timeout = new Promise<void>((done) => setTimeout(done, timeoutMs));
+    // The warm-up render sees every layer: the world UI (pads, tiles, markers) is hidden from the camera during
+    // the intro, and a program first drawn when the intro ends finished linking then, all at once (fix list 2.1).
+    const layers = this.rig.camera.layers.mask;
+    this.rig.camera.layers.enableAll();
     try {
       await Promise.race([this.renderer.compileAsync(this.scene, this.rig.camera), timeout]);
       // The shadow pass's depth shaders (and anything compileAsync left) compile on a real render.
       this.renderer.shadowMap.needsUpdate = true;
+      // Everything is drawn once, out of view or not: a GPU driver finishes a shader for the exact state it is
+      // drawn with (blending, culling, the shadow pass) at its first draw, and parts of the train the intro's camera
+      // first passes over stalled those frames for whole seconds on a software renderer (fix list 2.1).
+      const culled: THREE.Object3D[] = [];
+      this.scene.traverseVisible((o) => {
+        if (o.frustumCulled) {
+          o.frustumCulled = false;
+          culled.push(o);
+        }
+      });
       this.renderer.render(this.scene, this.rig.camera);
+      for (const o of culled) o.frustumCulled = true;
+      this.finishPrograms();
+      // Wait here until the GPU has really drawn all that: reading one pixel back cannot return sooner. Otherwise
+      // the work runs on into the intro's first frames and holds them up (on a software renderer, for seconds).
+      const gl = this.renderer.getContext();
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
     } catch {
       // A failed warm-up only means shaders compile when first needed, as before.
     }
+    this.rig.camera.layers.mask = layers;
     this.scene.remove(group);
     // The stand-in materials are kept (never disposed): three frees a shader as soon as no material uses it,
     // and the textured ones are the only users until a poster or nameplate needs that shader later.
