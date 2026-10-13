@@ -5,6 +5,8 @@ import { createZoneMaterial } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, floorIconTexture, makeSprite, TILE_MARKER_ASPECT, TILE_MARKER_WIDTH, TileFace, TileMarker } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
+import { VISUALS } from '../config/visuals';
+import { nearMarker, noteMarker, underPopup } from './screenMask';
 
 const RING_GEOMETRY = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 
@@ -15,6 +17,8 @@ export function markWorldUi(object: THREE.Object3D): void {
   object.traverse((o) => o.layers.set(WORLD_UI_LAYER));
 }
 
+/** A pad's floating icon gives way to a tile marker this close to the pad (metres, across the floor). */
+const PAD_MARKER_REACH = 1.0;
 /** How long a pad's pop lasts when its job is done (seconds), and how much it grows. */
 const DONE_POP_SECONDS = 0.28;
 const DONE_POP_SCALE = 0.16;
@@ -25,6 +29,7 @@ export class ZoneRing {
   private readonly icon: THREE.Sprite | null;
   private readonly ring: THREE.Mesh;
   private readonly size: number;
+  private readonly iconHeight: number;
   private time = Math.random() * 5;
   private lit = false;
   private litAmount = 0;
@@ -35,18 +40,20 @@ export class ZoneRing {
    * Session 24: the pad wears its colour (the kind of job) with the job's white icon printed on it; the icon also
    * floats over it, but only while the pad wants you (`iconShown`, decided by the zone), so a room of pads is calm.
    */
-  constructor(radius: number, icon: IconName | null, color = PALETTE.zone, iconHeight = 0.9) {
+  constructor(radius: number, icon: IconName | null, color = PALETTE.zone, iconHeight = VISUALS.pads.iconHeight) {
     this.material = createZoneMaterial(color, icon ? floorIconTexture(icon) : null);
     const ring = new THREE.Mesh(RING_GEOMETRY, this.material);
     this.ring = ring;
-    this.size = radius * 2;
-    ring.scale.set(radius * 2, 1, radius * 2);
+    // Drawn a little smaller than the area that counts as standing on it (fix list 6.1).
+    this.size = radius * 2 * VISUALS.pads.drawScale;
+    ring.scale.set(this.size, 1, this.size);
     // Above the cabin mat's top layer (3 cm), so a mat never hides a pad.
     ring.position.y = FLOOR_Y + 0.036;
     ring.renderOrder = 2;
     this.group.add(ring);
+    this.iconHeight = iconHeight;
     if (icon) {
-      this.icon = makeSprite(bubbleTexture(icon, 'plain'), 0.5);
+      this.icon = makeSprite(bubbleTexture(icon, 'plain'), VISUALS.pads.icon);
       this.icon.position.y = FLOOR_Y + iconHeight;
       this.group.add(this.icon);
     } else {
@@ -113,9 +120,11 @@ export class ZoneRing {
     const pop = 1 + DONE_POP_SCALE * Math.sin((this.popT / DONE_POP_SECONDS) * Math.PI);
     this.ring.scale.set(this.size * pop, 1, this.size * pop);
     if (this.icon) {
-      this.icon.visible = this.iconAllowed;
-      this.icon.position.y = FLOOR_Y + 0.9 + lit * 0.25 + Math.sin(this.time * (2.2 + lit * 3)) * (0.06 + lit * 0.08);
-      const s = 0.5 + lit * 0.18;
+      // Fix list 6.3: the floating icon gives way to a pop-up over it and to a tile's marker right beside the pad.
+      const gp = this.group.position;
+      this.icon.visible = this.iconAllowed && !nearMarker(gp.x, gp.z, PAD_MARKER_REACH) && !underPopup(gp.x, FLOOR_Y + this.iconHeight, gp.z);
+      this.icon.position.y = FLOOR_Y + this.iconHeight + lit * 0.22 + Math.sin(this.time * (2.2 + lit * 3)) * (0.05 + lit * 0.07);
+      const s = VISUALS.pads.icon + lit * VISUALS.pads.iconLit;
       this.icon.scale.set(s, s, 1);
     }
   }
@@ -212,8 +221,12 @@ export class TileView {
     const s = appear * breathe;
     // Stepping on it presses the plate down a little, like a real button.
     this.pad.scale.set(s, active ? 0.45 : 1, s);
-    // The marker bobs gently, and steps aside while you stand on the tile (the plate shows the fill).
-    this.marker.sprite.visible = marker && !active;
+    // The marker bobs gently, and steps aside while you stand on the tile (the plate shows the fill) or a pop-up is
+    // over it (fix list 6.3).
+    const gp = this.group.position;
+    const shown = marker && !active && !underPopup(gp.x, FLOOR_Y + MARKER_HEIGHT, gp.z);
+    this.marker.sprite.visible = shown;
+    if (shown) noteMarker(gp.x, gp.z);
     this.marker.sprite.position.y = FLOOR_Y + MARKER_HEIGHT + Math.sin(this.time * 2.2) * 0.04;
     this.quiet += ((quiet ? 1 : 0) - this.quiet) * Math.min(1, dt * 6);
     const size = appear * (1 - QUIET_SHRINK * this.quiet);

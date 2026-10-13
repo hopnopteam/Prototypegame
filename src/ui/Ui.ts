@@ -76,6 +76,9 @@ const TILE_TAG_POINTER = 6;
 /** Coach labels float above the guidance arrow. */
 const GUIDE_HEIGHT = 2.55;
 const TOAST_SECONDS = 2.2;
+/** Fix list 6.3: the pop-ups and labels a floating world label steps aside for, and the margin round them (px). */
+const POPUP_SELECTOR = '.celebrate .card, .banner, .ticket, .wire, .toast, .guide, .tile-tag';
+const POPUP_MARGIN = 14;
 /** A coach line shows its words this long, then shrinks to its icon (the arrow still points the way). */
 const GUIDE_WORDS_SECONDS = 4;
 /** The walkthrough's first lines keep their words a little longer. */
@@ -293,9 +296,22 @@ export class Ui implements GameUi {
 
   private snapTimer = 0;
 
+  /**
+   * Fix list 6.3: the screen boxes of the pop-ups and labels showing (the centre card, the station result, the news
+   * strip, toasts, the coach line, a tile's close-up label). Floating world labels under one step aside.
+   */
+  private popupRects: DOMRect[] = [];
+  private canvasRect: DOMRect = EMPTY_RECT;
+
   private snapshot(): void {
     const f = this.frame;
     f.root = this.root.getBoundingClientRect();
+    this.popupRects.length = 0;
+    for (const el of this.root.querySelectorAll(POPUP_SELECTOR)) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) this.popupRects.push(r);
+    }
+    this.canvasRect = this.canvas?.getBoundingClientRect() ?? f.root;
     f.cash = this.hud.cash.getBoundingClientRect();
     f.level = this.hud.level.getBoundingClientRect();
     f.conductor = this.hud.conductor.getBoundingClientRect();
@@ -303,6 +319,24 @@ export class Ui implements GameUi {
     f.reward = this.objective.reward.getBoundingClientRect();
     f.burst = this.burst.el.getBoundingClientRect();
   }
+
+  /**
+   * Whether a point in the canvas's normalised device coordinates (−1…1, y up) sits under a pop-up or label, with a
+   * margin so a label never brushes its edge (fix list 6.3).
+   */
+  underPopupAt(ndcX: number, ndcY: number): boolean {
+    if (this.popupRects.length === 0) return false;
+    const c = this.canvasRect;
+    const x = c.left + ((ndcX + 1) / 2) * c.width;
+    const y = c.top + ((1 - ndcY) / 2) * c.height;
+    for (const r of this.popupRects) {
+      if (x > r.left - POPUP_MARGIN && x < r.right + POPUP_MARGIN && y > r.top - POPUP_MARGIN && y < r.bottom + POPUP_MARGIN) return true;
+    }
+    return false;
+  }
+
+  /** The canvas the world is drawn in (for placing world points on screen). */
+  canvas: HTMLCanvasElement | null = null;
 
   update(dt: number): void {
     const g = this.game;

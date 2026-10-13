@@ -4,6 +4,7 @@ import { drawIcon, INK } from '../ui/icons';
 import { FLOOR_Y } from './CarriageView';
 import { WORLD_UI_LAYER } from './CameraRig';
 import { CARRIAGE_LENGTH, HALF_WIDTH } from './layout';
+import { underPopup } from './screenMask';
 import { TILE_FONT } from './sprites';
 
 /** Where a chip floats: over the lake side of its carriage, just above the wall tops. */
@@ -144,6 +145,8 @@ export class ClassChips {
       const aspect = (chip.sprite.userData.aspect as number) ?? 3;
       chip.sprite.scale.set(CHIP_HEIGHT * aspect * bounce, CHIP_HEIGHT * bounce, 1);
       chip.sprite.position.set(CHIP_X, CHIP_Y, originZ(i) + CARRIAGE_LENGTH / 2);
+      // Fix list 6.3: it steps aside while a pop-up is over it.
+      chip.sprite.visible = !underPopup(CHIP_X, CHIP_Y, originZ(i) + CARRIAGE_LENGTH / 2);
     }
   }
 }

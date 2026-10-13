@@ -311,10 +311,17 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 @keyframes cardIn { 0% { opacity: 0; transform: translate(-50%, -70%) scale(0.85); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1.03); } 20% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -44%); } }
 
 .celebrate { position: absolute; z-index: 30; left: 50%; top: max(40%, calc(var(--rail-top) + 190px)); transform: translate(-50%, -50%); text-align: center; animation: celebrate 2.8s ease-in-out forwards; width: max-content; max-width: min(250px, calc(100% - 2 * var(--middle-left))); }
-.celebrate .card { position: relative; padding: 26px 16px 10px; background: var(--pink); border: var(--line); border-radius: 10px; box-shadow: inset 0 0 0 4px var(--pink), inset 0 0 0 6px var(--raspberry), 0 4px 0 var(--ink); }
+.celebrate .card { position: relative; padding: 33px 18px 11px; background: var(--pink); border: var(--line); border-radius: 10px; box-shadow: inset 0 0 0 4px var(--pink), inset 0 0 0 6px var(--raspberry), 0 4px 0 var(--ink); }
 .celebrate .ico { position: absolute; left: 50%; top: -26px; transform: translateX(-50%); width: 46px; height: 46px; padding: 4px; border-radius: 50%; background: var(--cream); border: var(--line); box-sizing: content-box; }
 .celebrate .big { font-weight: 800; font-size: clamp(16px, 5vw, 21px); letter-spacing: 0.1em; text-transform: uppercase; color: var(--navy); text-wrap: balance; line-height: 1.1; }
 .celebrate .small { margin-top: 6px; font-weight: 700; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--raspberry-dark); text-wrap: balance; }
+/* Fix list 6.2: letter-spacing also trails the last letter, which pushed centred words left of centre; a matching
+   indent on the left puts them back in the middle (here and on the other centred, spaced-out labels). */
+.celebrate .big { padding-left: 0.1em; }
+.celebrate .small { padding-left: 0.18em; }
+.float.info { padding-left: 0.12em; }
+.float.miss { padding-left: 0.1em; }
+.ticket.result h3 { padding-left: 0.08em; }
 @keyframes celebrate { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } 14% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); } 24% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
 
 /* ── Station result: a compact punched ticket ─────────── */
@@ -553,7 +560,7 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 @keyframes beamSweep { from { transform: rotate(var(--a)); } to { transform: rotate(var(--b)); } }
 .ceremony-card { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(320px, 100%); margin-bottom: 110px; text-align: center; color: var(--cream); }
 .ceremony-card .kicker { padding: 5px 14px; border-radius: 999px; background: linear-gradient(#FFD266, var(--mustard)); border: 2.5px solid var(--ink); box-shadow: 0 3px 0 var(--ink);
-  color: var(--ink); font-weight: 800; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; animation: chipIn 420ms 200ms cubic-bezier(.2,1.4,.4,1) both; }
+  color: var(--ink); font-weight: 800; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; animation: chipIn 420ms 200ms cubic-bezier(.2,1.4,.4,1) both; padding-left: calc(14px + 0.18em); }
 .ceremony-card .cup .ico { width: 132px; height: 132px; filter: drop-shadow(0 0 22px #FFD45ACC); animation: trophyIn 900ms 350ms cubic-bezier(.2,1.5,.4,1) both, trophyGlow 2.2s 1.3s ease-in-out infinite; }
 @keyframes trophyIn { from { transform: translateY(-60px) scale(0.3) rotate(-18deg); opacity: 0; } }
 @keyframes trophyGlow { 50% { transform: scale(1.06); filter: drop-shadow(0 0 34px #FFE08AEE); } }

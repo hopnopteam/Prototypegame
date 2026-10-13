@@ -6,6 +6,7 @@ import { MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, type BubbleStyle } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
+import { underPopup } from './screenMask';
 import type { CharacterBatch } from './CharacterBatch';
 
 export type HatKind = 'conductor' | 'boater' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'toque' | 'none';
@@ -647,9 +648,12 @@ export class CharacterView {
   update(dt: number, speed: number): void {
     this.bubbleTime += dt;
     if (this.bubble?.visible) {
-      // Pop in with a small overshoot, then bob gently so requests catch the eye.
+      // Pop in with a small overshoot, then bob gently so requests catch the eye. Fix list 6.3: shrunk away while a
+      // pop-up or label is over it on screen.
       const pop = Math.min(1, this.bubbleTime * 5);
-      const s = 0.9 * (pop < 1 ? 0.5 + 0.6 * Math.sin(pop * Math.PI * 0.5) : 1);
+      const p = this.root.position;
+      const masked = underPopup(p.x, p.y + this.bubbleBaseY, p.z);
+      const s = masked ? 0.0001 : 0.9 * (pop < 1 ? 0.5 + 0.6 * Math.sin(pop * Math.PI * 0.5) : 1);
       this.bubble.scale.set(s, s, 1);
       this.bubble.position.y = this.bubbleBaseY + Math.sin(this.bubbleTime * 3) * 0.05;
     }

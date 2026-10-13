@@ -31,6 +31,7 @@ import { buildUnlocks, stationPerks, type StationPerks } from '../sim/unlockPlan
 import { Wallet } from '../sim/Wallet';
 import { FLOOR_Y } from '../world/CarriageView';
 import { CharacterView } from '../world/CharacterView';
+import { beginMaskFrame, setPopupTest } from '../world/screenMask';
 import { CharacterBatch } from '../world/CharacterBatch';
 import { carriageOriginZ, GANGWAY_LENGTH, HALF_WIDTH, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0, REAR_DECK_LENGTH } from '../world/layout';
 import { VISUALS, type QualityTier, type TierSettings } from '../config/visuals';
@@ -204,6 +205,13 @@ export class Game implements World {
     };
     this.stage = new Stage(canvas, quality, isTier(settings.qualityAuto) ? settings.qualityAuto : null, startScale);
     this.stage.dynamicResolution = !isTier(forced);
+    // Fix list 6.3: floating world labels step aside under the UI's pop-ups and labels.
+    this.ui.canvas = canvas;
+    const probe = new THREE.Vector3();
+    setPopupTest((x, y, z) => {
+      probe.set(x, y, z).project(this.stage.rig.camera);
+      return probe.z < 1 && this.ui.underPopupAt(probe.x, probe.y);
+    });
     this.stage.checkShaderErrors = settings.devTools;
     this.stage.onAutoTier = (tier) => {
       this.data.settings.qualityAuto = tier;
@@ -454,6 +462,7 @@ export class Game implements World {
   /** One simulation step. */
   step(dt: number): void {
     this.time += dt;
+    beginMaskFrame();
     this.autopilot.update(dt);
     this.journey.update(dt);
     this.station.update(dt);

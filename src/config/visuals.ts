@@ -157,6 +157,13 @@ export const VISUALS = {
    * (the first session always stays at night when `firstSessionNight` is set).
    */
   time: { mode: 'night' as 'night' | 'cycle', firstSessionNight: true },
+
+  /**
+   * Fix list 6.1 (owner: "the floor zones and action icons are too big"): a pad is drawn at `drawScale` of the area
+   * that counts as standing on it (so it reads smaller but is just as easy to step on with a thumb), and the job's
+   * icon floats over it at `icon` metres (`iconLit` more while it wants you).
+   */
+  pads: { drawScale: 0.8, icon: 0.4, iconLit: 0.14, iconHeight: 0.85 },
 };
 
 export type Visuals = typeof VISUALS;

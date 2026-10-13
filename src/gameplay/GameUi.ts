@@ -16,4 +16,8 @@ export interface GameUi extends UiApi, MockAdPresenter, MockStorePresenter, Pres
   readonly sheetOpen: boolean;
   /** Closes the top sheet (Android's back button); false when there was nothing to close. */
   closeTopSheet(): boolean;
+  /** Fix list 6.3: whether a point (normalised device coordinates of the canvas) is under a pop-up or label. */
+  underPopupAt(ndcX: number, ndcY: number): boolean;
+  /** The canvas the world is drawn in. */
+  canvas: HTMLCanvasElement | null;
 }
