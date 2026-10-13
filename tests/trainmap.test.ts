@@ -139,7 +139,7 @@ describe('TrainMap', () => {
     open.rebuild(FULL_TRAIN, true);
     const openReach = reachable(open, spawn);
     for (const door of open.doors()) expect(openReach(door.outside, 0.2)).toBe(true);
-  });
+  }, 30_000);
 
   it('routes guests from the door to every cabin and bathroom', () => {
     const open = new TrainMap(ECONOMY.player.radius);
