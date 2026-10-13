@@ -42,6 +42,8 @@ export class AudioEngine {
   private sfx!: GainNode;
   private musicBus!: GainNode;
   private musicFilter!: BiquadFilterNode;
+  /** Ducks the theme under a reward jingle (fix list 7.1). */
+  private musicDuck!: GainNode;
   private ambience!: GainNode;
   /** Send into the room tail that celebration and reward cues ring out through. */
   private tail!: GainNode;
@@ -67,6 +69,11 @@ export class AudioEngine {
   private depth = 0;
   /** Until this audio time a celebration owns the moment (small cues stay quiet). */
   private celebrationUntil = 0;
+  /** The reward jingle ringing (or queued) and the audio time it has rung out (fix list 7.1). */
+  private jingle: Sfx | null = null;
+  private jingleUntil = 0;
+  /** When the cue being built starts (a queued jingle starts later; what it plays inside it starts with it). */
+  private buildStart = 0;
   private theme: AudioBuffer | null = null;
   private nextPassAt = 0;
   private readonly passes: { source: AudioBufferSourceNode; gain: GainNode; at: number }[] = [];
@@ -98,7 +105,12 @@ export class AudioEngine {
       if (!ctx) return false;
       if (this.paused) return false;
       if (ctx.state !== 'running') {
-        void ctx.resume().then(() => this.restoreMaster(), () => undefined);
+        // The theme starts the moment the context runs, not on the game's next frame (a busy start-up can hold
+        // that frame back for seconds on a slow phone).
+        void ctx.resume().then(() => {
+          this.restoreMaster();
+          if (this.musicOn) this.queueTheme(ctx);
+        }, () => undefined);
         // Older iOS also wants a sound started inside the gesture: one silent sample.
         const kick = ctx.createBufferSource();
         kick.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
@@ -106,6 +118,7 @@ export class AudioEngine {
         kick.start(0);
       } else {
         this.restoreMaster();
+        if (this.musicOn) this.queueTheme(ctx);
       }
       return ctx.state === 'running';
     } catch (error) {
@@ -146,7 +159,8 @@ export class AudioEngine {
       this.musicFilter.frequency.value = AUDIO.music.dayCutoff;
       this.musicFilter.Q.value = 0.5;
       this.musicBus = ctx.createGain();
-      this.musicFilter.connect(this.musicBus).connect(this.master);
+      this.musicDuck = ctx.createGain();
+      this.musicFilter.connect(this.musicDuck).connect(this.musicBus).connect(this.master);
       this.ambience = ctx.createGain();
       this.ambience.connect(this.master);
       const room = ctx.createConvolver();
@@ -256,22 +270,52 @@ export class AudioEngine {
     for (let i = ends.length - 1; i >= 0; i--) if (ends[i] <= now) ends.splice(i, 1);
     if (ends.length >= (AUDIO.voicesByCue[name] ?? AUDIO.voices)) return;
     let volume = options.volume ?? 1;
+    let start = this.depth > 0 ? this.buildStart : now + 0.005;
+    const c = AUDIO.celebration;
+    const isJingle = this.depth === 0 && c.cues.includes(name);
+    if (isJingle && now < this.jingleUntil) {
+      // Never two pieces of music at once: the same jingle again is dropped; another waits for this one to finish.
+      if (name === this.jingle || this.jingleUntil - now > c.queueWithin) return;
+      start = this.jingleUntil + 0.08;
+    }
     if (this.depth === 0) {
-      const c = AUDIO.celebration;
-      if (c.cues.includes(name)) this.celebrationUntil = now + c.holdOff;
+      if (isJingle) this.celebrationUntil = Math.max(this.celebrationUntil, start + c.holdOff);
       else if (now < this.celebrationUntil && c.quiet.includes(name)) volume *= c.duck;
     }
     this.lastPlay.set(name, now);
     const outerEnd = this.cueEnd;
-    this.cueEnd = now;
+    const outerStart = this.buildStart;
+    this.cueEnd = start;
+    this.buildStart = start;
     this.depth++;
     try {
-      this.build(name, now + 0.005, options.pitch ?? 1, volume);
+      this.build(name, start, options.pitch ?? 1, volume);
     } finally {
       this.depth--;
+      this.buildStart = outerStart;
     }
     ends.push(this.cueEnd);
+    if (isJingle) {
+      this.jingle = name;
+      this.jingleUntil = this.cueEnd;
+      this.duckMusic(this.cueEnd);
+    }
     this.cueEnd = Math.max(outerEnd, this.cueEnd);
+  }
+
+  /** The theme steps down under a reward jingle and comes back smoothly once it has rung out (fix list 7.1). */
+  private duckMusic(end: number): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const d = AUDIO.musicDuck;
+    const gain = this.musicDuck.gain;
+    const now = ctx.currentTime;
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(gain.value, now);
+    // Down at once (a queued jingle's turn comes while the one before it still rings, so it is down already).
+    gain.linearRampToValueAtTime(d.level, now + d.attack);
+    gain.setValueAtTime(d.level, end + d.hold);
+    gain.linearRampToValueAtTime(1, end + d.hold + d.release);
   }
 
   /** The cue recipes (unchanged from the set players liked; tuned by ear against mobile arcade games). */

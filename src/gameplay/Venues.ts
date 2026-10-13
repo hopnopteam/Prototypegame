@@ -632,7 +632,9 @@ export class Venues {
     this.happyLeft = seconds;
     const sign = venue.layout.sign ? venue.world(venue.layout.sign) : { x: 0, z: venue.originZ + 6 };
     w.particles.emit('confetti', sign.x, FLOOR_Y + 1.6, sign.z, 40, 0.8);
-    w.audio.play('fanfare');
+    // A party, not a reward jingle (fix list 7.1: it comes round often): a chime and a sparkle.
+    w.audio.play('chime');
+    w.audio.play('sparkle');
     w.ui.floatIcon('party', sign.x, FLOOR_Y + 2.2, sign.z, 'star');
     w.events.emit('venue.happyHour', { seconds });
   }

@@ -35,7 +35,16 @@ export const AUDIO = {
    * them meant coins scooped or a tile bought just after an upgrade made no sound at all, which read as the
    * audio cutting out.
    */
-  celebration: { cues: ['fanfare', 'levelup', 'perfect', 'ceremony'], holdOff: 1.4, duck: 0.35, quiet: ['ding', 'chest', 'heart', 'unlock', 'chime', 'coin', 'pop', 'sparkle', 'bell'] },
+  celebration: { cues: ['fanfare', 'levelup', 'perfect', 'ceremony'], holdOff: 1.4, duck: 0.35, quiet: ['ding', 'chest', 'heart', 'unlock', 'chime', 'coin', 'pop', 'sparkle', 'bell'], queueWithin: 3 },
+  /**
+   * Fix list 7.1 (owner: "reward music plays at the wrong moments and gets cut off… lower the background music under
+   * it, then bring it back smoothly; never let two pieces of music overlap"): a reward jingle (`celebration.cues`) is
+   * the only music while it plays. The theme ducks to `level` over `attack` seconds, stays down until the jingle has
+   * rung out (+ `hold`), then comes back over `release`. A second jingle while one rings waits for it to finish (if it
+   * would start within `celebration.queueWithin` seconds; otherwise it is dropped), and the same jingle again is
+   * dropped, so two never sound together.
+   */
+  musicDuck: { level: 0.2, attack: 0.18, hold: 0.2, release: 1.5 },
   music: {
     /** Seconds to fade the theme in at the start (and after it is switched back on) and out when switched off. */
     fadeIn: 1.2,

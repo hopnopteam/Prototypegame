@@ -44,6 +44,11 @@ await page.addInitScript(() => {
       window.__ctx = this;
     }
   };
+  // When the first touch actually lands (on the audio clock): a busy start-up can hold it back on a slow renderer, and
+  // the theme is judged from the touch, not from the page load.
+  for (const type of ['pointerup', 'touchend', 'click', 'keydown']) {
+    document.addEventListener(type, () => { if (window.__touchAt === undefined && window.__ctx) window.__touchAt = window.__ctx.currentTime; }, true);
+  }
 });
 
 await page.goto(`file://${file}`);
@@ -101,7 +106,7 @@ const result = await page.evaluate(() => {
   let bin = '';
   const bytes = new Uint8Array(pcm.buffer);
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return { sr, n, peak, perSecond, pcm: btoa(bin), passes: window.__passStarts, loop: window.nightExpress.audio.passes.length, recStart: window.__recStart ?? 0 };
+  return { sr, n, peak, perSecond, pcm: btoa(bin), passes: window.__passStarts, loop: window.nightExpress.audio.passes.length, recStart: window.__recStart ?? 0, touchAt: window.__touchAt ?? window.__recStart ?? 0 };
 });
 // Away and back: the music fades out, the context suspends, and it all comes back on return.
 {
@@ -128,6 +133,26 @@ const result = await page.evaluate(() => {
   const revived = await page.evaluate(() => ({ state: window.__ctx.state, level: window.nightExpress.audio.masterLevel }));
   check(revived.state === 'running' && revived.level > 0.5, `a refused resume is revived by the next tap (${revived.state}, level ${revived.level.toFixed(2)})`);
 }
+// Fix list 7.1: a reward jingle is the only music while it plays: the theme ducks under it and comes back smoothly
+// after, and a second jingle waits for the first to finish rather than playing on top.
+{
+  const first = await page.evaluate(() => {
+    const a = window.nightExpress.audio;
+    const ctx = window.__ctx;
+    a.play('fanfare');
+    const fanfareEnd = a.jingleUntil;
+    a.play('levelup');
+    return { now: ctx.currentTime, fanfareEnd, levelupEnd: a.jingleUntil };
+  });
+  check(first.levelupEnd > first.fanfareEnd + 0.5, `a second jingle waits for the first (fanfare rings out at +${(first.fanfareEnd - first.now).toFixed(2)} s, the level-up after it to +${(first.levelupEnd - first.now).toFixed(2)} s)`);
+  await page.waitForTimeout(500);
+  const ducked = await page.evaluate(() => window.nightExpress.audio.musicDuck.gain.value);
+  check(ducked < 0.4, `the theme ducks under the jingle (${ducked.toFixed(2)})`);
+  const wait = Math.ceil((first.levelupEnd - first.now) * 1000) + 2200;
+  await page.waitForTimeout(wait);
+  const back = await page.evaluate(() => window.nightExpress.audio.musicDuck.gain.value);
+  check(back > 0.95, `the theme comes back after it (${back.toFixed(2)})`);
+}
 // A phone: a touch tap (whose pointerdown is not an audio gesture; its touchend / pointerup is) starts the theme.
 {
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -151,7 +176,8 @@ check(result.peak < 0.99, 'the output never clips');
 // renderer keeps busy for seconds here; on a phone it is a fraction of a second).
 const FADE_IN = 2.5;
 const themeFrom = result.passes.length ? Math.max(0, Math.ceil(result.passes[0] - result.recStart + FADE_IN)) : 0;
-check(result.passes.length > 0 && themeFrom < 10, `the theme starts soon after the first touch (${themeFrom} s in, fade included)`);
+const afterTouch = result.passes.length ? result.passes[0] - Math.max(result.recStart, result.touchAt) + FADE_IN : Infinity;
+check(result.passes.length > 0 && afterTouch < 3, `the theme starts soon after the first touch (${afterTouch.toFixed(1)} s after it, fade included; ${themeFrom} s into the recording)`);
 check(result.perSecond.slice(themeFrom).every((v) => v > -70), 'never silent once the theme is in (it plays under everything), even through a 3 s main-thread stall');
 const inPlay = result.perSecond.slice(themeFrom);
 const quietest = inPlay.length ? Math.min(...inPlay) : -99;

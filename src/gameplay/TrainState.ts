@@ -305,7 +305,8 @@ export class TrainState {
     if (choices.length === 0) return;
     this.choosing = true;
     this.pendingChoice = false;
-    w.audio.play('fanfare');
+    // The chooser opening is not the reward (fix list 7.1): a chime; the fanfare plays when the carriage couples on.
+    w.audio.play('chime');
     w.ui.showCarriageChoice(choices.map((c) => {
       const entry = CARRIAGE_CATALOGUE[c.type];
       return { type: c.type, name: entry.name, pitch: entry.pitch, inside: entry.inside, reason: c.reason };
@@ -976,7 +977,9 @@ export class TrainState {
     const w = this.w;
     const originZ = carriageOriginZ(index);
     w.stage.rig.focusOn(new THREE.Vector3(0, 0, originZ + 7), 2.6, 1.0);
-    w.audio.play('fanfare');
+    // One jingle per refit (fix list 7.1): the level-up tune for a new class, the fanfare for any other refit.
+    const newClass = isPassengerType(type) ? classStartingAt(tier) : null;
+    w.audio.play(newClass ? 'levelup' : 'fanfare');
     w.haptics.success();
     this.makeoverWipe(old, view, originZ, () => {
       w.stage.rig.shake(0.15, 0.3);
@@ -988,7 +991,7 @@ export class TrainState {
         // What the class is worth, in one line: the payoff of the refit you just watched.
         w.ui.celebrate(cls.name, `Fares ×${cls.fare}`, cls.icon);
         for (let k = 0; k < 5; k++) w.particles.emit('sparkle', HALF_WIDTH + 0.15, FLOOR_Y + 0.9, originZ + 1.5 + k * 2.6, 8, 0.6);
-        w.audio.play('levelup');
+        w.audio.play('sparkle');
       } else w.ui.celebrate(TIER_NAMES[tier] ?? this.carriageName(index), null, 'paint');
     });
     w.events.emit('carriage.refurbished', { index, type, tier });
