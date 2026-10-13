@@ -15,6 +15,7 @@ export function sourceAnchorFor(item: ItemKind): string {
     case 'champagne':
     case 'newspaper':
     case 'breakfast':
+    case 'snack':
       return 'urn';
     case 'blanket':
     case 'pillow':
@@ -60,6 +61,9 @@ export class Demand {
         return this.bathroomNeed(kind) + this.requestNeed(kind);
       case 'roll':
         return this.bathroomNeed(kind);
+      case 'snack':
+        // Fix list 4.6: minibars short of snack boxes (less what the staff are already carrying).
+        return Math.max(0, w.train.snackShort() - this.staffCarrying('snack'));
       case 'luggage': {
         const room = w.train.luggageCapacity - w.train.luggageStored - this.staffCarrying('luggage');
         const reachable = w.player.stack.countOf('luggage') + (w.journey.doorsOpen ? w.station.luggagePile : 0);

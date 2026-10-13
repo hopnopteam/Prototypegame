@@ -1891,15 +1891,19 @@ function buildCabinComforts(b: GeoBuilder, glow: GeoBuilder, cabin: CabinLayout,
     b.box(fx, y + PICTURE_Y, wallZ + 0.012, 0.3, 0.2, 0.02, PALETTE.gold, 0, FLAT);
     b.box(fx, y + PICTURE_Y, wallZ + 0.026, 0.24, 0.14, 0.004, PALETTE.frameCanvas[cabin.index % 4], 0, FLAT);
   }
-  if (keys.includes('radio')) {
-    // A wall shelf with a wireless, beside the picture.
+  if (keys.includes('minibar')) {
+    // Fix list 4.6: a minibar on a wall shelf beside the picture (where the wireless stood): a little cabinet with a
+    // glass door, a bottle, a chocolate bar and a bag of crisps behind it, a brass handle.
     const rx = (cabin.room.x0 + 0.42 + nx0) / 2 + 0.04;
-    b.object('comfort:radio');
+    b.object('comfort:minibar');
     const sy = y + RADIO_SHELF_Y;
     b.box(rx, sy, wallZ + 0.075, 0.3, 0.02, 0.15, PALETTE.walnutDark, 0, FLAT);
-    b.rounded(rx, sy + 0.086, wallZ + 0.075, 0.24, 0.15, 0.11, 0.03, tier >= 3 ? PALETTE.walnut : '#B5835A', { shade: 0.9 });
-    b.box(rx - 0.04, sy + 0.086, wallZ + 0.132, 0.1, 0.09, 0.006, '#E9D9B0', 0, FLAT);
-    b.cylinder(rx + 0.07, sy + 0.086, wallZ + 0.134, 0.022, 0.022, 0.01, PALETTE.brass, 10, 'z');
+    b.rounded(rx, sy + 0.1, wallZ + 0.072, 0.26, 0.18, 0.12, 0.02, tier >= 3 ? PALETTE.walnut : '#B5835A', { shade: 0.9 });
+    b.box(rx, sy + 0.1, wallZ + 0.133, 0.2, 0.13, 0.004, '#BFD7E2', 0, { shade: 1, surface: 'glass' });
+    b.cylinder(rx - 0.06, sy + 0.1, wallZ + 0.11, 0.016, 0.016, 0.1, '#5E8C5A', 8, 'y', { shade: 1 });
+    b.box(rx, sy + 0.07, wallZ + 0.115, 0.06, 0.03, 0.02, '#6B4128', 0, FLAT);
+    b.box(rx + 0.055, sy + 0.12, wallZ + 0.115, 0.05, 0.06, 0.02, '#FFD35C', 0, FLAT);
+    b.cylinder(rx + 0.105, sy + 0.1, wallZ + 0.138, 0.008, 0.008, 0.07, PALETTE.brass, 6, 'y');
   }
 }
 

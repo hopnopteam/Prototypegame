@@ -383,7 +383,16 @@ export const ECONOMY = {
     commonChance: 0.2,
   },
 
-  /** Comforts (reading lamps, flowers, radios; soaps, towel rails): what each one adds in its carriage. */
+  /**
+   * Fix list 4.6 (owner: "replace the radio with something that matters… a minibar where guests buy snacks… and the
+   * player restocks it"): every room of a carriage with Minibars holds `stock` snack boxes. A guest settling in for
+   * the evening, or up in the morning, buys one now and then (`buyChance`) for `price` × their class's tip multiplier,
+   * paid into the room's cash; an emptied box is restocked with a snack box from the service counter (the urn),
+   * carried to the room's drop pad.
+   */
+  minibar: { stock: 2, buyChance: 0.55, price: 6 },
+
+  /** Comforts (reading lamps, flowers, minibars; soaps, towel rails): what each one adds in its carriage. */
   comfort: {
     /** Tips left in that carriage's cabins (alighting and requests). */
     cabinTipBonus: 0.2,

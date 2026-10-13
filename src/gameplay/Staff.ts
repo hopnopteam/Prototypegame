@@ -345,6 +345,22 @@ export class StaffManager {
         release: () => undefined,
       };
     }
+    // 4. Fix list 4.6: a minibar in this carriage short of snacks: a box from the service counter, into the room.
+    const room = w.train.minibarToRestock(m.pos, m.carriage);
+    if (room) {
+      const steps: Step[] = [];
+      if (!m.stack.has('snack')) {
+        const source = this.nearestSource('snack', m.carriage);
+        if (!source) return this.returnTask(m);
+        steps.push({ kind: 'do', fn: () => (m.wantItems = { snack: 1 }) });
+        steps.push({ kind: 'goto', target: source });
+        steps.push({ kind: 'stand', until: () => m.stack.has('snack'), timeout: 3 });
+      }
+      steps.push({ kind: 'goto', target: room.center, node: room.node });
+      steps.push({ kind: 'stand', until: () => !m.stack.has('snack') || w.train.minibarShort(room) <= 0, timeout: 3 });
+      steps.push({ kind: 'do', fn: () => this.binLeftovers(m) });
+      return { label: 'restock', icon: 'snack', steps, release: () => (m.wantItems = {}) };
+    }
     return this.returnTask(m);
   }
 
@@ -495,6 +511,7 @@ export class StaffManager {
       case 'pillow':
       case 'newspaper':
       case 'breakfast':
+      case 'snack':
         return this.nearestSource(kind, m.carriage);
       case 'towel':
       case 'roll':

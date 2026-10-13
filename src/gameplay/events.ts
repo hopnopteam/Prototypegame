@@ -15,6 +15,8 @@ export interface GameEvents {
   'spot.cleaned': { x: number; z: number; byPlayer: boolean };
   /** Session 24, the night shift: a sleeping guest's shoes were polished. */
   'shoes.shined': { x: number; z: number; byPlayer: boolean };
+  /** Fix list 4.6: a guest bought a snack from their room's minibar. */
+  'minibar.sold': { price: number };
   /** Session 22: the opening's covered carriage opened. */
   'carriage.opened': Record<string, never>;
   'item.picked': { item: ItemKind; byPlayer: boolean };

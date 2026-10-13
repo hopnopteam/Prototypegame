@@ -56,6 +56,8 @@ export class Cabin {
   /** The night shift (session 24): the guest's shoes outside the door, waiting to be polished or polished. */
   shoes: 'none' | 'dirty' | 'shined' = 'none';
   shoeZone: Zone | null = null;
+  /** Fix list 4.6: snack boxes in the room's minibar (only counts once the carriage has Minibars). */
+  snacks = 0;
   shoeMesh: THREE.Mesh | null = null;
   /** The pad by the door (corridor side) and where the shoes stand. */
   readonly shoePad: Vec2;
@@ -147,7 +149,7 @@ const OPEN_CARRIAGE = 'c0.open';
 const CARRIAGE_LIGHT = 'carriage:0';
 const NIGHT_FADE = 2.5;
 /** What a passenger carriage's service counter (the urn) hands out: drinks, the morning paper, breakfast trays. */
-const SERVICE_ITEMS: ItemKind[] = ['tea', 'coffee', 'champagne', 'newspaper', 'breakfast'];
+const SERVICE_ITEMS: ItemKind[] = ['tea', 'coffee', 'champagne', 'newspaper', 'breakfast', 'snack'];
 /** A room's broom icon shows when the guide's target is this close to its pad… */
 const CLEAN_ICON_FOCUS = 0.8;
 /** …or when the conductor is this close to it. */
@@ -177,6 +179,8 @@ export class TrainState {
   tiers: number[] = [];
   /** Comforts bought per carriage. */
   private comfortCounts: number[] = [];
+  /** Fix list 4.6: carriages whose rooms have a minibar. */
+  private readonly minibars: boolean[] = [];
   luggageStored = 0;
   coupling = false;
   /** The chooser is open. */
@@ -707,11 +711,85 @@ export class TrainState {
       if (facilities.supplyRoll < 0) facilities.supplyRoll = this.w.econ.facilities.supplyShelfStart;
     }
     this.createFixtureZones(index, type);
-    this.comfortCounts[index] = this.comfortsOf(index).length;
+    this.setComfortCounts(index, this.comfortsOf(index), false);
     view.setComforts(this.comfortsOf(index));
     // A venue gets its seats, pads and takings (session 20).
     this.w.venues.addCarriage(index, type, view.tier);
     if (animate) this.popIn(view.group);
+  }
+
+  /**
+   * The comforts that lift a carriage's tips (lamps, flowers; soaps, rails) and whether its rooms have a minibar
+   * (fix list 4.6: the minibar pays in snack sales instead). A minibar just bought arrives stocked.
+   */
+  private setComfortCounts(index: number, keys: readonly ComfortKey[], fresh: boolean): void {
+    this.comfortCounts[index] = keys.filter((k) => k !== 'minibar').length;
+    const had = this.minibars[index] === true;
+    this.minibars[index] = keys.includes('minibar');
+    if (this.minibars[index] && (fresh || !had)) for (const c of this.cabins) if (c.carriage === index) c.snacks = this.w.econ.minibar.stock;
+  }
+
+  /** Fix list 4.6: whether this room has a minibar, and how many snack boxes it is short of. */
+  hasMinibar(cabin: Cabin): boolean {
+    return this.minibars[cabin.carriage] === true && cabin.unlocked;
+  }
+
+  minibarShort(cabin: Cabin): number {
+    return this.hasMinibar(cabin) ? Math.max(0, this.w.econ.minibar.stock - cabin.snacks) : 0;
+  }
+
+  /** Snack boxes the minibars are short of, train-wide (what the player and the attendant restock). */
+  snackShort(): number {
+    let n = 0;
+    for (const c of this.cabins) n += this.minibarShort(c);
+    return n;
+  }
+
+  /** The room whose minibar is emptiest, nearest a point (for the guide and the attendant). */
+  minibarToRestock(near: Vec2, carriage: number | null = null): Cabin | null {
+    let best: Cabin | null = null;
+    let bestScore = Infinity;
+    for (const c of this.cabins) {
+      const short = this.minibarShort(c);
+      if (short <= 0 || (carriage !== null && c.carriage !== carriage)) continue;
+      const score = Math.hypot(c.center.x - near.x, c.center.z - near.z) - short * 4;
+      if (score < bestScore) {
+        bestScore = score;
+        best = c;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * A guest buys a snack from their room's minibar (fix list 4.6): the price, by their class, into the room's cash,
+   * a little float, and the box is gone (restocked from the service counter).
+   */
+  sellSnack(cabin: Cabin, guest: Guest): boolean {
+    const w = this.w;
+    if (!this.hasMinibar(cabin) || cabin.snacks <= 0) return false;
+    cabin.snacks--;
+    const price = Math.max(1, Math.round(w.econ.minibar.price * (CLASSES.find((c) => c.id === guest.cls)?.tip ?? 1) * w.tipMultiplier()));
+    w.cash.add(cabin.pileId, price, this.tmpShoe.set(cabin.center.x, FLOOR_Y + 0.6, cabin.center.z));
+    w.ui.floatText(`+${price}`, cabin.center.x, FLOOR_Y + 1.9, cabin.center.z, 'cash');
+    w.audio.play('coin', { volume: 0.5 });
+    w.events.emit('minibar.sold', { price });
+    return true;
+  }
+
+  /** Restocking: a snack box from the carrier into the room's minibar, at its drop pad. */
+  private restockStay(cabin: Cabin, zone: Zone, actor: Actor, dt: number): boolean {
+    const w = this.w;
+    if (this.minibarShort(cabin) <= 0 || !actor.stack.has('snack')) return false;
+    zone.timer += dt * actor.workMultiplier;
+    if (zone.timer < w.econ.zones.dropIntervalSeconds) return true;
+    zone.timer = 0;
+    actor.stack.remove('snack', () => this.tmpShoe.set(cabin.center.x, FLOOR_Y + 0.5, cabin.center.z), () => {
+      cabin.snacks = Math.min(w.econ.minibar.stock, cabin.snacks + 1);
+      w.particles.emit('sparkle', cabin.center.x, FLOOR_Y + 0.5, cabin.center.z, 4, 0.2);
+    });
+    w.audio.play('drop');
+    return true;
   }
 
   /** A comfort arrives in every room of the carriage at once: each one pops in with a sparkle. */
@@ -719,7 +797,7 @@ export class TrainState {
     const view = this.views[index];
     if (!view) return;
     const keys = this.comfortsOf(index);
-    this.comfortCounts[index] = keys.length;
+    this.setComfortCounts(index, keys, true);
     const rooms = view.setComforts(keys);
     if (!animate) return;
     const w = this.w;
@@ -1162,8 +1240,9 @@ export class TrainState {
       icon: null,
       ring: true,
       hideWhenInactive: true,
-      active: () => w.guests.requestFor(cabin) !== null,
-      stay: (zone, actor, dt) => w.guests.deliverStay(cabin, zone, actor, dt),
+      // A guest's request, or (fix list 4.6) a minibar short of snacks while someone brings a box.
+      active: () => w.guests.requestFor(cabin) !== null || (this.minibarShort(cabin) > 0 && (w.player.stack.has('snack') || w.staff.anyCarrying('snack'))),
+      stay: (zone, actor, dt) => w.guests.deliverStay(cabin, zone, actor, dt) || this.restockStay(cabin, zone, actor, dt),
     }));
     cabin.spotZones = cabin.spots.map((spot, i) => w.zones.add(new Zone({
       id: `spot:${cabin.id}:${i}`,

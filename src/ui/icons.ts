@@ -19,8 +19,8 @@ export type IconName =
   | 'newspaper' | 'breakfast' | 'wakeup'
   // Session 24: the cabin key handed over at the desk; shoes to shine on the night shift.
   | 'key' | 'shoe'
-  // Fix list 4.1: a passenger who missed the train; 4.2: the Train Rating.
-  | 'angry';
+  // Fix list 4.1: a passenger who missed the train; 4.6: a minibar's snack box.
+  | 'angry' | 'snack';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -696,6 +696,25 @@ const ICONS: Record<IconName, Draw> = {
     c.arc(50, 78, 16, 1.2 * Math.PI, 1.8 * Math.PI);
     c.stroke();
   },
+  snack: (c) => {
+    // A chocolate bar in its gold foil, half unwrapped, beside a bag of crisps.
+    rr(c, 54, 22, 32, 58, 10);
+    fillStroke(c, '#FFD35C');
+    c.fillStyle = '#E8674F';
+    c.fillRect(58, 42, 24, 16);
+    rr(c, 16, 30, 34, 52, 5);
+    fillStroke(c, '#E2B653');
+    rr(c, 20, 16, 26, 26, 4);
+    fillStroke(c, '#6B4128');
+    c.strokeStyle = INK;
+    c.lineWidth = 3;
+    c.beginPath();
+    c.moveTo(20, 29);
+    c.lineTo(46, 29);
+    c.moveTo(33, 16);
+    c.lineTo(33, 42);
+    c.stroke();
+  },
   angry: (c) => {
     // Red in the face, brows down in a V, a tight frown: they missed the train.
     c.beginPath();
@@ -1261,4 +1280,5 @@ export const ITEM_ICON: Record<string, IconName> = {
   newspaper: 'newspaper',
   breakfast: 'breakfast',
   wakeup: 'wakeup',
+  snack: 'snack',
 };

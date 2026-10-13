@@ -216,6 +216,15 @@ export class Guidance {
     const shoes = w.train.shoesToShine(player.pos);
     if (shoes && !w.staff.members.some((m) => m.role === 'attendant' && m.carriage === shoes.carriage && m.level >= w.econ.staff.attendantServesFromLevel)) return this.because('shine', shoes.shoePad);
 
+    // Fix list 4.6: a minibar short of snacks (the attendant restocks its own carriage's).
+    if (!stack.isFull && w.demand.playerWants('snack') > 0) {
+      const room = w.train.minibarToRestock(player.pos);
+      if (room && !w.staff.members.some((m) => m.role === 'attendant' && m.carriage === room.carriage)) {
+        const source = this.sourceFor('snack', room.carriage);
+        if (source) return this.because('fetch', source);
+      }
+    }
+
     if (!stack.isFull) {
       for (const kind of ['towel', 'roll'] as const) {
         const source = w.demand.playerWants(kind) > 0 ? w.train.supplySource(kind, w.player.pos) : null;
@@ -234,6 +243,10 @@ export class Guidance {
     }
     const venue = w.venues.deliverPoint(items, w.player.pos);
     if (venue) return venue;
+    if (items.includes('snack')) {
+      const room = w.train.minibarToRestock(w.player.pos);
+      if (room) return room.center;
+    }
     if (items.includes('luggage')) {
       const luggage = w.train.indexOfType('luggage');
       const lobbyFull = w.train.luggageStored >= w.econ.facilities.lobbyRackCapacity;

@@ -22,6 +22,7 @@ export const ITEM_HEIGHT: Record<ItemKind, number> = {
   popcorn: 0.24,
   newspaper: 0.06,
   breakfast: 0.16,
+  snack: 0.12,
 };
 
 const cache = new Map<ItemKind, THREE.BufferGeometry>();
@@ -126,6 +127,14 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       b.cylinder(0.12, 0.07, 0.04, 0.045, 0.036, 0.07, PALETTE.porcelain, 12);
       b.cylinder(0.12, 0.106, 0.04, 0.04, 0.04, 0.004, '#5A3524', 12, 'y', { shade: 1 });
       b.cylinder(0.12, 0.05, -0.08, 0.03, 0.03, 0.04, '#C0485C', 10, 'y', { shade: 1, surface: 'glass' });
+      break;
+    case 'snack':
+      // A minibar's refill: a little box with a chocolate bar and a bag of crisps peeking out.
+      b.rounded(0, 0.05, 0, 0.3, 0.1, 0.2, 0.02, '#C9473F', { shade: 0.9 });
+      b.box(0, 0.101, 0, 0.22, 0.004, 0.12, '#FBF5EA', 0, { shade: 1 });
+      b.box(-0.06, 0.13, 0, 0.1, 0.05, 0.16, '#5A3524', 0, { shade: 0.95 });
+      b.box(-0.06, 0.156, 0, 0.11, 0.004, 0.17, '#E2B653', 0, { shade: 1 });
+      b.rounded(0.07, 0.15, 0, 0.12, 0.1, 0.07, 0.03, '#FFD35C', { shade: 0.95 });
       break;
     case 'crate':
       b.box(0, 0.17, 0, 0.5, 0.34, 0.42, PALETTE.oak, 0, { pattern: PATTERN.stripesZ, color2: '#A87544', scale: 0.09, shade: 0.8 });

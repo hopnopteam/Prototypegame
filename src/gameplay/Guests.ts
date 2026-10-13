@@ -869,6 +869,7 @@ export class Guests {
       // Morning: the lights come up, a stretch on the bed edge, then the morning's request. Their shoes come in
       // (polished ones leave a tip).
       if (guest.cabin) this.w.train.takeShoes(guest.cabin, guest);
+      this.maybeSnack(guest);
       this.setState(guest, 'settling');
       guest.settleFor = WAKE_SECONDS;
       guest.wishIn = WAKE_SECONDS + this.w.rng.range(...rules.requestDelay);
@@ -1169,8 +1170,22 @@ export class Guests {
     this.setState(guest, 'toCabin');
   }
 
+  /**
+   * Fix list 4.6: settling in for the evening or up in the morning, a guest now and then helps themselves from the
+   * minibar (a moment later, once they are in the room): a snack paid into the room's cash.
+   */
+  private maybeSnack(guest: Guest): void {
+    const w = this.w;
+    const cabin = guest.cabin;
+    if (!cabin || !w.train.hasMinibar(cabin) || cabin.snacks <= 0 || !w.rng.chance(w.econ.minibar.buyChance)) return;
+    w.tweens.delay(2.5, () => {
+      if (guest.cabin === cabin && guest.aboard && w.train.sellSnack(cabin, guest)) guest.view.showBubble('snack', 'plain', 1.7);
+    });
+  }
+
   /** At their room: First and Royal wait for the turndown; everyone else sits on the bed with the paper a while. */
   private arriveAtRoom(guest: Guest): void {
+    this.maybeSnack(guest);
     if (CLASS_BY_ID[guest.cls].turndown && !guest.story) {
       this.askTurndown(guest);
       return;

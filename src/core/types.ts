@@ -31,7 +31,9 @@ export type ItemKind =
   // Session 21: the cinema's popcorn.
   | 'popcorn'
   // Session 22: the morning paper and the breakfast tray.
-  | 'newspaper' | 'breakfast';
+  | 'newspaper' | 'breakfast'
+  // Fix list 4.6: a box of snacks for a room's minibar.
+  | 'snack';
 
 export type CurrencyKind = 'cash' | 'gems' | 'railMiles';
 

@@ -141,7 +141,8 @@ export type UnlockKind =
   | 'open';
 
 /** Small comforts bought per carriage: each shows up in every room and lifts that carriage's tips. */
-export type ComfortKey = 'lamp' | 'flowers' | 'radio' | 'soap' | 'rail';
+/** Fix list 4.6: the minibar replaced the radio (its tiles keep the `comfort_radio` id, so old saves keep it). */
+export type ComfortKey = 'lamp' | 'flowers' | 'minibar' | 'soap' | 'rail';
 
 export interface UnlockDef {
   id: string;
@@ -233,7 +234,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 160, stars: 3, role: 'porter', requires: ['@couple_2'], effect: 'Check-in & bags' },
       { key: 'comfort_flowers', kind: 'comfort', label: 'Flowers', price: 150, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_2'], effect: 'Tips +20%' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 240, stars: 2, role: 'attendant', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
-      { key: 'comfort_radio', kind: 'comfort', label: 'Radios', price: 320, stars: 2, comfort: 'radio', requires: ['comfort_flowers', '@couple_3'], effect: 'Tips +20%' },
+      { key: 'comfort_radio', kind: 'comfort', label: 'Minibars', price: 320, stars: 2, comfort: 'minibar', requires: ['comfort_flowers', '@couple_3'], effect: 'Snack sales' },
       { key: 'up_porter', kind: 'staffUpgrade', label: 'Faster Porter', price: 420, stars: 2, role: 'porter', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
       { key: 'refurb_3', kind: 'refurb', label: 'Business', price: 880, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_4'], effect: 'Fares ×5' },
       { key: 'refurb_4', kind: 'refurb', label: 'First Class', price: 1700, stars: 6, tier: 4, requires: ['refurb_3'], flags: ['level_6'], effect: 'Fares ×14' },
@@ -389,7 +390,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 240, stars: 3, role: 'attendant', requires: ['cabin_1', '@couple_2'], effect: 'Tidies, serves' },
       { key: 'comfort_flowers', kind: 'comfort', label: 'Flowers', price: 240, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_3'], effect: 'Tips +20%' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 380, stars: 2, role: 'attendant', requires: ['hire_attendant', '@couple_3'], effect: 'Faster, +1 carry' },
-      { key: 'comfort_radio', kind: 'comfort', label: 'Radios', price: 420, stars: 2, comfort: 'radio', requires: ['comfort_flowers', '@couple_3'], effect: 'Tips +20%' },
+      { key: 'comfort_radio', kind: 'comfort', label: 'Minibars', price: 420, stars: 2, comfort: 'minibar', requires: ['comfort_flowers', '@couple_3'], effect: 'Snack sales' },
       { key: 'refurb_3', kind: 'refurb', label: 'Business', price: 1350, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_4'], effect: '3 cabins · Fares ×5' },
       { key: 'refurb_4', kind: 'refurb', label: 'First Class', price: 2200, stars: 6, tier: 4, requires: ['refurb_3'], flags: ['level_6'], effect: '2 suites · Fares ×14' },
       { key: 'up2_attendant', kind: 'staffUpgrade', label: 'Expert Attendant', price: 1250, stars: 3, role: 'attendant', requires: ['up_attendant'], flags: ['level_6'], effect: 'Faster, +1 carry' },

@@ -379,7 +379,7 @@ function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras
       view.setAllBlinds(1);
     }
     // Every comfort, so their props are checked against every tier's furniture.
-    if (!locked) view.setComforts(['lamp', 'flowers', 'radio', 'soap', 'rail']);
+    if (!locked) view.setComforts(['lamp', 'flowers', 'minibar', 'soap', 'rail']);
     // Full stock everywhere: the busiest the rooms ever look.
     layout.bathrooms.forEach((b) => view.setBathroomStock(b.index, 99, 99));
     view.setShelfStock(99, 99);
