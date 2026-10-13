@@ -128,6 +128,14 @@ export const VISUALS = {
       /** Bare bulbs in a run-down carriage are a little colder and dimmer; luxury is warmer and brighter. */
       tierLamp: [0.85, 0.93, 1.0, 1.06, 1.14, 1.24],
       spill: { color: '#FFB46E', intensity: 0.42, reach: 2.4 },
+      /**
+       * Fix list 5.4: a venue's own light from its first refit. The café bright and daytime (a fuller, creamier fill),
+       * the dining car low and warm (a dim amber fill, the light pooled on each table from its lamp and candle).
+       */
+      venues: {
+        cafe: { interior: '#FFE6C6', ambient: 1.3, lamp: '#FFE0B4', lampK: 1.1 },
+        dining: { interior: '#FF9C5E', ambient: 0.55, lamp: '#FFA552', lampK: 0.75, table: { strength: 0.85, radius: 1.25 } },
+      } as Record<string, { interior: string; ambient: number; lamp: string; lampK: number; table?: { strength: number; radius: number } }>,
       platformLamp: { color: '#FFA98C', intensity: 1.35, radius: 3.4 },
       ao: { wall: 0.34, wallReach: 0.42, prop: 0.4, propReach: 0.38, hull: 0.5, hullReach: 1.1 },
     },

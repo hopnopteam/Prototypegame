@@ -372,6 +372,136 @@ function drawTrainSide(ctx: CanvasRenderingContext2D, x: number, y: number, widt
   }
 }
 
+/** The cinema's film (fix list 5.6): a sprite sheet of frames, columns by rows, played at FILM_FPS. */
+export const FILM_COLS = 4;
+export const FILM_ROWS = 4;
+export const FILM_FRAMES = FILM_COLS * FILM_ROWS;
+export const FILM_FPS = 8;
+let filmSheet: THREE.CanvasTexture | null = null;
+
+/**
+ * The cinema's film (fix list 5.6, owner: "the screen should show a simple moving picture, a looping animated film"):
+ * a little cartoon, drawn once into a sheet of frames: a night train chugging along under the moon, hills and
+ * telegraph poles sliding past at their own speeds, smoke puffing from the chimney. Every motion goes round exactly
+ * once per loop, so the last frame runs into the first. The screen steps through the frames by moving the texture's
+ * offset (nothing is redrawn or uploaded while it plays).
+ */
+export function filmTexture(): THREE.CanvasTexture {
+  if (filmSheet) return filmSheet;
+  const fw = 256;
+  const fh = 56;
+  const c = document.createElement('canvas');
+  c.width = fw * FILM_COLS;
+  c.height = fh * FILM_ROWS;
+  const ctx = c.getContext('2d');
+  if (!ctx) throw new Error('2D canvas unavailable');
+  for (let f = 0; f < FILM_FRAMES; f++) {
+    ctx.save();
+    ctx.translate((f % FILM_COLS) * fw, Math.floor(f / FILM_COLS) * fh);
+    ctx.beginPath();
+    ctx.rect(0, 0, fw, fh);
+    ctx.clip();
+    drawFilmFrame(ctx, fw, fh, f / FILM_FRAMES);
+    ctx.restore();
+  }
+  const texture = finishTexture(c);
+  // No mipmaps: a smaller mip would bleed one frame into the next.
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.repeat.set(1 / FILM_COLS, 1 / FILM_ROWS);
+  filmSheet = texture;
+  return texture;
+}
+
+/** One frame of the cartoon at loop time t (0..1). */
+function drawFilmFrame(ctx: CanvasRenderingContext2D, w: number, h: number, t: number): void {
+  const TAU = Math.PI * 2;
+  const sky = ctx.createLinearGradient(0, 0, 0, h);
+  sky.addColorStop(0, '#1E2D63');
+  sky.addColorStop(1, '#55609A');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, w, h);
+  // Stars that twinkle, and the moon.
+  for (let i = 0; i < 26; i++) {
+    const sx = (i * 97.3) % w;
+    const sy = ((i * 37.1) % (h * 0.5)) + 2;
+    const tw = 0.55 + 0.45 * Math.sin(TAU * (t * 2 + i * 0.37));
+    ctx.fillStyle = `rgba(255, 247, 220, ${tw.toFixed(2)})`;
+    ctx.fillRect(sx, sy, 1.4, 1.4);
+  }
+  ctx.fillStyle = '#F7EDC9';
+  ctx.beginPath();
+  ctx.arc(w * 0.8, h * 0.27, h * 0.16, 0, TAU);
+  ctx.fill();
+  // Hills: each band repeats every frame width and slides a whole number of widths per loop.
+  const hills = (base: number, amp: number, waves: number, speed: number, colour: string): void => {
+    const shift = t * speed * w;
+    ctx.fillStyle = colour;
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for (let x = 0; x <= w; x += 4) ctx.lineTo(x, base + amp * Math.sin((TAU * waves * (x + shift)) / w) + amp * 0.4 * Math.sin((TAU * waves * 2 * (x + shift)) / w + 1.3));
+    ctx.lineTo(w, h);
+    ctx.closePath();
+    ctx.fill();
+  };
+  hills(h * 0.6, h * 0.1, 2, 1, '#34467A');
+  hills(h * 0.74, h * 0.07, 3, 2, '#2A3966');
+  // The track bed.
+  const rail = h * 0.83;
+  ctx.fillStyle = '#1C2647';
+  ctx.fillRect(0, rail, w, h - rail);
+  ctx.fillStyle = '#8D93B5';
+  ctx.fillRect(0, rail, w, 1.2);
+  // The train, a little bounce in its step.
+  const bob = Math.round(Math.sin(TAU * t * 8) * 0.7);
+  const tx = w * 0.3;
+  const ty = rail - 2 + bob;
+  const carriage = (x: number, colour: string): void => {
+    ctx.fillStyle = colour;
+    ctx.fillRect(x, ty - 12, 30, 10);
+    ctx.fillStyle = '#FFE59A';
+    for (let k = 0; k < 4; k++) ctx.fillRect(x + 3 + k * 7, ty - 10, 4, 4);
+    ctx.fillStyle = '#16182A';
+    for (const wx of [x + 6, x + 24]) {
+      ctx.beginPath();
+      ctx.arc(wx, ty - 1, 2.4, 0, TAU);
+      ctx.fill();
+    }
+  };
+  carriage(tx, '#3F79C2');
+  carriage(tx + 33, '#E2A93E');
+  // The locomotive at the front, chimney up.
+  const lx = tx + 66;
+  ctx.fillStyle = '#C9443C';
+  ctx.fillRect(lx, ty - 10, 26, 8);
+  ctx.fillRect(lx, ty - 16, 9, 7);
+  ctx.fillStyle = '#2B2D3E';
+  ctx.fillRect(lx + 18, ty - 16, 4, 6);
+  ctx.fillStyle = '#FFE59A';
+  ctx.fillRect(lx + 2, ty - 14, 4, 3);
+  ctx.fillStyle = '#16182A';
+  for (const wx of [lx + 5, lx + 13, lx + 21]) {
+    ctx.beginPath();
+    ctx.arc(wx, ty - 1, 2.8, 0, TAU);
+    ctx.fill();
+  }
+  // Smoke drifting back from the chimney, three puffs a loop.
+  for (let i = 0; i < 3; i++) {
+    const p = (t * 3 + i / 3) % 1;
+    ctx.fillStyle = `rgba(232, 236, 248, ${(0.85 * (1 - p)).toFixed(2)})`;
+    ctx.beginPath();
+    ctx.arc(lx + 20 - p * 46, ty - 18 - p * 14, 2.5 + p * 5, 0, TAU);
+    ctx.fill();
+  }
+  // Telegraph poles flick past in front.
+  ctx.fillStyle = '#121933';
+  for (let i = 0; i < 3; i++) {
+    const px = ((((i * w) / 3 - t * 4 * w) % w) + w) % w;
+    ctx.fillRect(px, h * 0.48, 2, h * 0.52);
+    ctx.fillRect(px - 4, h * 0.52, 10, 1.5);
+  }
+}
+
 /** The face the train's name is sign-written in on the carriage sides: a classic serif in capitals. */
 const LETTERING_FONT = '"Georgia", "Times New Roman", "Noto Serif", serif';
 /** Lettering canvas height in pixels (the plane's height maps to it). */

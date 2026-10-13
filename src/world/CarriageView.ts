@@ -1,4 +1,5 @@
 import { TrainCat } from './TrainCat';
+import { VISUALS } from '../config/visuals';
 import * as THREE from 'three';
 import { rect, type CarriageType, type Rect, type VenueKind } from '../core/types';
 import type { ComfortKey } from '../config/content';
@@ -38,7 +39,7 @@ import { STATIC_CASTER_LAYER } from './Lighting';
 import type { LampAnchor } from './Lighting';
 import { REFLECT_LAYER } from './Water';
 import { buildBarBulbs, buildDomeCanopy, buildPassPlate, buildTableDirt, buildVenueProp, projectorLens, screenArea } from './VenueProps';
-import { bubbleTexture, makeSprite } from './sprites';
+import { bubbleTexture, filmTexture, FILM_COLS, FILM_FPS, FILM_FRAMES, FILM_ROWS, makeSprite } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 import type { IconName } from '../ui/icons';
 
@@ -156,15 +157,6 @@ const CLOCK_X = -1.03;
 const PICTURE_Y = INTERIOR_WALL_HEIGHT - 0.14;
 const RADIO_SHELF_Y = INTERIOR_WALL_HEIGHT - 0.32;
 
-/** The cinema's film: a few scenes, each four corner colours (top back, bottom front, bottom back, top front). */
-const FILM_SCENES: readonly (readonly (readonly number[])[])[] = [
-  [[0.25, 0.45, 0.85], [0.15, 0.45, 0.1], [0.1, 0.35, 0.08], [0.4, 0.6, 0.95]],
-  [[0.95, 0.5, 0.2], [0.45, 0.18, 0.08], [0.35, 0.14, 0.06], [1.0, 0.65, 0.3]],
-  [[0.12, 0.15, 0.5], [0.05, 0.06, 0.22], [0.08, 0.05, 0.18], [0.25, 0.25, 0.65]],
-  [[0.7, 0.7, 0.6], [0.3, 0.25, 0.2], [0.25, 0.2, 0.18], [0.85, 0.8, 0.7]],
-  [[0.85, 0.3, 0.45], [0.35, 0.08, 0.2], [0.25, 0.06, 0.15], [0.95, 0.45, 0.55]],
-];
-
 /** How a carriage looks at a refurbishment tier: the whole rags-to-riches story in one table. */
 interface Finish {
   wall: string;
@@ -199,15 +191,17 @@ interface Finish {
  * sconces, the dome's midnight blue, the picture palace's mahogany under deep red).
  */
 const VENUE_WALLS: Record<VenueKind, { wall: string; wallLow: string; panel?: string; cap?: string; curtain?: string }[]> = {
+  // Fix list 5.4–5.5: the café bright and airy (whitewash, then sage, then green and gold), the dining car warm and
+  // evening (oatmeal over terracotta, then claret, then walnut and gold), so they never look alike.
   cafe: [
-    { wall: '#EFE6D3', wallLow: '#D3C6AA' },
-    { wall: '#EBDDBF', wallLow: '#8FA66A', curtain: '#E9D9A8' },
-    { wall: '#F1E6CF', wallLow: '#2F5A3E', panel: '#2F5A3E', cap: PALETTE.gold, curtain: '#F2E9D6' },
+    { wall: '#F5F0E5', wallLow: '#DCD3C0' },
+    { wall: '#F6F0E1', wallLow: '#A9C49C', curtain: '#F2E2B8' },
+    { wall: '#F3EADA', wallLow: '#2F5A3E', panel: '#2F5A3E', cap: PALETTE.gold, curtain: '#F2E9D6' },
   ],
   dining: [
-    { wall: '#EFE5D8', wallLow: '#CDBCA9' },
-    { wall: '#EAD8CC', wallLow: '#8C2F3F', curtain: '#E2B653' },
-    { wall: '#F0E2CE', wallLow: PALETTE.walnut, panel: PALETTE.walnut, cap: PALETTE.gold, curtain: '#8C2F3F' },
+    { wall: '#EADBC7', wallLow: '#9C5D50' },
+    { wall: '#E6D0BE', wallLow: '#7A2A36', curtain: '#D9B25A' },
+    { wall: '#EBD9C2', wallLow: PALETTE.walnut, panel: PALETTE.walnut, cap: PALETTE.gold, curtain: '#7A2A36' },
   ],
   bar: [
     { wall: '#E8E4DA', wallLow: '#A9BCB7' },
@@ -1004,12 +998,10 @@ export class CarriageView {
       return geo;
     };
     const film = (opacity: number): THREE.MeshBasicMaterial => new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, fog: false });
-    // Two triangles facing +x; colours are rewritten each frame while it plays.
-    const picture = quad(
-      [[x, a.y0, a.z0], [x, a.y0, a.z1], [x, a.y1, a.z1], [x, a.y0, a.z0], [x, a.y1, a.z1], [x, a.y1, a.z0]],
-      [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]],
-    );
-    this.filmPicture = new THREE.Mesh(picture, film(1));
+    // Fix list 5.6: the picture is a looping cartoon (sprites.filmTexture) on a plane facing +x into the house. Its
+    // material is the textured, transparent, untoned one the warm-up compiles, so starting a film compiles nothing.
+    const picture = new THREE.PlaneGeometry(a.z1 - a.z0, a.y1 - a.y0).rotateY(Math.PI / 2).translate(x, (a.y0 + a.y1) / 2, (a.z0 + a.z1) / 2);
+    this.filmPicture = new THREE.Mesh(picture, new THREE.MeshBasicMaterial({ map: filmTexture(), transparent: true, toneMapped: false }));
     this.filmPicture.visible = false;
     this.filmPicture.renderOrder = 2;
     this.group.add(this.filmPicture);
@@ -1041,22 +1033,15 @@ export class CarriageView {
     if (this.filmBeam) this.filmBeam.visible = on;
   }
 
-  /** The picture's colours: a few "scenes" a couple of seconds each, the light flickering a little. */
+  /** The film plays: the cartoon steps frame to frame (a texture offset), the light flickering a little. */
   private animateFilm(): void {
     const mesh = this.filmPicture;
     if (!mesh || !this.filmOn) return;
-    const n = FILM_SCENES.length;
-    const scene = Math.floor(Math.abs(this.clock) / 2.3);
-    const palette = FILM_SCENES[((scene % n) + n) % n];
+    const material = mesh.material as THREE.MeshBasicMaterial;
+    const frame = Math.floor(Math.abs(this.clock) * FILM_FPS) % FILM_FRAMES;
+    material.map?.offset.set((frame % FILM_COLS) / FILM_COLS, 1 - (Math.floor(frame / FILM_COLS) + 1) / FILM_ROWS);
     const flicker = 0.92 + 0.08 * Math.sin(this.clock * 23) * Math.sin(this.clock * 7);
-    const colours = mesh.geometry.getAttribute('color') as THREE.BufferAttribute;
-    // Vertices 0, 3: bottom front; 1: bottom back; 2, 4: top back; 5: top front. Sky on top, ground below.
-    const set = (i: number, c: readonly number[]): void => {
-      colours.setXYZ(i, c[0] * flicker, c[1] * flicker, c[2] * flicker);
-    };
-    set(0, palette[1]); set(3, palette[1]); set(1, palette[2]);
-    set(2, palette[0]); set(4, palette[0]); set(5, palette[3]);
-    colours.needsUpdate = true;
+    material.color.setScalar(flicker);
     if (this.filmBeam) (this.filmBeam.material as THREE.MeshBasicMaterial).opacity = 0.12 + 0.04 * flicker;
   }
 
@@ -1133,6 +1118,14 @@ export class CarriageView {
   lampAnchors(originZ: number): LampAnchor[] {
     const out: LampAnchor[] = [];
     const y = FLOOR_Y + 1.25;
+    // Fix list 5.4: in a refitted dining car each table's lamp and candle pool their light on the cloth.
+    const table = this.tier >= 1 ? VISUALS.night.light.venues[this.layout.type]?.table : undefined;
+    if (table) {
+      for (const p of this.layout.props) {
+        if (p.kind !== 'diningTable') continue;
+        out.push({ x: (p.rect.x0 + p.rect.x1) / 2, y: FLOOR_Y + 0.95, z: originZ + (p.rect.z0 + p.rect.z1) / 2, strength: table.strength, radius: table.radius });
+      }
+    }
     for (const room of this.layout.rooms) {
       const w = room.x1 - room.x0;
       const d = room.z1 - room.z0;

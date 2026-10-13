@@ -69,6 +69,8 @@ export interface LampAnchor {
   y: number;
   z: number;
   strength: number;
+  /** How far its pool reaches (the bake's usual radius when absent). */
+  radius?: number;
 }
 
 /**

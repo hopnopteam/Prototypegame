@@ -46,12 +46,14 @@ export function trainLightInput(cars: readonly LitCarriage[]): BakeInput {
 
   for (const car of cars) {
     const tierK = L.tierLamp[Math.min(L.tierLamp.length - 1, Math.max(0, car.tier))];
+    // A venue's own light once refitted (fix list 5.4).
+    const mood = car.tier >= 1 ? L.venues[car.layout.type] : undefined;
     // Bare bulbs run cooler; refitted lamps are warm amber.
-    const lampColor = car.tier <= 0 ? '#FFD39A' : L.lamp.color;
-    const ambient = linearColor(L.interior.color, L.interior.intensity * tierK);
+    const lampColor = car.tier <= 0 ? '#FFD39A' : mood?.lamp ?? L.lamp.color;
+    const ambient = linearColor(mood?.interior ?? L.interior.color, L.interior.intensity * tierK * (mood?.ambient ?? 1));
     for (const r of car.layout.rooms) rooms.push({ rect: offset(r, car.originZ), ambient });
     for (const lamp of car.lamps) {
-      lamps.push({ x: lamp.x, z: lamp.z, strength: lamp.strength * L.lamp.intensity * tierK, radius: L.lamp.radius, color: linearColor(lampColor) });
+      lamps.push({ x: lamp.x, z: lamp.z, strength: lamp.strength * L.lamp.intensity * tierK * (mood?.lampK ?? 1), radius: lamp.radius ?? L.lamp.radius, color: linearColor(lampColor) });
     }
     for (const w of car.layout.walls) occluders.push({ rect: offset(w, car.originZ), strength: ao.wall, reach: ao.wallReach });
     for (const p of car.layout.props) occluders.push({ rect: offset(p.rect, car.originZ), strength: ao.prop, reach: ao.propReach });

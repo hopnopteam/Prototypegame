@@ -378,51 +378,90 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
 function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageTheme): void {
   const venue = layout.venue;
   if (!venue) return;
-  const base = FLOOR_Y + ROOM_LIFT + 0.001;
+  const floor = FLOOR_Y + ROOM_LIFT + 0.001;
   const deep = theme.deep;
+  // A covering laid over another (the Persian runner on the dining car's carpet) starts on top of it, never in its
+  // plane.
+  const laid: { rect: Rect; top: number }[] = [];
+  const overlaps = (a: Rect, b: Rect): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.z0 < b.z1 && b.z0 < a.z1;
   for (const c of venue.carpets) {
+    const base = laid.reduce((top, l) => (overlaps(l.rect, c.rect) ? Math.max(top, l.top + 0.001) : top), floor);
+    const lay = (layers: { color: string; inset: number; pattern?: PartStyle }[]): void => {
+      laid.push({ rect: c.rect, top: rug(f, c.rect, base, layers) });
+    };
     switch (c.style) {
       case 'jute':
-        rug(f, c.rect, base, [{ color: '#A88E66', inset: 0 }, { color: '#C2AA82', inset: 0.04, pattern: { pattern: PATTERN.checker, color2: '#B59C74', scale: 0.05, shade: 1 } }]);
+        lay([{ color: '#A88E66', inset: 0 }, { color: '#C2AA82', inset: 0.04, pattern: { pattern: PATTERN.checker, color2: '#B59C74', scale: 0.05, shade: 1 } }]);
         break;
       case 'runner':
-        rug(f, c.rect, base, [
+        lay([
           { color: '#C9A45C', inset: 0 },
           { color: deep, inset: 0.04 },
           { color: deep, inset: 0.1, pattern: { pattern: PATTERN.diamond, color2: shadeHex(deep, 16), scale: 0.22, shade: 1 } },
         ]);
         break;
       case 'persian':
-        rug(f, c.rect, base, [
-          { color: '#3A1A22', inset: 0 },
-          { color: '#C9A45C', inset: 0.04 },
-          { color: '#EAD9B8', inset: 0.07 },
-          { color: deep, inset: 0.14, pattern: { pattern: PATTERN.diamond, color2: shadeHex(deep, 12), scale: 0.13, shade: 1 } },
+        lay([
+          { color: '#C9A45C', inset: 0 },
+          { color: '#EAD9B8', inset: 0.04 },
+          { color: deep, inset: 0.11, pattern: { pattern: PATTERN.diamond, color2: shadeHex(deep, 12), scale: 0.13, shade: 1 } },
         ]);
         break;
       case 'plaid':
-        rug(f, c.rect, base, [
+        lay([
           { color: '#4A3022', inset: 0 },
           { color: '#C9AA82', inset: 0.06, pattern: { pattern: PATTERN.plaid, color2: '#6E4C34', scale: 0.2, shade: 1, surface: 'fabric' } },
         ]);
         break;
       case 'theatre':
         // A deep wine carpet with a small gold figure (the seats in brighter red stand out on it).
-        rug(f, c.rect, base, [
+        lay([
           { color: '#C9A45C', inset: 0 },
           { color: '#4E1420', inset: 0.05, pattern: { pattern: PATTERN.dots, color2: '#A47A3A', scale: 0.22, shade: 1, surface: 'velvet' } },
         ]);
         break;
       case 'checker':
-        rug(f, c.rect, base, [
+        lay([
           { color: '#5A564F', inset: 0 },
           { color: '#EFE9DE', inset: 0.07, pattern: { pattern: PATTERN.checker, color2: '#8A847A', scale: 0.36, shade: 1, surface: 'marble' } },
         ]);
         break;
       case 'starry':
-        rug(f, c.rect, base, [
+        lay([
           { color: '#C9A45C', inset: 0 },
           { color: '#2C3C62', inset: 0.05, pattern: { pattern: PATTERN.dots, color2: '#C9A45C', scale: 0.3, shade: 1 } },
+        ]);
+        break;
+      // Fix list 5.4–5.5: the café's tiles and the dining car's carpets (soft, warm colours that sit well together;
+      // nothing stark).
+      case 'sage':
+        // The café's Makeover: cream and sage tiles in a terracotta border.
+        lay([
+          { color: '#C98B62', inset: 0 },
+          { color: '#F3ECDC', inset: 0.07, pattern: { pattern: PATTERN.checker, color2: '#B9CCA8', scale: 0.26, shade: 1, surface: 'ceramic' } },
+        ]);
+        break;
+      case 'grandCheck':
+        // The café's Luxury: big cream and soft mocha marble squares in a brass border.
+        lay([
+          { color: '#C9A45C', inset: 0 },
+          { color: '#6E5A4C', inset: 0.035 },
+          { color: '#F1ECE2', inset: 0.1, pattern: { pattern: PATTERN.checker, color2: '#A08672', scale: 0.42, shade: 1, surface: 'marble' } },
+        ]);
+        break;
+      case 'kitchen':
+        // The dining car's galley: small cream and slate tiles.
+        lay([{ color: '#ECE8E0', inset: 0, pattern: { pattern: PATTERN.checker, color2: '#8A8780', scale: 0.16, shade: 1, surface: 'ceramic' } }]);
+        break;
+      case 'wine':
+        // The dining car's first runner: plain wine red edged in old gold.
+        lay([{ color: '#B08A4E', inset: 0 }, { color: '#6E2632', inset: 0.04 }]);
+        break;
+      case 'claret':
+        // Wall to wall: a deep claret carpet with a small gold figure, quiet under the white tablecloths.
+        lay([
+          { color: '#4A1820', inset: 0 },
+          { color: '#6A2230', inset: 0.06, pattern: { pattern: PATTERN.dots, color2: '#8C5A3A', scale: 0.24, shade: 1, surface: 'velvet' } },
         ]);
         break;
     }

@@ -230,12 +230,28 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
     case 'chair': {
       // A dining or café chair, its back on the side away from the table. Run down: a plain stick chair (no two
       // alike); repaired: bentwood; cosy: upholstered in the venue's colour; luxury: a velvet high back on gilt feet.
+      // The café has its own from the Makeover (below).
       const seatY = Y + 0.42;
       const rear = prop.facing === 'rear';
       const backZ = rear ? r.z0 + 0.05 : r.z1 - 0.05;
       const toSeat = rear ? 1 : -1;
       const odd = Math.abs(Math.round((r.x0 + r.z0) * 10)) % 3;
       const wood = tier <= 0 ? ['#9C8570', '#8A7864', '#A38B6E'][odd] : tier >= 3 ? '#3E2C24' : tier === 2 ? k.woodDark : '#6E4F3A';
+      if (prop.variant === 'cafe' && tier >= 2) {
+        // Fix list 5.4–5.5: the café's own chairs, light and casual (the dining car keeps its upholstered ones): a
+        // sage bistro chair in painted metal at the Makeover; a cane bistro chair on a black frame at Luxury.
+        const frame = tier >= 3 ? '#2A2826' : '#5E7A5A';
+        const seat = tier >= 3 ? '#C9A46A' : '#8FB08A';
+        const sr = Math.min(w, d) / 2 - 0.03;
+        for (const fx of [r.x0 + 0.07, r.x1 - 0.07]) for (const fz of [r.z0 + 0.07, r.z1 - 0.07]) b.cylinder(fx, Y + 0.21, fz, 0.012, 0.012, 0.42, frame, 6, 'y', { shade: 0.9, surface: 'paint' });
+        b.cylinder(cx, seatY, cz, sr, sr, 0.035, seat, 16, 'y', tier >= 3 ? { pattern: PATTERN.checker, color2: '#B08A52', scale: 0.025, shade: 0.95, surface: 'fabric' } : { shade: 0.95, surface: 'paint' });
+        b.add(new THREE.TorusGeometry(sr - 0.01, 0.012, 6, 16), frame, cx, seatY - 0.01, cz, Math.PI / 2, 0, 0, { shade: 0.9, surface: 'paint' });
+        const backH = 0.34;
+        for (const fx of [r.x0 + 0.07, r.x1 - 0.07]) b.box(fx, seatY + backH / 2, backZ, 0.022, backH, 0.022, frame, 0, { shade: 0.9, surface: 'paint' });
+        b.box(cx, seatY + backH - 0.02, backZ, w - 0.12, 0.04, 0.025, frame, 0, { shade: 0.9, surface: 'paint' });
+        b.box(cx, seatY + backH * 0.55, backZ, w - 0.16, backH * 0.5, 0.012, seat, 0, tier >= 3 ? { pattern: PATTERN.checker, color2: '#B08A52', scale: 0.025, shade: 0.95, surface: 'fabric' } : { shade: 0.95, surface: 'paint' });
+        return true;
+      }
       const legs = tier >= 3 ? PALETTE.gold : wood;
       for (const fx of [r.x0 + 0.05, r.x1 - 0.05]) for (const fz of [r.z0 + 0.05, r.z1 - 0.05]) b.box(fx, Y + 0.2, fz, 0.035, 0.4, 0.035, legs, 0, { shade: 0.85, surface: tier >= 3 ? 'paint' : 'wood' });
       if (tier <= 0) {
@@ -244,8 +260,8 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
         b.box(cx, seatY + 0.36, backZ, w - 0.08, 0.08, 0.025, wood, 0, { shade: 0.9 });
         return true;
       }
-      if (tier === 1) {
-        // Bentwood: a round caned seat and a hoop back.
+      if (tier === 1 && prop.variant !== 'dining') {
+        // Bentwood: a round caned seat and a hoop back (the dining car is upholstered from the start, fix list 5.4).
         const sr = Math.min(w, d) / 2 - 0.02;
         b.cylinder(cx, seatY, cz, sr, sr, 0.04, wood, 14, 'y', { shade: 0.9, surface: 'varnish' });
         b.cylinder(cx, seatY + 0.025, cz, sr - 0.04, sr - 0.04, 0.012, '#C9A97A', 14, 'y', { ...FLAT, surface: 'fabric' });
@@ -297,17 +313,21 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
       return true;
     }
     case 'diningTable': {
-      // A window table: bare boards and a candle stub when run down, a white cloth from Repaired, a velvet runner and
-      // a silk-shaded lamp when cosy, gold-rimmed china and a rose at Luxury.
-      const wallEnd = Math.abs(r.x0) > Math.abs(r.x1) ? r.x0 : r.x1;
-      const inward = wallEnd < 0 ? 1 : -1;
+      // A window table laid for dinner (fix list 5.4: an elegant evening restaurant, never mistaken for the café):
+      // bare boards and a candle stub when run down; from Repaired a white cloth falling well down all round, a place
+      // laid at each end (a plate, knife and fork, a glass) and the silk-shaded lamp by the window; a velvet runner, a
+      // folded napkin on each plate and a candle from Cosy; gold-rimmed china, wine glasses and a rose at Luxury.
+      const { px, inward, wallEnd, aisleEnd } = placeSetting(r);
       const topY = Y + 0.72;
       for (const fx of [r.x0 + 0.08, r.x1 - 0.08]) for (const fz of [r.z0 + 0.08, r.z1 - 0.08]) b.box(fx, Y + 0.35, fz, 0.04, 0.7, 0.04, k.woodDark, 0, { shade: 0.85 });
       b.slab(r, topY - 0.03, topY, tier <= 0 ? '#A88F74' : k.wood, 0, 0.01, { shade: 0.9, surface: tier <= 0 ? 'wood' : 'varnish' });
       if (tier >= 1) {
-        b.slab(r, topY, topY + 0.008, PALETTE.linen, 0, 0, { ...FLAT, surface: 'fabric' });
-        b.box(r.x0 + w / 2, topY - 0.08, r.z0 + 0.005, w - 0.01, 0.16, 0.01, PALETTE.linen, 0, { ...FLAT, surface: 'fabric' });
-        b.box(r.x0 + w / 2, topY - 0.08, r.z1 - 0.005, w - 0.01, 0.16, 0.01, PALETTE.linen, 0, { ...FLAT, surface: 'fabric' });
+        const drop = 0.34;
+        const cloth = { ...FLAT, surface: 'fabric' as const };
+        b.slab(r, topY, topY + 0.008, PALETTE.linen, 0, 0, cloth);
+        b.box(r.x0 + w / 2, topY - drop / 2, r.z0 + 0.005, w - 0.01, drop, 0.01, PALETTE.linen, 0, cloth);
+        b.box(r.x0 + w / 2, topY - drop / 2, r.z1 - 0.005, w - 0.01, drop, 0.01, PALETTE.linen, 0, cloth);
+        b.box(aisleEnd + inward * 0.005, topY - drop / 2, cz, 0.01, drop, d - 0.03, PALETTE.linen, 0, cloth);
       }
       if (tier >= 2) b.slab(rect(r.x0 + 0.06, cz - 0.08, r.x1 - 0.06, cz + 0.08), topY + 0.008, topY + 0.012, theme.deep, 0, 0, { ...FLAT, surface: 'velvet' });
       const lx = wallEnd + inward * 0.14;
@@ -319,15 +339,38 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
         b.cylinder(lx, topY + 0.12, cz, 0.01, 0.01, 0.15, k.metal, 6, 'y', { surface: k.metalSurface });
         lamps.cylinder(lx, topY + 0.22, cz, 0.045, 0.07, 0.08, tier >= 2 ? '#F6D9B5' : PALETTE.lampShade, 12, 'y', { shade: 0.9 });
       }
-      const px = r.x0 + w * 0.55;
-      const pz = cz - 0.2;
-      b.cylinder(px, topY + 0.015, pz, 0.1, 0.1, 0.012, tier <= 0 ? '#E3DED3' : '#FBF8F2', 16, 'y', { surface: 'ceramic' });
-      if (tier >= 3) {
-        b.cylinder(px, topY + 0.022, pz, 0.075, 0.075, 0.004, PALETTE.gold, 16, 'y', { ...FLAT, surface: 'brass' });
-        b.cylinder(lx, topY + 0.07, cz + 0.22, 0.014, 0.02, 0.12, '#DDEBEF', 8, 'y', { surface: 'glass' });
-        b.sphere(lx, topY + 0.15, cz + 0.22, 0.03, '#C0485C', 1, 0.9, FLAT);
+      // A place at each end, toward the chairs.
+      const china = tier <= 0 ? '#E3DED3' : '#FBF8F2';
+      const silver = { ...FLAT, surface: 'steel' as const };
+      for (const side of [-1, 1]) {
+        const pz = cz + side * 0.27;
+        b.cylinder(px, topY + 0.015, pz, 0.1, 0.1, 0.012, china, 16, 'y', { surface: 'ceramic' });
+        if (tier >= 3) b.cylinder(px, topY + 0.022, pz, 0.075, 0.075, 0.004, PALETTE.gold, 16, 'y', { ...FLAT, surface: 'brass' });
+        if (tier >= 1) {
+          // Knife and fork either side of the plate.
+          for (const dx of [-0.13, 0.13]) b.box(px + dx, topY + 0.011, pz, 0.016, 0.004, 0.17, PALETTE.chrome, 0, silver);
+        }
+        if (tier >= 2) b.box(px, topY + 0.032, pz, 0.07, 0.022, 0.05, PALETTE.linen, 0, { ...FLAT, surface: 'fabric' });
+        // A glass beside the plate, toward the window.
+        const gx = px - inward * 0.14;
+        if (tier >= 3) {
+          b.cylinder(gx, topY + 0.03, pz - side * 0.12, 0.018, 0.024, 0.05, '#E8EEF2', 8, 'y', { surface: 'glass' });
+          b.cylinder(gx, topY + 0.1, pz - side * 0.12, 0.03, 0.018, 0.08, '#E8EEF2', 8, 'y', { surface: 'glass' });
+        } else {
+          b.cylinder(gx, topY + 0.06, pz - side * 0.12, 0.022, 0.016, 0.1, '#E8EEF2', 8, 'y', { surface: 'glass' });
+        }
       }
-      b.cylinder(px + inward * 0.15, topY + 0.06, pz + 0.06, 0.022, 0.016, 0.1, '#E8EEF2', 8, 'y', { surface: 'glass' });
+      if (tier >= 2) {
+        // A candle in a brass stick between the places, toward the aisle.
+        const cx2 = aisleEnd - inward * 0.16;
+        b.cylinder(cx2, topY + 0.02, cz, 0.03, 0.035, 0.03, PALETTE.gold, 10, 'y', { surface: 'brass' });
+        b.cylinder(cx2, topY + 0.09, cz, 0.012, 0.012, 0.11, '#F6EEDC', 8, 'y', FLAT);
+        lamps.sphere(cx2, topY + 0.16, cz, 0.016, '#FFD08A', 0, 1.4, FLAT);
+      }
+      if (tier >= 3) {
+        b.cylinder(lx, topY + 0.07, cz + 0.2, 0.014, 0.02, 0.12, '#DDEBEF', 8, 'y', { surface: 'glass' });
+        b.sphere(lx, topY + 0.15, cz + 0.2, 0.03, '#C0485C', 1, 0.9, FLAT);
+      }
       return true;
     }
     case 'bar':
@@ -1382,17 +1425,27 @@ export function buildBarBulbs(lamps: GeoBuilder, prop: PropDef): void {
 
 /** A table after a meal: an empty plate with crumbs, a tipped glass, a crumpled napkin, cutlery askew. */
 export function buildTableDirt(b: GeoBuilder, table: PropDef): void {
+  // The diner's place (the end toward their chair) after the meal: the plate wiped with sauce and crumbs, the knife
+  // left across it, a crumpled napkin and a glass on its side. It sits over the laid place and its folded napkin (fix
+  // list 5.4), never in them.
   const r = table.rect;
-  const w = r.x1 - r.x0;
+  const { px, inward } = placeSetting(r);
   const cz = (r.z0 + r.z1) / 2;
-  const topY = Y + 0.735;
-  const px = r.x0 + w * 0.55;
-  const pz = cz - 0.2;
-  b.cylinder(px, topY + 0.03, pz, 0.075, 0.075, 0.006, '#D9B07A', 14, 'y', FLAT);
-  for (const [dx, dz] of [[0.03, 0.02], [-0.04, -0.01], [0.01, -0.04]]) b.sphere(px + dx, topY + 0.035, pz + dz, 0.012, '#B5793F', 0, 0.6, FLAT);
-  b.add(new THREE.CylinderGeometry(0.02, 0.016, 0.1, 8), '#E8EEF2', px - 0.16, topY + 0.03, pz + 0.12, 0, 0.6, Math.PI / 2, { surface: 'glass' });
-  b.add(new THREE.SphereGeometry(0.05, 6, 4).scale(1, 0.5, 0.8), PALETTE.linen, px + 0.12, topY + 0.03, pz + 0.16, 0, 0.4, 0, FLAT);
-  b.box(px - 0.1, topY + 0.006, pz - 0.05, 0.14, 0.006, 0.018, PALETTE.chrome, 0.7, { ...FLAT, surface: 'steel' });
+  const topY = Y + 0.72;
+  const pz = cz - 0.27;
+  b.cylinder(px, topY + 0.047, pz, 0.075, 0.075, 0.006, '#D9B07A', 14, 'y', FLAT);
+  for (const [dx, dz] of [[0.03, 0.02], [-0.04, -0.01], [0.01, -0.04]]) b.sphere(px + dx, topY + 0.052, pz + dz, 0.012, '#B5793F', 0, 0.6, FLAT);
+  b.box(px, topY + 0.054, pz + 0.01, 0.14, 0.006, 0.018, PALETTE.chrome, 0.7, { ...FLAT, surface: 'steel' });
+  b.add(new THREE.CylinderGeometry(0.02, 0.016, 0.1, 8), '#E8EEF2', px - inward * 0.02, topY + 0.03, pz + 0.17, 0, 0.6, Math.PI / 2, { surface: 'glass' });
+  b.add(new THREE.SphereGeometry(0.05, 6, 4).scale(1, 0.5, 0.8), PALETTE.linen, px + inward * 0.16, topY + 0.03, pz + 0.12, 0, 0.4, 0, FLAT);
+}
+
+/** Where a dining table's places are laid across it (between the lamp by the window and the aisle end). */
+function placeSetting(r: Rect): { px: number; inward: number; wallEnd: number; aisleEnd: number } {
+  const wallEnd = Math.abs(r.x0) > Math.abs(r.x1) ? r.x0 : r.x1;
+  const inward = wallEnd < 0 ? 1 : -1;
+  const aisleEnd = wallEnd === r.x0 ? r.x1 : r.x0;
+  return { px: (wallEnd + inward * 0.3 + aisleEnd) / 2, inward, wallEnd, aisleEnd };
 }
 
 /** One plate under a cloche on the pass (the chef's, waiting for the waiter). */
