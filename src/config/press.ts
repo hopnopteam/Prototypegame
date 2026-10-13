@@ -164,6 +164,13 @@ export interface RivalDare {
   stops: number;
 }
 
+/**
+ * Fix list 4.5 (Rival Watch rebuilt, design A approved by the owner): one rival at a time, the train just above you,
+ * on a bar at the foot of the screen (their face, your stars against theirs, the prize for passing them). It
+ * replaces the dares: false keeps them off (the code and data stay, so they can come back).
+ */
+export const RIVAL_DARES_ENABLED = false;
+
 export const RIVAL_DARES: RivalDare[] = [
   { id: 'tickets', metric: 'board', icon: 'ticket', dare: 'Bet you can\'t sell {n} tickets by {station}.', base: 3, perCarriage: 2, stops: 2 },
   { id: 'requests', metric: 'requests', icon: 'tea', dare: '{n} requests served by {station}? Never.', base: 3, perCarriage: 2, stops: 1 },

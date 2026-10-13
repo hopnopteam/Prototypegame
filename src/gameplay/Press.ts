@@ -14,6 +14,7 @@ import {
   INTERVIEWS,
   PRESS_ARCHIVE,
   RIVAL_DARES,
+  RIVAL_DARES_ENABLED,
   RIVALS,
   TOP_RANK_NEWS,
   TRAIN_NAME_MAX,
@@ -27,7 +28,7 @@ import {
 } from '../config/press';
 import type { IconName } from '../ui/icons';
 import type { NewsItem } from '../save/SaveData';
-import { cleanTrainName, dareTarget, fillTemplate, leagueStanding, nextDare, rivalsPassed, type LeagueStanding } from '../sim/press';
+import { cleanTrainName, dareTarget, fillTemplate, leagueStanding, nextDare, raceProgress, rivalsPassed, type LeagueStanding } from '../sim/press';
 import type { DoubleChoice } from './GameUi';
 import type { World } from './World';
 
@@ -236,7 +237,7 @@ export class Press {
     if (this.calm > 0) this.calm -= dt;
     this.quiet = this.ui.busy ? 0 : this.quiet + dt;
     // The paper's dare comes in the calm after a departure, once the station's card has gone (session 24).
-    if (this.dareBreak && this.calm > 0 && !this.ui.ticketUp && !this.ui.busy) {
+    if (RIVAL_DARES_ENABLED && this.dareBreak && this.calm > 0 && !this.ui.ticketUp && !this.ui.busy) {
       this.dareBreak = false;
       this.dareEdition();
     }
@@ -416,7 +417,7 @@ export class Press {
         rival,
         reward: cash > 0 || gems > 0 ? { cash, gems, railMiles: 0 } : null,
         tone: 'win',
-        kicker: `League · now #${rank}`,
+        kicker: `Front page · now #${rank}`,
         note: `${rival.spoils.what}: ${rival.spoils.perk.label}`,
         league: this.leagueRows(true),
       });
@@ -426,6 +427,27 @@ export class Press {
     w.save.markDirty();
     w.events.emit('rival.overtaken', { index, rank });
     w.analytics.log('rival_overtaken', { rival: rival.name, rank, seconds: Math.round(w.lifetimeSeconds()) });
+  }
+
+  /**
+   * Rival Watch (fix list 4.5): the train just above you, your stars against theirs, how far along this leg of the
+   * table you are, and what passing them pays (their purse for your train now, and their perk). Null until the
+   * rivals are part of the ride; `rival` is null at number one.
+   */
+  get watch(): { rival: Rival | null; mine: number; theirs: number; fraction: number; prize: number; perk: string; rank: number } | null {
+    const w = this.w;
+    const p = this.state;
+    if (!p.trainName || !p.interviews.includes(DEBUT_INTERVIEW) || !w.flow.allows('rivals')) return null;
+    const mine = Math.floor(w.data.route.stars);
+    const race = raceProgress(mine, this.league);
+    const rival = race.next;
+    if (!rival) return { rival: null, mine, theirs: mine, fraction: 1, prize: 0, perk: '', rank: race.rank };
+    const prized = p.rivals.prized.includes(this.rivalIndex(rival));
+    return {
+      rival, mine, theirs: rival.reputation, fraction: race.fraction, rank: race.rank,
+      prize: prized ? 0 : rival.spoils.cashPerCarriage * w.train.count,
+      perk: prized ? '' : rival.spoils.perk.label,
+    };
   }
 
   /** Pennants of every rival passed, in the order they were beaten (hoisted on the locomotive). */
@@ -451,8 +473,9 @@ export class Press {
     if (!next) return;
     const index = this.rivalIndex(next);
     if (index < 0 || p.rivals.taunted.includes(index)) return;
-    // With no dare running, the rival's first word comes with their dare in the next departure's calm.
-    if (w.journey.phase === 'onTheMove' && this.calm > 0 && p.dare !== null) this.rivalNews(index);
+    // With no dare running, the rival's first word comes with their dare in the next departure's calm (with the dares
+    // off, it comes in the next calm on its own).
+    if (w.journey.phase === 'onTheMove' && this.calm > 0 && (!RIVAL_DARES_ENABLED || p.dare !== null)) this.rivalNews(index);
     else this.tauntDue = index;
   }
 
@@ -501,7 +524,7 @@ export class Press {
   /** The dare running now, for the HUD: its rival, icon, count and target (null between editions). */
   get dare(): { rival: Rival; icon: IconName; progress: number; target: number } | null {
     const d = this.state.dare;
-    if (!d) return null;
+    if (!d || !RIVAL_DARES_ENABLED) return null;
     const def = RIVAL_DARES.find((x) => x.id === d.id);
     const rival = this.league[d.rival];
     if (!def || !rival) return null;

@@ -136,6 +136,8 @@ export class Ui implements GameUi {
   };
   /** What the dare chip shows (rival and icon), so its face is redrawn only when that changes. */
   private dareKey = '';
+  /** Rival Watch (fix list 4.5): the bar at the foot of the screen and what it last showed. */
+  private readonly rivalBar: { el: HTMLElement; face: HTMLCanvasElement; mine: HTMLElement; theirs: HTMLElement; fill: HTMLElement; prize: HTMLElement; key: string; rival: string };
   private displayedCash = 0;
   private lastCash = 0;
   private readonly objective: { el: HTMLElement; icon: HTMLElement; text: HTMLElement; fill: HTMLElement; count: HTMLElement; reward: HTMLElement; key: string; words: number };
@@ -245,7 +247,19 @@ export class Ui implements GameUi {
     const skip = h('button.cine-skip', { hidden: true, onclick: () => this.game?.skipIntro() }, 'Skip ›');
     this.caption = { el: h('div.cine-caption', { hidden: true, role: 'status' }, captionKicker, captionText), kicker: captionKicker, text: captionText, skip };
     root.append(this.caption.el, skip);
-    root.append(this.floatLayer, this.tileTag.el, this.rushChip.el, this.guide.el, top, this.objective.el, side, this.trainMap.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
+    // Rival Watch (fix list 4.5, design A): the train just above you, your stars against theirs, the prize for passing
+    // them. It shares the bottom slot with the offer chip (an offer, rare now, takes the slot while it is up).
+    const rivalFace = h('canvas.portrait', { width: 72, height: 72 }) as HTMLCanvasElement;
+    const rivalMine = h('b.rb-mine');
+    const rivalTheirs = h('b.rb-theirs');
+    const rivalFill = h('i');
+    const rivalPrize = h('span.rb-prize');
+    this.rivalBar = {
+      el: h('div.rivalbar', { hidden: true, role: 'status' }, rivalFace,
+        h('div.rb-body', {}, h('span.rb-you', { text: 'You' }), rivalMine, h('div.rb-track', {}, rivalFill), rivalTheirs), rivalPrize),
+      face: rivalFace, mine: rivalMine, theirs: rivalTheirs, fill: rivalFill, prize: rivalPrize, key: '', rival: '',
+    };
+    root.append(this.floatLayer, this.tileTag.el, this.rushChip.el, this.guide.el, top, this.objective.el, side, this.trainMap.el, this.rivalBar.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
 
     this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyTrain, journeyFill, journeyClock, rating, ratingFill, side, menu, menuDot, shop, conductor, conductorDot, dare, dareFace, dareIcon, dareCount };
     window.addEventListener('resize', () => {
@@ -305,6 +319,7 @@ export class Ui implements GameUi {
     if (this.rectTimer <= 0) this.measure();
     this.updateHud(dt);
     this.updateOffers(g.monetization.offers);
+    this.updateRivalBar(g.monetization.offers.length > 0);
     this.updateFloats(dt);
     this.updateBurst(dt);
     this.updatePointer();
@@ -450,6 +465,42 @@ export class Ui implements GameUi {
     const p = (Math.round(Math.min(1, dare.progress / Math.max(1, dare.target)) * 100) / 100).toFixed(2);
     if (hud.dare.style.getPropertyValue('--p') !== p) hud.dare.style.setProperty('--p', p);
     hud.dare.classList.toggle('met', met);
+  }
+
+  /**
+   * Rival Watch (fix list 4.5): their face, your stars, a bar for this leg of the table, their stars and what passing
+   * them pays. At number one the bar is full and gold. Out of the way while an offer has the slot.
+   */
+  private updateRivalBar(offerUp: boolean): void {
+    const bar = this.rivalBar;
+    const watch = this.game.press.watch;
+    const show = !!watch && !offerUp;
+    if (bar.el.hidden === show) {
+      bar.el.hidden = !show;
+      this.rectTimer = 0;
+      if (show) replayClass(bar.el, ['pop']);
+    }
+    if (!watch || !show) return;
+    const rival = watch.rival;
+    const name = rival?.name ?? '#1';
+    if (name !== bar.rival) {
+      // A new rival steps up (or you are number one): their face, and a little pop.
+      const flip = bar.rival !== '';
+      bar.rival = name;
+      if (rival) drawOwnerPortrait(bar.face, rival.owner.look, rival.livery, rival.trim, 'smug');
+      bar.face.hidden = !rival;
+      bar.el.classList.toggle('top', !rival);
+      if (flip) replayClass(bar.el, ['bump']);
+    }
+    const key = `${watch.mine}|${watch.theirs}|${watch.prize}|${Math.round(watch.fraction * 100)}`;
+    if (key === bar.key) return;
+    bar.key = key;
+    setText(bar.mine, `${formatNumber(watch.mine)}★`);
+    setText(bar.theirs, rival ? `${formatNumber(watch.theirs)}★` : '#1');
+    bar.fill.style.width = `${Math.round(Math.min(1, watch.fraction) * 100)}%`;
+    bar.prize.replaceChildren(...(watch.prize > 0 ? [icon('cash', 18), document.createTextNode(`+${formatNumber(watch.prize)}`)] : [icon('trophy', 20)]));
+    const label = rival ? `Rival Watch: you ${watch.mine} stars, ${rival.name} ${watch.theirs}; passing them pays ${watch.prize}${watch.perk ? ` and ${watch.perk}` : ''}` : 'Number one in the Countryside League';
+    bar.el.setAttribute('aria-label', label);
   }
 
   private ratingShown = '';

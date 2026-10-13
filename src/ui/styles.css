@@ -189,6 +189,25 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 @keyframes glow { 50% { box-shadow: 0 3px 0 var(--ink), 0 0 0 5px #F2B23399; } }
 
 /* ── The one bottom slot: a rewarded offer ─────────────── */
+/* Rival Watch (fix list 4.5): one slim bar at the foot of the screen, sharing the slot with the offer chip.
+   Not interactive, so a thumb starting the joystick there is never caught by it. */
+.rivalbar {
+  position: absolute; z-index: 16; left: 50%; bottom: calc(var(--safe-bottom) + 14px); translate: -50% 0; width: min(340px, calc(100% - 24px)); box-sizing: border-box;
+  display: flex; align-items: center; gap: 7px; padding: 4px 6px 4px 4px; border-radius: 18px; background: linear-gradient(#3F679A, var(--navy)); color: var(--cream);
+  border: var(--line); box-shadow: var(--drop), inset 0 2px 0 rgba(255, 255, 255, 0.2); pointer-events: none;
+}
+.rivalbar[hidden] { display: none; }
+.rivalbar .portrait { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--cream); box-shadow: 0 0 0 2px var(--ink); }
+.rivalbar .portrait[hidden] { display: none; }
+.rivalbar .rb-body { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rivalbar .rb-you { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85; }
+.rivalbar .rb-track { flex: 1; min-width: 30px; height: 10px; border-radius: 5px; background: rgba(10, 20, 36, 0.55); border: 2px solid var(--ink); overflow: hidden; }
+.rivalbar .rb-track i { display: block; height: 100%; width: 0; background: linear-gradient(#FFE08A, var(--mustard)); transition: width 500ms ease-out; }
+.rivalbar .rb-prize { flex: none; display: inline-flex; align-items: center; gap: 2px; padding: 2px 7px 2px 4px; border-radius: 11px; background: var(--cream); color: var(--ink); font-weight: 800; font-size: 13px; }
+.rivalbar .rb-prize .ico { width: 18px; height: 18px; }
+.rivalbar.top { background: linear-gradient(#FFD266, var(--mustard)); color: var(--ink); }
+.rivalbar.top .rb-track i { width: 100% !important; }
+.rivalbar.bump { animation: bump 420ms cubic-bezier(.2,1.6,.4,1); }
 .offers { position: absolute; left: 12px; right: 12px; bottom: calc(var(--safe-bottom) + 14px); display: flex; justify-content: center; }
 .chip {
   display: flex; align-items: center; gap: 6px; padding: 5px 5px 5px 7px; border-radius: 16px; background: linear-gradient(#FFFDF7, #F3E4C6);

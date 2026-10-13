@@ -46,6 +46,7 @@ const auditPage = () => {
     tiletag: '.tile-tag',
     gesture: '.gesture',
     rush: '.rush',
+    rival: '.rivalbar',
   };
   const boxes = [];
   for (const [group, selector] of Object.entries(groups)) {
