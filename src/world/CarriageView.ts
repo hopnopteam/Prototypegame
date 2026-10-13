@@ -22,6 +22,7 @@ import {
   REAR_VESTIBULE,
   WALL,
   isVenueType,
+  royalBathRect,
   type CabinLayout,
   type CarriageLayout,
   type PropDef,
@@ -2228,18 +2229,19 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       break;
     }
     case 'wardrobe': {
-      // The Royal armoire: walnut with gilt mouldings, a mirror in each door, a crown of carving on top.
+      // The Royal armoire (fix list 5.1: a low one, so nothing tall rises over the cut-away walls): walnut with gilt
+      // mouldings, a mirror in each door, a gilt crest on top.
       const face = prop.facing === 'right' ? r.x1 : r.x0;
       const out = prop.facing === 'right' ? 1 : -1;
       b.box(cx, y + 0.04, cz, w, 0.08, d, PALETTE.walnutDark, 0, { shade: 0.8, surface: 'varnish' });
-      b.box(cx - out * 0.01, y + 0.74, cz, w - 0.02, 1.32, d - 0.04, PALETTE.walnut, 0, { shade: 0.82, surface: 'varnish' });
-      b.box(cx, y + 1.44, cz, w + 0.04, 0.08, d + 0.04, PALETTE.walnutDark, 0, { shade: 0.9, surface: 'varnish' });
-      b.box(cx, y + 1.5, cz, w * 0.5, 0.06, d * 0.5, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+      b.box(cx - out * 0.01, y + 0.46, cz, w - 0.02, 0.76, d - 0.04, PALETTE.walnut, 0, { shade: 0.82, surface: 'varnish' });
+      b.box(cx, y + 0.88, cz, w + 0.04, 0.06, d + 0.04, PALETTE.walnutDark, 0, { shade: 0.9, surface: 'varnish' });
+      b.box(cx, y + 0.93, cz, w * 0.5, 0.04, d * 0.5, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
       for (const side of [-1, 1]) {
         const dz = cz + side * d * 0.245;
-        b.box(face - out * 0.012, y + 0.76, dz, 0.012, 1.16, d * 0.44, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
-        b.box(face - out * 0.003, y + 0.8, dz, 0.012, 0.86, d * 0.34, '#C9D6E2', 0, { shade: 1, surface: 'glass' });
-        b.sphere(face + out * 0.012, y + 0.74, cz + side * 0.04, 0.018, PALETTE.gold, 0, 1, { shade: 1, surface: 'brass' });
+        b.box(face - out * 0.012, y + 0.47, dz, 0.012, 0.64, d * 0.44, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+        b.box(face - out * 0.003, y + 0.49, dz, 0.012, 0.44, d * 0.34, '#C9D6E2', 0, { shade: 1, surface: 'glass' });
+        b.sphere(face + out * 0.012, y + 0.46, cz + side * 0.04, 0.018, PALETTE.gold, 0, 1, { shade: 1, surface: 'brass' });
       }
       break;
     }
@@ -2555,8 +2557,8 @@ function buildGrandBed(b: GeoBuilder, r: Rect, theme: CarriageTheme, tier: numbe
   for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) b.sphere(cx - 0.25 + i * 0.25, y + 0.5 + j * 0.2, r.z0 + 0.114, 0.015, PALETTE.gold, 0, 1, { shade: 1, surface: 'brass' });
   b.cylinder(cx, y + 0.92, r.z0 + 0.04, 0.035, 0.035, w - 0.02, PALETTE.gold, 10, 'x', { shade: 1, surface: 'brass' });
   if (tier < 5) return;
-  // The four-poster.
-  const top = y + 1.38;
+  // The four-poster (fix list 5.1: a lighter, lower canopy, so it no longer rises over the cut-away walls).
+  const top = y + 1.02;
   const posts: [number, number][] = [[r.x0 + 0.04, r.z0 + 0.04], [r.x1 - 0.04, r.z0 + 0.04], [r.x0 + 0.04, r.z1 - 0.04], [r.x1 - 0.04, r.z1 - 0.04]];
   for (const [px, pz] of posts) {
     b.cylinder(px, (y + 0.24 + top) / 2, pz, 0.028, 0.034, top - y - 0.24, frame, 8, 'y', { shade: 0.85, surface: 'varnish' });
@@ -2569,12 +2571,12 @@ function buildGrandBed(b: GeoBuilder, r: Rect, theme: CarriageTheme, tier: numbe
     const inset = 0.025;
     if (along) {
       const vx = x0 + (x0 < cx ? inset : -inset);
-      b.box(vx, top - 0.13, (z0 + z1) / 2, 0.012, 0.18, Math.abs(z1 - z0) - 0.1, theme.deep, 0, { shade: 0.9, surface: 'velvet' });
-      b.box(vx, top - 0.229, (z0 + z1) / 2, 0.022, 0.018, Math.abs(z1 - z0) - 0.1, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+      b.box(vx, top - 0.09, (z0 + z1) / 2, 0.012, 0.1, Math.abs(z1 - z0) - 0.1, theme.deep, 0, { shade: 0.9, surface: 'velvet' });
+      b.box(vx, top - 0.148, (z0 + z1) / 2, 0.022, 0.016, Math.abs(z1 - z0) - 0.1, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
     } else {
       const vz = z0 + (z0 < cz ? inset : -inset);
-      b.box((x0 + x1) / 2, top - 0.13, vz, Math.abs(x1 - x0) - 0.1, 0.18, 0.012, theme.deep, 0, { shade: 0.9, surface: 'velvet' });
-      b.box((x0 + x1) / 2, top - 0.229, vz, Math.abs(x1 - x0) - 0.1, 0.018, 0.022, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
+      b.box((x0 + x1) / 2, top - 0.09, vz, Math.abs(x1 - x0) - 0.1, 0.1, 0.012, theme.deep, 0, { shade: 0.9, surface: 'velvet' });
+      b.box((x0 + x1) / 2, top - 0.148, vz, Math.abs(x1 - x0) - 0.1, 0.016, 0.022, PALETTE.gold, 0, { shade: 1, surface: 'brass' });
     }
   };
   rail(r.x0 + 0.04, r.z0 + 0.04, r.x0 + 0.04, r.z1 - 0.04);
@@ -2804,18 +2806,21 @@ function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout
     b.endObject();
     return;
   }
-  // The Royal Suite's private bath: a slipper tub on gold claw feet, a gold tap and a folded towel.
+  // The Royal Suite's private bath (fix list 5.1): a slipper tub on gold claw feet lengthwise along the window wall,
+  // a step past the bed's foot, a gold tap at its end and a folded towel on its rim.
+  const tub = royalBathRect(bed);
+  if (tub.z1 > room.z1 - 0.04) return;
   b.object('class:bath');
-  const tx0 = bed.x0 + 0.06;
-  const tx1 = bed.x1 - 0.06;
-  const tcx = (tx0 + tx1) / 2;
-  const td = Math.min(fd, 0.46);
-  b.rounded(tcx, y + 0.3, fzc, tx1 - tx0, 0.4, td, 0.2, '#F7F4EE', { shade: 0.85, surface: 'ceramic' });
-  b.rounded(tcx, y + 0.505, fzc, tx1 - tx0 - 0.02, 0.03, td - 0.02, 0.19, PALETTE.gold, { shade: 1, surface: 'brass' });
-  b.rounded(tcx, y + 0.525, fzc, tx1 - tx0 - 0.14, 0.02, td - 0.14, 0.14, '#BFE0EC', { shade: 1, surface: 'glass' });
-  for (const fx of [tx0 + 0.12, tx1 - 0.12]) for (const dz of [-td / 2 + 0.1, td / 2 - 0.1]) b.sphere(fx, y + 0.05, fzc + dz, 0.045, PALETTE.gold, 0, 1, { shade: 1, surface: 'brass' });
-  b.cylinder(tx1 - 0.08, y + 0.62, fzc, 0.016, 0.016, 0.2, PALETTE.gold, 6, 'y', { surface: 'brass' });
-  b.box(tx0 + 0.18, y + 0.53, fzc, 0.24, 0.05, 0.16, theme.blanket, 0, { shade: 0.95, surface: 'fabric' });
+  const tcx = (tub.x0 + tub.x1) / 2;
+  const tcz = (tub.z0 + tub.z1) / 2;
+  const tw = tub.x1 - tub.x0 - 0.04;
+  const tl = tub.z1 - tub.z0 - 0.04;
+  b.rounded(tcx, y + 0.3, tcz, tw, 0.4, tl, 0.2, '#F7F4EE', { shade: 0.85, surface: 'ceramic' });
+  b.rounded(tcx, y + 0.505, tcz, tw - 0.02, 0.03, tl - 0.02, 0.19, PALETTE.gold, { shade: 1, surface: 'brass' });
+  b.rounded(tcx, y + 0.525, tcz, tw - 0.14, 0.02, tl - 0.14, 0.14, '#BFE0EC', { shade: 1, surface: 'glass' });
+  for (const dx of [-tw / 2 + 0.1, tw / 2 - 0.1]) for (const dz of [-tl / 2 + 0.12, tl / 2 - 0.12]) b.sphere(tcx + dx, y + 0.05, tcz + dz, 0.045, PALETTE.gold, 0, 1, { shade: 1, surface: 'brass' });
+  b.cylinder(tcx, y + 0.62, tub.z1 - 0.1, 0.016, 0.016, 0.2, PALETTE.gold, 6, 'y', { surface: 'brass' });
+  b.box(tcx, y + 0.53, tub.z0 + 0.2, 0.16, 0.05, 0.24, theme.blanket, 0, { shade: 0.95, surface: 'fabric' });
   b.endObject();
 }
 

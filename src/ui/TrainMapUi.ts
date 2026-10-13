@@ -1,6 +1,13 @@
 import type { Game } from '../gameplay/Game';
 import { h, icon, setVisible } from './dom';
 import type { IconName } from './icons';
+import type { CarriageType } from '../core/types';
+
+/** Fix list 5.8: each carriage on the map wears its type's emblem (the same icons as the carriage chooser). */
+const TYPE_ICON: Record<CarriageType, IconName> = {
+  lobby: 'ticket', sleeper: 'bed', bathroom: 'bath', supply: 'towel', luggage: 'luggage',
+  cafe: 'latte', dining: 'meal', bar: 'cocktail', dome: 'binoculars', cinema: 'film',
+};
 
 const REFRESH_SECONDS = 0.25;
 /** The map appears once the train is long enough for walking to matter. */
@@ -9,6 +16,7 @@ const MIN_CARRIAGES = 2;
 interface Slot {
   button: HTMLButtonElement;
   badge: HTMLElement;
+  emblem: HTMLElement;
   key: string;
 }
 
@@ -46,11 +54,13 @@ export class TrainMapUi {
       if (i >= count) continue;
       const need = g.needs.forCarriage(i);
       const tier = g.train.tierOf(i);
-      const key = `${need?.icon ?? ''}|${i === here}|${tier}|${travelling}`;
+      const type = g.train.types[i];
+      const key = `${need?.icon ?? ''}|${i === here}|${tier}|${travelling}|${type}`;
       if (slot.key === key) continue;
       slot.key = key;
       slot.button.classList.toggle('here', i === here);
       slot.button.dataset.tier = String(tier);
+      slot.emblem.replaceChildren(...(type ? [icon(TYPE_ICON[type], 20)] : []));
       slot.badge.replaceChildren();
       setVisible(slot.badge, !!need);
       if (need) slot.badge.appendChild(icon(need.icon as IconName, 18));
@@ -61,6 +71,7 @@ export class TrainMapUi {
 
   private addSlot(index: number): void {
     const badge = h('span.need', { hidden: true });
+    const emblem = h('span.emblem', { 'aria-hidden': 'true' });
     const button = h('button.car', {
       onclick: () => {
         const g = this.game();
@@ -68,8 +79,8 @@ export class TrainMapUi {
         g.audio.play('click');
         g.travelToCarriage(index);
       },
-    }, badge);
+    }, emblem, badge);
     this.list.appendChild(button);
-    this.slots.push({ button, badge, key: '' });
+    this.slots.push({ button, badge, emblem, key: '' });
   }
 }

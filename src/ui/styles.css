@@ -400,7 +400,11 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .trainmap .car[data-tier="3"] { background: #F2D27A; }
 .trainmap .car.here { box-shadow: 0 0 0 3px var(--mustard); }
 .trainmap .car:active { transform: scale(0.94); }
-.trainmap .need { width: 24px; height: 24px; border-radius: 50%; background: var(--cream); border: 2px solid var(--ink); display: grid; place-items: center; animation: needPulse 1.2s ease-in-out infinite; }
+.trainmap .emblem { display: grid; place-items: center; width: 22px; height: 22px; }
+.trainmap .emblem .ico { width: 20px; height: 20px; }
+/* Fix list 5.8: the need badge sits on the corner, so the carriage's emblem always shows. */
+.trainmap .need { position: absolute; top: -7px; right: -9px; width: 20px; height: 20px; border-radius: 50%; background: var(--cream); border: 2px solid var(--ink); display: grid; place-items: center; animation: needPulse 1.2s ease-in-out infinite; box-sizing: border-box; }
+.trainmap .need .ico { width: 14px; height: 14px; }
 @keyframes needPulse { 50% { transform: scale(1.12); } }
 
 /* ── Sheets (modals) ──────────────────────────────────── */

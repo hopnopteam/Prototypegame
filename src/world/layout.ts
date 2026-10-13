@@ -425,32 +425,37 @@ class LayoutBuilder {
       const bed = rect(INNER - bedWidth, bedStart, INNER, bedStart + bedLength);
       this.prop('bed', bed.x0, bed.z0, bed.x1, bed.z1, 'front');
 
-      // What each class keeps at the foot of the bed (a bench, a minibar, an ottoman, a slipper bath: drawn
-      // by the carriage view) is solid too, so nobody walks through it.
+      // What each class keeps at the foot of the bed (a bench, a minibar, an ottoman: drawn by the carriage view)
+      // is solid too, so nobody walks through it. Fix list 5.1: the Royal slipper bath stands lengthwise along the
+      // window wall a step past the bed's foot (it used to lie crosswise against the four-poster's posts).
+      const royalBath = style === 'royal' ? royalBathRect(bed) : null;
       const footZ0 = bed.z1 + 0.05;
-      const footZ1 = Math.min(cz1 - 0.04, footZ0 + 0.62);
-      if (footZ1 - footZ0 >= 0.3) this.layout.blocked.push(rect(bed.x0 + 0.06, footZ0, INNER, footZ1));
+      const footZ1 = royalBath ? royalBath.z1 : Math.min(cz1 - 0.04, footZ0 + 0.62);
+      if (royalBath) this.layout.blocked.push(royalBath);
+      else if (footZ1 - footZ0 >= 0.3) this.layout.blocked.push(rect(bed.x0 + 0.06, footZ0, INNER, footZ1));
 
       // The bigger rooms get a lounge beyond the bed (kept off the walk from the door to the room's heart).
       if (style === 'business' && len > 3.2) this.prop('armchair', INNER - 0.72, cz1 - 0.92, INNER - 0.04, cz1 - 0.2, 'left');
       if ((style === 'first' || style === 'royal') && len > 5) {
         // The sofa starts clear of whatever stands at the foot of the bed (the Royal slipper bath).
-        const sofa = rect(INNER - 0.62, Math.max(cz1 - 2.5, footZ1 + 0.1), INNER - 0.04, cz1 - 0.95);
+        const sofa = rect(INNER - 0.62, Math.max(cz1 - 2.5, footZ1 + (royalBath ? 0.3 : 0.1)), INNER - 0.04, cz1 - 0.95);
         const table = rect(INNER - 1.38, cz1 - 2.05, INNER - 0.86, cz1 - 1.4);
         this.prop('sofa', sofa.x0, sofa.z0, sofa.x1, sofa.z1, 'left');
         this.prop('table', table.x0, table.z0, table.x1, table.z1);
       }
       if (style === 'royal' && len > 9) {
-        // The grand suite: a dining table for two near the middle and a piano against the partition.
+        // The grand suite, front to back (fix list 5.1: rebuilt so nothing stands in another's way and nothing
+        // tall rises over the cut-away walls): the four-poster and the slipper bath along the windows, a low
+        // armoire past the bath, the doorway kept clear, the dinner table for two beyond it, and the lounge with
+        // the grand piano in the far corner.
+        const armoireZ0 = (royalBath ? royalBath.z1 : footZ1) + 0.3;
+        if (armoireZ0 + 1.1 < doorZ0 - 0.2) this.prop('wardrobe', INNER - 0.5, armoireZ0, INNER - 0.04, armoireZ0 + 1.1, 'left');
         const dcx = (PARTITION_X1 + INNER) / 2 + 0.3;
-        const dining = rect(dcx - 0.5, cz0 + len * 0.5 - 0.55, dcx + 0.5, cz0 + len * 0.5 + 0.55);
+        const dz = Math.max(doorZ1 + 0.75, cz0 + len * 0.64);
+        const dining = rect(dcx - 0.5, dz - 0.55, dcx + 0.5, dz + 0.55);
         this.prop('dining', dining.x0, dining.z0, dining.x1, dining.z1);
         // A grand piano in the far corner, its keys (and the stool) toward the room.
         this.prop('grandPiano', PARTITION_X1 + 0.04, cz1 - 2.0, PARTITION_X1 + 1.0, cz1 - 0.1, 'front');
-        // A tall armoire on the corridor wall between the writing desk (past the door, at most 0.95 m long)
-        // and the piano.
-        const armoireZ0 = Math.max(cz1 - 3.6, doorZ1 + 0.06 + 0.95 + 0.1);
-        this.prop('wardrobe', PARTITION_X1 + 0.02, armoireZ0, PARTITION_X1 + 0.46, Math.min(armoireZ0 + 1.1, cz1 - 2.08), 'right');
       }
 
       const corridorNode = this.node(`corr_${c}`, (-INNER + PARTITION_X0) / 2, doorZ);
@@ -728,6 +733,11 @@ function buildLuggage(): CarriageLayout {
   return b.layout;
 }
 
+
+/** Fix list 5.1: where the Royal Suite's slipper bath stands, lengthwise along the window wall past the bed's foot. */
+export function royalBathRect(bed: Rect): Rect {
+  return rect(INNER - 0.64, bed.z1 + 0.3, INNER - 0.04, bed.z1 + 1.6);
+}
 
 /** Side windows: the usual band, and the venue carriages' band above the table tops (session 21). */
 export const DEFAULT_WINDOW_BAND: readonly [number, number] = [0.44, 0.94];

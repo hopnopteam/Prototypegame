@@ -96,22 +96,24 @@ const player = new CharacterView(CONDUCTOR_LOOK);
 player.setPosition(-0.7, FLOOR_Y, 4.4);
 player.setCarrying(true);
 stage.scene.add(player.root);
-ARCHETYPES.forEach((a, i) => {
+// ?people=0 leaves out the demo guests, staff, pad and tile (to see a room's furniture).
+const people = params.get('people') !== '0';
+if (people) ARCHETYPES.forEach((a, i) => {
   const g = new CharacterView({ ...a.colors, accessory: a.accessory === 'child' ? 'none' : a.accessory, hat: a.hat ?? 'none', hatColor: a.hatColor });
   g.setPosition(-0.15 + (i % 3) * 0.7, FLOOR_Y, 2.8 + Math.floor(i / 3) * 0.75);
   g.setFacing(-Math.PI / 2);
   if (i === 0) g.showBubble('tea');
   stage.scene.add(g.root);
 });
-(['attendant', 'porter', 'runner'] as const).forEach((r, i) => {
+if (people) (['attendant', 'porter', 'runner'] as const).forEach((r, i) => {
   const s = new CharacterView(STAFF_LOOKS[r]);
   s.setPosition(-1.4, FLOOR_Y, 7 + i * 1.2);
   stage.scene.add(s.root);
 });
 const ring = new ZoneRing(0.55, 'person');
-ring.setPosition(-1.68, 2.8); ring.progress = 0.6; stage.scene.add(ring.group);
+ring.setPosition(-1.68, 2.8); ring.progress = 0.6; if (people) stage.scene.add(ring.group);
 const tile = new TileView();
-tile.setPosition(0.2, 11.6); tile.face.draw('bed', 28, 0.3, true, false); stage.scene.add(tile.group);
+tile.setPosition(0.2, 11.6); tile.face.draw('bed', 28, 0.3, true, false); if (people) stage.scene.add(tile.group);
 const cash = new CashView(); stage.scene.add(cash.mesh);
 cash.createPile('desk', -1.62, FLOOR_Y, 3.95); cash.setPileCount('desk', 9);
 const particles = new Particles(); stage.scene.add(particles.points); stage.attachParticles(particles);
