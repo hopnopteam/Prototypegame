@@ -1,3 +1,4 @@
+import type { CarriageType } from './core/types';
 import type { ComfortKey } from './config/content';
 import * as THREE from 'three';
 import { ARCHETYPES, DEFAULT_TRAIN } from './config/content';
@@ -36,7 +37,10 @@ const tierParam = params.get('tier');
 const tiers = params.get('tiers') ?? '';
 const liv = liveryFor(Number(params.get('level') ?? '1'));
 setLivery(liv.body, liv.trim);
-DEFAULT_TRAIN.map((type) => ({ type })).slice(0, count).forEach((c, i) => {
+// ?train=cafe,bar shows those carriage types in that order (default: the recommended train).
+const trainParam = params.get('train');
+const trainTypes = trainParam ? (trainParam.split(',') as CarriageType[]) : DEFAULT_TRAIN;
+trainTypes.map((type) => ({ type })).slice(0, count).forEach((c, i) => {
   const tier = tierParam !== null ? Number(tierParam) : Number(tiers[i] ?? '0');
   const view = new CarriageView(getLayout(c.type, tier), i, tier);
   view.group.position.z = carriageOriginZ(i);

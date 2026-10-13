@@ -538,6 +538,21 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
     case 'cornerSofa':
       buildCornerSofa(b, prop, tier);
       return true;
+    case 'backroom':
+      buildBackRoom(b, prop, tier);
+      return true;
+    case 'jukebox': {
+      // Fix list 4.8: a jukebox against the wall: a walnut cabinet with an arched top of glowing bands, the record
+      // window and the chrome grille.
+      const h = 0.92;
+      b.rounded(cx, Y + h / 2 - 0.08, cz, w - 0.04, h - 0.16, d - 0.04, 0.05, PALETTE.walnut, { shade: 0.85, surface: 'varnish' });
+      b.cylinder(cx, Y + h - 0.16, cz, (d - 0.06) / 2, (d - 0.06) / 2, w - 0.06, PALETTE.walnut, 16, 'x', { shade: 0.9, surface: 'varnish' });
+      const face = front + out * 0.005;
+      for (const [hy, colour] of [[0.72, '#FFB347'], [0.66, '#E8577A'], [0.6, '#7DC4E8']] as const) lamps.box(face, Y + hy, cz, 0.02, 0.03, d - 0.14, colour, 0, FLAT);
+      b.box(face, Y + 0.48, cz, 0.02, 0.14, d - 0.24, '#2B2230', 0, { shade: 1, surface: 'glass' });
+      b.box(face, Y + 0.22, cz, 0.02, 0.2, d - 0.2, PALETTE.chrome, 0, { shade: 1, surface: 'steel' });
+      return true;
+    }
     // ── Session 21: the furnishings ────────────────────────────────────────────────────────
     case 'planter':
       buildPlanter(b, prop, theme, tier);
@@ -1035,6 +1050,127 @@ function buildPlanter(b: GeoBuilder, prop: PropDef, theme: CarriageTheme, tier: 
 }
 
 /** A sideboard against the wall: what is on it says what it is for (the café's cups, the dining car's plates…). */
+/** What each kind of back room keeps on its shelves (box colours) and where its floor goods go (fix list 4.7). */
+const BACK_ROOM_GOODS: Record<string, string[]> = {
+  pantry: ['#C9A46A', '#E8D9B0', '#8C5A3C', '#D96C4F', '#F2E3C6', '#6B8F5A'],
+  scullery: ['#F4F1EA', '#DCE6EC', '#B9C7CF', '#E8D9B0', '#6B8F5A', '#C9473F'],
+  cellar: ['#4E2E2A', '#6B3A33', '#2F4A35', '#C9A46A', '#8C5A3C', '#3A3940'],
+  store: ['#7D9CBB', '#C9473F', '#E8D9B0', '#5E8C5A', '#D9A03F', '#F2E3C6'],
+  filmstore: ['#7E8790', '#9AA2AA', '#3A3940', '#C9473F', '#E2B653', '#F2E3C6'],
+  stores: ['#F4F1EA', '#9DB8CF', '#E8D9B0', '#C9A46A', '#D96C4F', '#7D9CBB'],
+};
+
+/**
+ * A back room (fix list 4.7): shelves along the outer wall and the back wall stocked with what the carriage runs on,
+ * the room's big piece in the inner back corner (a fridge, a sink with a plate rack, a wine rack, a stack of crates)
+ * and goods on the floor by the door. Everything stays inside the room's walls.
+ */
+function buildBackRoom(b: GeoBuilder, prop: PropDef, tier: number): void {
+  const r = prop.rect;
+  const variant = prop.variant ?? 'store';
+  const goods = BACK_ROOM_GOODS[variant] ?? BACK_ROOM_GOODS.store;
+  // 'left' faces the aisle on the −x side (the room is against the right wall).
+  const out = prop.facing === 'right' ? 1 : -1;
+  const back = out > 0 ? r.x0 : r.x1;
+  const front = out > 0 ? r.x1 : r.x0;
+  const width = r.x1 - r.x0;
+  const depth = r.z1 - r.z0;
+  const wood = tier >= 2 ? PALETTE.walnut : tier >= 1 ? '#A07A55' : '#8A7864';
+  const woodStyle: PartStyle = { shade: 0.8, surface: 'wood' };
+  const shelfD = 0.32;
+  const shelfH = 1.2;
+  // A run of shelving: posts, four boards, and boxes and jars on each board.
+  const shelves = (x0: number, z0: number, x1: number, z1: number, seed: number): void => {
+    const alongZ = z1 - z0 > x1 - x0;
+    const len = alongZ ? z1 - z0 : x1 - x0;
+    const cx = (x0 + x1) / 2;
+    const cz = (z0 + z1) / 2;
+    for (const end of [0.02, len - 0.02]) {
+      const px = alongZ ? cx : x0 + end;
+      const pz = alongZ ? z0 + end : cz;
+      b.box(px, Y + shelfH / 2, pz, alongZ ? shelfD : 0.04, shelfH, alongZ ? 0.04 : shelfD, wood, 0, woodStyle);
+    }
+    let k = seed;
+    for (const h of [0.06, 0.38, 0.7, 1.02]) {
+      b.box(cx, Y + h, cz, alongZ ? shelfD : len - 0.06, 0.03, alongZ ? len - 0.06 : shelfD, wood, 0, woodStyle);
+      if (h > 1) continue;
+      const n = Math.max(1, Math.floor((len - 0.12) / 0.17));
+      for (let i = 0; i < n; i++) {
+        k = (k * 9301 + 49297) % 233280;
+        const t = (i + 0.5) / n;
+        const gx = alongZ ? cx : x0 + 0.06 + t * (len - 0.12);
+        const gz = alongZ ? z0 + 0.06 + t * (len - 0.12) : cz;
+        const colour = goods[k % goods.length];
+        const tall = 0.12 + (k % 5) * 0.025;
+        if (k % 3 === 0) b.cylinder(gx, Y + h + 0.015 + tall / 2, gz, 0.05, 0.05, tall, colour, 10, 'y', { shade: 0.95, surface: variant === 'cellar' ? 'glass' : 'paint' });
+        else b.box(gx, Y + h + 0.015 + tall / 2, gz, alongZ ? 0.2 : 0.13, tall, alongZ ? 0.13 : 0.2, colour, 0, { shade: 0.9 });
+      }
+    }
+  };
+  // Along the outer wall, the whole depth; along the back wall, leaving the inner back corner for the big piece.
+  shelves(out > 0 ? back : back - shelfD, r.z0 + 0.02, out > 0 ? back + shelfD : back, r.z1 - 0.02, 3);
+  const cornerW = Math.min(0.62, width * 0.38);
+  const bx0 = out > 0 ? back + shelfD + 0.04 : front + cornerW + 0.04;
+  const bx1 = out > 0 ? front - cornerW - 0.04 : back - shelfD - 0.04;
+  if (bx1 - bx0 > 0.3) shelves(bx0, r.z1 - shelfD - 0.02, bx1, r.z1 - 0.02, 7);
+  // The big piece in the inner back corner.
+  const kx = front - out * (cornerW / 2 + 0.02);
+  const kz = r.z1 - 0.3;
+  const kd = Math.min(0.52, depth * 0.45);
+  switch (variant) {
+    case 'pantry':
+      // A little cream fridge with a chrome handle.
+      b.rounded(kx, Y + 0.46, kz, cornerW - 0.08, 0.9, kd, 0.05, '#F2EBDD', { shade: 0.95, surface: 'paint' });
+      b.box(kx + out * (cornerW / 2 - 0.04), Y + 0.6, kz - kd / 2 + 0.02, 0.02, 0.22, 0.02, PALETTE.chrome, 0, { shade: 1, surface: 'steel' });
+      break;
+    case 'scullery':
+      // A sink cabinet with a tap, and a rack of plates drying above it.
+      b.box(kx, Y + 0.42, kz, cornerW - 0.06, 0.84, kd, wood, 0, woodStyle);
+      b.box(kx, Y + 0.85, kz, cornerW - 0.1, 0.04, kd - 0.06, '#DCE6EC', 0, { shade: 1, surface: 'steel' });
+      b.cylinder(kx, Y + 0.96, kz + kd / 2 - 0.08, 0.015, 0.015, 0.18, PALETTE.chrome, 6, 'y', { surface: 'steel' });
+      for (let i = 0; i < 5; i++) b.cylinder(kx - 0.16 + i * 0.08, Y + 1.0, kz + kd / 2 - 0.16, 0.09, 0.09, 0.012, '#F4F1EA', 14, 'z', { shade: 1 });
+      break;
+    case 'cellar':
+      // A wine rack: a lattice of bottle ends.
+      b.box(kx, Y + 0.5, kz, cornerW - 0.06, 1.0, kd, '#4A3528', 0, woodStyle);
+      for (let row = 0; row < 4; row++) for (let col = 0; col < 3; col++) {
+        b.cylinder(kx - (cornerW - 0.2) / 2 + col * ((cornerW - 0.2) / 2), Y + 0.15 + row * 0.24, kz - kd / 2 - 0.005, 0.035, 0.035, 0.03, (row + col) % 2 ? '#2F4A35' : '#6B2C2A', 8, 'z', { shade: 1, surface: 'glass' });
+      }
+      break;
+    default:
+      // A stack of crates.
+      b.box(kx, Y + 0.2, kz, cornerW - 0.08, 0.4, kd, '#9A7F61', 0, CRATE);
+      b.box(kx, Y + 0.58, kz, cornerW - 0.16, 0.36, kd - 0.08, '#A88C6C', 0, CRATE);
+      break;
+  }
+  // Goods on the floor by the door (in the free middle of the room).
+  const midX = out > 0 ? (back + shelfD + front - cornerW) / 2 : (front + cornerW + back - shelfD) / 2;
+  const room = Math.abs((out > 0 ? front - cornerW : back - shelfD) - (out > 0 ? back + shelfD : front + cornerW));
+  if (room < 0.36 || depth < 0.9) return;
+  const fz = r.z0 + Math.min(0.4, depth * 0.3);
+  switch (variant) {
+    case 'cellar':
+      // Two barrels on their sides.
+      for (const dz of [0, 0.42]) b.cylinder(midX, Y + 0.2, fz + dz, 0.19, 0.19, 0.42, '#7A5434', 14, 'x', { shade: 0.85, surface: 'wood' });
+      break;
+    case 'pantry':
+    case 'scullery':
+      // Sacks of beans (or a crate of greens) slumped on the floor.
+      b.rounded(midX, Y + 0.18, fz, Math.min(0.34, room - 0.04), 0.36, 0.3, 0.12, '#B79C74', { shade: 0.85, surface: 'fabric' });
+      if (variant === 'scullery') for (let i = 0; i < 3; i++) b.sphere(midX - 0.08 + i * 0.08, Y + 0.4, fz, 0.05, '#6B8F5A', 1, 0.9);
+      break;
+    case 'filmstore':
+      // Film cans in a stack.
+      for (let i = 0; i < 5; i++) b.cylinder(midX, Y + 0.03 + i * 0.05, fz, 0.16, 0.16, 0.045, i % 2 ? '#7E8790' : '#9AA2AA', 14, 'y', { surface: 'paint' });
+      break;
+    default:
+      // Bales of linen (or folded blankets) tied with string.
+      b.rounded(midX, Y + 0.16, fz, Math.min(0.36, room - 0.04), 0.32, 0.34, 0.06, variant === 'stores' ? '#F4F1EA' : '#7D9CBB', { shade: 0.9, surface: 'fabric' });
+      b.rounded(midX, Y + 0.44, fz, Math.min(0.3, room - 0.08), 0.24, 0.28, 0.06, variant === 'stores' ? '#DCE6EC' : '#C9473F', { shade: 0.9, surface: 'fabric' });
+      break;
+  }
+}
+
 function buildSideboard(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, _theme: CarriageTheme, tier: number): void {
   const r = prop.rect;
   const cx = (r.x0 + r.x1) / 2;

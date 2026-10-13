@@ -1899,11 +1899,11 @@ function buildCabinComforts(b: GeoBuilder, glow: GeoBuilder, cabin: CabinLayout,
     const sy = y + RADIO_SHELF_Y;
     b.box(rx, sy, wallZ + 0.075, 0.3, 0.02, 0.15, PALETTE.walnutDark, 0, FLAT);
     b.rounded(rx, sy + 0.1, wallZ + 0.072, 0.26, 0.18, 0.12, 0.02, tier >= 3 ? PALETTE.walnut : '#B5835A', { shade: 0.9 });
-    b.box(rx, sy + 0.1, wallZ + 0.133, 0.2, 0.13, 0.004, '#BFD7E2', 0, { shade: 1, surface: 'glass' });
+    b.box(rx, sy + 0.1, wallZ + 0.142, 0.2, 0.13, 0.006, '#BFD7E2', 0, { shade: 1, surface: 'glass' });
     b.cylinder(rx - 0.06, sy + 0.1, wallZ + 0.11, 0.016, 0.016, 0.1, '#5E8C5A', 8, 'y', { shade: 1 });
     b.box(rx, sy + 0.07, wallZ + 0.115, 0.06, 0.03, 0.02, '#6B4128', 0, FLAT);
     b.box(rx + 0.055, sy + 0.12, wallZ + 0.115, 0.05, 0.06, 0.02, '#FFD35C', 0, FLAT);
-    b.cylinder(rx + 0.105, sy + 0.1, wallZ + 0.138, 0.008, 0.008, 0.07, PALETTE.brass, 6, 'y');
+    b.cylinder(rx + 0.112, sy + 0.1, wallZ + 0.142, 0.008, 0.008, 0.07, PALETTE.brass, 6, 'y');
   }
 }
 

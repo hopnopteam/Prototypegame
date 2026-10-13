@@ -122,7 +122,7 @@ export const VENUE_TUNING = {
   /** Dining: plates the chef keeps waiting on the pass at most. */
   passMax: 3,
   /** Bar: drinks that fill the party meter, and Happy Hour's length and boost to tips and fares. */
-  party: { goal: 6, seconds: 30, boost: 1.4, piano: 1.5 },
+  party: { goal: 6, seconds: 30, boost: 1.4, piano: 1.5, jukebox: 1.5 },
   /** Dome: seconds at the rope to show a guest in. */
   usherSeconds: 0.8,
   /**

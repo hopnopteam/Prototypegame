@@ -331,6 +331,8 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'chair_6', kind: 'seat', label: 'Armchair', price: 380, stars: 2, group: 6, requires: ['chair_5'], effect: '+1 seat' },
       { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 560, stars: 4, tier: 2, requires: ['refurb_1', '@couple_5'], effect: 'Prices +60%' },
       { key: 'station_piano', kind: 'station', label: 'Piano', price: 640, stars: 3, requires: ['hire_bartender', 'chair_5'], effect: 'Parties ×1.5' },
+      // Fix list 4.8: one more thing to buy in the lounge, standing in the gap between the piano and the banquettes.
+      { key: 'station_jukebox', kind: 'station', label: 'Jukebox', price: 460, stars: 3, requires: ['hire_bartender', 'stool_3'], effect: 'Happy Hour ×1.5' },
       { key: 'chair_7', kind: 'seat', label: 'Armchair', price: 440, stars: 2, group: 7, requires: ['chair_6', '@couple_6'], effect: '+1 seat' },
       { key: 'chair_8', kind: 'seat', label: 'Armchair', price: 480, stars: 2, group: 8, requires: ['chair_7'], effect: '+1 seat' },
       { key: 'chair_9', kind: 'seat', label: 'Armchair', price: 520, stars: 2, group: 9, requires: ['chair_8'], effect: '+1 seat' },

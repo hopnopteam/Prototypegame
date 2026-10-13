@@ -524,8 +524,12 @@ export class Tiles {
       }
       case 'menu':
         return map.hasAnchor(def.carriage, 'tile_menu') ? map.anchor(def.carriage, 'tile_menu') : null;
-      case 'station':
+      case 'station': {
+        // A venue with more than one station tile gives each its own spot (`tile_station_jukebox`, fix list 4.8).
+        const own = `tile_${def.id.split('.')[1] ?? ''}`;
+        if (map.hasAnchor(def.carriage, own)) return map.anchor(def.carriage, own);
         return map.hasAnchor(def.carriage, 'tile_station') ? map.anchor(def.carriage, 'tile_station') : null;
+      }
     }
   }
 }

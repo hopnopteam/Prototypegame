@@ -627,12 +627,14 @@ export class Venues {
     venue.party += venue.keys.has('station_piano') ? t.piano : 1;
     if (venue.party < t.goal) return;
     venue.party = 0;
-    this.happyLeft = t.seconds;
+    // Fix list 4.8: the jukebox keeps the party going longer.
+    const seconds = t.seconds * (venue.keys.has('station_jukebox') ? t.jukebox : 1);
+    this.happyLeft = seconds;
     const sign = venue.layout.sign ? venue.world(venue.layout.sign) : { x: 0, z: venue.originZ + 6 };
     w.particles.emit('confetti', sign.x, FLOOR_Y + 1.6, sign.z, 40, 0.8);
     w.audio.play('fanfare');
     w.ui.floatIcon('party', sign.x, FLOOR_Y + 2.2, sign.z, 'star');
-    w.events.emit('venue.happyHour', { seconds: t.seconds });
+    w.events.emit('venue.happyHour', { seconds });
   }
 
   /** The views from the dome, while the train is moving: every seated guest's "wow" pays. */
