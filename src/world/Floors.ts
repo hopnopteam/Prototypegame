@@ -320,7 +320,7 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
   f.box(0, FLOOR_Y - 0.03, L / 2, HALF_WIDTH * 2 - 0.04, 0.06, L - 0.04, PALETTE.boards, 0, { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1 });
   for (const cabin of layout.cabins) {
     if (tier >= 4) marbleRoom(f, cabin.room);
-    else if (tier >= 3) parquetRoom(f, cabin.room);
+    else if (tier >= 3) firstClassRoom(f, cabin.room, theme);
     else f.slab(cabin.room, FLOOR_Y, FLOOR_Y + ROOM_LIFT, PALETTE.boardsPolished, 0, 0, { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1 });
   }
   // A suite's lounge and dining table stand on rugs (never near the door, where the cleaning spot and the
@@ -332,13 +332,17 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
     const table = inRoom.find((p) => p.kind === 'table');
     const dining = inRoom.find((p) => p.kind === 'dining');
     const base = FLOOR_Y + ROOM_LIFT;
+    // First Class (floor tier 3) lays its rugs on a navy carpet, so their field is cream (fix list 5.2).
+    const cream = tier === 3;
     const layers = (gold: boolean): { color: string; inset: number; pattern?: PartStyle }[] => [
       { color: gold ? PALETTE.gold : theme.deep, inset: 0 },
       { color: theme.deep, inset: 0.035 },
-      { color: '#F1E7D4', inset: 0.1 },
-      { color: theme.deep, inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: shadeHex(theme.deep, 20), scale: 0.2, shade: 1 } },
+      { color: cream ? PALETTE.gold : '#F1E7D4', inset: 0.1 },
+      cream
+        ? { color: '#EFE5CF', inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: '#D9CBAA', scale: 0.2, shade: 1 } }
+        : { color: theme.deep, inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: shadeHex(theme.deep, 20), scale: 0.2, shade: 1 } },
     ];
-    if (sofa && table) rug(f, rect(table.rect.x0 - 0.22, sofa.rect.z0 + 0.04, sofa.rect.x1 - 0.02, sofa.rect.z1 - 0.04), base, layers(tier >= 5));
+    if (sofa && table) rug(f, rect(table.rect.x0 - 0.22, sofa.rect.z0 + 0.04, sofa.rect.x1 - 0.02, sofa.rect.z1 - 0.04), base, layers(tier >= 4 || cream));
     if (dining) rug(f, rect(dining.rect.x0 - 0.06, dining.rect.z0 - 0.06, dining.rect.x1 + 0.06, dining.rect.z1 + 0.06), base, layers(true));
   }
   for (const bath of layout.bathrooms) {
@@ -446,17 +450,28 @@ function marbleRoom(f: GeoBuilder, r: Rect): void {
   f.slab(rect(inner.x0 + line, inner.z0 + line, inner.x1 - line, inner.z1 - line), y0, y1, '#EFEAE2', 0, 0, { pattern: PATTERN.checker, color2: '#D5CEC3', scale: 0.32, shade: 1, surface: 'marble' });
 }
 
-/** Walnut chevron parquet inside a plain border of the same wood. */
-function parquetRoom(f: GeoBuilder, r: Rect): void {
-  const border = 0.1;
+/**
+ * First Class (fix list 5.2: one scheme, deep blue and gold): a woven navy carpet inside a darker navy border with a
+ * gold line (it was walnut parquet, which read as muddy brown beside the blue).
+ */
+function firstClassRoom(f: GeoBuilder, r: Rect, theme: CarriageTheme): void {
+  const border = 0.12;
   const y0 = FLOOR_Y;
   const y1 = FLOOR_Y + ROOM_LIFT;
-  const edge = PALETTE.walnutDark;
-  f.slab(rect(r.x0, r.z0, r.x1, r.z0 + border), y0, y1, edge, 0, 0, FLAT);
-  f.slab(rect(r.x0, r.z1 - border, r.x1, r.z1), y0, y1, edge, 0, 0, FLAT);
-  f.slab(rect(r.x0, r.z0 + border, r.x0 + border, r.z1 - border), y0, y1, edge, 0, 0, FLAT);
-  f.slab(rect(r.x1 - border, r.z0 + border, r.x1, r.z1 - border), y0, y1, edge, 0, 0, FLAT);
-  f.slab(rect(r.x0 + border, r.z0 + border, r.x1 - border, r.z1 - border), y0, y1, PALETTE.walnut, 0, 0, { pattern: PATTERN.chevron, color2: PALETTE.walnutDark, scale: 0.22, shade: 1 });
+  const edge = shadeHex(theme.deep, -14);
+  const pile = { shade: 1, surface: 'velvet' as const };
+  f.slab(rect(r.x0, r.z0, r.x1, r.z0 + border), y0, y1, edge, 0, 0, pile);
+  f.slab(rect(r.x0, r.z1 - border, r.x1, r.z1), y0, y1, edge, 0, 0, pile);
+  f.slab(rect(r.x0, r.z0 + border, r.x0 + border, r.z1 - border), y0, y1, edge, 0, 0, pile);
+  f.slab(rect(r.x1 - border, r.z0 + border, r.x1, r.z1 - border), y0, y1, edge, 0, 0, pile);
+  const inner = rect(r.x0 + border, r.z0 + border, r.x1 - border, r.z1 - border);
+  const line = 0.022;
+  const gold = { shade: 1, surface: 'brass' as const };
+  f.slab(rect(inner.x0, inner.z0, inner.x1, inner.z0 + line), y0, y1, PALETTE.gold, 0, 0, gold);
+  f.slab(rect(inner.x0, inner.z1 - line, inner.x1, inner.z1), y0, y1, PALETTE.gold, 0, 0, gold);
+  f.slab(rect(inner.x0, inner.z0 + line, inner.x0 + line, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, gold);
+  f.slab(rect(inner.x1 - line, inner.z0 + line, inner.x1, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, gold);
+  f.slab(rect(inner.x0 + line, inner.z0 + line, inner.x1 - line, inner.z1 - line), y0, y1, theme.carpet, 0, 0, { pattern: PATTERN.diamond, color2: shadeHex(theme.carpet, 11), scale: 0.2, shade: 1, surface: 'velvet' });
 }
 
 /** A window opening on a wall that faces the camera: its inner face (x), its span along the wall and its top. */

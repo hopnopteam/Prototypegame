@@ -178,7 +178,8 @@ export const CARRIAGE_THEMES: Record<CarriageType, CarriageTheme> = {
 export const CLASS_THEMES: Record<'comfort' | 'business' | 'first' | 'royal', CarriageTheme> = {
   comfort: { wall: '#B4DBD1', wallLow: '#86BFB2', carpet: '#DCE7E2', deep: '#2F7F7A', blanket: '#5FA39B', curtain: '#E5B452' },
   business: { wall: '#BFCADB', wallLow: '#93A5BE', carpet: '#D6DCE4', deep: '#2A4468', blanket: '#3F5E8C', curtain: '#C9D2DC' },
-  first: { wall: '#C5CFEC', wallLow: '#9FAEDB', carpet: '#E4D8C0', deep: '#2B4B92', blanket: '#9E2F45', curtain: '#E2B653' },
+  // Fix list 5.2: one scheme, deep blue and gold (the red velvet bed and ottoman beside blue walls read as a mix).
+  first: { wall: '#4A64A8', wallLow: '#2E4683', carpet: '#22397A', deep: '#1F3672', blanket: '#2C4C99', curtain: '#E2B653' },
   royal: { wall: '#E7C3C1', wallLow: '#C99592', carpet: '#EADBD2', deep: '#6A1E2E', blanket: '#7E2436', curtain: '#E2B653' },
 };
 

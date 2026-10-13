@@ -244,8 +244,10 @@ function finishFor(type: CarriageType, tier: number, t: CarriageTheme): Finish {
   if (isPassengerType(type) && tier >= 3) {
     // Business, First Class and the Royal Suite: panelled, a runner edged in silver or gold, brass sconces.
     const edge = tier === 3 ? '#C9D2DC' : PALETTE.gold;
+    // Fix list 5.2: First Class panels in deep navy under a gold cap (Business keeps walnut, the Royal Suite burgundy).
+    const panel = tier >= 5 ? '#5A1A28' : tier === 4 ? '#1B2C5A' : PALETTE.walnut;
     return {
-      wall: t.wall, wallLow: t.wallLow, panelled: true, panel: tier >= 5 ? '#5A1A28' : PALETTE.walnut, cap: tier >= 5 ? PALETTE.gold : PALETTE.walnut,
+      wall: t.wall, wallLow: t.wallLow, panelled: true, panel, cap: tier >= 4 ? PALETTE.gold : PALETTE.walnut,
       floor: PALETTE.boards, floorSeam: PALETTE.boardsSeam, floorPattern: PATTERN.boards, floorScale: 0.3,
       room: PALETTE.boards, roomSeam: PALETTE.boardsSeam, roomPattern: PATTERN.boards, roomScale: 0.3,
       runner: { body: t.deep, edge }, curtains: true, lamps: 3, decor: true,
@@ -1192,7 +1194,7 @@ export class CarriageView {
     for (const z of [0.02, L - 0.02]) for (const x of [-1.3, 1.3]) s.cylinder(x, 0.42, z, 0.11, 0.11, 0.25, PALETTE.chrome, 10, 'z');
 
     // Floor: the tier's boards (broken and old, then repaired, polished, parquet), rooms and rugs (Floors.ts).
-    // Passenger classes: Comfort and Business polished boards, First chevron parquet, Royal marble.
+    // Passenger classes: Comfort and Business polished boards, First a navy carpet with gold (fix list 5.2), Royal marble.
     const floorTier = this.cls ? [0, 1, 2, 2, 3, 4][this.tier] ?? 4 : this.tier;
     yield;
     yield* floorSteps(f, this.layout, floorTier, this.theme, this.index * 7 + this.layout.type.length);

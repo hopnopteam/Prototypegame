@@ -714,6 +714,8 @@ export class Game implements World {
   applyLivery(): string {
     const livery = this.currentLivery();
     setLivery(livery.body, livery.trim);
+    // The service cars' letterboards wear the train's paint (fix list 5.7).
+    if (this.unlocks.isUnlocked('st.nameboards')) this.train.rebuildExterior(true);
     return livery.name;
   }
 

@@ -5,6 +5,7 @@ import { ARCHETYPES, DEFAULT_TRAIN } from './config/content';
 import { BED_TOP, CarriageView, FLOOR_Y } from './world/CarriageView';
 import { CharacterView, CONDUCTOR_LOOK, STAFF_LOOKS } from './world/CharacterView';
 import { carriageOriginZ, getLayout } from './world/layout';
+import { ExteriorView } from './world/ExteriorView';
 import { LocomotiveView } from './world/LocomotiveView';
 import { Particles } from './world/Particles';
 import { PlatformView } from './world/PlatformView';
@@ -76,6 +77,13 @@ trainTypes.map((type) => ({ type })).slice(0, count).forEach((c, i) => {
   views.push(view);
 });
 scenery.setSpan(carriageOriginZ(count - 1) + 14);
+// ?exterior=1 dresses the outside with every station upgrade (the painted name included).
+if (params.get('exterior') === '1') {
+  const exterior = new ExteriorView();
+  exterior.build(trainTypes.slice(0, count), { windowboxes: true, lamps: true, lining: true, nameboards: true, redcarpet: true }, params.get('name') ?? 'The Night Owl');
+  exterior.setCarpet(platform ? 1 : 0);
+  stage.scene.add(exterior.group);
+}
 if (platform) {
   const p = new PlatformView();
   p.build(carriageOriginZ(count - 1) + 14, count > 2 ? 2 : null, count > 3 ? 3 : null);

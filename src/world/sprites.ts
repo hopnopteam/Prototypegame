@@ -2,6 +2,7 @@ import { CLASS_BY_ID, type ClassId } from '../config/classes';
 import * as THREE from 'three';
 import { formatNumber } from '../core/math';
 import { drawIcon, INK, type IconName } from '../ui/icons';
+import { shadeHex } from './palette';
 
 const bubbleCache = new Map<string, THREE.CanvasTexture>();
 
@@ -371,28 +372,70 @@ function drawTrainSide(ctx: CanvasRenderingContext2D, x: number, y: number, widt
   }
 }
 
-/** The carriage nameboard: the train's name in navy on cream, framed in gold (Pullman style). */
-export function nameboardTexture(name: string): THREE.CanvasTexture {
+/** The face the train's name is sign-written in on the carriage sides: a classic serif in capitals. */
+const LETTERING_FONT = '"Georgia", "Times New Roman", "Noto Serif", serif';
+/** Lettering canvas height in pixels (the plane's height maps to it). */
+const LETTERING_PX = 96;
+
+/**
+ * Fix list 5.7: the train's name sign-written on a letterboard in the carriage's own paint, in place of the old
+ * cream board in a gold frame. Widely spaced serif capitals in gold leaf (lighter at the top, a darker gold below),
+ * a thin dark keyline and a soft shade to the lower right, the way a coach painter lines out a name, inside a fine
+ * gold line round the board. Returns the texture and its width over its height, so the plane fits it.
+ */
+export function letteringTexture(name: string, paint: string): { texture: THREE.CanvasTexture; aspect: number } {
+  const label = name.toUpperCase();
+  const size = Math.round(LETTERING_PX * 0.66);
+  const spacing = size * 0.22;
+  const probe = document.createElement('canvas').getContext('2d');
+  if (!probe) throw new Error('2D canvas unavailable');
+  probe.font = `700 ${size}px ${LETTERING_FONT}`;
+  const widths = [...label].map((ch) => probe.measureText(ch).width);
+  const textWidth = widths.reduce((sum, w) => sum + w, 0) + spacing * Math.max(0, label.length - 1);
+  const pad = size * 0.9;
   const c = document.createElement('canvas');
-  c.width = 512;
-  c.height = 64;
+  c.width = Math.min(4096, Math.ceil(textWidth + pad * 2));
+  c.height = LETTERING_PX;
   const ctx = c.getContext('2d');
   if (!ctx) throw new Error('2D canvas unavailable');
-  ctx.fillStyle = '#C9A04A';
-  ctx.beginPath();
-  ctx.roundRect(0, 0, 512, 64, 14);
-  ctx.fill();
-  ctx.fillStyle = '#FBF4E2';
-  ctx.beginPath();
-  ctx.roundRect(6, 6, 500, 52, 10);
-  ctx.fill();
-  const label = name.toUpperCase();
-  fitFont(ctx, label, 700, 36, 440);
-  ctx.fillStyle = '#26324F';
-  ctx.textAlign = 'center';
+  // The board in the carriage's paint (a touch deeper at the foot, as the light falls off), lined in gold.
+  const board = ctx.createLinearGradient(0, 0, 0, c.height);
+  board.addColorStop(0, shadeHex(paint, 6));
+  board.addColorStop(1, shadeHex(paint, -10));
+  ctx.fillStyle = board;
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.strokeStyle = '#C9A04A';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(9, 9, c.width - 18, c.height - 18);
+  ctx.font = `700 ${size}px ${LETTERING_FONT}`;
   ctx.textBaseline = 'middle';
-  ctx.fillText(label, 256, 34);
-  return finishTexture(c);
+  ctx.textAlign = 'left';
+  const y = LETTERING_PX / 2 + size * 0.04;
+  const draw = (paint: (ch: string, x: number) => void): void => {
+    let x = (c.width - textWidth) / 2;
+    [...label].forEach((ch, i) => {
+      paint(ch, x);
+      x += widths[i] + spacing;
+    });
+  };
+  // The shade, down and to the right.
+  ctx.fillStyle = 'rgba(18, 14, 10, 0.55)';
+  draw((ch, x) => ctx.fillText(ch, x + size * 0.05, y + size * 0.06));
+  // The keyline.
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = size * 0.07;
+  ctx.strokeStyle = 'rgba(40, 26, 12, 0.9)';
+  draw((ch, x) => ctx.strokeText(ch, x, y));
+  // Gold leaf.
+  const leaf = ctx.createLinearGradient(0, y - size / 2, 0, y + size / 2);
+  leaf.addColorStop(0, '#F6DE92');
+  leaf.addColorStop(0.5, '#D9B055');
+  leaf.addColorStop(1, '#A87D2E');
+  ctx.fillStyle = leaf;
+  draw((ch, x) => ctx.fillText(ch, x, y));
+  const texture = finishTexture(c);
+  texture.anisotropy = 8;
+  return { texture, aspect: c.width / c.height };
 }
 
 /** A station poster: "Ride {name}", the train in its livery, the line underneath. */

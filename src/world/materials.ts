@@ -73,7 +73,11 @@ float hash21(vec2 q) {
 }
 float patternMask(vec3 pos, vec3 n, vec2 pat) {
   float type = pat.x;
-  vec2 p = pos.xz / pat.y;
+  // Fix list 5.3: each face is painted in its own plane (floors and tops from above, sides from the side). Every
+  // pattern used to be projected from above, so on a side face (a counter front, a crate, a slab's edge) it
+  // smeared into streaks along one axis or a flat band.
+  vec3 an = abs(n);
+  vec2 p = (an.y >= an.x && an.y >= an.z ? pos.xz : (an.x >= an.z ? pos.zy : pos.xy)) / pat.y;
   float h = (abs(n.x) > abs(n.z) ? pos.z : pos.x) / pat.y;
   if (type < 1.5) { float a = sqw(p.x * 0.5); float b = sqw(p.y * 0.5); return a + b - 2.0 * a * b; }
   if (type < 2.5) return sqw(p.x * 0.5);

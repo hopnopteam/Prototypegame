@@ -6,7 +6,7 @@ import { GeoBuilder, mergePlanes, type PartStyle } from './geo';
 import { carriageOriginZ, DEFAULT_WINDOW_BAND, DOOR_Z0, DOOR_Z1, getLayout, HALF_WIDTH } from './layout';
 import { MATERIALS } from './materials';
 import { PALETTE } from './palette';
-import { nameboardTexture } from './sprites';
+import { letteringTexture } from './sprites';
 
 /** Which exterior upgrades the train has (bought at station stops). */
 export interface ExteriorState {
@@ -23,10 +23,19 @@ const FLOWERS = [PALETTE.blossom, PALETTE.mustard, PALETTE.linen, PALETTE.coral]
 const CARPET_LENGTH = 2.0;
 const CARPET_RED = '#B8434E';
 const CARPET_EDGE = '#D9B25A';
-const NAMEBOARD_LENGTH = 3.2;
-const NAMEBOARD_HEIGHT = 0.4;
-/** Nameboards lean back from vertical so they read from the camera above the train. */
-const NAMEBOARD_TILT = 0.85;
+/**
+ * Fix list 5.7: the name is sign-written on a letterboard in the carriage's own paint that hangs from the roof edge
+ * outward, sloping toward the camera like a fascia (the side itself is seen almost edge-on from above, so a name
+ * painted on it could not be read; a board leaning inward hid the rooms). Its height, longest run and slope.
+ */
+const NAME_HEIGHT = 0.28;
+const NAME_MAX_LENGTH = 4.2;
+const NAME_TILT = 0.85;
+/** Where the board's top edge meets the cornice: out from the wall face and up from the wall top. */
+const NAME_TOP_OUT = 0.06;
+const NAME_TOP_UP = 0.09;
+/** Board paint when none is given (previews, the geometry audit). */
+const DEFAULT_BOARD_PAINT = '#2F4C82';
 
 /**
  * The outside of the train, dressed by the station workshop: window boxes under every window, brass lamps
@@ -38,9 +47,10 @@ export class ExteriorView {
   readonly group = new THREE.Group();
   private solid: THREE.Mesh | null = null;
   private lamps: THREE.Mesh | null = null;
-  private boards: THREE.Mesh | null = null;
-  private readonly boardMaterial = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+  /** One letterboard material per paint (a carriage's class livery or the train's): lit like the paint round it. */
+  private readonly boardMaterials = new Map<string, { material: THREE.MeshLambertMaterial; aspect: number }>();
   private boardName = '';
+  private boardMeshes: THREE.Mesh[] = [];
   private readonly carpet = new THREE.Group();
   private carpetMesh: THREE.Mesh | null = null;
   private carpetAmount = 0;
@@ -51,19 +61,36 @@ export class ExteriorView {
     this.group.add(this.carpet);
   }
 
-  /** Rebuilds the dressing for the whole train at once. */
-  build(types: readonly CarriageType[], state: ExteriorState, trainName: string): void {
-    const steps = this.buildSteps(types, state, trainName);
+  /** Rebuilds the dressing for the whole train at once. `paints`: each carriage's body colour, for its letterboard. */
+  build(types: readonly CarriageType[], state: ExteriorState, trainName: string, paints: readonly string[] = []): void {
+    const steps = this.buildSteps(types, state, trainName, paints);
     while (!steps.next().done) {
       // keep going
     }
   }
 
   /** The same rebuild a carriage at a time (it yields between them); the old dressing stays until the swap. */
-  *buildSteps(types: readonly CarriageType[], state: ExteriorState, trainName: string): Generator<void, void> {
+  *buildSteps(types: readonly CarriageType[], state: ExteriorState, trainName: string, paints: readonly string[] = []): Generator<void, void> {
     const s = new GeoBuilder();
     const lamps = new GeoBuilder();
-    const boardGeos: THREE.BufferGeometry[] = [];
+    const boardGeos = new Map<string, THREE.BufferGeometry[]>();
+    if (this.boardName !== trainName) {
+      for (const { material } of this.boardMaterials.values()) {
+        material.map?.dispose();
+        material.dispose();
+      }
+      this.boardMaterials.clear();
+      this.boardName = trainName;
+    }
+    const boardFor = (paint: string): { material: THREE.MeshLambertMaterial; aspect: number } => {
+      let entry = this.boardMaterials.get(paint);
+      if (!entry) {
+        const { texture, aspect } = letteringTexture(trainName, paint);
+        entry = { material: new THREE.MeshLambertMaterial({ map: texture }), aspect };
+        this.boardMaterials.set(paint, entry);
+      }
+      return entry;
+    };
 
     for (let index = 0; index < types.length; index++) {
       const type = types[index];
@@ -108,15 +135,20 @@ export class ExteriorView {
         }
       }
       if (state.nameboards && longest) {
+        // The board centred on the carriage's longest run of side, hung from the cornice; shorter only for a very
+        // long name.
+        const paint = paints[index] ?? DEFAULT_BOARD_PAINT;
+        const { aspect } = boardFor(paint);
         const zc = oz + (longest.z0 + longest.z1) / 2;
-        const length = Math.min(NAMEBOARD_LENGTH, longest.z1 - longest.z0 - 0.4);
-        const board = new THREE.PlaneGeometry(length, NAMEBOARD_HEIGHT);
+        const length = Math.min(NAME_HEIGHT * aspect, NAME_MAX_LENGTH, longest.z1 - longest.z0 - 1.2);
+        const height = length / aspect;
+        const board = new THREE.PlaneGeometry(length, height);
         board.rotateY(Math.PI / 2);
-        board.rotateZ(NAMEBOARD_TILT);
-        board.translate(longest.face + 0.14, longest.top + 0.2, zc);
-        boardGeos.push(board);
-        // Two brass brackets hold it to the roof edge.
-        for (const dz of [-length / 2 + 0.3, length / 2 - 0.3]) s.box(longest.face + 0.06, longest.top + 0.08, zc + dz, 0.12, 0.16, 0.04, PALETTE.brass, 0, FLAT);
+        board.rotateZ(NAME_TILT);
+        board.translate(longest.face + NAME_TOP_OUT + Math.sin(NAME_TILT) * height / 2, longest.top + NAME_TOP_UP - Math.cos(NAME_TILT) * height / 2, zc);
+        const list = boardGeos.get(paint) ?? [];
+        list.push(board);
+        boardGeos.set(paint, list);
       }
       yield;
     }
@@ -124,12 +156,13 @@ export class ExteriorView {
     yield;
     const lampGeo = lamps.isEmpty ? null : lamps.build();
 
-    for (const mesh of [this.solid, this.lamps, this.boards]) {
+    for (const mesh of [this.solid, this.lamps, ...this.boardMeshes]) {
       if (!mesh) continue;
       this.group.remove(mesh);
       mesh.geometry.dispose();
     }
-    this.solid = this.lamps = this.boards = null;
+    this.solid = this.lamps = null;
+    this.boardMeshes = [];
     if (solidGeo) {
       this.solid = new THREE.Mesh(solidGeo, MATERIALS.solid);
       this.solid.castShadow = true;
@@ -141,17 +174,14 @@ export class ExteriorView {
       this.lamps = new THREE.Mesh(lampGeo, MATERIALS.lamps);
       this.group.add(this.lamps);
     }
-    if (boardGeos.length > 0) {
-      if (this.boardName !== trainName) {
-        this.boardMaterial.map?.dispose();
-        this.boardMaterial.map = nameboardTexture(trainName);
-        this.boardMaterial.needsUpdate = true;
-        this.boardName = trainName;
-      }
-      this.boards = new THREE.Mesh(mergePlanes(boardGeos), this.boardMaterial);
-      this.group.add(this.boards);
+    for (const [paint, geos] of boardGeos) {
+      const mesh = new THREE.Mesh(mergePlanes(geos), boardFor(paint).material);
+      // Receives the moon's shadow like the paint round it (the shader the warm-up compiles for textured boards).
+      mesh.receiveShadow = true;
+      this.group.add(mesh);
+      this.boardMeshes.push(mesh);
+      for (const g of geos) g.dispose();
     }
-    for (const g of boardGeos) g.dispose();
 
     if (state.redcarpet && !this.carpetMesh) this.carpetMesh = buildCarpet(this.carpet);
     if (!state.redcarpet && this.carpetMesh) {

@@ -279,8 +279,10 @@ export class TrainState {
     const state = { windowboxes: has('windowboxes'), lamps: has('lamps'), lining: has('lining'), nameboards: has('nameboards'), redcarpet: has('redcarpet') };
     const bg = this.w.background;
     bg.cancel('exterior');
-    if (spread) bg.add('exterior', this.exterior.buildSteps(this.types, state, name));
-    else this.exterior.build(this.types, state, name);
+    // Each carriage's letterboard in its own paint (fix list 5.7).
+    const paints = this.paints().map((p) => p.body);
+    if (spread) bg.add('exterior', this.exterior.buildSteps(this.types, state, name, paints));
+    else this.exterior.build(this.types, state, name, paints);
   }
 
   /** Display name: the catalogue name, numbered when the train has more than one of a kind. */
@@ -964,6 +966,8 @@ export class TrainState {
     }
     // Refresh stock visibility this frame rather than next.
     this.update(0);
+    // A new class repaints the carriage, its letterboard too (fix list 5.7).
+    if (this.w.unlocks.isUnlocked('st.nameboards')) this.rebuildExterior(true);
     if (!animate) {
       this.group.remove(old.group);
       old.dispose();
