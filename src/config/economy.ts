@@ -512,10 +512,12 @@ export const ECONOMY = {
     /**
      * Stars needed to reach each route level (index 0 = level 1). Route 1 maxes at level 8. Fix list 2.2 (the
      * 1.3-hour playtest: "the content took about an hour"): spread over about two hours, the first quarter hour as
-     * fast as before (level 2 ~5 min, 3 ~11) and each later level a little further off than the last (4 ~20,
-     * 5 ~33, 6 ~50, 7 ~75, 8 ~105 on the autopilot); was 880 stars for level 8 (~39 min).
+     * fast as before (level 2 ~5 min, 3 ~12) and each later level a little further off than the last; re-measured
+     * once the Train Rating, missed fares and minibars were in (star income slows in the middle of the route), so
+     * levels 5–8 come at about 38, 58, 85 and 120 minutes on the autopilot; was 880 stars for level 8 (~39 min).
+     * Level 8 stays at the top rival's reputation, so #1 is reachable on route 1.
      */
-    levelThresholds: [0, 75, 175, 360, 700, 1250, 2200, 3400],
+    levelThresholds: [0, 75, 175, 360, 600, 1050, 2000, 3200],
     levelRailMiles: [0, 3, 4, 5, 6, 8, 10, 12],
     levelCash: [0, 80, 150, 300, 550, 900, 1400, 2200],
     /** Feature gates by route level (§9: introduce each layer after the one below is understood). */

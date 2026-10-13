@@ -175,7 +175,8 @@ for (const [width, height] of SIZES) {
 
   // Every menu.
   const menus = [
-    ['shop', "document.querySelector('.side button[aria-label=\"Shop\"]').click()"],
+    // With monetization off (fix list 1) the Shop button opens the Paint Shop.
+    ['shop', "document.querySelector('.side button[aria-label=\"Shop\"], .side button[aria-label=\"Paint Shop\"]').click()"],
     ['settings', 'window.nightExpress.ui.screens.settings()'],
     ['menu', 'window.nightExpress.ui.screens.menu()'],
     ['front page', "const g = window.nightExpress; g.data.press.trainName = 'The Moonlight Limited'; const item = g.press.print('refurb3', { carriage: 'Sleeper Car II' }); g.ui.showFrontPage(item, { cash: 0, gems: 10, railMiles: 2 }, 10, () => {})"],

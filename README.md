@@ -50,8 +50,20 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   then plain wood, then the venue's colours, then its grand look (the bar's green panelled counter and arched
   back-bar, the cinema's red velvet picture palace).
 - **News and rivals:** big moments arrive as a strip of newsprint at the foot of the screen (it pays on the spot
-  and never pauses the game). Rivals are news too: the next rival's taunt, and the moment you pass one (with what
-  you win), each with a short league list (who is ahead, you, who is behind). The full table is in the menu.
+  and never pauses the game). **Rival Watch** is a bar above the offer slot: the train just above you in the
+  league, their owner's face, your stars against theirs and the gap closing as you earn. Pass them and you make the
+  front page and take their prize; the next rival steps up at once. The full table is in the menu.
+- **Train Rating:** five stars on the route line. Each stop is scored (everyone with a bed boarded, the bags
+  loaded, guests served in time) and the rating is the average of the last five, so it always recovers. A high
+  rating brings more and richer travellers and bigger tips; a low one fewer and thinner. Travellers who had a bed
+  but missed the train storm off and their fares are lost (shown on the result card).
+- **The station clock:** big in the middle of the route line, yellow under 20 s and red under 10 s, ticking the
+  last ten seconds, with a warning whistle at ten.
+- **Golden Whistle:** keep the rating high for long enough (4.3★ over 8 stops, 4.6★ over 12, 4.8★ over 16) and you
+  win an award at a ceremony of its own: spotlights, a trophy, a cheering crowd, confetti and its own music.
+- **No ads, no purchases (for now):** one switch (`MONETIZATION_ENABLED` in `src/config/economy.ts`) turns every
+  ad, offer and shop purchase off; the boosts are earned instead (hold the train at last call from level 3, roller
+  skates and double fares for runs of clean stops, the scooter at level 6). Flip it back on to restore them.
 - **Controls:** touch and drag anywhere for the floating joystick, read on screen: push up and the conductor walks
   straight up the screen, whatever the angle of the train (mouse drag, or WASD / arrow keys on desktop).
   Everything else is walk-over: stand in a zone and it acts.
@@ -99,7 +111,7 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | The flow: the opening's purchases in order (`flow.openingTiles`: one on show at a time), the boarding at Millbrook that opens the game (`flow.prologue`: travellers waiting on the platform, how soon they step aboard, the last call), when each later feature joins (`flow.features`: bags, the platform crowd, reactions, Rush, class badges, the next-carriage plate, offers, the station workshop, a second tile, the goal chain) and the camera glide to something new (`flow.reveal`); the gap between coach lessons | `src/config/economy.ts` (`flow`), `src/config/coach.ts` (`COACH_LESSON_GAP_SECONDS`) |
 | Frame pacing (`maxFps`), dynamic resolution, the tier drop and 30 fps hold, lite shading and shadow mode per tier | `src/config/visuals.ts` (`quality`) |
 | The app shell (app id, colours, launch screen, status bar) | `capacitor.config.ts`; native code in `ios/` and `android/` |
-| The sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, how celebrations ring out and keep the stage, the music's night filter | `src/config/audio.ts` |
+| The sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, how celebrations ring out and keep the stage (the theme ducks under them; one at a time), the music's night filter | `src/config/audio.ts` |
 | The music (score: chords, melody, bass, drums) | `scripts/audio/build_music.py` renders `assets/audio/music_theme.mp3` from real piano, bass, guitar and drum recordings (credits in `assets/audio/CREDITS.md`); to use another track, replace the MP3 and set `loopSeconds` in `src/audio/music.ts` |
 | Floors by tier: broken planks and repairs, parquet, rugs | `src/world/Floors.ts` |
 | The venue carriages: what each sells and for how much, how long it takes to make and to enjoy, the staff, refit price steps, menu multipliers, how often guests take outings, the café queue, the party meter and Happy Hour, scenic views and blankets, the cinema's films (length, ticket, popcorn, when the projectionist starts one) | `src/config/venues.ts` (their tiles and prices in `CARRIAGE_CATALOGUE`, `src/config/content.ts`; floor plans per refit tier in `buildCafe`/`buildDining`/`buildCinema`/`buildBar`/`buildDome`, `src/world/layout.ts`; furniture by tier in `src/world/VenueProps.ts`; wall colours in `VENUE_WALLS`, `src/world/CarriageView.ts`; carpets in `venueCarpets`, `src/world/Floors.ts`) |
@@ -112,7 +124,15 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | The station result card and the perfect streak (`money.perfectStreakStep`/`perfectStreakMax`), the camera's glance at missed travellers (`feedback.missedGlide`) | `src/config/economy.ts` |
 | The desk: check-in time (`zones.checkInSeconds`) and the evening table booking (`desk`) | `src/config/economy.ts` |
 | The night shift: shoes (`night`: polish time, tip), night owls (`trip.owl`), how spread out bedtimes are (`trip.jitter`), when the Attendant starts serving guests (`staff.attendantServesFromLevel`) | `src/config/economy.ts` |
-| The rival's dare: the dares (what is counted, target, stations), the prize, the win headline, each owner's gloat | `src/config/press.ts` (`RIVAL_DARES`, `DARE_REWARD`, `DARE_WON_HEADLINE`, `RIVALS[].owner.gloat`) |
+| Monetization on or off (one switch), and the boosts earned while it is off | `src/config/economy.ts` (`MONETIZATION_ENABLED`, `perks`) |
+| The Train Rating: how a stop is scored, how many stops it averages, what a low or high rating does to travellers, classes and tips | `src/config/economy.ts` (`rating`) |
+| The station clock's yellow and red points, the ticking and the warning whistle | `src/config/economy.ts` (`journey.timer`) |
+| Golden Whistle awards (rating needed, over how many stops, rewards) | `src/config/press.ts` (`GOLDEN_WHISTLES`) |
+| Rival Watch (rivals' reputations, the spoils each pays), and the dares (off: `RIVAL_DARES_ENABLED`) | `src/config/press.ts` |
+| The minibar comfort (stock per room, how often a guest buys a snack, its price) | `src/config/economy.ts` (`minibar`) |
+| Pad and floating-icon sizes | `src/config/visuals.ts` (`pads`) |
+| How far the theme ducks under a reward jingle and how fast it comes back; how long a second jingle may wait | `src/config/audio.ts` (`musicDuck`, `celebration.queueWithin`) |
+| The venues' own light (the café bright, the dining car low and warm, pooled on its tables) | `src/config/visuals.ts` (`night.light.venues`) |
 | One trip, one sleep: when the evening ends and the morning starts, the shortest night, request delay, outing and washroom chances, the wake-up call; each class's evening and morning requests | `src/config/economy.ts` (`trip`), `src/config/classes.ts` (`evening`, `morning`) |
 | How guests differ (looks per type, skin tones, hair colours, heights) and what they do while waiting | `src/config/crowd.ts` |
 | Where everything stands on a platform (ticket stand, queue, door, barrow, walkway, benches) | `src/world/platformLayout.ts` |
