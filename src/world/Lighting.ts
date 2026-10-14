@@ -77,6 +77,9 @@ export interface LampAnchor {
  * Moonlight, sky fill, a reflected night sky for metal and polish, and fog (lamplight is baked: LightMap). One shadow-casting
  * light (the moon) with a tight frustum that follows the view.
  */
+/** Seconds after a change to the static shadow before its follow-up redraw (longer than the longest reveal, 4.2 s). */
+const STATIC_SETTLE_SECONDS = 4.6;
+
 export class Lighting {
   readonly hemi = new THREE.HemisphereLight('#FFF6E8', '#A7B386', 1.55);
   readonly sun = new THREE.DirectionalLight('#FFF0D8', 2.1);
@@ -168,13 +171,32 @@ export class Lighting {
   /** Something that casts into the static map changed (a carriage built or refitted, a bed or a fixture shown). */
   invalidateShadows(): void {
     this.staticDirty = true;
+    this.settlePending = true;
   }
+
+  /**
+   * Session 26 (owner: "random shadow issues in the train carriages"): a change is usually animated (furniture drops in
+   * with a bounce as a room is revealed, a carriage rolls in for 2.3 s, a refit wipes down the carriage), and the map
+   * used to be drawn once, part-way through, so it kept a shadow of that moment (a bed in mid-air, a carriage half a
+   * metre off) until the next change. Now one more redraw follows every change once its animation has played out.
+   */
+  private settlePending = false;
+  private settleAt = Number.POSITIVE_INFINITY;
 
   /**
    * Static mode: true once when the map must be redrawn (and fits the frustum round the train first), at most
    * once every `gap` seconds (`now` is the stage clock): changes in between are folded into the next redraw.
    */
-  takeStaticRedraw(now: number, gap: number): boolean {
+  takeStaticRedraw(now: number, gap: number, settle = STATIC_SETTLE_SECONDS): boolean {
+    if (this.settlePending) {
+      this.settlePending = false;
+      this.settleAt = now + settle;
+    }
+    // The follow-up redraw once the change has finished animating.
+    if (!this.staticDirty && now >= this.settleAt) {
+      this.settleAt = Number.POSITIVE_INFINITY;
+      this.staticDirty = true;
+    }
     if (this.shadowMode !== 'static' || !this.staticDirty || !this.sun.castShadow) return false;
     if (now - this.lastStaticRedraw < gap) return false;
     this.lastStaticRedraw = now;

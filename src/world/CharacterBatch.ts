@@ -142,8 +142,11 @@ export class CharacterBatch {
   private frame = 0;
 
   constructor(shadowGeometry: THREE.BufferGeometry) {
-    this.lit = new Batch(MATERIALS.character, reference(LIT_ATTRIBUTES, null), true, INITIAL_VERTICES, true);
-    this.solid = new Batch(MATERIALS.solid, reference(SOLID_ATTRIBUTES, null), true, 16_384);
+    // Session 26 ("random shadow issues"): people and what they carry throw no moon shadow on any tier. On High and
+    // Ultra they used to cast one as well as their soft blob, two shadows under everyone (and on the phone tiers only
+    // the blob): now every tier shows the one blob, My Perfect Hotel's look.
+    this.lit = new Batch(MATERIALS.character, reference(LIT_ATTRIBUTES, null), false, INITIAL_VERTICES, true);
+    this.solid = new Batch(MATERIALS.solid, reference(SOLID_ATTRIBUTES, null), false, 16_384);
     this.shadow = new Batch(MATERIALS.shadow, reference(Object.keys(shadowGeometry.attributes), shadowGeometry), false, 4_096);
     this.group.add(this.lit.mesh, this.solid.mesh, this.shadow.mesh);
   }

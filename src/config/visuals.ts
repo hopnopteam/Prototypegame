@@ -104,11 +104,12 @@ export const VISUALS = {
    * are sRGB hex; intensities are in three.js physical units, then tone-mapped with ACES.
    */
   night: {
-    exposure: 1.0,
+    /** Session 26 (owner: "make the colours pop a bit more, the game is too dull in places"): a little brighter. */
+    exposure: 1.1,
     /** The moon: the one shadow-casting light, from high over the lake (upper left, a little ahead). */
     moon: { color: '#BCC4FF', intensity: 2.0 },
     /** Sky and ground fill: a soft lavender night (the reference dioramas), never black. */
-    hemi: { sky: '#5E64AE', ground: '#33294A', intensity: 1.55 },
+    hemi: { sky: '#6268B4', ground: '#3A2E52', intensity: 1.75 },
     /** Moonlight bouncing back from the camera's side, so liveries and faces toward the camera read. */
     fill: 0.95,
     /** The night sky polished surfaces and the lake reflect (analytic; see nxSky). */
@@ -123,8 +124,8 @@ export const VISUALS = {
      */
     light: {
       texel: 0.1,
-      interior: { color: '#FFB978', intensity: 0.78 },
-      lamp: { color: '#FFB066', intensity: 1.7, radius: 2.6 },
+      interior: { color: '#FFBE7E', intensity: 0.96 },
+      lamp: { color: '#FFB066', intensity: 1.8, radius: 2.6 },
       /** Bare bulbs in a run-down carriage are a little colder and dimmer; luxury is warmer and brighter. */
       tierLamp: [0.85, 0.93, 1.0, 1.06, 1.14, 1.24],
       spill: { color: '#FFB46E', intensity: 0.42, reach: 2.4 },
@@ -146,10 +147,11 @@ export const VISUALS = {
     fog: { color: '#2A2C52', density: 0.0085 },
     bloom: { strength: 0.42, radius: 0.5, threshold: 1.0 },
     /**
-     * Colour grade (MEDIUM and up): lifted blue shadows, warm highlights, a touch of contrast and saturation,
-     * a soft vignette and a whisper of grain (hides banding in the dark sky).
+     * Colour grade (every tier): lifted blue shadows, warm highlights, contrast and saturation, a soft vignette and a
+     * whisper of grain (hides banding in the dark sky). Session 26 (after My Perfect Hotel, "just a little"): the colours
+     * fuller (saturation 1.08 → 1.32) and the vignette lighter, so the paint, the carpets and the liveries pop.
      */
-    grade: { shadows: '#16244A', shadowAmount: 0.05, highlights: '#FFD9A8', highlightAmount: 0.07, contrast: 1.1, saturation: 1.08, vignette: 0.34, grain: 0.02 },
+    grade: { shadows: '#16244A', shadowAmount: 0.05, highlights: '#FFD9A8', highlightAmount: 0.07, contrast: 1.12, saturation: 1.32, vignette: 0.24, grain: 0.02 },
   },
 
   /**
