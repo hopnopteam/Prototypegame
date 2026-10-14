@@ -15,6 +15,7 @@ import {
   PRESS_ARCHIVE,
   RIVAL_DARES,
   RIVAL_DARES_ENABLED,
+  RIVALS_ENABLED,
   RIVALS,
   TOP_RANK_NEWS,
   TRAIN_NAME_MAX,
@@ -148,6 +149,7 @@ export class Press {
     });
     e.on('livery.changed', ({ name }) => this.print('livery', { livery: name }));
     e.on('stars.added', () => {
+      if (!RIVALS_ENABLED) return;
       this.checkLeague();
       this.checkRivalTarget();
     });
@@ -165,7 +167,7 @@ export class Press {
         // The rival's dare is settled or dared in this calm (once the station ticket has gone); a rival who has
         // not had their say yet says it with their dare, so their taunt waits for that.
         this.dareBreak = true;
-        if (this.tauntDue !== null && !this.daresOpen()) this.rivalNews(this.tauntDue);
+        if (RIVALS_ENABLED && this.tauntDue !== null && !this.daresOpen()) this.rivalNews(this.tauntDue);
       }
       if (phase === 'arriving' || phase === 'stationStop') this.calm = 0;
     });
@@ -437,7 +439,7 @@ export class Press {
   get watch(): { rival: Rival | null; mine: number; theirs: number; fraction: number; prize: number; perk: string; rank: number } | null {
     const w = this.w;
     const p = this.state;
-    if (!p.trainName || !p.interviews.includes(DEBUT_INTERVIEW) || !w.flow.allows('rivals')) return null;
+    if (!RIVALS_ENABLED || !p.trainName || !p.interviews.includes(DEBUT_INTERVIEW) || !w.flow.allows('rivals')) return null;
     const mine = Math.floor(w.data.route.stars);
     const race = raceProgress(mine, this.league);
     const rival = race.next;
@@ -452,6 +454,7 @@ export class Press {
 
   /** Pennants of every rival passed, in the order they were beaten (hoisted on the locomotive). */
   get pennants(): Rival[] {
+    if (!RIVALS_ENABLED) return [];
     const stars = this.w.data.route.stars;
     return this.league.filter((r) => r.reputation <= stars);
   }
@@ -677,7 +680,7 @@ export class Press {
       w.ui.toast(answer.perk.label, 'mic');
       if (level === DEBUT_INTERVIEW) {
         this.print('named', { quote: answer.text });
-        this.checkRivalTarget();
+        if (RIVALS_ENABLED) this.checkRivalTarget();
       }
     });
   }

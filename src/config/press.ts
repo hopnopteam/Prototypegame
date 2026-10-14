@@ -171,6 +171,14 @@ export interface RivalDare {
  */
 export const RIVAL_DARES_ENABLED = false;
 
+/**
+ * Session 26 (owner: "remove the whole rival watch thing for now, we don't need it… just upgrades news information is
+ * good enough"): the rivals are switched off, not deleted: no Rival Watch bar, no taunts or overtakes on the news
+ * strip, no league front pages, no pennants, no league sheet. The Gazette still prints the train's own news (couplings,
+ * venues opening, refits, liveries). True brings it all back.
+ */
+export const RIVALS_ENABLED = false;
+
 export const RIVAL_DARES: RivalDare[] = [
   { id: 'tickets', metric: 'board', icon: 'ticket', dare: 'Bet you can\'t sell {n} tickets by {station}.', base: 3, perCarriage: 2, stops: 2 },
   { id: 'requests', metric: 'requests', icon: 'tea', dare: '{n} requests served by {station}? Never.', base: 3, perCarriage: 2, stops: 1 },

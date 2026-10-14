@@ -70,7 +70,9 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 [hidden] { display: none !important; }
 
 /* ── Joystick ───────────────────────────────────────────── */
-.joystick { position: absolute; left: 0; top: 0; width: 112px; height: 112px; border-radius: 50%; background: #FBF3E433; border: 2.5px solid #FBF3E4AA; opacity: 0; transition: opacity 120ms; }
+/* Session 26 (owner: "remove the UI movement thing… just player move but without showing the joystick"): dragging
+   anywhere still steers; nothing is drawn. */
+.joystick { display: none !important; position: absolute; left: 0; top: 0; width: 112px; height: 112px; border-radius: 50%; background: #FBF3E433; border: 2.5px solid #FBF3E4AA; opacity: 0; transition: opacity 120ms; }
 .joystick.visible { opacity: 1; }
 .joystick-knob { position: absolute; left: 31px; top: 31px; width: 50px; height: 50px; border-radius: 50%; background: var(--cream); border: var(--line); box-shadow: var(--drop); }
 
@@ -102,15 +104,12 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 
 /* Route level: a gold star with the number, and the star bar beside it (fills as stars land). */
 .level { position: relative; flex: none; display: flex; align-items: center; height: 42px; padding: 0; cursor: pointer; border: 0; background: none; }
-.level .lv-star { position: relative; z-index: 1; width: 44px; height: 44px; flex: none; display: grid; place-items: center; filter: drop-shadow(0 3px 0 var(--ink)); }
+.level .lv-star { position: relative; z-index: 1; width: 48px; height: 48px; flex: none; display: grid; place-items: center; filter: drop-shadow(0 3px 0 var(--ink)); }
 .level .lv-star::before, .level .lv-star::after { content: ''; position: absolute; clip-path: polygon(50% 0, 62% 33%, 98% 36%, 70% 58%, 80% 94%, 50% 74%, 20% 94%, 30% 58%, 2% 36%, 38% 33%); }
 .level .lv-star::before { inset: 0; background: var(--ink); }
 .level .lv-star::after { inset: 3.5px; background: linear-gradient(#FFE08A, #F2B233 60%, #D89A1E); }
-.level .badge { position: relative; z-index: 1; margin-top: 3px; color: #FFFDF7; font-weight: 800; font-size: 16px; font-variant-numeric: tabular-nums; text-shadow: var(--outline-text); }
-.level .lv-bar { position: relative; margin-left: -12px; height: 18px; width: 50px; border-radius: 0 9px 9px 0; border: var(--line); border-left: 0; background: #3B3045; box-shadow: var(--drop); overflow: hidden; }
-.level .lv-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--p, 0) * 100%); background: linear-gradient(#B6EC9A, #6FC25A); box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.45); transition: width 300ms ease-out; }
+.level .badge { position: relative; z-index: 1; margin-top: 4px; color: #FFFDF7; font-weight: 800; font-size: 18px; font-variant-numeric: tabular-nums; text-shadow: var(--outline-text); }
 .level .lv-count { position: relative; display: block; padding-left: 11px; line-height: 18px; font-size: 11.5px; letter-spacing: -0.01em; font-weight: 800; color: #FFFDF7; text-align: center; font-variant-numeric: tabular-nums; text-shadow: 0 1px 0 var(--ink), 1px 0 0 var(--ink), -1px 0 0 var(--ink), 0 -1px 0 var(--ink); }
-.level.max .lv-bar i { width: 100%; background: linear-gradient(#FFE08A, #F2B233); }
 .level.bump .lv-star { animation: bump 240ms ease-out; }
 .level.near .lv-star { animation: nearGlow 1.4s ease-in-out infinite; }
 @keyframes nearGlow { 50% { filter: drop-shadow(0 3px 0 var(--ink)) drop-shadow(0 0 6px #FFE08A); } }
@@ -125,12 +124,9 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .journey .clock { flex: none; min-width: 42px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--teal); color: var(--cream); border: 2px solid var(--ink); font-weight: 800; font-size: 13px; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; box-sizing: border-box; }
 .journey .clock:empty { display: none; }
 /* The Train Rating (fix list 4.2): grey stars with the gold ones laid over them up to the rating. */
-.journey .rating { position: relative; flex: none; display: flex; height: 16px; }
+.journey .rating { position: relative; flex: none; display: flex; align-items: center; gap: 2px; height: 18px; padding: 0 6px 0 3px; border-radius: 9px; background: rgba(31, 53, 81, 0.72); border: 2px solid var(--ink); box-sizing: border-box; color: #FFE08A; font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums; }
 .journey .rating[hidden] { display: none; }
-.journey .rating > span { display: flex; gap: 1px; white-space: nowrap; }
 .journey .rating .ico { width: 14px; height: 14px; flex: none; }
-.journey .rating .base .ico { filter: grayscale(1) brightness(0.55); opacity: 0.75; }
-.journey .rating .fill { position: absolute; left: 0; top: 0; bottom: 0; overflow: hidden; width: 60%; transition: width 600ms cubic-bezier(.2,1,.4,1); }
 .journey .rating.bump { animation: bump 420ms cubic-bezier(.2,1.6,.4,1); }
 .journey.stop .fill { background: linear-gradient(#7FD1C5, var(--teal)); }
 .journey.stop .track::after { background: var(--teal); }
@@ -176,6 +172,8 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .side button > .ico, .hud-row .menu-btn > .ico { filter: drop-shadow(0 2px 0 rgba(42, 36, 51, 0.3)); }
 .side button:active, .hud-row .menu-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
 .hud-row .menu-btn { flex: none; margin-left: auto; }
+.hud-row .conductor-btn + .menu-btn { margin-left: 0; }
+.hud-row .menu-btn.glow { animation: glow 1.4s ease-in-out infinite; }
 .side .dot, .hud-row .dot { position: absolute; top: -7px; right: -7px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--raspberry); color: var(--cream); font-size: 12px; font-weight: 800; line-height: 17px; border: 2px solid var(--ink); box-sizing: border-box; }
 .side button.glow { animation: glow 1.4s ease-in-out infinite; }
 /* The rival's dare (session 24): their face, ringed by how far along the dare is; its icon; the count. */
@@ -321,7 +319,6 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .celebrate .small { padding-left: 0.18em; }
 .float.info { padding-left: 0.12em; }
 .float.miss { padding-left: 0.1em; }
-.ticket.result h3 { padding-left: 0.08em; }
 @keyframes celebrate { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } 14% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); } 24% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
 
 /* ── Station result: a compact punched ticket ─────────── */
@@ -346,18 +343,19 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .ticket .rows .warn { background: #FBE3A1; }
 .ticket .rows .bad { background: #F3D3CE; color: #8E2F2F; }
 
-/* Session 24: the station result is one big card: a headline band, three stars, then the numbers. */
-.ticket.result { flex-direction: column; align-items: stretch; width: min(270px, calc(100% - 2 * var(--middle-left))); text-align: center; }
-.ticket.result .band { background: var(--navy); color: var(--cream); padding: 7px 10px 6px; border-bottom: 2.5px dashed var(--cream); }
-.ticket.result.perfect .band { background: var(--mustard); color: var(--ink); border-bottom-color: var(--cream); }
-.ticket.result h3 { font-size: clamp(15px, 4.6vw, 19px); letter-spacing: 0.08em; }
-.ticket.result .stars { display: flex; justify-content: center; gap: 6px; padding: 7px 0 3px; }
-.ticket.result .stars i { display: block; width: 30px; height: 30px; animation: starPop 420ms cubic-bezier(.2,1.6,.4,1) both; }
-.ticket.result .stars i .ico { width: 30px; height: 30px; }
+/* Session 24: the station result card; session 26 (owner: "way too cluttered… minimalist"): compact, the stars and
+   the headline on one line, the numbers on the next. */
+.ticket.result { flex-direction: column; align-items: stretch; gap: 5px; padding: 7px 10px 8px; width: max-content; max-width: min(310px, calc(100% - 2 * var(--middle-left))); text-align: center; }
+.ticket.result .res-head { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.ticket.result h3 { font-size: 15px; letter-spacing: 0.08em; color: var(--navy); }
+.ticket.result.perfect { border-color: var(--ink); background: linear-gradient(#FFF6DA, #FBE7B0); }
+.ticket.result.perfect h3 { color: #8A5A00; }
+.ticket.result .stars { display: flex; gap: 2px; }
+.ticket.result .stars i { display: block; width: 20px; height: 20px; animation: starPop 420ms cubic-bezier(.2,1.6,.4,1) both; }
+.ticket.result .stars i .ico { width: 20px; height: 20px; }
 .ticket.result .stars i.off { filter: grayscale(1) brightness(1.25); opacity: 0.38; }
 @keyframes starPop { from { transform: scale(0) rotate(-40deg); opacity: 0; } }
-.ticket.result .rows { justify-content: center; padding: 0 8px 6px; }
-.ticket.result .rows:last-child { padding-bottom: 9px; }
+.ticket.result .rows { justify-content: center; }
 .ticket.result .rows .streak { background: var(--raspberry); color: var(--cream); padding-left: 4px; }
 .ticket.result .rows .bad { background: #F7DEDA; color: #B5473F; padding-left: 7px; }
 .ticket.result .rows .lost .ico { filter: grayscale(0.6); opacity: 0.7; }
@@ -398,17 +396,18 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .tile-tag b { font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
 .tile-tag span { font-size: 12px; font-weight: 600; color: #FFE39A; text-wrap: balance; }
 .tile-tag.locked span { color: var(--powder); }
-.trainmap { position: absolute; z-index: 4; left: var(--gutter); top: var(--rail-top); width: var(--rail-width); box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0 7px; border-radius: 14px; background: var(--cream); border: var(--line); box-shadow: var(--drop); pointer-events: auto; }
-.trainmap .loco { width: 26px; height: 16px; border-radius: 9px 9px 3px 3px; background: var(--navy); border: 2px solid var(--ink); box-sizing: border-box; }
+/* Session 26: a lighter train map (a glass strip, not a card), so the left edge of the play area stays open. */
+.trainmap { position: absolute; z-index: 4; left: var(--gutter); top: var(--rail-top); width: 38px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 0 6px; border-radius: 12px; background: rgba(28, 39, 64, 0.5); border: 2px solid rgba(42, 36, 51, 0.8); pointer-events: auto; }
+.trainmap .loco { width: 24px; height: 13px; border-radius: 9px 9px 3px 3px; background: var(--navy); border: 2px solid var(--ink); box-sizing: border-box; }
 .trainmap .cars { display: flex; flex-direction: column; gap: 4px; }
-.trainmap .car { position: relative; width: 30px; height: 32px; padding: 0; border-radius: 7px; border: 2px solid var(--ink); background: #DCE6DE; cursor: pointer; display: grid; place-items: center; }
+.trainmap .car { position: relative; width: 28px; height: 27px; padding: 0; border-radius: 7px; border: 2px solid var(--ink); background: #DCE6DE; cursor: pointer; display: grid; place-items: center; }
 .trainmap .car[data-tier="1"] { background: #E9E2C8; }
 .trainmap .car[data-tier="2"] { background: #EBC9C2; }
 .trainmap .car[data-tier="3"] { background: #F2D27A; }
 .trainmap .car.here { box-shadow: 0 0 0 3px var(--mustard); }
 .trainmap .car:active { transform: scale(0.94); }
-.trainmap .emblem { display: grid; place-items: center; width: 22px; height: 22px; }
-.trainmap .emblem .ico { width: 20px; height: 20px; }
+.trainmap .emblem { display: grid; place-items: center; width: 20px; height: 20px; }
+.trainmap .emblem .ico { width: 18px; height: 18px; }
 /* Fix list 5.8: the need badge sits on the corner, so the carriage's emblem always shows. */
 .trainmap .need { position: absolute; top: -7px; right: -9px; width: 20px; height: 20px; border-radius: 50%; background: var(--cream); border: 2px solid var(--ink); display: grid; place-items: center; animation: needPulse 1.2s ease-in-out infinite; box-sizing: border-box; }
 .trainmap .need .ico { width: 14px; height: 14px; }
@@ -709,6 +708,7 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 @keyframes capIn { from { opacity: 0; translate: 0 18px; } }
 .cine-kicker { margin-bottom: 4px; font-size: 11px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; color: var(--raspberry-dark); }
 .cine-text { font-size: 18px; font-weight: 800; line-height: 1.2; color: var(--ink); text-wrap: balance; }
+.in-intro .hud-top, .in-intro .side, .in-intro .trainmap, .in-intro .objective, .in-intro .offers { visibility: hidden; }
 .cine-skip {
   position: absolute; z-index: 61; top: calc(var(--safe-top) + 14px); right: var(--gutter); padding: 7px 14px; border-radius: 999px; border: 2.5px solid var(--ink);
   background: rgba(255, 253, 247, 0.94); box-shadow: 0 3px 0 var(--ink); font: inherit; font-weight: 800; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;

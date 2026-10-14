@@ -1,7 +1,7 @@
 import type { ObjectiveDef } from '../config/objectives';
 import * as THREE from 'three';
 import type { ProductDef } from '../config/content';
-import type { InterviewDef, WhistleDef } from '../config/press';
+import { RIVALS_ENABLED, type InterviewDef, type WhistleDef } from '../config/press';
 import { MONETIZATION_ENABLED } from '../config/economy';
 import { damp, formatClock, formatNumber } from '../core/math';
 import type { CarriageType } from '../core/types';
@@ -95,7 +95,8 @@ const WIRE_GAP_MS = 600;
 const MAX_WIRES_WAITING = 3;
 /** At most one guest reaction on screen, and a breather between them: personality, not chatter. */
 const SPEECH_GAP_SECONDS = 4;
-const RESULT_SECONDS = 5.5;
+/** Session 26: a shorter stay (the card is smaller and reads at a glance). */
+const RESULT_SECONDS = 4;
 /** Seconds a queued announcement may wait (behind another one or an open sheet) before it is dropped. */
 const BANNER_MAX_DELAY = 5;
 const CELEBRATE_MAX_DELAY = 60;
@@ -180,18 +181,20 @@ export class Ui implements GameUi {
     const gemsVal = h('span.val', { text: '0' });
     const cash = h('div.pill.cash', { 'aria-label': 'Fares' }, icon('cash', 28), cashVal);
     const gems = h('div.pill.gems', { 'aria-label': 'Gems' }, icon('gem', 28), gemsVal);
-    // MPH-style level: a gold star with the number and a star bar that fills (the count lives in the sheet).
+    // Session 26 (owner: "the bar for level upgrade we don't need that, just a star inside saying level is good
+    // enough"): a gold star with the level in it. Stars still fly into it and it glows when the next level is near; the
+    // count lives on the progress sheet, a tap away.
     const levelBadge = h('div.badge', { text: '1' });
     const levelCount = h('span.lv-count', { hidden: true });
-    const level = h('button.level', { title: 'Route level', 'aria-label': 'Route level', onclick: () => this.tap(() => this.screens.progress()) }, h('div.lv-star', {}, levelBadge), h('div.lv-bar', {}, h('i')));
+    const level = h('button.level', { title: 'Route level', 'aria-label': 'Route level', onclick: () => this.tap(() => this.screens.progress()) }, h('div.lv-star', {}, levelBadge));
     // The route line: a thin rail with the train on it; at a stop it drains toward departure with a clock.
     const journeyTrain = h('div.train', {}, icon('carriage', 18));
     const journeyFill = h('i.fill');
     const journeyClock = h('span.clock');
-    // The Train Rating (fix list 4.2): five stars at the head of the route line, gold up to the rating.
-    const stars = (): HTMLElement[] => Array.from({ length: 5 }, () => icon('star', 14));
-    const ratingFill = h('span.fill', {}, ...stars());
-    const rating = h('div.rating', { role: 'img', 'aria-label': 'Train rating' }, h('span.base', {}, ...stars()), ratingFill);
+    // The Train Rating (fix list 4.2), session 26: one star and the number at the head of the route line (five little
+    // stars were one more busy strip).
+    const ratingFill = h('span.val', { text: '3.0' });
+    const rating = h('div.rating', { role: 'img', 'aria-label': 'Train rating' }, icon('star', 15), ratingFill);
     const journey = h('div.journey', { 'aria-label': 'Journey' }, rating, h('div.track', {}, journeyFill, journeyTrain), journeyClock);
 
     const button = (name: IconName, label: string, onclick: () => void): HTMLButtonElement =>
@@ -200,13 +203,16 @@ export class Ui implements GameUi {
     const menu = button('menu', 'Menu', () => this.screens.menu());
     menu.classList.add('menu-btn');
     menu.appendChild(menuDot);
-    const top = h('div.hud-top', {}, h('div.hud-row', {}, level, cash, gems, menu), journey);
-    // Monetization off (config: MONETIZATION_ENABLED), the shop is gone and its button opens the Paint Shop:
-    // liveries earned by level, the rest for gems earned in play.
+    // Monetization off (config: MONETIZATION_ENABLED), the shop is gone: the Paint Shop (liveries earned by level, the
+    // rest for gems earned in play) is in the menu. Session 26 (owner: "the UI on screen feels way too cluttered…
+    // minimalist… keep the style and information"): one top row and nothing down the right but boost timers; the
+    // conductor's upgrades sit beside the menu.
     const shop = MONETIZATION_ENABLED ? button('bag', 'Shop', () => this.screens.store()) : button('paint', 'Paint Shop', () => this.screens.paintSheet());
     const conductorDot = h('span.dot', { hidden: true });
     const conductor = button('conductor', 'Conductor: upgrades and outfits', () => this.screens.upgrades());
+    conductor.classList.add('menu-btn', 'conductor-btn');
     conductor.appendChild(conductorDot);
+    const top = h('div.hud-top', {}, h('div.hud-row', {}, level, cash, gems, conductor, menu), journey);
     this.boostLayer = h('div.boost');
     // The rival's dare (session 24): their face ringed by how far along the dare is, its icon, the count; tap for
     // the league.
@@ -216,7 +222,8 @@ export class Ui implements GameUi {
     const dare = button('trophy', 'Rival\'s dare', () => this.screens.leagueSheet());
     dare.classList.add('rival');
     dare.replaceChildren(dareFace, dareIcon, dareCount);
-    const side = h('div.side', {}, shop, conductor, dare, this.boostLayer);
+    // The shop button only while monetization is on (the Paint Shop is in the menu otherwise).
+    const side = h('div.side', {}, MONETIZATION_ENABLED ? shop : null, this.boostLayer);
 
     this.floatLayer = h('div.floats');
     this.burst.value = h('span', { text: '+0' });
@@ -262,7 +269,9 @@ export class Ui implements GameUi {
         h('div.rb-body', {}, h('span.rb-you', { text: 'You' }), rivalMine, h('div.rb-track', {}, rivalFill), rivalTheirs), rivalPrize),
       face: rivalFace, mine: rivalMine, theirs: rivalTheirs, fill: rivalFill, prize: rivalPrize, key: '', rival: '',
     };
-    root.append(this.floatLayer, this.tileTag.el, this.rushChip.el, this.guide.el, top, this.objective.el, side, this.trainMap.el, this.rivalBar.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
+    root.append(this.floatLayer, this.tileTag.el, this.rushChip.el, this.guide.el, top, this.objective.el, side, this.trainMap.el, this.offerLayer, this.toastLayer, this.gesture, this.pointerEl);
+    // Rival Watch is switched off (config: RIVALS_ENABLED); its bar only joins the page when it is on.
+    if (RIVALS_ENABLED) root.insertBefore(this.rivalBar.el, this.offerLayer);
 
     this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyTrain, journeyFill, journeyClock, rating, ratingFill, side, menu, menuDot, shop, conductor, conductorDot, dare, dareFace, dareIcon, dareCount };
     window.addEventListener('resize', () => {
@@ -353,7 +362,7 @@ export class Ui implements GameUi {
     if (this.rectTimer <= 0) this.measure();
     this.updateHud(dt);
     this.updateOffers(g.monetization.offers);
-    this.updateRivalBar(g.monetization.offers.length > 0);
+    if (RIVALS_ENABLED) this.updateRivalBar(g.monetization.offers.length > 0);
     this.updateFloats(dt);
     this.updateBurst(dt);
     this.updatePointer();
@@ -383,7 +392,7 @@ export class Ui implements GameUi {
     const r = this.rect;
     r.top = (top.bottom > 0 ? top.bottom : 90) - rootRect.top + EDGE;
     r.left = (map.width > 0 ? map.right - rootRect.left : 0) + EDGE;
-    r.right = (side.width > 0 ? side.left - rootRect.left : rootRect.width) - EDGE;
+    r.right = (side.width > 0 && side.height > 0 ? side.left - rootRect.left : rootRect.width) - EDGE;
     r.bottom = (offer.height > 0 ? offer.top - rootRect.top : rootRect.height - 80) - EDGE;
     // The station ticket takes the top of the middle column while it is up.
     // Its layout box, not its animated one: measured mid-slide it would read too short for half a second.
@@ -413,7 +422,7 @@ export class Ui implements GameUi {
     this.reveal(hud.level, ftue.first_unlock !== undefined || g.progression.level > 1);
     this.reveal(hud.journey, ftue.first_unlock !== undefined || g.journey.phase === 'arriving' || g.journey.phase === 'stationStop' || g.data.route.stopsCompleted > 0);
     this.reveal(hud.gems, g.wallet.get('gems') > 0 || !!flags.firstStationDone);
-    this.reveal(hud.shop, !!flags.firstStationDone);
+    if (MONETIZATION_ENABLED) this.reveal(hud.shop, !!flags.firstStationDone);
     const upgradesOpen = g.progression.isFeatureUnlocked('conductorUpgrades');
     this.reveal(hud.conductor, upgradesOpen);
 
@@ -451,7 +460,7 @@ export class Ui implements GameUi {
     if (hud.journey.getAttribute('aria-label') !== journeyLabel) hud.journey.setAttribute('aria-label', journeyLabel);
 
 
-    this.updateDare();
+    if (RIVALS_ENABLED) this.updateDare();
     this.updateRating();
 
     const affordable = upgradesOpen && this.screens.affordableUpgrades() > 0;
@@ -551,7 +560,7 @@ export class Ui implements GameUi {
     if (key === this.ratingShown) return;
     const changed = this.ratingShown !== '';
     this.ratingShown = key;
-    hud.ratingFill.style.width = `${(value / 5) * 100}%`;
+    setText(hud.ratingFill, key);
     const label = `Train rating ${key} of 5`;
     hud.rating.title = label;
     hud.rating.setAttribute('aria-label', label);
@@ -767,17 +776,19 @@ export class Ui implements GameUi {
       if (anchor.hud === 'map') {
         x = target.right - rootRect.left + 10 + width / 2;
         tail = 'left';
+        y = target.top - rootRect.top + target.height / 2;
       } else {
-        x = target.left - rootRect.left - 10 - width / 2;
-        tail = 'right';
+        // The conductor button is in the top row (session 26): the label hangs below it, its tail pointing up.
+        x = Math.min(target.left + target.width / 2 - rootRect.left, rootRect.width - EDGE - width / 2);
+        tail = 'up';
+        y = Math.max(target.bottom - rootRect.top + 12 + height / 2, r.top + height / 2);
       }
-      y = target.top - rootRect.top + target.height / 2;
       // Only beside a button that is really there and below the top bar (never over the counters, even for
       // the frame a button is still revealing).
       const style = getComputedStyle(anchor.hud === 'map' ? this.trainMap.el : this.hud.conductor);
-      // Slide down below the banner if need be, as long as it still sits beside the button.
+      // Slide down below the banner if need be, as long as it still sits beside (or just under) the button.
       y = Math.max(y, r.top + height / 2);
-      const beside = y - height / 2 < target.bottom - rootRect.top - 6;
+      const beside = anchor.hud === 'map' ? y - height / 2 < target.bottom - rootRect.top - 6 : y - height / 2 < target.bottom - rootRect.top + 40;
       if (style.visibility === 'hidden' || Number(style.opacity) < 0.5 || !beside || y + height / 2 > r.bottom) {
         el.style.opacity = '0';
         return;
@@ -1013,6 +1024,8 @@ export class Ui implements GameUi {
     const c = this.caption;
     setVisible(c.el, !!caption);
     setVisible(c.skip, !!caption);
+    // The story plays on a clear screen: the HUD waits until it is over (Skip sat on top of the menu button).
+    this.root.classList.toggle('in-intro', !!caption);
     if (!caption) return;
     setVisible(c.kicker, !!caption.kicker);
     c.kicker.textContent = caption.kicker ?? '';
@@ -1180,18 +1193,17 @@ export class Ui implements GameUi {
     const headline = result.clean ? 'All aboard!' : result.rating === 2 ? 'Nice stop!' : 'Off we go!';
     const stars = h('div.stars', {});
     for (let i = 0; i < 3; i++) {
-      const star = h(`i${i < result.rating ? '.on' : '.off'}` as 'i', {}, icon('star', 30));
+      const star = h(`i${i < result.rating ? '.on' : '.off'}` as 'i', {}, icon('star', 20));
       star.style.animationDelay = `${0.25 + i * 0.16}s`;
       stars.appendChild(star);
     }
     const due = result.boarded + result.waiting;
-    const boarded = h('div.rows', {},
-      chip('person', `Boarded ${result.boarded}/${due}`),
+    // One row of numbers: who boarded, the bags, anyone with no bed (demand for cabins, never a miss), the takings, the
+    // bonus and the streak.
+    const numbers = h('div.rows', {},
+      chip('person', `${result.boarded}/${due}`),
       result.luggageTotal > 0 ? chip('luggage', `${result.luggageLoaded}/${result.luggageTotal}`) : null,
-      // Travellers with no free bed: demand for cabins, never a miss.
       result.leftBehind > 0 ? chip('noroom', String(result.leftBehind), '.warn') : null,
-    );
-    const money = h('div.rows', {},
       chip('cash', `+${formatNumber(result.earned)}`),
       result.clean ? chip('chest', `+${formatNumber(result.bonusCash)}`, '.bonus') : null,
       result.clean && result.streak >= 2 ? chip('bolt', `×${result.streak}`, '.streak') : null,
@@ -1204,10 +1216,8 @@ export class Ui implements GameUi {
       'aria-label': `${result.stationName}: ${result.boarded} of ${due} boarded, ${result.earned} earned`,
       onclick: () => this.dismissResult(),
     },
-      h('div.band', {}, h('h3', { text: headline })),
-      stars,
-      boarded,
-      money,
+      h('div.res-head', {}, stars, h('h3', { text: headline })),
+      numbers,
       missed,
     );
     // The card replaces this stop's arrival banner if it is somehow still up (they share the middle column).

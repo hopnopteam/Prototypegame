@@ -3,7 +3,7 @@ import { CLASSES } from '../config/classes';
 import { ECONOMY, MONETIZATION_ENABLED } from '../config/economy';
 import { formatDuration, formatNumber } from '../core/math';
 import type { DoubleChoice } from '../gameplay/GameUi';
-import { INTERVIEWS } from '../config/press';
+import { INTERVIEWS, RIVALS_ENABLED } from '../config/press';
 import { conductorCost } from '../sim/meta';
 import { CARRIAGE_THEMES, LIVERIES, liveryFor } from '../world/palette';
 import { OUTFITS, type OutfitDef } from '../config/wardrobe';
@@ -256,9 +256,12 @@ export class Screens {
         badge > 0 ? h('span.count', { text: String(badge) }) : h('span.chev', { text: '›' }),
       );
     const standing = g.press.standing;
+    const upgrades = this.affordableUpgrades();
     close = this.sheet('Menu', 'menu', [
-      row('trophy', 'League', `#${standing.rank} of ${standing.total}`, go(() => this.leagueSheet())),
+      RIVALS_ENABLED ? row('trophy', 'League', `#${standing.rank} of ${standing.total}`, go(() => this.leagueSheet())) : null,
       row('star', 'Route level', `Level ${g.progression.level}`, go(() => this.progress())),
+      g.progression.isFeatureUnlocked('conductorUpgrades') ? row('conductor', 'Conductor', 'Upgrades and outfits', go(() => this.upgrades()), upgrades) : null,
+      MONETIZATION_ENABLED ? null : row('paint', 'Paint Shop', 'Liveries for your train', go(() => this.paintSheet())),
       g.meta.questsUnlocked() || g.meta.loginUnlocked() ? row('calendar', 'Daily', 'Calendar and quests', go(() => this.daily()), dailyCount) : null,
       g.data.meta.postcards.length > 0 ? row('album', 'Postcards', `${g.data.meta.postcards.length} collected`, go(() => this.album())) : null,
       row('gear', 'Settings', 'Sound, vibration, more', go(() => this.settings())),
@@ -289,14 +292,14 @@ export class Screens {
     this.sheet(`Route level ${p.level}`, 'star', [
       h('p.lead', { text: `${g.press.trainName} · ${g.currentLivery().name} livery` }),
       p.isMaxLevel
-        ? h('p', { text: 'Countryside Local is at its top level. Every star still counts in the league.' })
+        ? h('p', { text: 'Countryside Local is at its top level: the finest train on the line.' })
         : h('div.quest', {}, icon('star', 30), h('div.info', {}, `${lp.current} / ${lp.needed} stars to level ${next}`, h('div.bar', {}, h('i', { style: { width: `${pct}%` } })))),
       reward ? h('div.section-title', { text: `Level ${next} brings` }) : null,
       reward ? h('ul.perks', {}, ...[`+${reward.railMiles} Rail Miles and +${formatNumber(reward.cash)} Fares`, ...perks].map((t) => h('li', { text: t }))) : null,
       ...this.whistleGoal(),
-      h('div.section-title', { text: 'Countryside League' }),
-      h('p', { text: standing.next ? `Overtake ${standing.next.owner.name}'s ${standing.next.name} in ${formatNumber(standing.next.reputation - g.data.route.stars)} stars.` : 'Number one: the best sleeper on the line.' }),
-      this.league(),
+      RIVALS_ENABLED ? h('div.section-title', { text: 'Countryside League' }) : null,
+      RIVALS_ENABLED ? h('p', { text: standing.next ? `Overtake ${standing.next.owner.name}'s ${standing.next.name} in ${formatNumber(standing.next.reputation - g.data.route.stars)} stars.` : 'Number one: the best sleeper on the line.' }) : null,
+      RIVALS_ENABLED ? this.league() : null,
       h('p.small', { text: 'Stars come from building, cleaning cabins, bringing requests and perfect station stops.' }),
     ]);
   }
