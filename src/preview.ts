@@ -16,6 +16,8 @@ import { CashView } from './world/CashView';
 import { setLivery } from './world/materials';
 import { liveryFor } from './world/palette';
 
+// The page's loading screen is the game's (session 26); the preview has nothing to load behind it.
+document.getElementById('loader')?.remove();
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const params = new URLSearchParams(location.search);
 const quality = params.get('quality');
@@ -47,7 +49,10 @@ trainTypes.map((type) => ({ type })).slice(0, count).forEach((c, i) => {
   view.group.position.z = carriageOriginZ(i);
   if (c.type === 'lobby') {
     if (tier <= 1) view.setCabinLocked(1, true);
-    view.setDirt(0, [true]); view.setLuggageCount(3);
+    view.setDirt(0, [true]);
+    // `?rack=0|1|2`: the lobby rack at an upgrade level (session 26), with `?bags=N` on it.
+    view.setRackLevel(Number(params.get('rack') ?? '0'));
+    view.setLuggageCount(Number(params.get('bags') ?? '3'));
     // ?clean=0.5 poses the used room halfway through its tidy; ?clean=arrive plays its arrival.
     const clean = params.get('clean');
     if (clean === 'arrive') view.playMessArrival(0);

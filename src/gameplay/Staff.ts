@@ -546,7 +546,7 @@ export class StaffManager {
     const map = this.w.map;
     const options: { pos: Vec2; node: string }[] = [{ pos: map.anchor(0, 'rack'), node: 'c0:rack' }];
     const luggage = this.w.train.indexOfType('luggage');
-    const lobbyFull = this.w.train.luggageStored >= this.w.econ.facilities.lobbyRackCapacity;
+    const lobbyFull = this.w.train.luggageStored >= this.w.train.lobbyRackCapacity;
     if (luggage !== null) options.push({ pos: map.anchor(luggage, 'rack'), node: `c${luggage}:rack` });
     if (luggage !== null && lobbyFull) return options[1];
     options.sort((a, b) => Math.abs(a.pos.z - from.z) - Math.abs(b.pos.z - from.z));

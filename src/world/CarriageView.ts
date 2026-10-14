@@ -24,6 +24,7 @@ import {
   WALL,
   isVenueType,
   royalBathRect,
+  RACK_SHORT_Z1,
   type CabinLayout,
   type CarriageLayout,
   type PropDef,
@@ -324,6 +325,11 @@ class StockRack {
 
   private readonly looks: number;
 
+  /** Takes the stock out of the carriage (its geometries are shared and kept). */
+  remove(parent: THREE.Group): void {
+    for (const mesh of this.meshes) parent.remove(mesh);
+  }
+
   show(count: number): void {
     if (count === this.shown) return;
     this.shown = count;
@@ -360,6 +366,9 @@ export interface RoomDoor {
 /** Sliced builds (session 16): walls and props laid per slice before a frame may end. */
 const WALLS_PER_SLICE = 3;
 const PROPS_PER_SLICE = 4;
+/** Bags on each board of the lobby rack: the short rack's one board, then each board of the long one. */
+const RACK_CASES_SHORT = 4;
+const RACK_CASES_LONG = 5;
 
 export class CarriageView {
   readonly group = new THREE.Group();
@@ -387,6 +396,11 @@ export class CarriageView {
   private shelfTowels: StockRack | null = null;
   private shelfRolls: StockRack | null = null;
   private luggage: StockRack | null = null;
+  /** The lobby rack's upgrades bought (session 26): 0 short with an old trunk, 1 long, 2 long and brass. */
+  private rackLevel = 0;
+  private rackMesh: THREE.Mesh | null = null;
+  private suitcaseGeos: THREE.BufferGeometry[] = [];
+  private luggageCount = 0;
   /** Every room door's two leaves, instanced: one draw for the whole carriage. */
   private leafMesh: THREE.InstancedMesh | null = null;
   private doorOpen = 0;
@@ -809,7 +823,72 @@ export class CarriageView {
   }
 
   setLuggageCount(count: number): void {
+    this.luggageCount = count;
     this.luggage?.show(count);
+  }
+
+  /** The lobby rack grows (session 26): rebuilt in place, the bags laid out again on the new rack. */
+  setRackLevel(level: number): void {
+    if (level === this.rackLevel) return;
+    this.rackLevel = level;
+    if (!this.built) return;
+    this.buildRack();
+    this.buildLuggage();
+    this.luggage?.show(this.luggageCount);
+    CarriageView.shadowEpoch++;
+  }
+
+  /** The lobby's luggage rack, on its own so an upgrade rebuilds only it. */
+  private buildRack(): void {
+    if (this.rackMesh) {
+      this.group.remove(this.rackMesh);
+      this.rackMesh.geometry.dispose();
+      this.rackMesh = null;
+    }
+    const rack = this.layout.props.find((p) => p.kind === 'rack');
+    if (!rack) return;
+    const b = new GeoBuilder();
+    buildLobbyRack(b, rack.rect, this.tier, this.rackLevel);
+    if (b.isEmpty) return;
+    const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.layers.enable(STATIC_CASTER_LAYER);
+    this.group.add(mesh);
+    this.rackMesh = mesh;
+  }
+
+  /** Where the bags stand: on the lobby rack by its level, or on a Luggage Car's two long racks. */
+  private buildLuggage(): void {
+    if (this.luggage) {
+      this.luggage.remove(this.group);
+      this.luggage = null;
+    }
+    const cases: Slot[] = [];
+    const lobby = this.layout.props.find((p) => p.kind === 'rack');
+    if (lobby) {
+      const r = lobby.rect;
+      const end = this.rackLevel >= 1 ? r.z1 : RACK_SHORT_Z1;
+      const cx = (r.x0 + r.x1) / 2;
+      const top = this.rackLevel >= 1 ? RACK_CASES_LONG : RACK_CASES_SHORT;
+      const low = this.rackLevel >= 1 ? RACK_CASES_LONG : 0;
+      for (let i = 0; i < top; i++) cases.push({ x: cx, y: FLOOR_Y + 0.86, z: r.z0 + (end - r.z0) * ((i + 0.5) / top), ry: Math.PI / 2 });
+      for (let i = 0; i < low; i++) cases.push({ x: cx, y: FLOOR_Y + 0.44, z: r.z0 + (end - r.z0) * ((i + 0.5) / low), ry: Math.PI / 2 });
+    }
+    for (const rack of this.layout.props.filter((p) => p.kind === 'luggageRack')) {
+      const capacity = 8;
+      const cols = 2;
+      const rows = Math.ceil(capacity / cols);
+      const depth = rack.rect.z1 - rack.rect.z0;
+      for (let i = 0; i < capacity; i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols) % rows;
+        const x = rack.rect.x0 + (rack.rect.x1 - rack.rect.x0) * ((col + 0.5) / cols);
+        const z = rack.rect.z0 + depth * ((row + 0.5) / rows);
+        cases.push({ x, y: FLOOR_Y + 0.86, z, ry: Math.PI / 2 });
+      }
+    }
+    if (cases.length > 0) this.luggage = new StockRack(this.group, this.suitcaseGeos, cases, true, 'stock:luggage');
   }
 
   /** 0 = closed, 1 = open. Platform doors slide along the carriage. */
@@ -1236,6 +1315,8 @@ export class CarriageView {
       if (owned.has(prop)) continue;
       if (prop.kind === 'bed' || prop.kind === 'toilet' || prop.kind === 'sink' || prop.kind === 'bathtub' || prop.kind === 'washShelf') continue;
       if (prop.kind === 'plant' && this.tier < 2) continue;
+      // The lobby rack is built on its own (it grows with its upgrades: buildRack).
+      if (prop.kind === 'rack') continue;
       s.object(`prop:${prop.kind}`);
       lamps.object(`prop:${prop.kind}~glow`);
       buildProp(s, lamps, prop, this.theme, this.tier);
@@ -1793,23 +1874,9 @@ export class CarriageView {
     if (towelShelf) this.shelfTowels = new StockRack(this.group, [towelGeo], this.shelfSlots(towelShelf.rect, 16, -1), false, 'stock:shelfTowel');
     if (rollShelf) this.shelfRolls = new StockRack(this.group, [rollGeo], this.shelfSlots(rollShelf.rect, 16, 1), false, 'stock:shelfRoll');
 
-    const racks = this.layout.props.filter((p) => p.kind === 'rack' || p.kind === 'luggageRack');
-    const cases: Slot[] = [];
-    for (const rack of racks) {
-      const capacity = rack.kind === 'rack' ? 4 : 8;
-      const cols = rack.kind === 'rack' ? 1 : 2;
-      const rows = Math.ceil(capacity / cols);
-      const depth = rack.rect.z1 - rack.rect.z0;
-      for (let i = 0; i < capacity; i++) {
-        const col = i % cols;
-        const row = Math.floor(i / cols) % rows;
-        const layer = Math.floor(i / (cols * rows));
-        const x = rack.rect.x0 + (rack.rect.x1 - rack.rect.x0) * ((col + 0.5) / cols);
-        const z = rack.rect.z0 + depth * ((row + 0.5) / rows);
-        cases.push({ x, y: FLOOR_Y + 0.86 + layer * 0.28, z, ry: Math.PI / 2 });
-      }
-    }
-    if (cases.length > 0) this.luggage = new StockRack(this.group, suitcaseGeos, cases, true, 'stock:luggage');
+    this.suitcaseGeos = suitcaseGeos;
+    this.buildRack();
+    this.buildLuggage();
   }
 
   /** Stock positions on a stepped supply stand: the low step (by the aisle) fills first. */
@@ -1933,6 +2000,45 @@ function buildBathComforts(b: GeoBuilder, room: Rect, fixtures: PropDef[], keys:
     b.box((x0 + x1) / 2, y + 0.54, z + 0.024, 0.3, 0.16, 0.012, theme.blanket, 0, { shade: 0.95 });
     b.box((x0 + x1) / 2, y + 0.47, z + 0.035, 0.3, 0.02, 0.01, PALETTE.towelStripe, 0, FLAT);
   }
+}
+
+/**
+ * The lobby's luggage rack by its upgrades (session 26): short, with an old steamer trunk standing in the rest of its
+ * place along the wall; then long; then long in polished walnut and brass with a brass rail along its front. Two boards
+ * at every level (the bags go on both once it is long), so it never grows taller and never hides the floor beside it.
+ */
+export function buildLobbyRack(b: GeoBuilder, r: Rect, tier: number, level: number): void {
+  const y = FLOOR_Y;
+  const end = level >= 1 ? r.z1 : RACK_SHORT_Z1;
+  const frame = rect(r.x0, r.z0, r.x1, end);
+  const grand = level >= 2;
+  const metal = grand || tier >= 2 ? PALETTE.brass : PALETTE.iron;
+  const board = grand ? PALETTE.walnut : tier <= 0 ? '#A98D6F' : PALETTE.oak;
+  b.object('prop:rack');
+  for (const top of [0.3, 0.72]) b.slab(frame, y + top - 0.03, y + top, board, 0, 0.02, FLAT);
+  // Posts at the corners, and a middle pair once the rack is long enough to sag without them.
+  const postsZ = level >= 1 ? [frame.z0 + 0.05, (frame.z0 + frame.z1) / 2, frame.z1 - 0.05] : [frame.z0 + 0.05, frame.z1 - 0.05];
+  for (const px of [frame.x0 + 0.05, frame.x1 - 0.05]) for (const pz of postsZ) b.box(px, y + 0.42, pz, 0.045, 0.84, 0.045, metal, 0, { shade: 0.85 });
+  if (grand) {
+    // A brass rail along the front (the aisle side) and a small brass plate at its head.
+    b.box(frame.x0 + 0.05, y + 0.84, (frame.z0 + frame.z1) / 2, 0.035, 0.035, frame.z1 - frame.z0 - 0.06, PALETTE.brass, 0, { shade: 0.9 });
+    b.box(frame.x0 + 0.05, y + 0.56, frame.z0 + 0.12, 0.02, 0.1, 0.16, PALETTE.brass, 0, FLAT);
+  }
+  b.endObject();
+  if (level >= 1) return;
+  // The old trunk in the rest of the rack's place: battered leather on two straps, its brass corners dulled.
+  const z0 = RACK_SHORT_Z1 + 0.12;
+  const z1 = r.z1 - 0.06;
+  if (z1 - z0 < 0.3) return;
+  const cx = (r.x0 + r.x1) / 2;
+  const cz = (z0 + z1) / 2;
+  const w = Math.min(0.46, r.x1 - r.x0 - 0.1);
+  const d = z1 - z0;
+  b.object('prop:rackTrunk');
+  b.rounded(cx, y + 0.21, cz, w, 0.42, d, 0.04, '#6E4A32', { shade: 0.85 });
+  for (const sz of [cz - d * 0.28, cz + d * 0.28]) b.box(cx, y + 0.215, sz, w + 0.012, 0.43, 0.04, '#3E2C22', 0, FLAT);
+  b.box(cx, y + 0.425, cz, w * 0.5, 0.02, 0.06, '#A88A52', 0, FLAT);
+  b.endObject();
 }
 
 export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme: CarriageTheme = CARRIAGE_THEMES.lobby, tier = 1): void {

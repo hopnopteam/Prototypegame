@@ -20,6 +20,8 @@ import { PlatformView } from './world/PlatformView';
 import { buildRearDeck } from './world/RearDeck';
 
 /** Faces closer than this (metres) along their normal count as coplanar. */
+// The game's loading screen is not part of the audit page.
+document.getElementById('loader')?.remove();
 const SEPARATION = 0.003;
 /** Overlap smaller than this (m²) is an edge touch, not a flicker. */
 const MIN_AREA = 2e-4;

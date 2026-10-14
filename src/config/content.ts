@@ -138,7 +138,9 @@ export type UnlockKind =
   // the grand piano.
   | 'seat' | 'menu' | 'station'
   // Session 22: the opening's covered carriage, opened at its door.
-  | 'open';
+  | 'open'
+  // Session 26: the lobby's luggage rack, made bigger (it replaces the Luggage Car).
+  | 'rack';
 
 /** Small comforts bought per carriage: each shows up in every room and lifts that carriage's tips. */
 /** Fix list 4.6: the minibar replaced the radio (its tiles keep the `comfort_radio` id, so old saves keep it). */
@@ -231,6 +233,10 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 25, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
       { key: 'refurb_2', kind: 'refurb', label: 'Comfort', price: 150, stars: 4, tier: 2, requires: ['refurb_1', '@couple_1'], flags: ['level_2'], effect: '2 cabins · Fares ×2.5' },
       { key: 'comfort_lamp', kind: 'comfort', label: 'Lamps', price: 85, stars: 2, comfort: 'lamp', requires: ['refurb_1', '@couple_1'], effect: 'Tips +20%' },
+      // Session 26 (owner: "remove the luggage carriage… instead the luggage area should have a little upgrade where it can
+      // hold more luggage, and on upgrade it gets bigger"): the rack grows along the wall, then turns brass.
+      { key: 'rack_1', kind: 'rack', label: 'Bigger Rack', price: 110, stars: 2, requires: ['refurb_1', '@couple_1'], effect: '+4 bags' },
+      { key: 'rack_2', kind: 'rack', label: 'Grand Rack', price: 340, stars: 3, requires: ['rack_1', '@couple_3'], effect: '+4 bags' },
       { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 160, stars: 3, role: 'porter', requires: ['@couple_2'], effect: 'Check-in & bags' },
       { key: 'comfort_flowers', kind: 'comfort', label: 'Flowers', price: 150, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_2'], effect: 'Tips +20%' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 240, stars: 2, role: 'attendant', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
@@ -280,7 +286,8 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
   // (it opens that group of seats); the menu tiles make dishes dearer; a 'station' adds a second machine or range
   // or the bar's grand piano; each venue hires its own staff.
   cafe: {
-    type: 'cafe', name: 'Café Car', pitch: 'Coffee & cakes', max: 1, fromSlot: 2, cabins: 0, inside: 'A counter, an espresso machine, tables for two',
+    // Session 26 (owner: "start giving the café option from the first upgrade itself"): offered from the first coupling.
+    type: 'cafe', name: 'Café Car', pitch: 'Coffee & cakes', max: 1, fromSlot: 1, cabins: 0, inside: 'A counter, an espresso machine, tables for two',
     unlocks: [
       { key: 'table_1', kind: 'seat', label: 'Table', price: 70, stars: 2, group: 1, requires: ['couple'], effect: '+2 seats' },
       { key: 'hire_barista', kind: 'hire', label: 'Barista', price: 150, stars: 3, role: 'barista', requires: ['couple'], effect: 'Brews & serves' },
@@ -402,7 +409,11 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
 };
 
 /** Types the player may choose at a coupling, in default order. */
-export const CHOOSABLE: CarriageType[] = ['bathroom', 'sleeper', 'cafe', 'dining', 'cinema', 'bar', 'dome', 'supply', 'luggage'];
+/**
+ * Session 26: the Luggage Car is no longer offered (the lobby's rack grows instead: tiles `rack_1`, `rack_2`); a train
+ * that already has one keeps it.
+ */
+export const CHOOSABLE: CarriageType[] = ['bathroom', 'sleeper', 'cafe', 'dining', 'cinema', 'bar', 'dome', 'supply'];
 
 /**
  * The train a new player grows by following the recommended picks (previews and tests use it too). Session 20:

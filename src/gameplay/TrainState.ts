@@ -338,8 +338,23 @@ export class TrainState {
     return i >= 0 ? i : null;
   }
 
+  /** How many of the lobby rack's upgrades are bought (session 26: 0 short, 1 long, 2 grand brass). */
+  get rackLevel(): number {
+    const u = this.w.unlocks;
+    return u.isUnlocked('c0.rack_2') ? 2 : u.isUnlocked('c0.rack_1') ? 1 : 0;
+  }
+
+  /** Bags the lobby rack holds at its level. */
+  get lobbyRackCapacity(): number {
+    const f = this.w.econ.facilities;
+    let capacity = f.lobbyRackCapacity;
+    for (let i = 0; i < this.rackLevel; i++) capacity += f.rackUpgradeCapacity[i] ?? 0;
+    return capacity;
+  }
+
   get luggageCapacity(): number {
-    let capacity = this.w.econ.facilities.lobbyRackCapacity;
+    let capacity = this.lobbyRackCapacity;
+    // A Luggage Car coupled before session 26 keeps its racks.
     if (this.indexOfType('luggage') !== null) capacity += this.w.econ.facilities.luggageCarCapacity;
     return capacity;
   }
@@ -518,6 +533,23 @@ export class TrainState {
       case 'station':
         this.w.venues.applyKey(def.carriage, def.id.split('.')[1] ?? def.id, animate);
         break;
+      // The lobby rack grows (session 26): longer along the wall, then brass; room for more bags.
+      case 'rack': {
+        const view = this.views[def.carriage];
+        view?.setRackLevel(this.rackLevel);
+        view?.setLuggageCount(Math.min(this.lobbyRackCapacity, this.luggageStored));
+        if (animate && view) {
+          const rack = view.layout.props.find((p) => p.kind === 'rack');
+          if (rack) {
+            const oz = carriageOriginZ(def.carriage);
+            const cx = (rack.rect.x0 + rack.rect.x1) / 2;
+            for (let k = 0; k < 6; k++) this.w.particles.emit('sparkle', cx, FLOOR_Y + 0.8, oz + rack.rect.z0 + ((k + 0.5) / 6) * (rack.rect.z1 - rack.rect.z0), 3, 0.25);
+            this.w.particles.emit('dust', cx, FLOOR_Y + 0.2, oz + (rack.rect.z0 + rack.rect.z1) / 2, 10, 0.4);
+            this.w.audio.play('sparkle', { volume: 0.8 });
+          }
+        }
+        break;
+      }
       default:
         break;
     }
@@ -673,7 +705,8 @@ export class TrainState {
     for (const bath of this.bathrooms) this.views[bath.carriage]?.setBathroomStock(bath.layout.index, bath.towels, bath.rolls);
     const supply = this.indexOfType('supply');
     if (supply !== null) this.views[supply].setShelfStock(Math.ceil(this.supplyTowel / 1), Math.ceil(this.supplyRoll / 1));
-    const lobbyCap = w.econ.facilities.lobbyRackCapacity;
+    const lobbyCap = this.lobbyRackCapacity;
+    this.views[0]?.setRackLevel(this.rackLevel);
     this.views[0]?.setLuggageCount(Math.min(lobbyCap, this.luggageStored));
     const luggage = this.indexOfType('luggage');
     if (luggage !== null) this.views[luggage].setLuggageCount(Math.max(0, this.luggageStored - lobbyCap));

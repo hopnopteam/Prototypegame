@@ -249,7 +249,7 @@ export class Guidance {
     }
     if (items.includes('luggage')) {
       const luggage = w.train.indexOfType('luggage');
-      const lobbyFull = w.train.luggageStored >= w.econ.facilities.lobbyRackCapacity;
+      const lobbyFull = w.train.luggageStored >= w.train.lobbyRackCapacity;
       return luggage !== null && lobbyFull ? w.map.anchor(luggage, 'rack') : w.map.anchor(0, 'rack');
     }
     if (items.includes('crate')) {

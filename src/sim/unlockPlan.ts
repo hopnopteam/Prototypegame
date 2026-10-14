@@ -122,7 +122,8 @@ export function carriageChoices(carriages: readonly CarriageType[], signals: Cho
   if (!has('dome')) pick('dome', 'Scenic views');
   if (signals.luggageLeft > 0) pick('luggage', 'Bags need racks');
   if (has('bathroom') && !has('supply')) pick('supply', 'Keeps towels stocked');
-  // The service cars stay on offer when they would help: bags left on the platform, a washroom to keep stocked.
+  // The service cars stay on offer when they would help: bags left on the platform (a Luggage Car only where it is still
+  // offered: session 26 retired it for the lobby's rack upgrades), a washroom to keep stocked.
   const alternates: CarriageChoice[] = [];
   if (signals.luggageLeft > 0 && allowed.includes('luggage') && best !== 'luggage') alternates.push({ type: 'luggage', reason: 'Bags need racks' });
   if (has('bathroom') && !has('supply') && allowed.includes('supply') && best !== 'supply') alternates.push({ type: 'supply', reason: 'Keeps towels stocked' });

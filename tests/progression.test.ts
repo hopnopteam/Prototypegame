@@ -149,8 +149,10 @@ describe('carriage choice', () => {
     expect(train).toEqual(DEFAULT_TRAIN);
   });
 
-  it('offers racks when bags were left behind, recommends more beds when guests were', () => {
-    expect(carriageChoices(['lobby', 'sleeper', 'bathroom'], { leftBehind: 0, luggageLeft: 4 }).map((c) => c.type)).toContain('luggage');
+  it('never offers the retired Luggage Car (the lobby rack grows), recommends more beds when guests were left', () => {
+    // Session 26: bags left behind are answered by the lobby rack's upgrades, not a carriage.
+    expect(carriageChoices(['lobby', 'sleeper', 'bathroom'], { leftBehind: 0, luggageLeft: 4 }).map((c) => c.type)).not.toContain('luggage');
+    expect(allowedCarriages(['lobby'])).toContain('cafe');
     expect(carriageChoices(['lobby', 'sleeper', 'cafe', 'bathroom'], { leftBehind: 3, luggageLeft: 0 })[0].type).toBe('sleeper');
     expect(carriageChoices(['lobby'], { leftBehind: 2, luggageLeft: 0 })[0].reason).toContain('beds');
   });

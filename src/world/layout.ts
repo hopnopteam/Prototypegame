@@ -518,6 +518,10 @@ export function roomsAt(type: CarriageType, tier: number): number {
   return table[Math.min(table.length - 1, Math.max(0, tier))][0];
 }
 
+/** The lobby rack (session 26): the short rack it starts as ends here; the upgraded rack runs on to `RACK_FULL_Z1`. */
+export const RACK_SHORT_Z1 = 7.65;
+export const RACK_FULL_Z1 = 8.35;
+
 function buildLobby(tier: number): CarriageLayout {
   const b = new LayoutBuilder('lobby');
   // A generous reception (8.6 m) and the cabins behind it.
@@ -535,7 +539,9 @@ function buildLobby(tier: number): CarriageLayout {
   b.prop('desk', -1.55, 2.55, -0.79, 4.25, 'right');
   b.prop('urn', -INNER, WALL, out(-1.45), 0.66, 'rear');
   b.prop('linen', -0.6, WALL, 0.9, 0.62, 'rear');
-  b.prop('rack', out(1.9), 5.9, INNER, 7.65, 'left');
+  // Session 26: the rack runs on along the wall toward the cabins (its far end holds an old trunk until the Bigger Rack
+  // upgrade extends the rack over it: CarriageView.buildRack).
+  b.prop('rack', out(1.9), 5.9, INNER, RACK_FULL_Z1, 'left');
   b.prop('bin', out(2.12), 4.9, INNER, 5.3, 'left');
   b.prop('plant', out(2.06), WALL, INNER, 0.55, 'left', false);
   // A slim piece on the front wall, between the linen cupboard and the plant, that grows with the class
@@ -559,6 +565,8 @@ function buildLobby(tier: number): CarriageLayout {
   b.anchor('rack', 0.72, 6.75);
   // Session 24: a step toward the desk, out of the rack's hidden band as the camera sees it.
   b.anchor('bin', out(1.66), 4.72);
+  // The rack's upgrade tiles wait beside it, toward the cabins.
+  b.anchor('tile_rack', 0.62, 7.98);
   b.anchor('home_attendant', -0.55, 6.95);
   b.anchor('tile_up_attendant', -0.55, 6.95);
   // The porter's post is at the carriage's back door, out of the busy lobby.
