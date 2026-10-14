@@ -789,3 +789,30 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 .loader.ready .tap { display: inline; }
 @keyframes tapPulse { 0%, 100% { opacity: 1; scale: 1; } 50% { opacity: 0.55; scale: 0.96; } }
 .loader-credit { font-weight: 700; font-size: 11px; letter-spacing: 0.3em; text-indent: 0.3em; text-transform: uppercase; opacity: 0.4; }
+
+/* ── Level up (session 26): a celebration card, not a list ── */
+.levelup-sheet header { display: none; }
+.levelup-sheet .content { align-items: stretch; padding-top: 18px; }
+.lvup { position: relative; display: grid; justify-items: center; gap: 2px; padding: 6px 0 2px; overflow: visible; }
+.lvup-burst {
+  position: absolute; left: 50%; top: 46px; width: 230px; height: 230px; translate: -50% -50%; z-index: 0; pointer-events: none; border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, rgba(242, 178, 51, 0.32) 0deg 10deg, transparent 10deg 22.5deg);
+  mask: radial-gradient(circle, #000 30%, transparent 70%); -webkit-mask: radial-gradient(circle, #000 30%, transparent 70%);
+  animation: lvSpin 14s linear infinite, lvBurst 520ms cubic-bezier(.2,1.4,.4,1) both;
+}
+@keyframes lvSpin { to { rotate: 360deg; } }
+@keyframes lvBurst { from { scale: 0.2; opacity: 0; } }
+.lvup-star { position: relative; z-index: 1; width: 96px; height: 96px; display: grid; place-items: center; filter: drop-shadow(0 4px 0 var(--ink)); animation: lvStar 640ms cubic-bezier(.2,1.6,.4,1) both; }
+.lvup-star::before, .lvup-star::after { content: ''; position: absolute; clip-path: polygon(50% 0, 62% 33%, 98% 36%, 70% 58%, 80% 94%, 50% 74%, 20% 94%, 30% 58%, 2% 36%, 38% 33%); }
+.lvup-star::before { inset: 0; background: var(--ink); }
+.lvup-star::after { inset: 5px; background: linear-gradient(#FFE89E, #F2B233 60%, #D89A1E); }
+.lvup-star b { position: relative; z-index: 1; margin-top: 8px; color: #FFFDF7; font-weight: 800; font-size: 36px; font-variant-numeric: tabular-nums; text-shadow: var(--outline-text); }
+@keyframes lvStar { from { scale: 0; rotate: -30deg; } }
+.lvup-title { position: relative; z-index: 1; margin-top: 4px; font-weight: 800; font-size: 26px; letter-spacing: 0.1em; text-indent: 0.1em; text-transform: uppercase; color: var(--navy); }
+.lvup-sub { position: relative; z-index: 1; font-weight: 700; font-size: 13px; letter-spacing: 0.16em; text-indent: 0.16em; text-transform: uppercase; opacity: 0.6; }
+.lvup-perks { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.lvup-perk {
+  width: 86px; display: grid; justify-items: center; gap: 4px; padding: 9px 4px 8px; border-radius: 14px; background: var(--cream); border: 2.5px solid var(--ink); box-shadow: 0 3px 0 var(--ink);
+  font-weight: 800; font-size: 12px; line-height: 1.15; text-align: center; text-wrap: balance; animation: chipIn 420ms cubic-bezier(.2,1.4,.4,1) both;
+}
+.lvup-perk .ico { width: 34px; height: 34px; }

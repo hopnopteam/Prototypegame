@@ -7,13 +7,14 @@ import { shadeHex } from './palette';
 const bubbleCache = new Map<string, THREE.CanvasTexture>();
 
 /** Request styles, plus one per carriage class (a ticket held up on the platform in its class's colour). */
-export type BubbleStyle = 'request' | 'intent' | 'alert' | 'plain' | ClassId;
+export type BubbleStyle = 'request' | 'intent' | 'alert' | 'plain' | 'job' | ClassId;
 
 const BUBBLE_FILL: Record<BubbleStyle, string> = {
   request: '#FFFDF7',
   intent: '#DDEBF4',
   alert: '#FFE3A1',
   plain: 'rgba(0,0,0,0)',
+  job: '#3E9BE0',
   basic: CLASS_BY_ID.basic.color,
   comfort: CLASS_BY_ID.comfort.color,
   business: CLASS_BY_ID.business.color,
@@ -80,7 +81,30 @@ export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ri
   if (cached) return cached;
   const size = 128;
   const [c, ctx] = canvas(size, WORLD_UI_RES);
-  if (style !== 'plain') {
+  if (style === 'job') {
+    // Session 26, My Perfect Hotel's job marker: a blue badge with a white face and the job's icon, pointing down at
+    // the furniture it belongs to (a guest's own wishes keep the white speech bubble).
+    const cx = 64;
+    const cy = 56;
+    ctx.fillStyle = BUBBLE_FILL.job;
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 44, 0, Math.PI * 2);
+    ctx.moveTo(52, 96);
+    ctx.lineTo(64, 120);
+    ctx.lineTo(76, 96);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 41, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#FFFDF7';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 32, 0, Math.PI * 2);
+    ctx.fill();
+    drawIcon(ctx, icon, cx - 25, cy - 26, 50);
+  } else if (style !== 'plain') {
     const cx = 64;
     const cy = 58;
     ctx.fillStyle = BUBBLE_FILL[style];

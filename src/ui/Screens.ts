@@ -143,13 +143,20 @@ export class Screens {
       close();
       onCollect(choice);
     };
-    const perks = levelPerks(level);
-    close = this.sheet(`Route level ${level}!`, 'star', [
-      h('p.lead', { text: `${this.game.press.trainName} is getting famous.` }),
-      perks.length > 0 ? h('ul.perks', {}, ...perks.map((p) => h('li', { text: p }))) : null,
+    // Session 26 (owner: "feels like a prototype"): a celebration, not a list. The star with the new level in it over a
+    // burst of rays, what the level opens as icon tiles, the reward, one button.
+    const perks = levelPerkItems(level);
+    close = this.sheet(`Route level ${level}`, 'star', [
+      h('div.lvup', {},
+        h('div.lvup-burst', { 'aria-hidden': 'true' }),
+        h('div.lvup-star', {}, h('b', { text: String(level) })),
+        h('div.lvup-title', { text: 'Level up!' }),
+        h('div.lvup-sub', { text: this.game.press.trainName }),
+      ),
+      perks.length > 0 ? h('div.lvup-perks', {}, ...perks.map((p, i) => h('div.lvup-perk', { style: { animationDelay: `${0.35 + i * 0.12}s` } }, icon(p.icon, 34), h('span', { text: p.text })))) : null,
       h('div.reward', {}, h('span', {}, icon('miles', 30), `+${reward.railMiles}`), h('span', {}, icon('cash', 30), `+${formatNumber(reward.cash)}`)),
       this.doubleButtons(gemCost, finish),
-    ], { closable: false, center: true });
+    ], { closable: false, center: true, className: 'levelup-sheet' });
   }
 
   /**
@@ -844,6 +851,28 @@ function shade(hex: string, amount: number): string {
 }
 
 /** What reaching a route level brings besides the reward: features, a new livery, the press. */
+/** What a level opens, each with its icon, in the fewest words (the level-up card's tiles). */
+export function levelPerkItems(level: number): { icon: IconName; text: string }[] {
+  const items: { icon: IconName; text: string }[] = [];
+  const features: Record<number, { icon: IconName; text: string }> = {
+    2: { icon: 'conductor', text: 'Conductor upgrades' },
+    3: { icon: 'quest', text: 'Daily quests' },
+    4: { icon: 'calendar', text: 'Daily calendar' },
+    5: { icon: 'album', text: 'Passenger stories' },
+  };
+  if (features[level]) items.push(features[level]);
+  if (!MONETIZATION_ENABLED && level === ECONOMY.perks.holdTrainLevel) items.push({ icon: 'hold', text: 'Hold the train' });
+  if (!MONETIZATION_ENABLED && level === ECONOMY.perks.scooterLevel) items.push({ icon: 'skate', text: 'The scooter' });
+  const cls = CLASSES.find((c) => c.level === level && c.tier > 0);
+  if (cls) items.push({ icon: cls.icon, text: cls.name });
+  const livery = LIVERIES.find((l) => l.minLevel === level);
+  if (livery && level > 1) items.push({ icon: 'paint', text: livery.name });
+  const outfit = OUTFITS.find((o) => o.minLevel === level);
+  if (outfit && level > 1) items.push({ icon: 'conductor', text: outfit.name });
+  if (INTERVIEWS.some((i) => i.level === level)) items.push({ icon: 'mic', text: 'Interview' });
+  return items.slice(0, 4);
+}
+
 export function levelPerks(level: number): string[] {
   const perks: string[] = [];
   const features: Record<number, string> = {

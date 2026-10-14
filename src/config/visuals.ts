@@ -170,7 +170,7 @@ export const VISUALS = {
    * that counts as standing on it, the floating icon's size (and how much it grows when the pad wants you), and its
    * height over a pad with no furniture beside it (a room to tidy, shoes in the corridor).
    */
-  pads: { drawScale: 0.95, icon: 0.46, iconLit: 0.12, iconHeight: 1.1 },
+  pads: { drawScale: 0.95, icon: 0.74, iconLit: 0.1, iconHeight: 1.1 },
 };
 
 export type Visuals = typeof VISUALS;

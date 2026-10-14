@@ -62,7 +62,7 @@ export class ZoneRing {
     this.iconHeight = iconHeight;
     this.baseIconHeight = iconHeight;
     if (icon) {
-      this.icon = makeSprite(bubbleTexture(icon, 'plain'), VISUALS.pads.icon);
+      this.icon = makeSprite(bubbleTexture(icon, 'job'), VISUALS.pads.icon);
       this.icon.position.y = FLOOR_Y + iconHeight;
       this.group.add(this.icon);
     } else {
@@ -108,7 +108,7 @@ export class ZoneRing {
   setIcon(name: IconName): void {
     if (!this.icon) return;
     const material = this.icon.material as THREE.SpriteMaterial;
-    material.map = bubbleTexture(name, 'plain');
+    material.map = bubbleTexture(name, 'job');
   }
 
   /**
