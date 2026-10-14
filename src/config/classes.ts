@@ -12,13 +12,14 @@ import type { IconName } from '../ui/icons';
 export type ClassId = 'basic' | 'comfort' | 'business' | 'first' | 'royal';
 
 /**
- * What a guest asks for in their cabin: an item brought to them, the bed turned down, or a wake-up call (a knock
- * at the door). The venue carriages' dishes are ordered in the venue.
+ * What a guest asks for in their cabin: an item brought to them, or the bed turned down. The venue carriages' dishes
+ * are ordered in the venue. Session 26: the wake-up call is gone (owner: "what does our player do when a timer logo pops
+ * on a passenger's head? it's unclear"): an alarm clock that meant "stand at their door" read as a countdown.
  */
-export type ServiceNeed = Exclude<ItemKind, 'latte' | 'pastry' | 'meal' | 'cocktail' | 'popcorn'> | 'turndown' | 'wakeup';
+export type ServiceNeed = Exclude<ItemKind, 'latte' | 'pastry' | 'meal' | 'cocktail' | 'popcorn'> | 'turndown';
 
-/** Asked for by standing at the room a moment (no item to carry). */
-export const isDwellNeed = (need: ServiceNeed | 'bathroom' | null): need is 'turndown' | 'wakeup' => need === 'turndown' || need === 'wakeup';
+/** Asked for by standing at the room a moment (no item to carry): the First and Royal turndown. */
+export const isDwellNeed = (need: ServiceNeed | 'bathroom' | null): need is 'turndown' => need === 'turndown';
 
 export interface ClassDef {
   id: ClassId;
@@ -62,7 +63,7 @@ export const CLASSES: ClassDef[] = [
   {
     id: 'basic', name: 'Basic', chip: 'BASIC', tier: 0, level: 1,
     livery: { body: '#4F5D55', trim: '#B9C2B5' }, color: '#6E7D72', ink: '#FFFFFF',
-    fare: 1, tip: 1, stars: 1, evening: { blanket: 1 }, morning: { wakeup: 1 }, turndown: false, butler: false, adds: 'clean', icon: 'broom',
+    fare: 1, tip: 1, stars: 1, evening: { blanket: 1 }, morning: { tea: 2, newspaper: 1 }, turndown: false, butler: false, adds: 'clean', icon: 'broom',
   },
   {
     id: 'comfort', name: 'Comfort', chip: 'COMFORT', tier: 2, level: 2,

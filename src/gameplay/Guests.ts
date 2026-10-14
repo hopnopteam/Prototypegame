@@ -500,11 +500,9 @@ export class Guests {
     const need = this.requestFor(cabin);
     if (!need) return false;
     if (isDwellNeed(need)) {
-      // Turning the bed down (folding the cover back, a chocolate on the pillow) or a wake-up call (a knock at
-      // the door): a moment at the room, nothing to carry.
-      const seconds = need === 'turndown' ? this.w.econ.classes.turndownSeconds : this.w.econ.trip.wakeupSeconds;
-      zone.progress += (dt / seconds) * actor.workMultiplier;
-      actor.view.act(need === 'turndown' ? 'hug' : 'wave');
+      // Turning the bed down (folding the cover back, a chocolate on the pillow): a moment at the room, nothing to carry.
+      zone.progress += (dt / this.w.econ.classes.turndownSeconds) * actor.workMultiplier;
+      actor.view.act('hug');
       if (zone.progress < 1) return true;
       zone.progress = 0;
       const guest = cabin.guest!;
@@ -1012,7 +1010,7 @@ export class Guests {
     guest.happyTime = w.econ.guests.enjoySeconds;
     // They enjoy it where you can see it: a sip of the tea, coffee or champagne, the paper read, a hug of the blanket.
     const drink = item === 'tea' || item === 'coffee' || item === 'champagne' || item === 'breakfast';
-    guest.view.act(drink ? 'sip' : item === 'newspaper' ? 'read' : item === 'wakeup' ? 'wave' : 'hug', w.econ.guests.enjoySeconds);
+    guest.view.act(drink ? 'sip' : item === 'newspaper' ? 'read' : 'hug', w.econ.guests.enjoySeconds);
   }
 
   /** Served: they sit back on the bed (the night comes when it is time, see advanceTrip). */

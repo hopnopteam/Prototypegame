@@ -1279,6 +1279,5 @@ export const ITEM_ICON: Record<string, IconName> = {
   crate: 'crate',
   newspaper: 'newspaper',
   breakfast: 'breakfast',
-  wakeup: 'wakeup',
   snack: 'snack',
 };

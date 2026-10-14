@@ -287,7 +287,7 @@ export class StaffManager {
     const serves = m.level >= w.econ.staff.attendantServesFromLevel;
     const guest = serves ? w.guests.openRequests().find((g) => g.cabin && this.inScope(m, g.cabin.carriage) && !(g as Guest & { reservedBy?: StaffMember }).reservedBy) : undefined;
     if (guest && guest.cabin && isDwellNeed(guest.request)) {
-      // Turning a First or Royal bed down, or a wake-up call: straight to the cabin, a moment at the room.
+      // Turning a First or Royal bed down: straight to the cabin, a moment at the room.
       const cabin = guest.cabin;
       const need = guest.request;
       const reserved = guest as Guest & { reservedBy?: StaffMember };

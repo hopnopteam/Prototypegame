@@ -207,8 +207,6 @@ export const ECONOMY = {
     washroomChance: 0.5,
     /** At most this many washroom visits per trip. */
     washroomsPerTrip: 1,
-    /** Seconds at the room for a wake-up call (a knock at the door). */
-    wakeupSeconds: 0.9,
     /**
      * Night owls (session 24, the night shift): this share of guests stays up `later` (a share of the ride) past
      * their bedtime and asks for one more thing before lights out, a nightcap from `pool` they have not had yet.

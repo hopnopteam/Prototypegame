@@ -197,7 +197,7 @@ export class Guidance {
     if (tile && w.unlocks.remaining(tile.def.id) <= cash) return this.because('tile', tile.pos);
 
     const request = w.guests.openRequests().find((g) => !w.staff.isHandled(g));
-    // A turndown or a wake-up call: straight to the room, nothing to fetch.
+    // A turndown: straight to the room, nothing to fetch.
     if (request && isDwellNeed(request.request) && request.cabin) return this.because('deliver', request.cabin.center);
     if (request && request.request && request.request !== 'bathroom' && !isDwellNeed(request.request)) {
       const source = this.sourceFor(request.request, request.cabin?.carriage ?? 0);
