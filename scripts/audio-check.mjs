@@ -188,7 +188,8 @@ const result = await page.evaluate(() => {
     const ctx = window.__ctx;
     let plays = 0;
     const pb = a.playBuffer.bind(a);
-    a.playBuffer = (...args) => { plays++; return pb(...args); };
+    // Only the chimes count (the autopilot plays on meanwhile: its coins and pops go through here too).
+    a.playBuffer = (...args) => { if (args[0] === 'unlock') plays++; return pb(...args); };
     const t0 = ctx.currentTime;
     a.play('unlock');
     const unlockEnd = a.rewardUntil;

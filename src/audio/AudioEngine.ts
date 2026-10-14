@@ -107,10 +107,9 @@ export class AudioEngine {
   /** Until this audio time a celebration owns the moment (small cues stay quiet). */
   private celebrationUntil = 0;
   /**
-   * The reward ringing (or queued: a jingle, or a purchase or prize cue), the audio time its main part has rung out,
-   * and whether it is a jingle (fix list 7.1, session 27: rewards never overlap).
+   * When the reward ringing (or queued: a jingle, or a purchase or prize cue) has rung out its main part, and whether
+   * it is a jingle (fix list 7.1, session 27: rewards never overlap).
    */
-  private reward: Sfx | null = null;
   private rewardUntil = 0;
   private rewardIsJingle = false;
   private theme: AudioBuffer | null = null;
@@ -325,12 +324,12 @@ export class AudioEngine {
     const c = AUDIO.celebration;
     const isJingle = c.cues.includes(name);
     const isReward = isJingle || c.rewards.includes(name);
-    // Never one reward over another (session 27): the same one again while it rings is dropped (a room's reveal after
-    // its purchase); a jingle waits for the reward ringing to finish; a smaller reward under a jingle plays softly
-    // below (the quiet cues), and one landing on another small reward waits its turn.
+    // Never one reward over another (session 27): the same one again while it still rings (or waits its turn) is
+    // dropped (a room's reveal after its purchase); a jingle waits for the reward ringing to finish; a smaller reward
+    // under a jingle plays softly below (the quiet cues), and one landing on another small reward waits its turn.
     let leads = isReward;
+    if (isReward && ends.length > 0) return;
     if (isReward && now < this.rewardUntil) {
-      if (name === this.reward) return;
       if (isJingle || !this.rewardIsJingle) {
         if (this.rewardUntil - now > c.queueWithin) return;
         start = this.rewardUntil + 0.08;
@@ -342,7 +341,6 @@ export class AudioEngine {
     const end = this.bank.has(name) ? this.playBuffer(name, start, pitch, volume, this.sfx) : this.live.build(name, start, pitch, volume);
     ends.push(end);
     if (leads) {
-      this.reward = name;
       this.rewardUntil = end;
       this.rewardIsJingle = isJingle;
     }
