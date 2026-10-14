@@ -567,7 +567,7 @@ export const ECONOMY = {
   facilities: {
     lobbyRackCapacity: 4,
     /** Session 26: bags each lobby rack upgrade adds (Bigger Rack, Grand Rack). */
-    rackUpgradeCapacity: [4, 4],
+    rackUpgradeCapacity: [3, 3],
     luggageCarCapacity: 16,
     bathroomTowelMax: 4,
     bathroomRollMax: 4,

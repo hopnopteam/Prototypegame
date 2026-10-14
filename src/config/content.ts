@@ -235,8 +235,8 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'comfort_lamp', kind: 'comfort', label: 'Lamps', price: 85, stars: 2, comfort: 'lamp', requires: ['refurb_1', '@couple_1'], effect: 'Tips +20%' },
       // Session 26 (owner: "remove the luggage carriage… instead the luggage area should have a little upgrade where it can
       // hold more luggage, and on upgrade it gets bigger"): the rack grows along the wall, then turns brass.
-      { key: 'rack_1', kind: 'rack', label: 'Bigger Rack', price: 110, stars: 2, requires: ['refurb_1', '@couple_1'], effect: '+4 bags' },
-      { key: 'rack_2', kind: 'rack', label: 'Grand Rack', price: 340, stars: 3, requires: ['rack_1', '@couple_3'], effect: '+4 bags' },
+      { key: 'rack_1', kind: 'rack', label: 'Bigger Rack', price: 110, stars: 2, requires: ['refurb_1', '@couple_1'], effect: '+3 bags' },
+      { key: 'rack_2', kind: 'rack', label: 'Grand Rack', price: 340, stars: 3, requires: ['rack_1', '@couple_3'], effect: '+3 bags' },
       { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 160, stars: 3, role: 'porter', requires: ['@couple_2'], effect: 'Check-in & bags' },
       { key: 'comfort_flowers', kind: 'comfort', label: 'Flowers', price: 150, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_2'], effect: 'Tips +20%' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 240, stars: 2, role: 'attendant', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
