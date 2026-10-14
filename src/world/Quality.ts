@@ -15,10 +15,10 @@ export function gpuName(renderer: THREE.WebGLRenderer): string {
 }
 
 /**
- * A starting tier for this device. Phones start at MEDIUM at most (session 14: iPhones reported "Apple GPU"
- * and got HIGH, whose multisampling, soft shadows and second reflection pass cost frames for almost no visible
- * difference; every tier looks the same by design). HIGH and ULTRA stay one tap away in Settings. `auto` also
- * steps down on its own if the frame rate stays low, but never up.
+ * A starting tier for this device. Phones start at MEDIUM at most (session 14: iPhones reported "Apple GPU" and got
+ * HIGH, whose multisampling, soft shadows and second reflection pass cost frames for almost no visible difference;
+ * every tier looks the same by design), and Android phones at LOW unless top-end (session 28). HIGH and ULTRA stay
+ * one tap away in Settings. `auto` also steps down on its own if the frame rate stays low, but never up.
  */
 export function detectTier(renderer: THREE.WebGLRenderer): QualityTier {
   const gpu = gpuName(renderer);
@@ -32,6 +32,9 @@ export function detectTier(renderer: THREE.WebGLRenderer): QualityTier {
     // Safari reports a capped core count and no memory on every iPhone, so those say nothing about Apple chips.
     const apple = /iPhone|iPad|iPod/i.test(navigator.userAgent) || /Apple/i.test(gpu);
     if (memory <= 2 || maxTexture < 4096 || (!apple && cores <= 4)) return 'low';
+    // Session 28 (owner: "we need a smooth android build"): Android phones start at LOW (the same look and shaders as
+    // MEDIUM, about a third fewer pixels) unless they report the most memory and cores Chrome tells (8 GB, 8 cores).
+    if (/Android/i.test(navigator.userAgent) && !(memory >= 8 && cores >= 8)) return 'low';
     return 'medium';
   }
   // Desktops: integrated graphics get HIGH, anything else ULTRA.

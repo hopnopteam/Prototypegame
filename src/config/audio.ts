@@ -64,6 +64,11 @@ export const AUDIO = {
   musicDuck: { level: 0.2, attack: 0.18, hold: 0.6, release: 1.5 },
   music: {
     /**
+     * Session 28 (owner: "turn off the background music"): no theme at all (not decoded, never queued) and no Music
+     * switch in Settings; `true` brings it all back.
+     */
+    enabled: false,
+    /**
      * Seconds to fade the theme in at the start (and after it is switched back on) and out when switched off. Session 26:
      * 2 s, starting as play begins (owner: "start with fading in for like 2 seconds").
      */
@@ -79,6 +84,16 @@ export const AUDIO = {
      */
     lookahead: 52,
   },
-  /** Rail clack: a "da-dum" pair per rail joint, faster and louder with speed (the session 8 sound). */
-  clack: { base: 0.05, perSpeed: 0.09 },
+  /**
+   * Rail clack: a "da-dum" pair per rail joint, faster and louder with speed (the session 8 sound). Session 28 (owner:
+   * "turn off the train moving sound, keep all the other sounds"): off; `enabled: true` brings it back.
+   */
+  clack: { enabled: false, base: 0.05, perSpeed: 0.09 },
+  /**
+   * Session 28 (owner: "the reward music… still getting cut off every moment", on the Android build): an Android
+   * WebView renders web audio in small buffers that run dry when a busy frame holds the processor (an upgrade, a reward),
+   * and the sound breaks up right then. On Android the context asks for `playback` latency: larger buffers, a little
+   * more delay (well under a tenth of a second), no break-ups. Elsewhere `balanced`.
+   */
+  latency: { android: 'playback', other: 'balanced' } as { android: AudioContextLatencyCategory; other: AudioContextLatencyCategory },
 };

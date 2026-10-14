@@ -3,7 +3,7 @@ import { FLOOR_Y } from './CarriageView';
 import { GeoBuilder, mergePlanes } from './geo';
 import { carriageOriginZ, DOOR_Z0, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0 } from './layout';
 import { PLATFORM } from './platformLayout';
-import { ADD_GLOW, glowTexture, MATERIALS, PATTERN } from './materials';
+import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
 import { CharacterView, type CharacterAction, type CharacterLook } from './CharacterView';
 import { headlineTexture, posterTexture, signTexture } from './sprites';
@@ -67,12 +67,6 @@ const SEEING_OFF = [{ x: PLATFORM_X0 + 5.75, z: -9.35, facing: -Math.PI / 2 - 0.
 /** A seated townsperson's root above the floor (resting on a bench seat). */
 const BENCH_SIT_Y = 0.285;
 
-/** A soft round halo for the platform's lamps (drawn once, shared): opaque, black at the edges (see glowTexture). */
-const LAMP_GLOW = (): THREE.Texture => glowTexture(64, 64, 32, 32, 0, 32, [[0, 0.8], [0.3, 0.26], [0.7, 0.06], [1, 0]]);
-/** The halo's brightness at full night (its colour is scaled; the blend adds it as it is). */
-const LAMP_GLOW_STRENGTH = 0.36;
-const LAMP_GLOW_COLOR = new THREE.Color(PALETTE.lampGlow);
-
 /** A pigeon about 0.3 m long, facing -z: grey body, a darker head with a green-violet neck, a tail. */
 function pigeonGeometry(): THREE.BufferGeometry {
   const b = new GeoBuilder();
@@ -98,7 +92,6 @@ const KIOSK_POS = PLATFORM.kiosk;
 export class PlatformView {
   readonly group = new THREE.Group();
   private readonly signMaterial = new THREE.MeshBasicMaterial({ color: '#ffffff' });
-  private readonly glows: THREE.Sprite[] = [];
   private staticMesh: THREE.Mesh | null = null;
   private houseMesh: THREE.Mesh | null = null;
   private readonly bags: THREE.Mesh;
@@ -203,7 +196,6 @@ export class PlatformView {
    */
   *buildSteps(trainRearZ: number, supplyCarIndex: number | null, _luggageCarIndex: number | null): Generator<void, void> {
     const anchors: LampAnchor[] = [];
-    const glows: THREE.Sprite[] = [];
     const z0 = -LOCOMOTIVE_LENGTH - 4;
     const z1 = trainRearZ + 8;
     const length = z1 - z0;
@@ -264,7 +256,6 @@ export class PlatformView {
       lampZs.push(z);
       buildLampPost(props, lamps, lampX, z);
       anchors.push({ x: lampX - 0.7, y: FLOOR_Y + 2.1, z, strength: 1 });
-      for (const dz of [-0.24, 0.24]) glows.push(lampGlow(lampX, FLOOR_Y + 2.42, z + dz));
       const tubZ = z + LAMP_STEP / 2;
       if (tubZ < z1 - 2 && !blockedZ(tubZ, 0.8)) {
         props.object('platform:tub');
@@ -279,11 +270,9 @@ export class PlatformView {
     const standLamp = { x: PLATFORM.counter.x1 + 0.35, z: PLATFORM.counter.z0 - 0.35 };
     buildLampPost(props, lamps, standLamp.x, standLamp.z);
     anchors.push({ x: standLamp.x - 0.6, y: FLOOR_Y + 2.1, z: standLamp.z + 0.6, strength: 1 });
-    for (const dz of [-0.24, 0.24]) glows.push(lampGlow(standLamp.x, FLOOR_Y + 2.42, standLamp.z + dz));
     const barrowLamp = { x: PLATFORM.barrow.x1 + 1.35, z: PLATFORM.barrow.z1 + 0.95 };
     buildLampPost(props, lamps, barrowLamp.x, barrowLamp.z);
     anchors.push({ x: barrowLamp.x - 0.8, y: FLOOR_Y + 2.1, z: barrowLamp.z - 0.8, strength: 1 });
-    for (const dz of [-0.24, 0.24]) glows.push(lampGlow(barrowLamp.x, FLOOR_Y + 2.42, barrowLamp.z + dz));
     props.endObject();
 
     // Benches along the back railing behind the train (for show), and the one where travellers with no bed wait.
@@ -324,11 +313,6 @@ export class PlatformView {
       this.group.remove(mesh);
       mesh.geometry.dispose();
     }
-    for (const glow of this.glows) {
-      this.group.remove(glow);
-      glow.material.dispose();
-    }
-    this.glows.length = 0;
     if (this.vendor) this.group.remove(this.vendor);
     this.vendor = null;
     this.z0 = z0;
@@ -349,10 +333,6 @@ export class PlatformView {
     this.deckMesh = solid(deckGeo, false);
     this.lampMesh = new THREE.Mesh(lampGeo, MATERIALS.lamps);
     this.group.add(this.lampMesh);
-    for (const glow of glows) {
-      this.group.add(glow);
-      this.glows.push(glow);
-    }
     if (supplyCarIndex !== null) {
       this.vendor = buildVendor(carriageOriginZ(supplyCarIndex));
       this.vendor.userData.object = 'platform:vendor';
@@ -583,10 +563,6 @@ export class PlatformView {
 
   setOffset(z: number): void {
     this.group.position.z = z;
-  }
-
-  setNight(amount: number): void {
-    for (const glow of this.glows) (glow.material as THREE.SpriteMaterial).color.copy(LAMP_GLOW_COLOR).multiplyScalar(LAMP_GLOW_STRENGTH * amount);
   }
 }
 
@@ -891,14 +867,6 @@ function buildLampPost(b: GeoBuilder, lamps: GeoBuilder, x: number, z: number): 
     lamps.box(x, y + 2.43, z + dz, 0.13, 0.2, 0.13, PALETTE.lampShade, 0);
   }
   lamps.endObject();
-}
-
-/** A soft halo round a platform lamp at night. */
-function lampGlow(x: number, y: number, z: number): THREE.Sprite {
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: LAMP_GLOW(), color: 0x000000, ...ADD_GLOW }));
-  glow.scale.set(1.3, 1.3, 1);
-  glow.position.set(x, y, z);
-  return glow;
 }
 
 /**

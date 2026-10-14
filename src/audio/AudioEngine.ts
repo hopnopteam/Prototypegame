@@ -19,7 +19,12 @@ const CUES: Record<Sfx, true> = {
   soft: true, door: true, chest: true, unlock: true, heart: true, flush: true, miss: true, grumble: true,
   perfect: true, aww: true, tick: true, ceremony: true,
 };
-const BANK_CUES: (Sfx | 'clack')[] = [...(Object.keys(CUES) as Sfx[]), 'clack'];
+const BANK_CUES: (Sfx | 'clack')[] = [...(Object.keys(CUES) as Sfx[]), ...(AUDIO.clack.enabled ? ['clack' as const] : [])];
+
+/** An Android phone, in the app or a browser (its web audio wants larger buffers, see `AUDIO.latency`). */
+export function isAndroid(): boolean {
+  return typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+}
 
 /** Cuts a rendered cue where its tail has died away (below −80 dB), so a buffer is no longer than its sound. */
 function trimSilence(ctx: BaseAudioContext, buffer: AudioBuffer): AudioBuffer {
@@ -79,12 +84,13 @@ export class AudioEngine {
   private noiseBuffer!: AudioBuffer;
   /** Live synthesis on the game's context: only used for cues the bank could not render. */
   private live!: Synth;
+  private roomWired = false;
   /** Every cue pre-rendered at start-up (session 26): the buffer, tail included, and when its dry part ends. */
   private readonly bank = new Map<Sfx | 'clack', { buffer: AudioBuffer; dry: number }>();
   private banked = false;
   private bankReady: Promise<void> = Promise.resolve();
   private soundOn = true;
-  private musicOn = true;
+  private musicOn = AUDIO.music.enabled;
   /**
    * The theme waits for the game to begin (session 26, owner: "the background music doesn't kick in at the start…
    * start with fading in for like 2 seconds, then gameplay and sound properly synced"): the loading screen ends with
@@ -128,6 +134,11 @@ export class AudioEngine {
 
   get unlocked(): boolean {
     return this.ctx !== null && this.ctx.state === 'running';
+  }
+
+  /** For audits: whether this build has a theme at all (session 28: the music is switched off in config). */
+  get hasMusic(): boolean {
+    return AUDIO.music.enabled;
   }
 
   /**
@@ -180,8 +191,9 @@ export class AudioEngine {
     if (!this.ctx) {
       const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctor) return;
-      // Balanced latency: a little larger audio buffer, so a busy main thread never starves the audio thread.
-      const ctx = new Ctor({ latencyHint: 'balanced' });
+      // Balanced latency: a little larger audio buffer, so a busy main thread never starves the audio thread; on
+      // Android `playback`, larger still (session 28: its small buffers broke up the reward cues on busy frames).
+      const ctx = new Ctor({ latencyHint: isAndroid() ? AUDIO.latency.android : AUDIO.latency.other });
       this.ctx = ctx;
       // Back to running from anywhere (a gesture, the browser's own resume after an interruption): fade the
       // master back in if a pause left it down. Interrupted or suspended while we did not ask for it (a phone
@@ -211,22 +223,22 @@ export class AudioEngine {
       this.musicFilter.connect(this.musicDuck).connect(this.musicBus).connect(this.master);
       this.ambience = ctx.createGain();
       this.ambience.connect(this.master);
-      const room = ctx.createConvolver();
-      room.buffer = makeRoom(ctx);
+      // The live synth's room is wired only if a cue ever has to be synthesised live (session 28): every cue is
+      // pre-rendered with its room baked in, and an idle convolver in the graph is still work for a phone's audio thread.
       this.tail = ctx.createGain();
       this.tail.gain.value = AUDIO.tail.wet;
-      this.tail.connect(room).connect(this.sfx);
       this.noiseBuffer = makeNoise(ctx);
       this.live = new Synth(ctx, this.sfx, this.tail, this.noiseBuffer);
       this.applyToggles();
-      this.bankReady = Promise.all([this.decodeTheme(ctx), this.renderBank(ctx.sampleRate)]).then(() => undefined);
+      // The theme is decoded only when there is music to play (session 28: switched off by `music.enabled`).
+      this.bankReady = Promise.all([AUDIO.music.enabled ? this.decodeTheme(ctx) : Promise.resolve(), this.renderBank(ctx.sampleRate)]).then(() => undefined);
     }
   }
 
   setEnabled(sound: boolean, music: boolean): void {
     const musicWasOn = this.musicOn;
     this.soundOn = sound;
-    this.musicOn = music;
+    this.musicOn = music && AUDIO.music.enabled;
     this.applyToggles();
     if (musicWasOn && !music) this.stopTheme();
   }
@@ -338,7 +350,7 @@ export class AudioEngine {
     if (isJingle) this.celebrationUntil = Math.max(this.celebrationUntil, start + c.holdOff);
     else if (now < this.celebrationUntil && c.quiet.includes(name)) volume *= c.duck;
     this.lastPlay.set(name, now);
-    const end = this.bank.has(name) ? this.playBuffer(name, start, pitch, volume, this.sfx) : this.live.build(name, start, pitch, volume);
+    const end = this.bank.has(name) ? this.playBuffer(name, start, pitch, volume, this.sfx) : this.playLive(name, start, pitch, volume);
     ends.push(end);
     if (leads) {
       this.rewardUntil = end;
@@ -366,7 +378,7 @@ export class AudioEngine {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== 'running') return;
     // Rail clack: a "da-dum" pair each rail joint; faster and louder with speed.
-    if (this.soundOn && this.speed > 0.05) {
+    if (this.soundOn && AUDIO.clack.enabled && this.speed > 0.05) {
       this.clackTimer -= dt;
       if (this.clackTimer <= 0) {
         const gap = 0.16 / (0.4 + this.speed);
@@ -515,16 +527,32 @@ export class AudioEngine {
         const synth = new Synth(ctx, ctx.destination, send, noise);
         if (name === 'clack') synth.clack(0.005, 1);
         else synth.build(name, 0.005);
-        const rendered = await ctx.startRendering();
-        this.bank.set(name, { buffer: trimSilence(ctx, rendered), dry: dryEnd + 0.005 });
+        try {
+          const rendered = await ctx.startRendering();
+          this.bank.set(name, { buffer: trimSilence(ctx, rendered), dry: dryEnd + 0.005 });
+        } catch (error) {
+          // One cue that will not render is synthesised live; the rest still play from the bank (session 28).
+          log.warn('Audio', `could not pre-render ${name}; synthesising it live`, error);
+        }
       });
       await Promise.all(jobs);
-      this.banked = true;
+      this.banked = this.bank.size > 0;
     } catch (error) {
       // Any failure leaves the live synth in charge, exactly as before.
       this.bank.clear();
       log.warn('Audio', 'could not pre-render the cues; synthesising live', error);
     }
+  }
+
+  /** The fallback for a cue the bank does not hold: synthesised live through the room, wired on first use. */
+  private playLive(name: Sfx, start: number, pitch: number, volume: number): number {
+    if (!this.roomWired && this.ctx) {
+      const room = this.ctx.createConvolver();
+      room.buffer = makeRoom(this.ctx);
+      this.tail.connect(room).connect(this.sfx);
+      this.roomWired = true;
+    }
+    return this.live.build(name, start, pitch, volume);
   }
 
   /** One pre-rendered cue on the audio clock; returns when its dry part ends (the tail rings on past it). */

@@ -360,7 +360,6 @@ export class Station {
     this.view.group.visible = visible;
     this.view.setOffset(this.platformOffset);
     if (visible) this.view.animate(_dt);
-    this.view.setNight(w.stage.lighting.night);
     // The platform's lamps light the deck, the waiting guests and the train's side as it slides in.
     const light = w.stage.lightMap;
     if (visible !== this.lampsShown) {

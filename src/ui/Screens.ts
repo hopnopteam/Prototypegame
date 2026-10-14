@@ -1,5 +1,6 @@
 import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, type ProductDef } from '../config/content';
 import { CLASSES } from '../config/classes';
+import { AUDIO } from '../config/audio';
 import { ECONOMY, MONETIZATION_ENABLED } from '../config/economy';
 import { formatDuration, formatNumber } from '../core/math';
 import type { DoubleChoice } from '../gameplay/GameUi';
@@ -682,7 +683,8 @@ export class Screens {
     const resetButton = h('button.btn', { onclick: () => { resetButton.hidden = true; confirmReset.hidden = false; } }, 'Start over');
     close = this.sheet('Settings', 'gear', [
       toggle('Sound', s.sound, (v) => (s.sound = v)),
-      toggle('Music', s.music, (v) => (s.music = v)),
+      // Session 28: no Music switch while the game has no music (`AUDIO.music.enabled`).
+      AUDIO.music.enabled ? toggle('Music', s.music, (v) => (s.music = v)) : null,
       toggle('Vibration', s.haptics, (v) => (s.haptics = v)),
       this.qualityPicker(),
       toggle('Developer tools', s.devTools, (v) => (s.devTools = v)),

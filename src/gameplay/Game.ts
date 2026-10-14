@@ -1,7 +1,7 @@
 import { PLATFORM } from '../world/platformLayout';
 import { INTRO_BEATS } from '../config/coach';
 import * as THREE from 'three';
-import { AudioEngine } from '../audio/AudioEngine';
+import { AudioEngine, isAndroid } from '../audio/AudioEngine';
 import { Haptics } from '../audio/Haptics';
 import { CARRIAGE_CATALOGUE, PRODUCTS } from '../config/content';
 import { OUTFITS } from '../config/wardrobe';
@@ -94,8 +94,10 @@ const NIGHT_TIME = 0.82;
  * Composition root and main loop. Builds every system once, owns time (including the dev time scale and
  * pausing while an ad plays), sessions, offline earnings and the day/night cycle.
  */
-/** The quality policy (see `settings.qualityPolicy`): 18 = lite phone tiers, crisp resolution. */
-const QUALITY_POLICY = 18;
+/** The haptics policy (see `settings.hapticsPolicy`): 1 = off by default on Android. */
+const HAPTICS_POLICY = 1;
+/** The quality policy (see `settings.qualityPolicy`): 18 = lite phone tiers, crisp resolution; 28 = Android starts at Low. */
+const QUALITY_POLICY = 28;
 /** Particle size scale at one device pixel per CSS pixel (Particles' default, tuned at that density). */
 const PARTICLE_SCALE = 400;
 
@@ -192,6 +194,12 @@ export class Game implements World {
       settings.qualityAuto = null;
       settings.renderScale = {};
       settings.qualityPolicy = QUALITY_POLICY;
+      this.save.markDirty();
+    }
+    // Session 28: Android starts with haptics off, once (Settings can turn Vibration back on and it stays on).
+    if (settings.hapticsPolicy !== HAPTICS_POLICY) {
+      if (isAndroid()) settings.haptics = false;
+      settings.hapticsPolicy = HAPTICS_POLICY;
       this.save.markDirty();
     }
     // A ?quality= link forces a tier for this visit only (screenshots, comparisons); it is not saved.

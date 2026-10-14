@@ -63,7 +63,11 @@ await page.goto(`file://${file}`);
 // Session 26: the loading screen stays up until the shaders are compiled, the cues rendered and the first frames
 // drawn; the theme is decoded behind it and starts, with a 2 s fade, as it gives way to play.
 await page.waitForFunction(() => !document.getElementById('loader'), null, { timeout: 90000 }).catch(() => undefined);
-check(await page.evaluate(() => !!window.nightExpress.audio.theme), 'the theme is decoded behind the loading screen');
+// Session 28 (owner: "turn off the background music and the train moving sound, keep all the other sounds"): a build
+// without music checks that none plays and that the effects carry on alone; the theme's own checks wait for it to return.
+const music = await page.evaluate(() => window.nightExpress.audio.hasMusic);
+if (music) check(await page.evaluate(() => !!window.nightExpress.audio.theme), 'the theme is decoded behind the loading screen');
+else check(await page.evaluate(() => window.nightExpress.audio.theme === null && !window.nightExpress.audio.bank.has('clack')), 'no theme and no rail clack in this build (music and train sound off)');
 check(await page.evaluate(() => window.nightExpress.audio.prerendered), 'every cue is pre-rendered (played as a buffer, not synthesised live)');
 // The pre-rendered reward jingles are whole: each rings down to silence on its own (nothing cuts it short).
 const tails = await page.evaluate(() => {
@@ -87,9 +91,9 @@ for (const [name, t] of Object.entries(tails)) {
 }
 await page.evaluate(() => window.nightExpress.skipIntro?.());
 await page.evaluate(() => { window.nightExpress.setAutopilot(true); window.nightExpress.audio.unlock(); });
-await page.waitForFunction(() => window.nightExpress.audio.theme !== null, null, { timeout: 10000 }).catch(() => undefined);
+if (music) await page.waitForFunction(() => window.nightExpress.audio.theme !== null, null, { timeout: 10000 }).catch(() => undefined);
 check(await page.evaluate(() => window.__ctx?.state === 'running'), 'audio context runs after the first touch');
-check(await page.evaluate(() => !!window.nightExpress.audio.theme), 'the theme decodes');
+if (music) check(await page.evaluate(() => !!window.nightExpress.audio.theme), 'the theme decodes');
 
 // Watch the queue: record when each pass of the loop starts.
 await page.evaluate(() => {
@@ -107,7 +111,8 @@ const queuedAhead = await page.evaluate(() => {
   const a = window.nightExpress.audio;
   return a.passes.some((p) => p.at > window.__ctx.currentTime);
 });
-check(queuedAhead, 'the next pass of the theme is always queued ahead on the audio clock');
+if (music) check(queuedAhead, 'the next pass of the theme is always queued ahead on the audio clock');
+else check(await page.evaluate(() => window.nightExpress.audio.passes.length === 0), 'no music is queued in play');
 await page.evaluate(() => { const end = performance.now() + 3000; while (performance.now() < end) { /* stall */ } });
 await page.waitForTimeout(Math.max(0, seconds - Math.min(20, seconds / 2) - 3) * 1000);
 
@@ -143,7 +148,7 @@ const result = await page.evaluate(() => {
   await page.evaluate(() => window.nightExpress.toForeground());
   await page.waitForTimeout(800);
   const back = await page.evaluate(() => ({ state: window.__ctx.state, level: window.nightExpress.audio.masterLevel }));
-  check(away.level < 0.01 && back.state === 'running' && back.level > 0.5, `music fades away in the background and back on return (away ${away.level.toFixed(2)}, back ${back.level.toFixed(2)} ${back.state})`);
+  check(away.level < 0.01 && back.state === 'running' && back.level > 0.5, `sound fades away in the background and back on return (away ${away.level.toFixed(2)}, back ${back.level.toFixed(2)} ${back.state})`);
   // A resume the browser refuses (iOS after an interruption, no gesture yet): the next tap must bring it all back.
   await page.evaluate(() => window.nightExpress.toBackground());
   await page.waitForTimeout(600);
@@ -174,11 +179,11 @@ const result = await page.evaluate(() => {
   check(first.levelupEnd > first.fanfareEnd + 0.5, `a second jingle waits for the first (fanfare rings out at +${(first.fanfareEnd - first.now).toFixed(2)} s, the level-up after it to +${(first.levelupEnd - first.now).toFixed(2)} s)`);
   await page.waitForTimeout(500);
   const ducked = await page.evaluate(() => window.nightExpress.audio.musicDuck.gain.value);
-  check(ducked < 0.4, `the theme ducks under the jingle (${ducked.toFixed(2)})`);
+  if (music) check(ducked < 0.4, `the theme ducks under the jingle (${ducked.toFixed(2)})`);
   const wait = Math.ceil((first.levelupEnd - first.now) * 1000) + 2600;
   await page.waitForTimeout(wait);
   const back = await page.evaluate(() => window.nightExpress.audio.musicDuck.gain.value);
-  check(back > 0.95, `the theme comes back after it (${back.toFixed(2)})`);
+  if (music) check(back > 0.95, `the theme comes back after it (${back.toFixed(2)})`);
 }
 // Session 27: a reward never plays over another. Buying a room played its chime and the room's reveal a second chime
 // half a second in (it read as the first one cut off); a refit's fanfare landed on its purchase chime.
@@ -232,10 +237,11 @@ const result = await page.evaluate(() => {
   await tapPage.waitForFunction(() => document.getElementById('loader')?.classList.contains('ready') || !document.getElementById('loader'), null, { timeout: 90000 }).catch(() => undefined);
   const asked = await tapPage.evaluate(() => !!document.getElementById('loader')?.classList.contains('ready'));
   check(asked, 'without autoplay the loading screen ends on "Tap to play"');
-  check(await tapPage.evaluate(() => (window.nightExpress.audio.passes ?? []).length === 0), 'the music waits for that tap (it starts with play, not before)');
+  if (music) check(await tapPage.evaluate(() => (window.nightExpress.audio.passes ?? []).length === 0), 'the music waits for that tap (it starts with play, not before)');
   await tapPage.touchscreen.tap(195, 700);
-  await tapPage.waitForFunction(() => window.nightExpress.audio.unlocked && window.nightExpress.audio.passes.length > 0, null, { timeout: 3000 }).catch(() => undefined);
-  check(await tapPage.evaluate(() => window.nightExpress.audio.unlocked && window.nightExpress.audio.passes.length > 0), 'the tap starts the sound and the theme at once');
+  await tapPage.waitForFunction((m) => window.nightExpress.audio.unlocked && (!m || window.nightExpress.audio.passes.length > 0), music, { timeout: 3000 }).catch(() => undefined);
+  if (music) check(await tapPage.evaluate(() => window.nightExpress.audio.unlocked && window.nightExpress.audio.passes.length > 0), 'the tap starts the sound and the theme at once');
+  else check(await tapPage.evaluate(() => window.nightExpress.audio.unlocked), 'the tap starts the sound');
   await tapPage.waitForFunction(() => !document.getElementById('loader'), null, { timeout: 3000 }).catch(() => undefined);
   check(await tapPage.evaluate(() => !document.getElementById('loader')), 'and the game is on screen');
   await strict.close();
@@ -250,14 +256,20 @@ check(result.peak < 0.99, 'the output never clips');
 // From the moment the theme has started and faded in (the decode waits for the main thread, which a software
 // renderer keeps busy for seconds here; on a phone it is a fraction of a second).
 const FADE_IN = 2.5;
-const themeFrom = result.passes.length ? Math.max(0, Math.ceil(result.passes[0] - result.recStart + FADE_IN)) : 0;
-const afterStart = result.passes.length ? result.passes[0] - result.startAt : Infinity;
-check(result.passes.length > 0 && afterStart < 0.5, `the theme starts as play begins (${afterStart.toFixed(2)} s after the loading screen gives way; ${themeFrom} s into the recording)`);
-check(result.perSecond.slice(themeFrom).every((v) => v > -70), 'never silent once the theme is in (it plays under everything), even through a 3 s main-thread stall');
-const inPlay = result.perSecond.slice(themeFrom);
-const quietest = inPlay.length ? Math.min(...inPlay) : -99;
-check(quietest > -45, `the music stays audible on a phone speaker (quietest second ${quietest.toFixed(0)} dBFS RMS)`);
-if (seconds > loop + 2) check(gaps.length >= 1 && gaps.every((g) => Math.abs(g - loop) < 0.02), `the next pass queues exactly one loop apart (gaps: ${gaps.map((g) => g.toFixed(3)).join(', ') || 'none'})`);
+if (music) {
+  const themeFrom = result.passes.length ? Math.max(0, Math.ceil(result.passes[0] - result.recStart + FADE_IN)) : 0;
+  const afterStart = result.passes.length ? result.passes[0] - result.startAt : Infinity;
+  check(result.passes.length > 0 && afterStart < 0.5, `the theme starts as play begins (${afterStart.toFixed(2)} s after the loading screen gives way; ${themeFrom} s into the recording)`);
+  check(result.perSecond.slice(themeFrom).every((v) => v > -70), 'never silent once the theme is in (it plays under everything), even through a 3 s main-thread stall');
+  const inPlay = result.perSecond.slice(themeFrom);
+  const quietest = inPlay.length ? Math.min(...inPlay) : -99;
+  check(quietest > -45, `the music stays audible on a phone speaker (quietest second ${quietest.toFixed(0)} dBFS RMS)`);
+} else {
+  // The effects alone: play goes on making its sounds (coins, pops, chimes) with nothing under them.
+  const loudest = result.perSecond.length ? Math.max(...result.perSecond) : -99;
+  check(result.passes.length === 0 && loudest > -45, `the effects play on their own (loudest second ${loudest.toFixed(0)} dBFS RMS, no music passes)`);
+}
+if (music && seconds > loop + 2) check(gaps.length >= 1 && gaps.every((g) => Math.abs(g - loop) < 0.02), `the next pass queues exactly one loop apart (gaps: ${gaps.map((g) => g.toFixed(3)).join(', ') || 'none'})`);
 check(errors.length === 0, `no audio errors${errors.length ? `: ${errors.slice(0, 3).join(' | ')}` : ''}`);
 
 const pcm = Buffer.from(result.pcm, 'base64');

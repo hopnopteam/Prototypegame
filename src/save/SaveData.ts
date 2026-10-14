@@ -67,6 +67,12 @@ export interface SaveData {
      * cheap per pixel instead of low in resolution, so what an older policy learnt no longer applies).
      */
     qualityPolicy: number;
+    /**
+     * Session 28: haptics start off on Android (every reward buzzed at the same instant as its sound, the one thing an
+     * Android phone does at a reward that a browser test never does); 1 once that default has been applied, so a
+     * player who turns Vibration back on keeps it.
+     */
+    hapticsPolicy: number;
   };
   wallet: {
     cash: number;
@@ -160,7 +166,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     createdAt: now,
     lastActiveAt: now,
     profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {} },
-    settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {}, qualityPolicy: 0 },
+    settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {}, qualityPolicy: 0, hapticsPolicy: 0 },
     wallet: { cash: 0, gems: 0, railMiles: 0 },
     route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0, perfectStreak: 0, recentStops: [] },
     staff: {},

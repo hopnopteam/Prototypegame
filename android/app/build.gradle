@@ -27,11 +27,19 @@ android {
             keyPassword 'nightexpress'
         }
     }
+    // The release test build skips the release lint pass (it can stop a CI build over a warning-level finding).
+    lint {
+        checkReleaseBuilds = false
+    }
     buildTypes {
         debug {
             signingConfig signingConfigs.test
         }
+        // Session 28 (owner: "we need a smooth android build"): the test APK is a release build (not debuggable, so
+        // Android compiles the app ahead of time and nothing debug runs), still signed with the test key so it
+        // installs over earlier test APKs. Store builds sign with their own upload key (NATIVE.md).
         release {
+            signingConfig signingConfigs.test
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

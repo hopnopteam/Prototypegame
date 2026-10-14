@@ -89,7 +89,11 @@ export const VISUALS = {
      * whole train's shadow every frame for 2.3 s, a long hitch on a phone with a long train).
      */
     staticShadowGap: 0.6,
-    dynamicResolution: { slowFrameMs: 24, slowShare: 0.5, windowSeconds: 2, minScale: 0.8, stepDown: 0.1, stepUp: 0.05, recoverSeconds: 6, graceSeconds: 6, hitchMs: 120, hitchGraceSeconds: 2, rememberFloor: 0.9, startScale: { touch: 1, desktop: 1 } },
+    /**
+     * Session 28 (owner: "a smooth android build"): a frame counts as slow from 20 ms (was 24): over that it has missed a
+     * 60 Hz refresh, and a phone running 40–50 fps alternates 16 and 33 ms frames, a judder; now it settles at an even 30.
+     */
+    dynamicResolution: { slowFrameMs: 20, slowShare: 0.5, windowSeconds: 2, minScale: 0.8, stepDown: 0.1, stepUp: 0.05, recoverSeconds: 6, graceSeconds: 6, hitchMs: 120, hitchGraceSeconds: 2, rememberFloor: 0.9, startScale: { touch: 1, desktop: 1 } },
     /**
      * Auto: if it is still slow at the lowest render scale for `downgradeSeconds`, drop a tier (never below
      * Low). On Low, still slow at the floor for as long again, frames are held to `fallbackFps` (an even 30 is

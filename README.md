@@ -8,22 +8,25 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 
 - **In the Claude app:** open the published artifact (link in the latest session notes). A loading screen covers the
   first few seconds (shaders compile, the sounds render and the first frames are drawn behind it, so play is smooth
-  from the first second); in a browser it ends on **Tap to play**, and that tap starts the music (a 2 s fade-in)
-  and the game together. A brand-new player then sees a short story intro, skippable.
+  from the first second); in a browser it ends on **Tap to play**, and that tap starts the sound and the game
+  together. A brand-new player then sees a short story intro, skippable.
 - **The classic version** (before the session 12 lakeside, night look and carriage classes) is kept in
   [`archive/classic-v1/`](archive/classic-v1/README.md): a playable copy and the commit to return to.
 - **Graphics:** Settings has Auto / Low / Medium / High / Ultra (one look on every tier; Low and Medium render
   straight to the screen with lighter per-vertex shading, Medium with a static train shadow; High and Ultra add
-  bloom, softer following shadows and lake reflections). Phones start at Medium, sharp (up to 1.5–1.75× pixels),
+  bloom, softer following shadows and lake reflections). Phones start at Medium (Android phones at Low unless
+  top-end: the same look with about a third fewer pixels), sharp (up to 1.5–1.75× pixels),
   held to about 60 fps; Auto trims the render scale a little (never below 80%) and otherwise drops a tier, holding
   a steady 30 fps on Low; add `?quality=low|medium|high|ultra` to the URL to force one (no dynamic resolution then).
 - **Sound:** every effect is rendered once at start-up and played back as a recording, so a reward never breaks up
-  on a busy phone; the music starts with play, on the loading screen's tap (the apps start it at once).
+  on a busy phone. The background music and the rail clack are switched off for now (`music.enabled` and
+  `clack.enabled` in `src/config/audio.ts`; true brings them back). On Android, vibration starts off (Settings
+  turns it on) and the audio asks for larger buffers.
 - **Android test build (APK):** every push to the working branch builds a signed test APK on GitHub Actions
   (`.github/workflows/android-apk.yml`) and publishes it as a pre-release named `android-test-N` on the
   repository's Releases page. On the phone: download the `.apk`, open it, allow "install unknown apps" for the
-  browser if asked, install. Each build is signed with the same test key, so a new one installs over the old one
-  and keeps the save.
+  browser if asked, install. It is a release build (not debuggable, faster), signed with the same test key as
+  every earlier build, so a new one installs over the old one and keeps the save.
 - **iPhone and Android apps:** the same game, wrapped for the App Store and Google Play with Capacitor:
   `npm run app:ios` / `npm run app:android` (needs Xcode / Android Studio). Building, signing and submitting:
   [`NATIVE.md`](NATIVE.md).
@@ -93,7 +96,7 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 | `npm run smoke` | Headless browser run: the autopilot plays the first 13 minutes and checks the §14 beats, the walkthrough, naming, the Gazette debut interview, a rival's taunt on the news strip and the press, a refurbishment, a station upgrade, the objective chain and comforts, that every pickup was needed, the ad rules, that a doorway shutting never traps the conductor, save/reload (unlocks and open cabins), draw calls and console errors |
 | `npm run audit:ui` | Checks the boot (no title screen, no sheet over the intro; once it is skipped, no caption left and the game playing), stages the busiest HUD moments and every menu at seven phone sizes (320×568 to 430×932), then samples live play, and fails on any overlap, clipped text or off-screen element, or on too much text in play (more than 3 words on screen on average or 8 at once, cards excluded) |
 | `npm run audit:geo` | Builds every carriage at every tier (passenger carriages in each class's own floor plan through the Royal Suite, with their class furniture; all comforts, full stock, every guest type's mess and unmade bed), the locomotive, rear deck, exterior and platform, and fails on (1) any visible coplanar overlap of different surfaces (flicker) and (2) any two objects, or an object and a wall, passing through each other (clipping). Both must report 0 |
-| `npm run audit:audio` | Plays the built game with sound on, records the real output and fails if the theme does not decode, the next pass of the music is not queued exactly one loop apart, the output clips, goes silent once the theme is in, or audio logs an error; writes the recording to `dist/audio-check.wav` |
+| `npm run audit:audio` | Plays the built game with sound on, records the real output and fails if a reward cue does not ring out whole, a second reward plays over the first, the output clips, or audio logs an error; with the music on, also if the theme does not decode, the next pass is not queued exactly one loop apart or it goes silent once the theme is in (with it off, that no music plays and the effects carry on alone); writes the recording to `dist/audio-check.wav` |
 | `npm run soak` | Plays a long accelerated session on the autopilot (`npm run soak -- 40 120`: minutes, seconds between samples) and fails on anything that grows without the train (heap, geometries, textures), a shader compiled mid-game, a material re-flagged every frame, or a broken budget (heap, draw calls, triangles, simulation time, page elements); writes `dist/soak.json` |
 | `npm run check` | Typecheck + tests + build (the tests include the camera-visibility check for every tile and pad, and walking into every room) |
 | `npm run app:sync` | Builds and copies the game into the iOS and Android projects (`app:ios` / `app:android` also open Xcode / Android Studio; `app:assets` redraws the app icon and launch screens) |
@@ -125,7 +128,7 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | The flow: the opening's purchases in order (`flow.openingTiles`: one on show at a time), the boarding at Millbrook that opens the game (`flow.prologue`: travellers waiting on the platform, how soon they step aboard, the last call), when each later feature joins (`flow.features`: bags, the platform crowd, reactions, Rush, class badges, the next-carriage plate, offers, the station workshop, a second tile, the goal chain) and the camera glide to something new (`flow.reveal`); the gap between coach lessons | `src/config/economy.ts` (`flow`), `src/config/coach.ts` (`COACH_LESSON_GAP_SECONDS`) |
 | Frame pacing (`maxFps`), dynamic resolution, the tier drop and 30 fps hold, lite shading and shadow mode per tier | `src/config/visuals.ts` (`quality`) |
 | The app shell (app id, colours, launch screen, status bar) | `capacitor.config.ts`; native code in `ios/` and `android/` |
-| The sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, how celebrations and rewards ring out and keep the stage (the theme ducks under them; never two at once), the music's night filter | `src/config/audio.ts` |
+| Music and the rail clack on or off (`music.enabled`, `clack.enabled`), Android's audio buffers (`latency`); the sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, how celebrations and rewards ring out and keep the stage (the theme ducks under them; never two at once), the music's night filter | `src/config/audio.ts` |
 | The music (score: chords, melody, bass, drums) | `scripts/audio/build_music.py` renders `assets/audio/music_theme.mp3` from real piano, bass, guitar and drum recordings (credits in `assets/audio/CREDITS.md`); to use another track, replace the MP3 and set `loopSeconds` in `src/audio/music.ts` |
 | Floors by tier: broken planks and repairs, parquet, rugs | `src/world/Floors.ts` |
 | The venue carriages: what each sells and for how much, how long it takes to make and to enjoy, the staff, refit price steps, menu multipliers, how often guests take outings, the café queue, the party meter and Happy Hour, scenic views and blankets, the cinema's films (length, ticket, popcorn, when the projectionist starts one) | `src/config/venues.ts` (their tiles and prices in `CARRIAGE_CATALOGUE`, `src/config/content.ts`; floor plans per refit tier in `buildCafe`/`buildDining`/`buildCinema`/`buildBar`/`buildDome`, `src/world/layout.ts`; furniture by tier in `src/world/VenueProps.ts`; wall colours in `VENUE_WALLS`, `src/world/CarriageView.ts`; carpets in `venueCarpets`, `src/world/Floors.ts`) |

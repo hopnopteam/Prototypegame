@@ -2007,6 +2007,20 @@ function buildBathComforts(b: GeoBuilder, room: Rect, fixtures: PropDef[], keys:
  * place along the wall; then long; then long in polished walnut and brass with a brass rail along its front. Two boards
  * at every level (the bags go on both once it is long), so it never grows taller and never hides the floor beside it.
  */
+/**
+ * The morning papers, folded and stacked (session 28): three on top of one another, a little askew, the top one with
+ * its headline and photo. 0.2 m across and 0.27 m long, standing on `y`.
+ */
+function newspaperStack(b: GeoBuilder, x: number, y: number, z: number): void {
+  const offsets = [[0, 0], [0.012, -0.008], [-0.006, 0.01]];
+  offsets.forEach(([dx, dz], i) => b.box(x + dx, y + 0.012 + i * 0.023, z + dz, 0.2, 0.022, 0.27, '#F3EEE2', 0, { shade: 0.95 }));
+  const top = y + 0.012 + 2 * 0.023 + 0.011;
+  const [tx, tz] = offsets[2];
+  // The print stands 4 mm proud of the paper (closer than 3 mm the two faces would flicker at a distance).
+  b.box(x + tx, top + 0.002, z + tz - 0.08, 0.17, 0.004, 0.035, '#2B2230', 0, { shade: 1 });
+  b.box(x + tx - 0.04, top + 0.002, z + tz + 0.04, 0.07, 0.004, 0.09, '#9DB8CF', 0, { shade: 1 });
+}
+
 export function buildLobbyRack(b: GeoBuilder, r: Rect, tier: number, level: number): void {
   const y = FLOOR_Y;
   const end = level >= 1 ? r.z1 : RACK_SHORT_Z1;
@@ -2107,9 +2121,13 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
         b.box(cx, y + 0.3, cz, w * 0.8, 0.6, d * 0.8, '#A98D6F', 0, { pattern: PATTERN.stripesZ, color2: '#9C8264', scale: 0.12, shade: 0.8 });
         b.sphere(cx, y + 0.72, cz, 0.15, PALETTE.iron, 1, 0.85);
         b.cylinder(cx + 0.16, y + 0.75, cz, 0.02, 0.03, 0.14, PALETTE.iron, 6, 'x');
+        newspaperStack(b, cx - 0.31, y + 0.6, cz);
         break;
       }
       b.slab(r, y, y + 0.72, wood, 0, 0, { shade: 0.7 });
+      // Session 28 (owner: "the coffee table in the reception should have newspaper visible so it makes sense when
+      // passengers request newspaper"): the morning papers wait on the counter beside the urn, where they are picked up.
+      newspaperStack(b, cx - 0.32, y + 0.72, cz);
       b.cylinder(cx, y + 0.96, cz, 0.14, 0.18, 0.38, tier >= 2 ? PALETTE.brass : PALETTE.chrome, 14, 'y', { shade: 0.82 });
       b.sphere(cx, y + 1.17, cz, 0.11, tier >= 2 ? PALETTE.brass : PALETTE.chrome, 1, 0.8);
       b.cylinder(cx + 0.18, y + 0.77, cz + 0.12, 0.06, 0.06, 0.01, PALETTE.porcelain, 12);

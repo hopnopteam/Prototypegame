@@ -97,6 +97,12 @@ const MAX_WIRES_WAITING = 3;
 const SPEECH_GAP_SECONDS = 4;
 /** Session 26: a shorter stay (the card is smaller and reads at a glance). */
 const RESULT_SECONDS = 4;
+/** The station card's headline by its stars (and, for three, whether the stop was perfect: everyone and every bag). */
+const RESULT_HEADLINES: Record<1 | 2 | 3, [string, string]> = {
+  1: ['Rough stop', 'Rough stop'],
+  2: ['Not bad', 'Not bad'],
+  3: ['Great stop!', 'All aboard!'],
+};
 /** Stars and notes in flight at once, at most (beyond this a reward just counts in). */
 const MAX_FLYERS = 12;
 /** Seconds a queued announcement may wait (behind another one or an open sheet) before it is dropped. */
@@ -1194,7 +1200,10 @@ export class Ui implements GameUi {
   showResult(result: StationResult): void {
     this.dismissResult();
     const chip = (name: IconName | null, text: string, cls = ''): HTMLElement => h(`span${cls}` as 'span', {}, name ? icon(name, 16) : null, text);
-    const headline = result.clean ? 'All aboard!' : result.rating === 2 ? 'Nice stop!' : 'Off we go!';
+    // Session 28 (owner: "if we get 1 star or 2 it should say… the negative, middle or average through words"): the
+    // words follow the stars: three a good stop, two an average one, one a poor one (its card a little red).
+    const rated = Number.isFinite(result.rating) ? Math.max(1, Math.min(3, Math.round(result.rating))) : 3;
+    const headline = RESULT_HEADLINES[rated as 1 | 2 | 3][result.clean ? 1 : 0];
     const stars = h('div.stars', {});
     for (let i = 0; i < 3; i++) {
       const star = h(`i${i < result.rating ? '.on' : '.off'}` as 'i', {}, icon('star', 20));
@@ -1215,7 +1224,7 @@ export class Ui implements GameUi {
     const missed = result.showMissed
       ? h('div.rows', {}, chip(null, `${result.waiting} missed`, '.bad'), chip('cash', `−${formatNumber(result.missedFare)}`, '.bad.lost'))
       : null;
-    const el = h(`div.ticket.result${result.clean ? '.perfect' : ''}${result.showMissed ? '.missed' : ''}` as 'div', {
+    const el = h(`div.ticket.result${result.clean ? '.perfect' : ''}${rated <= 1 ? '.poor' : rated === 2 ? '.average' : ''}${result.showMissed ? '.missed' : ''}` as 'div', {
       role: 'status',
       'aria-label': `${result.stationName}: ${result.boarded} of ${due} boarded, ${result.earned} earned`,
       onclick: () => this.dismissResult(),

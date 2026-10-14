@@ -350,6 +350,10 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .ticket.result h3 { font-size: 15px; letter-spacing: 0.08em; color: var(--navy); }
 .ticket.result.perfect { border-color: var(--ink); background: linear-gradient(#FFF6DA, #FBE7B0); }
 .ticket.result.perfect h3 { color: #8A5A00; }
+/* Session 28: an average stop reads neutral, a poor one a little red (the words say it too). */
+.ticket.result.average h3 { color: #5E6475; }
+.ticket.result.poor { background: linear-gradient(#FFF1EE, #F9DCD6); }
+.ticket.result.poor h3 { color: #B5473F; }
 .ticket.result .stars { display: flex; gap: 2px; }
 .ticket.result .stars i { display: block; width: 20px; height: 20px; animation: starPop 420ms cubic-bezier(.2,1.6,.4,1) both; }
 .ticket.result .stars i .ico { width: 20px; height: 20px; }
