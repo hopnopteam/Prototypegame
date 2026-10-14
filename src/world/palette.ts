@@ -123,18 +123,6 @@ export const PALETTE = {
   cash: '#7CC47F',
   cashEdge: '#3F8A4C',
   cashBand: '#F4EBC8',
-  zone: '#FFFFFF',
-  zoneActive: '#F2B233',
-  /** A zone doing its job (checking in, tidying, handing over): the same green as a tile filling. */
-  zoneWorking: '#6FC25A',
-  /**
-   * Session 24, pads in the style of My Perfect Hotel: a soft colour says what kind of job a pad is, the white
-   * icon on it says which. Work (tidy, sell tickets, check in, start the film), pick up (an urn, a shelf, a
-   * stand), drop off (restock, a rack, hand it to a guest).
-   */
-  zoneWork: '#5FA3E0',
-  zonePickup: '#6CBF7C',
-  zoneDrop: '#EDA94E',
 };
 
 /**

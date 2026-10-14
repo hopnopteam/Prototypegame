@@ -167,18 +167,42 @@ const result = await page.evaluate(() => {
     const a = window.nightExpress.audio;
     const ctx = window.__ctx;
     a.play('fanfare');
-    const fanfareEnd = a.jingleUntil;
+    const fanfareEnd = a.rewardUntil;
     a.play('levelup');
-    return { now: ctx.currentTime, fanfareEnd, levelupEnd: a.jingleUntil };
+    return { now: ctx.currentTime, fanfareEnd, levelupEnd: a.rewardUntil };
   });
   check(first.levelupEnd > first.fanfareEnd + 0.5, `a second jingle waits for the first (fanfare rings out at +${(first.fanfareEnd - first.now).toFixed(2)} s, the level-up after it to +${(first.levelupEnd - first.now).toFixed(2)} s)`);
   await page.waitForTimeout(500);
   const ducked = await page.evaluate(() => window.nightExpress.audio.musicDuck.gain.value);
   check(ducked < 0.4, `the theme ducks under the jingle (${ducked.toFixed(2)})`);
-  const wait = Math.ceil((first.levelupEnd - first.now) * 1000) + 2200;
+  const wait = Math.ceil((first.levelupEnd - first.now) * 1000) + 2600;
   await page.waitForTimeout(wait);
   const back = await page.evaluate(() => window.nightExpress.audio.musicDuck.gain.value);
   check(back > 0.95, `the theme comes back after it (${back.toFixed(2)})`);
+}
+// Session 27: a reward never plays over another. Buying a room played its chime and the room's reveal a second chime
+// half a second in (it read as the first one cut off); a refit's fanfare landed on its purchase chime.
+{
+  const r = await page.evaluate(async () => {
+    const a = window.nightExpress.audio;
+    const ctx = window.__ctx;
+    let plays = 0;
+    const pb = a.playBuffer.bind(a);
+    a.playBuffer = (...args) => { plays++; return pb(...args); };
+    const t0 = ctx.currentTime;
+    a.play('unlock');
+    const unlockEnd = a.rewardUntil;
+    await new Promise((done) => setTimeout(done, 400));
+    a.play('unlock', { volume: 0.55 });
+    const twice = plays;
+    a.play('fanfare');
+    const fanfareStart = a.rewardUntil - (a.bank.get('fanfare').dry);
+    a.playBuffer = pb;
+    return { twice, unlockEnd: unlockEnd - t0, fanfareStart: fanfareStart - t0 };
+  });
+  check(r.twice === 1, `a second purchase chime while the first rings is dropped (${r.twice} played)`);
+  check(r.fanfareStart >= r.unlockEnd, `a fanfare waits for the purchase chime to ring out (chime to +${r.unlockEnd.toFixed(2)} s, fanfare from +${r.fanfareStart.toFixed(2)} s)`);
+  await page.waitForTimeout(4500);
 }
 // A phone in a browser tab (no autoplay): the loading screen ends on "Tap to play", and that tap starts the theme.
 {

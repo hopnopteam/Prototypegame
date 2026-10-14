@@ -1,24 +1,17 @@
 import type * as THREE from 'three';
 import type { IconName } from '../ui/icons';
-import { PALETTE } from '../world/palette';
-import { markWorldUi, ZoneRing } from '../world/ZoneViews';
+import { JobMarker, markWorldUi } from '../world/ZoneViews';
 import type { Actor } from './Actor';
 
 /**
- * What kind of job a pad is (session 24, My Perfect Hotel's pads): its colour says it, the white icon on it says
- * which job. Work (tidy, sell tickets, start the film), pick up (an urn, a shelf, a stand), drop off (a rack, a
- * washroom's shelf, a guest waiting for it).
+ * What kind of job a zone is: work (tidy, sell tickets, start the film), pick up (an urn, a shelf, a stand), drop
+ * off (a rack, a washroom's shelf, a guest waiting for it). Every job zone reaches past its spot (session 26) and
+ * shows its job as a badge over the thing it is about (session 27: nothing is drawn on the floor).
  */
 export type ZoneKind = 'work' | 'pickup' | 'drop';
 
-/** How far over the top of the furniture a pad's floating icon hangs (metres). */
+/** How far over the top of the furniture a job's badge hangs (metres). */
 const ICON_OVER_FURNITURE = 0.5;
-
-const KIND_COLOR: Record<ZoneKind, string> = {
-  work: PALETTE.zoneWork,
-  pickup: PALETTE.zonePickup,
-  drop: PALETTE.zoneDrop,
-};
 
 export interface ZoneOptions {
   id: string;
@@ -28,23 +21,26 @@ export interface ZoneOptions {
   icon?: IconName | null;
   player?: boolean;
   staff?: boolean;
-  /** Draw a floor ring. Cash piles and tiles have their own visuals. */
-  ring?: boolean;
-  /** The kind of job, which colours the pad (an explicit `color` wins). */
+  /** Show the job's badge (default). Cash piles and tiles have their own visuals. */
+  marker?: boolean;
+  /** The kind of job (a job zone reaches past its spot). */
   kind?: ZoneKind;
-  color?: string;
-  /** Whether the zone can do anything right now; inactive zones dim or hide. */
+  /** Whether the zone can do anything right now; an inactive zone shows nothing. */
   active?: () => boolean;
-  /** Hide the ring completely while inactive (instead of dimming it). */
-  hideWhenInactive?: boolean;
+  /**
+   * Session 27 (owner: "you clean a room simply by standing close to it… I don't want designated spots"): anywhere in
+   * here counts as at the job too (a room to tidy, a guest's room to bring their request to, a washroom to restock).
+   */
+  area?: (x: number, z: number) => boolean;
   /** Draw attention: the player is needed here right now (a shelf with something someone asked for). */
   highlight?: () => boolean;
   /**
-   * When the floating icon shows (default: whenever the ring does). A job that can be waiting in many rooms at
-   * once (a room to tidy) shows its icon only where it matters, so the train is never a field of signs.
+   * When the badge shows (default: whenever the zone is active, or wanted if it has `highlight`). A job that can be
+   * waiting in many rooms at once (a room to tidy) shows its badge only where it matters, so the train is never a
+   * field of signs.
    */
   showIcon?: () => boolean;
-  /** The icon for the job here right now, when it changes (a room's pad: the broom, then fresh bedding). */
+  /** The icon for the job here right now, when it changes. */
   iconFor?: () => IconName;
   /** Called every frame for each actor standing inside. Return true while real work happens. */
   stay: (zone: Zone, actor: Actor, dt: number) => boolean;
@@ -53,13 +49,13 @@ export interface ZoneOptions {
   /** Lower wins when zones overlap. */
   priority?: number;
   /**
-   * Session 26: whether this pad reaches further than its ring (a job pad: on by default for any pad with a `kind`;
-   * off for unlock tiles, which must be stood on, since they spend money).
+   * Session 26: whether this zone reaches past its spot (a job zone: on by default for any zone with a `kind`; off
+   * for unlock tiles, which must be stood on, since they spend money).
    */
   reach?: boolean;
 }
 
-/** Where a pad's floating icon hangs: over the furniture it serves (world x, z and the top's height). */
+/** Where a job's badge hangs: over the furniture it serves (world x, z and the top's height). */
 export type IconAnchor = (x: number, z: number) => { x: number; z: number; height: number } | null;
 
 export class Zone {
@@ -69,10 +65,17 @@ export class Zone {
   readonly radius: number;
   readonly player: boolean;
   readonly staff: boolean;
-  readonly ring: ZoneRing | null;
+  readonly marker: JobMarker | null;
   readonly priority: number;
-  /** A job pad that reaches further than its ring (session 26). */
+  /** A job zone that reaches past its spot (session 26). */
   readonly reaches: boolean;
+  /**
+   * The floor under the job's badge (the furniture it serves, found by the zone system's anchor): standing near it
+   * counts as at the job (session 27). The zone's own spot until the badge has been placed.
+   */
+  ax = 0;
+  az = 0;
+  private anchored = false;
   progress = 0;
   /** Seconds accumulated since an actor settled in (dwell before the first action). */
   timer = 0;
@@ -96,8 +99,15 @@ export class Zone {
     this.priority = opts.priority ?? 0;
     this.reaches = opts.reach ?? !!opts.kind;
     this.iconName = opts.icon ?? null;
-    this.ring = opts.ring === false ? null : new ZoneRing(opts.radius, opts.icon ?? null, opts.color ?? (opts.kind ? KIND_COLOR[opts.kind] : undefined));
-    this.ring?.setPosition(opts.x, opts.z);
+    this.ax = opts.x;
+    this.az = opts.z;
+    this.marker = opts.marker === false || !opts.icon ? null : new JobMarker(opts.icon);
+    this.marker?.setPosition(opts.x, opts.z);
+  }
+
+  /** Anywhere in the zone's area (a room) counts as at the job. */
+  inArea(x: number, z: number): boolean {
+    return !!this.opts.area && this.opts.area(x, z);
   }
 
   isActive(): boolean {
@@ -114,7 +124,10 @@ export class Zone {
   moveTo(x: number, z: number): void {
     this.x = x;
     this.z = z;
-    this.ring?.setPosition(x, z);
+    this.anchored = false;
+    this.ax = x;
+    this.az = z;
+    this.marker?.setPosition(x, z);
   }
 
   stay(actor: Actor, dt: number): boolean {
@@ -132,32 +145,35 @@ export class Zone {
   private iconWasShown = false;
 
   updateVisual(dt: number, anchor?: IconAnchor): void {
-    if (!this.ring) return;
     const active = this.isActive();
-    this.ring.visible = this.enabled && (active || !this.opts.hideWhenInactive);
-    this.ring.dimmed = !active;
     const lit = active && !!this.opts.highlight?.();
-    this.ring.highlight = lit;
-    // Session 24: the icon floats only over a pad that wants you now (lit, or simply active for a pad with no
-    // notion of "wanted"); the rest of the time the icon printed on the pad says what it is.
-    const iconShown = (this.opts.highlight ? lit : active) && (!this.opts.showIcon || this.opts.showIcon());
-    // Each time the icon comes up it finds the furniture it belongs over (a refit may have moved it).
-    if (iconShown && !this.iconWasShown && anchor) {
+    // The badge shows only while the job wants you now (lit, or simply active for a job with no notion of "wanted").
+    const iconShown = this.enabled && (this.opts.highlight ? lit : active) && (!this.opts.showIcon || this.opts.showIcon());
+    // Each time the badge comes up it finds the furniture it belongs over (a refit may have moved it); the floor
+    // under it is where standing counts as at the job.
+    if (anchor && (!this.anchored || (iconShown && !this.iconWasShown))) {
+      this.anchored = true;
       const a = anchor(this.x, this.z);
-      this.ring.setIconAnchor(a ? a.x - this.x : 0, a ? a.z - this.z : 0, a ? a.height + ICON_OVER_FURNITURE : null);
+      this.ax = a ? a.x : this.x;
+      this.az = a ? a.z : this.z;
+      this.marker?.setIconAnchor(this.ax - this.x, this.az - this.z, a ? a.height + ICON_OVER_FURNITURE : null);
     }
     this.iconWasShown = iconShown;
-    this.ring.iconShown = iconShown;
+    const marker = this.marker;
+    if (!marker) return;
+    marker.visible = this.enabled;
+    marker.highlight = lit;
+    marker.iconShown = iconShown;
     if (this.opts.iconFor && active) {
       const name = this.opts.iconFor();
       if (name !== this.iconName) {
         this.iconName = name;
-        this.ring.setIcon(name);
+        marker.setIcon(name);
       }
     }
-    this.ring.progress = this.progress;
-    this.ring.pulse = this.playerInside && active ? 1 : 0;
-    this.ring.update(dt);
+    marker.progress = this.progress;
+    marker.working = this.playerInside && active;
+    marker.update(dt);
   }
 }
 
@@ -173,21 +189,26 @@ export class ZoneSystem {
   playerZone: Zone | null = null;
   /**
    * Session 26 (owner: "when you reach that place it does the thing, so the player doesn't have to fiddle around and
-   * stand in that specific box… especially with shoe shine"): a job pad counts you this many times its ring's radius
-   * away, as long as nothing but low furniture stands between (`reachClear`; walls never). Config: `zones.reach`.
+   * stand in that specific box… especially with shoe shine"): a job zone counts you this many times its radius from
+   * its spot, as long as nothing but low furniture stands between (`reachClear`; walls never). Config: `zones.reach`.
    */
   reach = 1;
+  /**
+   * Session 27 (owner: "players should be able to stand on or near the hover indicator"): within this many metres of
+   * the floor under a job's badge counts too, on the same terms. Config: `zones.badgeReach`.
+   */
+  badgeReach = 0;
   reachClear: (ax: number, az: number, bx: number, bz: number) => boolean = () => true;
-  /** Where a pad's floating icon hangs (over the furniture it serves). */
+  /** Where a job's badge hangs (over the furniture it serves). */
   anchor: IconAnchor | undefined;
 
   constructor(private readonly scene: THREE.Scene) {}
 
   add(zone: Zone): Zone {
     this.zones.push(zone);
-    if (zone.ring) {
-      markWorldUi(zone.ring.group);
-      this.scene.add(zone.ring.group);
+    if (zone.marker) {
+      markWorldUi(zone.marker.group);
+      this.scene.add(zone.marker.group);
     }
     return zone;
   }
@@ -196,7 +217,7 @@ export class ZoneSystem {
     if (!zone) return;
     const i = this.zones.indexOf(zone);
     if (i >= 0) this.zones.splice(i, 1);
-    if (zone.ring) this.scene.remove(zone.ring.group);
+    if (zone.marker) this.scene.remove(zone.marker.group);
     for (const [actor, z] of this.current) {
       if (z === zone) this.current.delete(actor);
     }
@@ -217,15 +238,23 @@ export class ZoneSystem {
     for (const actor of actors) {
       let best: Zone | null = null;
       let bestScore = Infinity;
+      const x = actor.pos.x;
+      const z = actor.pos.z;
       for (const zone of this.zones) {
         if (!zone.enabled) continue;
         if (actor.isPlayer ? !zone.player : !zone.staff) continue;
-        // On the ring always counts; a job pad also reaches further, never through a wall.
-        const onRing = zone.contains(actor.pos.x, actor.pos.z);
-        if (!onRing && !(zone.reaches && this.reach > 1 && zone.contains(actor.pos.x, actor.pos.z, this.reach))) continue;
+        const dSpot = (zone.x - x) ** 2 + (zone.z - z) ** 2;
+        const dBadge = (zone.ax - x) ** 2 + (zone.az - z) ** 2;
+        // On the spot always counts. A job zone also counts you near its spot or near the floor under its badge (never
+        // through a wall), or anywhere in its room.
+        const onSpot = dSpot <= zone.radius * zone.radius;
+        const nearSpot = zone.reaches && dSpot <= (zone.radius * this.reach) ** 2;
+        const nearBadge = zone.reaches && dBadge <= this.badgeReach * this.badgeReach;
+        const inArea = zone.reaches && zone.inArea(x, z);
+        if (!onSpot && !nearSpot && !nearBadge && !inArea) continue;
         if (!zone.isActive()) continue;
-        if (!onRing && !this.reachClear(actor.pos.x, actor.pos.z, zone.x, zone.z)) continue;
-        const d = (zone.x - actor.pos.x) ** 2 + (zone.z - actor.pos.z) ** 2;
+        if (!onSpot && !inArea && !(nearSpot && this.reachClear(x, z, zone.x, zone.z)) && !(nearBadge && this.reachClear(x, z, zone.ax, zone.az))) continue;
+        const d = Math.min(dSpot, dBadge);
         const score = zone.priority * 100 + d;
         if (score < bestScore) {
           bestScore = score;

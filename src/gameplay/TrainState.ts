@@ -62,8 +62,11 @@ export class Cabin {
   /** The pad by the door (corridor side) and where the shoes stand. */
   readonly shoePad: Vec2;
   readonly shoeSpot: Vec2;
+  /** The room's floor in world coordinates: standing anywhere in it counts for its jobs (session 27). */
+  readonly room: { x0: number; x1: number; z0: number; z1: number };
   constructor(readonly carriage: number, readonly layout: CabinLayout, originZ: number) {
     this.id = `c${carriage}_${layout.index}`;
+    this.room = { x0: layout.room.x0, x1: layout.room.x1, z0: layout.room.z0 + originZ, z1: layout.room.z1 + originZ };
     const w = (p: Vec2): Vec2 => ({ x: p.x, z: p.z + originZ });
     this.center = w(layout.center);
     this.spots = layout.spots.map(w);
@@ -105,8 +108,12 @@ export class Bathroom {
   readonly pileId: string;
   restocker: Actor | null = null;
 
+  /** The washroom's floor in world coordinates (session 27: restocked from anywhere in it). */
+  readonly room: { x0: number; x1: number; z0: number; z1: number };
+
   constructor(readonly carriage: number, readonly layout: BathroomLayout, originZ: number, public towels: number, public rolls: number) {
     this.id = `c${carriage}_b${layout.index}`;
+    this.room = { x0: layout.room.x0, x1: layout.room.x1, z0: layout.room.z0 + originZ, z1: layout.room.z1 + originZ };
     this.restock = { x: layout.restock.x, z: layout.restock.z + originZ };
     this.useSpot = { x: layout.useSpot.x, z: layout.useSpot.z + originZ };
     this.node = `c${carriage}:${layout.node}`;
@@ -154,6 +161,12 @@ const SERVICE_ITEMS: ItemKind[] = ['tea', 'coffee', 'champagne', 'newspaper', 'b
 const CLEAN_ICON_FOCUS = 0.8;
 /** …or when the conductor is this close to it. */
 const CLEAN_ICON_NEAR = 2.2;
+
+/** Whether a point is on a room's floor (its walls' inner faces, world coordinates). */
+function inRoom(room: { x0: number; x1: number; z0: number; z1: number }, x: number, z: number): boolean {
+  return x > room.x0 && x < room.x1 && z > room.z0 && z < room.z1;
+}
+
 /** Where the conductor steps to (metres ahead of the old rear) while a new carriage rolls in. */
 const COUPLING_STEP_BACK = 0.8;
 /** How long the refurbishment wipe takes to sweep the carriage (seconds). */
@@ -1278,8 +1291,8 @@ export class TrainState {
       z: cabin.center.z,
       radius: ZONE_RADIUS.request,
       icon: null,
-      ring: true,
-      hideWhenInactive: true,
+      // Walk in with it (session 27): anywhere in their room hands it over.
+      area: (x, z) => inRoom(cabin.room, x, z),
       // A guest's request, or (fix list 4.6) a minibar short of snacks while someone brings a box.
       active: () => w.guests.requestFor(cabin) !== null || (this.minibarShort(cabin) > 0 && (w.player.stack.has('snack') || w.staff.anyCarrying('snack'))),
       stay: (zone, actor, dt) => w.guests.deliverStay(cabin, zone, actor, dt) || this.restockStay(cabin, zone, actor, dt),
@@ -1290,14 +1303,13 @@ export class TrainState {
       x: spot.x,
       z: spot.z,
       radius: ZONE_RADIUS.spot,
-      // The one place to stand: a broom pad in the middle of the room, shown only while the room is dirty
-      // (session 23: one visit again, the session 22 bedding swap was too much to follow).
+      // Session 27 (owner: "you clean a room simply by standing close to it"): anywhere in the room tidies it, under
+      // the broom badge over the bed (session 23: one visit, the session 22 bedding swap was too much to follow).
       icon: 'broom',
-      ring: true,
-      hideWhenInactive: true,
+      area: (x, z) => inRoom(cabin.room, x, z),
       active: () => cabin.unlocked && cabin.dirty[i] && !cabin.guest,
       // The broom floats only over the room the guide points at, or one the conductor is close to and nobody
-      // on the staff has taken: three rooms to tidy are three quiet pads, not three signs.
+      // on the staff has taken: three rooms to tidy are three quiet rooms, not three signs.
       showIcon: () => {
         const focus = w.guidance?.focus;
         if (focus && Math.hypot(focus.x - spot.x, focus.z - spot.z) < CLEAN_ICON_FOCUS) return true;
@@ -1312,8 +1324,6 @@ export class TrainState {
       z: cabin.shoePad.z,
       radius: ZONE_RADIUS.spot,
       icon: 'shoe',
-      ring: true,
-      hideWhenInactive: true,
       active: () => cabin.shoes === 'dirty' && !!cabin.guest,
       stay: (zone, actor, dt) => this.shineStay(cabin, zone, actor, dt),
     }));
@@ -1487,8 +1497,9 @@ export class TrainState {
       z: bath.restock.z,
       radius: ZONE_RADIUS.restock,
       icon: 'towel',
+      // Session 27: walk in with the towels and rolls; anywhere in the washroom stocks its shelf.
+      area: (x, z) => inRoom(bath.room, x, z),
       active: () => bath.unlocked && (bath.towels < max.bathroomTowelMax || bath.rolls < max.bathroomRollMax),
-      hideWhenInactive: false,
       stay: (zone, actor, dt) => {
         zone.timer += dt * actor.workMultiplier;
         if (zone.timer < w.econ.zones.dropIntervalSeconds) return true;
@@ -1568,7 +1579,6 @@ export class TrainState {
         radius: ZONE_RADIUS.crate,
         icon: 'crate',
         active: () => w.player.stack.has('crate') || w.staff.anyCarrying('crate'),
-        hideWhenInactive: false,
         stay: (zone, actor, dt) => {
           if (!actor.stack.has('crate')) return false;
           zone.timer += dt * actor.workMultiplier;
@@ -1642,7 +1652,6 @@ export class TrainState {
       icon: 'luggage',
       kind: 'drop',
       active: () => this.luggageStored < this.luggageCapacity && (w.player.stack.has('luggage') || w.staff.anyCarrying('luggage')),
-      hideWhenInactive: false,
       stay: (zone, actor, dt) => {
         if (!actor.stack.has('luggage') || this.luggageStored >= this.luggageCapacity) return false;
         zone.timer += dt * actor.workMultiplier;
@@ -1671,10 +1680,11 @@ export class TrainState {
       x: p.x,
       z: p.z,
       radius: ZONE_RADIUS.bin,
-      icon: null,
-      color: '#C9BFB0',
+      icon: 'bin',
+      kind: 'drop',
       active: () => binnable(w.player) !== null || w.staff.members.some((m) => binnable(m) !== null),
-      hideWhenInactive: true,
+      // Its badge is for the conductor (staff find the bin on their own).
+      showIcon: () => binnable(w.player) !== null,
       stay: (zone, actor, dt) => {
         const kind = binnable(actor);
         if (!kind) return false;

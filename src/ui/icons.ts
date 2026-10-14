@@ -20,7 +20,9 @@ export type IconName =
   // Session 24: the cabin key handed over at the desk; shoes to shine on the night shift.
   | 'key' | 'shoe'
   // Fix list 4.1: a passenger who missed the train; 4.6: a minibar's snack box.
-  | 'angry' | 'snack';
+  | 'angry' | 'snack'
+  // Session 27: the lobby's waste-paper basket (where anything extra goes).
+  | 'bin';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -695,6 +697,28 @@ const ICONS: Record<IconName, Draw> = {
     c.beginPath();
     c.arc(50, 78, 16, 1.2 * Math.PI, 1.8 * Math.PI);
     c.stroke();
+  },
+  bin: (c) => {
+    // A wicker waste-paper basket, tapering to its foot, with a darker rim.
+    c.beginPath();
+    c.moveTo(22, 32);
+    c.lineTo(78, 32);
+    c.lineTo(70, 86);
+    c.lineTo(30, 86);
+    c.closePath();
+    fillStroke(c, '#D2AA72');
+    c.strokeStyle = INK;
+    c.lineWidth = 3;
+    c.beginPath();
+    for (const x of [38, 50, 62]) {
+      c.moveTo(x, 38);
+      c.lineTo(50 + (x - 50) * 0.8, 80);
+    }
+    c.moveTo(26, 58);
+    c.lineTo(74, 58);
+    c.stroke();
+    rr(c, 16, 22, 68, 13, 5);
+    fillStroke(c, '#8C6A44');
   },
   snack: (c) => {
     // A chocolate bar in its gold foil, half unwrapped, beside a bag of crisps.

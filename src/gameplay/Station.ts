@@ -607,7 +607,6 @@ export class Station {
       radius: 0.6,
       icon: 'ticket',
       active: () => w.journey.doorsOpen && w.guests.canBoard(),
-      hideWhenInactive: true,
       stay: (zone, actor, dt) => {
         if (!w.guests.canBoard()) return false;
         // Facing the window over the counter, stamping the ticket.
@@ -653,7 +652,6 @@ export class Station {
       icon: 'luggage',
       active: () => w.journey.doorsOpen && sourceActive(w, luggageSpec),
       highlight: () => w.demand.playerWants('luggage') > 0,
-      hideWhenInactive: true,
       stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, luggageSpec),
     }));
 
@@ -683,7 +681,6 @@ export class Station {
       icon: 'crate',
       active: () => w.journey.doorsOpen && sourceActive(w, vendorSpec),
       highlight: () => w.demand.playerWants('crate') > 0,
-      hideWhenInactive: true,
       stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, vendorSpec),
     }));
   }

@@ -80,7 +80,8 @@ export class Reveal {
         lock.rotation.z = Math.sin(t * Math.PI * 6) * 0.22 * (1 - t);
       });
       w.tweens.delay(at(rules.lockShare), () => {
-        w.audio.play('unlock', { volume: 0.55 });
+        // The shackle springs (the purchase's own chime is still ringing: never a second one on top of it).
+        w.audio.play('click', { volume: 0.6, pitch: 1.5 });
         if (shackle) w.tweens.run(0.18, (t) => {
           shackle.position.y = 0.25 + 0.07 * t;
           shackle.rotation.y = 1.3 * t;

@@ -84,8 +84,8 @@ export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ri
   if (style === 'job') {
     // Session 26, My Perfect Hotel's job marker: a blue badge with a white face and the job's icon, pointing down at
     // the furniture it belongs to (a guest's own wishes keep the white speech bubble).
-    const cx = 64;
-    const cy = 56;
+    const cx = JOB_BADGE_CX;
+    const cy = JOB_BADGE_CY;
     ctx.fillStyle = BUBBLE_FILL.job;
     ctx.strokeStyle = INK;
     ctx.lineWidth = 6;
@@ -143,6 +143,27 @@ export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ri
   const texture = finishTexture(c);
   bubbleCache.set(key, texture);
   return texture;
+}
+
+/** Where the job badge's disc sits on its 128-pixel canvas (its pointer hangs below it). */
+const JOB_BADGE_CX = 64;
+const JOB_BADGE_CY = 56;
+
+/**
+ * The ring round a job's badge that fills as the job is done (session 27): a white annulus just outside the badge's
+ * blue rim, on the badge's own canvas size, so the two sprites line up. The fill material colours it and sweeps it.
+ */
+let jobFill: THREE.CanvasTexture | null = null;
+export function jobFillTexture(): THREE.CanvasTexture {
+  if (jobFill) return jobFill;
+  const [c, ctx] = canvas(128, WORLD_UI_RES);
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = 10;
+  ctx.beginPath();
+  ctx.arc(JOB_BADGE_CX, JOB_BADGE_CY, 53, 0, Math.PI * 2);
+  ctx.stroke();
+  jobFill = finishTexture(c);
+  return jobFill;
 }
 
 /** Bubbles and icons are UI in the world: drawn over walls and furniture so a wall never cuts one in half. */

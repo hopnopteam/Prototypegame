@@ -11,7 +11,7 @@ import { Particles } from './world/Particles';
 import { PlatformView } from './world/PlatformView';
 import { Scenery } from './world/Scenery';
 import { Stage } from './world/Stage';
-import { TileView, ZoneRing } from './world/ZoneViews';
+import { JobMarker, TileView } from './world/ZoneViews';
 import { CashView } from './world/CashView';
 import { setLivery } from './world/materials';
 import { liveryFor } from './world/palette';
@@ -123,8 +123,8 @@ if (people) (['attendant', 'porter', 'runner'] as const).forEach((r, i) => {
   s.setPosition(-1.4, FLOOR_Y, 7 + i * 1.2);
   stage.scene.add(s.root);
 });
-const ring = new ZoneRing(0.55, 'person');
-ring.setPosition(-1.68, 2.8); ring.progress = 0.6; if (people) stage.scene.add(ring.group);
+const marker = new JobMarker('person');
+marker.setPosition(-1.68, 2.8); marker.progress = 0.6; marker.working = true; if (people) stage.scene.add(marker.group);
 const tile = new TileView();
 tile.setPosition(0.2, 11.6); tile.face.draw('bed', 28, 0.3, true, false); if (people) stage.scene.add(tile.group);
 const cash = new CashView(); stage.scene.add(cash.mesh);
@@ -140,7 +140,7 @@ function frame(now: number) {
   scenery.update(dt, platform ? 0 : 14);
   for (const v of views) v.animate(dt);
   loco.update(dt, 14);
-  player.update(dt, 0); particles.update(dt); cash.update(dt); ring.update(dt); tile.update(dt, true, false);
+  player.update(dt, 0); particles.update(dt); cash.update(dt); marker.update(dt); tile.update(dt, true, false);
   stage.rig.update(dt, camX, camZ);
   stage.render(dt);
   requestAnimationFrame(frame);

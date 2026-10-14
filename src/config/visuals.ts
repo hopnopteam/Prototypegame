@@ -104,12 +104,15 @@ export const VISUALS = {
    * are sRGB hex; intensities are in three.js physical units, then tone-mapped with ACES.
    */
   night: {
-    /** Session 26 (owner: "make the colours pop a bit more, the game is too dull in places"): a little brighter. */
-    exposure: 1.1,
+    /**
+     * Session 26 raised it to 1.1 (owner: "make the colours pop a bit more"); session 27 (owner: "I don't like how
+     * illuminated everything looks") brings the light back to 1.0 and keeps a little of the colour.
+     */
+    exposure: 1.0,
     /** The moon: the one shadow-casting light, from high over the lake (upper left, a little ahead). */
     moon: { color: '#BCC4FF', intensity: 2.0 },
     /** Sky and ground fill: a soft lavender night (the reference dioramas), never black. */
-    hemi: { sky: '#6268B4', ground: '#3A2E52', intensity: 1.75 },
+    hemi: { sky: '#5E64AE', ground: '#33294A', intensity: 1.55 },
     /** Moonlight bouncing back from the camera's side, so liveries and faces toward the camera read. */
     fill: 0.95,
     /** The night sky polished surfaces and the lake reflect (analytic; see nxSky). */
@@ -124,8 +127,8 @@ export const VISUALS = {
      */
     light: {
       texel: 0.1,
-      interior: { color: '#FFBE7E', intensity: 0.96 },
-      lamp: { color: '#FFB066', intensity: 1.8, radius: 2.6 },
+      interior: { color: '#FFB978', intensity: 0.8 },
+      lamp: { color: '#FFB066', intensity: 1.7, radius: 2.6 },
       /** Bare bulbs in a run-down carriage are a little colder and dimmer; luxury is warmer and brighter. */
       tierLamp: [0.85, 0.93, 1.0, 1.06, 1.14, 1.24],
       spill: { color: '#FFB46E', intensity: 0.42, reach: 2.4 },
@@ -149,9 +152,10 @@ export const VISUALS = {
     /**
      * Colour grade (every tier): lifted blue shadows, warm highlights, contrast and saturation, a soft vignette and a
      * whisper of grain (hides banding in the dark sky). Session 26 (after My Perfect Hotel, "just a little"): the colours
-     * fuller (saturation 1.08 → 1.32) and the vignette lighter, so the paint, the carpets and the liveries pop.
+     * fuller (saturation 1.08 → 1.32) and the vignette lighter; session 27 ("too illuminated"): 1.2, with the light
+     * back as it was.
      */
-    grade: { shadows: '#16244A', shadowAmount: 0.05, highlights: '#FFD9A8', highlightAmount: 0.07, contrast: 1.12, saturation: 1.32, vignette: 0.24, grain: 0.02 },
+    grade: { shadows: '#16244A', shadowAmount: 0.05, highlights: '#FFD9A8', highlightAmount: 0.07, contrast: 1.1, saturation: 1.2, vignette: 0.28, grain: 0.02 },
   },
 
   /**
@@ -161,16 +165,11 @@ export const VISUALS = {
   time: { mode: 'night' as 'night' | 'cycle', firstSessionNight: true },
 
   /**
-   * Fix list 6.1 (owner: "the floor zones and action icons are too big"): a pad is drawn at `drawScale` of the area
-   * that counts as standing on it (so it reads smaller but is just as easy to step on with a thumb), and the job's
-   * icon floats over it at `icon` metres (`iconLit` more while it wants you).
+   * Job signs (session 27: nothing on the floor, a badge over the thing the job is about, its ring filling as you work):
+   * the badge's size (and how much it grows when the job wants you), and its height where no furniture is beside the
+   * job (shoes in the corridor, a room without a bed near its middle).
    */
-  /**
-   * Interaction pads (session 26: white rings, the icon floating over the furniture): the ring's size against the area
-   * that counts as standing on it, the floating icon's size (and how much it grows when the pad wants you), and its
-   * height over a pad with no furniture beside it (a room to tidy, shoes in the corridor).
-   */
-  pads: { drawScale: 0.95, icon: 0.74, iconLit: 0.1, iconHeight: 1.1 },
+  pads: { icon: 0.74, iconLit: 0.1, iconHeight: 1.1 },
 };
 
 export type Visuals = typeof VISUALS;

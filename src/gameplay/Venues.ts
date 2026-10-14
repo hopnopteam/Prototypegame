@@ -33,6 +33,8 @@ export interface Outing {
   seated: boolean;
   /** Paid already (the café is paid at the counter, the dome at the rope as a small ticket). */
   paid: boolean;
+  /** Game time they began waiting in the queue, or for a film (0 until then): a venue's patience counts from it. */
+  waitSince: number;
 }
 
 const tmp = new THREE.Vector3();
@@ -331,7 +333,7 @@ export class Venues {
     seat.guest = guest;
     seat.order = null;
     seat.views = 0;
-    guest.outing = { venue, seat, seated: false, paid: false };
+    guest.outing = { venue, seat, seated: false, paid: false, waitSince: 0 };
     guest.request = null;
     w.guests.setOutingState(guest, 'toVenue');
     guest.view.showBubble(this.venueIcon(venue.kind), 'intent');
@@ -372,6 +374,7 @@ export class Venues {
     const outing = guest.outing;
     if (!outing) return;
     outing.venue.arrived.add(guest);
+    if (outing.waitSince === 0) outing.waitSince = this.w.time;
     this.w.guests.setOutingState(guest, 'venueQueue');
     guest.mover.facing = outing.venue.layout.counter?.facing ?? 0;
     this.showQueueBubble(guest);
@@ -414,6 +417,7 @@ export class Venues {
       // Settles in for the next film (the one on, if any, is half over: they wait for the next).
       seat.state = 'consuming';
       seat.views = 0;
+      outing.waitSince = w.time;
       if (venue.filmWaiting().length === 1) venue.waitingSince = w.time;
       guest.view.showBubble('film', 'intent', 1.85);
     } else {
@@ -428,6 +432,22 @@ export class Venues {
     const outing = guest.outing;
     if (!outing) return;
     const { venue, seat } = outing;
+    // Session 27: nobody waits for ever. Kept waiting past the venue's patience, a guest gives up on a popcorn or a
+    // blanket and stays, or gives up on the visit and goes back to their room; either way it is a service they
+    // never got (a smaller tip when they get off).
+    const since = this.waitingSince(guest);
+    if (since !== null && this.w.time - since > VENUE_TUNING.patience) {
+      if (guest.state === 'consuming' && seat.order) {
+        seat.order = null;
+        seat.servedBy = null;
+        this.w.guests.unhappy(guest);
+      } else {
+        this.w.guests.unhappy(guest);
+        this.abandon(guest);
+        this.w.guests.returnFromOuting(guest);
+        return;
+      }
+    }
     if (guest.state === 'venueQueue') {
       this.showQueueBubble(guest);
       return;
@@ -460,17 +480,87 @@ export class Venues {
     const outing = guest.outing;
     if (!outing) return;
     const { venue, seat } = outing;
-    if (!outing.paid && venue.kind !== 'dome') {
-      const item = VENUES[venue.kind].products[0]?.item ?? 'latte';
-      const amount = venue.priceFor(item, guest);
-      const pile = venue.kind === 'dining' ? this.groupPile(venue, seat.group) : venue.pileId;
-      w.cash.add(pile, amount, tmp.set(guest.pos.x, FLOOR_Y + 1.0, guest.pos.z));
-      outing.paid = true;
-      if (venue.kind === 'bar') this.addParty(venue);
+    if (!outing.paid && venue.kind !== 'dome') this.pay(guest);
+    // A popcorn asked for and never brought before the film ended: they go back unhappy (session 27).
+    if (seat.order && venue.kind !== 'cafe') w.guests.unhappy(guest);
+    else {
+      guest.view.showBubble('heart', 'plain', 1.7);
+      w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.4, guest.pos.z, 4, 0.2);
     }
-    guest.view.showBubble('heart', 'plain', 1.7);
-    w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.4, guest.pos.z, 4, 0.2);
     this.leave(guest);
+  }
+
+  /** What they had is paid for at the table (dining) or the venue's takings. */
+  private pay(guest: Guest): void {
+    const w = this.w;
+    const outing = guest.outing;
+    if (!outing || outing.paid) return;
+    const { venue, seat } = outing;
+    const item = VENUES[venue.kind].products[0]?.item ?? 'latte';
+    const amount = venue.priceFor(item, guest);
+    const pile = venue.kind === 'dining' ? this.groupPile(venue, seat.group) : venue.pileId;
+    w.cash.add(pile, amount, tmp.set(guest.pos.x, FLOOR_Y + 1.0, guest.pos.z));
+    outing.paid = true;
+    if (venue.kind === 'bar') this.addParty(venue);
+  }
+
+  /**
+   * When the guest began waiting for something here that is not theirs yet: their place in the queue, their order
+   * at a table, a popcorn or a blanket, or the film to start. Null when they are not waiting (walking there, or
+   * already served and enjoying it).
+   */
+  private waitingSince(guest: Guest): number | null {
+    const outing = guest.outing;
+    if (!outing) return null;
+    const { venue, seat } = outing;
+    if (guest.state === 'venueQueue') return outing.waitSince || null;
+    if (!outing.seated) return null;
+    if (venue.kind === 'cinema' && seat.views === 0) return outing.waitSince || null;
+    // The café's order is the one taken at the counter (paid before they sit), never one still to bring.
+    if (seat.order && venue.kind !== 'cafe') return seat.orderAt;
+    return null;
+  }
+
+  /**
+   * Session 27: the guest leaves the venue now, whatever they were doing (their stop has come, or they gave up).
+   * Whatever they had is paid for; their place in the queue or their seat is freed (a table they ate at waits to be
+   * cleared). True if they were still waiting for something long enough to mind (a smaller tip when they get off).
+   */
+  abandon(guest: Guest): boolean {
+    const w = this.w;
+    const outing = guest.outing;
+    if (!outing) return false;
+    const { venue, seat } = outing;
+    const since = this.waitingSince(guest);
+    const minded = since !== null && w.time - since >= w.econ.guests.unmetAfterSeconds;
+    const served = guest.state === 'consuming';
+    if (served && (venue.kind === 'dining' || venue.kind === 'bar')) this.pay(guest);
+    const qi = venue.queue.indexOf(guest);
+    if (qi >= 0) {
+      venue.queue.splice(qi, 1);
+      venue.arrived.delete(guest);
+      this.reflowQueue(venue);
+    }
+    if (seat.guest === guest) {
+      if (served && venue.kind === 'dining') this.releaseSeat(venue, seat);
+      else {
+        seat.guest = null;
+        seat.order = null;
+        seat.servedBy = null;
+        seat.views = 0;
+        if (seat.state !== 'dirty') seat.state = venue.open[seat.group] ? 'free' : 'locked';
+      }
+    }
+    guest.outing = null;
+    // Off the chair and onto the floor beside it.
+    const nav = w.map.nav;
+    const node = outing.seated && nav.has(seat.node) ? nav.position(seat.node) : null;
+    if (node) {
+      guest.pos.x = node.x;
+      guest.pos.z = node.z;
+    }
+    guest.view.showBubble(null);
+    return minded;
   }
 
   /** The guest gets up and goes back to bed; their seat frees (a dining table waits to be cleared). */
@@ -1117,7 +1207,6 @@ export class Venues {
         id: `venue:${venue.carriage}:serve:${key}`, x: p.x, z: p.z, radius: ZONE_RADIUS.serve,
         icon: venue.kind === 'dining' ? 'meal' : venue.kind === 'bar' ? 'cocktail' : venue.kind === 'cinema' ? 'popcorn' : 'blanket',
         kind: 'drop',
-        hideWhenInactive: true,
         active: () => venue.open[group] && (at.some((s) => !!s.order && !!s.guest) || (venue.kind === 'dining' && venue.dirty[group])),
         highlight: () => at.some((s) => !!s.order && w.player.stack.has(s.order)),
         stay: (zone, actor, dt) => this.serveAt(venue, p, actor, zone, dt),

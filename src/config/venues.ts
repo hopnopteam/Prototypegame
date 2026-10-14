@@ -113,6 +113,12 @@ export const VENUE_MENUS: Record<string, { price: number; items: VenueCharge[] }
 export const VENUE_TUNING = {
   /** How much a guest's purse adds to a venue price: (class tip multiplier − 1) × this, plus one. */
   classSpend: 0.4,
+  /**
+   * Session 27: a guest kept waiting this long at a venue (in its queue, at a table for their order, in the cinema
+   * for a film) gives up and goes back to their room with a frown; it counts as a service they never got (a smaller
+   * tip when they get off, `guests.unmetTipCut`). Nobody is ever held at a venue past their stop.
+   */
+  patience: 60,
   /** Café: most guests in the queue at once (the rest choose another venue or wait in bed). */
   cafeQueueMax: 4,
   /** A second espresso machine makes brewing this much quicker (multiplier on makeSeconds). */

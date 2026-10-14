@@ -7,7 +7,7 @@ import { RoomDimmer } from './RoomDimmer';
 import { installGradedToneMapping } from './toneMap';
 import type { Particles } from './Particles';
 import { PostFx } from './PostFx';
-import { clippedClones, MATERIALS, setLiteShading } from './materials';
+import { clippedClones, createFillMaterial, MATERIALS, setLiteShading } from './materials';
 import { detectTier, lowerTier, tierSettings, type QualitySetting } from './Quality';
 
 /** A tiny triangle with every vertex attribute the game's materials read (stand-ins for the warm-up). */
@@ -373,6 +373,8 @@ export class Stage {
     const sprites = [
       new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false }),
       new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false, toneMapped: false, fog: false, sizeAttenuation: false }),
+      // The ring that fills round a job's badge (session 27): its own program, first drawn the first time a job is done.
+      createFillMaterial(texture),
     ];
     for (const material of sprites) group.add(Object.assign(new THREE.Sprite(material), { frustumCulled: false }));
     this.scene.add(group);

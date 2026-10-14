@@ -106,9 +106,13 @@ export class AudioEngine {
   private readonly ringing = new Map<Sfx, number[]>();
   /** Until this audio time a celebration owns the moment (small cues stay quiet). */
   private celebrationUntil = 0;
-  /** The reward jingle ringing (or queued) and the audio time it has rung out (fix list 7.1). */
-  private jingle: Sfx | null = null;
-  private jingleUntil = 0;
+  /**
+   * The reward ringing (or queued: a jingle, or a purchase or prize cue), the audio time its main part has rung out,
+   * and whether it is a jingle (fix list 7.1, session 27: rewards never overlap).
+   */
+  private reward: Sfx | null = null;
+  private rewardUntil = 0;
+  private rewardIsJingle = false;
   private theme: AudioBuffer | null = null;
   private nextPassAt = 0;
   private readonly passes: { source: AudioBufferSourceNode; gain: GainNode; at: number }[] = [];
@@ -320,21 +324,29 @@ export class AudioEngine {
     let start = now + 0.005;
     const c = AUDIO.celebration;
     const isJingle = c.cues.includes(name);
-    if (isJingle && now < this.jingleUntil) {
-      // Never two pieces of music at once: the same jingle again is dropped; another waits for this one to finish.
-      if (name === this.jingle || this.jingleUntil - now > c.queueWithin) return;
-      start = this.jingleUntil + 0.08;
+    const isReward = isJingle || c.rewards.includes(name);
+    // Never one reward over another (session 27): the same one again while it rings is dropped (a room's reveal after
+    // its purchase); a jingle waits for the reward ringing to finish; a smaller reward under a jingle plays softly
+    // below (the quiet cues), and one landing on another small reward waits its turn.
+    let leads = isReward;
+    if (isReward && now < this.rewardUntil) {
+      if (name === this.reward) return;
+      if (isJingle || !this.rewardIsJingle) {
+        if (this.rewardUntil - now > c.queueWithin) return;
+        start = this.rewardUntil + 0.08;
+      } else leads = false;
     }
     if (isJingle) this.celebrationUntil = Math.max(this.celebrationUntil, start + c.holdOff);
     else if (now < this.celebrationUntil && c.quiet.includes(name)) volume *= c.duck;
     this.lastPlay.set(name, now);
     const end = this.bank.has(name) ? this.playBuffer(name, start, pitch, volume, this.sfx) : this.live.build(name, start, pitch, volume);
     ends.push(end);
-    if (isJingle) {
-      this.jingle = name;
-      this.jingleUntil = end;
-      this.duckMusic(end);
+    if (leads) {
+      this.reward = name;
+      this.rewardUntil = end;
+      this.rewardIsJingle = isJingle;
     }
+    if (isJingle) this.duckMusic(end);
   }
 
   /** The theme steps down under a reward jingle and comes back smoothly once it has rung out (fix list 7.1). */

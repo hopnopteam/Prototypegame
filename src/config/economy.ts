@@ -112,6 +112,13 @@ export const ECONOMY = {
      * money, still have to be stood on.
      */
     reach: 1.6,
+    /**
+     * Session 27 (owner: "players should be able to stand on or near the hover indicator, which fills up as they perform
+     * the activity… I don't want designated spots"): nothing is drawn on the floor; within this many metres of the thing
+     * a job's badge floats over counts too (no wall between), and a room's own jobs (tidy it, bring a guest their
+     * request, restock a washroom) count anywhere in the room.
+     */
+    badgeReach: 1.1,
     /** Session 24: handing a ticketed guest their cabin key at the desk (the fare was paid at the ticket stand). */
     checkInSeconds: 0.9,
     /** Stand this long at a shelf before the first item comes off it, so walking past never grabs anything. */
@@ -152,6 +159,16 @@ export const ECONOMY = {
     enjoySeconds: 2.2,
     /** Seconds a new request is announced with a wave. */
     waveSeconds: 1.4,
+    /**
+     * Session 27 (owner: "passengers should always be able to offboard, even if they haven't received every
+     * requested service… their final payment reduced accordingly… an unhappy sign when they leave"). A guest gets
+     * off at their stop whatever they are doing (a venue queue, a table, a washroom); everything they asked for and
+     * never got (an open request, an order still waiting at a venue, a venue they gave up on) takes this share off
+     * the tip they leave, down to nothing, and they leave with a frown.
+     */
+    unmetTipCut: 0.5,
+    /** ...counting only what they had waited at least this long for (a coffee ordered as the train pulls in is no grievance). */
+    unmetAfterSeconds: 15,
   },
 
   /**
@@ -345,7 +362,7 @@ export const ECONOMY = {
     /** No washroom car yet: someone asks where the loo is about this often (seconds). */
     noWashroomSeconds: 110,
     /** Service mood (0 grumpy … 1 delighted): colours what new passengers have heard and their reviews. */
-    mood: { start: 0.6, rest: 0.6, driftPerMinute: 0.06, fast: 0.05, slow: -0.08, missed: -0.08, perfectStop: 0.06, emptyWashroom: -0.05 },
+    mood: { start: 0.6, rest: 0.6, driftPerMinute: 0.06, fast: 0.05, slow: -0.08, missed: -0.08, unhappy: -0.06, perfectStop: 0.06, emptyWashroom: -0.05 },
   },
 
   /**
@@ -593,7 +610,8 @@ export const ECONOMY = {
   rewarded: {
     cashStash: { gemCost: 5, fractionOfTarget: 0.6, minAmount: 30, cooldownSeconds: 75, shortWaitSeconds: 1.2 },
     holdTheTrain: { gemCost: 5 },
-    speedBoost: { gemCost: 10, multiplier: 1.5, durationSeconds: 180, cooldownSeconds: 300, firstOfferMinutes: 3.5 },
+    /** Roller skates. Session 27 (owner: "the skate speed is WAYYY TOO FAST"): ×1.2 (was ×1.5, on top of the stride and the conductor's own speed). */
+    speedBoost: { gemCost: 10, multiplier: 1.2, durationSeconds: 180, cooldownSeconds: 300, firstOfferMinutes: 3.5 },
     doubleFares: { gemCost: 10, offerSecondsBeforeArrival: 30, everyNthStation: 3 },
     tempPorter: { gemCost: 8 },
     levelUpDouble: { gemCost: 10 },

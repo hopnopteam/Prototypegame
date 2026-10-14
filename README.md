@@ -58,9 +58,13 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 - **A clear screen:** one top row (the level star with the level in it, cash, gems, the conductor's upgrades, the
   menu), a slim route line with the Train Rating, a light train map down the left, and nothing else unless it
   matters now. No joystick is drawn: drag anywhere and the conductor walks.
-- **Jobs like My Perfect Hotel:** each job's spot is a quiet white ring on the floor, and while it wants you a blue
-  badge with its icon floats over the furniture it belongs to (the espresso machine, the urn, the desk, the shoes
-  by a door). You do not have to stand exactly on the ring: being close (with no wall in between) does the job.
+- **Jobs like My Perfect Hotel:** nothing is drawn on the floor. While a job wants you, a blue badge with its icon
+  floats over the thing it is about (the espresso machine, the urn, the desk, the shoes by a door, the bed of a room
+  to tidy); stand close to it (no wall in between) and a green ring round the badge fills as you do it. A room's own
+  jobs (tidy it, bring the guest their request, restock a washroom) work from anywhere in the room.
+- **Everyone gets off at their stop:** whatever a guest is doing (a café queue, a table, a washroom), they leave the
+  train at their stop. Anything they asked for and never got halves the tip they leave, and they go with a frown; a
+  guest kept waiting at a venue for a minute gives up and goes back to their room.
 - **Luggage:** the lobby's luggage rack holds the bags; its two upgrades (Bigger Rack, Grand Rack) lengthen it
   along the wall and make it brass, three more bags each.
 - **Train Rating:** a star and a number at the head of the route line. Each stop is scored (everyone with a bed boarded, the bags
@@ -121,7 +125,7 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | The flow: the opening's purchases in order (`flow.openingTiles`: one on show at a time), the boarding at Millbrook that opens the game (`flow.prologue`: travellers waiting on the platform, how soon they step aboard, the last call), when each later feature joins (`flow.features`: bags, the platform crowd, reactions, Rush, class badges, the next-carriage plate, offers, the station workshop, a second tile, the goal chain) and the camera glide to something new (`flow.reveal`); the gap between coach lessons | `src/config/economy.ts` (`flow`), `src/config/coach.ts` (`COACH_LESSON_GAP_SECONDS`) |
 | Frame pacing (`maxFps`), dynamic resolution, the tier drop and 30 fps hold, lite shading and shadow mode per tier | `src/config/visuals.ts` (`quality`) |
 | The app shell (app id, colours, launch screen, status bar) | `capacitor.config.ts`; native code in `ios/` and `android/` |
-| The sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, how celebrations ring out and keep the stage (the theme ducks under them; one at a time), the music's night filter | `src/config/audio.ts` |
+| The sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, how celebrations and rewards ring out and keep the stage (the theme ducks under them; never two at once), the music's night filter | `src/config/audio.ts` |
 | The music (score: chords, melody, bass, drums) | `scripts/audio/build_music.py` renders `assets/audio/music_theme.mp3` from real piano, bass, guitar and drum recordings (credits in `assets/audio/CREDITS.md`); to use another track, replace the MP3 and set `loopSeconds` in `src/audio/music.ts` |
 | Floors by tier: broken planks and repairs, parquet, rugs | `src/world/Floors.ts` |
 | The venue carriages: what each sells and for how much, how long it takes to make and to enjoy, the staff, refit price steps, menu multipliers, how often guests take outings, the café queue, the party meter and Happy Hour, scenic views and blankets, the cinema's films (length, ticket, popcorn, when the projectionist starts one) | `src/config/venues.ts` (their tiles and prices in `CARRIAGE_CATALOGUE`, `src/config/content.ts`; floor plans per refit tier in `buildCafe`/`buildDining`/`buildCinema`/`buildBar`/`buildDome`, `src/world/layout.ts`; furniture by tier in `src/world/VenueProps.ts`; wall colours in `VENUE_WALLS`, `src/world/CarriageView.ts`; carpets in `venueCarpets`, `src/world/Floors.ts`) |
@@ -130,8 +134,10 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | The press: how it is paced (`PRESS_PACING`: one card per breather, the gap between cards, which news goes first), rival trains and their villainous owners (taunts, grumbles, portraits, the spoils each pays when overtaken), front-page headlines and rewards per trigger, the Gazette debut interview and Rails Tonight interviews with perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
 | Conductor outfits (earned and premium) and shoes by speed level | `src/config/wardrobe.ts` |
 | Walkthrough steps and one-time hints | `src/config/coach.ts` |
-| Pads: how far a job pad reaches beyond its ring | `src/config/economy.ts` (`zones.reach`) |
-| The furniture a pad's badge hangs over, and its height | `src/world/layout.ts` (`SERVICE_PROP_HEIGHT`) |
+| Jobs: how far from a job's spot, and from the thing its badge hangs over, you can do it | `src/config/economy.ts` (`zones.reach`, `zones.badgeReach`) |
+| The furniture a job's badge hangs over, and its height | `src/world/layout.ts` (`SERVICE_PROP_HEIGHT`) |
+| A guest who gets off short of something: the tip cut, and how long they must have waited to mind | `src/config/economy.ts` (`guests.unmetTipCut`, `unmetAfterSeconds`) |
+| How long a guest waits at a venue before giving up | `src/config/venues.ts` (`VENUE_TUNING.patience`) |
 | The lobby rack's upgrades (bags each adds) | `src/config/economy.ts` (`facilities.rackUpgradeCapacity`), tiles in `src/config/content.ts` (`rack_1`, `rack_2`) |
 | Rivals on or off | `src/config/press.ts` (`RIVALS_ENABLED`) |
 | The loading screen (how long it draws unseen frames, how long it waits for the sounds) | `src/main.ts` (`SETTLE_*`, `AUDIO_WAIT_MS`) |
@@ -144,7 +150,7 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | Golden Whistle awards (rating needed, over how many stops, rewards) | `src/config/press.ts` (`GOLDEN_WHISTLES`) |
 | Rival Watch (rivals' reputations, the spoils each pays), and the dares (off: `RIVAL_DARES_ENABLED`) | `src/config/press.ts` |
 | The minibar comfort (stock per room, how often a guest buys a snack, its price) | `src/config/economy.ts` (`minibar`) |
-| Pad and floating-icon sizes | `src/config/visuals.ts` (`pads`) |
+| Job badge size and height | `src/config/visuals.ts` (`pads`) |
 | How far the theme ducks under a reward jingle and how fast it comes back; how long a second jingle may wait | `src/config/audio.ts` (`musicDuck`, `celebration.queueWithin`) |
 | The venues' own light (the café bright, the dining car low and warm, pooled on its tables) | `src/config/visuals.ts` (`night.light.venues`) |
 | One trip, one sleep: when the evening ends and the morning starts, the shortest night, request delay, outing and washroom chances; each class's evening and morning requests | `src/config/economy.ts` (`trip`), `src/config/classes.ts` (`evening`, `morning`) |

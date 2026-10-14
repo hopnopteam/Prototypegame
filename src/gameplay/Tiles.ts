@@ -394,7 +394,7 @@ export class Tiles {
       z: pos.z,
       radius: def.kind === 'couple' ? ZONE_RADIUS.coupleTile : ZONE_RADIUS.tile,
       staff: false,
-      ring: false,
+      marker: false,
       priority: 1,
       active: () => w.unlocks.isAvailable(def.id),
       stay: (_zone, _actor, dt) => this.drain(entry, dt),

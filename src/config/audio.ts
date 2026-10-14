@@ -8,9 +8,10 @@ export const AUDIO = {
   /**
    * Bus levels (linear). Session 19: the theme sat at about −39 dBFS RMS, some 20 dB under a phone game's mix,
    * so on a phone speaker its quiet bars vanished under the rail clack and read as the music cutting out. It
-   * now sits at about −30 dBFS RMS (still a bed under the cues), and the effects peak around −7 dBFS.
+   * now sits at about −30 dBFS RMS (still a bed under the cues), and the effects peak around −7 dBFS. Session 27
+   * (owner: "the background music is too loud"): 0.26 → 0.15, about 5 dB down, a bed under the effects again.
    */
-  mix: { master: 0.85, sfx: 1, music: 0.26, ambience: 0.5 },
+  mix: { master: 0.85, sfx: 1, music: 0.15, ambience: 0.5 },
   /**
    * A safety limiter on the output: it only touches peaks above the threshold (several cues landing at
    * once), so the normal mix is never squashed or pumped. Its automatic make-up gain (about +1.7 dB) is
@@ -35,7 +36,22 @@ export const AUDIO = {
    * them meant coins scooped or a tile bought just after an upgrade made no sound at all, which read as the
    * audio cutting out.
    */
-  celebration: { cues: ['fanfare', 'levelup', 'perfect', 'ceremony'], holdOff: 1.4, duck: 0.35, quiet: ['ding', 'chest', 'heart', 'unlock', 'chime', 'coin', 'pop', 'sparkle', 'bell'], queueWithin: 3 },
+  /**
+   * Session 27 (owner: "the reward sound still gets cut off quite frequently"): measured in play, the cut was another
+   * reward sound landing on one still ringing: a room's purchase chime, then the room's reveal starting a second chime
+   * half a second in; a refit's chime with the makeover fanfare on top of it; a level-up landing with a purchase. A
+   * reward (`cues`, and the purchase and prize cues in `rewards`) now never plays over another: the same one again is
+   * dropped, a jingle waits for a ringing reward to finish (if that is within `queueWithin` seconds), and a reward
+   * under a jingle plays softly with the small cues.
+   */
+  celebration: {
+    cues: ['fanfare', 'levelup', 'perfect', 'ceremony'],
+    rewards: ['unlock', 'chest'],
+    holdOff: 1.4,
+    duck: 0.35,
+    quiet: ['ding', 'chest', 'heart', 'unlock', 'chime', 'coin', 'pop', 'sparkle', 'bell'],
+    queueWithin: 3,
+  },
   /**
    * Fix list 7.1 (owner: "reward music plays at the wrong moments and gets cut off… lower the background music under
    * it, then bring it back smoothly; never let two pieces of music overlap"): a reward jingle (`celebration.cues`) is
@@ -44,7 +60,8 @@ export const AUDIO = {
    * would start within `celebration.queueWithin` seconds; otherwise it is dropped), and the same jingle again is
    * dropped, so two never sound together.
    */
-  musicDuck: { level: 0.2, attack: 0.18, hold: 0.2, release: 1.5 },
+  /** Session 27: held 0.6 s past the jingle (was 0.2), so its last chord rings out clear before the theme comes back. */
+  musicDuck: { level: 0.2, attack: 0.18, hold: 0.6, release: 1.5 },
   music: {
     /**
      * Seconds to fade the theme in at the start (and after it is switched back on) and out when switched off. Session 26:

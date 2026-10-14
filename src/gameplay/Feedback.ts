@@ -108,6 +108,18 @@ export class Feedback {
     this.maybeSay(good ? 'reviewGood' : 'reviewBad', guest);
   }
 
+  /**
+   * Session 27: a guest gets off short of something they asked for (a smaller tip, a frown): the service mood dips
+   * (the Train Rating's service share) and now and then they say so.
+   */
+  onUnhappyAlight(guest: Guest): void {
+    const w = this.w;
+    w.audio.play('grumble', { volume: 0.6 });
+    if (!this.cuesOn) return;
+    this.nudge(w.econ.feedback.mood.unhappy);
+    this.maybeSay('reviewBad', guest, 0.6);
+  }
+
   /** A guest found the washroom out of towels or rolls (once per visit). */
   onEmptyWashroom(guest: Guest, missing: 'towel' | 'roll'): void {
     if (!this.cuesOn) return;

@@ -1,39 +1,39 @@
 import * as THREE from 'three';
 import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from './CarriageView';
-import { createZoneMaterial } from './materials';
-import { PALETTE } from './palette';
-import { bubbleTexture, makeSprite, TILE_MARKER_ASPECT, TILE_MARKER_WIDTH, TileFace, TileMarker } from './sprites';
+import { createFillMaterial } from './materials';
+import { bubbleTexture, jobFillTexture, makeSprite, TILE_MARKER_ASPECT, TILE_MARKER_WIDTH, TileFace, TileMarker } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 import { VISUALS } from '../config/visuals';
 import { nearMarker, noteMarker, underPopup } from './screenMask';
-
-const RING_GEOMETRY = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-
-/** Floor ring for a walk-over zone, with an optional floating icon so its purpose reads at a glance. */
 
 /** Moves an object and everything in it onto the world-UI layer. */
 export function markWorldUi(object: THREE.Object3D): void {
   object.traverse((o) => o.layers.set(WORLD_UI_LAYER));
 }
 
-/** A pad's floating icon gives way to a tile marker this close to the pad (metres, across the floor). */
+/** A job's sign gives way to a tile marker this close to it (metres, across the floor). */
 const PAD_MARKER_REACH = 1.0;
-/** How long a pad's pop lasts when its job is done (seconds), and how much it grows. */
+/** How long a sign's pop lasts when its job is done (seconds), and how much it grows. */
 const DONE_POP_SECONDS = 0.28;
-const DONE_POP_SCALE = 0.16;
-/** A ring with nothing to do right now is this faint. */
-const RESTING_OPACITY = 0.45;
+const DONE_POP_SCALE = 0.22;
 
-export class ZoneRing {
+/**
+ * A job's sign (session 27, owner: "you clean a room simply by standing close to it, with a hover sign indicating the
+ * action… the hover indicator fills up as they perform the activity… the current rings are distracting"): nothing on
+ * the floor at all. A blue badge with the job's icon floats over the thing it is about (the espresso machine, the urn,
+ * the desk, a washroom's shelf, the shoes by a door, the bed of a room to tidy) while the job wants you, and a green
+ * ring round it fills as you do it, then the badge pops. Where you may stand to do it is the zone's business
+ * (`ZoneSystem`: near the badge, near the job's spot, or anywhere in its room).
+ */
+export class JobMarker {
   readonly group = new THREE.Group();
-  private readonly material: THREE.ShaderMaterial;
-  private readonly icon: THREE.Sprite | null;
-  private readonly ring: THREE.Mesh;
-  private readonly size: number;
+  private readonly badge: THREE.Sprite | null;
+  private readonly fill: THREE.Sprite | null;
+  private readonly fillMaterial: THREE.SpriteMaterial | null;
   private iconHeight: number;
   private readonly baseIconHeight: number;
-  /** Where the floating icon hangs, from the pad's centre (over the furniture it serves). */
+  /** Where the badge hangs, from the zone's centre (over the furniture it serves). */
   private iconX = 0;
   private iconZ = 0;
   private time = Math.random() * 5;
@@ -41,32 +41,26 @@ export class ZoneRing {
   private litAmount = 0;
   private lastProgress = 0;
   private popT = DONE_POP_SECONDS;
+  private shownAmount = 0;
+  private progressValue = 0;
+  private iconAllowed = true;
+  /** The player is the one doing the job here (only their work shows the filling ring). */
+  working = false;
 
-  /**
-   * Session 26 (owner, with My Perfect Hotel's screenshots: "the in-gameplay UI elements… colored in a way which is
-   * distracting… a logo above the thing"): the pad is a quiet white ring on the floor, and the job's icon floats over
-   * the furniture it belongs to, only while the pad wants you (`iconShown`, decided by the zone). The ring fills as the
-   * job is done, then pops. (Session 24's coloured squares with a printed icon are gone.)
-   */
-  constructor(radius: number, icon: IconName | null, color = PALETTE.zone, iconHeight = VISUALS.pads.iconHeight) {
-    this.material = createZoneMaterial(color, null);
-    const ring = new THREE.Mesh(RING_GEOMETRY, this.material);
-    this.ring = ring;
-    // Drawn a little smaller than the area that counts as standing on it (fix list 6.1).
-    this.size = radius * 2 * VISUALS.pads.drawScale;
-    ring.scale.set(this.size, 1, this.size);
-    // Above the cabin mat's top layer (3 cm), so a mat never hides a pad.
-    ring.position.y = FLOOR_Y + 0.036;
-    ring.renderOrder = 2;
-    this.group.add(ring);
+  constructor(icon: IconName | null, iconHeight = VISUALS.pads.iconHeight) {
     this.iconHeight = iconHeight;
     this.baseIconHeight = iconHeight;
     if (icon) {
-      this.icon = makeSprite(bubbleTexture(icon, 'job'), VISUALS.pads.icon);
-      this.icon.position.y = FLOOR_Y + iconHeight;
-      this.group.add(this.icon);
+      this.badge = makeSprite(bubbleTexture(icon, 'job'), VISUALS.pads.icon);
+      this.fillMaterial = createFillMaterial(jobFillTexture());
+      this.fill = new THREE.Sprite(this.fillMaterial);
+      this.fill.renderOrder = 11;
+      this.fill.visible = false;
+      this.group.add(this.badge, this.fill);
     } else {
-      this.icon = null;
+      this.badge = null;
+      this.fill = null;
+      this.fillMaterial = null;
     }
   }
 
@@ -75,14 +69,10 @@ export class ZoneRing {
   }
 
   set progress(value: number) {
-    // A job done (the fill went back to empty from nearly full): the pad pops.
+    // A job done (the fill went back to empty from nearly full): the badge pops.
     if (value < 0.05 && this.lastProgress > 0.85) this.popT = 0;
     this.lastProgress = value;
-    this.material.uniforms.uProgress.value = value;
-  }
-
-  set pulse(value: number) {
-    this.material.uniforms.uPulse.value = value;
+    this.progressValue = value;
   }
 
   set visible(value: boolean) {
@@ -93,60 +83,62 @@ export class ZoneRing {
     return this.group.visible;
   }
 
-  /** "You're needed here": the ring brightens and the icon bobs higher. */
+  /** "You're needed here": the badge bobs higher and grows a little. */
   set highlight(value: boolean) {
     this.lit = value;
   }
-
-  private iconAllowed = true;
 
   set iconShown(value: boolean) {
     this.iconAllowed = value;
   }
 
-  /** A pad whose job changes shows the icon of the job now. */
+  /** A job that changes shows the icon of the job now. */
   setIcon(name: IconName): void {
-    if (!this.icon) return;
-    const material = this.icon.material as THREE.SpriteMaterial;
-    material.map = bubbleTexture(name, 'job');
+    if (!this.badge) return;
+    (this.badge.material as THREE.SpriteMaterial).map = bubbleTexture(name, 'job');
   }
 
   /**
-   * The floating icon hangs over the furniture the pad serves: `dx`, `dz` from the pad's centre and the height over the
-   * floor (null: over the pad itself, at the usual height).
+   * The badge hangs over the furniture the job serves: `dx`, `dz` from the zone's centre and the height over the floor
+   * (null: over the zone itself, at the usual height).
    */
   setIconAnchor(dx: number, dz: number, height: number | null): void {
     this.iconX = dx;
     this.iconZ = dz;
     this.iconHeight = height ?? this.baseIconHeight;
-    if (this.icon) this.icon.position.set(dx, FLOOR_Y + this.iconHeight, dz);
-  }
-
-  set dimmed(value: boolean) {
-    // A resting ring is faint (nothing to do here now); one that is ready reads at full strength.
-    this.material.uniforms.uOpacity.value = value ? RESTING_OPACITY : 1;
-    if (this.icon) (this.icon.material as THREE.SpriteMaterial).opacity = value ? 0.4 : 1;
   }
 
   update(dt: number): void {
+    if (!this.badge || !this.fill || !this.fillMaterial) return;
     this.time += dt;
     this.litAmount += ((this.lit ? 1 : 0) - this.litAmount) * Math.min(1, dt * 8);
     const lit = this.litAmount;
-    this.material.uniforms.uTime.value = this.time;
-    this.material.uniforms.uLit.value = lit;
     this.popT = Math.min(DONE_POP_SECONDS, this.popT + dt);
+    const popping = this.popT < DONE_POP_SECONDS;
+    // Up while the job wants you, while the player is at it, and through the pop that says it is done.
+    const fillShown = this.working && this.progressValue > 0.01;
+    const want = this.iconAllowed || fillShown || popping;
+    this.shownAmount += ((want ? 1 : 0) - this.shownAmount) * Math.min(1, dt * 10);
+    // Fix list 6.3: the badge gives way to a pop-up over it and to a tile's marker right beside it.
+    const gp = this.group.position;
+    const ix = gp.x + this.iconX;
+    const iz = gp.z + this.iconZ;
+    const shown = this.shownAmount > 0.02 && !nearMarker(ix, iz, PAD_MARKER_REACH) && !underPopup(ix, FLOOR_Y + this.iconHeight, iz);
+    this.badge.visible = shown;
+    this.fill.visible = shown && (fillShown || popping);
+    if (!shown) return;
+    // Steady while you work at it (a bobbing target is hard to read); a gentle bob while it waits for you.
+    const bob = fillShown ? 0 : Math.sin(this.time * (2.2 + lit * 3)) * (0.05 + lit * 0.07);
+    const y = FLOOR_Y + this.iconHeight + lit * 0.22 + bob;
     const pop = 1 + DONE_POP_SCALE * Math.sin((this.popT / DONE_POP_SECONDS) * Math.PI);
-    this.ring.scale.set(this.size * pop, 1, this.size * pop);
-    if (this.icon) {
-      // Fix list 6.3: the floating icon gives way to a pop-up over it and to a tile's marker right beside the pad.
-      const gp = this.group.position;
-      const ix = gp.x + this.iconX;
-      const iz = gp.z + this.iconZ;
-      this.icon.visible = this.iconAllowed && !nearMarker(ix, iz, PAD_MARKER_REACH) && !underPopup(ix, FLOOR_Y + this.iconHeight, iz);
-      this.icon.position.y = FLOOR_Y + this.iconHeight + lit * 0.22 + Math.sin(this.time * (2.2 + lit * 3)) * (0.05 + lit * 0.07);
-      const s = VISUALS.pads.icon + lit * VISUALS.pads.iconLit;
-      this.icon.scale.set(s, s, 1);
-    }
+    const s = (VISUALS.pads.icon + lit * VISUALS.pads.iconLit) * pop * (0.6 + 0.4 * this.shownAmount);
+    this.badge.position.set(this.iconX, y, this.iconZ);
+    this.badge.scale.set(s, s, 1);
+    (this.badge.material as THREE.SpriteMaterial).opacity = this.shownAmount;
+    this.fill.position.copy(this.badge.position);
+    this.fill.scale.set(s, s, 1);
+    // Full and green through the pop; otherwise as far round as the job has got.
+    this.fillMaterial.userData.fill.value = popping ? 1 : this.progressValue;
   }
 }
 

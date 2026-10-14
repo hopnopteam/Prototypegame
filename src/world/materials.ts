@@ -722,87 +722,40 @@ function applyNight(): void {
 export const SHADOW_GEOMETRY = new THREE.CircleGeometry(0.3, 20).rotateX(-Math.PI / 2);
 
 /**
- * Radial-fill ring for walk-over zones: a soft outline that sweeps clockwise as the action completes.
- * One tiny shader instead of rebuilding ring geometry every frame.
+ * The ring round a job's badge as the job is done (session 27): the badge's own sprite shader with one step added, a
+ * sweep from the top, clockwise, as far as `fill` (green), the rest a faint dark track. `map` is the ring's shape (a white
+ * annulus on the badge's canvas). One program for every badge; each material keeps its own `fill`.
  */
-export function createZoneMaterial(color: string, icon: THREE.Texture | null = null): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    uniforms: {
-      uColor: { value: new THREE.Color(color) },
-      uLitColor: { value: new THREE.Color(PALETTE.zoneActive) },
-      uProgress: { value: 0 },
-      uPulse: { value: 0 },
-      uOpacity: { value: 1 },
-      uTime: { value: 0 },
-      uLit: { value: 0 },
-      uIcon: { value: icon ?? ZONE_NO_ICON },
-      uHasIcon: { value: icon ? 1 : 0 },
-      uIconAngle: { value: (VISUALS.camera.trainYawDeg * Math.PI) / 180 },
-    },
-    vertexShader: /* glsl */ `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      uniform vec3 uColor;
-      uniform vec3 uLitColor;
-      uniform float uProgress;
-      uniform float uPulse;
-      uniform float uOpacity;
-      uniform float uTime;
-      uniform float uLit;
-      uniform sampler2D uIcon;
-      uniform float uHasIcon;
-      uniform float uIconAngle;
-      varying vec2 vUv;
-      #include <common>
-      // Session 26 (owner, after My Perfect Hotel): a quiet white ring on the floor, not a coloured tile. A soft dark
-      // keyline lets it read on pale floors, a faint wash inside, and a fresh green fill sweeping round as the job is
-      // done. The icon floats over the furniture instead (ZoneRing), so nothing is printed here.
-      void main() {
-        vec2 p = vUv * 2.0 - 1.0;
-        float r = length(p);
-        float aa = fwidth(r) * 1.4;
-        if (r > 1.0) discard;
-        float disc = 1.0 - smoothstep(0.985 - aa, 0.985 + aa, r);
-        float band = smoothstep(0.76 - aa, 0.76 + aa, r) * (1.0 - smoothstep(0.92 - aa, 0.92 + aa, r));
-        float key = smoothstep(0.92 - aa, 0.92 + aa, r) * disc;
-        float inner = 1.0 - smoothstep(0.76 - aa, 0.76 + aa, r);
-        float angle = atan(p.x, p.y);
-        float a = (angle + PI) / (2.0 * PI);
-        float working = step(0.001, uProgress);
-        float filled = step(a, uProgress) * working;
-        float breathe = 0.5 + 0.5 * sin(uTime * 4.0);
-        // The night grade dulls white to grey: lift it so the ring reads as white on every tier.
-        vec3 white = vec3(1.6);
-        vec3 green = vec3(0.62, 1.45, 0.66);
-        vec3 color = white;
-        float alpha = 0.0;
-        // The wash inside, and the fill sweeping round it as the job is done.
-        color = mix(color, green, inner * filled);
-        alpha += inner * (0.08 + 0.06 * uLit + 0.5 * filled);
-        // The ring: steady at rest, breathing when it wants you, bright in the filled part of the sweep.
-        color = mix(color, mix(white, green, 0.35), band * filled);
-        alpha += band * (0.78 + 0.22 * uLit * breathe + 0.2 * uPulse);
-        // A soft dark keyline round the outside.
-        color = mix(color, vec3(0.12, 0.11, 0.16), key);
-        alpha += key * 0.32;
-        gl_FragColor = vec4(color, min(1.0, alpha) * uOpacity);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }
-    `,
-  });
+export function createFillMaterial(map: THREE.Texture): THREE.SpriteMaterial {
+  const material = new THREE.SpriteMaterial({ map, transparent: true, depthWrite: false, depthTest: false });
+  const fill = { value: 0 };
+  material.userData.fill = fill;
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uFill = fill;
+    shader.uniforms.uFillColor = { value: FILL_COLOR };
+    shader.uniforms.uTrackColor = { value: FILL_TRACK };
+    shader.fragmentShader = shader.fragmentShader
+      .replace('void main() {', 'uniform float uFill;\nuniform vec3 uFillColor;\nuniform vec3 uTrackColor;\nvoid main() {')
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        {
+          // The badge's disc is centred at (64, 56) on its 128-pixel canvas (sprites.ts, JOB_BADGE_*).
+          vec2 d = vMapUv - vec2(0.5, 0.5625);
+          float a = fract(atan(d.x, d.y) / (2.0 * PI) + 1.0);
+          float on = step(a, uFill) * step(0.001, uFill);
+          diffuseColor.rgb = mix(uTrackColor, uFillColor, on);
+          diffuseColor.a *= mix(0.4, 1.0, on);
+        }`,
+      );
+  };
+  material.customProgramCacheKey = () => 'nx-job-fill';
+  return material;
 }
 
-/** A transparent 1×1 stand-in for pads without an icon (the shader always samples something). */
-const ZONE_NO_ICON = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
-ZONE_NO_ICON.needsUpdate = true;
+/** The job ring's fresh green (the same green as a tile filling) and its dark track. */
+const FILL_COLOR = new THREE.Color('#62CC5A');
+const FILL_TRACK = new THREE.Color('#2A2433');
 
 /** Repaints the locomotive and rear deck (livery parts are white in geometry and take the material colour). */
 export function setLivery(body: string, trim: string): void {

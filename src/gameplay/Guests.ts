@@ -25,6 +25,11 @@ export type GuestState =
 
 /** Guest states on an outing to a venue (the venue runs them). */
 const OUTING_STATES: ReadonlySet<GuestState> = new Set<GuestState>(['toVenue', 'venueQueue', 'seated', 'consuming']);
+/**
+ * Session 27: where a guest may be when their stop comes and the doors open, and drop it to get off (a venue's queue
+ * or table, a washroom or the way to one, walking back to their room). In their room the states below handle it.
+ */
+const LEAVES_FOR_STOP: ReadonlySet<GuestState> = new Set<GuestState>([...OUTING_STATES, 'toBathroom', 'waitingBathroom', 'inBathroom', 'returning']);
 
 export type GuestRequest = ServiceNeed | 'bathroom';
 
@@ -67,6 +72,11 @@ export class Guest {
   slow = false;
   /** Already grumbled about an empty washroom this visit. */
   complained = false;
+  /**
+   * Services this guest asked for and never got this trip (session 27): a venue they gave up on, an order or a
+   * request still open when they got off. Each takes `guests.unmetTipCut` off the tip they leave.
+   */
+  unmet = 0;
   /** Seconds to sit on the bed edge (reading) before anything else. */
   settleFor = 0;
   destinationStop = Infinity;
@@ -180,7 +190,8 @@ function shadeHex(hex: string, amount: number): string {
 
 /**
  * Guests: spawning (platform and the FTUE queue), the desk queue, check-in, requests, bathroom visits and
- * alighting. The only failure state is "no tip this time"; nobody ever gets angry or leaves unpaid.
+ * alighting. Everyone gets off at their stop (session 27); what they asked for and never got makes their tip smaller
+ * and they leave with a frown. Nothing the player owns is ever taken.
  */
 export class Guests {
   readonly list: Guest[] = [];
@@ -192,7 +203,7 @@ export class Guests {
    * The trip audit (session 22; the smoke run reads it): guests whose trip began, any who slept twice, any request
    * repeated or out of its part of the night or class.
    */
-  readonly audit = { trips: 0, sleeps: 0, sleptTwice: 0, repeats: 0, misplaced: 0, requests: 0 };
+  readonly audit = { trips: 0, sleeps: 0, sleptTwice: 0, repeats: 0, misplaced: 0, requests: 0, overstayed: 0, unhappy: 0 };
   /** Arrival order on the platform (the queue keeps it). */
   private arrivals = 0;
   /** Guests created so far: their look variant turns over with it (no game randomness). */
@@ -544,6 +555,13 @@ export class Guests {
   /** Doors are closing: nobody is left half-way through a door. */
   onDoorsClosing(): void {
     const door = this.w.map.doors()[0];
+    // The audit (session 27): nobody whose stop it was is still aboard, whatever they were doing.
+    for (const guest of this.list) {
+      if (guest.cabin && guest.destinationStop <= this.w.journey.stopSerial && guest.state !== 'alighting' && guest.state !== 'leaving' && guest.state !== 'gone') {
+        this.audit.overstayed++;
+        log.warn('Trip', `guest ${guest.id} (${guest.archetype.id}) still aboard past their stop, ${guest.state}`);
+      }
+    }
     // Nobody who has paid is left behind: anyone with a ticket still on the platform steps aboard to wait.
     for (const guest of [...this.list]) {
       if (guest.state !== 'platform' || !guest.paid) continue;
@@ -720,6 +738,10 @@ export class Guests {
 
   private think(guest: Guest, dt: number): void {
     const w = this.w;
+    if (LEAVES_FOR_STOP.has(guest.state) && this.stopHasCome(guest)) {
+      this.leaveForStop(guest);
+      return;
+    }
     if (OUTING_STATES.has(guest.state)) {
       w.venues.thinkGuest(guest, dt);
       return;
@@ -1218,21 +1240,38 @@ export class Guests {
     // Slept right through to their stop: they pick their shoes up on the way out.
     if (cabin.shoes !== 'none') w.train.takeShoes(cabin, guest);
     this.logTrip(guest, guest.trip, 'arrival', this.progressOf(guest));
-    // They leave a tip and a lived-in cabin behind: the bed slept in and something of theirs on the floor.
+    // A request still open as they get off (asked long enough ago to mind) is one more thing they never got.
+    const g = w.econ.guests;
+    if (guest.state === 'requesting' && guest.request && guest.request !== 'bathroom' && guest.happyTime <= 0 && w.time - guest.requestAt >= g.unmetAfterSeconds) {
+      guest.unmet++;
+    }
+    // They leave a tip and a lived-in cabin behind: the bed slept in and something of theirs on the floor. Each
+    // service they never got takes a share off the tip, down to nothing (session 27).
     let tip = w.econ.money.alightTip * guest.archetype.tipMultiplier * w.tipMultiplier() * w.train.cabinTipMultiplier(cabin);
     if (w.train.luggageStored > 0) {
       w.train.luggageStored--;
       tip += w.econ.money.luggageTip;
     }
-    const tipAmount = Math.max(1, Math.round(tip));
-    w.cash.add(cabin.pileId, tipAmount, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
+    const unhappy = guest.unmet > 0;
+    tip *= Math.max(0, 1 - g.unmetTipCut * guest.unmet);
+    const tipAmount = unhappy ? Math.round(tip) : Math.max(1, Math.round(tip));
+    if (tipAmount > 0) w.cash.add(cabin.pileId, tipAmount, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
     cabin.messPlan = this.messFor(guest);
     cabin.dirty.fill(true);
     w.station.recordTip(tipAmount);
     guest.request = null;
+    guest.pending = [];
     this.setState(guest, 'alighting');
-    guest.view.act('wave', 1.2);
-    guest.view.showBubble(null);
+    if (unhappy) {
+      // Off with a frown, all the way to the station house: plain to see, nothing taken from the player.
+      this.audit.unhappy++;
+      guest.view.showBubble('frown', 'alert', 1.85);
+      guest.view.act('stomp', 0.8);
+      w.feedback.onUnhappyAlight(guest);
+    } else {
+      guest.view.act('wave', 1.2);
+      guest.view.showBubble(null);
+    }
     const door = w.map.doors()[0];
     // From the bed, or from wherever they are (a washroom, the corridor): a path from the cabin's node would
     // have them walk straight through the walls to reach it.
@@ -1241,7 +1280,44 @@ export class Guests {
     // Off along the platform's walkway (clear of the ticket queue) to the station house doors.
     const exit = [...PLATFORM.concourse, PLATFORM.entrance, PLATFORM.houseDoor];
     guest.mover.go([...(path ?? [door.inside, door.outside]), ...exit], () => this.finishAlighting(guest, false));
-    w.feedback.onAlight(guest);
+    if (!unhappy) w.feedback.onAlight(guest);
+  }
+
+  /** Their stop has come and the doors are open. */
+  private stopHasCome(guest: Guest): boolean {
+    return guest.cabin !== null && guest.destinationStop <= this.w.journey.stopSerial && this.w.journey.doorsOpen;
+  }
+
+  /**
+   * Session 27 (owner: "passengers should always be able to offboard"): whatever they are doing (a venue's queue or
+   * table, on the way to a washroom or waiting for one), they drop it and get off. A venue order they had waited for
+   * counts as a service they never got.
+   */
+  private leaveForStop(guest: Guest): void {
+    if (guest.outing && this.w.venues.abandon(guest)) guest.unmet++;
+    const bath = guest.bathroom;
+    if (bath) {
+      const i = bath.waiting.indexOf(guest);
+      if (i >= 0) bath.waiting.splice(i, 1);
+      if (bath.occupant === guest) bath.occupant = null;
+      guest.bathroom = null;
+    }
+    if (guest.request === 'bathroom') guest.request = null;
+    guest.mover.stop();
+    // Off the train from wherever they are (alighting is refused to anyone still on a washroom visit).
+    this.setState(guest, 'returning');
+    this.startAlighting(guest);
+  }
+
+  /**
+   * A guest gave up on something they wanted (session 27: a venue that kept them waiting too long, a popcorn that
+   * never came): one service they never got, a frown over them and a grumble.
+   */
+  unhappy(guest: Guest): void {
+    const w = this.w;
+    guest.unmet++;
+    w.ui.floatIcon('frown', guest.pos.x, FLOOR_Y + 2.2, guest.pos.z, 'miss');
+    w.audio.play('grumble', { volume: 0.6 });
   }
 
   private finishAlighting(guest: Guest, teleported: boolean): void {
@@ -1255,7 +1331,9 @@ export class Guests {
       guest.pos.x = door.outside.x + 1.5;
       guest.pos.z = door.outside.z - 0.6;
     }
-    guest.view.showBubble('heart', 'plain', 1.7);
+    // Happy, a heart; short of something they asked for, the frown stays up as they go (session 27).
+    if (guest.unmet > 0) guest.view.showBubble('frown', 'alert', 1.85);
+    else guest.view.showBubble('heart', 'plain', 1.7);
     w.events.emit('guest.alighted', { tip: 0 });
     if (guest.story) w.meta?.onStoryGuestAlighted(guest.story);
   }
