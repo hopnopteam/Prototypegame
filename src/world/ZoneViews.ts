@@ -3,7 +3,7 @@ import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from './CarriageView';
 import { createZoneMaterial } from './materials';
 import { PALETTE } from './palette';
-import { bubbleTexture, floorIconTexture, makeSprite, TILE_MARKER_ASPECT, TILE_MARKER_WIDTH, TileFace, TileMarker } from './sprites';
+import { bubbleTexture, makeSprite, TILE_MARKER_ASPECT, TILE_MARKER_WIDTH, TileFace, TileMarker } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 import { VISUALS } from '../config/visuals';
 import { nearMarker, noteMarker, underPopup } from './screenMask';
@@ -22,6 +22,8 @@ const PAD_MARKER_REACH = 1.0;
 /** How long a pad's pop lasts when its job is done (seconds), and how much it grows. */
 const DONE_POP_SECONDS = 0.28;
 const DONE_POP_SCALE = 0.16;
+/** A ring with nothing to do right now is this faint. */
+const RESTING_OPACITY = 0.45;
 
 export class ZoneRing {
   readonly group = new THREE.Group();
@@ -29,7 +31,11 @@ export class ZoneRing {
   private readonly icon: THREE.Sprite | null;
   private readonly ring: THREE.Mesh;
   private readonly size: number;
-  private readonly iconHeight: number;
+  private iconHeight: number;
+  private readonly baseIconHeight: number;
+  /** Where the floating icon hangs, from the pad's centre (over the furniture it serves). */
+  private iconX = 0;
+  private iconZ = 0;
   private time = Math.random() * 5;
   private lit = false;
   private litAmount = 0;
@@ -37,11 +43,13 @@ export class ZoneRing {
   private popT = DONE_POP_SECONDS;
 
   /**
-   * Session 24: the pad wears its colour (the kind of job) with the job's white icon printed on it; the icon also
-   * floats over it, but only while the pad wants you (`iconShown`, decided by the zone), so a room of pads is calm.
+   * Session 26 (owner, with My Perfect Hotel's screenshots: "the in-gameplay UI elements… colored in a way which is
+   * distracting… a logo above the thing"): the pad is a quiet white ring on the floor, and the job's icon floats over
+   * the furniture it belongs to, only while the pad wants you (`iconShown`, decided by the zone). The ring fills as the
+   * job is done, then pops. (Session 24's coloured squares with a printed icon are gone.)
    */
   constructor(radius: number, icon: IconName | null, color = PALETTE.zone, iconHeight = VISUALS.pads.iconHeight) {
-    this.material = createZoneMaterial(color, icon ? floorIconTexture(icon) : null);
+    this.material = createZoneMaterial(color, null);
     const ring = new THREE.Mesh(RING_GEOMETRY, this.material);
     this.ring = ring;
     // Drawn a little smaller than the area that counts as standing on it (fix list 6.1).
@@ -52,6 +60,7 @@ export class ZoneRing {
     ring.renderOrder = 2;
     this.group.add(ring);
     this.iconHeight = iconHeight;
+    this.baseIconHeight = iconHeight;
     if (icon) {
       this.icon = makeSprite(bubbleTexture(icon, 'plain'), VISUALS.pads.icon);
       this.icon.position.y = FLOOR_Y + iconHeight;
@@ -95,18 +104,27 @@ export class ZoneRing {
     this.iconAllowed = value;
   }
 
-  /** A pad whose job changes (a room's pad: strip the bed, then make it) shows the icon of the job now. */
+  /** A pad whose job changes shows the icon of the job now. */
   setIcon(name: IconName): void {
-    this.material.uniforms.uIcon.value = floorIconTexture(name);
-    this.material.uniforms.uHasIcon.value = 1;
     if (!this.icon) return;
     const material = this.icon.material as THREE.SpriteMaterial;
     material.map = bubbleTexture(name, 'plain');
   }
 
+  /**
+   * The floating icon hangs over the furniture the pad serves: `dx`, `dz` from the pad's centre and the height over the
+   * floor (null: over the pad itself, at the usual height).
+   */
+  setIconAnchor(dx: number, dz: number, height: number | null): void {
+    this.iconX = dx;
+    this.iconZ = dz;
+    this.iconHeight = height ?? this.baseIconHeight;
+    if (this.icon) this.icon.position.set(dx, FLOOR_Y + this.iconHeight, dz);
+  }
+
   set dimmed(value: boolean) {
-    // Resting pads stay readable (their colour says what they are), just quieter than one that is ready.
-    this.material.uniforms.uOpacity.value = value ? 0.72 : 1;
+    // A resting ring is faint (nothing to do here now); one that is ready reads at full strength.
+    this.material.uniforms.uOpacity.value = value ? RESTING_OPACITY : 1;
     if (this.icon) (this.icon.material as THREE.SpriteMaterial).opacity = value ? 0.4 : 1;
   }
 
@@ -122,7 +140,9 @@ export class ZoneRing {
     if (this.icon) {
       // Fix list 6.3: the floating icon gives way to a pop-up over it and to a tile's marker right beside the pad.
       const gp = this.group.position;
-      this.icon.visible = this.iconAllowed && !nearMarker(gp.x, gp.z, PAD_MARKER_REACH) && !underPopup(gp.x, FLOOR_Y + this.iconHeight, gp.z);
+      const ix = gp.x + this.iconX;
+      const iz = gp.z + this.iconZ;
+      this.icon.visible = this.iconAllowed && !nearMarker(ix, iz, PAD_MARKER_REACH) && !underPopup(ix, FLOOR_Y + this.iconHeight, iz);
       this.icon.position.y = FLOOR_Y + this.iconHeight + lit * 0.22 + Math.sin(this.time * (2.2 + lit * 3)) * (0.05 + lit * 0.07);
       const s = VISUALS.pads.icon + lit * VISUALS.pads.iconLit;
       this.icon.scale.set(s, s, 1);

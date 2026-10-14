@@ -11,6 +11,9 @@ import type { Actor } from './Actor';
  */
 export type ZoneKind = 'work' | 'pickup' | 'drop';
 
+/** How far over the top of the furniture a pad's floating icon hangs (metres). */
+const ICON_OVER_FURNITURE = 0.5;
+
 const KIND_COLOR: Record<ZoneKind, string> = {
   work: PALETTE.zoneWork,
   pickup: PALETTE.zonePickup,
@@ -49,7 +52,15 @@ export interface ZoneOptions {
   leave?: (zone: Zone, actor: Actor) => void;
   /** Lower wins when zones overlap. */
   priority?: number;
+  /**
+   * Session 26: whether this pad reaches further than its ring (a job pad: on by default for any pad with a `kind`;
+   * off for unlock tiles, which must be stood on, since they spend money).
+   */
+  reach?: boolean;
 }
+
+/** Where a pad's floating icon hangs: over the furniture it serves (world x, z and the top's height). */
+export type IconAnchor = (x: number, z: number) => { x: number; z: number; height: number } | null;
 
 export class Zone {
   readonly id: string;
@@ -60,6 +71,8 @@ export class Zone {
   readonly staff: boolean;
   readonly ring: ZoneRing | null;
   readonly priority: number;
+  /** A job pad that reaches further than its ring (session 26). */
+  readonly reaches: boolean;
   progress = 0;
   /** Seconds accumulated since an actor settled in (dwell before the first action). */
   timer = 0;
@@ -81,6 +94,7 @@ export class Zone {
     this.player = opts.player ?? true;
     this.staff = opts.staff ?? true;
     this.priority = opts.priority ?? 0;
+    this.reaches = opts.reach ?? !!opts.kind;
     this.iconName = opts.icon ?? null;
     this.ring = opts.ring === false ? null : new ZoneRing(opts.radius, opts.icon ?? null, opts.color ?? (opts.kind ? KIND_COLOR[opts.kind] : undefined));
     this.ring?.setPosition(opts.x, opts.z);
@@ -90,10 +104,11 @@ export class Zone {
     return this.enabled && (this.opts.active ? this.opts.active() : true);
   }
 
-  contains(x: number, z: number): boolean {
+  contains(x: number, z: number, scale = 1): boolean {
     const dx = x - this.x;
     const dz = z - this.z;
-    return dx * dx + dz * dz <= this.radius * this.radius;
+    const r = this.radius * scale;
+    return dx * dx + dz * dz <= r * r;
   }
 
   moveTo(x: number, z: number): void {
@@ -114,7 +129,9 @@ export class Zone {
     this.opts.leave?.(this, actor);
   }
 
-  updateVisual(dt: number): void {
+  private iconWasShown = false;
+
+  updateVisual(dt: number, anchor?: IconAnchor): void {
     if (!this.ring) return;
     const active = this.isActive();
     this.ring.visible = this.enabled && (active || !this.opts.hideWhenInactive);
@@ -123,7 +140,14 @@ export class Zone {
     this.ring.highlight = lit;
     // Session 24: the icon floats only over a pad that wants you now (lit, or simply active for a pad with no
     // notion of "wanted"); the rest of the time the icon printed on the pad says what it is.
-    this.ring.iconShown = (this.opts.highlight ? lit : active) && (!this.opts.showIcon || this.opts.showIcon());
+    const iconShown = (this.opts.highlight ? lit : active) && (!this.opts.showIcon || this.opts.showIcon());
+    // Each time the icon comes up it finds the furniture it belongs over (a refit may have moved it).
+    if (iconShown && !this.iconWasShown && anchor) {
+      const a = anchor(this.x, this.z);
+      this.ring.setIconAnchor(a ? a.x - this.x : 0, a ? a.z - this.z : 0, a ? a.height + ICON_OVER_FURNITURE : null);
+    }
+    this.iconWasShown = iconShown;
+    this.ring.iconShown = iconShown;
     if (this.opts.iconFor && active) {
       const name = this.opts.iconFor();
       if (name !== this.iconName) {
@@ -147,6 +171,15 @@ export class ZoneSystem {
   private readonly current = new Map<Actor, Zone>();
   playerWorking = false;
   playerZone: Zone | null = null;
+  /**
+   * Session 26 (owner: "when you reach that place it does the thing, so the player doesn't have to fiddle around and
+   * stand in that specific box… especially with shoe shine"): a job pad counts you this many times its ring's radius
+   * away, as long as nothing but low furniture stands between (`reachClear`; walls never). Config: `zones.reach`.
+   */
+  reach = 1;
+  reachClear: (ax: number, az: number, bx: number, bz: number) => boolean = () => true;
+  /** Where a pad's floating icon hangs (over the furniture it serves). */
+  anchor: IconAnchor | undefined;
 
   constructor(private readonly scene: THREE.Scene) {}
 
@@ -187,8 +220,11 @@ export class ZoneSystem {
       for (const zone of this.zones) {
         if (!zone.enabled) continue;
         if (actor.isPlayer ? !zone.player : !zone.staff) continue;
-        if (!zone.contains(actor.pos.x, actor.pos.z)) continue;
+        // On the ring always counts; a job pad also reaches further, never through a wall.
+        const onRing = zone.contains(actor.pos.x, actor.pos.z);
+        if (!onRing && !(zone.reaches && this.reach > 1 && zone.contains(actor.pos.x, actor.pos.z, this.reach))) continue;
         if (!zone.isActive()) continue;
+        if (!onRing && !this.reachClear(actor.pos.x, actor.pos.z, zone.x, zone.z)) continue;
         const d = (zone.x - actor.pos.x) ** 2 + (zone.z - actor.pos.z) ** 2;
         const score = zone.priority * 100 + d;
         if (score < bestScore) {
@@ -221,7 +257,7 @@ export class ZoneSystem {
         zone.timer = 0;
         zone.repeat = 0;
       }
-      zone.updateVisual(dt);
+      zone.updateVisual(dt, this.anchor);
     }
   }
 

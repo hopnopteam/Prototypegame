@@ -6,6 +6,7 @@ import {
   PLATFORM_X0,
   platformRoom,
   rearDeck,
+  SERVICE_PROP_HEIGHT,
   trainRearZ,
   type CarriageLayout,
 } from '../world/layout';
@@ -19,6 +20,9 @@ export interface PlacedCarriage extends PlacedLayout {
 
 /** The platform's walkway (session 23: outside the ticket stand's lane, so staff never cut through the queue). */
 const PLATFORM_SPINE_X = PLATFORM_X0 + 4.5;
+/** How far from its pad a piece of furniture still counts as what the pad serves (metres), and how far in from its edge the icon hangs. */
+const SERVICE_REACH = 0.9;
+const SERVICE_INSET = 0.2;
 /** The ticket stand, the luggage barrow, the bench and the newsstand (session 23). */
 const PLATFORM_BLOCKED = platformObstacles();
 const PLATFORM_SPINE_STEP = 4;
@@ -42,6 +46,33 @@ export class TrainMap {
 
   constructor(radius: number) {
     this.walk = new Walkable(radius);
+  }
+
+  /**
+   * The piece of furniture a pad at (x, z) serves (session 26): the nearest service prop within `reach` metres, as the
+   * point over it nearest the pad and its height, or null (a pad in the middle of a room, or on the platform).
+   */
+  serviceAnchor(x: number, z: number, reach = SERVICE_REACH): { x: number; z: number; height: number } | null {
+    let best: { x: number; z: number; height: number } | null = null;
+    let bestD = reach;
+    for (const c of this.carriages) {
+      const closed = this.closedProps(c.index);
+      c.layout.props.forEach((p, i) => {
+        const height = SERVICE_PROP_HEIGHT[p.kind];
+        if (height === undefined || closed?.has(i)) return;
+        const r = p.rect;
+        const z0 = r.z0 + c.originZ;
+        const z1 = r.z1 + c.originZ;
+        const d = Math.hypot(Math.max(r.x0 - x, 0, x - r.x1), Math.max(z0 - z, 0, z - z1));
+        if (d >= bestD) return;
+        bestD = d;
+        // Over the object, a little in from the edge nearest the pad.
+        const inX = Math.min(SERVICE_INSET, (r.x1 - r.x0) / 2);
+        const inZ = Math.min(SERVICE_INSET, (z1 - z0) / 2);
+        best = { x: Math.min(r.x1 - inX, Math.max(r.x0 + inX, x)), z: Math.min(z1 - inZ, Math.max(z0 + inZ, z)), height };
+      });
+    }
+    return best;
   }
 
   /** `tiers` picks each passenger carriage's floor plan (its class); service cars have one plan. */

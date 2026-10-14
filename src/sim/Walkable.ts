@@ -21,6 +21,8 @@ export interface WalkableOptions {
 }
 
 const STEP = 0.08;
+/** Sampling step along a reach line (metres): finer than any wall's gap (two character radii and the wall). */
+const LINE_STEP = 0.1;
 /** A push whose sideways part is under this share of the step counts as head-on (within about 20°). */
 const HEAD_ON = 0.35;
 
@@ -69,6 +71,29 @@ export class Walkable {
 
     this.areas = areas.filter((a) => a.x1 > a.x0 && a.z1 > a.z0);
     this.blocked = blocked;
+  }
+
+  /**
+   * Whether a straight line stays on the floor of the train's rooms and doorways (furniture ignored, walls not): a pad
+   * reaches you only if nothing but low furniture stands between you (session 26; a wall never lets one through).
+   */
+  lineClear(ax: number, az: number, bx: number, bz: number): boolean {
+    const length = Math.hypot(bx - ax, bz - az);
+    const steps = Math.max(1, Math.ceil(length / LINE_STEP));
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const x = ax + (bx - ax) * t;
+      const z = az + (bz - az) * t;
+      let inside = false;
+      for (let k = 0; k < this.areas.length; k++) {
+        if (rectContains(this.areas[k], x, z)) {
+          inside = true;
+          break;
+        }
+      }
+      if (!inside) return false;
+    }
+    return true;
   }
 
   isWalkable(x: number, z: number): boolean {

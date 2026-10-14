@@ -163,7 +163,12 @@ export const VISUALS = {
    * that counts as standing on it (so it reads smaller but is just as easy to step on with a thumb), and the job's
    * icon floats over it at `icon` metres (`iconLit` more while it wants you).
    */
-  pads: { drawScale: 0.8, icon: 0.4, iconLit: 0.14, iconHeight: 0.85 },
+  /**
+   * Interaction pads (session 26: white rings, the icon floating over the furniture): the ring's size against the area
+   * that counts as standing on it, the floating icon's size (and how much it grows when the pad wants you), and its
+   * height over a pad with no furniture beside it (a room to tidy, shoes in the corridor).
+   */
+  pads: { drawScale: 0.95, icon: 0.46, iconLit: 0.12, iconHeight: 1.1 },
 };
 
 export type Visuals = typeof VISUALS;

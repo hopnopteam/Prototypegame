@@ -97,6 +97,8 @@ const MAX_WIRES_WAITING = 3;
 const SPEECH_GAP_SECONDS = 4;
 /** Session 26: a shorter stay (the card is smaller and reads at a glance). */
 const RESULT_SECONDS = 4;
+/** Stars and notes in flight at once, at most (beyond this a reward just counts in). */
+const MAX_FLYERS = 12;
 /** Seconds a queued announcement may wait (behind another one or an open sheet) before it is dropped. */
 const BANNER_MAX_DELAY = 5;
 const CELEBRATE_MAX_DELAY = 60;
@@ -984,7 +986,9 @@ export class Ui implements GameUi {
     if (this.hidden || this.hud.level.classList.contains('unrevealed')) return false;
     this.tmp.set(x, y, z);
     if (!this.game.stage.project(this.tmp, this.screen)) return false;
-    const count = Math.max(1, Math.min(5, amount));
+    // Session 26: at most three stars per reward, and no more than a dozen in the air at once.
+    if (this.flyers.length > MAX_FLYERS) return true;
+    const count = Math.max(1, Math.min(3, amount));
     let assigned = 0;
     for (let i = 0; i < count; i++) {
       const share = i === count - 1 ? amount - assigned : Math.floor(amount / count);

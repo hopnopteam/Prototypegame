@@ -105,6 +105,13 @@ export const ECONOMY = {
   },
 
   zones: {
+    /**
+     * Session 26 (owner: "when you reach that place it does the thing, so the player doesn't have to fiddle around and
+     * stand in that specific box"): a job pad (tidy, polish, brew, pick up, drop off) counts you this many times its
+     * ring's radius away, as long as no wall stands between (low furniture does not count). Unlock tiles, which spend
+     * money, still have to be stood on.
+     */
+    reach: 1.6,
     /** Session 24: handing a ticketed guest their cabin key at the desk (the fare was paid at the ticket stand). */
     checkInSeconds: 0.9,
     /** Stand this long at a shelf before the first item comes off it, so walking past never grabs anything. */

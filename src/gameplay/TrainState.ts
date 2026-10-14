@@ -1419,18 +1419,21 @@ export class TrainState {
     w.audio.play('ding');
     const room = cabin.layout.room;
     const originZ = carriageOriginZ(cabin.carriage);
-    for (let k = 0; k < 10; k++) {
-      const a = (k / 10) * Math.PI * 2;
+    // The full sparkle, the tick and the stars flying up are for the player's own tidy (staff tidy quietly, with a
+    // little sparkle: session 26, a train of attendants used to fill the screen with ticks and stars).
+    const mine = actor.isPlayer;
+    for (let k = 0; k < (mine ? 10 : 4); k++) {
+      const a = (k / (mine ? 10 : 4)) * Math.PI * 2;
       w.particles.emit('sparkle', (room.x0 + room.x1) / 2 + Math.cos(a) * 0.9, FLOOR_Y + 0.5, originZ + (room.z0 + room.z1) / 2 + Math.sin(a) * 0.8, 2, 0.25);
     }
-    w.particles.emit('star', cabin.center.x, FLOOR_Y + 0.8, cabin.center.z, 8, 0.4);
+    if (mine) w.particles.emit('star', cabin.center.x, FLOOR_Y + 0.8, cabin.center.z, 8, 0.4);
     const bed = this.views[cabin.carriage]?.cabinBeds[cabin.index];
     if (bed) {
       bed.scale.set(1, 0.85, 1);
       w.tweens.run(0.45, (t) => bed.scale.set(1, 0.85 + 0.15 * t, 1), { ease: easeOutBack });
     }
-    w.ui.floatIcon('check', cabin.center.x, FLOOR_Y + 1.6, cabin.center.z, 'info');
-    w.addStars(w.econ.stars.cabinCleaned * (this.classOf(cabin.carriage)?.stars ?? 1), 'clean', cabin.center);
+    if (mine) w.ui.floatIcon('check', cabin.center.x, FLOOR_Y + 1.6, cabin.center.z, 'info');
+    w.addStars(w.econ.stars.cabinCleaned * (this.classOf(cabin.carriage)?.stars ?? 1), 'clean', mine ? cabin.center : undefined);
     if (actor.isPlayer) w.setFlag('firstCabinCleaned');
     w.events.emit('cabin.cleaned', { byPlayer: actor.isPlayer, x: cabin.center.x, z: cabin.center.z });
   }

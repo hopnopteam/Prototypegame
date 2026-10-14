@@ -603,7 +603,8 @@ export class Venues {
       w.train.views[venue.carriage]?.setVenueDirty(group, false);
       w.particles.emit('sparkle', pad.x, FLOOR_Y + 0.8, pad.z, 8, 0.3);
       w.audio.play('pop', { volume: 0.6 });
-      w.addStars(VENUE_TUNING.stars, 'venue', pad);
+      // Session 26: stars fly only from what the player did (staff work counts quietly; a screen of flying stars was noise).
+      w.addStars(VENUE_TUNING.stars, 'venue', actor.isPlayer ? pad : undefined);
       w.events.emit('venue.cleared', { kind: venue.kind, byPlayer: actor.isPlayer });
       return true;
     }
@@ -616,7 +617,7 @@ export class Venues {
     w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.5, guest.pos.z, 4, 0.2);
     w.audio.play('heart', { volume: 0.7 });
     // A flat star per service (class stars are for the rooms: a royal latte is still one latte).
-    w.addStars(VENUE_TUNING.stars, 'venue', guest.pos);
+    w.addStars(VENUE_TUNING.stars, 'venue', actor.isPlayer ? guest.pos : undefined);
     w.events.emit('venue.served', { kind: venue.kind, item, amount, x: guest.pos.x, z: guest.pos.z, byPlayer: actor.isPlayer });
   }
 
@@ -662,7 +663,7 @@ export class Venues {
     }
     if (guests > 0) {
       w.audio.play('sparkle', { pitch: 1.15 });
-      w.addStars(VENUE_TUNING.stars * guests, 'venue', venue.world(venue.layout.sign ?? { x: 0, z: 9 }));
+      w.addStars(VENUE_TUNING.stars * guests, 'venue');
       w.events.emit('venue.scenic', { guests, amount: total });
     }
   }
@@ -717,7 +718,7 @@ export class Venues {
     if (venue.filmWaiting().length > 0) venue.waitingSince = w.time;
     if (guests > 0) {
       w.audio.play('heart', { volume: 0.8 });
-      w.addStars(VENUE_TUNING.stars * guests, 'venue', venue.world(venue.layout.projector ?? { x: 0, z: 9 }));
+      w.addStars(VENUE_TUNING.stars * guests, 'venue');
       w.events.emit('venue.film', { guests, amount: total });
     }
   }

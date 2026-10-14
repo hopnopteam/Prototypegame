@@ -264,6 +264,10 @@ export class Game implements World {
     this.map = new TrainMap(this.econ.player.radius);
     this.demand = new Demand(this);
     this.zones = new ZoneSystem(this.scene);
+    // Job pads reach further than their rings, never through a wall, and float their icons over what they serve.
+    this.zones.reach = this.econ.zones.reach;
+    this.zones.reachClear = (ax, az, bx, bz) => this.map.walk.lineClear(ax, az, bx, bz);
+    this.zones.anchor = (x, z) => this.map.serviceAnchor(x, z);
     this.cash = new CashPiles(this);
     this.train = new TrainState(this);
     this.scene.add(this.train.group);

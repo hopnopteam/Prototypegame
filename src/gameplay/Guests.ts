@@ -981,11 +981,12 @@ export class Guests {
     const butler = listDone ? w.econ.classes.butlerBonus : 1;
     const tip = Math.max(1, Math.round(base * guest.archetype.tipMultiplier * w.tipMultiplier() * comfort * speed * butler));
     w.cash.add(guest.cabin.pileId, tip, this.tmp.set(guest.pos.x, FLOOR_Y + 1.1, guest.pos.z));
-    if (byPlayer && speed > 1) {
+    // Only the top speed earns the bolt (session 26: one sign, for the fastest service, not one for every quick one).
+    if (byPlayer && speed >= service.speedyTipMultiplier) {
       w.ui.floatIcon('bolt', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, speed >= service.speedyTipMultiplier ? 'star' : 'info');
       w.audio.play('sparkle', { pitch: speed >= service.speedyTipMultiplier ? 1.25 : 1 });
     }
-    w.addStars(w.econ.stars.requestFulfilled * CLASS_BY_ID[guest.cls].stars, 'request', guest.pos);
+    w.addStars(w.econ.stars.requestFulfilled * CLASS_BY_ID[guest.cls].stars, 'request', byPlayer ? guest.pos : undefined);
     w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.6, guest.pos.z, 5, 0.2);
     w.audio.play('heart');
     guest.view.bounce(1);

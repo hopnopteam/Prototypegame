@@ -1286,6 +1286,17 @@ export function platformRoom(carriageCount: number): Rect {
 }
 
 /** Walk-over zone radii (metres), shared by gameplay and the placement test so they cannot drift apart. */
+/**
+ * Session 26 (owner, after My Perfect Hotel: "a logo above the thing, and when you reach that place it does the
+ * thing"): the furniture a pad serves, with the height of its top. A pad's floating icon hangs over the nearest of
+ * these beside it (the espresso machine, the urn, the desk, a washroom's shelf), not over the floor.
+ */
+export const SERVICE_PROP_HEIGHT: Partial<Record<PropKind, number>> = {
+  desk: 0.9, urn: 1.2, linen: 1.7, rack: 0.95, bin: 0.6, washShelf: 0.9, shelfTowel: 0.65, shelfRoll: 0.65, crateBay: 0.95,
+  luggageRack: 0.95, closet: 1.8, laundry: 1.0, counter: 0.95, espresso: 1.4, pastryCase: 1.3, pastries: 1.1, beans: 1.2,
+  range: 0.95, pass: 1.0, bar: 1.05, basket: 0.6, rope: 0.9, projector: 1.05, concession: 0.95, popcornMachine: 1.5,
+};
+
 export const ZONE_RADIUS = {
   desk: 0.45,
   source: 0.5,

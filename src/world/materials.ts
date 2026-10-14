@@ -761,40 +761,37 @@ export function createZoneMaterial(color: string, icon: THREE.Texture | null = n
       uniform float uIconAngle;
       varying vec2 vUv;
       #include <common>
-      // Rounded square: a painted floor pad, like a station marking.
-      float roundBox(vec2 p, vec2 b, float r) {
-        vec2 q = abs(p) - b + r;
-        return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
-      }
+      // Session 26 (owner, after My Perfect Hotel): a quiet white ring on the floor, not a coloured tile. A soft dark
+      // keyline lets it read on pale floors, a faint wash inside, and a fresh green fill sweeping round as the job is
+      // done. The icon floats over the furniture instead (ZoneRing), so nothing is printed here.
       void main() {
         vec2 p = vUv * 2.0 - 1.0;
-        float d = roundBox(p, vec2(0.9), 0.34);
-        float aa = fwidth(d) * 1.2;
-        float inside = 1.0 - smoothstep(-aa, aa, d);
-        if (inside <= 0.0) discard;
-        // Session 24 (My Perfect Hotel's pads): a soft colour for the kind of job, a white border, the job's white
-        // icon printed in the middle (turned to read upright on screen), a white sweep while it works, warm gold
-        // when it wants you.
-        float outline = smoothstep(-0.05 - aa, -0.05 + aa, d) * inside;
-        float border = smoothstep(-0.18 - aa, -0.18 + aa, d) * inside;
+        float r = length(p);
+        float aa = fwidth(r) * 1.4;
+        if (r > 1.0) discard;
+        float disc = 1.0 - smoothstep(0.985 - aa, 0.985 + aa, r);
+        float band = smoothstep(0.76 - aa, 0.76 + aa, r) * (1.0 - smoothstep(0.92 - aa, 0.92 + aa, r));
+        float key = smoothstep(0.92 - aa, 0.92 + aa, r) * disc;
+        float inner = 1.0 - smoothstep(0.76 - aa, 0.76 + aa, r);
         float angle = atan(p.x, p.y);
         float a = (angle + PI) / (2.0 * PI);
         float working = step(0.001, uProgress);
         float filled = step(a, uProgress) * working;
         float breathe = 0.5 + 0.5 * sin(uTime * 4.0);
-        // The night grade dulls flat colour, so the pad's colour is lifted to read as itself on every tier.
-        vec3 base = mix(uColor, uLitColor, uLit * 0.35) * 1.35;
-        // While it works the part still to fill dims and the filled part brightens, so the sweep reads on any colour.
-        vec3 color = mix(base, base * 0.62, working * (1.0 - filled));
-        color = mix(color, mix(base, vec3(1.0), 0.35), filled);
-        color = mix(color, vec3(0.95), border);
-        color = mix(color, vec3(0.17, 0.15, 0.21), outline * 0.45);
-        float c = cos(uIconAngle);
-        float s = sin(uIconAngle);
-        vec2 ip = vec2(c * p.x - s * p.y, s * p.x + c * p.y) / 1.45 + 0.5;
-        float icon = uHasIcon * texture2D(uIcon, ip).a * step(0.0, ip.x) * step(ip.x, 1.0) * step(0.0, ip.y) * step(ip.y, 1.0);
-        color = mix(color, vec3(0.95), icon * 0.95);
-        float alpha = inside * (0.78 + 0.12 * uLit * breathe + 0.1 * filled + 0.1 * uPulse) + border * 0.9 + icon * 0.9;
+        // The night grade dulls white to grey: lift it so the ring reads as white on every tier.
+        vec3 white = vec3(1.6);
+        vec3 green = vec3(0.62, 1.45, 0.66);
+        vec3 color = white;
+        float alpha = 0.0;
+        // The wash inside, and the fill sweeping round it as the job is done.
+        color = mix(color, green, inner * filled);
+        alpha += inner * (0.08 + 0.06 * uLit + 0.5 * filled);
+        // The ring: steady at rest, breathing when it wants you, bright in the filled part of the sweep.
+        color = mix(color, mix(white, green, 0.35), band * filled);
+        alpha += band * (0.78 + 0.22 * uLit * breathe + 0.2 * uPulse);
+        // A soft dark keyline round the outside.
+        color = mix(color, vec3(0.12, 0.11, 0.16), key);
+        alpha += key * 0.32;
         gl_FragColor = vec4(color, min(1.0, alpha) * uOpacity);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
