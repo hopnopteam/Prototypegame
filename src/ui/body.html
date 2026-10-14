@@ -2,4 +2,26 @@
   <canvas id="scene" aria-label="Night Express game view"></canvas>
   <div id="vignette" aria-hidden="true"></div>
   <div id="ui"></div>
+  <div id="loader" class="loader" role="status" aria-label="Loading Night Express">
+    <div class="loader-moon" aria-hidden="true"></div>
+    <div class="loader-card">
+      <div class="loader-kicker">The luxury sleeper</div>
+      <h1 class="loader-word">Night<br>Express</h1>
+    </div>
+    <div class="loader-foot">
+      <div class="loader-rail" aria-hidden="true">
+        <div class="loader-fill"></div>
+        <svg class="loader-loco" viewBox="0 0 64 40" width="54" height="34">
+          <path d="M6 14h30v-6h10v6h4l8 8v8H6z" fill="#FBF3E4" stroke="#2A2433" stroke-width="3" stroke-linejoin="round"/>
+          <rect x="12" y="4" width="7" height="10" rx="1.5" fill="#2C4A6E" stroke="#2A2433" stroke-width="3"/>
+          <rect x="38" y="11" width="6" height="6" rx="1" fill="#F2B233"/>
+          <path d="M6 24h52" stroke="#C0485C" stroke-width="3"/>
+          <circle cx="16" cy="32" r="5" fill="#2A2433"/><circle cx="32" cy="32" r="5" fill="#2A2433"/><circle cx="48" cy="32" r="5" fill="#2A2433"/>
+          <circle cx="16" cy="32" r="1.6" fill="#F2B233"/><circle cx="32" cy="32" r="1.6" fill="#F2B233"/><circle cx="48" cy="32" r="1.6" fill="#F2B233"/>
+        </svg>
+      </div>
+      <div class="loader-hint"><span class="loading">Loading</span><span class="tap">Tap to play</span></div>
+    </div>
+    <div class="loader-credit">Hopnop</div>
+  </div>
 </div>

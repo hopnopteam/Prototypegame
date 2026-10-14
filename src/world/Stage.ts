@@ -171,6 +171,12 @@ export class Stage {
     this.renderer.debug.checkShaderErrors = on;
   }
 
+  /** Play begins (after the loading screen): the frame-rate judge starts afresh, after its grace period. */
+  restartJudging(): void {
+    this.judgeFrom = this.clock + VISUALS.quality.dynamicResolution.graceSeconds;
+    this.resetWindow();
+  }
+
   private applyTier(tier: QualityTier): void {
     this.tier = tier;
     const s = tierSettings(tier);

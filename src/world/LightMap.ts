@@ -70,6 +70,11 @@ export class LightMap {
     }, () => this.platform);
   }
 
+  /** A bake still in progress. */
+  get busy(): boolean {
+    return this.trainJob !== null || this.platformJob !== null;
+  }
+
   /** Advances any bake in progress within the frame's budget. */
   update(): void {
     if (!this.trainJob && !this.platformJob) return;

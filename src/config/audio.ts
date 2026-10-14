@@ -46,8 +46,11 @@ export const AUDIO = {
    */
   musicDuck: { level: 0.2, attack: 0.18, hold: 0.2, release: 1.5 },
   music: {
-    /** Seconds to fade the theme in at the start (and after it is switched back on) and out when switched off. */
-    fadeIn: 1.2,
+    /**
+     * Seconds to fade the theme in at the start (and after it is switched back on) and out when switched off. Session 26:
+     * 2 s, starting as play begins (owner: "start with fading in for like 2 seconds").
+     */
+    fadeIn: 2,
     fadeOut: 0.8,
     /** Low-pass on the music: open by day, warmer and softer at night. */
     dayCutoff: 16000,

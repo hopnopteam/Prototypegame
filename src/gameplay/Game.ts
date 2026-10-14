@@ -82,6 +82,8 @@ const BACKGROUND_BUDGET_MS = 2;
 /** The first minute is the walkthrough: idle seconds are counted after it (session 24). */
 const IDLE_GRACE_SECONDS = 60;
 const FRAME_WORK_MS = 2.5;
+/** Behind the loading screen nobody sees a slow frame: queued work (bakes, scenery, rebuilds) gets this much a frame. */
+const LOADING_WORK_MS = 40;
 /** Where the save lives (localStorage, mirrored into the app's own storage on iOS and Android). */
 export const SAVE_KEY = 'nightexpress.save';
 const MAX_FRAME = 0.05;
@@ -441,8 +443,19 @@ export class Game implements World {
     requestAnimationFrame(frame);
   }
 
+  /**
+   * Behind the loading screen (session 26): the game draws its first frames unseen, with a big work budget, so the
+   * light bake, the next stretch of scenery and any rebuilds are done (and the JIT and the GPU warmed) before play.
+   */
+  loading = false;
+
+  /** Nothing is still being built or baked a slice at a time (the loading screen waits for this). */
+  get settled(): boolean {
+    return !this.background.busy && !this.stage.lightMap.busy && this.scenery.prepared;
+  }
+
   private frame(realDt: number): void {
-    frameWork.begin(FRAME_WORK_MS);
+    frameWork.begin(this.loading ? LOADING_WORK_MS : FRAME_WORK_MS);
     if (!this.paused && !this.adPlaying) {
       // Fast-forward (dev) runs several normal-sized steps so nothing tunnels through a zone.
       let remaining = Math.min(realDt, MAX_FRAME * 4) * this.timeScale;
@@ -525,7 +538,7 @@ export class Game implements World {
     this.particles.setScale(PARTICLE_SCALE * this.stage.renderer.getPixelRatio());
     this.ui.update(realDt);
     // Rebuilds in progress get a slice of every frame, never a whole frame.
-    this.background.run(BACKGROUND_BUDGET_MS);
+    this.background.run(this.loading ? LOADING_WORK_MS : BACKGROUND_BUDGET_MS);
     this.characters.sync();
     this.stage.render(realDt);
     this.perfOverlay?.update(realDt, () => this.perfReport());
@@ -839,6 +852,11 @@ export class Game implements World {
   }
 
   private introSkipped = false;
+
+  /** Tools and tests skip the intro before the game has even started: the loading screen then gets out of their way. */
+  get skippedEarly(): boolean {
+    return this.introSkipped;
+  }
 
   get inIntro(): boolean {
     return this.cinematic !== null;

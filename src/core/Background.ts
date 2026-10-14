@@ -34,6 +34,11 @@ export class Background {
     if (i >= 0) this.jobs.splice(i, 1);
   }
 
+  /** Anything still queued. */
+  get busy(): boolean {
+    return this.jobs.length > 0;
+  }
+
   has(key: string): boolean {
     return this.jobs.some((j) => j.key === key);
   }

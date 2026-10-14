@@ -746,3 +746,47 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 
 /* The live performance overlay (session 24; ?perf=1 or Developer tools): out of the HUD's way, never touchable. */
 .perf-overlay { position: absolute; z-index: 60; left: 6px; bottom: calc(var(--safe-bottom) + 6px); margin: 0; padding: 5px 7px; border-radius: 6px; background: rgba(12, 14, 24, 0.72); color: #CFF5D6; font: 600 10px/1.35 ui-monospace, Menlo, Consolas, monospace; white-space: pre; pointer-events: none; }
+
+/* ── Loading screen (session 26) ─────────────────────────
+   Static markup in body.html, so it is the very first paint, before the script has even parsed. It stays up while
+   the shaders compile, the sounds render and the first frames are drawn behind it (owner: "if we need a loading
+   right at the start and it improves performance you can have it"), then fades to the game with the music. */
+.loader {
+  position: fixed; inset: 0; z-index: 200; box-sizing: border-box; display: grid; grid-template-rows: minmax(0, 1fr) auto auto; justify-items: center; align-items: center;
+  padding: calc(var(--safe-top) + 24px) 28px calc(var(--safe-bottom) + 18px); overflow: hidden; color: var(--cream); font-family: var(--font); cursor: default;
+  background:
+    radial-gradient(1.5px 1.5px at 12% 18%, #fff9 50%, transparent 51%), radial-gradient(1px 1px at 28% 9%, #fff8 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 44% 24%, #fff7 50%, transparent 51%), radial-gradient(1px 1px at 63% 13%, #fff9 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 81% 30%, #fff6 50%, transparent 51%), radial-gradient(1px 1px at 90% 8%, #fff8 50%, transparent 51%),
+    radial-gradient(1px 1px at 8% 40%, #fff6 50%, transparent 51%), radial-gradient(1.5px 1.5px at 36% 44%, #fff5 50%, transparent 51%),
+    radial-gradient(1px 1px at 72% 48%, #fff6 50%, transparent 51%), radial-gradient(1px 1px at 55% 36%, #fff7 50%, transparent 51%),
+    radial-gradient(ellipse 120% 70% at 50% 110%, #2F4C82 0%, transparent 60%),
+    linear-gradient(180deg, #121A2E 0%, #1C2740 45%, #263A63 100%);
+  transition: opacity 520ms ease-out;
+}
+.loader.out { opacity: 0; pointer-events: none; }
+.loader-moon {
+  position: absolute; top: calc(var(--safe-top) + 9%); right: 14%; width: 64px; height: 64px; border-radius: 50%;
+  background: radial-gradient(circle at 38% 36%, #FFFBEA 0%, #F5E7BF 60%, #E8D49F 100%); box-shadow: 0 0 40px 12px #F5E7BF33, 0 0 120px 40px #F5E7BF14;
+}
+.loader-card {
+  position: relative; align-self: center; box-sizing: border-box; width: min(320px, 100%); padding: 24px 18px 18px; text-align: center; border-radius: 22px;
+  background: linear-gradient(#FFFDF7, #F3E4C6); border: var(--line); box-shadow: 0 6px 0 var(--ink), var(--bevel); animation: logoIn 700ms cubic-bezier(.2,1.3,.4,1);
+}
+.loader-kicker {
+  position: absolute; left: 50%; top: 0; translate: -50% -55%; white-space: nowrap; padding: 5px 13px; border-radius: 999px; background: linear-gradient(#FFD266, var(--mustard));
+  border: 2.5px solid var(--ink); box-shadow: 0 3px 0 var(--ink); font-weight: 800; font-size: 11px; letter-spacing: 0.2em; text-indent: 0.2em; text-transform: uppercase; color: var(--ink);
+}
+.loader-word { margin: 0; font-weight: 800; font-size: min(14vw, 7vh, 54px); line-height: 0.95; letter-spacing: 0.06em; text-indent: 0.06em; color: var(--navy); text-transform: uppercase; }
+.loader-foot { width: min(300px, 100%); display: grid; gap: 10px; justify-items: center; margin-bottom: 18px; }
+.loader-rail { --p: 0; position: relative; width: 100%; height: 10px; border-radius: 6px; background: #0B1222; border: 2.5px solid var(--ink); box-shadow: inset 0 2px 0 #0006; }
+.loader-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--p) * 100%); border-radius: 4px; background: linear-gradient(#FFD266, var(--mustard)); transition: width 260ms ease-out; }
+.loader-loco { position: absolute; bottom: 6px; left: calc(var(--p) * 100%); translate: -50% 0; transition: left 260ms ease-out; filter: drop-shadow(0 2px 0 #0008); }
+.loader-hint { position: relative; height: 22px; font-weight: 800; font-size: 14px; letter-spacing: 0.2em; text-indent: 0.2em; text-transform: uppercase; }
+.loader-hint .loading { opacity: 0.6; }
+.loader-hint .tap { display: none; color: #FFD266; animation: tapPulse 1.3s ease-in-out infinite; }
+.loader.ready { cursor: pointer; }
+.loader.ready .loading { display: none; }
+.loader.ready .tap { display: inline; }
+@keyframes tapPulse { 0%, 100% { opacity: 1; scale: 1; } 50% { opacity: 0.55; scale: 0.96; } }
+.loader-credit { font-weight: 700; font-size: 11px; letter-spacing: 0.3em; text-indent: 0.3em; text-transform: uppercase; opacity: 0.4; }

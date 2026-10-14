@@ -49,16 +49,43 @@ await page.addInitScript(() => {
   for (const type of ['pointerup', 'touchend', 'click', 'keydown']) {
     document.addEventListener(type, () => { if (window.__touchAt === undefined && window.__ctx) window.__touchAt = window.__ctx.currentTime; }, true);
   }
+  // Session 26: the music starts as the loading screen gives way to play; note when that happens on the audio clock.
+  const watch = setInterval(() => {
+    const loader = document.getElementById('loader');
+    if (window.__ctx && document.readyState !== 'loading' && (!loader || loader.classList.contains('out'))) {
+      window.__loaderOutAt = window.__ctx.currentTime;
+      clearInterval(watch);
+    }
+  }, 20);
 });
 
 await page.goto(`file://${file}`);
-await page.waitForTimeout(800);
-// Session 18: the theme is decoded at boot, before any touch, so it can start on the very first tap.
-await page.waitForFunction(() => window.nightExpress?.audio?.theme, null, { timeout: 8000 }).catch(() => undefined);
-check(await page.evaluate(() => !!window.nightExpress.audio.theme), 'the theme is decoded before the first touch');
-await page.mouse.click(195, 700);
+// Session 26: the loading screen stays up until the shaders are compiled, the cues rendered and the first frames
+// drawn; the theme is decoded behind it and starts, with a 2 s fade, as it gives way to play.
+await page.waitForFunction(() => !document.getElementById('loader'), null, { timeout: 90000 }).catch(() => undefined);
+check(await page.evaluate(() => !!window.nightExpress.audio.theme), 'the theme is decoded behind the loading screen');
+check(await page.evaluate(() => window.nightExpress.audio.prerendered), 'every cue is pre-rendered (played as a buffer, not synthesised live)');
+// The pre-rendered reward jingles are whole: each rings down to silence on its own (nothing cuts it short).
+const tails = await page.evaluate(() => {
+  const bank = window.nightExpress.audio.bank;
+  const out = {};
+  for (const name of ['fanfare', 'levelup', 'perfect', 'chest', 'unlock', 'ceremony', 'cash']) {
+    const cue = bank.get(name);
+    if (!cue) { out[name] = null; continue; }
+    const d = cue.buffer.getChannelData(0);
+    let peak = 0;
+    for (const v of d) peak = Math.max(peak, Math.abs(v));
+    const n = Math.floor(cue.buffer.sampleRate * 0.05);
+    let end = 0;
+    for (let i = d.length - n; i < d.length; i++) end = Math.max(end, Math.abs(d[i]));
+    out[name] = { seconds: cue.buffer.duration, peak, end };
+  }
+  return out;
+});
+for (const [name, t] of Object.entries(tails)) {
+  check(!!t && t.end < t.peak * 0.01, `the ${name} cue rings out to silence (${t ? `${t.seconds.toFixed(2)} s, last 50 ms at ${(20 * Math.log10(t.end / t.peak + 1e-9)).toFixed(0)} dB` : 'missing'})`);
+}
 await page.evaluate(() => window.nightExpress.skipIntro?.());
-await page.waitForFunction(() => !document.querySelector('.splash'), null, { timeout: 3000 }).catch(() => undefined);
 await page.evaluate(() => { window.nightExpress.setAutopilot(true); window.nightExpress.audio.unlock(); });
 await page.waitForFunction(() => window.nightExpress.audio.theme !== null, null, { timeout: 10000 }).catch(() => undefined);
 check(await page.evaluate(() => window.__ctx?.state === 'running'), 'audio context runs after the first touch');
@@ -106,7 +133,7 @@ const result = await page.evaluate(() => {
   let bin = '';
   const bytes = new Uint8Array(pcm.buffer);
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return { sr, n, peak, perSecond, pcm: btoa(bin), passes: window.__passStarts, loop: window.nightExpress.audio.passes.length, recStart: window.__recStart ?? 0, touchAt: window.__touchAt ?? window.__recStart ?? 0 };
+  return { sr, n, peak, perSecond, pcm: btoa(bin), passes: window.__passStarts, loop: window.nightExpress.audio.passes.length, recStart: window.__recStart ?? 0, startAt: window.__loaderOutAt ?? window.__recStart ?? 0 };
 });
 // Away and back: the music fades out, the context suspends, and it all comes back on return.
 {
@@ -153,17 +180,40 @@ const result = await page.evaluate(() => {
   const back = await page.evaluate(() => window.nightExpress.audio.musicDuck.gain.value);
   check(back > 0.95, `the theme comes back after it (${back.toFixed(2)})`);
 }
-// A phone: a touch tap (whose pointerdown is not an audio gesture; its touchend / pointerup is) starts the theme.
+// A phone in a browser tab (no autoplay): the loading screen ends on "Tap to play", and that tap starts the theme.
 {
-  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const strict = await playwright.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=user-gesture-required'] });
+  const phone = await strict.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const tapPage = await phone.newPage();
+  // Headless Chromium lets audio start without a gesture whatever the flags say: make it as strict as a phone's
+  // browser, where resume() is refused until the page has had a real user activation.
+  await tapPage.addInitScript(() => {
+    const Real = window.AudioContext;
+    // Playwright's own evaluate() calls count as user activation, so a real (trusted) touch or click is tracked instead.
+    let touched = false;
+    for (const type of ['pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(type, (e) => { if (e.isTrusted) touched = true; }, true);
+    const allowed = () => touched;
+    window.AudioContext = class extends Real {
+      constructor(...args) {
+        super(...args);
+        if (!allowed()) void Real.prototype.suspend.call(this);
+      }
+      resume() {
+        return allowed() ? Real.prototype.resume.call(this) : Promise.reject(new Error('not allowed'));
+      }
+    };
+  });
   await tapPage.goto(`file://${file}`);
-  await tapPage.waitForFunction(() => window.nightExpress?.audio?.theme, null, { timeout: 8000 }).catch(() => undefined);
-  await tapPage.evaluate(() => window.nightExpress.skipIntro?.());
+  await tapPage.waitForFunction(() => document.getElementById('loader')?.classList.contains('ready') || !document.getElementById('loader'), null, { timeout: 90000 }).catch(() => undefined);
+  const asked = await tapPage.evaluate(() => !!document.getElementById('loader')?.classList.contains('ready'));
+  check(asked, 'without autoplay the loading screen ends on "Tap to play"');
+  check(await tapPage.evaluate(() => (window.nightExpress.audio.passes ?? []).length === 0), 'the music waits for that tap (it starts with play, not before)');
   await tapPage.touchscreen.tap(195, 700);
   await tapPage.waitForFunction(() => window.nightExpress.audio.unlocked && window.nightExpress.audio.passes.length > 0, null, { timeout: 3000 }).catch(() => undefined);
-  check(await tapPage.evaluate(() => window.nightExpress.audio.unlocked && window.nightExpress.audio.passes.length > 0), 'a touch tap on a phone starts the theme at once');
-  await phone.close();
+  check(await tapPage.evaluate(() => window.nightExpress.audio.unlocked && window.nightExpress.audio.passes.length > 0), 'the tap starts the sound and the theme at once');
+  await tapPage.waitForFunction(() => !document.getElementById('loader'), null, { timeout: 3000 }).catch(() => undefined);
+  check(await tapPage.evaluate(() => !document.getElementById('loader')), 'and the game is on screen');
+  await strict.close();
 }
 await browser.close();
 
@@ -176,8 +226,8 @@ check(result.peak < 0.99, 'the output never clips');
 // renderer keeps busy for seconds here; on a phone it is a fraction of a second).
 const FADE_IN = 2.5;
 const themeFrom = result.passes.length ? Math.max(0, Math.ceil(result.passes[0] - result.recStart + FADE_IN)) : 0;
-const afterTouch = result.passes.length ? result.passes[0] - Math.max(result.recStart, result.touchAt) + FADE_IN : Infinity;
-check(result.passes.length > 0 && afterTouch < 3, `the theme starts soon after the first touch (${afterTouch.toFixed(1)} s after it, fade included; ${themeFrom} s into the recording)`);
+const afterStart = result.passes.length ? result.passes[0] - result.startAt : Infinity;
+check(result.passes.length > 0 && afterStart < 0.5, `the theme starts as play begins (${afterStart.toFixed(2)} s after the loading screen gives way; ${themeFrom} s into the recording)`);
 check(result.perSecond.slice(themeFrom).every((v) => v > -70), 'never silent once the theme is in (it plays under everything), even through a 3 s main-thread stall');
 const inPlay = result.perSecond.slice(themeFrom);
 const quietest = inPlay.length ? Math.min(...inPlay) : -99;

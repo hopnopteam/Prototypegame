@@ -392,6 +392,11 @@ export class Scenery {
     this.forced = null;
   }
 
+  /** The next stretch to come round is built and waiting (or there is none to build). */
+  get prepared(): boolean {
+    return !this.pending || this.pending.ready !== null;
+  }
+
   /** Builds a stretch now, in one go (start-up and the dev tools). */
   private assign(chunk: Chunk): void {
     this.install(chunk, chunk.z, runSteps(this.prepare(chunk.z)));
