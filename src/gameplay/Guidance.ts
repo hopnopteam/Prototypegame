@@ -33,6 +33,8 @@ const REACHED = 0.9;
 const ARROW_SIZE = 0.62;
 const ARROW_HEIGHT = 1.75;
 const ARROW_BOB = 0.28;
+/** Over a job's badge the arrow's tip clears the badge's top by this much (metres; session 27). */
+const ARROW_OVER_BADGE = 0.55;
 
 /**
  * A bouncing arrow over the next useful thing and a screen-edge pointer when it is off-screen (the Coach
@@ -42,6 +44,8 @@ const ARROW_BOB = 0.28;
 export class Guidance {
   private readonly arrow: THREE.Group;
   private target: Vec2 | null = null;
+  /** Where the arrow hangs for the target: over the job's badge if the target is a job (session 27). */
+  private readonly arrowAt = { x: 0, z: 0, y: ARROW_HEIGHT };
   /** Whether the arrow is up for the current target (see `shouldShow`), and its eased size. */
   private shown = false;
   private grow = 0;
@@ -70,6 +74,7 @@ export class Guidance {
       this.thinkTimer = 0.3;
       this.target = this.enabled ? this.pick() : null;
       this.shown = this.shouldShow();
+      if (this.target) this.placeArrow(this.target);
     }
     const target = this.shown ? this.target : null;
     const player = w.player.pos;
@@ -77,12 +82,31 @@ export class Guidance {
     this.grow = Math.max(0, Math.min(1, this.grow + (target && !near ? dt : -dt) / ARROW_FADE));
     this.arrow.visible = this.grow > 0.01;
     if (target) {
-      // A soft bounce, its tip just above head height over the spot.
-      this.arrow.position.set(target.x, FLOOR_Y + ARROW_HEIGHT + Math.abs(Math.sin(this.time * 4)) * ARROW_BOB, target.z);
+      // A soft bounce, its tip just above head height over the spot (or over the job's badge).
+      const a = this.arrowAt;
+      this.arrow.position.set(a.x, FLOOR_Y + a.y + Math.abs(Math.sin(this.time * 4)) * ARROW_BOB, a.z);
     }
     const g = this.grow * this.grow * (3 - 2 * this.grow);
     this.arrow.scale.setScalar(Math.max(0.001, g));
     this.updatePointer(target && !near ? target : null);
+  }
+
+  /**
+   * Session 27: a job has nothing on the floor, only its badge over the thing it is about, so the arrow points at the
+   * badge (just above it) rather than at an empty bit of floor beside it.
+   */
+  private placeArrow(target: Vec2): void {
+    const a = this.arrowAt;
+    a.x = target.x;
+    a.z = target.z;
+    a.y = ARROW_HEIGHT;
+    for (const zone of this.w.zones.zones) {
+      if (!zone.marker || Math.abs(zone.x - target.x) > 0.05 || Math.abs(zone.z - target.z) > 0.05) continue;
+      a.x = zone.ax;
+      a.z = zone.az;
+      a.y = Math.max(ARROW_HEIGHT, zone.marker.height + ARROW_OVER_BADGE);
+      return;
+    }
   }
 
   /**

@@ -12,6 +12,8 @@ export type ZoneKind = 'work' | 'pickup' | 'drop';
 
 /** How far over the top of the furniture a job's badge hangs (metres). */
 const ICON_OVER_FURNITURE = 0.5;
+/** The no-wall test toward a job's furniture stops this short of its centre (metres). */
+const BADGE_LINE_SHORT = 0.4;
 
 export interface ZoneOptions {
   id: string;
@@ -253,7 +255,7 @@ export class ZoneSystem {
         const inArea = zone.reaches && zone.inArea(x, z);
         if (!onSpot && !nearSpot && !nearBadge && !inArea) continue;
         if (!zone.isActive()) continue;
-        if (!onSpot && !inArea && !(nearSpot && this.reachClear(x, z, zone.x, zone.z)) && !(nearBadge && this.reachClear(x, z, zone.ax, zone.az))) continue;
+        if (!onSpot && !inArea && !(nearSpot && this.reachClear(x, z, zone.x, zone.z)) && !(nearBadge && this.badgeClear(x, z, zone, dBadge))) continue;
         const d = Math.min(dSpot, dBadge);
         const score = zone.priority * 100 + d;
         if (score < bestScore) {
@@ -288,6 +290,17 @@ export class ZoneSystem {
       }
       zone.updateVisual(dt, this.anchor);
     }
+  }
+
+  /**
+   * No wall between the actor and the thing a job's badge floats over. The line stops short of the thing itself: its
+   * centre stands in the furniture, often against a wall and outside the floor the line is tested on.
+   */
+  private badgeClear(x: number, z: number, zone: Zone, d2: number): boolean {
+    const d = Math.sqrt(d2);
+    if (d <= BADGE_LINE_SHORT) return true;
+    const t = BADGE_LINE_SHORT / d;
+    return this.reachClear(x, z, zone.ax + (x - zone.ax) * t, zone.az + (z - zone.az) * t);
   }
 
   zoneOf(actor: Actor): Zone | null {

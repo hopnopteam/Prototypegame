@@ -83,6 +83,11 @@ export class JobMarker {
     return this.group.visible;
   }
 
+  /** How high the badge's centre hangs over the floor (metres). */
+  get height(): number {
+    return this.iconHeight;
+  }
+
   /** "You're needed here": the badge bobs higher and grows a little. */
   set highlight(value: boolean) {
     this.lit = value;
