@@ -19,6 +19,7 @@ await page.goto(`file://${resolve('dist/index.html')}`);
 await page.waitForTimeout(600);
 await page.mouse.click(195, 700);
 // Tests drive the game themselves: skip the intro so it cannot unpause the game halfway through.
+await page.waitForFunction(() => !!window.nightExpress, null, { timeout: 90000 });
 await page.evaluate(() => window.nightExpress.skipIntro?.());
 await page.evaluate(() => {
   const g = window.nightExpress;

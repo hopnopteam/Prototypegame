@@ -84,6 +84,11 @@ for (let t = 0; t < total; t += 5) {
       stories: g.data.press.items.length,
       debut: g.data.press.interviews.includes(0),
       taunts: g.data.press.rivals.taunted.length,
+      types: g.train.types.slice(),
+      rack: g.train.rackLevel,
+      rackCapacity: g.train.luggageCapacity,
+      rivalBar: !!document.querySelector('.rivalbar'),
+      joystickShown: [...document.querySelectorAll('.joystick')].some((el) => getComputedStyle(el).display !== 'none'),
       coachDone: g.coach.walkthroughDone,
       tiers: g.train.tiers.slice(),
       station: g.data.route.unlocked.filter((id) => id.startsWith('st.')),
@@ -108,7 +113,12 @@ check(snap.staff >= 2, `${snap.staff} staff after ${fmt(snap.life)} (want 2+)`);
 check(snap.coachDone, 'the four-step walkthrough completed');
 check(!!snap.named && snap.stories >= 3, `the train was named ("${snap.named}") and made the paper ${snap.stories} times`);
 check(snap.debut, 'the Gazette interviewed the conductor after the first stop');
-check(snap.taunts >= 1, `a rival owner's taunt came on the news strip (${snap.taunts})`);
+// Session 26: the rivals are switched off (RIVALS_ENABLED): no taunts, no Rival Watch bar; no Luggage Car (the lobby rack
+// grows instead); no joystick drawn.
+check(snap.taunts === 0 && !snap.rivalBar, `the rivals are switched off (taunts ${snap.taunts}, Rival Watch bar ${snap.rivalBar ? 'shown' : 'gone'})`);
+check(!snap.types.includes('luggage'), `no Luggage Car joins the train (${snap.types.join(', ')})`);
+check(snap.rackCapacity >= 4, `the lobby rack holds the bags (level ${snap.rack}, ${snap.rackCapacity} bags)`);
+check(!snap.joystickShown, 'no joystick is drawn');
 check(snap.tiers.some((t) => t >= 1), `at least one carriage refurbished (tiers ${snap.tiers.join(',')})`);
 check(snap.station.length >= 1, `station upgrades bought at stops (${snap.station.join(', ') || 'none'})`);
 check(snap.objective >= 12, `the objective chain kept moving (${snap.objective} goals done)`);

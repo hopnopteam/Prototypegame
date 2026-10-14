@@ -6,8 +6,10 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 
 ## Play
 
-- **In the Claude app:** open the published artifact (link in the latest session notes). It boots straight into
-  play (no title screen; a brand-new player sees a short story intro first, skippable).
+- **In the Claude app:** open the published artifact (link in the latest session notes). A loading screen covers the
+  first few seconds (shaders compile, the sounds render and the first frames are drawn behind it, so play is smooth
+  from the first second); in a browser it ends on **Tap to play**, and that tap starts the music (a 2 s fade-in)
+  and the game together. A brand-new player then sees a short story intro, skippable.
 - **The classic version** (before the session 12 lakeside, night look and carriage classes) is kept in
   [`archive/classic-v1/`](archive/classic-v1/README.md): a playable copy and the commit to return to.
 - **Graphics:** Settings has Auto / Low / Medium / High / Ultra (one look on every tier; Low and Medium render
@@ -15,7 +17,8 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   bloom, softer following shadows and lake reflections). Phones start at Medium, sharp (up to 1.5–1.75× pixels),
   held to about 60 fps; Auto trims the render scale a little (never below 80%) and otherwise drops a tier, holding
   a steady 30 fps on Low; add `?quality=low|medium|high|ultra` to the URL to force one (no dynamic resolution then).
-- **Sound:** the music starts on the first tap (phones count a tap's release, not its press, as permission).
+- **Sound:** every effect is rendered once at start-up and played back as a recording, so a reward never breaks up
+  on a busy phone; the music starts with play, on the loading screen's tap (the apps start it at once).
 - **Android test build (APK):** every push to the working branch builds a signed test APK on GitHub Actions
   (`.github/workflows/android-apk.yml`) and publishes it as a pre-release named `android-test-N` on the
   repository's Releases page. On the phone: download the `.apk`, open it, allow "install unknown apps" for the
@@ -41,7 +44,7 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   afford, or that the guide points at, are the biggest.
 - **People:** each kind of guest comes in a few looks and heights, and while they wait they check the time, look
   about, take a call, read or chat with whoever stands next to them; townsfolk on the platform wave the train off.
-- **The venues:** from the third carriage on you can add a **Café Car**, a **Dining Car**, a **Cinema Car**, a
+- **The venues:** from the first coupling you can add a **Café Car**, and as the train grows a **Dining Car**, a **Cinema Car**, a
   **Bar Lounge** and an **Observation Dome**. Guests resting in their cabins take outings to them: brew coffee for
   the café queue, cook and serve dinner and clear the tables, start the film at the projector when the seats have
   filled (every seat that watched pays its ticket) and bring popcorn, mix cocktails until the bar's bulbs light up
@@ -49,11 +52,18 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   three refits (Repair, Makeover, Luxury), and every refit refurnishes the room: crates and makeshift furniture,
   then plain wood, then the venue's colours, then its grand look (the bar's green panelled counter and arched
   back-bar, the cinema's red velvet picture palace).
-- **News and rivals:** big moments arrive as a strip of newsprint at the foot of the screen (it pays on the spot
-  and never pauses the game). **Rival Watch** is a bar above the offer slot: the train just above you in the
-  league, their owner's face, your stars against theirs and the gap closing as you earn. Pass them and you make the
-  front page and take their prize; the next rival steps up at once. The full table is in the menu.
-- **Train Rating:** five stars on the route line. Each stop is scored (everyone with a bed boarded, the bags
+- **News:** the train's big moments (a new carriage, a venue opening, a refit, a new livery) arrive as a strip of
+  newsprint, the Rail Gazette, at the foot of the screen; it pays on the spot and never pauses the game. The rivals
+  (Rival Watch, their taunts and the league) are switched off for now (`RIVALS_ENABLED` in `src/config/press.ts`).
+- **A clear screen:** one top row (the level star with the level in it, cash, gems, the conductor's upgrades, the
+  menu), a slim route line with the Train Rating, a light train map down the left, and nothing else unless it
+  matters now. No joystick is drawn: drag anywhere and the conductor walks.
+- **Jobs like My Perfect Hotel:** each job's spot is a quiet white ring on the floor, and while it wants you a blue
+  badge with its icon floats over the furniture it belongs to (the espresso machine, the urn, the desk, the shoes
+  by a door). You do not have to stand exactly on the ring: being close (with no wall in between) does the job.
+- **Luggage:** the lobby's luggage rack holds the bags; its two upgrades (Bigger Rack, Grand Rack) lengthen it
+  along the wall and make it brass, three more bags each.
+- **Train Rating:** a star and a number at the head of the route line. Each stop is scored (everyone with a bed boarded, the bags
   loaded, guests served in time) and the rating is the average of the last five, so it always recovers. A high
   rating brings more and richer travellers and bigger tips; a low one fewer and thinner. Travellers who had a bed
   but missed the train storm off and their fares are lost (shown on the result card).
@@ -64,9 +74,9 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 - **No ads, no purchases (for now):** one switch (`MONETIZATION_ENABLED` in `src/config/economy.ts`) turns every
   ad, offer and shop purchase off; the boosts are earned instead (hold the train at last call from level 3, roller
   skates and double fares for runs of clean stops, the scooter at level 6). Flip it back on to restore them.
-- **Controls:** touch and drag anywhere for the floating joystick, read on screen: push up and the conductor walks
+- **Controls:** touch and drag anywhere (no joystick is drawn), read on screen: push up and the conductor walks
   straight up the screen, whatever the angle of the train (mouse drag, or WASD / arrow keys on desktop).
-  Everything else is walk-over: stand in a zone and it acts.
+  Everything else is walk-over: come to a job and it acts.
 
 ## Develop
 
@@ -120,7 +130,11 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | The press: how it is paced (`PRESS_PACING`: one card per breather, the gap between cards, which news goes first), rival trains and their villainous owners (taunts, grumbles, portraits, the spoils each pays when overtaken), front-page headlines and rewards per trigger, the Gazette debut interview and Rails Tonight interviews with perks, Golden Whistle ceremonies, name suggestions | `src/config/press.ts` |
 | Conductor outfits (earned and premium) and shoes by speed level | `src/config/wardrobe.ts` |
 | Walkthrough steps and one-time hints | `src/config/coach.ts` |
-| Pads: the colour for each kind of job (work, pick up, drop off) | `src/world/palette.ts` (`zoneWork`, `zonePickup`, `zoneDrop`) |
+| Pads: how far a job pad reaches beyond its ring | `src/config/economy.ts` (`zones.reach`) |
+| The furniture a pad's badge hangs over, and its height | `src/world/layout.ts` (`SERVICE_PROP_HEIGHT`) |
+| The lobby rack's upgrades (bags each adds) | `src/config/economy.ts` (`facilities.rackUpgradeCapacity`), tiles in `src/config/content.ts` (`rack_1`, `rack_2`) |
+| Rivals on or off | `src/config/press.ts` (`RIVALS_ENABLED`) |
+| The loading screen (how long it draws unseen frames, how long it waits for the sounds) | `src/main.ts` (`SETTLE_*`, `AUDIO_WAIT_MS`) |
 | The station result card and the perfect streak (`money.perfectStreakStep`/`perfectStreakMax`), the camera's glance at missed travellers (`feedback.missedGlide`) | `src/config/economy.ts` |
 | The desk: check-in time (`zones.checkInSeconds`) and the evening table booking (`desk`) | `src/config/economy.ts` |
 | The night shift: shoes (`night`: polish time, tip), night owls (`trip.owl`), how spread out bedtimes are (`trip.jitter`), when the Attendant starts serving guests (`staff.attendantServesFromLevel`) | `src/config/economy.ts` |
@@ -133,7 +147,7 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 | Pad and floating-icon sizes | `src/config/visuals.ts` (`pads`) |
 | How far the theme ducks under a reward jingle and how fast it comes back; how long a second jingle may wait | `src/config/audio.ts` (`musicDuck`, `celebration.queueWithin`) |
 | The venues' own light (the café bright, the dining car low and warm, pooled on its tables) | `src/config/visuals.ts` (`night.light.venues`) |
-| One trip, one sleep: when the evening ends and the morning starts, the shortest night, request delay, outing and washroom chances, the wake-up call; each class's evening and morning requests | `src/config/economy.ts` (`trip`), `src/config/classes.ts` (`evening`, `morning`) |
+| One trip, one sleep: when the evening ends and the morning starts, the shortest night, request delay, outing and washroom chances; each class's evening and morning requests | `src/config/economy.ts` (`trip`), `src/config/classes.ts` (`evening`, `morning`) |
 | How guests differ (looks per type, skin tones, hair colours, heights) and what they do while waiting | `src/config/crowd.ts` |
 | Where everything stands on a platform (ticket stand, queue, door, barrow, walkway, benches) | `src/world/platformLayout.ts` |
 | The reveal of a covered room (lengths, lid lift, the lights' flicker, camera zoom) and of the first carriage (`reveal.carriage`: the tarp, the ropes, lights, blinds, furniture); the station start's arrivals, clock and hold cap | `src/config/economy.ts` (`reveal`, `flow.prologue`) |

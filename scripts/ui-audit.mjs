@@ -120,6 +120,7 @@ for (const [width, height] of SIZES) {
     if (document.querySelector('.scrim')) out.push('a sheet opened over the intro');
     return out;
   }));
+  await page.waitForFunction(() => !!window.nightExpress, null, { timeout: 90000 });
   await page.evaluate(() => window.nightExpress.skipIntro?.());
   await page.waitForTimeout(300);
   report('after the intro', await page.evaluate(() => {
@@ -180,7 +181,7 @@ for (const [width, height] of SIZES) {
     ['settings', 'window.nightExpress.ui.screens.settings()'],
     ['menu', 'window.nightExpress.ui.screens.menu()'],
     ['front page', "const g = window.nightExpress; g.data.press.trainName = 'The Moonlight Limited'; const item = g.press.print('refurb3', { carriage: 'Sleeper Car II' }); g.ui.showFrontPage(item, { cash: 0, gems: 10, railMiles: 2 }, 10, () => {})"],
-    ['chooser', "window.nightExpress.ui.showCarriageChoice([{ type: 'sleeper', name: 'Sleeper Car', pitch: '+4 cabins', inside: '', reason: 'Guests need beds' }, { type: 'luggage', name: 'Luggage Car', pitch: '+16 bag racks', inside: '', reason: null }, { type: 'bathroom', name: 'Washroom Car', pitch: '+3 washrooms', inside: '', reason: null }], () => {})"],
+    ['chooser', "window.nightExpress.ui.showCarriageChoice([{ type: 'sleeper', name: 'Sleeper Car', pitch: '+4 cabins', inside: '', reason: 'Guests need beds' }, { type: 'cafe', name: 'Café Car', pitch: 'Coffee & cakes', inside: '', reason: null }, { type: 'bathroom', name: 'Washroom Car', pitch: '+3 washrooms', inside: '', reason: null }], () => {})"],
     ['upgrades', 'window.nightExpress.ui.screens.upgrades()'],
     ['daily', 'window.nightExpress.ui.screens.daily()'],
     ['album', 'window.nightExpress.ui.screens.album()'],
@@ -191,7 +192,7 @@ for (const [width, height] of SIZES) {
     ['progress', 'window.nightExpress.ui.screens.progress()'],
     ['naming', "window.nightExpress.ui.showNaming(['The Night Owl', 'Silver Swallow', 'Moonlight Limited', 'The Dandelion', 'Lucky Clover', 'The Starling'], () => {})"],
     ['interview', "window.nightExpress.ui.showInterview({ level: 4, show: 'tv', question: 'The Orient Belle calls you \"a local line with ideas\". Your reply?', answers: [{ text: 'See you at the Golden Whistles.', perk: { kind: 'fareBonus', amount: 0.06, label: 'Fares +6%' } }, { text: 'Our passengers would disagree.', perk: { kind: 'tipBonus', amount: 0.08, label: 'Tips +8%' } }, { text: 'Local, and proud of it.', perk: { kind: 'speedBonus', amount: 0.06, label: 'Walk +6%' } }] }, 'The Moonlight Limited', () => {})"],
-    ['rival news', 'window.nightExpress.press.devShowRival(1)'],
+    ['gazette news', "window.nightExpress.ui.wire({ headline: 'The Night Owl Grows a Carriage!', icon: 'news', rival: null, reward: { cash: 60, gems: 0, railMiles: 0 }, tone: 'news', kicker: 'Late edition' })"],
     ['gazette interview', "window.nightExpress.ui.showInterview({ level: 0, show: 'gazette', question: 'A new sleeper on the country line! What makes a good night train?', answers: [{ text: 'Tea, served before you ask.', perk: { kind: 'tipBonus', amount: 0.06, label: 'Tips +6%' } }, { text: 'Fair fares for a fine bed.', perk: { kind: 'fareBonus', amount: 0.05, label: 'Fares +5%' } }, { text: 'A conductor who never stops moving.', perk: { kind: 'speedBonus', amount: 0.05, label: 'Walk +5%' } }] }, 'The Moonlight Limited', () => {})"],
     ['ceremony', "const a = [{ id: 'popular', name: 'People\\'s Favourite', hint: 'Carry 250 guests.', stat: 'guests', target: 250, reward: { gems: 25, railMiles: 5 } }, { id: 'sleeper', name: 'Sleeper Train of the Year', hint: 'Top the Countryside League.', stat: 'rankOne', target: 0, reward: { gems: 40, railMiles: 8 } }, { id: 'spotless', name: 'Spotless Service', hint: 'Make 6 perfect station stops.', stat: 'perfectStops', target: 6, reward: { gems: 15, railMiles: 3 } }]; window.nightExpress.ui.showCeremony({ level: 8, title: 'Golden Whistle: Grand Final', awards: a }, [{ award: a[0], won: true, fresh: true, have: 250, need: 250 }, { award: a[1], won: true, fresh: true, have: 1, need: 1 }, { award: a[2], won: false, fresh: false, have: 4, need: 6 }], 'The Moonlight Limited', () => {})"],
   ];
@@ -201,7 +202,7 @@ for (const [width, height] of SIZES) {
       g.data.meta.postcards = ['millbrook', 'hazelford', 'larkspur-halt'];
       new Function(s)();
     }, script);
-    await page.waitForTimeout(label === 'ceremony' ? 3000 : label === 'front page' || label === 'rival news' ? 1200 : 350);
+    await page.waitForTimeout(label === 'ceremony' ? 3000 : label === 'front page' || label === 'gazette news' ? 1200 : 350);
     // Let entrance animations settle (a slow frame can leave a sheet mid-slide).
     await page.evaluate(() => Promise.race([
       Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))),
@@ -273,6 +274,7 @@ for (const [width, height] of [[337, 600], [390, 844]]) {
   const page = await browser.newPage({ viewport: { width, height } });
   await page.goto(`file://${file}`);
   await page.waitForTimeout(700);
+  await page.waitForFunction(() => !!window.nightExpress, null, { timeout: 90000 });
   await page.evaluate(() => window.nightExpress.skipIntro?.());
   await page.evaluate(() => { const g = window.nightExpress; g.setAutopilot(true); g.timeScale = 3; });
   const seen = new Set();
