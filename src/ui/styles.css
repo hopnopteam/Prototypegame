@@ -163,7 +163,8 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 @keyframes objPop { 0% { transform: translateX(-50%) scale(0.4); opacity: 0; } 100% { transform: translateX(-50%) scale(1); opacity: 1; } }
 
 /* ── Right rail ─────────────────────────────────────────── */
-.side { position: absolute; right: var(--gutter); top: var(--rail-top); width: var(--rail-width); display: flex; flex-direction: column; gap: var(--gap); }
+/* Session 26: the rail holds only the boost timers (and the shop while monetization is on), below the station card's band. */
+.side { position: absolute; right: var(--gutter); top: calc(var(--rail-top) + 104px); width: var(--rail-width); display: flex; flex-direction: column; gap: var(--gap); }
 .side button, .hud-row .menu-btn {
   position: relative; width: var(--rail-width); height: var(--rail-width); border-radius: 13px; border: var(--line); background: linear-gradient(#FFFDF7, #F1E2C2);
   box-shadow: var(--drop), var(--bevel); display: grid; place-items: center; padding: 0; cursor: pointer; box-sizing: border-box;
@@ -816,3 +817,23 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
   font-weight: 800; font-size: 12px; line-height: 1.15; text-align: center; text-wrap: balance; animation: chipIn 420ms cubic-bezier(.2,1.4,.4,1) both;
 }
 .lvup-perk .ico { width: 34px; height: 34px; }
+
+/* Session 26: one top row on the narrowest phones too (the conductor's button joined it). */
+@media (max-width: 380px) {
+  .hud-row { gap: 6px; }
+  .hud-row .menu-btn { width: 40px; height: 40px; border-radius: 12px; }
+  .level .lv-star { width: 44px; height: 44px; }
+  .pill.cash, .pill.gems { font-size: 15px; padding: 0 7px 0 3px; }
+  .pill.cash { min-width: 64px; }
+  .pill.gems { min-width: 50px; }
+  .pill.cash > .ico, .pill.gems > .ico { width: 22px; height: 22px; }
+}
+@media (max-width: 340px) {
+  .hud-row { gap: 4px; }
+  .hud-row .menu-btn { width: 38px; height: 38px; }
+  .level .lv-star { width: 40px; height: 40px; }
+  .level .badge { font-size: 16px; }
+  .pill.cash, .pill.gems { font-size: 14px; padding: 0 6px 0 2px; }
+  .pill.cash { min-width: 58px; }
+  .pill.gems { min-width: 46px; }
+}
