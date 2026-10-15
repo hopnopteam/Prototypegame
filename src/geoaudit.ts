@@ -348,6 +348,9 @@ const HOLDS: Record<string, string[]> = {
   'platform:ticketStand': ['platform:ticketRack', 'platform:cashTin', 'platform:bell', 'platform:standLamp', 'platform:standLamp~glow'],
   'platform:stationHouse': ['platform:houseWindow~glow', 'platform:doorLantern~glow'],
   'platform:lampPost': ['platform:lampPost~glow'],
+  'forecourt:lamp': ['forecourt:lamp~glow'],
+  // The station house stands in the forecourt's grass (its plinth is set into the ground).
+  'forecourt:grass': ['platform:stationHouse'],
 };
 const holds = (container: string, item: string): boolean => (HOLDS[container] ?? []).includes(item.split('#')[0]);
 

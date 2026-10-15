@@ -211,7 +211,8 @@ export class PlatformView {
 
     // Deck: stone base, a tiled top, the yellow safety line and a coping stone along the edge.
     b.box((x0 + x1) / 2, FLOOR_Y / 2 - 0.02, zc, x1 - x0, FLOOR_Y - 0.04, length, '#D9CCB4', 0, { shade: 0.75 });
-    deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, PALETTE.platformTile, 0, { pattern: PATTERN.diamond, color2: PALETTE.platformTile2, scale: 0.7, shade: 1 });
+    // Session 30: stone flags laid in running bond, in close tones (the big diamond tile read as a loud pattern).
+    deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, PALETTE.platformTile, 0, { pattern: PATTERN.boards, color2: PALETTE.platformTile2, scale: 0.62, shade: 1 });
     deck.box(x0 + 0.2, FLOOR_Y - 0.008, zc, 0.4, 0.024, length, '#D3C9B8', 0, { shade: 1 });
     deck.box(x0 + 0.34, FLOOR_Y + 0.006, zc, 0.12, 0.004, length, PALETTE.platformEdge, 0, { shade: 1 });
 
@@ -239,6 +240,8 @@ export class PlatformView {
     // lobby, where the camera looks over it: its roof covered the platform on a phone). Cream walls, a terracotta
     // roof, lamplit windows and a clock gable over the doors travellers come out of.
     buildStationHouse(house, lamps, x1, gate);
+    // Session 30 (owner: "the background in station is quite unpolished… more lived in, not just random textures").
+    buildForecourt(deck, house, lamps, x1, z0, z1, gate);
 
     yield;
 
@@ -932,4 +935,162 @@ function buildStationHouse(b: GeoBuilder, lamps: GeoBuilder, x1: number, gate: n
   b.box(cx, 4.47, face + 0.09, 0.03, 0.24, 0.01, PALETTE.ink, 0, { shade: 1 });
   b.box(cx + 0.08, 4.35, face + 0.09, 0.18, 0.03, 0.01, PALETTE.ink, 0, { shade: 1 });
   b.endObject();
+}
+
+/**
+ * The station's forecourt beyond the back railing (session 30, owner: "the background in station is quite unpolished,
+ * make the environment better and more lived in"): a grass verge with clipped hedges and flower beds along the railing,
+ * a cobbled lane with kerbs and street lamps, and across it the front gardens of the village behind picket fences
+ * (shrubs, flower beds, a water butt, a bench), with bicycles, a handcart of crates, a postbox and a flower barrow by
+ * the way in. Everything is low: the camera looks over it at the platform (nothing here stands higher than the lamps).
+ */
+function buildForecourt(flat: GeoBuilder, b: GeoBuilder, lamps: GeoBuilder, x1: number, z0: number, z1: number, gate: number): void {
+  const G = 0.12;
+  const top = G + 0.03;
+  const width = 9.4;
+  const zc = (z0 + z1) / 2;
+  const length = z1 - z0;
+  const laneX0 = x1 + 2.05;
+  const laneX1 = x1 + 5.0;
+  // Where the station house stands, and the path from the way in down to the lane.
+  const houseZ1 = gate - GATE_HALF - 0.15;
+  const houseZ0 = houseZ1 - 8.6;
+  const inHouse = (z: number, margin: number): boolean => z > houseZ0 - margin && z < houseZ1 + margin;
+  const atGate = (z: number, margin: number): boolean => Math.abs(z - gate) < GATE_HALF + margin;
+
+  // The ground: grass, the lane and its kerbs, the path from the gate, the garden path.
+  flat.object('forecourt:grass');
+  flat.box(x1 + width / 2, G - 0.12, zc, width, 0.3, length, '#5F7F55', 0, { shade: 1 });
+  // The paving lies flush on the grass: flat dressing, not an object of its own.
+  flat.endObject();
+  for (const [a, c] of [[z0, houseZ0 - 0.3], [houseZ1 + 0.1, z1]] as [number, number][]) {
+    if (c <= a) continue;
+    const mid = (a + c) / 2;
+    flat.box((laneX0 + laneX1) / 2, top + 0.012, mid, laneX1 - laneX0, 0.024, c - a, '#8E8A86', 0, { pattern: PATTERN.checker, color2: '#7C7874', scale: 0.24, shade: 1 });
+    for (const kx of [laneX0 - 0.08, laneX1 + 0.08]) flat.box(kx, top + 0.04, mid, 0.16, 0.08, c - a, '#C9C1B2', 0, { shade: 1 });
+    flat.box(laneX1 + 0.5, top + 0.008, mid, 0.7, 0.016, c - a, '#B9AE97', 0, { shade: 1 });
+  }
+  flat.box((x1 + laneX0) / 2, top + 0.01, gate, laneX0 - x1, 0.02, GATE_HALF * 2, '#A49C8F', 0, { pattern: PATTERN.checker, color2: '#958D80', scale: 0.3, shade: 1 });
+  flat.endObject();
+
+  let k = 7;
+  const rnd = (): number => {
+    k = (k * 9301 + 49297) % 233280;
+    return k / 233280;
+  };
+  const flowers = ['#E58A9E', '#F2D16B', '#F4F1EA', '#B78BD6', '#E7814F'];
+  const hedgeGreen = '#5E8A55';
+
+  // Along the railing: clipped hedges, a flower bed between every two.
+  for (let z = z0 + 1; z < z1 - 2; z += 4.2) {
+    if (atGate(z, 2.4) || inHouse(z, 1)) continue;
+    b.object('forecourt:hedge');
+    b.rounded(x1 + 0.75, top + 0.3, z + 1.2, 0.8, 0.6, 2.4, 0.25, hedgeGreen, { shade: 0.75, surface: 'foliage' });
+    b.object('forecourt:bed');
+    b.rounded(x1 + 0.75, top + 0.07, z + 3.2, 0.9, 0.14, 1.3, 0.1, '#6B4C38', { shade: 0.9 });
+    for (let i = 0; i < 6; i++) b.sphere(x1 + 0.5 + (i % 2) * 0.48, top + 0.2, z + 2.75 + Math.floor(i / 2) * 0.45, 0.13, flowers[(i + Math.floor(z)) % flowers.length], 1, 0.8, { shade: 0.9, surface: 'foliage' });
+  }
+  b.endObject();
+
+  // Street lamps on the far kerb, their heads lit.
+  for (let z = z0 + 3; z < z1 - 2; z += 9) {
+    if (inHouse(z, 1)) continue;
+    const lx = laneX1 + 0.32;
+    b.object('forecourt:lamp');
+    b.cylinder(lx, top + 0.08, z, 0.12, 0.14, 0.16, '#2B3046', 12, 'y', { shade: 0.9 });
+    b.cylinder(lx, top + 1.25, z, 0.035, 0.045, 2.3, '#2B3046', 8, 'y', { shade: 0.9 });
+    b.cone(lx, top + 2.62, z, 0.2, 0.16, '#2B3046', 8, { shade: 1 });
+    lamps.object('forecourt:lamp~glow');
+    lamps.box(lx, top + 2.43, z, 0.2, 0.24, 0.2, PALETTE.lampShade, 0);
+  }
+  b.endObject();
+  lamps.endObject();
+
+  // Across the lane: the village's front gardens behind a white picket fence, a gate in it every garden.
+  const fenceX = laneX1 + 1.0;
+  for (let z = z0 + 0.5; z < z1 - 1; z += 6) {
+    if (inHouse(z, 1.5)) continue;
+    b.object('forecourt:fence');
+    b.box(fenceX, top + 0.3, z + 2.5, 0.04, 0.05, 4.8, '#EDE6D8', 0, { shade: 1 });
+    b.box(fenceX, top + 0.15, z + 2.5, 0.04, 0.05, 4.8, '#EDE6D8', 0, { shade: 1 });
+    for (let pz = z + 0.15; pz < z + 4.9; pz += 0.3) b.box(fenceX, top + 0.24, pz, 0.05, 0.48, 0.07, '#F4EEE2', 0, { shade: 0.9 });
+    const garden = Math.floor((z - z0) / 6);
+    const kind = garden % 4;
+    const gx = fenceX + 1.6;
+    const gz = z + 2.5;
+    b.object('forecourt:garden');
+    // Every garden: a path to the cottage, round shrubs and a bed of flowers.
+    b.box(gx, top + 0.006, gz + 2.65, 3.0, 0.012, 0.7, '#B9AE97', 0, { shade: 1 });
+    b.sphere(fenceX + 0.6, top + 0.3, z + 0.7, 0.34, '#4F7A4A', 1, 0.85, { shade: 0.8, surface: 'foliage' });
+    b.sphere(fenceX + 2.6, top + 0.38, z + 1.0, 0.42, '#5E8A55', 1, 0.85, { shade: 0.8, surface: 'foliage' });
+    b.rounded(gx, top + 0.06, gz + 0.4, 1.8, 0.12, 0.7, 0.08, '#6B4C38', { shade: 0.9 });
+    for (let i = 0; i < 7; i++) b.sphere(gx - 0.75 + i * 0.25, top + 0.19, gz + 0.4 + (i % 2 ? 0.14 : -0.14), 0.1, flowers[(i + garden) % flowers.length], 1, 0.8, { shade: 0.9, surface: 'foliage' });
+    if (kind === 0) {
+      // A garden bench and a water butt.
+      b.box(gx + 0.5, top + 0.24, gz - 1.4, 0.4, 0.05, 1.2, '#8A6A4E', 0, { shade: 0.9, surface: 'wood' });
+      b.box(gx + 0.68, top + 0.45, gz - 1.4, 0.05, 0.38, 1.2, '#8A6A4E', 0, { shade: 0.9, surface: 'wood' });
+      for (const dz of [-0.52, 0.52]) b.box(gx + 0.5, top + 0.11, gz - 1.4 + dz, 0.36, 0.22, 0.05, '#3A3A40', 0, { shade: 0.9 });
+      b.cylinder(fenceX + 3.4, top + 0.35, gz + 1.5, 0.26, 0.24, 0.7, '#4D6E8A', 14, 'y', { shade: 0.85 });
+    } else if (kind === 1) {
+      // A vegetable patch in rows and an upturned wheelbarrow.
+      for (let r = 0; r < 3; r++) {
+        b.box(gx - 0.2 + r * 0.42, top + 0.05, gz - 1.3, 0.3, 0.1, 1.6, '#5A4030', 0, { shade: 0.9 });
+        for (let i = 0; i < 4; i++) b.sphere(gx - 0.2 + r * 0.42, top + 0.16, gz - 1.9 + i * 0.4, 0.1, '#7FA65A', 0, 0.8, { shade: 0.9, surface: 'foliage' });
+      }
+      b.rounded(fenceX + 3.3, top + 0.22, gz + 1.4, 0.55, 0.3, 0.8, 0.1, '#7D8C99', { shade: 0.85 });
+    } else if (kind === 2) {
+      // A washing line between two posts with a few things pegged out.
+      for (const dz of [-1.5, 0.9]) b.box(gx + 0.6, top + 0.75, gz + dz, 0.05, 1.5, 0.05, '#8A6A4E', 0, { shade: 0.9 });
+      b.box(gx + 0.6, top + 1.42, gz - 0.3, 0.01, 0.01, 2.4, '#DDD6C8', 0, { shade: 1 });
+      ['#F4F1EA', '#9DB8CF', '#E8A0A8', '#F4F1EA'].forEach((c, i) => b.box(gx + 0.6, top + 1.22, gz - 1.2 + i * 0.55, 0.02, 0.36, 0.34, c, 0, { shade: 0.95, surface: 'fabric' }));
+    } else {
+      // A little apple tree and a bird table.
+      b.cylinder(gx + 0.4, top + 0.55, gz - 1.2, 0.07, 0.09, 1.1, '#6E5038', 8, 'y', { shade: 0.85, surface: 'wood' });
+      b.sphere(gx + 0.4, top + 1.3, gz - 1.2, 0.6, '#5E8A55', 1, 0.8, { shade: 0.75, surface: 'foliage' });
+      for (let i = 0; i < 5; i++) b.sphere(gx + 0.4 + Math.cos(i * 1.3) * 0.45, top + 1.2 + (i % 2) * 0.2, gz - 1.2 + Math.sin(i * 1.3) * 0.45, 0.06, '#D5463F', 0, 1, { shade: 1 });
+      b.cylinder(fenceX + 3.2, top + 0.5, gz + 1.4, 0.03, 0.03, 1.0, '#8A6A4E', 6, 'y', { shade: 0.9 });
+      b.box(fenceX + 3.2, top + 1.02, gz + 1.4, 0.36, 0.04, 0.36, '#8A6A4E', 0, { shade: 0.9, surface: 'wood' });
+    }
+  }
+  b.endObject();
+
+  // Things in the lane and by the way in: bicycles against the hedge, a handcart of crates, a postbox, a flower barrow.
+  const bikeZ = gate + GATE_HALF + 1.4;
+  for (const dz of [0, 1.2]) {
+    b.object('forecourt:bicycle');
+    const bx = x1 + 1.55;
+    for (const wz of [-0.32, 0.32]) b.add(new THREE.TorusGeometry(0.2, 0.022, 6, 16), '#2B2733', bx, top + 0.22, bikeZ + dz + wz, 0, Math.PI / 2, 0, { shade: 1 });
+    b.box(bx, top + 0.36, bikeZ + dz, 0.03, 0.03, 0.6, dz < 0.5 ? '#C0485C' : '#3D7CC9', 0, { shade: 1 });
+    b.box(bx, top + 0.5, bikeZ + dz - 0.12, 0.08, 0.025, 0.14, '#3A3330', 0, { shade: 1 });
+    b.box(bx, top + 0.55, bikeZ + dz + 0.3, 0.32, 0.02, 0.02, '#2B2733', 0, { shade: 1 });
+  }
+  b.object('forecourt:handcart');
+  const cz = gate + GATE_HALF + 4.2;
+  const cx = laneX0 + 0.75;
+  b.box(cx, top + 0.38, cz, 0.8, 0.06, 1.2, '#8A6A4E', 0, { shade: 0.9, surface: 'wood' });
+  for (const wz of [-0.4, 0.4]) b.cylinder(cx - 0.42, top + 0.22, cz + wz, 0.22, 0.22, 0.05, '#4A3A30', 14, 'x', { shade: 1 });
+  b.box(cx + 0.55, top + 0.42, cz, 0.5, 0.03, 0.03, '#8A6A4E', 0, { shade: 1 });
+  [['#C9A46A', -0.28], ['#B5835A', 0.25], ['#D9BC8E', 0]].forEach(([c, dz], i) => b.box(cx - 0.05, top + 0.56 + (i === 2 ? 0.26 : 0), cz + (dz as number), 0.5, 0.26, 0.45, c as string, 0, { shade: 0.85, surface: 'wood' }));
+  b.object('forecourt:postbox');
+  const px = x1 + 1.75;
+  const pz = gate - GATE_HALF - 0.55;
+  if (!inHouse(pz, -0.1) || true) {
+    b.cylinder(px, top + 0.5, gate + GATE_HALF + 0.5, 0.16, 0.16, 1.0, '#C8343A', 16, 'y', { shade: 0.85, surface: 'paint' });
+    b.sphere(px, top + 1.0, gate + GATE_HALF + 0.5, 0.165, '#C8343A', 1, 0.5, { shade: 1, surface: 'paint' });
+    b.box(px - 0.15, top + 0.8, gate + GATE_HALF + 0.5, 0.02, 0.03, 0.16, '#2B2230', 0, { shade: 1 });
+  }
+  void pz;
+  b.object('forecourt:flowerBarrow');
+  const fz = gate + GATE_HALF + 6.8;
+  const fx = laneX0 + 0.85;
+  b.box(fx, top + 0.5, fz, 0.9, 0.14, 1.5, '#3F7A5E', 0, { shade: 0.9, surface: 'paint' });
+  for (const wz of [-0.55, 0.55]) b.cylinder(fx - 0.48, top + 0.28, fz + wz, 0.28, 0.28, 0.05, '#4A3A30', 14, 'x', { shade: 1 });
+  for (let i = 0; i < 8; i++) {
+    const bxp = fx - 0.25 + (i % 2) * 0.5;
+    const bzp = fz - 0.55 + Math.floor(i / 2) * 0.37;
+    b.cylinder(bxp, top + 0.66, bzp, 0.13, 0.11, 0.18, '#C9B79A', 10, 'y', { shade: 0.9 });
+    b.sphere(bxp, top + 0.82, bzp, 0.13, flowers[i % flowers.length], 1, 0.8, { shade: 0.9, surface: 'foliage' });
+  }
+  b.endObject();
+  void rnd;
 }
