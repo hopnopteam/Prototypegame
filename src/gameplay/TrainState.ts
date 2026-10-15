@@ -157,10 +157,6 @@ const CARRIAGE_LIGHT = 'carriage:0';
 const NIGHT_FADE = 2.5;
 /** What a passenger carriage's service counter (the urn) hands out: drinks, the morning paper, breakfast trays. */
 const SERVICE_ITEMS: ItemKind[] = ['tea', 'coffee', 'champagne', 'newspaper', 'breakfast', 'snack'];
-/** A room's broom icon shows when the guide's target is this close to its pad… */
-const CLEAN_ICON_FOCUS = 0.8;
-/** …or when the conductor is this close to it. */
-const CLEAN_ICON_NEAR = 2.2;
 
 /** Whether a point is on a room's floor (its walls' inner faces, world coordinates). */
 function inRoom(room: { x0: number; x1: number; z0: number; z1: number }, x: number, z: number): boolean {
@@ -1312,13 +1308,8 @@ export class TrainState {
       icon: 'broom',
       area: (x, z) => inRoom(cabin.room, x, z),
       active: () => cabin.unlocked && cabin.dirty[i] && !cabin.guest,
-      // The broom floats only over the room the guide points at, or one the conductor is close to and nobody
-      // on the staff has taken: three rooms to tidy are three quiet rooms, not three signs.
-      showIcon: () => {
-        const focus = w.guidance?.focus;
-        if (focus && Math.hypot(focus.x - spot.x, focus.z - spot.z) < CLEAN_ICON_FOCUS) return true;
-        return !cabin.cleaner && Math.hypot(w.player.pos.x - spot.x, w.player.pos.z - spot.z) < CLEAN_ICON_NEAR;
-      },
+      // Session 30 (owner: "the tidy sign sometimes disappears and is confusing, should hover always when needs
+      // cleaning"): the broom shows over every room waiting to be tidied, whoever is near.
       stay: (zone, actor, dt) => this.cleanStay(cabin, i, zone, actor, dt),
     })));
     cabin.shoeZone = w.zones.add(new Zone({

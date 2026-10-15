@@ -1970,35 +1970,52 @@ function buildCabinComforts(b: GeoBuilder, glow: GeoBuilder, cabin: CabinLayout,
   }
 }
 
-/** Washroom comforts: scented soaps by the basin (or on the tub's rim) and a brass towel rail. */
+/**
+ * Washroom comforts (session 30, owner: "upgrades like Soap… should have some sort of visible visual"): each reads from
+ * the gameplay camera. Soaps: a fluffy bath mat in the room's colour by the basin (or the tub) and a soap tray of
+ * coloured bars with a pump bottle on the counter or the tub's rim. Towel Rails: a brass ladder rail standing against
+ * the front wall with two thick towels folded over it, and a stack of rolled towels on its foot.
+ */
 function buildBathComforts(b: GeoBuilder, room: Rect, fixtures: PropDef[], keys: readonly ComfortKey[], theme: CarriageTheme, tier: number): void {
   const y = FLOOR_Y;
   if (keys.includes('soap')) {
     for (const f of fixtures) {
-      b.object(`comfort:soap@${f.kind}`);
       const r = f.rect;
-      const bottles = ['#F2A7B5', '#AFCBA7'];
-      if (f.kind === 'sink') {
-        // Together on the front corner of the counter, clear of the basin and the tap.
-        bottles.forEach((color, i) => b.cylinder(r.x1 - 0.07, y + 0.812, r.z0 + 0.07 + i * 0.055, 0.022, 0.022, 0.09, color, 10, 'y', { shade: 0.9 }));
-        b.rounded(r.x1 - 0.16, y + 0.776, r.z0 + 0.075, 0.07, 0.02, 0.045, 0.01, theme.blanket, FLAT);
-      } else {
-        bottles.forEach((color, i) => b.cylinder(r.x1 - 0.045, y + 0.55, r.z0 + 0.12 + i * 0.07, 0.02, 0.02, 0.09, color, 10, 'y', { shade: 0.9 }));
-      }
+      const tub = f.kind !== 'sink';
+      b.object(`comfort:soapmat@${f.kind}`);
+      // The mat lies on the floor in front of the fixture (toward the corridor, −x), clear of the door and the pads.
+      const mx1 = r.x0 - 0.04;
+      const mx0 = mx1 - 0.5;
+      const mz0 = tub ? r.z0 + 0.15 : r.z0 - 0.08;
+      const mz1 = tub ? r.z1 - 0.15 : r.z1 + 0.08;
+      b.rounded((mx0 + mx1) / 2, y + 0.012, (mz0 + mz1) / 2, mx1 - mx0, 0.016, mz1 - mz0, 0.08, '#FBF6EE', FLAT);
+      b.rounded((mx0 + mx1) / 2, y + 0.024, (mz0 + mz1) / 2, mx1 - mx0 - 0.07, 0.01, mz1 - mz0 - 0.07, 0.06, theme.blanket, { shade: 1, surface: 'fabric' });
+      b.object(`comfort:soap@${f.kind}`);
+      const top = tub ? y + 0.5 : y + 0.79;
+      const sx = tub ? r.x1 - 0.06 : r.x1 - 0.1;
+      const sz = tub ? r.z0 + 0.2 : r.z0 + 0.12;
+      // A wooden tray of three coloured bars and a tall pump bottle.
+      b.rounded(sx, top + 0.008, sz + 0.07, 0.09, 0.016, 0.2, 0.02, '#B5835A', { shade: 0.9, surface: 'wood' });
+      ['#F2A7B5', '#AFCBA7', '#F4D58A'].forEach((c, i) => b.rounded(sx, top + 0.03, sz + 0.01 + i * 0.06, 0.07, 0.028, 0.05, 0.012, c, FLAT));
+      b.cylinder(sx, top + 0.075, sz - 0.07, 0.03, 0.03, 0.15, '#F2A7B5', 12, 'y', { shade: 0.9, surface: 'ceramic' });
+      b.cylinder(sx, top + 0.165, sz - 0.07, 0.008, 0.008, 0.03, PALETTE.brass, 6, 'y');
     }
   }
   if (keys.includes('rail')) {
     b.object('comfort:rail');
-    // On the front wall between the stock shelf and the toilet.
-    const x0 = 0.2;
-    const x1 = 0.82;
-    const z = room.z0 + 0.05;
+    // Standing against the front wall between the stock shelf and the toilet.
+    const x0 = 0.24;
+    const x1 = 0.78;
+    const z = room.z0 + 0.1;
     const metal = tier >= 3 ? PALETTE.gold : PALETTE.brass;
-    for (const px of [x0, x1]) b.cylinder(px, y + 0.52, z, 0.014, 0.014, 0.24, metal, 6);
-    for (const py of [0.43, 0.61]) b.cylinder((x0 + x1) / 2, y + py, z, 0.012, 0.012, x1 - x0, metal, 6, 'x');
-    // A towel folded over the top bar, hanging down its front.
-    b.box((x0 + x1) / 2, y + 0.54, z + 0.024, 0.3, 0.16, 0.012, theme.blanket, 0, { shade: 0.95 });
-    b.box((x0 + x1) / 2, y + 0.47, z + 0.035, 0.3, 0.02, 0.01, PALETTE.towelStripe, 0, FLAT);
+    for (const px of [x0, x1]) b.cylinder(px, y + 0.4, z, 0.018, 0.018, 0.8, metal, 8);
+    for (const py of [0.2, 0.38, 0.56, 0.74]) b.cylinder((x0 + x1) / 2, y + py, z, 0.013, 0.013, x1 - x0, metal, 6, 'x');
+    for (const px of [x0, x1]) b.cylinder(px, y + 0.012, z, 0.04, 0.04, 0.024, metal, 10, 'y');
+    // Two thick towels folded over the bars, each with a stripe.
+    b.rounded((x0 + x1) / 2 - 0.12, y + 0.62, z + 0.03, 0.22, 0.28, 0.05, 0.02, theme.blanket, { shade: 0.95, surface: 'fabric' });
+    b.box((x0 + x1) / 2 - 0.12, y + 0.52, z + 0.057, 0.22, 0.03, 0.006, PALETTE.towelStripe, 0, FLAT);
+    b.rounded((x0 + x1) / 2 + 0.13, y + 0.44, z + 0.03, 0.2, 0.26, 0.05, 0.02, '#FBF6EE', { shade: 0.95, surface: 'fabric' });
+    b.box((x0 + x1) / 2 + 0.13, y + 0.35, z + 0.057, 0.2, 0.03, 0.006, theme.blanket, 0, FLAT);
   }
 }
 

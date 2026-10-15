@@ -1101,6 +1101,7 @@ const BACK_ROOM_GOODS: Record<string, string[]> = {
   store: ['#7D9CBB', '#C9473F', '#E8D9B0', '#5E8C5A', '#D9A03F', '#F2E3C6'],
   filmstore: ['#7E8790', '#9AA2AA', '#3A3940', '#C9473F', '#E2B653', '#F2E3C6'],
   stores: ['#F4F1EA', '#9DB8CF', '#E8D9B0', '#C9A46A', '#D96C4F', '#7D9CBB'],
+  linen: ['#F4F1EA', '#FFFFFF', '#9DB8CF', '#F2A7B5', '#E8D9B0', '#AFCBA7'],
 };
 
 /**

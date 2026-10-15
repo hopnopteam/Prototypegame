@@ -628,36 +628,37 @@ function buildSleeper(tier: number): CarriageLayout {
 
 function buildBathroom(): CarriageLayout {
   const b = new LayoutBuilder('bathroom');
-  // A washroom lounge up front (its own towel and roll closet, the laundry, a bench for whoever is
-  // waiting), then three compact washrooms: a train loo, not a spa.
-  const front = 7.4;
-  const end = INTERIOR_END;
+  // Session 30 (owner: "the bathroom carriage is big for no reason… empty spaces"): a short lounge up front (its own
+  // towel and roll closet, the laundry, a bench for whoever is waiting), then three compact washrooms, and a linen
+  // store walled off at the back, full of shelves (the carriage keeps its length; nothing in it is empty floor).
+  const front = 4.4;
+  const washLength = 2.9;
+  const count = 3;
+  const end = front + count * washLength;
   b.shell({ frontGangway: true, doors: false });
   b.vestibules(front);
-  b.connector(-INNER, front - 0.5, PARTITION_X0, end + 0.55, 'z');
+  b.connector(-INNER, front - 0.5, PARTITION_X0, INTERIOR_END + 0.55, 'z');
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, front);
 
   b.prop('closet', -INNER, 1.0, out(-1.8), 2.9, 'right');
   b.prop('laundry', out(1.8), 0.35, INNER, 2.35, 'left');
-  b.prop('bench', out(2.1), 3.4, INNER, 5.6, 'left');
-  b.prop('plant', -INNER, 6.3, out(-2.14), 6.7, 'right', false);
+  b.prop('bench', out(2.1), 2.6, INNER, 4.1, 'left');
+  b.prop('plant', -INNER, 3.25, out(-2.14), 3.65, 'right', false);
   b.anchor('closet', out(-1.36), 1.95);
   b.anchor('towel', out(-1.36), 1.95);
   b.anchor('roll', out(-1.36), 1.95);
   // Where waiting guests stand (in front of the bench) and the lounge's nav points.
-  b.anchor('wait_0', out(1.7), 3.95);
-  b.anchor('wait_1', out(1.7), 5.05);
+  b.anchor('wait_0', out(1.7), 2.95);
+  b.anchor('wait_1', out(1.7), 3.75);
   b.node('lounge', 0.1, 2.6);
-  b.node('lounge_rear', 0.3, 5.4);
+  b.node('lounge_rear', 0.3, 3.7);
 
-  const count = 3;
-  const len = (end - front) / count;
   const gaps: [number, number][] = [];
   let previous = 'corr_in';
   b.chain('vest_front', 'lounge', 'lounge_rear', 'corr_in');
   for (let index = 0; index < count; index++) {
-    const z0 = front + index * len;
-    const z1 = z0 + len;
+    const z0 = front + index * washLength;
+    const z1 = z0 + washLength;
     b.wall(PARTITION_X1, z0 - 0.06, INNER, z0 + 0.06);
     if (index === count - 1) b.wall(PARTITION_X1, z1 - 0.06, INNER, z1 + 0.06);
     const [doorZ0, doorZ1] = centredDoor(z0, z1);
@@ -688,6 +689,8 @@ function buildBathroom(): CarriageLayout {
     });
   }
   b.wallAlongZ(PARTITION_X0, PARTITION_X1, front, end, gaps, 'interior');
+  // The linen store: clean towels and rolls on shelves, laundry baskets, a folding table.
+  backRoom(b, 'linen', 'right', PARTITION_X1, end + 0.06);
   b.node('corr_end', (-INNER + PARTITION_X0) / 2, CARRIAGE_LENGTH - REAR_VESTIBULE + 0.35);
   b.chain(previous, 'corr_end', 'vest_rear');
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);

@@ -155,10 +155,11 @@ function hairShape(style: HairStyle, hatted: boolean): THREE.BufferGeometry {
   let g = headCache.get(key);
   if (!g) {
     // Under a hat the hair lies flat (the hat sits on it), so nothing pokes through the crown.
-    const lift = hatted ? 0.12 : 1;
+    // A flat layer still stands clear of the skull (a hair's breadth would flicker against it).
     g = deformed(30, 22, (ux, uy, uz) => {
       const c = hairCover(style, ux, uy, uz);
-      return headRadius(ux, uy, uz) * (0.93 + c * (0.07 + hairThickness(style, ux, uy, uz) * lift));
+      const t = hatted ? 0.035 + hairThickness(style, ux, uy, uz) * 0.12 : hairThickness(style, ux, uy, uz);
+      return headRadius(ux, uy, uz) * (0.86 + c * (0.14 + t));
     });
     headCache.set(key, g);
   }
