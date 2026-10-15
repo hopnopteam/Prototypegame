@@ -481,6 +481,7 @@ Multiplayer, chat, gacha/loot boxes, energy timers, fail states, long dialogue, 
 - **Repository:** `hopnopteam/Prototypegame`, working branch `claude/new-session-zlmzpt`. The repo root is the web project root.
 - **Play link:** published Artifact "Night Express": https://claude.ai/artifact/GhHh8BAw6pm5eFQJ5iV8bt (private until shared from its Share menu). Republish `dist/night-express.html` to the same artifact to update it.
 - **Test APK (Android):** https://github.com/hopnopteam/Prototypegame/releases (newest `android-test-N` pre-release; built by `.github/workflows/android-apk.yml` on every push to the working branch).
+- **Analytics:** GameAnalytics, organization "Hesari Games", game "Night Express" (Android platform, JavaScript SDK). Keys live in the repository secrets `GA_GAME_KEY`/`GA_SECRET_KEY` (session 31); the APK workflow builds with them. The play link (Artifact) is built locally with the same env vars.
 - **Identity:** Company "Hopnop", product "Night Express" (app id `com.hopnop.nightexpress` reserved for a native build).
 - **My experience level:** _TODO_
 - **Test device:** _TODO: phone model and RAM_
