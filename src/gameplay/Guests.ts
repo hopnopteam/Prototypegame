@@ -16,6 +16,7 @@ import type { World } from './World';
 import type { Zone } from './Zones';
 import type { Outing } from './Venues';
 import { ratingEffect } from '../sim/stationResult';
+import { guestLook } from './guestLook';
 
 export type GuestState =
   | 'platform' | 'boarding' | 'queue' | 'toCabin' | 'settling' | 'resting' | 'requesting'
@@ -139,6 +140,7 @@ export class Guest {
     const colors = story ? story.colors : archetype.colors;
     const base: CharacterLook = {
       ...colors,
+      ...(story ? {} : archetype.figure),
       accessory: story ? (story.id === 'priya' ? 'camera' : 'none') : archetype.accessory === 'child' ? 'none' : archetype.accessory,
       hat: story?.id === 'walter' ? 'conductor' : story ? 'none' : archetype.hat ?? 'none',
       hatColor: story ? undefined : archetype.hatColor,
@@ -147,7 +149,7 @@ export class Guest {
     const [short, tall] = CROWD.height;
     this.view = new CharacterView(look, story ? 1 : short + (tall - short) * Math.random());
     this.child = !story && archetype.accessory === 'child'
-      ? new CharacterView({ body: '#F2C94C', accent: '#E26D8C', skin: colors.skin, hair: colors.hair, hat: 'none' }, 0.62)
+      ? new CharacterView({ body: '#F2C94C', accent: '#E26D8C', skin: colors.skin, hair: colors.hair, hat: 'none', outfit: 'dress', pants: '#E26D8C', hairStyle: 'bob', shoe: '#D64B6A' }, 0.62)
       : null;
   }
 
@@ -158,34 +160,6 @@ export class Guest {
   get aboard(): boolean {
     return this.state !== 'platform' && this.state !== 'leaving' && this.state !== 'gone';
   }
-}
-
-/**
- * One of a guest type's few looks (session 23): look 0 is the type's own; the others change the skin tone, the
- * hair (never a grandma's silver), the coat's shade, add spectacles or long hair, and sometimes leave the hat off.
- * The bounded set keeps the body geometries cached (types × variants).
- */
-function guestLook(base: CharacterLook, archetype: ArchetypeDef, v: number): CharacterLook {
-  if (v === 0) return base;
-  const a = ARCHETYPES.indexOf(archetype);
-  const silver = /^#(E|F)/i.test(archetype.colors.hair);
-  const casualHat = base.hat === 'cap' || base.hat === 'beanie' || base.hat === 'boater';
-  return {
-    ...base,
-    skin: CROWD.skinTones[(a * 3 + v * 2) % CROWD.skinTones.length],
-    hair: silver ? base.hair : CROWD.hairColours[(a + v * 2) % CROWD.hairColours.length],
-    body: v === 2 ? shadeHex(base.body, 18) : v === 3 ? shadeHex(base.body, -16) : base.body,
-    hat: v === 3 && casualHat ? 'none' : base.hat,
-    glasses: (a + v) % 3 === 0,
-    longHair: v % 2 === 1 && base.hat !== 'bun' && base.hat !== 'crown',
-  };
-}
-
-/** A hex colour lightened (+) or darkened (−) by `amount` per channel. */
-function shadeHex(hex: string, amount: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const c = (v: number): number => Math.max(0, Math.min(255, v + amount));
-  return `#${((c((n >> 16) & 255) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
 }
 
 /**

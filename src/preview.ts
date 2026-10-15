@@ -112,7 +112,7 @@ stage.scene.add(player.root);
 // ?people=0 leaves out the demo guests, staff, pad and tile (to see a room's furniture).
 const people = params.get('people') !== '0';
 if (people) ARCHETYPES.forEach((a, i) => {
-  const g = new CharacterView({ ...a.colors, accessory: a.accessory === 'child' ? 'none' : a.accessory, hat: a.hat ?? 'none', hatColor: a.hatColor });
+  const g = new CharacterView({ ...a.colors, ...a.figure, accessory: a.accessory === 'child' ? 'none' : a.accessory, hat: a.hat ?? 'none', hatColor: a.hatColor });
   g.setPosition(-0.15 + (i % 3) * 0.7, FLOOR_Y, 2.8 + Math.floor(i / 3) * 0.75);
   g.setFacing(-Math.PI / 2);
   if (i === 0) g.showBubble('tea');

@@ -5,6 +5,25 @@
  * stands next to them, stretch. Purely for show: none of it touches play (the choices use no game randomness).
  */
 
+/** Session 30: the hairdos and outfits of the new figures (world/CharacterParts.ts builds them). */
+export type HairStyle = 'short' | 'side' | 'quiff' | 'curly' | 'bob' | 'long' | 'bun' | 'bald';
+export type Outfit = 'tee' | 'shirt' | 'jacket' | 'coat' | 'dress' | 'gown';
+
+/** What a guest type wears beyond its colours: the clothes, the hair, stripes, shoes. */
+export interface Figure {
+  outfit?: Outfit;
+  pants?: string;
+  hairStyle?: HairStyle;
+  /** The top's second colour: stripes on a tee, a coat's collar and buttons. */
+  trim?: string;
+  stripes?: boolean;
+  sleeves?: 'short' | 'long';
+  sock?: string;
+  shoe?: string;
+  moustache?: boolean;
+  glasses?: boolean;
+}
+
 /** What someone standing about does (CharacterView actions). */
 export type IdleAction = 'watch' | 'look' | 'phone' | 'chat' | 'yawn' | 'read' | 'wave';
 
@@ -12,6 +31,8 @@ export const CROWD = {
   /** Looks per guest type (each a cached body geometry, so this bounds memory: types × variants). */
   variants: 4,
   skinTones: ['#F6D3B8', '#EDBE9A', '#D9A07A', '#C98E68', '#A86E4E', '#7E5038'],
+  /** Hairdos the other looks of a type pick from (look 0 keeps the type's own). */
+  hairStyles: ['short', 'bob', 'side', 'long', 'quiff', 'curly', 'bald'] as HairStyle[],
   hairColours: ['#1D1616', '#3A2418', '#5B3A29', '#8C5A32', '#C9A15A', '#B5543A'],
   /** Heights (root scale), shortest and tallest. */
   height: [0.93, 1.06] as [number, number],

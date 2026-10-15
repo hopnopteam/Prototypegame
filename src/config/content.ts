@@ -1,4 +1,5 @@
 import type { CarriageType, ItemKind, StaffRole } from '../core/types';
+import type { Figure } from './crowd';
 import type { IconName } from '../ui/icons';
 import type { ClassId } from './classes';
 
@@ -46,8 +47,10 @@ export interface ArchetypeDef {
   minCarriages: number;
   colors: { body: string; accent: string; skin: string; hair: string };
   accessory: 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'child' | 'furcoat' | 'camera' | 'sash';
-  hat?: 'beanie' | 'bun' | 'cap' | 'boater' | 'crown' | 'tophat';
+  hat?: 'beanie' | 'bun' | 'cap' | 'boater' | 'crown' | 'tophat' | 'bowler';
   hatColor?: string;
+  /** Session 30: their clothes and hair (the new figures, after the owner's reference sheets). */
+  figure?: Figure;
   /** What they like best among their class's requests (weights multiply the class's own). */
   requests: Partial<Record<'tea' | 'coffee' | 'champagne' | 'blanket' | 'pillow' | 'towel', number>>;
   /** Their signature reaction now and then during the ride (an icon in a bubble, never a sentence). */
@@ -73,60 +76,70 @@ export const ARCHETYPES: ArchetypeDef[] = [
   {
     id: 'student', label: 'Student', cls: 'basic', weight: 3, fareMultiplier: 1, tipMultiplier: 0.9, speedMultiplier: 1.14, minCarriages: 1,
     colors: { body: '#D9A03F', accent: '#34507A', skin: '#E8B894', hair: '#2E2420' }, accessory: 'backpack', hat: 'cap', requests: { pillow: 2, tea: 1.5 },
+    figure: { outfit: 'tee', pants: '#3C5C8C', hairStyle: 'short', shoe: '#D64B6A', sock: '#F4F1EA' },
     mood: 'smile',
     mess: ['wrappers', 'paperBalls', 'book', 'socks'],
   },
   {
     id: 'backpacker', label: 'Backpacker', cls: 'basic', weight: 3, fareMultiplier: 1, tipMultiplier: 1, speedMultiplier: 1.12, minCarriages: 1,
     colors: { body: '#6FA36B', accent: '#EE8F4A', skin: '#D9A07A', hair: '#8C5A32' }, accessory: 'backpack', hat: 'beanie', requests: { pillow: 2, blanket: 1 },
+    figure: { outfit: 'tee', pants: '#8C7B5A', hairStyle: 'curly', shoe: '#6B4A32' },
     mood: 'camera',
     mess: ['map', 'wrappers', 'socks', 'bottle'],
   },
   {
     id: 'tourist', label: 'Tourist', cls: 'comfort', weight: 3, fareMultiplier: 1, tipMultiplier: 1, speedMultiplier: 0.98, minCarriages: 1,
     colors: { body: '#E07A5F', accent: '#FBF3E4', skin: '#F1C7A6', hair: '#8C5A32' }, accessory: 'camera', hat: 'boater', requests: { towel: 1.5, tea: 1.2 },
+    figure: { outfit: 'tee', stripes: true, trim: '#FBF3E4', pants: '#E2D3B2', hairStyle: 'side', shoe: '#C9533F' },
     mood: 'camera',
     mess: ['map', 'bottle', 'wrappers', 'cards'],
   },
   {
     id: 'grandma', label: 'Grandma', cls: 'comfort', weight: 2, fareMultiplier: 1, tipMultiplier: 1.2, speedMultiplier: 0.82, minCarriages: 1,
     colors: { body: '#B39BD1', accent: '#FBF6EC', skin: '#F2CFB3', hair: '#EFEFEF' }, accessory: 'handbag', hat: 'bun', requests: { blanket: 2, tea: 1.5 },
+    figure: { outfit: 'gown', pants: '#8F79B5', hairStyle: 'bun', glasses: true, shoe: '#6B4A3A' },
     mood: 'blanket',
     mess: ['yarn', 'book', 'cup', 'newspaper'],
   },
   {
     id: 'family', label: 'Family', cls: 'comfort', weight: 2, fareMultiplier: 1, tipMultiplier: 1.15, speedMultiplier: 0.95, minCarriages: 1,
     colors: { body: '#4F86B8', accent: '#F2C94C', skin: '#E3AE87', hair: '#2F2520' }, accessory: 'child', requests: { blanket: 1.5, towel: 1.2 },
+    figure: { outfit: 'tee', pants: '#2F4A72', hairStyle: 'side', shoe: '#F2EEE6' },
     mood: 'smile',
     mess: ['teddy', 'toyTrain', 'appleCore', 'wrappers'],
   },
   {
     id: 'businessman', label: 'Business traveller', cls: 'business', weight: 3, fareMultiplier: 1, tipMultiplier: 1, speedMultiplier: 1.08, minCarriages: 1,
-    colors: { body: '#44556F', accent: '#C0485C', skin: '#F1C7A5', hair: '#3A2E28' }, accessory: 'briefcase', requests: { coffee: 2 },
+    colors: { body: '#44556F', accent: '#C0485C', skin: '#F1C7A5', hair: '#3A2E28' }, accessory: 'briefcase', hat: 'bowler', hatColor: '#2B2A30', requests: { coffee: 2 },
+    figure: { outfit: 'coat', trim: '#C0485C', pants: '#2F2B36', hairStyle: 'short', moustache: true, shoe: '#2A2433' },
     mood: 'tea',
     mess: ['newspaper', 'papers', 'cup', 'paperBalls'],
   },
   {
     id: 'newlyweds', label: 'Newlyweds', cls: 'first', weight: 1.5, fareMultiplier: 1, tipMultiplier: 1.3, speedMultiplier: 1, minCarriages: 1,
     colors: { body: '#FBF3E4', accent: '#E8849A', skin: '#EDBE9A', hair: '#5A3B2A' }, accessory: 'flower', requests: { champagne: 2 },
+    figure: { outfit: 'dress', pants: '#F6EBDD', hairStyle: 'bob', shoe: '#E8849A', sock: '#FBF3E4' },
     mood: 'heart',
     mess: ['petals', 'champagne', 'cards', 'cup'],
   },
   {
     id: 'vip', label: 'VIP', cls: 'first', weight: 2, fareMultiplier: 1, tipMultiplier: 1.3, speedMultiplier: 0.9, minCarriages: 1,
     colors: { body: '#C8A27A', accent: '#E3B352', skin: '#F0C6A2', hair: '#1E1A18' }, accessory: 'furcoat', requests: { champagne: 1.5, coffee: 1.2 },
+    figure: { outfit: 'coat', pants: '#2A2433', hairStyle: 'bob', shoe: '#7A2E3A' },
     mood: 'gem',
     mess: ['boa', 'champagne', 'cards', 'petals'],
   },
   {
     id: 'celebrity', label: 'Celebrity', cls: 'first', weight: 1.2, fareMultiplier: 1, tipMultiplier: 1.4, speedMultiplier: 0.95, minCarriages: 1,
     colors: { body: '#23202B', accent: '#E2B653', skin: '#C98E68', hair: '#1D1616' }, accessory: 'flower', hat: 'tophat', requests: { champagne: 2 },
+    figure: { outfit: 'coat', trim: '#E2B653', pants: '#1E1B24', hairStyle: 'quiff', shoe: '#1E1B24' },
     mood: 'star',
     mess: ['champagne', 'cards', 'boa', 'petals'],
   },
   {
     id: 'royal', label: 'Royalty', cls: 'royal', weight: 1, fareMultiplier: 1, tipMultiplier: 1, speedMultiplier: 0.85, minCarriages: 1,
     colors: { body: '#6A1E2E', accent: '#E2B653', skin: '#F1C7A6', hair: '#C9A36A' }, accessory: 'sash', hat: 'crown', requests: { champagne: 1.5, tea: 1.2 },
+    figure: { outfit: 'coat', trim: '#E2B653', pants: '#F2EEE6', hairStyle: 'side', shoe: '#2A2433' },
     mood: 'crown',
     mess: ['champagne', 'petals', 'book', 'cards'],
   },

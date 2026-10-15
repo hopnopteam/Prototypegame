@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { OutfitDef } from '../config/wardrobe';
 import { SHOES_BY_SPEED } from '../config/wardrobe';
 import { CharacterView, type CharacterLook } from './CharacterView';
+import { faceDepth, LEG_LENGTH, SHOULDER_X, SHOULDER_Y } from './CharacterParts';
 import { GeoBuilder } from './geo';
 import { LIGHT_UNIFORMS, MATERIALS } from './materials';
 import { PALETTE } from './palette';
@@ -58,23 +59,23 @@ export class ConductorGear {
 
     // Charm: a flower in the lapel and a gold watch chain across the coat.
     this.chest = new THREE.Mesh(new GeoBuilder()
-      .sphere(0.11, 0.66, 0.2, 0.045, '#E8849A', 1)
-      .sphere(0.11, 0.66, 0.235, 0.02, PALETTE.mustard, 1)
-      .add(new THREE.TorusGeometry(0.1, 0.008, 6, 16, Math.PI), PALETTE.gold, -0.02, 0.5, 0.215, 0, 0, Math.PI, { shade: 1 })
-      .sphere(-0.12, 0.5, 0.22, 0.03, PALETTE.gold, 1)
+      .sphere(0.08, 0.68, faceDepth(0.68) + 0.012, 0.036, '#E8849A', 1)
+      .sphere(0.08, 0.68, faceDepth(0.68) + 0.038, 0.016, PALETTE.mustard, 1)
+      .add(new THREE.TorusGeometry(0.07, 0.007, 6, 16, Math.PI), PALETTE.gold, -0.02, 0.52, faceDepth(0.52) + 0.008, 0, 0, Math.PI, { shade: 1 })
+      .sphere(-0.09, 0.52, faceDepth(0.52) + 0.01, 0.022, PALETTE.gold, 1)
       .build(), MATERIALS.character);
     view.body.add(this.chest);
     this.epaulettes = new THREE.Mesh(new GeoBuilder()
-      .rounded(-0.2, 0.8, 0, 0.16, 0.04, 0.14, 0.02, PALETTE.gold, { shade: 1 })
-      .rounded(0.2, 0.8, 0, 0.16, 0.04, 0.14, 0.02, PALETTE.gold, { shade: 1 })
+      .rounded(-SHOULDER_X, SHOULDER_Y + 0.045, 0, 0.12, 0.035, 0.12, 0.02, PALETTE.gold, { shade: 1 })
+      .rounded(SHOULDER_X, SHOULDER_Y + 0.045, 0, 0.12, 0.035, 0.12, 0.02, PALETTE.gold, { shade: 1 })
       .build(), MATERIALS.character);
     view.body.add(this.epaulettes);
 
     // Roller skates over the shoes.
     const skate = new GeoBuilder()
-      .rounded(0, -0.33, 0.04, 0.13, 0.08, 0.24, 0.03, '#E26D8C', { shade: 0.95 })
-      .box(0, -0.38, 0.04, 0.1, 0.02, 0.22, PALETTE.ink, 0, { shade: 1 });
-    for (const z of [-0.05, 0.13]) skate.cylinder(0, -0.405, z, 0.035, 0.035, 0.1, '#FFD35C', 10, 'x', { shade: 1 });
+      .rounded(0, -LEG_LENGTH + 0.06, 0.03, 0.13, 0.08, 0.24, 0.03, '#E26D8C', { shade: 0.95 })
+      .box(0, -LEG_LENGTH + 0.01, 0.03, 0.1, 0.02, 0.22, PALETTE.ink, 0, { shade: 1 });
+    for (const z of [-0.06, 0.12]) skate.cylinder(0, -LEG_LENGTH - 0.015, z, 0.035, 0.035, 0.1, '#FFD35C', 10, 'x', { shade: 1 });
     const skateGeo = skate.build();
     for (const pivot of view.legPivots) {
       const mesh = new THREE.Mesh(skateGeo, MATERIALS.character);

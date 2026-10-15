@@ -6,10 +6,11 @@ import { MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, type BubbleStyle } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
+import { addHead, addTorso, armGeometry, eyelidGeometry, faceDepth, HAND_Y, HEAD_TOP, HEAD_Y, HIP_Y, legGeometry, SHOULDER_X, SHOULDER_Y, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
 import { underPopup } from './screenMask';
 import type { CharacterBatch } from './CharacterBatch';
 
-export type HatKind = 'conductor' | 'boater' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'toque' | 'none';
+export type HatKind = 'conductor' | 'boater' | 'bowler' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'toque' | 'none';
 export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'sash' | 'none';
 
 export interface CharacterLook {
@@ -32,135 +33,145 @@ export interface CharacterLook {
   /** Session 23, a crowd of individuals: round spectacles, and hair that falls to the shoulders. */
   glasses?: boolean;
   longHair?: boolean;
+  /**
+   * Session 30, the new figures: the hairdo, what they wear (a tee, a shirt, a uniform jacket, a long coat, a dress to
+   * the knee or a gown), stripes on the top in `trim`, long or short sleeves, a belt and the sock colour. Each is
+   * inferred when absent (uniforms with `arms` wear a jacket, everyone else a tee).
+   */
+  hairStyle?: HairStyle;
+  outfit?: Outfit;
+  trim?: string;
+  stripes?: boolean;
+  sleeves?: 'short' | 'long';
+  belt?: boolean;
+  sock?: string;
 }
 
-const HIP_Y = 0.36;
-const SHOULDER_Y = 0.78;
-const HEAD_Y = 1.02;
-export const STACK_BASE_Y = 0.76;
+export const STACK_BASE_Y = 0.74;
 const SHOE = '#2A2433';
 /** World size of a guest's request bubble (fix list 3.4: smaller, was 0.9). */
 const BUBBLE_SIZE = 0.74;
+/** How far the body drops to sit (hips onto a seat about 0.24 m up). */
+const SIT_DROP = HIP_Y - 0.26;
 
 const bodyCache = new Map<string, THREE.BufferGeometry>();
 const limbCache = new Map<string, THREE.BufferGeometry>();
 
-/** Merged body: rounded coat, head with a face, hair or hat, and the accessory that tells you who they are. */
+/** The look's figure: the outfit, sleeves and hairdo it implies when it does not say. */
+function figureOf(look: CharacterLook): FigureSpec & { long: boolean } {
+  const fur = look.accessory === 'furcoat';
+  const outfit: Outfit = fur ? 'coat' : look.outfit ?? (look.arms ? 'jacket' : 'tee');
+  const hairStyle: HairStyle = look.hairStyle ?? (look.longHair ? 'long' : look.hat === 'bun' ? 'bun' : 'short');
+  return {
+    skin: look.skin,
+    hair: look.hair,
+    hairStyle,
+    outfit,
+    top: look.body,
+    trim: look.trim ?? look.accent,
+    stripes: look.stripes,
+    pants: look.pants ?? '#3A3440',
+    belt: look.belt ?? (outfit === 'tee' || outfit === 'shirt'),
+    fur: fur ? look.accent : undefined,
+    moustache: look.moustache,
+    glasses: look.glasses,
+    hatted: look.hat !== undefined && look.hat !== 'none' && look.hat !== 'bun',
+    long: look.sleeves ? look.sleeves === 'long' : outfit === 'jacket' || outfit === 'coat' || outfit === 'shirt' || outfit === 'gown',
+  };
+}
+
+/** Merged body: torso, head with a face and hair, a hat, and the accessory that tells you who they are. */
 function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
   const key = JSON.stringify(look);
   const cached = bodyCache.get(key);
   if (cached) return cached;
   const b = new GeoBuilder();
-  const fur = look.accessory === 'furcoat';
-  const smooth = { shade: 0.82 };
-  // Coat: a tapered body with a rounded hem, collar and buttons.
-  b.cylinder(0, HIP_Y + 0.24, 0, fur ? 0.25 : 0.19, fur ? 0.32 : 0.24, 0.48, look.body, 16, 'y', smooth);
-  b.sphere(0, HIP_Y + 0.02, 0, fur ? 0.32 : 0.24, look.body, 2, 0.45, smooth);
-  b.sphere(0, SHOULDER_Y - 0.02, 0, fur ? 0.27 : 0.2, look.body, 2, 0.55, smooth);
-  if (fur) b.cylinder(0, SHOULDER_Y + 0.03, 0, 0.27, 0.29, 0.12, look.accent, 16, 'y', smooth);
-  else b.cylinder(0, SHOULDER_Y + 0.06, 0.02, 0.1, 0.13, 0.08, look.accent, 12, 'y', { shade: 1 });
-  if (look.accent === PALETTE.gold) for (const y of [0.5, 0.61, 0.72]) b.sphere(0, y, 0.215, 0.022, PALETTE.gold, 0, 1, { shade: 1 });
-
-  // Head and face.
-  b.sphere(0, HEAD_Y, 0, 0.25, look.skin, 2, 1, { shade: 0.85 });
-  for (const x of [-0.085, 0.085]) b.sphere(x, HEAD_Y + 0.015, 0.228, 0.032, SHOE, 0, 1.35, { shade: 1 });
-  for (const x of [-0.15, 0.15]) b.sphere(x, HEAD_Y - 0.06, 0.2, 0.045, '#F29C9C', 0, 0.55, { shade: 1 });
-  b.sphere(0, HEAD_Y - 0.03, 0.245, 0.03, look.skin, 0, 1, { shade: 0.95 });
-  if (look.moustache) {
-    for (const side of [-1, 1]) b.add(new THREE.SphereGeometry(0.05, 10, 6).scale(1.3, 0.5, 0.6), look.hair, side * 0.045, HEAD_Y - 0.075, 0.232, 0, 0, side * -0.25, { shade: 1 });
-  }
-  const hatted = look.hat === 'conductor' || look.hat === 'boater' || look.hat === 'cap' || look.hat === 'beanie' || look.hat === 'pillbox' || look.hat === 'tophat' || look.hat === 'toque';
-  // Hair sits clearly outside the head where they overlap (near-coincident spheres flicker at the hairline).
-  // Session 23: under a hat it sits further back, so the two surfaces cross at a steeper angle (the hairline of
-  // the platform's band and station master flickered once nothing stood over them).
-  if (hatted) b.sphere(0, HEAD_Y + 0.05, -0.08, 0.264, look.hair, 2, 0.95, { shade: 0.85 });
-  else b.sphere(0, HEAD_Y + 0.085, -0.095, 0.28, look.hair, 2, 0.95, { shade: 0.85 });
-  // Long hair falls down the back of the head to the shoulders.
-  if (look.longHair) b.rounded(0, HEAD_Y - 0.13, -0.19, 0.44, 0.36, 0.16, 0.08, look.hair, { shade: 0.85 });
-  if (look.glasses) {
-    // Round wire spectacles over the eyes, a bridge between them.
-    for (const x of [-0.085, 0.085]) b.add(new THREE.TorusGeometry(0.05, 0.009, 5, 14), '#2B2733', x, HEAD_Y + 0.015, 0.262, 0, 0, 0, { shade: 1 });
-    b.box(0, HEAD_Y + 0.025, 0.268, 0.07, 0.012, 0.012, '#2B2733', 0, { shade: 1 });
-  }
-
+  const f = figureOf(look);
+  addTorso(b, f);
+  addHead(b, f);
+  const T = HEAD_TOP;
+  const flat = { shade: 1 };
   switch (look.hat) {
     case 'conductor': {
       const crown = look.hatColor ?? PALETTE.navy;
-      b.cylinder(0, HEAD_Y + 0.25, -0.01, 0.28, 0.25, 0.15, crown, 18, 'y', { shade: 0.85 });
-      b.cylinder(0, HEAD_Y + 0.2, -0.01, 0.255, 0.255, 0.05, look.bandColor ?? PALETTE.locoRed, 18, 'y', { shade: 1 });
-      b.add(new THREE.CylinderGeometry(0.2, 0.2, 0.025, 16, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 0.75), shadeOf(crown), 0, HEAD_Y + 0.17, 0.12, 0.25, 0, 0, { shade: 1 });
-      b.sphere(0, HEAD_Y + 0.27, 0.26, 0.04, PALETTE.gold, 1, 1, { shade: 1 });
+      b.cylinder(0, T + 0.02, -0.01, 0.235, 0.215, 0.13, crown, 20, 'y', { shade: 0.86 });
+      b.cylinder(0, T - 0.03, -0.01, 0.22, 0.22, 0.05, look.bandColor ?? PALETTE.locoRed, 20, 'y', flat);
+      b.add(new THREE.CylinderGeometry(0.17, 0.17, 0.022, 16, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 0.72), shadeOf(crown), 0, T - 0.055, 0.12, 0.25, 0, 0, flat);
+      b.sphere(0, T + 0.01, 0.215, 0.032, PALETTE.gold, 1, 1, flat);
       break;
     }
     case 'boater':
-      // A summer straw boater: flat brim, low crown, a ribbon band.
-      b.cylinder(0, HEAD_Y + 0.2, -0.01, 0.4, 0.4, 0.03, look.hatColor ?? '#E8D29A', 20, 'y', { shade: 0.95 });
-      b.cylinder(0, HEAD_Y + 0.29, -0.01, 0.22, 0.23, 0.16, look.hatColor ?? '#E8D29A', 18, 'y', { shade: 0.9 });
-      b.cylinder(0, HEAD_Y + 0.25, -0.01, 0.235, 0.235, 0.06, look.bandColor ?? PALETTE.raspberry, 18, 'y', { shade: 1 });
+      b.cylinder(0, T - 0.02, -0.01, 0.34, 0.34, 0.026, look.hatColor ?? '#E8D29A', 22, 'y', { shade: 0.95 });
+      b.cylinder(0, T + 0.05, -0.01, 0.19, 0.2, 0.13, look.hatColor ?? '#E8D29A', 20, 'y', { shade: 0.9 });
+      b.cylinder(0, T + 0.015, -0.01, 0.204, 0.204, 0.05, look.bandColor ?? PALETTE.raspberry, 20, 'y', flat);
+      break;
+    case 'bowler':
+      b.cylinder(0, T - 0.03, -0.01, 0.29, 0.29, 0.024, look.hatColor ?? '#2B2A30', 22, 'y', { shade: 0.95 });
+      b.sphere(0, T - 0.02, -0.01, 0.215, look.hatColor ?? '#2B2A30', 2, 0.82, { shade: 0.86 });
+      b.cylinder(0, T - 0.005, -0.01, 0.214, 0.214, 0.04, look.bandColor ?? '#4A3A36', 20, 'y', flat);
       break;
     case 'pillbox':
-      b.cylinder(0, HEAD_Y + 0.27, 0, 0.16, 0.16, 0.14, look.accent, 16, 'y', { shade: 0.9 });
-      b.cylinder(0, HEAD_Y + 0.22, 0, 0.165, 0.165, 0.03, PALETTE.gold, 16, 'y', { shade: 1 });
+      b.cylinder(0, T + 0.04, 0, 0.14, 0.14, 0.12, look.hatColor ?? look.body, 18, 'y', { shade: 0.9 });
+      b.cylinder(0, T - 0.01, 0, 0.144, 0.144, 0.026, PALETTE.gold, 18, 'y', flat);
       break;
     case 'cap':
-      b.sphere(0, HEAD_Y + 0.12, 0, 0.24, look.accent, 2, 0.75, { shade: 0.9 });
-      b.add(new THREE.CylinderGeometry(0.17, 0.17, 0.025, 14, 1, false, -Math.PI / 2, Math.PI), look.accent, 0, HEAD_Y + 0.1, 0.16, 0.1, 0, 0, { shade: 1 });
+      // A baseball cap: a soft crown over the hair and a peak forward.
+      b.add(dome(0.232, 0.62, 0.56), look.hatColor ?? look.accent, 0, HEAD_Y + 0.045, -0.005, 0, 0, 0, { shade: 0.9 });
+      b.add(new THREE.CylinderGeometry(0.15, 0.15, 0.022, 16, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 1.15), shadeOf(look.hatColor ?? look.accent), 0, HEAD_Y + 0.085, 0.17, 0.12, 0, 0, flat);
+      b.sphere(0, HEAD_Y + 0.225, -0.005, 0.022, shadeOf(look.hatColor ?? look.accent), 0, 1, flat);
       break;
     case 'beanie':
-      b.sphere(0, HEAD_Y + 0.13, -0.01, 0.255, look.accent, 2, 0.8, { shade: 0.9 });
-      b.cylinder(0, HEAD_Y + 0.06, -0.01, 0.262, 0.262, 0.06, shadeOf(look.accent), 16, 'y', { shade: 1 });
-      b.sphere(0, HEAD_Y + 0.35, -0.02, 0.07, PALETTE.linen, 1, 1, { shade: 1 });
-      break;
-    case 'bun':
-      b.sphere(0, HEAD_Y + 0.27, -0.12, 0.11, look.hair, 2, 1, { shade: 0.85 });
+      b.add(dome(0.234, 0.85, 0.52), look.accent, 0, HEAD_Y + 0.06, -0.01, 0, 0, 0, { shade: 0.9 });
+      b.cylinder(0, HEAD_Y + 0.07, -0.01, 0.238, 0.238, 0.06, shadeOf(look.accent), 20, 'y', flat);
+      b.sphere(0, HEAD_Y + 0.27, -0.02, 0.055, PALETTE.linen, 1, 1, flat);
       break;
     case 'crown': {
-      // A small gold crown with five points and red stones, sitting on the hair.
-      b.cylinder(0, HEAD_Y + 0.3, -0.02, 0.16, 0.15, 0.08, PALETTE.gold, 16, 'y', { shade: 0.9, surface: 'brass' });
+      b.cylinder(0, T + 0.06, -0.02, 0.14, 0.13, 0.07, PALETTE.gold, 16, 'y', { shade: 0.9, surface: 'brass' });
       for (let i = 0; i < 5; i++) {
         const a = (i / 5) * Math.PI * 2 + Math.PI / 2;
-        b.cone(Math.cos(a) * 0.14, HEAD_Y + 0.39, -0.02 + Math.sin(a) * 0.14, 0.035, 0.1, PALETTE.gold, 6, { shade: 1, surface: 'brass' });
+        b.cone(Math.cos(a) * 0.12, T + 0.13, -0.02 + Math.sin(a) * 0.12, 0.03, 0.08, PALETTE.gold, 6, { shade: 1, surface: 'brass' });
       }
-      b.sphere(0, HEAD_Y + 0.3, 0.13, 0.025, PALETTE.raspberry, 0, 1, { shade: 1, surface: 'crystal' });
+      b.sphere(0, T + 0.06, 0.115, 0.022, PALETTE.raspberry, 0, 1, { shade: 1, surface: 'crystal' });
       break;
     }
     case 'tophat':
-      b.cylinder(0, HEAD_Y + 0.2, -0.01, 0.32, 0.32, 0.03, look.hatColor ?? '#1E1B24', 20, 'y', { shade: 0.95, surface: 'leather' });
-      b.cylinder(0, HEAD_Y + 0.37, -0.01, 0.2, 0.21, 0.32, look.hatColor ?? '#1E1B24', 18, 'y', { shade: 0.9, surface: 'leather' });
-      b.cylinder(0, HEAD_Y + 0.25, -0.01, 0.212, 0.212, 0.06, look.bandColor ?? PALETTE.gold, 18, 'y', { shade: 1 });
+      b.cylinder(0, T - 0.02, -0.01, 0.28, 0.28, 0.026, look.hatColor ?? '#1E1B24', 22, 'y', { shade: 0.95, surface: 'leather' });
+      b.cylinder(0, T + 0.13, -0.01, 0.17, 0.18, 0.29, look.hatColor ?? '#1E1B24', 20, 'y', { shade: 0.9, surface: 'leather' });
+      b.cylinder(0, T + 0.03, -0.01, 0.182, 0.182, 0.05, look.bandColor ?? PALETTE.gold, 20, 'y', flat);
       break;
     case 'toque':
-      // The chef's tall white hat: a band and a puffed crown.
-      b.cylinder(0, HEAD_Y + 0.25, -0.01, 0.22, 0.22, 0.12, PALETTE.linen, 16, 'y', { shade: 0.95 });
-      b.sphere(0, HEAD_Y + 0.42, -0.01, 0.26, PALETTE.linen, 2, 0.75, { shade: 0.9 });
+      b.cylinder(0, T + 0.02, -0.01, 0.2, 0.2, 0.1, PALETTE.linen, 18, 'y', { shade: 0.95 });
+      b.sphere(0, T + 0.16, -0.01, 0.23, PALETTE.linen, 2, 0.72, { shade: 0.9 });
       break;
     default:
       break;
   }
 
+  const front = (y: number): number => faceDepth(y);
   switch (look.accessory) {
     case 'backpack':
-      b.rounded(0, HIP_Y + 0.3, -0.26, 0.36, 0.42, 0.2, 0.06, look.accent, { shade: 0.8 });
-      b.rounded(0, HIP_Y + 0.54, -0.26, 0.3, 0.1, 0.18, 0.05, '#8C5A32', { shade: 1 });
+      b.rounded(0, 0.6, -0.2, 0.28, 0.34, 0.15, 0.06, look.accent, { shade: 0.82 });
+      b.rounded(0, 0.53, -0.285, 0.2, 0.12, 0.04, 0.02, shadeOf(look.accent), flat);
+      for (const s of [-1, 1]) b.box(s * 0.09, 0.66, front(0.66) - 0.002, 0.035, 0.18, 0.012, '#5A3A26', 0, flat);
       break;
     case 'flower':
-      b.sphere(0.1, SHOULDER_Y - 0.1, 0.2, 0.05, look.accent, 1);
-      b.sphere(0.1, SHOULDER_Y - 0.1, 0.235, 0.025, PALETTE.mustard, 1);
+      b.sphere(0.08, 0.68, front(0.68) + 0.01, 0.038, look.accent, 1);
+      b.sphere(0.08, 0.68, front(0.68) + 0.035, 0.018, PALETTE.mustard, 1);
       break;
     case 'apron':
-      b.box(0, HIP_Y + 0.18, 0.2, 0.3, 0.36, 0.03, PALETTE.linen, 0, { shade: 1 });
+      b.add(apronGeometry(), PALETTE.linen, 0, 0, 0, 0, 0, 0, { shade: 1 });
       break;
     case 'camera':
-      b.rounded(0, SHOULDER_Y - 0.12, 0.23, 0.18, 0.12, 0.08, 0.02, '#2B2B33', { shade: 1 });
-      b.cylinder(0, SHOULDER_Y - 0.12, 0.29, 0.04, 0.04, 0.06, '#5A6273', 10, 'z');
+      b.rounded(0, 0.6, front(0.6) + 0.04, 0.14, 0.09, 0.06, 0.02, '#2B2B33', flat);
+      b.cylinder(0, 0.6, front(0.6) + 0.085, 0.032, 0.032, 0.04, '#5A6273', 12, 'z');
+      for (const s of [-1, 1]) b.box(s * 0.07, 0.7, front(0.7), 0.014, 0.16, 0.01, '#2B2B33', 0, flat);
       break;
     case 'sash':
-      // A royal sash from shoulder to hip.
-      b.add(new THREE.BoxGeometry(0.07, 0.56, 0.03), look.accent, 0.02, HIP_Y + 0.3, 0.215, 0.12, 0, 0.62, { shade: 1, surface: 'fabric' });
-      b.sphere(0.1, SHOULDER_Y - 0.12, 0.235, 0.035, PALETTE.gold, 1, 1, { shade: 1, surface: 'brass' });
+      b.add(new THREE.BoxGeometry(0.06, 0.48, 0.02), look.accent, 0.01, 0.6, front(0.6) + 0.01, 0.08, 0, 0.62, { shade: 1, surface: 'fabric' });
+      b.sphere(0.07, 0.67, front(0.67) + 0.02, 0.028, PALETTE.gold, 1, 1, { shade: 1, surface: 'brass' });
       break;
     case 'handbag':
-      for (let i = 0; i < 5; i++) b.sphere(-0.12 + i * 0.06, SHOULDER_Y + 0.02 - Math.abs(i - 2) * 0.012, 0.16, 0.022, PALETTE.linen, 0, 1, { shade: 1 });
+      for (let i = 0; i < 5; i++) b.sphere(-0.08 + i * 0.04, 0.79 - Math.abs(i - 2) * 0.012, front(0.79) + 0.01, 0.018, PALETTE.linen, 0, 1, flat);
       break;
     default:
       break;
@@ -170,29 +181,41 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
   return geometry;
 }
 
-function legGeometry(color: string, shoe = SHOE): THREE.BufferGeometry {
-  const key = `leg:${color}:${shoe}`;
+/** The crown of a soft hat: the top `frac` of a sphere of `radius`, squashed to `sy`, open underneath. */
+function dome(radius: number, sy: number, frac: number): THREE.BufferGeometry {
+  const g = new THREE.SphereGeometry(radius, 22, 12, 0, Math.PI * 2, 0, Math.PI * frac);
+  g.scale(1, sy, 1);
+  return g;
+}
+
+/** An apron's bib and skirt over the front of the torso. */
+function apronGeometry(): THREE.BufferGeometry {
+  const g = new GeoBuilder();
+  g.rounded(0, 0.56, faceDepth(0.56) + 0.006, 0.18, 0.26, 0.012, 0.02, PALETTE.linen, { shade: 1 });
+  g.rounded(0, 0.37, faceDepth(0.44) + 0.012, 0.26, 0.2, 0.012, 0.02, PALETTE.linen, { shade: 1 });
+  return g.build();
+}
+
+function legGeometryFor(look: CharacterLook): THREE.BufferGeometry {
+  const f = figureOf(look);
+  const bare = f.outfit === 'dress' || f.outfit === 'gown';
+  const key = `leg:${f.pants}:${look.shoe}:${bare}:${look.skin}:${look.sock}`;
   let g = limbCache.get(key);
   if (!g) {
-    g = new GeoBuilder()
-      .cylinder(0, -0.16, 0, 0.065, 0.06, 0.32, color, 10, 'y', { shade: 0.85 })
-      .add(new THREE.SphereGeometry(0.075, 10, 6).scale(1, 0.6, 1.5), shoe, 0, -0.33, 0.04, 0, 0, 0, { shade: 1 })
-      .build();
+    g = legGeometry(f.pants, look.shoe ?? SHOE, bare, look.skin, look.sock ?? '#F4F1EA');
     limbCache.set(key, g);
   }
   return g;
 }
 
-function armGeometry(color: string, skin: string, carried: AccessoryKind | undefined, side: 1 | -1): THREE.BufferGeometry {
-  const key = `arm:${color}:${skin}:${carried}:${side}`;
+function armGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
+  const f = figureOf(look);
+  const carried = look.accessory === 'briefcase' || look.accessory === 'handbag' ? look.accessory : null;
+  const cuff = f.outfit === 'jacket' && look.accent !== look.body ? look.accent : undefined;
+  const key = `arm:${look.body}:${look.skin}:${f.long}:${carried}:${side}:${cuff}`;
   let g = limbCache.get(key);
   if (!g) {
-    const b = new GeoBuilder()
-      .cylinder(0, -0.14, 0, 0.055, 0.05, 0.3, color, 10, 'y', { shade: 0.85 })
-      .sphere(0, -0.31, 0, 0.06, skin, 1);
-    if (carried === 'briefcase' && side === 1) b.rounded(0, -0.42, 0.02, 0.07, 0.2, 0.28, 0.03, '#6B4430', { shade: 0.85 });
-    if (carried === 'handbag' && side === -1) b.rounded(0, -0.4, 0, 0.08, 0.14, 0.2, 0.04, '#C94F6D', { shade: 0.85 });
-    g = b.build();
+    g = armGeometry(look.body, look.skin, f.long, side, carried, cuff);
     limbCache.set(key, g);
   }
   return g;
@@ -214,24 +237,18 @@ function blanketGeometry(color: string): THREE.BufferGeometry {
   let g = blanketCache.get(color);
   if (!g) {
     g = new GeoBuilder()
-      .rounded(0, 0.25, -0.2, 0.8, 0.42, 1.2, 0.14, color, { shade: 0.9 })
-      .rounded(0, 0.27, -0.78, 0.82, 0.4, 0.14, 0.06, PALETTE.linen, { shade: 0.95 })
+      .rounded(0, 0.22, -0.15, 0.64, 0.3, 1.0, 0.12, color, { shade: 0.9 })
+      .rounded(0, 0.235, -0.64, 0.66, 0.28, 0.12, 0.05, PALETTE.linen, { shade: 0.95 })
       .build();
     blanketCache.set(color, g);
   }
   return g;
 }
 
-/** Closed eyes: lids in skin colour over the eyes, with a small dark lash line. */
-function eyelidGeometry(skin: string): THREE.BufferGeometry {
+function eyelidGeometryFor(skin: string): THREE.BufferGeometry {
   let g = eyelidCache.get(skin);
   if (!g) {
-    const b = new GeoBuilder();
-    for (const x of [-0.085, 0.085]) {
-      b.sphere(x, HEAD_Y + 0.015, 0.232, 0.04, skin, 0, 1.3, { shade: 1 });
-      b.box(x, HEAD_Y - 0.008, 0.268, 0.06, 0.012, 0.01, SHOE, 0, { shade: 1 });
-    }
-    g = b.build();
+    g = eyelidGeometry(skin);
     eyelidCache.set(skin, g);
   }
   return g;
@@ -342,11 +359,10 @@ export class CharacterView {
 
   constructor(public look: CharacterLook, scale = 1) {
     this.root.add(this.body);
-    const pants = look.pants ?? '#3A3440';
     for (const side of [-1, 1] as const) {
       const pivot = new THREE.Object3D();
-      pivot.position.set(side * 0.095, HIP_Y, 0);
-      const leg = castsShadow(new THREE.Mesh(legGeometry(pants, look.shoe), MATERIALS.character));
+      pivot.position.set(side * 0.078, HIP_Y, 0);
+      const leg = castsShadow(new THREE.Mesh(legGeometryFor(look), MATERIALS.character));
       pivot.add(leg);
       this.body.add(pivot);
       this.legs.push(pivot);
@@ -355,11 +371,10 @@ export class CharacterView {
     this.bodyMesh = castsShadow(new THREE.Mesh(bodyGeometry(look), MATERIALS.character));
     this.body.add(this.bodyMesh);
 
-    const carried = look.accessory;
     for (const side of [-1, 1] as const) {
       const pivot = new THREE.Object3D();
-      pivot.position.set(side * 0.25, SHOULDER_Y, 0);
-      const arm = castsShadow(new THREE.Mesh(armGeometry(look.body, look.skin, carried, side), MATERIALS.character));
+      pivot.position.set(side * SHOULDER_X, SHOULDER_Y, 0);
+      const arm = castsShadow(new THREE.Mesh(armGeometryFor(look, side), MATERIALS.character));
       pivot.add(arm);
       pivot.rotation.z = side * 0.1;
       this.body.add(pivot);
@@ -367,7 +382,7 @@ export class CharacterView {
       this.armMeshes.push(arm);
     }
 
-    this.stackAnchor.position.set(0, STACK_BASE_Y, 0.34);
+    this.stackAnchor.position.set(0, STACK_BASE_Y, 0.3);
     this.body.add(this.stackAnchor);
 
     this.shadow = new THREE.Mesh(SHADOW_GEOMETRY, MATERIALS.shadow);
@@ -381,8 +396,8 @@ export class CharacterView {
   setLook(look: CharacterLook): void {
     this.look = look;
     this.bodyMesh.geometry = bodyGeometry(look);
-    this.legMeshes.forEach((m) => (m.geometry = legGeometry(look.pants ?? '#3A3440', look.shoe)));
-    this.armMeshes.forEach((m, i) => (m.geometry = armGeometry(look.body, look.skin, look.accessory, i === 0 ? -1 : 1)));
+    this.legMeshes.forEach((m) => (m.geometry = legGeometryFor(look)));
+    this.armMeshes.forEach((m, i) => (m.geometry = armGeometryFor(look, i === 0 ? -1 : 1)));
   }
 
   /** Leg pivots (for footwear attachments) and the body group (for chest and shoulder gear). */
@@ -398,7 +413,7 @@ export class CharacterView {
 
   /** Puts something in the right hand (a flag, a balloon); it follows the arm, waving included. */
   holdInRightHand(object: THREE.Object3D): void {
-    object.position.y += -0.33;
+    object.position.y += HAND_Y;
     this.arms[1].add(object);
   }
 
@@ -448,7 +463,7 @@ export class CharacterView {
     if (kind && !this.inHand.has(kind)) {
       const mesh = new THREE.Mesh(propGeometry(kind), MATERIALS.character);
       mesh.userData.shared = true;
-      mesh.position.set(0, kind === 'phone' ? -0.37 : kind === 'ticket' ? -0.42 : -0.36, kind === 'phone' ? 0.03 : 0.06);
+      mesh.position.set(0, HAND_Y + (kind === 'phone' ? -0.03 : kind === 'ticket' ? -0.08 : -0.03), kind === 'phone' ? 0.03 : 0.06);
       this.arms[1].add(mesh);
       this.inHand.set(kind, mesh);
     }
@@ -598,12 +613,12 @@ export class CharacterView {
         this.root.add(this.blanket);
       }
       if (!this.eyelids) {
-        this.eyelids = new THREE.Mesh(eyelidGeometry(this.look.skin), MATERIALS.character);
+        this.eyelids = new THREE.Mesh(eyelidGeometryFor(this.look.skin), MATERIALS.character);
         this.eyelids.userData.shared = true;
         this.body.add(this.eyelids);
       }
     } else if (pose === 'sit') {
-      this.body.position.y = -0.12;
+      this.body.position.y = -SIT_DROP;
     }
     if (this.blanket) this.blanket.visible = pose === 'sleep';
     if (this.eyelids) this.eyelids.visible = pose === 'sleep';
@@ -664,7 +679,7 @@ export class CharacterView {
       // Slow breathing: the blanket rises and falls.
       if (this.pose === 'sleep' && this.blanket) this.blanket.scale.y = 1 + Math.sin(this.phase * 1.6) * 0.06;
       if (this.pose === 'sit') {
-        this.body.position.y = -0.12;
+        this.body.position.y = -SIT_DROP;
         this.body.rotation.set(0, 0, 0);
         this.applyAction(dt);
       }
@@ -721,7 +736,7 @@ export const CONDUCTOR_LOOK: CharacterLook = {
 
 /** Staff uniforms: bellhop purple for attendants, signal red for porters, mustard for supply runners. */
 export const STAFF_LOOKS: Record<StaffRole, CharacterLook> = {
-  attendant: { body: '#7B5AA6', accent: '#7B5AA6', skin: '#E3AE87', hair: '#2F2520', pants: '#3F2F5A', hat: 'pillbox', accessory: 'apron', arms: true },
+  attendant: { body: '#7B5AA6', accent: '#7B5AA6', skin: '#E3AE87', hair: '#2F2520', pants: '#6A4C93', hat: 'pillbox', accessory: 'apron', arms: true, outfit: 'dress', sleeves: 'long', hairStyle: 'bob' },
   porter: { body: '#C8453A', accent: '#C8453A', skin: '#C98E68', hair: '#1D1616', pants: '#3A2A2E', hat: 'pillbox', arms: true },
   runner: { body: '#E0A93B', accent: '#3F6E5A', skin: '#F2CFB3', hair: '#8C5A32', pants: '#5A4632', hat: 'cap', arms: true },
   // The venue carriages' staff (session 20): each reads as their job at a glance.
