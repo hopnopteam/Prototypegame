@@ -310,9 +310,10 @@ export class Synth {
     const rand = (): number => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     const claps = Math.round(duration * 26);
     for (let i = 0; i < claps; i++) {
-      const at = t + duration * Math.min(0.97, (i + rand()) / claps);
-      const shape = Math.sin(((at - t) / duration) * Math.PI);
-      this.noise(at, 0.03, 'bandpass', 1800 + rand() * 1600, gain * (0.2 + 0.8 * shape));
+      const at = t + duration * Math.min(0.9, (i + rand()) / claps);
+      // Swells in and dies away to nothing (the last claps the quietest), so the cue rings down cleanly.
+      const shape = Math.sin(((at - t) / (duration * 0.92)) * Math.PI) ** 2;
+      this.noise(at, 0.03, 'bandpass', 1800 + rand() * 1600, gain * shape);
     }
   }
 
