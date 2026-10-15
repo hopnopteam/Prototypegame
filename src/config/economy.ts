@@ -208,6 +208,14 @@ export const ECONOMY = {
    */
   bell: { seconds: 1, before: 16, travellers: 2, stagger: 0.8 },
 
+  /**
+   * Session 30 (owner: "leaving the baggage of the customer should have some penalty or reduced fares… communicated so
+   * it actually feels important"): each bag still on the barrow as the doors close is sent on after its owner at the
+   * train's cost, `refundPerBag` × the owner's class tip multiplier taken from the wallet (never below zero), and the
+   * owner, without their bag, counts it as a service missed (a smaller tip and a frown when they get off).
+   */
+  luggage: { refundPerBag: 10 },
+
   night: {
     shineSeconds: 1.3,
     shineTip: 4,
@@ -238,6 +246,12 @@ export const ECONOMY = {
      * Night owls (session 24, the night shift): this share of guests stays up `later` (a share of the ride) past
      * their bedtime and asks for one more thing before lights out, a nightcap from `pool` they have not had yet.
      */
+    /**
+     * Session 30 (owner: "we should have interactivity most of the game"): after the evening's and the morning's
+     * request has been seen to, `chance` of guests ask for `count` more thing(s) from their class's `extra` list,
+     * `delay` seconds later (config/classes.ts).
+     */
+    again: { chance: 0.85, count: 1, delay: [5, 9] as [number, number] },
     owl: { chance: 0.25, later: 0.14, pool: { tea: 1, blanket: 1 } as Partial<Record<ServiceNeed, number>> },
   },
 
@@ -559,14 +573,18 @@ export const ECONOMY = {
      * levels 5–8 come at about 38, 58, 85 and 120 minutes on the autopilot; was 880 stars for level 8 (~39 min).
      * Level 8 stays at the top rival's reputation, so #1 is reachable on route 1.
      */
-    levelThresholds: [0, 75, 175, 360, 600, 1050, 2000, 3200],
+    // Session 30: levels 3 and up about 30% further apart (owner: "each step of the game should feel earned and longer").
+    levelThresholds: [0, 75, 230, 470, 780, 1365, 2600, 4160],
     levelRailMiles: [0, 3, 4, 5, 6, 8, 10, 12],
     levelCash: [0, 80, 150, 300, 550, 900, 1400, 2200],
     /** Feature gates by route level (§9: introduce each layer after the one below is understood). */
     unlockLevels: {
       conductorUpgrades: 2,
-      dailyQuests: 3,
-      dailyLogin: 4,
+      // Session 30 (owner: "we want the players to come back more often"): the login calendar, the daily quests and the
+      // Station Master's Chest all start at level 2, inside the first session, so tomorrow's reward is already in view.
+      dailyQuests: 2,
+      dailyLogin: 2,
+      chest: 2,
       stories: 5,
     },
   },
@@ -640,13 +658,17 @@ export const ECONOMY = {
     supplyDelivery: { gemCost: 5 },
   },
 
+  /**
+   * Session 30 (owner: "don't hand out big rewards for being away from the game, just very very little"): a small
+   * thank-you when you come back, from automated income only, for at most an hour, at a tenth of the rate.
+   */
   offline: {
-    minAwaySeconds: 120,
-    capSeconds: 2 * 60 * 60,
+    minAwaySeconds: 300,
+    capSeconds: 60 * 60,
     perCabinPerMinute: 1.5,
     perStaffPerMinute: { attendant: 6, porter: 9, runner: 5 } as Record<string, number>,
-    /** Only automated income accrues offline, and at a reduced rate, so playing always beats waiting. */
-    efficiency: 0.6,
+    /** Only automated income accrues offline, and at a tenth of the rate, so playing always beats waiting. */
+    efficiency: 0.1,
   },
 
   /**
@@ -664,6 +686,12 @@ export const ECONOMY = {
    * times at `to` and beyond (couplings, carriage tiles and station upgrades alike). Applied in `buildUnlocks`.
    */
   priceCurve: { from: 300, to: 4000, max: 1.3 },
+  /**
+   * Session 30 (owner: "the game moves and gives money way too fast way too early… each step should feel earned"):
+   * every tile, coupling and station upgrade costs `factor` times its catalogue price (rounded to 5), except the
+   * opening's first tiles at `keepUnder` or less, which the first fares buy exactly. Applied before `priceCurve`.
+   */
+  priceScale: { factor: 1.8, keepUnder: 30 },
 
   offers: {
     /** First Class Ticket: first shown after the first carriage couples, and never in the first 5 minutes. */
@@ -671,6 +699,13 @@ export const ECONOMY = {
     firstClassDiscountAfterIgnores: 2,
     firstClassSessionCooldownSeconds: 20,
   },
+
+  /**
+   * The Station Master's Chest (session 30, retention): a chest in the right rail that fills up again `hours` after it
+   * is opened (the first is ready as soon as it unlocks), paying `cashPerCarriage` per carriage and `gems`. A reason to
+   * look in a few times a day; never a reward for being away long (it holds one chest, not a pile).
+   */
+  chest: { hours: 4, cashPerCarriage: 30, gems: 3 },
 
   daily: {
     loginRewards: [

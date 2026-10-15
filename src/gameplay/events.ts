@@ -92,6 +92,9 @@ export interface StationResult {
   ratingDelta: number;
   /** What the travellers who missed the train would have paid (shown, never taken). */
   missedFare: number;
+  /** Session 30: bags left on the platform this stop and the refund paid to their owners. */
+  bagsLeft: number;
+  bagRefund: number;
   /** The misses are shown (the soft cues are on): the red line, the "aww", the glance at the platform. */
   showMissed: boolean;
 }

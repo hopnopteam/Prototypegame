@@ -130,6 +130,8 @@ export interface SaveData {
     quests: { day: string | null; items: QuestState[] };
     stories: Record<string, StoryState>;
     perks: { tipBonus: number; fareBonus: number; speedBonus: number };
+    /** Session 30: when the Station Master's Chest is full again (ms since epoch; 0 is ready now). */
+    chestReadyAt: number;
   };
   /** The objective chain (config/objectives.ts): which goal is current and how far along it is. */
   objectives: { index: number; progress: number };
@@ -199,6 +201,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
       quests: { day: null, items: [] },
       stories: {},
       perks: { tipBonus: 0, fareBonus: 0, speedBonus: 0 },
+      chestReadyAt: 0,
     },
     objectives: { index: 0, progress: 0 },
     cosmetics: { livery: null, owned: [], outfit: 'classic', outfits: [] },

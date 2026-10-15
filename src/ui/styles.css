@@ -176,6 +176,11 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .hud-row .menu-btn.glow { animation: glow 1.4s ease-in-out infinite; }
 .side .dot, .hud-row .dot { position: absolute; top: -7px; right: -7px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--raspberry); color: var(--cream); font-size: 12px; font-weight: 800; line-height: 17px; border: 2px solid var(--ink); box-sizing: border-box; }
 .side button.glow { animation: glow 1.4s ease-in-out infinite; }
+/* Session 30: the Station Master's Chest, its countdown on a dark pill under it (dimmed while it refills). */
+.side button.chest { overflow: visible; }
+.side button.chest.waiting > .ico { opacity: 0.55; filter: grayscale(0.6); }
+.side button.chest .chest-time { position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%); padding: 0 5px; border-radius: 8px; background: var(--ink); color: var(--cream); font-size: 10px; font-weight: 700; line-height: 15px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.side button.chest.glow .chest-time { background: var(--raspberry); }
 /* The rival's dare (session 24): their face, ringed by how far along the dare is; its icon; the count. */
 .side button.rival { border-radius: 50%; padding: 0; background: conic-gradient(#7FD36A calc(var(--p, 0) * 360deg), #3B3045 0); overflow: visible; }
 .side button.rival .portrait { width: 30px; height: 30px; border-radius: 50%; display: block; box-shadow: 0 0 0 2px var(--ink); }

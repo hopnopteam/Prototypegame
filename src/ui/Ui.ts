@@ -230,7 +230,12 @@ export class Ui implements GameUi {
     dare.classList.add('rival');
     dare.replaceChildren(dareFace, dareIcon, dareCount);
     // The shop button only while monetization is on (the Paint Shop is in the menu otherwise).
-    const side = h('div.side', {}, MONETIZATION_ENABLED ? shop : null, this.boostLayer);
+    // Session 30, the Station Master's Chest (retention): full every few hours; a countdown under it until then.
+    this.chestTime = h('span.chest-time');
+    this.chestBtn = button('chest', 'Station Master\'s Chest', () => this.openChest());
+    this.chestBtn.classList.add('chest');
+    this.chestBtn.appendChild(this.chestTime);
+    const side = h('div.side', {}, MONETIZATION_ENABLED ? shop : null, this.chestBtn, this.boostLayer);
 
     this.floatLayer = h('div.floats');
     this.burst.value = h('span', { text: '+0' });
@@ -476,6 +481,21 @@ export class Ui implements GameUi {
     const dailyCount = g.meta.claimableQuests() + (g.meta.canClaimLogin() ? 1 : 0);
     setVisible(hud.menuDot, dailyCount > 0);
     setText(hud.menuDot, String(dailyCount));
+
+    // The Station Master's Chest: shown from its level, glowing when full, a countdown (h:mm) until then.
+    const chestOpen = g.meta.chestUnlocked() && !g.flow.opening;
+    setVisible(this.chestBtn, chestOpen);
+    if (chestOpen) {
+      const left = g.meta.chestLeft();
+      const key = left > 0 ? String(Math.ceil(left / 60)) : 'ready';
+      if (this.chestBtn.dataset.key !== key) {
+        this.chestBtn.dataset.key = key;
+        this.chestBtn.classList.toggle('glow', left <= 0);
+        this.chestBtn.classList.toggle('waiting', left > 0);
+        const mins = Math.ceil(left / 60);
+        setText(this.chestTime, left > 0 ? `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')}` : '!');
+      }
+    }
 
     // Boost timers, at the foot of the rail.
     const boostLeft = (g.data.monetization.speedBoostUntil - Date.now()) / 1000;
@@ -1073,6 +1093,22 @@ export class Ui implements GameUi {
     return this.screens.closeTop();
   }
 
+  private readonly chestBtn: HTMLButtonElement;
+  private readonly chestTime: HTMLElement;
+
+  /** Opens a full chest: the cash and gems fly to their counters with the chest's chime; otherwise a soft tock. */
+  private openChest(): void {
+    const g = this.game;
+    const got = g.meta.openChest();
+    if (!got) {
+      g.audio.play('tock');
+      return;
+    }
+    g.audio.play('chest');
+    this.toast(`+${formatNumber(got.cash)}`, 'cash');
+    this.chestBtn.dataset.key = '';
+  }
+
   toast(text: string, iconName?: IconName): void {
     const el = h('div.toast', {}, iconName ? icon(iconName, 22) : null, h('span', { text }));
     this.toastLayer.appendChild(el);
@@ -1220,10 +1256,15 @@ export class Ui implements GameUi {
       result.clean ? chip('chest', `+${formatNumber(result.bonusCash)}`, '.bonus') : null,
       result.clean && result.streak >= 2 ? chip('bolt', `×${result.streak}`, '.streak') : null,
     );
-    const missed = result.showMissed
-      ? h('div.rows', {}, chip(null, `${result.waiting} missed`, '.bad'), chip('cash', `−${formatNumber(result.missedFare)}`, '.bad.lost'))
+    const missed = result.showMissed || result.bagsLeft > 0
+      ? h('div.rows', {},
+        result.showMissed ? chip(null, `${result.waiting} missed`, '.bad') : null,
+        result.showMissed ? chip('cash', `−${formatNumber(result.missedFare)}`, '.bad.lost') : null,
+        // Session 30: bags left behind, and the refund paid to their owners (taken, not just shown).
+        result.bagsLeft > 0 ? chip('luggage', `${result.bagsLeft} left`, '.bad') : null,
+        result.bagRefund > 0 ? chip('cash', `−${formatNumber(result.bagRefund)}`, '.bad') : null)
       : null;
-    const el = h(`div.ticket.result${result.clean ? '.perfect' : ''}${rated <= 1 ? '.poor' : rated === 2 ? '.average' : ''}${result.showMissed ? '.missed' : ''}` as 'div', {
+    const el = h(`div.ticket.result${result.clean ? '.perfect' : ''}${rated <= 1 ? '.poor' : rated === 2 ? '.average' : ''}${result.showMissed || result.bagsLeft > 0 ? '.missed' : ''}` as 'div', {
       role: 'status',
       'aria-label': `${result.stationName}: ${result.boarded} of ${due} boarded, ${result.earned} earned`,
       onclick: () => this.dismissResult(),

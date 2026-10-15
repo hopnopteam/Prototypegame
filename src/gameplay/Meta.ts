@@ -107,6 +107,29 @@ export class Meta {
     return granted;
   }
 
+  // ─── The Station Master's Chest ──────────────────────────────────────────────
+
+  chestUnlocked(): boolean {
+    return this.w.progression.isFeatureUnlocked('chest');
+  }
+
+  /** Seconds until the chest is full again (0 when it is ready). */
+  chestLeft(): number {
+    return Math.max(0, (this.w.data.meta.chestReadyAt - Date.now()) / 1000);
+  }
+
+  /** Opens a full chest: cash for every carriage and a few gems; it fills again in `chest.hours`. */
+  openChest(): { cash: number; gems: number } | null {
+    if (!this.chestUnlocked() || this.chestLeft() > 0) return null;
+    const c = this.w.econ.chest;
+    const cash = c.cashPerCarriage * this.w.train.count;
+    this.w.wallet.add('cash', cash, 'chest');
+    this.w.wallet.add('gems', c.gems, 'chest');
+    this.w.data.meta.chestReadyAt = Date.now() + c.hours * 3600 * 1000;
+    this.w.save.markDirty();
+    return { cash, gems: c.gems };
+  }
+
   // ─── Stories ────────────────────────────────────────────────────────────────
 
   storiesUnlocked(): boolean {

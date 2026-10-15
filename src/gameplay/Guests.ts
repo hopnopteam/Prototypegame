@@ -117,6 +117,9 @@ export class Guest {
   /** Session 24, a night owl: stays up later and asks for a nightcap (`owlWish` until they have; `owlNow` while choosing). */
   owlWish = false;
   owlNow = false;
+  /** Session 30: more requests still to come this part of the night (from the class's `extra` list), and choosing one. */
+  again = 0;
+  againNow = false;
   /**
    * Session 23, the ticket queue: where on the platform they are headed (`q0` the window, `q3` fourth in line,
    * `w1` the second place by the bench, `d` by the door with a ticket), whether they have got there, and the
@@ -750,6 +753,13 @@ export class Guests {
           guest.phaseRequested = false;
           guest.wishIn = w.rng.range(...w.econ.trip.requestDelay);
         } else if (!guest.phaseOuting && guest.stateTime >= guest.settleFor) this.maybeOuting(guest);
+        else if (guest.again > 0 && guest.trip !== 'night' && !guest.story) {
+          // Their request seen to, one more thing (session 30): guests keep asking through the evening and morning.
+          guest.again--;
+          guest.againNow = true;
+          guest.phaseRequested = false;
+          guest.wishIn = w.rng.range(...w.econ.trip.again.delay);
+        }
         break;
       }
       case 'resting':
@@ -852,6 +862,8 @@ export class Guests {
     guest.trip = next;
     guest.phaseRequested = false;
     guest.phaseOuting = false;
+    guest.again = this.extraRequests();
+    guest.againNow = false;
     guest.request = null;
     guest.pending = [];
     if (next === 'night') {
@@ -886,6 +898,12 @@ export class Guests {
    * This part of the night's one request: their story's next step, or one thing from their class's evening or
    * morning list they have not asked for yet. Royal mornings bring the butler's whole list, one after another.
    */
+  /** How many more requests a guest makes after this part's first (session 30, `trip.again`). */
+  private extraRequests(): number {
+    const again = this.w.econ.trip.again;
+    return this.w.rng.chance(again.chance) ? again.count : 0;
+  }
+
   private makeRequest(guest: Guest): void {
     const w = this.w;
     guest.phaseRequested = true;
@@ -894,8 +912,9 @@ export class Guests {
     let need: ServiceNeed | null = story;
     if (!need) {
       const cls = CLASS_BY_ID[guest.cls];
-      const pool = guest.owlNow ? w.econ.trip.owl.pool : guest.trip === 'morning' ? cls.morning : cls.evening;
+      const pool = guest.owlNow ? w.econ.trip.owl.pool : guest.againNow ? cls.extra : guest.trip === 'morning' ? cls.morning : cls.evening;
       guest.owlNow = false;
+      guest.againNow = false;
       if (cls.butler && guest.trip === 'morning') {
         const list = (Object.keys(pool) as ServiceNeed[]).filter((k) => !guest.asked.has(k));
         need = list.shift() ?? null;
@@ -1151,6 +1170,8 @@ export class Guests {
     guest.trip = 'evening';
     guest.phaseRequested = false;
     guest.phaseOuting = false;
+    guest.again = this.extraRequests();
+    guest.againNow = false;
     guest.asked.clear();
     guest.sleeps = 0;
     guest.washes = 0;

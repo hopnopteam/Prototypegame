@@ -5,9 +5,18 @@ import { ECONOMY } from '../config/economy';
 
 /** The late-game price curve (config: priceCurve): unchanged up to `from`, up to `max` times by `to`. */
 export function curvedPrice(price: number, curve = ECONOMY.priceCurve): number {
-  if (price <= curve.from) return price;
-  const t = Math.min(1, Math.log(price / curve.from) / Math.log(curve.to / curve.from));
-  return Math.round(price * (1 + (curve.max - 1) * t));
+  const scaled = scaledPrice(price);
+  if (scaled <= curve.from) return scaled;
+  const t = Math.min(1, Math.log(scaled / curve.from) / Math.log(curve.to / curve.from));
+  return Math.round(scaled * (1 + (curve.max - 1) * t));
+}
+
+/**
+ * Session 30 (owner: "the upgrades are unlocked super fast… each step should feel earned and longer"): every price
+ * above `keepUnder` (the opening's first tiles, which the first fares buy exactly) is multiplied by `factor`.
+ */
+export function scaledPrice(price: number, scale = ECONOMY.priceScale): number {
+  return price <= scale.keepUnder ? price : Math.round((price * scale.factor) / 5) * 5;
 }
 
 /** A tile's id: the carriage slot it lives in plus its key in that carriage's catalogue entry. */

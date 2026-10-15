@@ -1,3 +1,4 @@
+import { CLASS_BY_ID } from '../config/classes';
 import * as THREE from 'three';
 import { STATIONS } from '../config/content';
 import type { JourneyPhase, Vec2 } from '../core/types';
@@ -498,6 +499,7 @@ export class Station {
     w.feedback.onDeparture(missed, platform.slice(waiting));
     const storageFull = w.train.luggageStored >= w.train.luggageCapacity;
     const bagsDone = this.luggagePile === 0 || storageFull;
+    const { bags: bagsLeft, refund: bagRefund } = this.chargeLeftBags(storageFull);
     const clean = waiting === 0 && bagsDone;
     const money = w.econ.money;
     const route = w.data.route;
@@ -556,6 +558,8 @@ export class Station {
       streakBonus: streakExtra,
       missedFare,
       showMissed,
+      bagsLeft,
+      bagRefund,
       rating5: 0,
       ratingDelta: 0,
     };
@@ -585,6 +589,32 @@ export class Station {
     this.vendorCrates = 0;
     this.layoutPlatformItems();
     w.staff.dismissTemporary();
+  }
+
+  /**
+   * Bags left on the barrow as the doors close (session 30): each is sent on after its owner at the train's cost, a
+   * refund taken from the wallet (never below zero), and the owner, who boarded without it, counts a service missed.
+   * Not when the rack was full (that is the rack's limit, not a miss). Shown over the barrow and on the station card.
+   */
+  private chargeLeftBags(storageFull: boolean): { bags: number; refund: number } {
+    const w = this.w;
+    const bags = storageFull ? 0 : this.luggagePile;
+    if (bags <= 0) return { bags: 0, refund: 0 };
+    const owners = w.guests.list.filter((g) => g.aboard && g.hasLuggage && g.boardStop === w.journey.stopSerial).slice(-bags);
+    let due = 0;
+    for (let i = 0; i < bags; i++) {
+      const owner = owners[i];
+      due += w.econ.luggage.refundPerBag * (owner ? CLASS_BY_ID[owner.cls].tip : 1);
+      if (owner) owner.unmet++;
+    }
+    const refund = w.wallet.take('cash', Math.round(due), 'luggageRefund');
+    const pad = PLATFORM.luggagePad;
+    const x = pad.x;
+    const z = pad.z + this.platformOffset;
+    w.ui.floatIcon('luggage', x, FLOOR_Y + 1.6, z, 'miss', true);
+    if (refund > 0) w.ui.floatText(`−${refund}`, x, FLOOR_Y + 2.1, z, 'miss');
+    w.audio.play('grumble');
+    return { bags, refund };
   }
 
   private clearPlatform(): void {
