@@ -8,8 +8,7 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 
 - **In the Claude app:** open the published artifact (link in the latest session notes). A loading screen covers the
   first few seconds (shaders compile, the sounds render and the first frames are drawn behind it, so play is smooth
-  from the first second); in a browser it ends on **Tap to play**, and that tap starts the sound and the game
-  together. A brand-new player then sees a short story intro, skippable.
+  from the first second), then gives way by itself; the sound fades in quietly on the first touch (no prompt). A brand-new player then sees a short story intro, skippable.
 - **The classic version** (before the session 12 lakeside, night look and carriage classes) is kept in
   [`archive/classic-v1/`](archive/classic-v1/README.md): a playable copy and the commit to return to.
 - **Graphics:** Settings has Auto / Low / Medium / High / Ultra (one look on every tier; Low and Medium render
@@ -18,10 +17,14 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   top-end: the same look with about a third fewer pixels), sharp (up to 1.5–1.75× pixels),
   held to about 60 fps; Auto trims the render scale a little (never below 80%) and otherwise drops a tier, holding
   a steady 30 fps on Low; add `?quality=low|medium|high|ultra` to the URL to force one (no dynamic resolution then).
-- **Sound:** every effect is rendered once at start-up and played back as a recording, so a reward never breaks up
-  on a busy phone. The background music and the rail clack are switched off for now (`music.enabled` and
-  `clack.enabled` in `src/config/audio.ts`; true brings them back). On Android, vibration starts off (Settings
-  turns it on) and the audio asks for larger buffers.
+- **Sound:** short, soft effects only (pops, clicks, marimba and bell notes, light whooshes), each on one step of a
+  volume ladder with its own cooldown, rendered once at start-up and played back as recordings. No background music
+  (`MUSIC_ENABLED` in `src/config/audio.ts`); a very low rail clack and wind for atmosphere. Settings has one Volume
+  slider and the Sound switch as mute. On Android, vibration starts off (Settings turns it on) and the audio asks for
+  larger buffers.
+- **Progression (session 29):** help is earned: each helper's tile counts the work done by hand ("Tidy 5/6") before it
+  takes money. Every new carriage is a surprise from a fixed order (`CARRIAGE_ORDER` in `src/config/content.ts`), rolling
+  in under a tarp and unveiled once coupled.
 - **Android test build (APK):** every push to the working branch builds a signed test APK on GitHub Actions
   (`.github/workflows/android-apk.yml`) and publishes it as a pre-release named `android-test-N` on the
   repository's Releases page. On the phone: download the `.apk`, open it, allow "install unknown apps" for the
@@ -123,12 +126,13 @@ mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest
 |---|---|
 | Every number: journey timers, how much mess a guest leaves, the train's lean, stick response, braking and doorway assist, speeds, capacities, fares, tips, refurbishment and comfort bonuses, Rush streak window and bonus, stride and quick-travel speed, camera framing, soft-cue thresholds and chatter rate, fast-service bonus, pickup dwell, cash magnet reach, level thresholds, ad rules, offers, offline earnings, conductor upgrades | `src/config/economy.ts` |
 | The camera (train angle, tilt, lens, framing, stick snapping), the graphics tiers and dynamic resolution, and the night look (moon, sky, the baked lamp and window light (`night.light`), window glass, glow, fog, bloom, grade) | `src/config/visuals.ts` |
+| The order carriages join the train (a surprise each time), the coupling prices; what each helper asks to have done by hand first (`work`), the station bell (`bell` in `economy.ts`) | `CARRIAGE_ORDER`, `COUPLE_SLOTS` and the hire tiles' `work` in `src/config/content.ts`; `bell` and `flow.features.bell` in `src/config/economy.ts` |
 | Carriage classes (Basic to Royal Suite): liveries, chip colours, fare/tip/star multipliers, what each class asks for | `src/config/classes.ts` (class refit prices and level gates in `CARRIAGE_CATALOGUE`, aspirants and turndown in `economy.ts`, rooms per class in `LOBBY_ROOMS`/`SLEEPER_ROOMS` in `src/world/layout.ts`) |
 | The objective chain (goals, rewards) | `src/config/objectives.ts` |
 | The flow: the opening's purchases in order (`flow.openingTiles`: one on show at a time), the boarding at Millbrook that opens the game (`flow.prologue`: travellers waiting on the platform, how soon they step aboard, the last call), when each later feature joins (`flow.features`: bags, the platform crowd, reactions, Rush, class badges, the next-carriage plate, offers, the station workshop, a second tile, the goal chain) and the camera glide to something new (`flow.reveal`); the gap between coach lessons | `src/config/economy.ts` (`flow`), `src/config/coach.ts` (`COACH_LESSON_GAP_SECONDS`) |
 | Frame pacing (`maxFps`), dynamic resolution, the tier drop and 30 fps hold, lite shading and shadow mode per tier | `src/config/visuals.ts` (`quality`) |
 | The app shell (app id, colours, launch screen, status bar) | `capacitor.config.ts`; native code in `ios/` and `android/` |
-| Music and the rail clack on or off (`music.enabled`, `clack.enabled`), Android's audio buffers (`latency`); the sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, how celebrations and rewards ring out and keep the stage (the theme ducks under them; never two at once), the music's night filter | `src/config/audio.ts` |
+| Music on or off (`MUSIC_ENABLED`), each sound's step on the volume ladder, cooldown and voices (`cues`, `ladder`), pitch and level variation, the cash streak, footsteps, wind and clack levels, the first-touch fade, Android's audio buffers (`latency`); the sound mix: bus levels (music, effects, ambience), the safety limiter, overlap limits, how celebrations and rewards ring out and keep the stage (the theme ducks under them; never two at once), the music's night filter | `src/config/audio.ts` |
 | The music (score: chords, melody, bass, drums) | `scripts/audio/build_music.py` renders `assets/audio/music_theme.mp3` from real piano, bass, guitar and drum recordings (credits in `assets/audio/CREDITS.md`); to use another track, replace the MP3 and set `loopSeconds` in `src/audio/music.ts` |
 | Floors by tier: broken planks and repairs, parquet, rugs | `src/world/Floors.ts` |
 | The venue carriages: what each sells and for how much, how long it takes to make and to enjoy, the staff, refit price steps, menu multipliers, how often guests take outings, the café queue, the party meter and Happy Hour, scenic views and blankets, the cinema's films (length, ticket, popcorn, when the projectionist starts one) | `src/config/venues.ts` (their tiles and prices in `CARRIAGE_CATALOGUE`, `src/config/content.ts`; floor plans per refit tier in `buildCafe`/`buildDining`/`buildCinema`/`buildBar`/`buildDome`, `src/world/layout.ts`; furniture by tier in `src/world/VenueProps.ts`; wall colours in `VENUE_WALLS`, `src/world/CarriageView.ts`; carpets in `venueCarpets`, `src/world/Floors.ts`) |

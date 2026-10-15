@@ -1,13 +1,10 @@
 import type { Game } from '../gameplay/Game';
 import { h, icon, setVisible } from './dom';
+import { CARRIAGE_ICON } from '../config/content';
 import type { IconName } from './icons';
-import type { CarriageType } from '../core/types';
 
-/** Fix list 5.8: each carriage on the map wears its type's emblem (the same icons as the carriage chooser). */
-const TYPE_ICON: Record<CarriageType, IconName> = {
-  lobby: 'ticket', sleeper: 'bed', bathroom: 'bath', supply: 'towel', luggage: 'luggage',
-  cafe: 'latte', dining: 'meal', bar: 'cocktail', dome: 'binoculars', cinema: 'film',
-};
+/** Fix list 5.8: each carriage on the map wears its type's emblem (only the carriages the train has: session 29). */
+const TYPE_ICON = CARRIAGE_ICON;
 
 const REFRESH_SECONDS = 0.25;
 /** The map appears once the train is long enough for walking to matter. */

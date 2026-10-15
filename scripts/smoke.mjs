@@ -16,7 +16,9 @@ if (!existsSync(file)) { console.error('dist/index.html missing: run npm run bui
 // does not flake the check; scripts/pacing.mjs is the tool for tuning toward the targets themselves.
 // Session 22, the station start: the first ticket at the booth within seconds, the covered carriage opened within
 // the first half-minute, the departure at about a minute (so the first station at about 1:45).
-const DEADLINES = { first_checkin: 15, first_cash: 20, first_unlock: 30, first_station: 125, first_hire: 190, first_carriage: 360, second_carriage: 720, route_level_2: 780 };
+// Session 29: the attendant is earned by hand (6 rooms, 15 requests: about 8 minutes on the autopilot) and the second
+// carriage waits for it (about 10 minutes).
+const DEADLINES = { first_checkin: 15, first_cash: 20, first_unlock: 30, first_station: 125, first_hire: 600, first_carriage: 360, second_carriage: 750, route_level_2: 780 };
 
 const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -61,6 +63,7 @@ await page.evaluate(() => {
 });
 
 let snap;
+let chooserSeen = false;
 for (let t = 0; t < total; t += 5) {
   snap = await page.evaluate(() => {
     const g = window.nightExpress;
@@ -85,6 +88,8 @@ for (let t = 0; t < total; t += 5) {
       debut: g.data.press.interviews.includes(0),
       taunts: g.data.press.rivals.taunted.length,
       types: g.train.types.slice(),
+      handWork: { ...g.data.profile.handWork },
+      chooser: !!document.querySelector('.chooser, .carriage-card'),
       rack: g.train.rackLevel,
       rackCapacity: g.train.luggageCapacity,
       rivalBar: !!document.querySelector('.rivalbar'),
@@ -99,6 +104,7 @@ for (let t = 0; t < total; t += 5) {
       positionsFinite: finite(g.player.pos) && g.guests.list.every((x) => finite(x.pos)) && g.staff.members.every((x) => finite(x.pos)),
     };
   });
+  if (snap.chooser) chooserSeen = true;
   if (!snap.positionsFinite || !Number.isFinite(snap.cash)) break;
 }
 
@@ -108,8 +114,9 @@ for (const [beat, deadline] of Object.entries(DEADLINES)) {
   const at = snap.ftue[beat];
   check(at !== undefined && at <= deadline, `${beat} at ${at === undefined ? 'never' : fmt(at)} (deadline ${fmt(deadline)})`);
 }
-check(snap.carriages >= 3, `${snap.carriages} carriages after ${fmt(snap.life)} (want 3+)`);
-check(snap.staff >= 2, `${snap.staff} staff after ${fmt(snap.life)} (want 2+)`);
+// Session 29: the third carriage (the café) comes at about 20 minutes and the porter is earned at about 17.
+check(snap.carriages >= 2, `${snap.carriages} carriages after ${fmt(snap.life)} (want 2+)`);
+check(snap.staff >= 1, `${snap.staff} staff after ${fmt(snap.life)} (want the earned attendant)`);
 check(snap.coachDone, 'the four-step walkthrough completed');
 check(!!snap.named && snap.stories >= 3, `the train was named ("${snap.named}") and made the paper ${snap.stories} times`);
 check(snap.debut, 'the Gazette interviewed the conductor after the first stop');
@@ -117,6 +124,11 @@ check(snap.debut, 'the Gazette interviewed the conductor after the first stop');
 // grows instead); no joystick drawn.
 check(snap.taunts === 0 && !snap.rivalBar, `the rivals are switched off (taunts ${snap.taunts}, Rival Watch bar ${snap.rivalBar ? 'shown' : 'gone'})`);
 check(!snap.types.includes('luggage'), `no Luggage Car joins the train (${snap.types.join(', ')})`);
+// Session 29: carriages are a surprise, in the designed order (config: CARRIAGE_ORDER), and no chooser ever opens.
+const ORDER = ['lobby', 'sleeper', 'bathroom', 'cafe', 'sleeper', 'dining', 'cinema', 'bar', 'dome'];
+check(snap.types.every((t, i) => t === ORDER[i]), `carriages join in the designed order (${snap.types.join(', ')})`);
+check(!chooserSeen, 'no carriage chooser ever opened');
+check((snap.handWork.rooms ?? 0) >= 6 && (snap.handWork.requests ?? 0) >= 15, `the attendant was earned by hand (${snap.handWork.rooms ?? 0} rooms, ${snap.handWork.requests ?? 0} requests)`);
 check(snap.rackCapacity >= 4, `the lobby rack holds the bags (level ${snap.rack}, ${snap.rackCapacity} bags)`);
 check(!snap.joystickShown, 'no joystick is drawn');
 check(snap.tiers.some((t) => t >= 1), `at least one carriage refurbished (tiers ${snap.tiers.join(',')})`);

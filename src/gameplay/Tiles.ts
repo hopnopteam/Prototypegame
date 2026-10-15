@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { UnlockDef } from '../config/content';
+import { WORK_VERB, type UnlockDef } from '../config/content';
 import type { Vec2 } from '../core/types';
 import { EVENTS } from '../services/analytics';
 import type { IconName } from '../ui/icons';
@@ -32,6 +32,10 @@ interface TileEntry {
   paidThisVisit: number;
   /** Seconds on show (a new tile keeps its marker a moment, so the player sees what just appeared). */
   age: number;
+  /** Still being earned by hand (session 29): it shows its count and takes no money yet. */
+  earning: boolean;
+  /** The "can't pay" tock has sounded this visit. */
+  tocked?: boolean;
 }
 
 /** A newly shown tile keeps its marker this long even when it is not the focus. */
@@ -103,7 +107,8 @@ export class Tiles {
   refresh(): void {
     const w = this.w;
     w.train.retireBerthTiles();
-    const available = w.unlocks.available();
+    // Session 29: a tile still being earned by hand is on show too (counting), so "listed", not only "available".
+    const available = w.unlocks.listed();
     const availableIds = new Set(available.map((d) => d.id));
     for (const [id, entry] of this.entries) {
       if (!availableIds.has(id)) this.removeEntry(id, entry);
@@ -166,7 +171,15 @@ export class Tiles {
       if (occupant) this.removeEntry(occupant.def.id, occupant);
       this.addEntry(refit, pos);
     }
-    const regular = (d: UnlockDef): boolean => d.kind !== 'couple' && d.kind !== 'refurb' && !isStation(d);
+    // Help still being earned (session 29) has a lane of its own outside the cap: one at a time, the next helper, its
+    // count always in view as the goal the hand work is building toward.
+    const earning = (d: UnlockDef): boolean => !w.unlocks.isAvailable(d.id);
+    if (![...this.entries.values()].some((e) => earning(e.def))) {
+      const goal = eligible.find((d) => earning(d) && !this.entries.has(d.id));
+      const pos = goal ? this.positionFor(goal) : null;
+      if (goal && pos) this.addEntry(goal, pos);
+    }
+    const regular = (d: UnlockDef): boolean => d.kind !== 'couple' && d.kind !== 'refurb' && !isStation(d) && !earning(d);
     const cap = w.flow.allows('moreTiles') ? w.econ.tiles.maxVisible : 1;
     let shown = [...this.entries.values()].filter((e) => regular(e.def)).length;
     // A carriage that has just joined comes first: its first tile is the obvious next step, so it takes the place
@@ -266,6 +279,18 @@ export class Tiles {
         if (!atStation) continue;
       }
       entry.age += dt;
+      const icon = iconOf(entry.def, w.train.types[entry.def.carriage]);
+      const short = w.unlocks.workShort(entry.def);
+      if (short) {
+        // Still being earned: a greyed plate and the count on its marker; it takes no money yet.
+        entry.earning = true;
+        entry.view.face.draw(icon, w.unlocks.remaining(entry.def.id), 0, false, false, true);
+        const marker = entry.def.id !== this.taggedId;
+        if (marker) entry.view.marker.drawEarning(icon, markerName(entry.def.label), WORK_VERB[short.metric], short.done, short.need);
+        entry.view.update(dt, false, false, marker, false);
+        continue;
+      }
+      if (entry.earning) this.earned(entry);
       const remaining = w.unlocks.remaining(entry.def.id);
       const progress = Math.floor((1 - remaining / entry.def.price) / FILL_STEP) * FILL_STEP;
       const affordable = cash >= remaining;
@@ -273,11 +298,16 @@ export class Tiles {
       if (active && remaining > 0 && cash <= 0 && entry.stand > DWELL_SECONDS) {
         anyShort = true;
         this.shortTileRemaining = remaining;
+        // Session 29: can't pay any more: one very soft low "tock" per visit (never a buzzer).
+        if (!entry.tocked) {
+          entry.tocked = true;
+          w.audio.play('tock');
+        }
       }
+      if (!active) entry.tocked = false;
       const focused = !!focus && Math.abs(focus.x - entry.pos.x) < 0.05 && Math.abs(focus.z - entry.pos.z) < 0.05;
       const marker = entry.def.id !== this.taggedId;
       const quiet = !focused && entry.age >= NEW_TILE_MARKER_SECONDS && !affordable;
-      const icon = iconOf(entry.def, w.train.types[entry.def.carriage]);
       entry.view.face.draw(icon, remaining, progress, affordable, active);
       // (Not while standing on it: the marker is hidden then, and each redraw is a texture upload.)
       if (marker && !active) entry.view.marker.draw(icon, markerName(entry.def.label), remaining, affordable);
@@ -290,6 +320,18 @@ export class Tiles {
     }
     this.preview?.view.update(dt, false, false);
     this.shortOfCash = anyShort ? this.shortOfCash + dt : 0;
+  }
+
+  /** The hand work behind a tile is done (session 29): it can be bought now. A sparkle and a chime say so. */
+  private earned(entry: TileEntry): void {
+    const w = this.w;
+    entry.earning = false;
+    entry.age = 0;
+    w.particles.emit('sparkle', entry.pos.x, FLOOR_Y + 0.5, entry.pos.z, 20, 0.6);
+    w.audio.play('ready');
+    w.ui.floatIcon('check', entry.pos.x, FLOOR_Y + 1.6, entry.pos.z, 'info');
+    w.events.emit('work.earned', { id: entry.def.id });
+    this.refresh();
   }
 
   /**
@@ -341,7 +383,11 @@ export class Tiles {
     // The marker steps aside in this very frame: the step that hides it runs before the UI picks the label,
     // so the frame the label first showed used to draw both (a double label on a slow phone frame).
     if (best) best.view.marker.sprite.visible = false;
-    if (best) return { label: best.def.label, effect: best.def.effect, x: best.pos.x, z: best.pos.z, locked: false };
+    if (best) {
+      // Help still being earned says what is left to do by hand: "Tidy 7/12 · Serve 3/8".
+      const work = best.def.work && this.w.unlocks.workShort(best.def) ? Object.entries(best.def.work).map(([m, need]) => `${WORK_VERB[m as keyof typeof WORK_VERB]} ${Math.min(need ?? 0, this.w.data.profile.handWork[m] ?? 0)}/${need}`).join(' · ') : null;
+      return { label: best.def.label, effect: work ?? best.def.effect, x: best.pos.x, z: best.pos.z, locked: work !== null };
+    }
     if (this.preview) {
       const pos = this.w.map.rearDeck().tile;
       if ((pos.x - p.x) ** 2 + (pos.z - p.z) ** 2 < range * range) {
@@ -376,6 +422,7 @@ export class Tiles {
     const atStation = this.w.journey.phase === 'stationStop';
     for (const entry of this.entries.values()) {
       if (isStation(entry.def) && !atStation) continue;
+      if (!this.w.unlocks.isAvailable(entry.def.id)) continue;
       if (!best || this.w.unlocks.remaining(entry.def.id) < this.w.unlocks.remaining(best.def.id)) best = entry;
     }
     return best;
@@ -387,7 +434,7 @@ export class Tiles {
     view.setPosition(pos.x, pos.z);
     markWorldUi(view.group);
     w.scene.add(view.group);
-    const entry: TileEntry = { def, view, pos, acc: 0, billTimer: 0, stand: 0, paidThisVisit: 0, age: 0, zone: null as unknown as Zone };
+    const entry: TileEntry = { def, view, pos, acc: 0, billTimer: 0, stand: 0, paidThisVisit: 0, age: 0, earning: !w.unlocks.isAvailable(def.id), zone: null as unknown as Zone };
     entry.zone = w.zones.add(new Zone({
       id: `tile:${def.id}`,
       x: pos.x,
@@ -445,7 +492,7 @@ export class Tiles {
         1,
         0,
       );
-      w.audio.play('coin', { pitch: 0.9 + (1 - remaining / entry.def.price) * 0.6 });
+      w.audio.play('drip', { pitch: 0.9 + (1 - remaining / entry.def.price) * 0.6 });
       w.events.emit('tile.draining', { x: entry.pos.x, z: entry.pos.z });
     }
     if (w.unlocks.remaining(id) <= 0) this.complete(entry);
@@ -458,7 +505,8 @@ export class Tiles {
     if (!w.unlocks.complete(def.id)) return;
     w.save.markDirty();
     this.removeEntry(def.id, entry);
-    w.audio.play('unlock');
+    // One cue per purchase (session 29): a hire has its own friendly chime instead of the unlock's.
+    w.audio.play(def.kind === 'hire' ? 'staff' : 'unlock');
     w.haptics.success();
     w.particles.emit('sparkle', entry.pos.x, FLOOR_Y + 0.4, entry.pos.z, 24, 0.6);
     w.particles.emit('star', entry.pos.x, FLOOR_Y + 0.6, entry.pos.z, 10, 0.4);
@@ -472,7 +520,12 @@ export class Tiles {
     // What was bought pops into existence right there: the moment speaks for itself (no caption).
 
     if (def.kind === 'hire' && def.role) {
-      w.staff.hire(def.role, def.carriage);
+      const member = w.staff.hire(def.role, def.carriage);
+      // Session 29 (partner: "the moment the attendant arrives, make it feel earned"): a card, confetti over the new
+      // helper and the camera on them as they walk off to take over the work.
+      w.ui.celebrate(def.label, def.effect, 'person');
+      w.particles.emit('confetti', member.pos.x, FLOOR_Y + 2.2, member.pos.z, 40, 1.1);
+      w.stage.rig.focusOn(this.to.set(member.pos.x, 0, member.pos.z), 2.2, 1.0);
       w.addStars(w.econ.stars.staffHired, 'hire', entry.pos);
       w.analytics.log(EVENTS.staffHired, { role: def.role, carriage: def.carriage });
     } else if (def.kind === 'staffUpgrade' && def.role) {

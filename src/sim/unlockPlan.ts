@@ -1,4 +1,4 @@
-import { CARRIAGE_CATALOGUE, CHOOSABLE, COUPLE_SLOTS, LEGACY_TRAIN, MAX_CARRIAGES, SLOT_PRICE_STEP, STATION_UPGRADES, type UnlockDef } from '../config/content';
+import { CARRIAGE_CATALOGUE, CARRIAGE_ORDER, COUPLE_SLOTS, LEGACY_TRAIN, MAX_CARRIAGES, SLOT_PRICE_STEP, STATION_UPGRADES, type UnlockDef } from '../config/content';
 import { CLASS_BY_ID, isPassengerType, type ClassId } from '../config/classes';
 import type { CarriageType } from '../core/types';
 import { ECONOMY } from '../config/economy';
@@ -33,6 +33,7 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
         carriage: index,
         requires: t.requires.map((r) => (r === 'couple' ? `couple_${index}` : r.startsWith('@') ? r.slice(1) : tileId(index, r))),
         flags: t.flags,
+        work: t.work,
         cabin: t.cabin,
         bathroom: t.bathroom,
         role: t.role,
@@ -49,7 +50,7 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
   }
   COUPLE_SLOTS.forEach((slot, i) => {
     const n = i + 1;
-    defs.push({ id: `couple_${n}`, kind: 'couple', label: 'New Carriage', price: curvedPrice(slot.price), stars: slot.stars, carriage: n, requires: slot.requires, effect: 'You choose what joins the train' });
+    defs.push({ id: `couple_${n}`, kind: 'couple', label: 'New Carriage', price: curvedPrice(slot.price), stars: slot.stars, carriage: n, requires: slot.requires, effect: 'A surprise joins the train' });
   });
   return defs;
 }
@@ -67,70 +68,21 @@ export function refitMatches(u: UnlockDef, filter: string | undefined, type: Car
   return !!cls && type !== undefined && isPassengerType(type) && u.tier === cls.tier;
 }
 
-/** What the train needs, as seen at the last stops: drives which carriage the chooser recommends. */
-export interface ChoiceSignals {
-  /** Guests left on the platform for want of a bed. */
-  leftBehind: number;
-  /** Bags left on the platform because the racks were full. */
-  luggageLeft: number;
-}
-
-export interface CarriageChoice {
-  type: CarriageType;
-  /** Why this one is recommended right now (only on the first choice, when there is a reason). */
-  reason: string | null;
-}
-
-/** Carriages the train may take next (within each type's limit, with what they need already aboard). */
-export function allowedCarriages(carriages: readonly CarriageType[]): CarriageType[] {
-  if (carriages.length >= MAX_CARRIAGES) return [];
-  const count = (t: CarriageType): number => carriages.filter((c) => c === t).length;
-  return CHOOSABLE.filter((t) => {
-    const entry = CARRIAGE_CATALOGUE[t];
-    return count(t) < entry.max && (entry.needs ?? []).every((n) => carriages.includes(n)) && carriages.length >= (entry.fromSlot ?? 0);
-  });
-}
-
 /**
- * Up to three cards for the chooser, the best pick first: beds first, then a washroom car, then the venues as
- * they join (a café, the dining car), more beds if guests are still being turned away, racks if bags were left
- * behind, the cinema, the bar and the dome; the stores and luggage cars are always there as alternatives.
+ * The carriage the next coupling brings (session 29: a surprise in a designed order, `CARRIAGE_ORDER`): the first entry
+ * of the order the train does not have yet, counting repeats (a second Sleeper is the second "sleeper" in the order).
+ * A train from an older save that chose differently simply gets what it still lacks; null once the train is full.
  */
-export function carriageChoices(carriages: readonly CarriageType[], signals: ChoiceSignals, limit = 3): CarriageChoice[] {
-  const allowed = allowedCarriages(carriages);
-  const has = (t: CarriageType): boolean => carriages.includes(t);
-  const sleepers = carriages.filter((t) => t === 'sleeper').length;
-  let best: CarriageType | null = null;
-  let reason: string | null = null;
-  const pick = (type: CarriageType, why: string): boolean => {
-    if (best || !allowed.includes(type)) return false;
-    best = type;
-    reason = why;
-    return true;
-  };
-  // Beds first (every guest turned away is a fare missed), then the café (session 20: the first venue, early, so
-  // the new gameplay arrives with the third carriage), then a washroom; guests left behind on the platform ask for
-  // the second sleeper next. Then the other venues as the train grows: the dining car, the cinema, the bar, the dome.
-  if (!has('sleeper')) pick('sleeper', signals.leftBehind > 0 ? 'Guests need beds' : 'More beds');
-  if (!has('cafe')) pick('cafe', 'Guests want coffee');
-  if (!has('bathroom')) pick('bathroom', 'Guests want a loo');
-  if (signals.leftBehind > 0 && sleepers < 2) pick('sleeper', 'Guests need beds');
-  if (!has('dining')) pick('dining', 'Dinner is served');
-  if (sleepers < 2) pick('sleeper', 'More guests');
-  if (!has('cinema')) pick('cinema', 'Films by night');
-  if (!has('bar')) pick('bar', 'Happy hours');
-  if (!has('dome')) pick('dome', 'Scenic views');
-  if (signals.luggageLeft > 0) pick('luggage', 'Bags need racks');
-  if (has('bathroom') && !has('supply')) pick('supply', 'Keeps towels stocked');
-  // The service cars stay on offer when they would help: bags left on the platform (a Luggage Car only where it is still
-  // offered: session 26 retired it for the lobby's rack upgrades), a washroom to keep stocked.
-  const alternates: CarriageChoice[] = [];
-  if (signals.luggageLeft > 0 && allowed.includes('luggage') && best !== 'luggage') alternates.push({ type: 'luggage', reason: 'Bags need racks' });
-  if (has('bathroom') && !has('supply') && allowed.includes('supply') && best !== 'supply') alternates.push({ type: 'supply', reason: 'Keeps towels stocked' });
-  const first: CarriageChoice[] = best ? [{ type: best, reason }] : [];
-  const taken = new Set<CarriageType>([...first, ...alternates].map((c) => c.type));
-  const rest = allowed.filter((t) => !taken.has(t)).map((type) => ({ type, reason: null }));
-  return [...first, ...alternates.slice(0, Math.max(0, limit - 2)), ...rest, ...alternates.slice(Math.max(0, limit - 2))].slice(0, limit);
+export function nextCarriage(carriages: readonly CarriageType[], order: readonly CarriageType[] = CARRIAGE_ORDER): CarriageType | null {
+  if (carriages.length >= MAX_CARRIAGES) return null;
+  const owned = new Map<CarriageType, number>();
+  for (const t of carriages) owned.set(t, (owned.get(t) ?? 0) + 1);
+  const wanted = new Map<CarriageType, number>();
+  for (const t of order) {
+    wanted.set(t, (wanted.get(t) ?? 0) + 1);
+    if ((wanted.get(t) ?? 0) > (owned.get(t) ?? 0)) return t;
+  }
+  return null;
 }
 
 /** v2 → v3: ids tied to the old fixed carriage order become slot-relative ids. */

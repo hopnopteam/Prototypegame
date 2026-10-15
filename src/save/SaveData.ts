@@ -50,6 +50,11 @@ export interface SaveData {
     ftue: Record<string, number>;
     /** Gameplay milestones that gate unlocks and offers. */
     flags: Record<string, boolean>;
+    /**
+     * Session 29: work the conductor has done by hand (rooms tidied, requests served, tickets sold, keys handed, bags
+     * loaded, bells rung, venue orders served), for the help that must be earned first (`UnlockDef.work`).
+     */
+    handWork: Record<string, number>;
   };
   settings: {
     sound: boolean;
@@ -73,6 +78,8 @@ export interface SaveData {
      * player who turns Vibration back on keeps it.
      */
     hapticsPolicy: number;
+    /** Session 29: the sound effects' volume, 0–1 (Settings' slider; the Sound switch is the mute). */
+    sfxVolume: number;
   };
   wallet: {
     cash: number;
@@ -165,8 +172,8 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     version: SAVE_VERSION,
     createdAt: now,
     lastActiveAt: now,
-    profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {} },
-    settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {}, qualityPolicy: 0, hapticsPolicy: 0 },
+    profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {}, handWork: {} },
+    settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {}, qualityPolicy: 0, hapticsPolicy: 0, sfxVolume: 0.8 },
     wallet: { cash: 0, gems: 0, railMiles: 0 },
     route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0, perfectStreak: 0, recentStops: [] },
     staff: {},

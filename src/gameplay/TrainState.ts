@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { CARRIAGE_CATALOGUE, MAX_CARRIAGES, type BedMess, type ComfortKey, type MessPiece, type UnlockDef } from '../config/content';
-import { buildUnlocks, carriageChoices } from '../sim/unlockPlan';
+import { CARRIAGE_CATALOGUE, CARRIAGE_ICON, MAX_CARRIAGES, type BedMess, type ComfortKey, type MessPiece, type UnlockDef } from '../config/content';
+import { buildUnlocks, nextCarriage } from '../sim/unlockPlan';
 import { CLASSES, classFare, classOfTier, classStartingAt, isPassengerType, type ClassDef, type ClassId } from '../config/classes';
 import { ClassChips } from '../world/ClassChips';
 import { easeOutBack, easeOutCubic } from '../core/math';
@@ -196,11 +196,8 @@ export class TrainState {
   private readonly minibars: boolean[] = [];
   luggageStored = 0;
   coupling = false;
-  /** The chooser is open. */
-  private choosing = false;
+  /** A coupling was paid for but its carriage never joined (the app closed in that moment): it joins on the next frame. */
   private pendingChoice = false;
-  private lastLeftBehind = 0;
-  private lastLuggageLeft = 0;
   private doorTarget = 0;
   private doorAmount = 0;
   private smokeTimer = 0;
@@ -231,12 +228,8 @@ export class TrainState {
     pennants();
     this.w.events.on('rival.overtaken', pennants);
     for (const type of this.w.data.route.carriages) this.addCarriage(type, false);
-    // A coupling was paid for but the choice never made (the app closed on the chooser): ask again.
+    // A coupling was paid for but its carriage never joined (the app closed in that moment): it joins now.
     this.pendingChoice = this.w.unlocks.isUnlocked(`couple_${this.count}`);
-    this.w.events.on('station.result', (r) => {
-      this.lastLeftBehind = r.leftBehind;
-      this.lastLuggageLeft = r.luggageTotal - r.luggageLoaded;
-    });
     this.rebuildMap();
     this.rebuildExterior();
     // Session 22, the station start: a new game's first carriage stands covered at Millbrook, its doors shut,
@@ -308,34 +301,26 @@ export class TrainState {
   }
 
   /**
-   * A coupling has been paid for: the player chooses what joins the train (recommended pick first), then
-   * it rolls in. The unlock chain grows the new carriage's tiles.
+   * A coupling has been paid for: the next carriage of the designed order joins (session 29, partner: "the next
+   * carriage is a surprise… they don't know which one arrives until it couples on"). It rolls in under a tarp, couples
+   * with a clunk, and the cover comes off (`rollIn`). The unlock chain grows the new carriage's tiles.
    */
   requestCoupling(onDone?: () => void): void {
     const w = this.w;
-    if (this.coupling || this.choosing) return;
-    const choices = carriageChoices(w.data.route.carriages, { leftBehind: this.lastLeftBehind, luggageLeft: this.lastLuggageLeft });
-    if (choices.length === 0) return;
-    this.choosing = true;
+    if (this.coupling) return;
+    const type = nextCarriage(w.data.route.carriages);
+    if (!type) return;
     this.pendingChoice = false;
-    // The chooser opening is not the reward (fix list 7.1): a chime; the fanfare plays when the carriage couples on.
-    w.audio.play('chime');
-    w.ui.showCarriageChoice(choices.map((c) => {
-      const entry = CARRIAGE_CATALOGUE[c.type];
-      return { type: c.type, name: entry.name, pitch: entry.pitch, inside: entry.inside, reason: c.reason };
-    }), (type) => {
-      this.choosing = false;
-      w.data.route.carriages.push(type);
-      w.unlocks.setDefs(buildUnlocks(w.data.route.carriages));
-      w.save.markDirty();
-      w.analytics.log('carriage_chosen', { type, slot: this.count, offered: choices.map((c) => c.type).join(',') });
-      this.coupleNext(type, onDone);
-    });
+    w.data.route.carriages.push(type);
+    w.unlocks.setDefs(buildUnlocks(w.data.route.carriages));
+    w.save.markDirty();
+    w.analytics.log('carriage_joined', { type, slot: this.count });
+    this.coupleNext(type, onDone);
   }
 
-  /** A carriage is joining (being chosen, or rolling in) or being rebuilt for a refit. */
+  /** A carriage is joining (rolling in, or being unveiled) or being rebuilt for a refit. */
   get growing(): boolean {
-    return this.coupling || this.choosing || this.pendingChoice || this.refitting.size > 0;
+    return this.coupling || this.pendingChoice || this.refitting.size > 0;
   }
 
   get count(): number {
@@ -498,7 +483,7 @@ export class TrainState {
   /** Something new on the outside: a ripple of sparkle along the platform side of every carriage. */
   private dressUpMoment(): void {
     const w = this.w;
-    w.audio.play('fanfare');
+    w.audio.play('sparkle');
     w.stage.rig.shake(0.18, 0.3);
     this.views.forEach((_, i) => {
       const cz = carriageOriginZ(i) + CARRIAGE_LENGTH / 2;
@@ -573,7 +558,7 @@ export class TrainState {
     const index = this.types.length;
     if (this.coupling) return;
     this.coupling = true;
-    // The carriage is built a slice per frame first (the chooser has just closed), then rolls in.
+    // The carriage is built a slice per frame first, then rolls in.
     this.buildView(type, index, this.savedTier(index), true, (view) => this.rollIn(type, index, view, onDone));
   }
 
@@ -582,6 +567,9 @@ export class TrainState {
     const targetZ = carriageOriginZ(index);
     const startZ = targetZ + 48;
     view.group.position.z = startZ;
+    // Session 29: it arrives under a tarp, blinds down: what it is stays a surprise until it is unveiled.
+    view.setCarriageCovered(true);
+    view.setAllBlinds(1);
     this.group.add(view.group);
     this.syncCarriageView(view, index, plan.type);
     const w = this.w;
@@ -598,7 +586,7 @@ export class TrainState {
       w.player.view.bounce(1);
     }
     w.stage.rig.focusOn(new THREE.Vector3(0, 0, targetZ + 2), 3.6, 1.3);
-    w.audio.play('whistleShort');
+    w.audio.play('door', { pitch: 0.7 });
     w.tweens.run(2.3, (t) => {
       view.group.position.z = startZ + (targetZ - startZ) * t;
       this.deck.position.z = view.group.position.z + CARRIAGE_LENGTH;
@@ -614,17 +602,34 @@ export class TrainState {
         this.rebuildMap();
         this.rebuildExterior(true);
         w.audio.play('clunk');
-        w.audio.play('fanfare');
         w.haptics.heavy();
         w.stage.rig.shake(0.45, 0.5);
         this.jolt = 1;
         const cz = targetZ - 0.6;
         w.particles.emit('dust', 0, FLOOR_Y + 0.3, cz, 28, 1.2);
-        w.particles.emit('confetti', 0, FLOOR_Y + 2.5, targetZ + 2, 60, 1.5);
-        w.ui.celebrate(this.carriageName(index), null, 'carriage');
-        w.events.emit('carriage.coupled', { index, type: plan.type });
-        this.coupling = false;
-        onDone?.();
+        // A beat of suspense (the covered carriage settles on its springs), then the cover comes off.
+        const unveil = w.econ.reveal.coupled;
+        w.tweens.run(unveil.suspenseSeconds, (t) => {
+          view.group.position.y = Math.sin(t * Math.PI * unveil.wobbles) * unveil.wobble * (1 - t);
+        }, {
+          complete: () => {
+            view.group.position.y = 0;
+            w.reveal.carriage({
+              view,
+              tarp: view.takeCarriageCover(),
+              originZ: targetZ,
+              furniture: [],
+              key: `couple:${index}`,
+              done: () => {
+                w.particles.emit('confetti', 0, FLOOR_Y + 2.5, targetZ + 2, 60, 1.5);
+                w.ui.celebrate(this.carriageName(index), null, CARRIAGE_ICON[plan.type]);
+                w.events.emit('carriage.coupled', { index, type: plan.type });
+                this.coupling = false;
+                onDone?.();
+              },
+            });
+          },
+        });
       },
     });
   }
@@ -1023,9 +1028,8 @@ export class TrainState {
     const w = this.w;
     const originZ = carriageOriginZ(index);
     w.stage.rig.focusOn(new THREE.Vector3(0, 0, originZ + 7), 2.6, 1.0);
-    // One jingle per refit (fix list 7.1): the level-up tune for a new class, the fanfare for any other refit.
-    const newClass = isPassengerType(type) ? classStartingAt(tier) : null;
-    w.audio.play(newClass ? 'levelup' : 'fanfare');
+    // One cue per refit (session 29: the soft reveal chime for every refit, a new class included).
+    w.audio.play('reveal');
     w.haptics.success();
     this.makeoverWipe(old, view, originZ, () => {
       w.stage.rig.shake(0.15, 0.3);
@@ -1412,10 +1416,8 @@ export class TrainState {
   private shineStay(cabin: Cabin, zone: Zone, actor: Actor, dt: number): boolean {
     const w = this.w;
     if (cabin.shoes !== 'dirty') return false;
-    const before = zone.progress;
     zone.progress += (dt / w.econ.night.shineSeconds) * actor.workMultiplier;
     actor.view.act('wash');
-    if (Math.floor(zone.progress * 3) > Math.floor(before * 3)) w.audio.play('scrub', { volume: 0.3, pitch: 1.4 });
     if (zone.progress < 1) return true;
     zone.progress = 0;
     cabin.shoes = 'shined';
@@ -1441,7 +1443,6 @@ export class TrainState {
     actor.view.act('sweep');
     if (zone.progress < 1) {
       if (Math.floor(zone.progress * CLEAN_STEPS) > Math.floor(before * CLEAN_STEPS)) {
-        w.audio.play('scrub', { volume: 0.4, pitch: 0.9 + zone.progress * 0.4 });
         w.particles.emit('dust', actor.pos.x, FLOOR_Y + 0.1, actor.pos.z + 0.3, 3, 0.2);
       }
       return true;
@@ -1458,13 +1459,13 @@ export class TrainState {
     const w = this.w;
     cabin.cleaner = null;
     this.audit.turnarounds++;
-    w.audio.play('sparkle', { volume: 0.7 });
-    w.audio.play('ding');
     const room = cabin.layout.room;
     const originZ = carriageOriginZ(cabin.carriage);
     // The full sparkle, the tick and the stars flying up are for the player's own tidy (staff tidy quietly, with a
     // little sparkle: session 26, a train of attendants used to fill the screen with ticks and stars).
     const mine = actor.isPlayer;
+    // Session 29: one soft "done" (the staff's quieter), not a sparkle and a ding on top of each other.
+    w.audio.play('done', { volume: mine ? 1 : 0.5 });
     for (let k = 0; k < (mine ? 10 : 4); k++) {
       const a = (k / (mine ? 10 : 4)) * Math.PI * 2;
       w.particles.emit('sparkle', (room.x0 + room.x1) / 2 + Math.cos(a) * 0.9, FLOOR_Y + 0.5, originZ + (room.z0 + room.z1) / 2 + Math.sin(a) * 0.8, 2, 0.25);
@@ -1697,7 +1698,7 @@ export class TrainState {
         if (zone.repeat > 0) return true;
         zone.repeat = w.econ.zones.pickupIntervalSeconds;
         actor.stack.remove(kind, () => target);
-        w.audio.play('whoosh', { volume: 0.6 });
+        w.audio.play('drop', { pitch: 0.8 });
         return true;
       },
     }));

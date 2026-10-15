@@ -834,6 +834,86 @@ export class TileMarker {
     this.texture.needsUpdate = true;
   }
 
+  /**
+   * A tile still being earned by hand (session 29): the same pill with what it is, and under the name a bar filling with
+   * the work done ("Tidy 7/12") where the price would be.
+   */
+  drawEarning(icon: IconName, name: string, verb: string, done: number, need: number): void {
+    const key = `earn|${icon}|${name}|${verb}|${done}|${need}`;
+    if (key === this.last) return;
+    this.last = key;
+    const ctx = this.ctx;
+    ctx.setTransform(MARKER_RES, 0, 0, MARKER_RES, 0, 0);
+    ctx.clearRect(0, 0, 320, 128);
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(48, 8);
+    ctx.arcTo(312, 8, 312, 96, 40);
+    ctx.arcTo(312, 96, 8, 96, 40);
+    ctx.lineTo(176, 96);
+    ctx.lineTo(160, 120);
+    ctx.lineTo(144, 96);
+    ctx.arcTo(8, 96, 8, 8, 40);
+    ctx.arcTo(8, 8, 312, 8, 40);
+    ctx.closePath();
+    const fill = ctx.createLinearGradient(0, 8, 0, 96);
+    fill.addColorStop(0, '#FFFBF1');
+    fill.addColorStop(1, '#F1E3C6');
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(54, 52, 34, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#B98D5C';
+    ctx.stroke();
+    drawIcon(ctx, icon, 26, 24, 56);
+    ctx.fillStyle = '#6B5B4B';
+    ctx.textBaseline = 'alphabetic';
+    let size = 25;
+    const label = name.toUpperCase();
+    ctx.font = `700 ${size}px ${TILE_FONT}`;
+    while (size > 17 && ctx.measureText(label).width > 196) ctx.font = `700 ${--size}px ${TILE_FONT}`;
+    ctx.fillText(label, 100, 44);
+    // The bar: a dark track, a green fill for the work done, the count on top.
+    const x0 = 100;
+    const x1 = 298;
+    const y0 = 54;
+    const y1 = 86;
+    const bar = (x: number): void => {
+      ctx.beginPath();
+      ctx.moveTo(x0 + 16, y0);
+      ctx.arcTo(x, y0, x, y1, 16);
+      ctx.arcTo(x, y1, x0, y1, 16);
+      ctx.arcTo(x0, y1, x0, y0, 16);
+      ctx.arcTo(x0, y0, x, y0, 16);
+      ctx.closePath();
+    };
+    bar(x1);
+    ctx.fillStyle = 'rgba(60, 45, 35, 0.18)';
+    ctx.fill();
+    const share = need > 0 ? Math.min(1, done / need) : 1;
+    if (share > 0) {
+      bar(Math.max(x0 + 32, x0 + (x1 - x0) * share));
+      ctx.fillStyle = '#5DB86A';
+      ctx.fill();
+    }
+    bar(x1);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    ctx.fillStyle = INK;
+    ctx.font = `800 22px ${TILE_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.fillText(`${verb} ${done}/${need}`.toUpperCase(), (x0 + x1) / 2, 78);
+    ctx.textAlign = 'left';
+    this.texture.needsUpdate = true;
+  }
+
   dispose(): void {
     this.texture.dispose();
     (this.sprite.material as THREE.Material).dispose();

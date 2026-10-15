@@ -50,6 +50,13 @@ export const PLATFORM = {
   sign: { x: X + 4.6, z: -11.0 } as Vec2,
   /** The opening's Open carriage tile: on the platform beside the covered carriage's door, clear of everyone. */
   openTile: { x: X + 2.55, z: 1.75 } as Vec2,
+  /**
+   * Session 29: the station bell, a brass hand bell on an iron post behind the door, out of everyone's way (the queue,
+   * the walk to the door and the latecomers' walkway are all ahead of it); ringing it calls the latecomers aboard.
+   */
+  bell: { x: X + 3.35, z: 2.45 } as Vec2,
+  /** Where the conductor stands to ring it (the job counts anywhere near the bell too). */
+  bellPad: { x: X + 2.75, z: 2.3 } as Vec2,
 } as const;
 
 /** Spots in the ticket queue: the window first, then forward along the platform edge, then back beside it. */
@@ -81,10 +88,12 @@ export function waitingSpot(i: number): Vec2 {
 /** What the conductor cannot walk through on the platform (the stand, the barrow, the bench, the newsstand). */
 export function platformObstacles(): Rect[] {
   const k = PLATFORM.kiosk;
+  const bell = PLATFORM.bell;
   return [
     PLATFORM.counter,
     PLATFORM.barrow,
     PLATFORM.bench,
+    rect(bell.x - 0.16, bell.z - 0.16, bell.x + 0.16, bell.z + 0.16),
     rect(k.x - 0.55, k.z - 0.6, k.x + 0.55, k.z + 0.6),
   ];
 }

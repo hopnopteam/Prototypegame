@@ -39,7 +39,6 @@ export const OBJECTIVES: ObjectiveDef[] = [
   { id: 'first_clean', text: 'Tidy a cabin', icon: 'broom', event: 'clean', target: 1, reward: { cash: 10 } },
   { id: 'first_board', text: 'Board 2 guests', icon: 'person', event: 'board', target: 2, reward: { cash: 15 } },
   { id: 'first_luggage', text: 'Load 2 bags', icon: 'luggage', event: 'luggage', target: 2, reward: { cash: 15 } },
-  { id: 'hire_attendant', text: 'Hire an Attendant', icon: 'person', event: 'unlock', filter: 'hire:attendant', target: 1, reward: { cash: 20 }, stars: 2 },
   { id: 'checkins_6', text: 'Check in 6', icon: 'ticket', event: 'checkIn', target: 6, reward: { cash: 25 } },
   { id: 'repair_lobby', text: 'Repair a carriage', icon: 'paint', event: 'refurb', target: 1, reward: { cash: 25 }, stars: 2 },
   { id: 'perfect_1', text: 'A perfect stop', icon: 'star', event: 'perfectStop', target: 1, reward: { cash: 20, gems: 2 } },
@@ -51,6 +50,8 @@ export const OBJECTIVES: ObjectiveDef[] = [
   { id: 'level_2', text: 'Reach level 2', icon: 'star', event: 'level', target: 2, reward: { gems: 5 } },
   { id: 'class_comfort', text: 'Comfort class', icon: 'towel', event: 'refurb', filter: 'class:comfort', target: 1, reward: { cash: 40, gems: 3 }, stars: 3 },
   { id: 'conductor_1', text: 'Upgrade yourself', icon: 'conductor', event: 'conductor', target: 1, reward: { cash: 30 } },
+  // Session 29: the attendant is earned by hand (12 rooms, 8 requests), so its goal comes after the first carriage.
+  { id: 'hire_attendant', text: 'Hire an Attendant', icon: 'person', event: 'unlock', filter: 'hire:attendant', target: 1, reward: { cash: 30 }, stars: 2 },
   // The mid game: the washroom car, the station shop, automation.
   { id: 'couple_2', text: 'Add a 3rd carriage', icon: 'carriage', event: 'coupling', target: 2, reward: { cash: 40 }, stars: 3 },
   { id: 'restock_1', text: 'Restock a washroom', icon: 'towel', event: 'restock', target: 1, reward: { cash: 25 } },

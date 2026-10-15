@@ -203,6 +203,11 @@ export class ZoneSystem {
   reachClear: (ax: number, az: number, bx: number, bz: number) => boolean = () => true;
   /** Where a job's badge hangs (over the furniture it serves). */
   anchor: IconAnchor | undefined;
+  /**
+   * Session 29: the conductor's work on a job zone moved its ring from `before` to `after` (the game plays a gentle
+   * soft tick each quarter, so every job sounds the same way as it fills).
+   */
+  onPlayerWork: ((zone: Zone, before: number, after: number) => void) | null = null;
 
   constructor(private readonly scene: THREE.Scene) {}
 
@@ -276,8 +281,12 @@ export class ZoneSystem {
           best.playerInside = true;
           this.playerZone = best;
         }
+        const before = best.progress;
         const working = best.stay(actor, dt);
-        if (actor.isPlayer && working) this.playerWorking = true;
+        if (actor.isPlayer && working) {
+          this.playerWorking = true;
+          if (best.reaches) this.onPlayerWork?.(best, before, best.progress);
+        }
       }
     }
 

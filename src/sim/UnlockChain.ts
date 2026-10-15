@@ -1,4 +1,4 @@
-import type { UnlockDef } from '../config/content';
+import type { UnlockDef, WorkMetric } from '../config/content';
 
 export interface UnlockState {
   unlocked: string[];
@@ -18,6 +18,8 @@ export class UnlockChain {
     defs: readonly UnlockDef[],
     private readonly state: UnlockState,
     private readonly flags: () => Record<string, boolean>,
+    /** Hand work done so far, for tiles that must be earned (session 29; none by default). */
+    private readonly work: () => Record<string, number> = () => ({}),
   ) {
     this.setDefs(defs);
     this.done = new Set(state.unlocked);
@@ -42,7 +44,8 @@ export class UnlockChain {
     return this.done.has(id);
   }
 
-  isAvailable(id: string): boolean {
+  /** Everything it requires is done (and its flags set): the tile is on show, though it may still be earning. */
+  isListed(id: string): boolean {
     const def = this.byId.get(id);
     if (!def || this.done.has(id)) return false;
     if (!def.requires.every((r) => this.done.has(r))) return false;
@@ -50,8 +53,34 @@ export class UnlockChain {
     return (def.flags ?? []).every((f) => flags[f]);
   }
 
+  /** On show and earned: it takes money. */
+  isAvailable(id: string): boolean {
+    const def = this.byId.get(id);
+    return !!def && this.isListed(id) && this.workShort(def) === null;
+  }
+
   available(): UnlockDef[] {
     return this.defs.filter((d) => this.isAvailable(d.id));
+  }
+
+  listed(): UnlockDef[] {
+    return this.defs.filter((d) => this.isListed(d.id));
+  }
+
+  /**
+   * The hand work a tile still waits for: the requirement least far along (its metric, done and needed), or null once
+   * every count is met (session 29).
+   */
+  workShort(def: UnlockDef): { metric: WorkMetric; done: number; need: number } | null {
+    if (!def.work) return null;
+    const done = this.work();
+    let worst: { metric: WorkMetric; done: number; need: number } | null = null;
+    for (const [metric, need] of Object.entries(def.work) as [WorkMetric, number][]) {
+      const have = Math.min(need, done[metric] ?? 0);
+      if (have >= need) continue;
+      if (!worst || have / need < worst.done / worst.need) worst = { metric, done: have, need };
+    }
+    return worst;
   }
 
   paid(id: string): number {

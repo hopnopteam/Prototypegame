@@ -267,6 +267,11 @@ export class Guests {
     return guest;
   }
 
+  /** Session 29: the station bell rings and everyone waiting on the platform looks up (visual only). */
+  lookUp(): void {
+    for (const g of this.list) if (g.onPlatform) g.view.act('look', 0.9);
+  }
+
   /**
    * Where everyone on the platform stands (session 23): travellers with a bed this stop queue at the ticket stand
    * in the order they arrived, the rest wait by the bench with a "no room" sign; when a bed opens they walk over and
@@ -440,7 +445,7 @@ export class Guests {
     const doubled = w.data.monetization.doubleFaresStop !== null && w.data.monetization.doubleFaresStop >= w.journey.stopSerial;
     const fare = Math.round(money.baseFare * w.train.fareMultiplier(cabin) * guest.archetype.fareMultiplier * w.fareMultiplier() * (doubled ? 2 : 1));
     w.cash.add('booth', fare, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z + w.station.platformOffset));
-    w.audio.play('bell');
+    w.audio.play('clink');
     w.haptics.light();
     w.ui.floatText(`+${fare}`, guest.pos.x, FLOOR_Y + 1.9, guest.pos.z + w.station.platformOffset, 'cash');
     guest.view.bounce(0.7);
@@ -518,7 +523,7 @@ export class Guests {
       zone.progress = 0;
       const guest = cabin.guest!;
       guest.request = null;
-      this.w.audio.play('soft', { volume: 0.6, pitch: 1.2 });
+      this.w.audio.play('done');
       this.fulfil(guest, need, actor.isPlayer);
       return true;
     }
@@ -943,7 +948,7 @@ export class Guests {
     }
     guest.view.showBubble(need as IconName, guest.pending.length > 0 ? 'royal' : 'request', 1.85);
     guest.view.act('wave', w.econ.guests.waveSeconds);
-    w.audio.play('soft', { volume: 0.5 });
+    w.audio.play('bloop');
   }
 
   /**
@@ -1004,11 +1009,11 @@ export class Guests {
     // Only the top speed earns the bolt (session 26: one sign, for the fastest service, not one for every quick one).
     if (byPlayer && speed >= service.speedyTipMultiplier) {
       w.ui.floatIcon('bolt', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, speed >= service.speedyTipMultiplier ? 'star' : 'info');
-      w.audio.play('sparkle', { pitch: speed >= service.speedyTipMultiplier ? 1.25 : 1 });
     }
     w.addStars(w.econ.stars.requestFulfilled * CLASS_BY_ID[guest.cls].stars, 'request', byPlayer ? guest.pos : undefined);
     w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.6, guest.pos.z, 5, 0.2);
-    w.audio.play('heart');
+    // Session 29: one small ding for a request served (a little higher for the speediest service).
+    w.audio.play('ding', { pitch: byPlayer && speed >= service.speedyTipMultiplier ? 1.12 : 1 });
     guest.view.bounce(1);
     guest.slow = false;
     w.events.emit('request.fulfilled', { item, tip, x: guest.pos.x, z: guest.pos.z, byPlayer, speedy: speed >= service.speedyTipMultiplier });
@@ -1132,7 +1137,6 @@ export class Guests {
     const w = this.w;
     const desk = w.econ.desk;
     w.audio.play('ding', { pitch: 1.15 });
-    w.audio.play('pop', { pitch: 1.2, volume: 0.6 });
     w.haptics.light();
     w.ui.floatIcon('key', guest.pos.x, FLOOR_Y + 1.9, guest.pos.z, 'info');
     guest.view.bounce(0.7);

@@ -30,161 +30,289 @@ export class Synth {
     return this.cueEnd;
   }
 
-  /** The cue recipes (unchanged from the set players liked; tuned by ear against mobile arcade games). */
+  /**
+   * The cue recipes. Session 29 (partner: "short, sweet, polished mobile-game sound effects… soft, rounded, quick and
+   * satisfying… no trumpets, brass fanfares, buzzers, sirens or shrill high tones"): every cue is built from sine
+   * mallets (a marimba-like note: a fundamental and a quiet, quickly dying overtone), small bells, round pops, soft
+   * noise whooshes and gentle swells. Most last 0.05–0.4 s; only the big moments go longer (the reveal, the level-up,
+   * the ceremony). Levels here are the cue's own shape; the volume ladder in config/audio.ts sets how loud it plays.
+   */
   private recipe(name: Sfx, t: number, p: number, v: number): void {
     switch (name) {
-      case 'pop':
-        this.tone(t, 520 * p, 1250 * p, 0.09, 'sine', 0.35 * v);
-        break;
-      case 'pickup':
-        this.tone(t, 660 * p, 920 * p, 0.07, 'triangle', 0.22 * v);
-        break;
-      case 'drop':
-        this.tone(t, 540 * p, 360 * p, 0.09, 'triangle', 0.22 * v);
-        break;
-      case 'cash':
-        // Register "ka-ching": a drawer thunk, a bright noise flick, then two bells that ring out.
-        this.tone(t, 180, 120, 0.06, 'triangle', 0.12 * v);
-        this.noise(t, 0.04, 'highpass', 5000, 0.1 * v);
-        this.ring(t + 0.05, 2093 * p, 'sine', 0.13 * v, 0.04, 0.8);
-        this.tone(t + 0.05, 5776 * p, 5776 * p, 0.12, 'sine', 0.03 * v, 0.002);
-        this.ring(t + 0.1, 2637 * p, 'sine', 0.11 * v, 0.06, 0.9);
+      // ─── Gameplay: quiet and frequent ───
+      case 'step':
+        // A soft footfall on boards: a muffled tap and a low knock.
+        this.noise(t, 0.035, 'lowpass', 900 * p, 0.12 * v);
+        this.tone(t, 150 * p, 105 * p, 0.045, 'sine', 0.14 * v, 0.003);
         break;
       case 'coin':
-        // A small bell "ting": fundamental plus an inharmonic partial, like a struck coin.
-        this.tone(t, 1568 * p, 1568 * p, 0.16, 'sine', 0.1 * v, 0.002);
-        this.tone(t, 4327 * p, 4327 * p, 0.07, 'sine', 0.035 * v, 0.002);
+        // Cash scooped: a round pop with a tiny tick on top (the engine climbs its pitch for each one in a row).
+        this.tone(t, 760 * p, 1180 * p, 0.05, 'sine', 0.22 * v, 0.003);
+        this.tone(t + 0.008, 2300 * p, 2300 * p, 0.035, 'sine', 0.05 * v, 0.002);
         break;
-      case 'bell':
-        this.tone(t, 1760 * p, 1760 * p, 0.9, 'sine', 0.18 * v, 0.002, this.dry, true);
-        this.tone(t, 2637 * p, 2637 * p, 0.6, 'sine', 0.08 * v, 0.002, this.dry, true);
+      case 'fill':
+        // Work filling a job's ring: a gentle soft tick.
+        this.tone(t, 820 * p, 900 * p, 0.035, 'sine', 0.14 * v, 0.003);
         break;
-      case 'ding':
-        this.tone(t, 1046 * p, 1046 * p, 0.45, 'sine', 0.2 * v, 0.002, this.dry, true);
+      case 'done':
+        // A job finished (tidied, served, picked up, dropped off): a short soft mallet and a pop.
+        this.mallet(t, 660 * p, 0.2 * v, 0.16);
+        this.tone(t, 520 * p, 980 * p, 0.06, 'sine', 0.1 * v, 0.003);
         break;
-      case 'scrub':
-        this.noise(t, 0.12, 'bandpass', 1400 * p, 0.14 * v);
-        this.noise(t + 0.13, 0.1, 'bandpass', 1100 * p, 0.1 * v);
+      case 'pickup':
+        // Onto the stack: a soft "thup" up.
+        this.tone(t, 300 * p, 430 * p, 0.06, 'sine', 0.22 * v, 0.004);
+        this.noise(t, 0.03, 'lowpass', 1200, 0.04 * v);
         break;
-      case 'sparkle':
-        [2093, 2637, 3136].forEach((f, i) => this.tone(t + i * 0.05, f * p, f * p, 0.3, 'sine', 0.07 * v, 0.002, this.dry, true));
+      case 'drop':
+        // Off the stack: a soft "thup" down.
+        this.tone(t, 420 * p, 260 * p, 0.07, 'sine', 0.22 * v, 0.004);
+        this.noise(t, 0.03, 'lowpass', 900, 0.04 * v);
         break;
-      case 'clunk':
-        this.tone(t, 110, 48, 0.35, 'sine', 0.6 * v);
-        this.noise(t, 0.12, 'lowpass', 380, 0.5 * v);
-        this.tone(t + 0.02, 420, 380, 0.08, 'square', 0.08 * v);
+      case 'drip':
+        // Cash flying into an unlock tile: tiny soft ticks.
+        this.tone(t, 1250 * p, 1350 * p, 0.03, 'sine', 0.12 * v, 0.002);
         break;
-      case 'whistle':
-        this.whistle(t, 1.3, v);
-        break;
-      case 'whistleShort':
-        this.whistle(t, 0.5, v * 0.8);
-        break;
-      case 'fanfare': {
-        // Three quick steps up, then the top chord holds and rings out (never a clipped "ta").
-        const tail = AUDIO.tail;
-        [523, 659, 784].forEach((f, i) => this.tone(t + i * 0.11, f, f, 0.16, 'triangle', 0.2 * v, 0.004, this.dry, true));
-        this.ring(t + 0.33, 1046, 'triangle', 0.13 * v, tail.hold, tail.release);
-        [1318, 784].forEach((f, i) => this.ring(t + 0.44, f, 'sine', (i === 1 ? 0.035 : 0.05) * v, tail.hold, tail.release * 1.1));
-        break;
-      }
-      case 'levelup': {
-        const tail = AUDIO.tail;
-        [392, 523, 659, 784, 1046].forEach((f, i) => this.tone(t + i * 0.07, f, f, 0.14, 'triangle', 0.18 * v, 0.003, this.dry, true));
-        this.ring(t + 0.35, 1318, 'triangle', 0.13 * v, tail.hold, tail.release);
-        this.ring(t + 0.4, 1568, 'sine', 0.04 * v, tail.hold, tail.release * 1.1);
-        this.recipe('sparkle', t, 1, v);
-        break;
-      }
-      case 'punch':
-        this.noise(t, 0.025, 'highpass', 3000, 0.2 * v);
-        this.tone(t, 1200 * p, 900 * p, 0.04, 'square', 0.06 * v);
-        break;
-      case 'whoosh':
-        this.sweep(t, 0.25, 500, 2400, 0.12 * v);
-        break;
-      case 'click':
-        this.tone(t, 900, 900, 0.025, 'sine', 0.12 * v);
+      case 'pop':
+        // Something appears: a round pop.
+        this.tone(t, 440 * p, 900 * p, 0.07, 'sine', 0.22 * v, 0.004);
         break;
       case 'tick':
-        // A wooden clock tick: a bright knock that falls away at once.
-        this.tone(t, 1900 * p, 1300 * p, 0.04, 'triangle', 0.16 * v, 0.001);
-        this.tone(t, 620 * p, 520 * p, 0.05, 'sine', 0.08 * v, 0.001);
+        // The station clock's last seconds: a soft wooden tick.
+        this.tone(t, 1300 * p, 1050 * p, 0.03, 'sine', 0.13 * v, 0.002);
+        this.tone(t, 480 * p, 430 * p, 0.04, 'sine', 0.06 * v, 0.002);
         break;
-      case 'chime':
-        [1318, 1046, 784].forEach((f, i) => (i === 2 ? this.ring(t + i * 0.22, f * p, 'sine', 0.15 * v, 0.05, 0.9) : this.tone(t + i * 0.22, f * p, f * p, 0.6, 'sine', 0.15 * v, 0.002, this.dry, true)));
+      case 'click':
+        // A button tap.
+        this.tone(t, 1150 * p, 1000 * p, 0.02, 'sine', 0.14 * v, 0.002);
         break;
-      case 'soft':
-        this.tone(t, 330, 280, 0.12, 'triangle', 0.12 * v);
+      case 'whoosh':
+        // A panel opens or closes, a bin swallows something: a quiet air movement.
+        this.sweep(t, 0.2, 500 * p, 1500 * p, 0.09 * v);
         break;
-      case 'door':
-        this.noise(t, 0.3, 'lowpass', 700, 0.12 * v);
-        this.tone(t, 160, 120, 0.25, 'sine', 0.12 * v);
-        break;
-      case 'chest':
-        // A reward: the pop and sparkle, then a small bell chord that rings out.
-        this.recipe('pop', t, 0.8, v);
-        this.recipe('sparkle', t, 1, v);
-        [1568, 2093].forEach((f, i) => this.ring(t + 0.16 + i * 0.05, f, 'sine', 0.06 * v, 0.05, 0.85));
-        break;
-      case 'unlock':
-        this.tone(t, 440 * p, 880 * p, 0.12, 'triangle', 0.25 * v, 0.008, this.dry, true);
-        this.tone(t + 0.1, 880 * p, 1320 * p, 0.18, 'triangle', 0.2 * v, 0.008, this.dry, true);
-        this.ring(t + 0.26, 1320 * p, 'sine', 0.06 * v, 0.04, 0.6);
-        this.noise(t + 0.08, 0.2, 'highpass', 4000, 0.06 * v);
-        break;
-      case 'heart':
-        this.tone(t, 784 * p, 988 * p, 0.12, 'sine', 0.14 * v, 0.008, this.dry, true);
-        this.tone(t + 0.1, 1175 * p, 1175 * p, 0.2, 'sine', 0.12 * v, 0.008, this.dry, true);
+      case 'tock':
+        // Can't do that (no cash for this tile): a very soft low wooden "tock", never a buzzer.
+        this.tone(t, 300, 255, 0.08, 'sine', 0.22 * v, 0.003);
+        this.tone(t, 600, 520, 0.03, 'sine', 0.04 * v, 0.002);
         break;
       case 'flush':
-        this.sweep(t, 0.6, 1800, 300, 0.1 * v);
+        // A washroom used: a soft swirl of water.
+        this.sweep(t, 0.45, 1100, 320, 0.07 * v);
+        break;
+      // ─── Guests: soft ───
+      case 'door':
+        // A guest steps aboard, the doors slide: a quiet swish.
+        this.sweep(t, 0.22, 700 * p, 1400 * p, 0.07 * v);
+        break;
+      case 'bloop':
+        // A request bubble appears: a tiny rising bloop.
+        this.tone(t, 480 * p, 760 * p, 0.09, 'sine', 0.18 * v, 0.012);
+        break;
+      case 'clink':
+        // A fare or a tip: a tiny coin clink.
+        this.bellNote(t, 2093 * p, 0.09 * v, 0.16);
+        this.tone(t, 900 * p, 1300 * p, 0.03, 'sine', 0.06 * v, 0.002);
+        break;
+      case 'ding':
+        // A request fulfilled: a small pleasant ding.
+        this.bellNote(t, 1046 * p, 0.15 * v, 0.38);
+        this.mallet(t, 1568 * p, 0.05 * v, 0.2);
+        break;
+      case 'heart':
+        // A happy guest: two soft rising notes.
+        this.mallet(t, 784 * p, 0.12 * v, 0.18);
+        this.mallet(t + 0.08, 1175 * p, 0.1 * v, 0.22);
+        break;
+      case 'grumble':
+        // A grumpy "hmm": soft and low.
+        this.tone(t, 230 * p, 200 * p, 0.2, 'sine', 0.14 * v, 0.03);
+        this.tone(t, 460 * p, 400 * p, 0.16, 'sine', 0.03 * v, 0.03);
+        break;
+      case 'aww':
+        // A guest leaving unhappy: a short, soft, low "aww" that falls away.
+        this.tone(t, 392 * p, 294 * p, 0.42, 'sine', 0.13 * v, 0.05);
+        this.tone(t, 196 * p, 165 * p, 0.42, 'sine', 0.05 * v, 0.05);
+        break;
+      // ─── Unlocks and upgrades: medium ───
+      case 'unlock':
+        // Unlock complete: a bright, short two-note chime.
+        this.mallet(t, 784 * p, 0.2 * v, 0.3, true);
+        this.mallet(t + 0.09, 1175 * p, 0.18 * v, 0.42, true);
+        break;
+      case 'sparkle':
+        // An upgrade applied: a soft sparkle with a light ding.
+        [1568, 1976, 2349].forEach((f, i) => this.bellNote(t + i * 0.045, f * p, 0.045 * v, 0.28));
+        this.bellNote(t + 0.14, 1318 * p, 0.08 * v, 0.4);
+        break;
+      case 'staff':
+        // Help hired: a friendly short ascending chime.
+        [523, 659, 784].forEach((f, i) => this.mallet(t + i * 0.075, f, 0.15 * v, 0.24, true));
+        this.bellNote(t + 0.24, 1046, 0.1 * v, 0.6);
+        break;
+      case 'ready':
+        // The hand work behind a helper is done: two bright notes and a twinkle.
+        this.mallet(t, 880, 0.14 * v, 0.24, true);
+        this.mallet(t + 0.08, 1318, 0.13 * v, 0.34, true);
+        this.bellNote(t + 0.18, 2093, 0.035 * v, 0.3);
+        break;
+      case 'chest':
+        // A reward (the station bonus, a goal, a prize): a sparkle over two warm notes.
+        this.mallet(t, 1046, 0.13 * v, 0.3, true);
+        this.mallet(t + 0.07, 1318, 0.11 * v, 0.36, true);
+        [2093, 2637].forEach((f, i) => this.bellNote(t + 0.12 + i * 0.05, f, 0.035 * v, 0.3));
+        break;
+      case 'cash':
+        // A lump of cash (a reward paid out): a fuller pop-tick with a small bell.
+        this.recipe('coin', t, p, v);
+        this.mallet(t + 0.04, 1568 * p, 0.08 * v, 0.24);
+        break;
+      case 'chime':
+        // A notice (last call's warning, Happy Hour, held train): two soft falling bell notes.
+        this.bellNote(t, 1318 * p, 0.11 * v, 0.55);
+        this.bellNote(t + 0.16, 1046 * p, 0.11 * v, 0.7);
+        break;
+      // ─── Train and journey ───
+      case 'whistle':
+        // Arriving: a mellow, short whistle (one soft note, not a blast).
+        this.softWhistle(t, 740 * p, 0.75, 0.1 * v);
+        break;
+      case 'depart':
+        // Departing: a soft whistle, then a quiet chug building up.
+        this.softWhistle(t, 659 * p, 0.55, 0.09 * v);
+        [0.45, 0.78, 1.04, 1.25, 1.42, 1.56].forEach((d, i) => this.noise(t + d, 0.09, 'lowpass', 420 + i * 30, (0.03 + i * 0.012) * v));
+        break;
+      case 'bell':
+        // The station bell, and the departure warning (a lower pitch): a gentle "ding-ding".
+        this.bellNote(t, 988 * p, 0.15 * v, 0.9);
+        this.bellNote(t + 0.2, 988 * p, 0.09 * v, 0.8);
+        break;
+      case 'clunk':
+        // A carriage couples on: a satisfying low clunk, then a soft whoosh of dust.
+        this.tone(t, 110, 50, 0.3, 'sine', 0.5 * v, 0.004);
+        this.noise(t, 0.1, 'lowpass', 380, 0.32 * v);
+        this.sweep(t + 0.06, 0.4, 900, 300, 0.05 * v);
+        break;
+      // ─── Reveals and rewards: special, but tasteful ───
+      case 'reveal': {
+        // The cover lifts: a warm, shimmering chime sweep up a pentatonic scale over a soft swell.
+        this.pad(t, [523, 784], 0.05 * v, 0.25, 0.35, 0.9);
+        [784, 880, 1046, 1175, 1318, 1568, 1760, 2093].forEach((f, i) => this.bellNote(t + 0.05 + i * 0.065, f, (0.07 - i * 0.004) * v, 0.75));
+        this.mallet(t + 0.6, 1046, 0.1 * v, 0.6, true);
+        break;
+      }
+      case 'perfect':
+        // A perfect stop: three soft rising chimes as the stars pop in, then a light sparkle.
+        [1046, 1318, 1568].forEach((f, i) => this.bellNote(t + i * 0.2, f, 0.12 * v, 0.55));
+        [2093, 2349, 2637].forEach((f, i) => this.bellNote(t + 0.55 + i * 0.04, f, 0.03 * v, 0.3));
         break;
       case 'miss':
-        // A soft "wah-wah": something slipped by, nothing lost for good.
-        this.tone(t, 392 * p, 370 * p, 0.16, 'triangle', 0.13 * v);
-        this.tone(t + 0.17, 330 * p, 262 * p, 0.3, 'triangle', 0.13 * v);
+        // Passengers missed the train: one soft, low, gentle note (disappointed, not annoying).
+        this.tone(t, 330, 311, 0.5, 'sine', 0.12 * v, 0.04, this.dry, true);
+        this.tone(t, 165, 156, 0.5, 'sine', 0.04 * v, 0.04);
         break;
-      case 'perfect': {
-        // "All aboard!": a quick bright run up, a bell chord on top that rings out, and the chest's sparkle.
-        const tail = AUDIO.tail;
-        [784, 988, 1175, 1568].forEach((f, i) => this.tone(t + i * 0.085, f, f, 0.12, 'triangle', 0.17 * v, 0.003, this.dry, true));
-        this.ring(t + 0.34, 1568, 'triangle', 0.1 * v, tail.hold, tail.release);
-        this.ring(t + 0.34, 2093, 'sine', 0.06 * v, tail.hold, tail.release * 1.1);
-        this.recipe('sparkle', t, 1, v);
+      case 'levelup': {
+        // A route level: a short, bright, uplifting chime phrase (about a second).
+        [523, 659, 784, 1046].forEach((f, i) => this.mallet(t + i * 0.08, f, 0.15 * v, 0.28, true));
+        this.bellNote(t + 0.34, 1318, 0.09 * v, 0.8);
+        this.bellNote(t + 0.34, 1568, 0.06 * v, 0.8);
+        [2093, 2637, 3136].forEach((f, i) => this.bellNote(t + 0.42 + i * 0.05, f, 0.025 * v, 0.3));
         break;
       }
       case 'ceremony': {
-        // The Golden Whistle (fix list 4.4): a timpani roll, three brass chords climbing (C, F, G) and a grand C
-        // that rings out under a sparkle of bells: about five seconds, the theme ducked beneath it.
-        const tail = AUDIO.tail;
-        for (let i = 0; i < 6; i++) this.tone(t + i * 0.09, 110, 82, 0.22, 'sine', (0.14 + i * 0.03) * v, 0.004);
-        const chords = [[262, 330, 392, 523], [349, 440, 523, 698], [392, 494, 587, 784]];
-        chords.forEach((chord, c) => {
-          const at = t + 0.6 + c * 0.62;
-          this.tone(at, 98 + c * 12, 70, 0.3, 'sine', 0.22 * v, 0.004);
-          chord.forEach((f, i) => {
-            this.tone(at, f, f, 0.55, 'triangle', (i === 3 ? 0.09 : 0.07) * v, 0.02, this.dry, true);
-            this.tone(at, f * 2, f * 2, 0.5, 'sine', 0.025 * v, 0.03, this.dry, true);
-          });
-        });
-        const top = t + 0.6 + 3 * 0.62;
-        this.tone(top, 131, 98, 0.6, 'sine', 0.28 * v, 0.004);
-        [523, 659, 784, 1046].forEach((f, i) => this.ring(top, f, 'triangle', (i === 3 ? 0.1 : 0.075) * v, tail.hold * 2.2, tail.release * 1.6));
-        this.ring(top, 262, 'sine', 0.08 * v, tail.hold * 2.2, tail.release * 1.6);
-        [1568, 2093, 2637, 3136, 2637, 3136].forEach((f, i) => this.ring(top + 0.18 + i * 0.12, f, 'sine', 0.035 * v, 0.05, 0.7));
+        // The Golden Whistle, the one big moment: a warm swelling chord, a bell arpeggio over it and soft applause.
+        this.pad(t, [262, 330, 392, 523], 0.035 * v, 0.9, 0.7, 1.3);
+        [523, 659, 784, 1046, 1318, 1046, 1318, 1568].forEach((f, i) => this.bellNote(t + 0.5 + i * 0.16, f, 0.06 * v, 0.9));
+        this.applause(t + 0.9, 2.4, 0.035 * v);
         break;
       }
-      case 'aww':
-        // A fond, voice-like "aww" that falls away: they will catch the next train.
-        this.tone(t, 523 * p, 392 * p, 0.6, 'triangle', 0.1 * v, 0.07);
-        this.tone(t, 659 * p, 494 * p, 0.6, 'sine', 0.045 * v, 0.07);
-        this.noise(t, 0.45, 'bandpass', 900, 0.025 * v);
-        break;
-      case 'grumble':
-        this.tone(t, 150 * p, 132 * p, 0.14, 'sawtooth', 0.035 * v);
-        this.tone(t + 0.12, 140 * p, 118 * p, 0.18, 'sawtooth', 0.03 * v);
-        break;
+    }
+  }
+
+  /** A marimba-like note: a sine fundamental and a quiet, fast-dying overtone. `wet` rings it into the room. */
+  private mallet(t: number, f: number, gain: number, decay: number, wet = false): void {
+    this.tone(t, f, f, decay, 'sine', gain, 0.004, this.dry, wet);
+    this.tone(t, f * 3.93, f * 3.93, decay * 0.22, 'sine', gain * 0.16, 0.002);
+  }
+
+  /** A small bell: a sine fundamental and two soft inharmonic partials, ringing into the room. */
+  private bellNote(t: number, f: number, gain: number, decay: number): void {
+    this.tone(t, f, f, decay, 'sine', gain, 0.003, this.dry, true);
+    this.tone(t, f * 2.4, f * 2.4, decay * 0.55, 'sine', gain * 0.22, 0.003);
+    this.tone(t, f * 4.1, f * 4.1, decay * 0.28, 'sine', gain * 0.08, 0.002);
+  }
+
+  /** A soft swell: notes that fade in over `attack`, hold, then fade over `release` (a warm bed under a reveal). */
+  private pad(t: number, notes: number[], gain: number, attack: number, hold: number, release: number): void {
+    const ctx = this.ctx;
+    for (const f of notes) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(gain, t + attack);
+      g.gain.setValueAtTime(gain, t + attack + hold);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + attack + hold + release);
+      osc.connect(g).connect(this.dry);
+      g.connect(this.wet);
+      osc.onended = () => {
+        osc.disconnect();
+        g.disconnect();
+      };
+      osc.start(t);
+      osc.stop(t + attack + hold + release + 0.05);
+    }
+    this.cueEnd = Math.max(this.cueEnd, t + attack + hold + release);
+  }
+
+  /** A mellow train whistle: one soft sine note with a gentle vibrato and a breath of air. */
+  private softWhistle(t: number, f: number, duration: number, gain: number): void {
+    const ctx = this.ctx;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = f;
+    const vibrato = ctx.createOscillator();
+    vibrato.frequency.value = 5.5;
+    const depth = ctx.createGain();
+    depth.gain.value = f * 0.006;
+    vibrato.connect(depth).connect(osc.frequency);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.12);
+    g.gain.setValueAtTime(gain, t + duration - 0.25);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    osc.connect(g).connect(this.dry);
+    g.connect(this.wet);
+    const overtone = ctx.createOscillator();
+    overtone.type = 'sine';
+    overtone.frequency.value = f * 2;
+    const og = ctx.createGain();
+    og.gain.value = 0.12;
+    overtone.connect(og).connect(g);
+    osc.onended = () => {
+      osc.disconnect();
+      g.disconnect();
+      depth.disconnect();
+      og.disconnect();
+    };
+    for (const o of [osc, vibrato, overtone]) {
+      o.start(t);
+      o.stop(t + duration + 0.05);
+    }
+    this.noise(t, duration * 0.8, 'bandpass', 1600, gain * 0.12);
+    this.cueEnd = Math.max(this.cueEnd, t + duration);
+  }
+
+  /** Soft applause: many tiny filtered claps, swelling in and dying away over `duration`. */
+  private applause(t: number, duration: number, gain: number): void {
+    // Seeded, so the cue measures and renders the same claps (a random scatter was cut short when it was recorded).
+    let seed = 7;
+    const rand = (): number => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const claps = Math.round(duration * 26);
+    for (let i = 0; i < claps; i++) {
+      const at = t + duration * Math.min(0.97, (i + rand()) / claps);
+      const shape = Math.sin(((at - t) / duration) * Math.PI);
+      this.noise(at, 0.03, 'bandpass', 1800 + rand() * 1600, gain * (0.2 + 0.8 * shape));
     }
   }
 
@@ -208,30 +336,6 @@ export class Synth {
     osc.start(t);
     osc.stop(t + duration + 0.02);
     this.cueEnd = Math.max(this.cueEnd, t + duration);
-  }
-
-  /** A held note that rings out: it sustains for `hold`, then fades over `release`, through the room tail. */
-  private ring(t: number, f: number, type: OscillatorType, gain: number, hold: number, release: number): void {
-    const ctx = this.ctx;
-    const osc = ctx.createOscillator();
-    osc.type = type;
-    osc.frequency.value = f;
-    const g = ctx.createGain();
-    const attack = 0.004;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(gain, t + attack);
-    g.gain.setTargetAtTime(gain * 0.7, t + attack, hold);
-    const end = t + attack + hold + release;
-    g.gain.setTargetAtTime(0.0001, t + attack + hold, release / 6);
-    osc.connect(g).connect(this.dry);
-    g.connect(this.wet);
-    osc.onended = () => {
-      osc.disconnect();
-      g.disconnect();
-    };
-    osc.start(t);
-    osc.stop(end + 0.05);
-    this.cueEnd = Math.max(this.cueEnd, end);
   }
 
   private noise(t: number, duration: number, filterType: BiquadFilterType, freq: number, gain: number, out: AudioNode = this.dry): void {
@@ -279,48 +383,12 @@ export class Synth {
     this.cueEnd = Math.max(this.cueEnd, t + duration);
   }
 
-  private whistle(t: number, duration: number, volume: number): void {
-    const ctx = this.ctx;
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 900;
-    filter.Q.value = 1.2;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.16 * volume, t + 0.08);
-    g.gain.setValueAtTime(0.16 * volume, t + duration - 0.15);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
-    filter.connect(g).connect(this.dry);
-    const vibrato = ctx.createOscillator();
-    vibrato.frequency.value = 6;
-    const vibratoGain = ctx.createGain();
-    vibratoGain.gain.value = 7;
-    vibrato.connect(vibratoGain);
-    for (const f of [587, 740, 880]) {
-      const osc = ctx.createOscillator();
-      osc.type = 'sawtooth';
-      osc.frequency.value = f;
-      vibratoGain.connect(osc.frequency);
-      osc.connect(filter);
-      osc.start(t);
-      osc.stop(t + duration + 0.05);
-    }
-    vibrato.onended = () => {
-      vibratoGain.disconnect();
-      filter.disconnect();
-      g.disconnect();
-    };
-    vibrato.start(t);
-    vibrato.stop(t + duration + 0.05);
-    this.noise(t, duration, 'highpass', 3000, 0.05 * volume);
-    this.cueEnd = Math.max(this.cueEnd, t + duration);
-  }
-
   /** One rail joint's knock (the clack plays two of these, a "da-dum"). */
   clack(t: number, volume: number): number {
+    // Session 29: softer and lower than before (a muffled knock under the carriage, not a click).
     this.cueEnd = t;
-    this.noise(t, 0.05, 'bandpass', 2200, volume, this.dry);
-    this.tone(t, 180, 90, 0.07, 'sine', volume * 1.2, 0.003, this.dry);
+    this.noise(t, 0.05, 'lowpass', 700, volume, this.dry);
+    this.tone(t, 150, 80, 0.07, 'sine', volume * 1.2, 0.003, this.dry);
     return this.cueEnd;
   }
 }

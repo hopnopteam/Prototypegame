@@ -3,21 +3,29 @@ import { log } from '../core/log';
 import { MUSIC } from './music';
 import { makeNoise, makeRoom, Synth } from './synth';
 
+/**
+ * Every cue (session 29: the sound map; the brass fanfare, the shrill whistle, the ticket punch, the scrub and the
+ * plain "soft" are gone; see `AUDIO.cues` for each one's step on the volume ladder).
+ */
 export type Sfx =
-  | 'pop' | 'pickup' | 'drop' | 'cash' | 'coin' | 'bell' | 'ding' | 'scrub' | 'sparkle' | 'clunk'
-  | 'whistle' | 'whistleShort' | 'fanfare' | 'levelup' | 'punch' | 'whoosh' | 'click' | 'chime'
-  | 'soft' | 'door' | 'chest' | 'unlock' | 'heart' | 'flush' | 'miss' | 'grumble'
-  // Session 24: the station result card.
-  | 'perfect' | 'aww'
-  // Fix list 4.3: the station clock's last ten seconds; 4.4: the Golden Whistle ceremony's own music.
-  | 'tick' | 'ceremony';
+  // Gameplay: quiet and frequent.
+  | 'step' | 'coin' | 'fill' | 'done' | 'pickup' | 'drop' | 'drip' | 'pop' | 'tick' | 'click' | 'whoosh' | 'tock' | 'flush'
+  // Guests.
+  | 'door' | 'bloop' | 'clink' | 'ding' | 'heart' | 'grumble' | 'aww'
+  // Unlocks, upgrades and rewards.
+  | 'unlock' | 'sparkle' | 'staff' | 'ready' | 'chest' | 'cash' | 'chime'
+  // The train and the journey.
+  | 'whistle' | 'depart' | 'bell' | 'clunk'
+  // Reveals and the big moments.
+  | 'reveal' | 'perfect' | 'miss' | 'levelup' | 'ceremony';
 
 /** Every cue, so the bank renders them all (a Record, so a new cue cannot be forgotten). */
 const CUES: Record<Sfx, true> = {
-  pop: true, pickup: true, drop: true, cash: true, coin: true, bell: true, ding: true, scrub: true, sparkle: true, clunk: true,
-  whistle: true, whistleShort: true, fanfare: true, levelup: true, punch: true, whoosh: true, click: true, chime: true,
-  soft: true, door: true, chest: true, unlock: true, heart: true, flush: true, miss: true, grumble: true,
-  perfect: true, aww: true, tick: true, ceremony: true,
+  step: true, coin: true, fill: true, done: true, pickup: true, drop: true, drip: true, pop: true, tick: true, click: true, whoosh: true, tock: true, flush: true,
+  door: true, bloop: true, clink: true, ding: true, heart: true, grumble: true, aww: true,
+  unlock: true, sparkle: true, staff: true, ready: true, chest: true, cash: true, chime: true,
+  whistle: true, depart: true, bell: true, clunk: true,
+  reveal: true, perfect: true, miss: true, levelup: true, ceremony: true,
 };
 const BANK_CUES: (Sfx | 'clack')[] = [...(Object.keys(CUES) as Sfx[]), ...(AUDIO.clack.enabled ? ['clack' as const] : [])];
 
@@ -76,9 +84,13 @@ export class AudioEngine {
   private sfx!: GainNode;
   private musicBus!: GainNode;
   private musicFilter!: BiquadFilterNode;
-  /** Ducks the theme under a reward jingle (fix list 7.1). */
-  private musicDuck!: GainNode;
   private ambience!: GainNode;
+  /** The soft wind that rises with the train's speed (session 29), and the player's SFX volume (0–1, Settings). */
+  private wind: GainNode | null = null;
+  private volume = 1;
+  /** The cash streak (session 29): when the last coin of a run sounded, and how many have so far. */
+  private streakAt = -1;
+  private streakCount = 0;
   /** Send into the room tail that celebration and reward cues ring out through. */
   private tail!: GainNode;
   private noiseBuffer!: AudioBuffer;
@@ -99,8 +111,12 @@ export class AudioEngine {
   private musicHeld = true;
   private paused = false;
   private suspendTimer = 0;
-  /** The master is faded out (a pause) and must be faded back in once the context runs again. */
-  private faded = false;
+  /**
+   * The master is faded out and must be faded back in once the context runs: after a pause, and at the very start
+   * (session 29: the sound starts quietly on the first touch, over `AUDIO.startFade`, never with a jump).
+   */
+  private faded = true;
+  private firstStart = true;
   private speed = 0;
   private clackTimer = 0;
   private crowd: AudioBufferSourceNode | null = null;
@@ -134,6 +150,11 @@ export class AudioEngine {
 
   get unlocked(): boolean {
     return this.ctx !== null && this.ctx.state === 'running';
+  }
+
+  /** For audits: the mix (the ladder, each cue's rules). */
+  get config(): typeof AUDIO {
+    return AUDIO;
   }
 
   /** For audits: whether this build has a theme at all (session 28: the music is switched off in config). */
@@ -210,7 +231,8 @@ export class AudioEngine {
       limiter.attack.value = l.attack;
       limiter.release.value = l.release;
       this.master = ctx.createGain();
-      this.master.gain.value = AUDIO.mix.master;
+      // Silent until the first touch, then a short fade in (`restoreMaster`).
+      this.master.gain.value = 0;
       this.master.connect(limiter).connect(ctx.destination);
       this.sfx = ctx.createGain();
       this.sfx.connect(this.master);
@@ -219,8 +241,7 @@ export class AudioEngine {
       this.musicFilter.frequency.value = AUDIO.music.dayCutoff;
       this.musicFilter.Q.value = 0.5;
       this.musicBus = ctx.createGain();
-      this.musicDuck = ctx.createGain();
-      this.musicFilter.connect(this.musicDuck).connect(this.musicBus).connect(this.master);
+      this.musicFilter.connect(this.musicBus).connect(this.master);
       this.ambience = ctx.createGain();
       this.ambience.connect(this.master);
       // The live synth's room is wired only if a cue ever has to be synthesised live (session 28): every cue is
@@ -273,9 +294,17 @@ export class AudioEngine {
     if (!ctx || this.paused || !this.faded || ctx.state !== 'running') return;
     this.faded = false;
     const now = ctx.currentTime;
+    const fade = this.firstStart ? AUDIO.startFade : AUDIO.pauseFade;
+    this.firstStart = false;
     this.master.gain.cancelScheduledValues(now);
     this.master.gain.setValueAtTime(this.master.gain.value, now);
-    this.master.gain.linearRampToValueAtTime(AUDIO.mix.master, now + AUDIO.pauseFade);
+    this.master.gain.linearRampToValueAtTime(AUDIO.mix.master, now + fade);
+  }
+
+  /** The player's SFX volume (session 29: Settings' slider, 0–1, saved). */
+  setVolume(volume: number): void {
+    this.volume = Math.max(0, Math.min(1, volume));
+    this.applyToggles();
   }
 
   /** For tools and audits: the master's level right now. */
@@ -318,27 +347,42 @@ export class AudioEngine {
     }
   }
 
+  /**
+   * Plays a cue. Session 29: at its step on the volume ladder, at most one start per its cooldown and its voices at
+   * once (anything more is skipped, never cutting a sound), a little random pitch and level on repeated cues, and cash
+   * in a row climbing as one soft rising tick. Big rewards never overlap (they queue or are skipped).
+   */
   play(name: Sfx, options: { pitch?: number; volume?: number } = {}): void {
     const ctx = this.ctx;
     if (!ctx || !this.soundOn || ctx.state !== 'running' || this.paused) return;
-    // Rate-limit identical sounds so a burst of pickups never becomes noise.
+    const rule = AUDIO.cues[name] ?? AUDIO.defaultCue;
     const now = ctx.currentTime;
     const last = this.lastPlay.get(name) ?? -1;
-    if (now - last < AUDIO.repeatGap) return;
+    if (now - last < (rule.cooldown ?? 0.025)) return;
     // Never cut a sound short: if this cue is already ringing enough copies, skip the new one.
     let ends = this.ringing.get(name);
     if (!ends) this.ringing.set(name, (ends = []));
     for (let i = ends.length - 1; i >= 0; i--) if (ends[i] <= now) ends.splice(i, 1);
-    if (ends.length >= (AUDIO.voicesByCue[name] ?? AUDIO.voices)) return;
-    let volume = options.volume ?? 1;
-    const pitch = options.pitch ?? 1;
+    if (ends.length >= (rule.voices ?? 2)) return;
+    let volume = (options.volume ?? 1) * AUDIO.ladder[rule.level];
+    let pitch = options.pitch ?? 1;
+    const streak = AUDIO.streak;
+    if (name === streak.cue) {
+      this.streakCount = now - this.streakAt < streak.gap ? this.streakCount + 1 : 0;
+      this.streakAt = now;
+      pitch *= 1 + Math.min(streak.max, this.streakCount * streak.step);
+    }
+    if (rule.vary !== false) {
+      // Audio only (never the game's seeded randomness): the simulation is unchanged.
+      pitch *= 1 + (Math.random() * 2 - 1) * AUDIO.variation.pitch;
+      volume *= 1 + (Math.random() * 2 - 1) * AUDIO.variation.volume;
+    }
     let start = now + 0.005;
     const c = AUDIO.celebration;
     const isJingle = c.cues.includes(name);
     const isReward = isJingle || c.rewards.includes(name);
     // Never one reward over another (session 27): the same one again while it still rings (or waits its turn) is
-    // dropped (a room's reveal after its purchase); a jingle waits for the reward ringing to finish; a smaller reward
-    // under a jingle plays softly below (the quiet cues), and one landing on another small reward waits its turn.
+    // dropped; a big one waits for the reward ringing to finish; a small reward under a big one plays softly below.
     let leads = isReward;
     if (isReward && ends.length > 0) return;
     if (isReward && now < this.rewardUntil) {
@@ -356,27 +400,17 @@ export class AudioEngine {
       this.rewardUntil = end;
       this.rewardIsJingle = isJingle;
     }
-    if (isJingle) this.duckMusic(end);
   }
 
-  /** The theme steps down under a reward jingle and comes back smoothly once it has rung out (fix list 7.1). */
-  private duckMusic(end: number): void {
-    const ctx = this.ctx;
-    if (!ctx) return;
-    const d = AUDIO.musicDuck;
-    const gain = this.musicDuck.gain;
-    const now = ctx.currentTime;
-    gain.cancelScheduledValues(now);
-    gain.setValueAtTime(gain.value, now);
-    // Down at once (a queued jingle's turn comes while the one before it still rings, so it is down already).
-    gain.linearRampToValueAtTime(d.level, now + d.attack);
-    gain.setValueAtTime(d.level, end + d.hold);
-    gain.linearRampToValueAtTime(1, end + d.hold + d.release);
+  /** A footstep (session 29): very soft, at the given pitch (the caller paces them by distance walked). */
+  step(pitch = 1): void {
+    if (AUDIO.footsteps.enabled) this.play('step', { pitch });
   }
 
   update(dt: number): void {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== 'running') return;
+    this.updateWind(ctx);
     // Rail clack: a "da-dum" pair each rail joint; faster and louder with speed.
     if (this.soundOn && AUDIO.clack.enabled && this.speed > 0.05) {
       this.clackTimer -= dt;
@@ -397,6 +431,25 @@ export class AudioEngine {
       this.musicFilter.frequency.setTargetAtTime(cutoff, ctx.currentTime, 1.5);
     }
     if (this.musicOn && !this.musicHeld) this.queueTheme(ctx);
+  }
+
+  /** The soft wind of the moving train (session 29): a low, filtered rush that rises and falls with the speed. */
+  private updateWind(ctx: AudioContext): void {
+    const cfg = AUDIO.wind;
+    if (!cfg.enabled) return;
+    if (!this.wind) {
+      const source = ctx.createBufferSource();
+      source.buffer = this.noiseBuffer;
+      source.loop = true;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = cfg.cutoff;
+      this.wind = ctx.createGain();
+      this.wind.gain.value = 0;
+      source.connect(filter).connect(this.wind).connect(this.ambience);
+      source.start();
+    }
+    this.wind.gain.setTargetAtTime(cfg.level * this.speed, ctx.currentTime, 0.8);
   }
 
   /** The game has begun: the theme fades in from the top (now, or the moment audio is allowed to run). */
@@ -421,8 +474,8 @@ export class AudioEngine {
 
   private applyToggles(): void {
     if (!this.ctx) return;
-    this.sfx.gain.value = this.soundOn ? AUDIO.mix.sfx : 0;
-    this.ambience.gain.value = this.soundOn ? AUDIO.mix.ambience : 0;
+    this.sfx.gain.value = this.soundOn ? AUDIO.mix.sfx * this.volume : 0;
+    this.ambience.gain.value = this.soundOn ? AUDIO.mix.ambience * this.volume : 0;
     this.musicBus.gain.value = this.musicOn ? AUDIO.mix.music : 0;
   }
 

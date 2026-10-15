@@ -22,7 +22,9 @@ export type IconName =
   // Fix list 4.1: a passenger who missed the train; 4.6: a minibar's snack box.
   | 'angry' | 'snack'
   // Session 27: the lobby's waste-paper basket (where anything extra goes).
-  | 'bin';
+  | 'bin'
+  // Session 29: the station bell (ring it to call the latecomers aboard).
+  | 'bell';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -961,6 +963,29 @@ const ICONS: Record<IconName, Draw> = {
       c.arc(x, y, r, 0, Math.PI * 2);
       fillStroke(c, '#FFE9A8', 4);
     }
+  },
+  bell: (c) => {
+    // A brass hand bell with a wooden handle: the station's "all aboard" bell.
+    rr(c, 44, 10, 12, 26, 5);
+    fillStroke(c, '#8A5A36');
+    c.beginPath();
+    c.moveTo(50, 34);
+    c.bezierCurveTo(30, 34, 28, 52, 26, 66);
+    c.lineTo(20, 76);
+    c.lineTo(80, 76);
+    c.lineTo(74, 66);
+    c.bezierCurveTo(72, 52, 70, 34, 50, 34);
+    c.closePath();
+    fillStroke(c, '#E2B653');
+    c.beginPath();
+    c.arc(50, 82, 7, 0, Math.PI * 2);
+    fillStroke(c, '#C9962E');
+    c.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    c.lineWidth = 4;
+    c.beginPath();
+    c.moveTo(38, 46);
+    c.quadraticCurveTo(35, 56, 34, 64);
+    c.stroke();
   },
   key: (c) => {
     // A brass cabin key with a round bow and a red tag: checked in at the desk.

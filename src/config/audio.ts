@@ -1,99 +1,149 @@
 /**
- * The sound mix. Effects are the warm synthesised set built in AudioEngine (short, round mobile-game cues:
- * no files). Music is the Night Express theme, a sunny lo-fi groove (piano, bass, soft drums, clean guitar)
- * rendered from real instrument recordings by scripts/audio/build_music.py (assets/audio/music_theme.mp3, credits in
- * assets/audio/CREDITS.md). Tune freely: no code changes needed.
+ * The sound mix. Session 29 (partner: "the sound effects are annoying right now: too loud, unpleasant, and some (like
+ * the trumpet fanfares) feel out of place… short, sweet, polished mobile-game sound effects where every sound has a
+ * clear job. There is NO background music"): every effect is a soft, short, rounded cue (pops, clicks, marimba and bell
+ * notes, light whooshes; nothing brass, buzzing or shrill), synthesised in `audio/synth.ts` and pre-rendered at
+ * start-up. Each cue sits on one step of a volume ladder, has its own cooldown and voice limit, and repeated cues vary a
+ * little in pitch and level. Tune freely: no code changes needed.
  */
+
+/**
+ * Background music (session 29: off). The theme, its fades and its queue are kept behind this one switch; true brings
+ * the theme back (and its Music toggle in Settings). Nothing in the game ducks under rewards any more.
+ */
+export const MUSIC_ENABLED = false;
+
+/** The four steps of the volume ladder, quietest first (partner: "a clear volume ladder"). */
+export type CueLevel = 'constant' | 'normal' | 'important' | 'rare';
+
+/**
+ * One cue's rules: its step on the ladder; at least `cooldown` seconds between two starts (anything sooner is skipped,
+ * so a burst never stacks into noise); at most `voices` copies ringing at once (one more is skipped, never cutting
+ * another); `vary: false` for cues that must sound exactly the same each time (the jingles).
+ */
+export interface CueRule {
+  level: CueLevel;
+  cooldown?: number;
+  voices?: number;
+  vary?: boolean;
+}
+
 export const AUDIO = {
   /**
-   * Bus levels (linear). Session 19: the theme sat at about −39 dBFS RMS, some 20 dB under a phone game's mix,
-   * so on a phone speaker its quiet bars vanished under the rail clack and read as the music cutting out. It
-   * now sits at about −30 dBFS RMS (still a bed under the cues), and the effects peak around −7 dBFS. Session 27
-   * (owner: "the background music is too loud"): 0.26 → 0.15, about 5 dB down, a bed under the effects again.
+   * Bus levels (linear). Session 29: the master 0.85 → 0.6 (about 3 dB down), and the steps of the ladder below take
+   * every cue lower again: nothing is ever startling. `sfx` is scaled by the player's SFX volume in Settings.
    */
-  mix: { master: 0.85, sfx: 1, music: 0.15, ambience: 0.5 },
+  mix: { master: 0.6, sfx: 1, music: 0.15, ambience: 0.6 },
   /**
-   * A safety limiter on the output: it only touches peaks above the threshold (several cues landing at
-   * once), so the normal mix is never squashed or pumped. Its automatic make-up gain (about +1.7 dB) is
-   * why `mix.master` sits a little lower than the old 0.8.
+   * The volume ladder (partner: "1 constant sounds… very quiet; 2 normal actions; 3 important moments; 4 rare big
+   * moments, still tasteful"). Each cue's own level is multiplied by its step's.
    */
-  limiter: { threshold: -3, knee: 0, ratio: 20, attack: 0.002, release: 0.08 },
-  /** Seconds to fade everything out when an ad plays or the tab is hidden (never a hard cut). */
+  ladder: { constant: 0.3, normal: 0.55, important: 0.8, rare: 1 } as Record<CueLevel, number>,
+  /** Every cue's step, cooldown and voices (the sound map). Missing rules fall back to `defaultCue`. */
+  cues: {
+    // Gameplay: quiet and frequent.
+    step: { level: 'constant', cooldown: 0.12, voices: 2 },
+    coin: { level: 'constant', cooldown: 0.05, voices: 3 },
+    fill: { level: 'constant', cooldown: 0.12, voices: 1 },
+    done: { level: 'constant', cooldown: 0.08, voices: 2 },
+    pickup: { level: 'constant', cooldown: 0.06, voices: 2 },
+    drop: { level: 'constant', cooldown: 0.06, voices: 2 },
+    drip: { level: 'constant', cooldown: 0.06, voices: 2 },
+    tick: { level: 'constant', cooldown: 0.3, voices: 1 },
+    click: { level: 'constant', cooldown: 0.05, voices: 2 },
+    whoosh: { level: 'constant', cooldown: 0.15, voices: 1 },
+    tock: { level: 'constant', cooldown: 0.6, voices: 1 },
+    flush: { level: 'constant', cooldown: 0.8, voices: 1 },
+    pop: { level: 'constant', cooldown: 0.06, voices: 2 },
+    // Guests: soft.
+    door: { level: 'constant', cooldown: 0.25, voices: 1 },
+    bloop: { level: 'constant', cooldown: 0.25, voices: 2 },
+    clink: { level: 'normal', cooldown: 0.08, voices: 2 },
+    ding: { level: 'normal', cooldown: 0.12, voices: 2 },
+    heart: { level: 'constant', cooldown: 0.3, voices: 1 },
+    grumble: { level: 'constant', cooldown: 1, voices: 1 },
+    aww: { level: 'normal', cooldown: 1, voices: 1 },
+    // Unlocks and upgrades: medium.
+    unlock: { level: 'normal', voices: 1, vary: false },
+    sparkle: { level: 'normal', cooldown: 0.2, voices: 1 },
+    staff: { level: 'normal', voices: 1, vary: false },
+    ready: { level: 'normal', voices: 1, vary: false },
+    chest: { level: 'normal', voices: 1, vary: false },
+    cash: { level: 'normal', cooldown: 0.25, voices: 1 },
+    chime: { level: 'normal', cooldown: 0.5, voices: 1, vary: false },
+    // Train and journey: atmosphere.
+    whistle: { level: 'normal', cooldown: 2, voices: 1, vary: false },
+    depart: { level: 'normal', cooldown: 2, voices: 1, vary: false },
+    bell: { level: 'normal', cooldown: 0.6, voices: 1, vary: false },
+    clunk: { level: 'important', voices: 1, vary: false },
+    // Reveals and rewards: special, but tasteful.
+    reveal: { level: 'important', voices: 1, vary: false },
+    perfect: { level: 'important', voices: 1, vary: false },
+    miss: { level: 'normal', voices: 1, vary: false },
+    levelup: { level: 'important', voices: 1, vary: false },
+    ceremony: { level: 'rare', voices: 1, vary: false },
+  } as Record<string, CueRule>,
+  defaultCue: { level: 'normal', cooldown: 0.05, voices: 2 } as CueRule,
+  /** Repeated cues vary by up to this share in pitch and level, so they never sound robotic (partner: 3–5%). */
+  variation: { pitch: 0.04, volume: 0.04 },
+  /**
+   * Cash scooped in a row (partner: "rapid events… must NOT stack into noise… one soft rising tick"): each coin within
+   * `gap` seconds of the last climbs `step` in pitch, up to `max` above the first; the cooldown above skips the rest.
+   */
+  streak: { cue: 'coin', gap: 0.35, step: 0.035, max: 0.6 },
+  /**
+   * A safety limiter on the output: it only touches peaks above the threshold (several cues landing at once), so the
+   * normal mix is never squashed or pumped (partner: "a limiter… so nothing ever clips or spikes").
+   */
+  limiter: { threshold: -6, knee: 0, ratio: 20, attack: 0.002, release: 0.1 },
+  /** Seconds the sound fades in when it first starts (on the first touch: never a jump), and out when paused. */
+  startFade: 1.2,
   pauseFade: 0.15,
-  /** Identical cues closer together than this (seconds) are skipped, so a burst never turns into noise. */
-  repeatGap: 0.025,
-  /** At most this many copies of one cue ring at once; one more is skipped rather than cutting another. */
-  voices: 4,
-  voicesByCue: { coin: 6, pop: 5, pickup: 5 } as Partial<Record<string, number>>,
   /**
-   * Celebration and reward cues ring out instead of stopping dead: their last chord holds, then fades over
-   * `release` seconds, through a soft room tail (a short generated reverb, `wet` of the dry level).
+   * Reward cues ring out through a soft room tail (a short generated reverb, `wet` of the dry level) instead of
+   * stopping dead; `hold` and `release` shape the last note of the longer ones.
    */
-  tail: { seconds: 1.6, damping: 0.3, wet: 0.3, hold: 0.28, release: 1.15 },
+  tail: { seconds: 1.4, damping: 0.3, wet: 0.22, hold: 0.22, release: 0.9 },
   /**
-   * A celebration owns the moment: for `holdOff` seconds after one of `cues` starts, the small cues in
-   * `quiet` play softer (× `duck`) so nothing steps on the fanfare. Session 16: softer, never skipped; skipping
-   * them meant coins scooped or a tile bought just after an upgrade made no sound at all, which read as the
-   * audio cutting out.
-   */
-  /**
-   * Session 27 (owner: "the reward sound still gets cut off quite frequently"): measured in play, the cut was another
-   * reward sound landing on one still ringing: a room's purchase chime, then the room's reveal starting a second chime
-   * half a second in; a refit's chime with the makeover fanfare on top of it; a level-up landing with a purchase. A
-   * reward (`cues`, and the purchase and prize cues in `rewards`) now never plays over another: the same one again is
-   * dropped, a jingle waits for a ringing reward to finish (if that is within `queueWithin` seconds), and a reward
-   * under a jingle plays softly with the small cues.
+   * Big rewards never overlap (partner: "never let two big reward sounds overlap: queue it or skip it"): while one of
+   * `cues` rings, another waits its turn (if that comes within `queueWithin` seconds; otherwise it is skipped); the
+   * same one again is skipped; a small reward (`rewards`) landing under a big one plays softly (× `duck`), as do the
+   * small cues in `quiet` for `holdOff` seconds after a big one starts.
    */
   celebration: {
-    cues: ['fanfare', 'levelup', 'perfect', 'ceremony'],
-    rewards: ['unlock', 'chest'],
-    holdOff: 1.4,
-    duck: 0.35,
-    quiet: ['ding', 'chest', 'heart', 'unlock', 'chime', 'coin', 'pop', 'sparkle', 'bell'],
-    queueWithin: 3,
+    cues: ['reveal', 'levelup', 'perfect', 'ceremony'],
+    rewards: ['unlock', 'chest', 'staff', 'ready'],
+    holdOff: 1.2,
+    duck: 0.4,
+    quiet: ['ding', 'chest', 'heart', 'unlock', 'chime', 'coin', 'pop', 'sparkle', 'bell', 'staff', 'ready', 'clink'],
+    queueWithin: 2.5,
   },
-  /**
-   * Fix list 7.1 (owner: "reward music plays at the wrong moments and gets cut off… lower the background music under
-   * it, then bring it back smoothly; never let two pieces of music overlap"): a reward jingle (`celebration.cues`) is
-   * the only music while it plays. The theme ducks to `level` over `attack` seconds, stays down until the jingle has
-   * rung out (+ `hold`), then comes back over `release`. A second jingle while one rings waits for it to finish (if it
-   * would start within `celebration.queueWithin` seconds; otherwise it is dropped), and the same jingle again is
-   * dropped, so two never sound together.
-   */
-  /** Session 27: held 0.6 s past the jingle (was 0.2), so its last chord rings out clear before the theme comes back. */
-  musicDuck: { level: 0.2, attack: 0.18, hold: 0.6, release: 1.5 },
   music: {
-    /**
-     * Session 28 (owner: "turn off the background music"): no theme at all (not decoded, never queued) and no Music
-     * switch in Settings; `true` brings it all back.
-     */
-    enabled: false,
-    /**
-     * Seconds to fade the theme in at the start (and after it is switched back on) and out when switched off. Session 26:
-     * 2 s, starting as play begins (owner: "start with fading in for like 2 seconds").
-     */
+    enabled: MUSIC_ENABLED,
+    /** Seconds to fade the theme in at the start and out when switched off. */
     fadeIn: 2,
     fadeOut: 0.8,
     /** Low-pass on the music: open by day, warmer and softer at night. */
     dayCutoff: 16000,
     nightCutoff: 3800,
-    /**
-     * Seconds of look-ahead when queueing the next pass of the loop. Longer than the loop itself, so the next
-     * whole pass is always waiting on the audio clock: a stalled main thread (a slow frame, or the page's frames
-     * halted under a phone's notification shade) can never leave a gap or restart the theme (session 19).
-     */
+    /** Seconds of look-ahead when queueing the next pass of the loop (longer than the loop: never a gap). */
     lookahead: 52,
   },
   /**
-   * Rail clack: a "da-dum" pair per rail joint, faster and louder with speed (the session 8 sound). Session 28 (owner:
-   * "turn off the train moving sound, keep all the other sounds"): off; `enabled: true` brings it back.
+   * The train's atmosphere, kept very low (partner: "keep only ambient train atmosphere (rail clack, soft wind) as part
+   * of the SFX mix"): a soft, low "da-dum" per rail joint, faster with speed, and a soft wind that rises with speed.
    */
-  clack: { enabled: false, base: 0.05, perSpeed: 0.09 },
+  clack: { enabled: true, base: 0.022, perSpeed: 0.035 },
+  wind: { enabled: true, level: 0.035, cutoff: 420 },
   /**
-   * Session 28 (owner: "the reward music… still getting cut off every moment", on the Android build): an Android
-   * WebView renders web audio in small buffers that run dry when a busy frame holds the processor (an upgrade, a reward),
-   * and the sound breaks up right then. On Android the context asks for `playback` latency: larger buffers, a little
-   * more delay (well under a tenth of a second), no break-ups. Elsewhere `balanced`.
+   * Footsteps (partner: "very soft, only on hard floors, rate follows speed"): one every `stride` metres walked, on the
+   * platform and the bare floors of the cheaper refits (carriages refitted to `carpetFromTier` and up are carpeted).
+   */
+  footsteps: { enabled: true, stride: 0.75, carpetFromTier: 2 },
+  /**
+   * Session 28: an Android WebView renders web audio in small buffers that run dry when a busy frame holds the processor,
+   * and the sound breaks up right then. On Android the context asks for `playback` latency: larger buffers, a little more
+   * delay (well under a tenth of a second), no break-ups. Elsewhere `balanced`.
    */
   latency: { android: 'playback', other: 'balanced' } as { android: AudioContextLatencyCategory; other: AudioContextLatencyCategory },
 };

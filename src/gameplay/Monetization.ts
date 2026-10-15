@@ -265,7 +265,7 @@ export class Monetization {
       case 'holdTheTrain':
         if (w.journey.holdTrain()) {
           w.ui.toast(`+${w.econ.journey.holdTheTrainSeconds}s`, 'hold');
-          w.audio.play('whistleShort');
+          w.audio.play('chime');
         }
         break;
       case 'speedBoost':
@@ -379,7 +379,7 @@ export class Monetization {
     const w = this.w;
     if (product.grants.gems) w.wallet.add('gems', product.grants.gems, `iap:${product.id}`);
     if (product.grants.railMiles) w.wallet.add('railMiles', product.grants.railMiles, `iap:${product.id}`);
-    w.audio.play('fanfare');
+    w.audio.play('chest');
     w.particles.emit('confetti', w.player.pos.x, 2.5, w.player.pos.z, 50, 1);
     w.ui.celebrate(product.name, product.kind === 'nonConsumable' ? 'Yours on every route, forever.' : product.description, product.grants.noForcedAds ? 'ticket' : product.grants.scooter ? 'skate' : 'gem');
     w.save.markDirty();

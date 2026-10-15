@@ -295,6 +295,7 @@ export class PlatformView {
     buildTicketStand(props, lamps);
     buildBarrow(props);
     buildScale(props);
+    buildBellPost(props);
 
     yield;
     const staticGeo = b.build();
@@ -845,6 +846,25 @@ function buildBench(b: GeoBuilder, r: Rect): void {
     b.box(cx, y + 0.2, r.z0 + d / 2 + dz, r.x1 - r.x0 - 0.04, 0.4, 0.05, PALETTE.navy, 0, { shade: 0.85, surface: 'iron' });
     b.box(r.x1 - 0.06, y + 0.62, r.z0 + d / 2 + dz, 0.05, 0.44, 0.05, PALETTE.navy, 0, { shade: 0.85, surface: 'iron' });
   }
+  b.endObject();
+}
+
+/**
+ * The station bell (session 29): an iron post with a scrolled bracket, a brass hand bell hanging from it. The
+ * conductor rings it at a stop and the latecomers hurry out of the station house.
+ */
+function buildBellPost(b: GeoBuilder): void {
+  const y = FLOOR_Y;
+  const { x, z } = PLATFORM.bell;
+  b.object('platform:bellPost');
+  b.cylinder(x, y + 0.08, z, 0.12, 0.15, 0.16, PALETTE.navy, 12, 'y', { shade: 0.8, surface: 'iron' });
+  b.cylinder(x, y + 0.75, z, 0.035, 0.045, 1.35, PALETTE.navy, 10, 'y', { shade: 0.88, surface: 'iron' });
+  // The bracket reaches toward the platform's edge, the bell under its tip.
+  b.box(x - 0.17, y + 1.38, z, 0.36, 0.04, 0.04, PALETTE.navy, 0, { shade: 1, surface: 'iron' });
+  b.sphere(x, y + 1.46, z, 0.04, PALETTE.brass, 0, 1, { shade: 1, surface: 'brass' });
+  b.cylinder(x - 0.32, y + 1.32, z, 0.012, 0.012, 0.08, PALETTE.iron, 6, 'y', { shade: 1 });
+  b.cone(x - 0.32, y + 1.16, z, 0.11, 0.2, PALETTE.brass, 12, { shade: 1, surface: 'brass' });
+  b.sphere(x - 0.32, y + 1.04, z, 0.03, PALETTE.brass, 0, 0.9, { shade: 1, surface: 'brass' });
   b.endObject();
 }
 

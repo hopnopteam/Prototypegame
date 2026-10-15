@@ -363,7 +363,7 @@ export class Press {
     if (!item) return;
     const reward = this.rewardFor(item);
     const gemCost = w.econ.rewarded.levelUpDouble.gemCost;
-    w.audio.play('fanfare');
+    w.audio.play('chest');
     w.haptics.success();
     this.ui.showFrontPage(item, reward, gemCost, (choice) => w.collectWithDouble('frontPageDouble', choice, gemCost, (k) => {
       if (reward.cash > 0) w.wallet.add('cash', reward.cash * k, 'press');
@@ -571,7 +571,7 @@ export class Press {
           headline: fillTemplate(DARE_WON_HEADLINE, { train: this.trainName, rival: rival.owner.name }),
           icon: 'news', rival, reward: { cash, gems: 0, railMiles: 0 }, tone: 'win', kicker: 'Front page',
         });
-        w.audio.play('fanfare', { volume: 0.7 });
+        w.audio.play('chest');
         w.analytics.log('rival_dare', { result: 'won', rival: rival.name });
         w.save.markDirty();
         return;
@@ -660,7 +660,7 @@ export class Press {
       p.trainName = cleanTrainName(raw, TRAIN_NAME_MAX, DEFAULT_TRAIN_NAME);
       w.save.markDirty();
       w.events.emit('train.named', { name: p.trainName });
-      w.audio.play('whistleShort');
+      w.audio.play('sparkle');
       // The Gazette's reporter has a question first; the front page quotes the answer.
       if (p.interviews.includes(DEBUT_INTERVIEW)) this.print('named');
       else if (!p.pending.includes(`interview:${DEBUT_INTERVIEW}`)) p.pending.unshift(`interview:${DEBUT_INTERVIEW}`);

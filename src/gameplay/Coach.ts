@@ -3,6 +3,7 @@ import { classStartingAt, isPassengerType } from '../config/classes';
 import type { StaffRole, Vec2 } from '../core/types';
 import { FLOOR_Y } from '../world/CarriageView';
 import type { World } from './World';
+import { PLATFORM } from '../world/platformLayout';
 
 const THINK_SECONDS = 0.25;
 /** Walking this far from the spawn point completes the first step. */
@@ -48,6 +49,7 @@ export class Coach {
     e.on('request.fulfilled', ({ byPlayer }) => byPlayer && this.learn('request'));
     e.on('cabin.cleaned', ({ byPlayer }) => byPlayer && this.learn('dirty'));
     e.on('shoes.shined', ({ byPlayer }) => byPlayer && this.learn('shoes'));
+    e.on('station.bell', ({ byPlayer }) => byPlayer && this.learn('bell'));
     e.on('guest.boarded', ({ byPlayer }) => byPlayer && this.learn('station'));
     e.on('bathroom.restocked', ({ byPlayer }) => byPlayer && this.learn('washroom'));
     e.on('staff.hired', () => this.learn('hire'));
@@ -82,7 +84,7 @@ export class Coach {
     const w = this.w;
     const at = 'world' in line.anchor ? line.anchor.world : w.player.pos;
     w.ui.floatIcon('check', at.x, FLOOR_Y + PRAISE_HEIGHT, at.z, 'info');
-    w.audio.play('ding', { volume: 0.6 });
+    // (Session 29: no sound of its own: the thing just done already made one.)
     this.current = null;
     this.rest = this.walkthroughDone ? COACH_LESSON_GAP_SECONDS : COACH_REST_SECONDS;
   }
@@ -258,8 +260,10 @@ export class Coach {
         return world(w.station.boardingPoint());
       case 'shoes':
         return world(w.train.shoesToShine(w.player.pos)?.shoePad);
+      case 'bell':
+        return w.station.bellReady() ? world(PLATFORM.bellPad) : null;
       case 'hire':
-        return world(w.tiles.list.find((t) => t.def.kind === 'hire')?.pos);
+        return world(w.tiles.list.find((t) => t.def.kind === 'hire' && w.unlocks.isAvailable(t.def.id))?.pos);
       case 'couple':
         return world(w.tiles.list.find((t) => t.def.kind === 'couple')?.pos);
       case 'refurb':
@@ -310,8 +314,11 @@ export class Coach {
         return w.journey.phase === 'stationStop' && w.guests.canBoard();
       case 'shoes':
         return w.train.shoesToShine(w.player.pos) !== null;
+      case 'bell':
+        return w.station.bellReady();
       case 'hire':
-        return w.tiles.list.some((t) => t.def.kind === 'hire');
+        // Session 29: only once the help is earned (a tile still counting is not something to buy yet).
+        return w.tiles.list.some((t) => t.def.kind === 'hire' && w.unlocks.isAvailable(t.def.id));
       case 'couple':
         return w.tiles.list.some((t) => t.def.kind === 'couple');
       case 'refurb':

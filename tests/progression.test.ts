@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ECONOMY } from '../src/config/economy';
 import { DEFAULT_TRAIN, MAX_CARRIAGES, STATION_UPGRADES } from '../src/config/content';
 import type { CarriageType } from '../src/core/types';
-import { allowedCarriages, buildUnlocks, carriageChoices, legacyCarriages, migrateLegacyId, stationPerks } from '../src/sim/unlockPlan';
+import { buildUnlocks, legacyCarriages, migrateLegacyId, nextCarriage, stationPerks } from '../src/sim/unlockPlan';
 import { Progression } from '../src/sim/Progression';
 import { UnlockChain } from '../src/sim/UnlockChain';
 import { Wallet } from '../src/sim/Wallet';
@@ -78,12 +78,19 @@ describe('UnlockChain', () => {
     expect(chain.available().map((d) => d.id)).not.toContain('c0.cabin_1');
   });
 
-  it('waits for gameplay flags (hire after the first manual clean)', () => {
-    const flags: Record<string, boolean> = {};
-    const chain = new UnlockChain(UNLOCKS, { unlocked: ['c0.open', 'c0.cabin_1', 'c0.cabin_2'], partial: {} }, () => flags);
-    expect(chain.isAvailable('c0.hire_attendant')).toBe(false);
-    flags.firstCabinCleaned = true;
-    expect(chain.isAvailable('c0.hire_attendant')).toBe(true);
+  it('shows earned help counting, and takes money only once the hand work is done (session 29)', () => {
+    const work: Record<string, number> = {};
+    const chain = new UnlockChain(UNLOCKS, { unlocked: ['c0.open', 'c0.cabin_1', 'c0.cabin_2', 'c0.refurb_1', 'couple_1'], partial: {} }, () => ({}), () => work);
+    const def = chain.get('c0.hire_attendant')!;
+    expect(chain.isListed(def.id)).toBe(true);
+    expect(chain.isAvailable(def.id)).toBe(false);
+    expect(chain.pay(def.id, 10)).toBe(0);
+    work.rooms = 6;
+    work.requests = 3;
+    expect(chain.workShort(def)).toEqual({ metric: 'requests', done: 3, need: 15 });
+    work.requests = 15;
+    expect(chain.workShort(def)).toBeNull();
+    expect(chain.isAvailable(def.id)).toBe(true);
   });
 
   it('every requirement refers to a real unlock and every chosen train has no dead ends', () => {
@@ -99,7 +106,8 @@ describe('UnlockChain', () => {
       // Every milestone reached: the first cabin cleaned by hand and every route level (class upgrades wait for theirs).
       const flags: Record<string, boolean> = { firstCabinCleaned: true };
       for (let level = 1; level <= 8; level++) flags[`level_${level}`] = true;
-      const chain = new UnlockChain(defs, { unlocked: [], partial: {} }, () => flags);
+      // ...and all the hand work every helper asks for.
+      const chain = new UnlockChain(defs, { unlocked: [], partial: {} }, () => flags, () => new Proxy({}, { get: () => 1e6 }));
       let guard = 0;
       while (chain.available().length > 0 && guard++ < 200) {
         for (const def of chain.available()) chain.forceComplete(def.id);
@@ -133,34 +141,23 @@ describe('UnlockChain', () => {
 });
 
 describe('carriage choice', () => {
-  const none = { leftBehind: 0, luggageLeft: 0 };
 
-  it('recommends beds first, then the café, then a washroom car (the stores on offer once it is there)', () => {
-    expect(carriageChoices(['lobby'], none)[0]).toEqual({ type: 'sleeper', reason: expect.any(String) });
-    expect(carriageChoices(['lobby'], none).map((c) => c.type)).not.toContain('supply');
-    expect(carriageChoices(['lobby', 'sleeper'], none)[0].type).toBe('cafe');
-    expect(carriageChoices(['lobby', 'sleeper', 'cafe'], none)[0].type).toBe('bathroom');
-    expect(carriageChoices(['lobby', 'sleeper', 'cafe', 'bathroom'], none).map((c) => c.type)).toContain('supply');
-  });
-
-  it('the recommended picks grow the default train', () => {
+  it('brings each carriage in the designed order, a surprise (session 29)', () => {
     const train: CarriageType[] = ['lobby'];
-    while (train.length < DEFAULT_TRAIN.length) train.push(carriageChoices(train, none)[0].type);
+    for (let next = nextCarriage(train); next; next = nextCarriage(train)) train.push(next);
     expect(train).toEqual(DEFAULT_TRAIN);
-  });
-
-  it('never offers the retired Luggage Car (the lobby rack grows), recommends more beds when guests were left', () => {
-    // Session 26: bags left behind are answered by the lobby rack's upgrades, not a carriage.
-    expect(carriageChoices(['lobby', 'sleeper', 'bathroom'], { leftBehind: 0, luggageLeft: 4 }).map((c) => c.type)).not.toContain('luggage');
-    expect(allowedCarriages(['lobby'])).toContain('cafe');
-    expect(carriageChoices(['lobby', 'sleeper', 'cafe', 'bathroom'], { leftBehind: 3, luggageLeft: 0 })[0].type).toBe('sleeper');
-    expect(carriageChoices(['lobby'], { leftBehind: 2, luggageLeft: 0 })[0].reason).toContain('beds');
-  });
-
-  it('respects each type\'s limit and the train length', () => {
-    expect(allowedCarriages(['lobby', 'sleeper', 'sleeper'])).not.toContain('sleeper');
-    expect(allowedCarriages([...DEFAULT_TRAIN])).toEqual([]);
     expect(MAX_CARRIAGES).toBe(DEFAULT_TRAIN.length);
+    expect(nextCarriage(['lobby'])).toBe('sleeper');
+    expect(nextCarriage(['lobby', 'sleeper'])).toBe('bathroom');
+  });
+
+  it('gives an older train that chose differently what it still lacks', () => {
+    // A session 26 train took the café second: the washroom car comes next, then the second sleeper.
+    expect(nextCarriage(['lobby', 'sleeper', 'cafe'])).toBe('bathroom');
+    expect(nextCarriage(['lobby', 'sleeper', 'cafe', 'bathroom'])).toBe('sleeper');
+    // A train with a retired Luggage Car keeps it; the order fills in round it until the train is full.
+    expect(nextCarriage(['lobby', 'luggage', 'sleeper'])).toBe('bathroom');
+    expect(nextCarriage([...DEFAULT_TRAIN])).toBeNull();
   });
 
   it('maps pre-choice save ids onto carriage slots', () => {

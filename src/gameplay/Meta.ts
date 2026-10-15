@@ -188,7 +188,7 @@ export class Meta {
       else perks.fareBonus += story.perk.amount;
       if (!w.data.meta.postcards.includes(`story:${story.id}`)) w.data.meta.postcards.push(`story:${story.id}`);
       w.ui.celebrate(`${story.name}'s story`, story.perk.label, 'album');
-      w.audio.play('fanfare');
+      w.audio.play('chest');
     }
     w.events.emit('story.step', { id: story.id, step: state.step, done: state.done });
     w.save.markDirty();

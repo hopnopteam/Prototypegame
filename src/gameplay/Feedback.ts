@@ -168,7 +168,7 @@ export class Feedback {
     this.deskWait = waiting ? this.deskWait + step : 0;
     if (this.deskWait < w.econ.feedback.deskWaitSeconds || this.bellTimer > 0) return;
     this.bellTimer = BELL_REPEAT_SECONDS;
-    w.audio.play('bell', { pitch: 0.9 });
+    w.audio.play('bloop', { pitch: 0.9 });
     const guest = w.guests.deskGuest();
     if (guest) {
       guest.view.bounce(0.6);

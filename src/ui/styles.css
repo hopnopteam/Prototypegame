@@ -476,6 +476,8 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .section-title { font-weight: 800; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; opacity: 0.65; margin-top: 4px; }
 
 .toggle.quality { flex-direction: column; align-items: stretch; }
+/* Session 29: the SFX volume slider, in the Settings sheet's enamel. */
+.toggle.volume-row input.volume { flex: 1; max-width: 62%; accent-color: var(--mustard); height: 28px; }
 .toggle.quality .quality-now { font-weight: 600; opacity: 0.6; font-size: 13px; }
 .segmented { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
 .segmented .seg { font: inherit; font-size: 12px; font-weight: 700; padding: 7px 0; border-radius: 9px; border: 2px solid var(--ink); background: #fff; color: var(--ink); }
@@ -640,18 +642,6 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 .story.news p { font-size: 13px; opacity: 0.8; }
 
 
-/* ── Carriage chooser ─────────────────────────────────── */
-.carriage-cards { display: flex; flex-direction: column; gap: 8px; }
-.carriage-card { display: flex; align-items: stretch; gap: 0; padding: 0; border-radius: 14px; border: var(--line); background: var(--cream); box-shadow: 0 3px 0 var(--ink); cursor: pointer; text-align: left; overflow: hidden; min-height: 72px; }
-.carriage-card:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
-.carriage-card.recommended { background: #FFF6DA; box-shadow: 0 3px 0 var(--ink), 0 0 0 3px var(--mustard); }
-.carriage-card .art { width: 72px; flex: none; display: grid; place-items: center; border-right: 2px solid var(--ink); }
-.carriage-card .disc { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--ink); }
-.carriage-card .info { flex: 1; min-width: 0; padding: 8px 12px; display: flex; flex-direction: column; gap: 3px; justify-content: center; }
-.carriage-card .ribbon { align-self: flex-start; display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px 1px 4px; border-radius: 8px; background: var(--mustard); border: 1.5px solid var(--ink); font-size: 11px; font-weight: 800; letter-spacing: 0.04em; }
-.carriage-card b { font-size: 17px; font-weight: 800; letter-spacing: 0.04em; }
-.carriage-card .pitch { font-size: 14px; font-weight: 700; color: var(--navy); }
-
 /* ── Mock ad / store overlays ─────────────────────────── */
 .mock-ad { position: absolute; z-index: 90; inset: 0; pointer-events: auto; background: repeating-linear-gradient(45deg, var(--navy-dark), var(--navy-dark) 22px, var(--navy) 22px, var(--navy) 44px); color: var(--cream); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px; }
 .mock-ad .tag { padding: 3px 10px; border-radius: 6px; background: var(--mustard); color: var(--ink); font-weight: 800; font-size: 12px; letter-spacing: 0.14em; }
@@ -788,11 +778,6 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 .loader-loco { position: absolute; bottom: 6px; left: calc(var(--p) * 100%); translate: -50% 0; transition: left 260ms ease-out; filter: drop-shadow(0 2px 0 #0008); }
 .loader-hint { position: relative; height: 22px; font-weight: 800; font-size: 14px; letter-spacing: 0.2em; text-indent: 0.2em; text-transform: uppercase; }
 .loader-hint .loading { opacity: 0.6; }
-.loader-hint .tap { display: none; color: #FFD266; animation: tapPulse 1.3s ease-in-out infinite; }
-.loader.ready { cursor: pointer; }
-.loader.ready .loading { display: none; }
-.loader.ready .tap { display: inline; }
-@keyframes tapPulse { 0%, 100% { opacity: 1; scale: 1; } 50% { opacity: 0.55; scale: 0.96; } }
 .loader-credit { font-weight: 700; font-size: 11px; letter-spacing: 0.3em; text-indent: 0.3em; text-transform: uppercase; opacity: 0.4; }
 
 /* ── Level up (session 26): a celebration card, not a list ── */

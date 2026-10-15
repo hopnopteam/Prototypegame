@@ -6,8 +6,9 @@ import { FLOOR_Y } from '../world/CarriageView';
 import { guideArrowTexture, makeSprite } from '../world/sprites';
 import { markWorldUi } from '../world/ZoneViews';
 import type { World } from './World';
+import { PLATFORM } from '../world/platformLayout';
 
-export type GuidanceReason = 'none' | 'board' | 'luggage' | 'deliver' | 'return' | 'cash' | 'desk' | 'tile' | 'fetch' | 'clean' | 'shine' | 'save';
+export type GuidanceReason = 'none' | 'board' | 'luggage' | 'deliver' | 'return' | 'cash' | 'desk' | 'tile' | 'fetch' | 'clean' | 'shine' | 'bell' | 'save';
 
 export interface PointerState {
   x: number;
@@ -190,6 +191,8 @@ export class Guidance {
     const stack = player.stack;
 
     if (w.journey.doorsOpen) {
+      // Session 29: the bell first (a second's work, and its latecomers need the stop's time to board).
+      if (w.station.bellReady() && stack.isEmpty) return this.because('bell', PLATFORM.bellPad);
       const boarding = w.guests.canBoard() && w.staff.count('porter') === 0;
       if (boarding && stack.isEmpty) return this.because('board', w.station.boardingPoint());
       if (!stack.isFull && w.demand.playerWants('luggage') > 0 && !stack.has('luggage')) return this.because('luggage', w.station.luggagePoint());

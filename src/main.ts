@@ -75,8 +75,9 @@ async function boot(): Promise<void> {
   game.loading = false;
   loader.progress(1);
 
-  // Sound needs a gesture in a browser tab (the apps allow it at once): the tap that starts play also starts the music.
-  if (!game.skippedEarly && !(await game.audio.tryStart())) await loader.waitForTap();
+  // Session 29 (partner: "audio starts quietly after the first touch (browser rule); never show a prompt for it"): no
+  // "Tap to play". The apps start the sound at once; in a browser tab it starts, fading in, on the player's first touch.
+  if (!game.skippedEarly) await game.audio.tryStart();
   loader.hide(game.skippedEarly);
   game.audio.startMusic();
   game.stage.restartJudging();

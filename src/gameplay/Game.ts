@@ -2,6 +2,7 @@ import { PLATFORM } from '../world/platformLayout';
 import { INTRO_BEATS } from '../config/coach';
 import * as THREE from 'three';
 import { AudioEngine, isAndroid } from '../audio/AudioEngine';
+import { AUDIO } from '../config/audio';
 import { Haptics } from '../audio/Haptics';
 import { CARRIAGE_CATALOGUE, PRODUCTS } from '../config/content';
 import { OUTFITS } from '../config/wardrobe';
@@ -33,7 +34,7 @@ import { FLOOR_Y } from '../world/CarriageView';
 import { CharacterView } from '../world/CharacterView';
 import { beginMaskFrame, setPopupTest } from '../world/screenMask';
 import { CharacterBatch } from '../world/CharacterBatch';
-import { carriageOriginZ, GANGWAY_LENGTH, HALF_WIDTH, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0, REAR_DECK_LENGTH } from '../world/layout';
+import { CARRIAGE_PITCH, carriageOriginZ, GANGWAY_LENGTH, HALF_WIDTH, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0, REAR_DECK_LENGTH } from '../world/layout';
 import { VISUALS, type QualityTier, type TierSettings } from '../config/visuals';
 import { setLivery, SHADOW_GEOMETRY } from '../world/materials';
 import { LIVERIES, liveryFor, type Livery } from '../world/palette';
@@ -58,6 +59,7 @@ import { Monetization } from './Monetization';
 import { Player } from './Player';
 import { Press } from './Press';
 import { Rush } from './Rush';
+import { HandWork } from './HandWork';
 import { Objectives } from './Objectives';
 import { Feedback } from './Feedback';
 import { Flow } from './Flow';
@@ -144,6 +146,7 @@ export class Game implements World {
   readonly meta: Meta;
   readonly press: Press;
   readonly rush: Rush;
+  readonly handWork: HandWork;
   readonly objectives: Objectives;
   readonly feedback: Feedback;
   readonly flow: Flow;
@@ -253,7 +256,7 @@ export class Game implements World {
     this.progression = new Progression(this.econ.progression, this.data.route);
     // Class upgrades wait for their route level: a flag per level reached (older saves get theirs here).
     for (let level = 1; level <= this.progression.level; level++) this.data.profile.flags[`level_${level}`] = true;
-    this.unlocks = new UnlockChain(buildUnlocks(this.data.route.carriages), this.data.route, () => this.data.profile.flags);
+    this.unlocks = new UnlockChain(buildUnlocks(this.data.route.carriages), this.data.route, () => this.data.profile.flags, () => this.data.profile.handWork);
     const route = this.data.route;
     this.journey = new Journey(this.econ.journey, {
       onPhase: (phase, previous) => {
@@ -274,6 +277,10 @@ export class Game implements World {
     this.zones = new ZoneSystem(this.scene);
     // Job pads reach further than their rings, never through a wall, and float their icons over what they serve.
     this.zones.reach = this.econ.zones.reach;
+    // Session 29: every job sounds the same way as its ring fills, a gentle soft tick each quarter, a little higher each time.
+    this.zones.onPlayerWork = (_zone, before, after) => {
+      if (Math.floor(after * 4) > Math.floor(before * 4) && after < 1) this.audio.play('fill', { pitch: 0.95 + after * 0.3 });
+    };
     this.zones.badgeReach = this.econ.zones.badgeReach;
     this.zones.reachClear = (ax, az, bx, bz) => this.map.walk.lineClear(ax, az, bx, bz);
     this.zones.anchor = (x, z) => this.map.serviceAnchor(x, z);
@@ -291,6 +298,7 @@ export class Game implements World {
     this.meta = new Meta(this);
     this.press = new Press(this, ui);
     this.rush = new Rush(this);
+    this.handWork = new HandWork(this);
     this.objectives = new Objectives(this);
     this.feedback = new Feedback(this);
     this.input = new Input(canvas.parentElement ?? canvas, overlay);
@@ -318,6 +326,7 @@ export class Game implements World {
     this.staff.init();
     this.station.init();
     this.rush.init();
+    this.handWork.init();
     this.objectives.init();
     this.feedback.init();
     const door = this.map.doors()[0];
@@ -497,6 +506,7 @@ export class Game implements World {
     this.ambient.update(dt, this.journey.speed, this.stage.rig.target, this.stage.lighting.night, this.scenery.isHiddenAt);
     this.fireflies.update(dt, this.journey.speed, this.stage.lighting.night, this.stage.renderer.getPixelRatio(), this.scenery.hiddenRegion);
     this.player.update(dt);
+    this.footsteps();
     this.zones.update(dt, [this.player, ...this.staff.members]);
     this.guests.update(dt);
     this.venues.update(dt);
@@ -659,6 +669,32 @@ export class Game implements World {
     this.stage.lighting.darkness = this.scenery.darknessAt(this.stage.rig.focusPoint.z);
     this.stage.lighting.setTime(t);
     return this.stage.lighting.night;
+  }
+
+  /** Distance walked since the last footstep, and where the conductor was last frame. */
+  private stepDistance = 0;
+  private readonly lastStep = { x: 0, z: 0 };
+
+  /**
+   * Session 29 (partner: "footsteps: very soft, only on hard floors, rate follows speed"): one soft step every
+   * `footsteps.stride` metres walked, on the platform and the bare boards of the cheaper refits (a carriage refitted
+   * to `carpetFromTier` or beyond is carpeted, and quiet).
+   */
+  private footsteps(): void {
+    const p = this.player.pos;
+    const moved = Math.hypot(p.x - this.lastStep.x, p.z - this.lastStep.z);
+    this.lastStep.x = p.x;
+    this.lastStep.z = p.z;
+    // A jump (a dash, being put aboard) is not walking.
+    if (moved > 1) return;
+    this.stepDistance += moved;
+    const cfg = AUDIO.footsteps;
+    if (this.stepDistance < cfg.stride) return;
+    this.stepDistance = 0;
+    const onPlatform = p.x > PLATFORM_X0 - 0.1;
+    const index = Math.max(0, Math.min(this.train.count - 1, Math.floor(p.z / CARRIAGE_PITCH)));
+    if (!onPlatform && (this.train.tiers[index] ?? 0) >= cfg.carpetFromTier) return;
+    this.audio.step(onPlatform ? 0.9 : 1);
   }
 
   private setAdPlaying(playing: boolean): void {
@@ -827,6 +863,7 @@ export class Game implements World {
   applySettings(): void {
     const s = this.data.settings;
     this.audio.setEnabled(s.sound, s.music);
+    this.audio.setVolume(s.sfxVolume);
     this.haptics.enabled = s.haptics;
     log.setVerbose(s.devTools);
     this.stage.checkShaderErrors = s.devTools;

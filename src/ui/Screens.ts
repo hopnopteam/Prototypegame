@@ -6,10 +6,8 @@ import { formatDuration, formatNumber } from '../core/math';
 import type { DoubleChoice } from '../gameplay/GameUi';
 import { INTERVIEWS, RIVALS_ENABLED } from '../config/press';
 import { conductorCost } from '../sim/meta';
-import { CARRIAGE_THEMES, LIVERIES, liveryFor } from '../world/palette';
+import { LIVERIES, liveryFor } from '../world/palette';
 import { OUTFITS, type OutfitDef } from '../config/wardrobe';
-import type { CarriageChoiceView } from '../gameplay/UiApi';
-import type { CarriageType } from '../core/types';
 import { QUALITY_TIERS, VISUALS } from '../config/visuals';
 import { h, icon } from './dom';
 import { ownerPortrait } from './portraits';
@@ -81,6 +79,8 @@ export class Screens {
     const close = (): void => {
       if (closed) return;
       closed = true;
+      // Session 29: a panel closing is a quiet whoosh (the close button's click stays its own).
+      this.game?.audio.play('whoosh', { pitch: 0.85 });
       const waiting = this.deferred.indexOf(scrim);
       if (waiting >= 0) this.deferred.splice(waiting, 1);
       else {
@@ -103,6 +103,7 @@ export class Screens {
       },
     }, sheet);
     this.present(scrim);
+    this.game?.audio.play('whoosh');
     return close;
   }
 
@@ -158,35 +159,6 @@ export class Screens {
       h('div.reward', {}, h('span', {}, icon('miles', 30), `+${reward.railMiles}`), h('span', {}, icon('cash', 30), `+${formatNumber(reward.cash)}`)),
       this.doubleButtons(gemCost, finish),
     ], { closable: false, center: true, className: 'levelup-sheet' });
-  }
-
-  /**
-   * The coupling moment: which carriage joins the train? Cards for what the train may take next, the
-   * recommended one first with the reason it would help right now.
-   */
-  carriageChoice(choices: CarriageChoiceView[], onPick: (type: CarriageType) => void): void {
-    let close: () => void = () => undefined;
-    const icons: Record<CarriageType, IconName> = { lobby: 'ticket', bathroom: 'bath', supply: 'towel', luggage: 'luggage', sleeper: 'bed', cafe: 'latte', dining: 'meal', bar: 'cocktail', dome: 'binoculars', cinema: 'film' };
-    const cards = choices.map((c, i) => {
-      const theme = CARRIAGE_THEMES[c.type];
-      return h(`button.carriage-card${i === 0 && c.reason ? '.recommended' : ''}` as 'button', {
-        'data-default': i === 0 ? '' : undefined,
-        onclick: () => {
-          close();
-          onPick(c.type);
-        },
-      },
-        h('div.art', { style: { background: theme.wall } }, h('span.disc', { style: { background: theme.deep } }, icon(icons[c.type], 40))),
-        h('div.info', {},
-          h('b', { text: c.name }),
-          h('span.pitch', { text: c.pitch }),
-          i === 0 && c.reason ? h('span.ribbon', {}, icon('star', 14), c.reason) : null,
-        ),
-      );
-    });
-    close = this.sheet('Next carriage', 'carriage', [
-      h('div.carriage-cards', {}, ...cards),
-    ], { closable: false, center: true, className: 'chooser' });
   }
 
   /**
@@ -660,6 +632,22 @@ export class Screens {
 
   // ─── Settings and developer tools ──────────────────────────────────────────
 
+  /** The SFX volume (session 29): a slider, saved; a soft click plays at the new level as it is let go. */
+  private volumeSlider(): HTMLElement {
+    const g = this.game;
+    const s = g.data.settings;
+    const slider = h('input.volume', { type: 'range', min: '0', max: '100', step: '5', value: String(Math.round(s.sfxVolume * 100)), 'aria-label': 'Sound volume' }) as HTMLInputElement;
+    slider.addEventListener('input', () => {
+      s.sfxVolume = Number(slider.value) / 100;
+      g.applySettings();
+    });
+    slider.addEventListener('change', () => {
+      g.save.markDirty();
+      g.audio.play('click');
+    });
+    return h('div.toggle.volume-row', {}, 'Volume', slider);
+  }
+
   settings(): void {
     const g = this.game;
     const s = g.data.settings;
@@ -683,6 +671,8 @@ export class Screens {
     const resetButton = h('button.btn', { onclick: () => { resetButton.hidden = true; confirmReset.hidden = false; } }, 'Start over');
     close = this.sheet('Settings', 'gear', [
       toggle('Sound', s.sound, (v) => (s.sound = v)),
+      // Session 29: one SFX volume slider (saved), the Sound switch above being the mute.
+      this.volumeSlider(),
       // Session 28: no Music switch while the game has no music (`AUDIO.music.enabled`).
       AUDIO.music.enabled ? toggle('Music', s.music, (v) => (s.music = v)) : null,
       toggle('Vibration', s.haptics, (v) => (s.haptics = v)),

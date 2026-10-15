@@ -112,13 +112,13 @@ export class CashPiles {
       if (i % 3 === 0) w.haptics.tick();
       if (i % 2 === 0) player.view.bounce(0.25);
     }, () => {
-      w.audio.play('cash', { pitch: amount >= 40 ? 1.12 : 1 });
+      // Session 29: the coins are the sound (one soft rising tick); a big scoop adds a sparkle of particles, not a second cue.
       if (amount >= 40) {
         w.particles.emit('cash', player.pos.x, FLOOR_Y + 1.4, player.pos.z, 14, 0.3);
         w.haptics.success();
       }
     });
-    if (bills === 0) w.audio.play('cash');
+    if (bills === 0) w.audio.play('coin');
     w.events.emit('cash.collected', { amount, x: pile.x, z: pile.z });
   }
 

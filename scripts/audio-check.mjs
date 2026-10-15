@@ -67,13 +67,13 @@ await page.waitForFunction(() => !document.getElementById('loader'), null, { tim
 // without music checks that none plays and that the effects carry on alone; the theme's own checks wait for it to return.
 const music = await page.evaluate(() => window.nightExpress.audio.hasMusic);
 if (music) check(await page.evaluate(() => !!window.nightExpress.audio.theme), 'the theme is decoded behind the loading screen');
-else check(await page.evaluate(() => window.nightExpress.audio.theme === null && !window.nightExpress.audio.bank.has('clack')), 'no theme and no rail clack in this build (music and train sound off)');
+else check(await page.evaluate(() => window.nightExpress.audio.theme === null), 'no theme in this build (music off)');
 check(await page.evaluate(() => window.nightExpress.audio.prerendered), 'every cue is pre-rendered (played as a buffer, not synthesised live)');
 // The pre-rendered reward jingles are whole: each rings down to silence on its own (nothing cuts it short).
 const tails = await page.evaluate(() => {
   const bank = window.nightExpress.audio.bank;
   const out = {};
-  for (const name of ['fanfare', 'levelup', 'perfect', 'chest', 'unlock', 'ceremony', 'cash']) {
+  for (const name of ['reveal', 'levelup', 'perfect', 'chest', 'unlock', 'staff', 'ceremony', 'cash']) {
     const cue = bank.get(name);
     if (!cue) { out[name] = null; continue; }
     const d = cue.buffer.getChannelData(0);
@@ -89,6 +89,26 @@ const tails = await page.evaluate(() => {
 for (const [name, t] of Object.entries(tails)) {
   check(!!t && t.end < t.peak * 0.01, `the ${name} cue rings out to silence (${t ? `${t.seconds.toFixed(2)} s, last 50 ms at ${(20 * Math.log10(t.end / t.peak + 1e-9)).toFixed(0)} dB` : 'missing'})`);
 }
+// Session 29 (partner: "short, sweet… nothing should ever be startling"): every cue as it plays (its own peak × its step
+// on the ladder × the master) stays well under full scale, the frequent ones far under; most are short.
+const ladder = await page.evaluate(async () => {
+  const { bank } = window.nightExpress.audio;
+  const out = [];
+  for (const [name, cue] of bank) {
+    if (name === 'clack') continue;
+    let peak = 0;
+    for (let c = 0; c < cue.buffer.numberOfChannels; c++) for (const v of cue.buffer.getChannelData(c)) peak = Math.max(peak, Math.abs(v));
+    out.push({ name, peak, dry: cue.dry });
+  }
+  return out;
+});
+const cfg = await page.evaluate(() => window.nightExpress.audio.config);
+const loudest = ladder.map((c) => ({ ...c, played: c.peak * cfg.ladder[(cfg.cues[c.name] ?? cfg.defaultCue).level] * cfg.mix.master })).sort((a, b) => b.played - a.played);
+check(loudest[0].played < 0.35, `no cue is startling (loudest as played: ${loudest[0].name} at ${(20 * Math.log10(loudest[0].played)).toFixed(0)} dBFS)`);
+const frequent = loudest.filter((c) => (cfg.cues[c.name] ?? cfg.defaultCue).level === 'constant');
+check(frequent.every((c) => c.played < 0.1), `the frequent cues are very quiet (loudest: ${frequent[0].name} at ${(20 * Math.log10(frequent[0].played)).toFixed(0)} dBFS)`);
+const shortOnes = ladder.filter((c) => ['step', 'coin', 'fill', 'done', 'pickup', 'drop', 'drip', 'pop', 'click', 'tock', 'bloop', 'clink'].includes(c.name));
+check(shortOnes.every((c) => c.dry <= 0.4), `the gameplay cues are short (longest: ${shortOnes.sort((a, b) => b.dry - a.dry)[0].name}, ${shortOnes[0].dry.toFixed(2)} s)`);
 await page.evaluate(() => window.nightExpress.skipIntro?.());
 await page.evaluate(() => { window.nightExpress.setAutopilot(true); window.nightExpress.audio.unlock(); });
 if (music) await page.waitForFunction(() => window.nightExpress.audio.theme !== null, null, { timeout: 10000 }).catch(() => undefined);
@@ -171,19 +191,14 @@ const result = await page.evaluate(() => {
   const first = await page.evaluate(() => {
     const a = window.nightExpress.audio;
     const ctx = window.__ctx;
-    a.play('fanfare');
+    a.play('reveal');
     const fanfareEnd = a.rewardUntil;
     a.play('levelup');
     return { now: ctx.currentTime, fanfareEnd, levelupEnd: a.rewardUntil };
   });
-  check(first.levelupEnd > first.fanfareEnd + 0.5, `a second jingle waits for the first (fanfare rings out at +${(first.fanfareEnd - first.now).toFixed(2)} s, the level-up after it to +${(first.levelupEnd - first.now).toFixed(2)} s)`);
-  await page.waitForTimeout(500);
-  const ducked = await page.evaluate(() => window.nightExpress.audio.musicDuck.gain.value);
-  if (music) check(ducked < 0.4, `the theme ducks under the jingle (${ducked.toFixed(2)})`);
+  check(first.levelupEnd > first.fanfareEnd + 0.3, `a second big reward waits for the first (reveal rings out at +${(first.fanfareEnd - first.now).toFixed(2)} s, the level-up after it to +${(first.levelupEnd - first.now).toFixed(2)} s)`);
   const wait = Math.ceil((first.levelupEnd - first.now) * 1000) + 2600;
   await page.waitForTimeout(wait);
-  const back = await page.evaluate(() => window.nightExpress.audio.musicDuck.gain.value);
-  if (music) check(back > 0.95, `the theme comes back after it (${back.toFixed(2)})`);
 }
 // Session 27: a reward never plays over another. Buying a room played its chime and the room's reveal a second chime
 // half a second in (it read as the first one cut off); a refit's fanfare landed on its purchase chime.
@@ -201,14 +216,30 @@ const result = await page.evaluate(() => {
     await new Promise((done) => setTimeout(done, 400));
     a.play('unlock', { volume: 0.55 });
     const twice = plays;
-    a.play('fanfare');
-    const fanfareStart = a.rewardUntil - (a.bank.get('fanfare').dry);
+    a.play('reveal');
+    const fanfareStart = a.rewardUntil - (a.bank.get('reveal').dry);
     a.playBuffer = pb;
     return { twice, unlockEnd: unlockEnd - t0, fanfareStart: fanfareStart - t0 };
   });
   check(r.twice === 1, `a second purchase chime while the first rings is dropped (${r.twice} played)`);
-  check(r.fanfareStart >= r.unlockEnd, `a fanfare waits for the purchase chime to ring out (chime to +${r.unlockEnd.toFixed(2)} s, fanfare from +${r.fanfareStart.toFixed(2)} s)`);
+  check(r.fanfareStart >= r.unlockEnd, `a reveal waits for the purchase chime to ring out (chime to +${r.unlockEnd.toFixed(2)} s, reveal from +${r.fanfareStart.toFixed(2)} s)`);
   await page.waitForTimeout(4500);
+}
+// Session 29: cash scooped in a burst is one soft rising tick, never a stack of coins.
+{
+  const burst = await page.evaluate(async () => {
+    const a = window.nightExpress.audio;
+    let plays = 0;
+    const pb = a.playBuffer.bind(a);
+    a.playBuffer = (...args) => { if (args[0] === 'coin') plays++; return pb(...args); };
+    for (let i = 0; i < 30; i++) {
+      a.play('coin');
+      await new Promise((done) => setTimeout(done, 10));
+    }
+    a.playBuffer = pb;
+    return plays;
+  });
+  check(burst <= 8, `30 coins in a third of a second play as a soft run, not a pile-up (${burst} sounded)`);
 }
 // A phone in a browser tab (no autoplay): the loading screen ends on "Tap to play", and that tap starts the theme.
 {
@@ -234,16 +265,21 @@ const result = await page.evaluate(() => {
     };
   });
   await tapPage.goto(`file://${file}`);
-  await tapPage.waitForFunction(() => document.getElementById('loader')?.classList.contains('ready') || !document.getElementById('loader'), null, { timeout: 90000 }).catch(() => undefined);
-  const asked = await tapPage.evaluate(() => !!document.getElementById('loader')?.classList.contains('ready'));
-  check(asked, 'without autoplay the loading screen ends on "Tap to play"');
-  if (music) check(await tapPage.evaluate(() => (window.nightExpress.audio.passes ?? []).length === 0), 'the music waits for that tap (it starts with play, not before)');
+  // Session 29: never a prompt for sound: the loading screen gives way by itself, and the first touch starts the sound.
+  await tapPage.waitForFunction(() => !document.getElementById('loader'), null, { timeout: 90000 }).catch(() => undefined);
+  check(await tapPage.evaluate(() => !document.getElementById('loader')), 'without autoplay the loading screen gives way on its own (no "Tap to play")');
+  check(await tapPage.evaluate(() => !document.body.textContent.includes('Tap to play')), 'and nothing asks for a tap');
   await tapPage.touchscreen.tap(195, 700);
   await tapPage.waitForFunction((m) => window.nightExpress.audio.unlocked && (!m || window.nightExpress.audio.passes.length > 0), music, { timeout: 3000 }).catch(() => undefined);
-  if (music) check(await tapPage.evaluate(() => window.nightExpress.audio.unlocked && window.nightExpress.audio.passes.length > 0), 'the tap starts the sound and the theme at once');
-  else check(await tapPage.evaluate(() => window.nightExpress.audio.unlocked), 'the tap starts the sound');
-  await tapPage.waitForFunction(() => !document.getElementById('loader'), null, { timeout: 3000 }).catch(() => undefined);
-  check(await tapPage.evaluate(() => !document.getElementById('loader')), 'and the game is on screen');
+  if (music) check(await tapPage.evaluate(() => window.nightExpress.audio.unlocked && window.nightExpress.audio.passes.length > 0), 'the first touch starts the sound and the theme at once');
+  else check(await tapPage.evaluate(() => window.nightExpress.audio.unlocked), 'the first touch starts the sound');
+  const fade = await tapPage.evaluate(async () => {
+    const a = window.nightExpress.audio;
+    const early = a.masterLevel;
+    await new Promise((done) => setTimeout(done, 1600));
+    return { early, late: a.masterLevel };
+  });
+  check(fade.early < fade.late && fade.late > 0.5, `it starts quietly and fades in (${fade.early.toFixed(2)} → ${fade.late.toFixed(2)})`);
   await strict.close();
 }
 await browser.close();

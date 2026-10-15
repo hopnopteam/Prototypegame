@@ -46,9 +46,11 @@ export const ECONOMY = {
     lastCallSeconds: 12,
     /**
      * Fix list 4.3, the station clock: big on the route line during a stop, yellow from `yellowAt` seconds left,
-     * red and pulsing from `redAt`, a tick every second from `tickFrom`, and a warning whistle at `whistleAt`.
+     * red and pulsing from `redAt`, and a soft tick every second from `tickFrom`.
      */
-    timer: { yellowAt: 20, redAt: 10, tickFrom: 10, whistleAt: 10 },
+    // Session 29 (partner: "never fatiguing"): soft ticks only for the last 5 seconds (was 10) and no warning whistle
+    // (the last call's gentle bell is the warning).
+    timer: { yellowAt: 20, redAt: 10, tickFrom: 5 },
     /** Legs per full day→dusk→night→dawn cycle. */
     legsPerDayCycle: 4,
   },
@@ -198,6 +200,14 @@ export const ECONOMY = {
    * In the morning they find them shining and leave a tip in the room (× their class's tip multiplier); shoes
    * nobody polished are simply taken in, nothing lost.
    */
+  /**
+   * Session 29, the station bell (partner: "more things to do in the early game… making announcements at stations"):
+   * from the second stop, a bell on the platform. Ring it (`seconds` standing by it) while more than `before` seconds
+   * are left on the clock and `travellers` latecomers hurry out of the station house, one every `stagger` seconds:
+   * more fares, more guests, a beat of its own in each stop. Once a stop; the porter leaves it to the conductor.
+   */
+  bell: { seconds: 1, before: 16, travellers: 2, stagger: 0.8 },
+
   night: {
     shineSeconds: 1.3,
     shineTip: 4,
@@ -269,6 +279,11 @@ export const ECONOMY = {
       blindSeconds: 1.5,
       furnitureAt: 2.5,
     },
+    /**
+     * Session 29, the surprise carriage: it rolls in under a tarp and couples; it settles on its springs for
+     * `suspenseSeconds` (`wobbles` bounces, `wobble` metres high), then the cover comes off as above.
+     */
+    coupled: { suspenseSeconds: 0.9, wobbles: 3, wobble: 0.05 },
   },
 
 
@@ -438,7 +453,8 @@ export const ECONOMY = {
    */
   flow: {
     /** The first purchases, one on show at a time, in this order (the next appears when the last is bought). */
-    openingTiles: ['c0.open', 'c0.cabin_1', 'c0.cabin_2', 'c0.hire_attendant', 'c0.refurb_1', 'couple_1'] as string[],
+    // Session 29: the attendant is no longer part of the opening; it is earned by hand afterwards (content.ts).
+    openingTiles: ['c0.open', 'c0.cabin_1', 'c0.cabin_2', 'c0.refurb_1', 'couple_1'] as string[],
     /**
      * Where the first passengers come from (session 17, owner: "where guests are coming from… a whole system where
      * logistically it makes total sense"): a new game opens standing at Millbrook with the doors open. Session 19
@@ -484,8 +500,12 @@ export const ECONOMY = {
       crowd: { stops: 1 },
       /** Passengers' reaction bubbles (smiles, hearts, stars). */
       reactions: { stops: 1 },
+      /** The station bell (session 29): from the second stop. */
+      bell: { stops: 1 },
       /** Rush streaks (the bolt under the conductor). */
-      rush: { carriages: 2 },
+      // Session 29 (partner: "a combo for chaining tasks quickly" before the attendant): from the first stop (was the
+      // second carriage), so the hand-work stretch has its streak.
+      rush: { stops: 1 },
       /** Class badges over the passenger carriages (or as soon as a carriage moves up a class). */
       classChips: { carriages: 2 },
       /** The locked next-carriage plate on the rear deck (before that, the coupling arrives in its turn). */

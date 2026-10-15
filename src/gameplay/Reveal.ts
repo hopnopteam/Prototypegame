@@ -235,7 +235,7 @@ export class Reveal {
     w.tweens.delay(rules.seconds, () => {
       this.busy = false;
       spec.done();
-      w.audio.play('fanfare');
+      w.audio.play('reveal');
       w.haptics.success();
       w.stage.rig.shake(0.12, 0.3);
       this.sparkleRing(room);

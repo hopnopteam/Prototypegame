@@ -412,7 +412,7 @@ export class Venues {
       seat.state = 'waiting';
       guest.view.showBubble(seat.order as IconName, 'request', 1.85);
       guest.view.act('wave', w.econ.guests.waveSeconds);
-      w.audio.play('soft', { volume: 0.45 });
+      w.audio.play('bloop');
     } else if (venue.kind === 'cinema') {
       // Settles in for the next film (the one on, if any, is half over: they wait for the next).
       seat.state = 'consuming';
@@ -725,7 +725,6 @@ export class Venues {
     w.particles.emit('confetti', sign.x, FLOOR_Y + 1.6, sign.z, 40, 0.8);
     // A party, not a reward jingle (fix list 7.1: it comes round often): a chime and a sparkle.
     w.audio.play('chime');
-    w.audio.play('sparkle');
     w.ui.floatIcon('party', sign.x, FLOOR_Y + 2.2, sign.z, 'star');
     w.events.emit('venue.happyHour', { seconds });
   }

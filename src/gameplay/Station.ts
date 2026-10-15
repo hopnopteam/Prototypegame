@@ -55,6 +55,8 @@ export class Station {
   private boardingZone!: Zone;
   private luggageZone!: Zone;
   private vendorZone!: Zone;
+  /** The stop the bell was last rung at (session 29: once a stop). */
+  private bellRungFor = -1;
   private boardedThisStop = 0;
   private alightedThisStop = 0;
   private tipsThisStop = 0;
@@ -156,7 +158,7 @@ export class Station {
       w.scenery.setBillboards(boards ? billboardTexture(name, livery.body, livery.trim) : null, BILLBOARD_COUNT);
     }
     if (fresh) {
-      w.audio.play('fanfare');
+      w.audio.play('sparkle');
       w.particles.emit('confetti', w.player.pos.x, FLOOR_Y + 2.4, w.player.pos.z - 1, 50, 1.2);
     }
   }
@@ -308,7 +310,8 @@ export class Station {
   }
 
   onLastCall(): void {
-    this.w.audio.play('chime');
+    // Session 29: the departure warning is a gentle bell (a little lower than the station bell the conductor rings).
+    this.w.audio.play('bell', { pitch: 0.8 });
   }
 
   /** The last whole second the station clock ticked on (fix list 4.3). */
@@ -328,7 +331,6 @@ export class Station {
     const first = this.lastTick < 0;
     this.lastTick = second;
     if (first) return;
-    if (second === timer.whistleAt) w.audio.play('whistleShort', { volume: 0.8 });
     if (second <= timer.tickFrom) w.audio.play('tick', { pitch: second <= 3 ? 1.25 : 1 });
   }
 
@@ -481,7 +483,7 @@ export class Station {
     // Fares left at the booth come aboard with the conductor (the platform is about to slide away).
     w.cash.collect('booth');
     w.audio.setStationAmbience(false);
-    w.audio.play('whistle');
+    w.audio.play('depart');
   }
 
   private finishStop(): void {
@@ -615,7 +617,6 @@ export class Station {
         zone.progress = 0;
         const guest = w.guests.boardNext(actor.isPlayer);
         if (guest) {
-          w.audio.play('punch');
           if (actor.isPlayer) w.haptics.light();
           w.particles.emit('sparkle', guest.pos.x, FLOOR_Y + 1.2, guest.pos.z, 4, 0.2);
         }
@@ -654,6 +655,28 @@ export class Station {
       stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, luggageSpec),
     }));
 
+    // Session 29: the station bell. Ring it and latecomers hurry out of the station house (the conductor's job: staff
+    // never ring it, so a hired porter leaves the conductor this beat of the stop).
+    w.zones.add(new Zone({
+      id: 'bell',
+      kind: 'work',
+      x: PLATFORM.bellPad.x,
+      z: PLATFORM.bellPad.z,
+      radius: 0.6,
+      icon: 'bell',
+      staff: false,
+      active: () => this.bellReady(),
+      stay: (zone, actor, dt) => {
+        if (!actor.isPlayer || !this.bellReady()) return false;
+        actor.view.act('wave');
+        zone.progress += dt / w.econ.bell.seconds;
+        if (zone.progress < 1) return true;
+        zone.progress = 0;
+        this.ringBell();
+        return true;
+      },
+    }));
+
     const supply = w.train.indexOfType('supply') ?? 2;
     const vendor = PlatformView.vendorPosition(supply);
     const vendorPoint = new THREE.Vector3();
@@ -682,6 +705,34 @@ export class Station {
       highlight: () => w.demand.playerWants('crate') > 0,
       stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, vendorSpec),
     }));
+  }
+
+  /** The bell can be rung: a real stop (not the opening), once each, with time left for the latecomers to board. */
+  bellReady(): boolean {
+    const w = this.w;
+    const j = w.journey;
+    return j.phase === 'stationStop' && !this.prologue && this.bellRungFor !== j.stopSerial && w.flow.allows('bell') && j.timeLeft > w.econ.bell.before;
+  }
+
+  /** "All aboard!": the bell rings, everyone on the platform looks up, and latecomers hurry out of the station house. */
+  private ringBell(): void {
+    const w = this.w;
+    const j = w.journey;
+    const bell = PLATFORM.bell;
+    this.bellRungFor = j.stopSerial;
+    w.audio.play('bell');
+    w.haptics.light();
+    w.particles.emit('sparkle', bell.x - 0.32, FLOOR_Y + 1.2, bell.z, 12, 0.35);
+    w.ui.floatIcon('person', PLATFORM.houseDoor.x, FLOOR_Y + 2, PLATFORM.houseDoor.z, 'info');
+    w.guests.lookUp();
+    const stop = j.stopSerial;
+    for (let i = 0; i < w.econ.bell.travellers; i++) {
+      w.tweens.delay(0.6 + i * w.econ.bell.stagger, () => {
+        if (j.phase !== 'stationStop' || j.stopSerial !== stop) return;
+        w.guests.spawnLatecomer(this.travellerClasses(stop, 1)[0]);
+      });
+    }
+    w.events.emit('station.bell', { byPlayer: true, x: bell.x, z: bell.z });
   }
 
   /** Bags on the luggage barrow and crates at the vendor, as part of the platform so they glide with it. */

@@ -24,6 +24,7 @@ export class Rush {
     e.on('cabin.cleaned', ({ byPlayer, x, z }) => byPlayer && this.service({ x, z }));
     e.on('shoes.shined', ({ byPlayer, x, z }) => byPlayer && this.service({ x, z }));
     e.on('luggage.loaded', ({ byPlayer }) => byPlayer && this.service(this.w.player.pos));
+    e.on('station.bell', ({ byPlayer, x, z }) => byPlayer && this.service({ x, z }));
   }
 
   /** 0…1 of the window left (the chip's draining bar). */
@@ -48,7 +49,7 @@ export class Rush {
     this.streak++;
     this.timeLeft = rush.window;
     if (this.streak < 2) return;
-    w.audio.play('coin', { pitch: 1 + Math.min(1.2, this.streak * 0.08), volume: 0.3 });
+    // (Session 29: no coin per step: the service itself already made its sound; only a milestone adds one.)
     if (!rush.milestones.includes(this.streak) && !(this.streak > rush.milestones[rush.milestones.length - 1] && this.streak % 5 === 0)) return;
     const cash = Math.round(rush.cashPerStep * this.streak);
     this.lastMilestone = this.streak;

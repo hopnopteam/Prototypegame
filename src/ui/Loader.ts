@@ -1,6 +1,6 @@
 /**
  * The loading screen (session 26). Its markup is static in body.html, so it is the first thing painted; this moves its
- * progress rail, asks for the tap that lets the browser play sound, and fades it away when play begins.
+ * progress rail and fades it away when play begins (session 29: it never asks for a tap; sound starts on the first touch).
  */
 export class Loader {
   private shown = 0;
@@ -11,24 +11,6 @@ export class Loader {
   progress(fraction: number): void {
     this.shown = Math.max(this.shown, Math.min(1, fraction));
     this.root?.querySelector<HTMLElement>('.loader-rail')?.style.setProperty('--p', this.shown.toFixed(3));
-  }
-
-  /**
-   * Everything is ready but the browser will not play sound without a gesture: "Tap to play". Resolves on the tap (the
-   * game's own gesture listener has resumed the sound by then, in the same gesture).
-   */
-  waitForTap(): Promise<void> {
-    const root = this.root;
-    if (!root) return Promise.resolve();
-    root.classList.add('ready');
-    return new Promise((done) => {
-      const go = (): void => {
-        for (const name of ['pointerup', 'touchend', 'click', 'keydown']) window.removeEventListener(name, go);
-        done();
-      };
-      // Listened for on the window after the game's own listener (registered at boot), so the sound is unlocked first.
-      for (const name of ['pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(name, go, { passive: true });
-    });
   }
 
   /** Fades out and leaves the page (so nothing of it is left over the game). */

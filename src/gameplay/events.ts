@@ -23,6 +23,10 @@ export interface GameEvents {
   'item.dropped': { item: ItemKind; byPlayer: boolean };
   'item.returned': { item: ItemKind; byPlayer: boolean };
   'luggage.loaded': { byPlayer: boolean };
+  /** Session 29: the station bell rung to call the latecomers aboard. */
+  'station.bell': { byPlayer: boolean; x: number; z: number };
+  /** Session 29: the hand work behind a tile is done; it can be bought now. */
+  'work.earned': { id: string };
   'unlock.completed': { id: string; price: number; x: number; z: number };
   'tile.draining': { x: number; z: number };
   'carriage.coupled': { index: number; type: string };

@@ -4,14 +4,13 @@ import type { ProductDef } from '../config/content';
 import { RIVALS_ENABLED, type InterviewDef, type WhistleDef } from '../config/press';
 import { MONETIZATION_ENABLED } from '../config/economy';
 import { damp, formatClock, formatNumber } from '../core/math';
-import type { CarriageType } from '../core/types';
 import type { StationResult } from '../gameplay/events';
 import type { CoachAnchor } from '../gameplay/Coach';
 import type { Game } from '../gameplay/Game';
 import type { DoubleChoice, GameUi } from '../gameplay/GameUi';
 import type { OfferView } from '../gameplay/Monetization';
 import type { FrontPageReward, LeagueRow, WireNews } from '../gameplay/Press';
-import type { CarriageChoiceView, FloatKind } from '../gameplay/UiApi';
+import type { FloatKind } from '../gameplay/UiApi';
 import type { NewsItem } from '../save/SaveData';
 import { forgetSize, h, icon, replayClass, setText, setVisible, sizeOf } from './dom';
 import type { IconName } from './icons';
@@ -720,7 +719,7 @@ export class Ui implements GameUi {
           this.game.audio.play('coin', { pitch: 2.4, volume: 0.35 });
         } else {
           this.pendingStars = Math.max(0, this.pendingStars - f.amount);
-          this.game.audio.play('chime', { pitch: 1.6 + Math.random() * 0.3, volume: 0.25 });
+          this.game.audio.play('drip', { pitch: 1.6 + Math.random() * 0.3 });
         }
       }
     }
@@ -1270,10 +1269,6 @@ export class Ui implements GameUi {
 
   showFirstClassOffer(discounted: boolean, price: string, onBuy: () => void, onClose: () => void): void {
     this.screens.firstClass(discounted, price, onBuy, onClose);
-  }
-
-  showCarriageChoice(choices: CarriageChoiceView[], onPick: (type: CarriageType) => void): void {
-    this.screens.carriageChoice(choices, onPick);
   }
 
   // ─── Press ──────────────────────────────────────────────────────────────────
