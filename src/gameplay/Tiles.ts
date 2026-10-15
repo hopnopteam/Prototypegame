@@ -331,6 +331,7 @@ export class Tiles {
     w.audio.play('ready');
     w.ui.floatIcon('check', entry.pos.x, FLOOR_Y + 1.6, entry.pos.z, 'info');
     w.events.emit('work.earned', { id: entry.def.id });
+    w.analytics.log('work_earned', { role: entry.def.role ?? entry.def.id, time: Math.round(w.lifetimeSeconds()) });
     this.refresh();
   }
 
@@ -514,7 +515,7 @@ export class Tiles {
     // Weight: a zoom kick as the new thing pops into existence.
     w.stage.rig.punch(def.kind === 'couple' ? 0.02 : UNLOCK_PUNCH);
     w.addStars(def.stars, 'unlock', entry.pos);
-    w.analytics.log(EVENTS.unlockCompleted, { id: def.id, price: def.price, time: Math.round(w.lifetimeSeconds()) });
+    w.analytics.log(EVENTS.unlockCompleted, { id: def.id, kind: def.kind, price: def.price, time: Math.round(w.lifetimeSeconds()) });
     w.analytics.log(EVENTS.currencySpent, { currency: 'cash', amount: def.price, sink: `unlock:${def.kind}` });
     w.events.emit('unlock.completed', { id: def.id, price: def.price, x: entry.pos.x, z: entry.pos.z });
     // What was bought pops into existence right there: the moment speaks for itself (no caption).
@@ -527,7 +528,7 @@ export class Tiles {
       w.particles.emit('confetti', member.pos.x, FLOOR_Y + 2.2, member.pos.z, 40, 1.1);
       w.stage.rig.focusOn(this.to.set(member.pos.x, 0, member.pos.z), 2.2, 1.0);
       w.addStars(w.econ.stars.staffHired, 'hire', entry.pos);
-      w.analytics.log(EVENTS.staffHired, { role: def.role, carriage: def.carriage });
+      w.analytics.log(EVENTS.staffHired, { role: def.role ?? 'staff', carriage: def.carriage, time: Math.round(w.lifetimeSeconds()) });
     } else if (def.kind === 'staffUpgrade' && def.role) {
       w.staff.upgrade(def.role, def.carriage);
     } else if (def.kind === 'couple') {

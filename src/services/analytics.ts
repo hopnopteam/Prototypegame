@@ -30,6 +30,18 @@ export interface AnalyticsService {
   log(event: string, params?: AnalyticsParams): void;
 }
 
+/**
+ * Somewhere events go besides the dev panel's list (session 31: GameAnalytics, `services/gameAnalytics.ts`). The game
+ * talks only to `MockAnalyticsService`, which validates each event and forwards it to every sink.
+ */
+export interface AnalyticsSink {
+  log(event: string, params: AnalyticsParams): void;
+  setDimensions(level: number, carriages: number, quality: string): void;
+  error(message: string, critical: boolean): void;
+  pause(): void;
+  resume(): void;
+}
+
 export interface LoggedEvent {
   at: number;
   event: string;
@@ -43,6 +55,10 @@ export class MockAnalyticsService implements AnalyticsService {
   readonly history: LoggedEvent[] = [];
   total = 0;
   userId = '';
+  /** Where valid events are forwarded (GameAnalytics when its keys are set). */
+  readonly sinks: AnalyticsSink[] = [];
+  /** Called before each event reaches the sinks (the game brings the dimensions up to date there). */
+  beforeSend: (() => void) | null = null;
 
   constructor(private readonly historySize = 60, private readonly clock: () => number = () => Date.now()) {}
 
@@ -59,6 +75,30 @@ export class MockAnalyticsService implements AnalyticsService {
     if (this.history.length > this.historySize) this.history.shift();
     this.total++;
     log.info('Analytics', event, params);
+    if (this.sinks.length > 0) this.beforeSend?.();
+    for (const sink of this.sinks) {
+      try {
+        sink.log(event, params);
+      } catch (e) {
+        log.error('Analytics', `Sink failed on "${event}"`, e);
+      }
+    }
+  }
+
+  setDimensions(level: number, carriages: number, quality: string): void {
+    for (const sink of this.sinks) sink.setDimensions(level, carriages, quality);
+  }
+
+  error(message: string, critical = false): void {
+    for (const sink of this.sinks) sink.error(message, critical);
+  }
+
+  pause(): void {
+    for (const sink of this.sinks) sink.pause();
+  }
+
+  resume(): void {
+    for (const sink of this.sinks) sink.resume();
   }
 
   count(event: string): number {

@@ -117,6 +117,26 @@ with its furniture, pads and tiles; `shot.mjs` and `play.mjs` are quick visual c
 carriage, character and prop (`?t=0.82` time of day, `&z=` camera position, `&zoom=`, `&platform=1`, `&tier=0..5` or
 `&tiers=0123` refurbishment tiers (passenger carriages 4 First Class, 5 Royal Suite), `&quality=` the graphics tier, `&level=` livery, `&name=` the locomotive's nameplate, `&sleeper=0` hides the sleeper, `&comforts=lamp,flowers,radio,soap,rail` dresses the rooms).
 
+## Analytics (GameAnalytics)
+
+The game reports to [GameAnalytics](https://www.gameanalytics.com/) through the official JS SDK (`gameanalytics` on npm).
+Nothing is sent until the game's keys are set:
+
+1. In GameAnalytics, open the game → Settings → Game information and copy the **Game key** and **Secret key**.
+2. Either paste them into `GAME_KEY` / `SECRET_KEY` in `src/config/analytics.ts`, or (better, they stay out of the code)
+   add them as GitHub repository secrets `GA_GAME_KEY` and `GA_SECRET_KEY` (the APK workflow passes them to the build),
+   or set the same names as environment variables before `npm run build`.
+
+What is sent: sessions (retention, session length, new and returning users are computed by GameAnalytics), the
+first-session funnel as design events `FTUE:01_first_ticket`, `FTUE:02_first_cash`, … with the second each happened,
+progression events for every route level and every carriage, every station result (stars, boarded, missed, earned,
+the Train Rating), unlocks, hires, objectives, the daily chest, calendar and quests, settings changes, frame rate every
+5 minutes, uncaught errors, and every source and sink of Fares, Gems and Rail Miles as resource events. Every event
+carries three custom dimensions: route level (L1–L8), carriages (C1–C9) and graphics tier. The mapping is
+`src/services/gaMapping.ts` (pure, tested by `tests/gameanalytics.test.ts`); the build string is `ANALYTICS.build`
+(raise it with each release). Automated test browsers never send (`?ga=1` forces, `?ga=0` stops). The claude.ai
+Artifact may block the requests; the Android app and phone browsers send.
+
 ## Developer tools
 
 Open the game with `?dev=1` in the address, then Settings (gear) → **Open developer tools** (session 30: there is no switch for them in Settings any more): skip to the next station, set the time of

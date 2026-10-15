@@ -579,6 +579,11 @@ export class Station {
       missed: result.waiting,
       bonus: result.clean,
       luggage_loaded: result.luggageLoaded,
+      bags_left: result.bagsLeft,
+      no_room: result.leftBehind,
+      earned: result.earned,
+      stars: Math.round(result.rating),
+      streak: result.streak,
       stop_number: w.data.route.stopsCompleted,
       train_rating: Math.round(result.rating5 * 10) / 10,
     });

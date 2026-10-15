@@ -14,7 +14,9 @@ import { Background, frameWork } from '../core/Background';
 import { Tweens } from '../core/Tween';
 import type { SaveData } from '../save/SaveData';
 import { BrowserSaveStorage } from '../save/SaveStorage';
-import { forgetSave, mirrorSave } from '../services/native';
+import { forgetSave, mirrorSave, platform as nativePlatform } from '../services/native';
+import { ANALYTICS } from '../config/analytics';
+import { GameAnalyticsService, gameAnalyticsWanted } from '../services/gameAnalytics';
 import { SaveSystem } from '../save/SaveSystem';
 import { MockAdService } from '../services/ads';
 import { EVENTS, MockAnalyticsService } from '../services/analytics';
@@ -246,6 +248,7 @@ export class Game implements World {
 
     this.analytics = new MockAnalyticsService(80);
     this.analytics.setUser(this.data.profile.installId);
+    this.connectGameAnalytics();
     this.ads = new MockAdService(ui, this.econ.ads.mockRewardedSeconds, this.econ.ads.mockInterstitialSeconds);
     this.iap = new MockIapService(PRODUCTS, ui);
     this.adPolicy = new AdPolicy(() => this.econ.ads, this.data.monetization);
@@ -395,6 +398,38 @@ export class Game implements World {
     this.data.profile.flags[name] = true;
     this.save.markDirty();
     this.tiles?.refresh();
+  }
+
+  /**
+   * Session 31: GameAnalytics, when its keys are set (`config/analytics.ts`) and this is not an automated test browser.
+   * Uncaught errors are reported too, and a performance sample is taken every few minutes of play (`trackAnalytics`).
+   */
+  private connectGameAnalytics(): void {
+    if (typeof window === 'undefined' || !gameAnalyticsWanted(location.search, navigator.webdriver === true)) return;
+    try {
+      const ga = new GameAnalyticsService({ userId: this.data.profile.installId, platform: nativePlatform, verbose: this.data.settings.devTools });
+      this.analytics.sinks.push(ga);
+      // Every event carries the player's level, train size and graphics tier, the first ones included.
+      this.analytics.beforeSend = () => {
+        if (this.progression && this.train) this.analytics.setDimensions(this.progression.level, this.train.count, this.stage.tier);
+      };
+      window.addEventListener('error', (e) => this.analytics.error(`${e.message} @ ${e.filename ?? ''}:${e.lineno ?? 0}`, false));
+      window.addEventListener('unhandledrejection', (e) => this.analytics.error(`Unhandled: ${String((e as PromiseRejectionEvent).reason)}`, false));
+    } catch (e) {
+      log.error('Analytics', 'GameAnalytics could not start', e);
+    }
+  }
+
+  private perfSampleIn = 0;
+
+  /** Keeps every event's dimensions current and takes the performance sample. */
+  private trackAnalytics(dt: number): void {
+    this.perfSampleIn += dt;
+    if (this.perfSampleIn >= ANALYTICS.perfSampleSeconds) {
+      this.perfSampleIn = 0;
+      const fps = Math.round(this.perfStats.summary().fps);
+      if (fps > 0) this.analytics.log('perf_sample', { fps, quality: this.stage.tier });
+    }
   }
 
   ftue(step: string): void {
@@ -568,6 +603,7 @@ export class Game implements World {
     this.characters.sync();
     this.stage.render(realDt);
     this.perfOverlay?.update(realDt, () => this.perfReport());
+    if (!this.paused && !this.loading) this.trackAnalytics(realDt);
   }
 
   /** The live performance overlay (`?perf=1` or Developer tools). */
@@ -716,6 +752,7 @@ export class Game implements World {
     const earned = offlineEarnings(secondsAway, { openCabins: this.train.openCabinCount(), staff }, this.econ.offline);
     if (earned.amount <= 0) return;
     const gemCost = this.econ.rewarded.offlineDouble.gemCost;
+    this.analytics.log('offline_earnings', { amount: earned.amount, minutes: Math.round(earned.seconds / 60) });
     this.ui.showOffline(earned.amount, earned.seconds, gemCost, (choice) => this.collectWithDouble('offlineDouble', choice, gemCost, (k) => {
       this.wallet.add('cash', earned.amount * k, 'offline');
       this.audio.play('cash');
@@ -746,6 +783,7 @@ export class Game implements World {
     this.inBackground = true;
     this.hiddenAt = Date.now();
     this.analytics.log(EVENTS.sessionEnd, { session_number: this.data.profile.sessionCount, session_seconds: Math.round(this.sessionSeconds) });
+    this.analytics.pause();
     this.save.saveNow();
     this.audio.setPaused(true);
     this.paused = true;
@@ -755,6 +793,7 @@ export class Game implements World {
   toForeground(): void {
     if (!this.inBackground) return;
     this.inBackground = false;
+    this.analytics.resume();
     const away = (Date.now() - this.hiddenAt) / 1000;
     this.paused = this.ui.sheetOpen;
     this.audio.setPaused(false);
@@ -841,7 +880,7 @@ export class Game implements World {
     e.on('carriage.coupled', ({ index, type }) => {
       this.ftue('first_carriage');
       if (this.train.count >= 3) this.ftue('second_carriage');
-      this.analytics.log(EVENTS.carriageCoupled, { index, type, time: Math.round(this.lifetimeSeconds()) });
+      this.analytics.log(EVENTS.carriageCoupled, { index, type, count: this.train.count, time: Math.round(this.lifetimeSeconds()) });
       this.scenerySpanChanged();
       this.tiles.refresh();
       this.save.saveNow();

@@ -15,7 +15,7 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 }, igno
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}\n${e.stack}`));
-await page.goto(`file://${resolve('dist/index.html')}`);
+await page.goto(`file://${resolve(process.env.PAGE ?? 'dist/index.html')}`);
 await page.waitForTimeout(600);
 await page.mouse.click(195, 700);
 // Tests drive the game themselves: skip the intro so it cannot unpause the game halfway through.

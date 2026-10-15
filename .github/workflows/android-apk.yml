@@ -41,6 +41,10 @@ jobs:
 
       - name: Build the game
         run: npm run build
+        env:
+          # GameAnalytics keys (repository secrets; empty means the build sends nothing).
+          GA_GAME_KEY: ${{ secrets.GA_GAME_KEY }}
+          GA_SECRET_KEY: ${{ secrets.GA_SECRET_KEY }}
 
       - uses: actions/setup-java@v5
         with:

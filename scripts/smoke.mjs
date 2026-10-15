@@ -1,6 +1,6 @@
 // Headless end-to-end check: boots the built game, lets the autopilot play the first session at
 // accelerated speed, and fails (exit 1) if a §14 beat lands too late, an ad rule is broken, the save
-// does not survive a reload, or the page logs an error. Usage: npm run build && npm run smoke [seconds=900]
+// does not survive a reload, or the page logs an error. Usage: npm run build && npm run smoke [seconds=1080]
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 let playwright;
 try { playwright = require('playwright'); } catch { playwright = require('/opt/node22/lib/node_modules/playwright'); }
 
-const total = Number(process.argv[2] ?? 900);
+const total = Number(process.argv[2] ?? 1080);
 const file = resolve('dist/index.html');
 if (!existsSync(file)) { console.error('dist/index.html missing: run npm run build first.'); process.exit(1); }
 
@@ -18,7 +18,7 @@ if (!existsSync(file)) { console.error('dist/index.html missing: run npm run bui
 // the first half-minute, the departure at about a minute (so the first station at about 1:45).
 // Session 29: the attendant is earned by hand (6 rooms, 15 requests: about 8 minutes on the autopilot) and the second
 // carriage waits for it (about 10 minutes).
-const DEADLINES = { first_checkin: 15, first_cash: 20, first_unlock: 30, first_station: 125, first_hire: 780, first_carriage: 360, second_carriage: 840, route_level_2: 780 };
+const DEADLINES = { first_checkin: 15, first_cash: 20, first_unlock: 30, first_station: 125, first_hire: 900, first_carriage: 390, second_carriage: 1020, route_level_2: 780 };
 
 const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 } });

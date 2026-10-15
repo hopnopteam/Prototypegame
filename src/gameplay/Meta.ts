@@ -59,6 +59,7 @@ export class Meta {
     const quest = this.quests()[index];
     if (!quest || quest.claimed || quest.progress < quest.target) return false;
     quest.claimed = true;
+    this.w.analytics.log('quest_claimed', { kind: quest.kind });
     if (quest.reward.gems) this.w.wallet.add('gems', quest.reward.gems, 'quest');
     if (quest.reward.railMiles) this.w.wallet.add('railMiles', quest.reward.railMiles, 'quest');
     this.w.save.markDirty();
@@ -93,6 +94,7 @@ export class Meta {
     const index = this.login.claim(this.today);
     if (index === null) return null;
     const base = this.w.econ.daily.loginRewards[index];
+    this.w.analytics.log('login_claimed', { day: index, doubled: double });
     const k = double ? 2 : 1;
     const levelScale = 1 + (this.w.progression.level - 1) * 0.25;
     const granted = {
@@ -126,6 +128,7 @@ export class Meta {
     this.w.wallet.add('cash', cash, 'chest');
     this.w.wallet.add('gems', c.gems, 'chest');
     this.w.data.meta.chestReadyAt = Date.now() + c.hours * 3600 * 1000;
+    this.w.analytics.log('chest_opened', { cash, gems: c.gems });
     this.w.save.markDirty();
     return { cash, gems: c.gems };
   }

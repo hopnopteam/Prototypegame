@@ -661,6 +661,7 @@ export class Screens {
         set(next);
         g.applySettings();
         g.save.markDirty();
+        g.analytics.log('setting_changed', { setting: label, value: next ? 'on' : 'off' });
       });
       return h('div.toggle', {}, label, sw);
     };
@@ -704,6 +705,7 @@ export class Screens {
       b.addEventListener('click', () => {
         s.quality = o.value;
         g.stage.setQuality(o.value, s.qualityAuto);
+        g.analytics.log('setting_changed', { setting: 'Graphics', value: o.value });
         g.save.markDirty();
         for (const other of buttons) {
           other.classList.toggle('on', other === b);
