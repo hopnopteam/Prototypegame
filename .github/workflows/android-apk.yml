@@ -52,6 +52,9 @@ jobs:
           GA_GAME_KEY: ${{ secrets.GA_GAME_KEY }}
           GA_SECRET_KEY: ${{ secrets.GA_SECRET_KEY }}
         run: |
+          # The build strips whitespace a pasted secret may carry; check the same cleaned value.
+          GA_GAME_KEY=$(printf %s "$GA_GAME_KEY" | tr -d '[:space:]')
+          GA_SECRET_KEY=$(printf %s "$GA_SECRET_KEY" | tr -d '[:space:]')
           if [ ${#GA_GAME_KEY} -eq 32 ] && [ ${#GA_SECRET_KEY} -eq 40 ] && grep -q "$GA_GAME_KEY" dist/app/index.html; then
             echo "::notice title=GameAnalytics::Keys built in (game key ${#GA_GAME_KEY} chars, secret ${#GA_SECRET_KEY} chars)"
           else

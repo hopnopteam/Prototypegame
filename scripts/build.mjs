@@ -21,7 +21,7 @@ const options = {
   write: false,
   legalComments: 'none',
   // Session 31: the GameAnalytics keys can come from the environment (GitHub secrets) instead of src/config/analytics.ts.
-  define: { 'process.env.NODE_ENV': '"production"', __GA_GAME_KEY__: JSON.stringify(process.env.GA_GAME_KEY ?? ''), __GA_SECRET_KEY__: JSON.stringify(process.env.GA_SECRET_KEY ?? '') },
+  define: { 'process.env.NODE_ENV': '"production"', __GA_GAME_KEY__: JSON.stringify((process.env.GA_GAME_KEY ?? '').replace(/\s+/g, '')), __GA_SECRET_KEY__: JSON.stringify((process.env.GA_SECRET_KEY ?? '').replace(/\s+/g, '')) },
   logLevel: 'warning',
   // Sound samples ride inside the one HTML file.
   loader: { '.mp3': 'base64' },
