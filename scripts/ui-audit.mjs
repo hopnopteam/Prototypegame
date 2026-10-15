@@ -181,7 +181,6 @@ for (const [width, height] of SIZES) {
     ['settings', 'window.nightExpress.ui.screens.settings()'],
     ['menu', 'window.nightExpress.ui.screens.menu()'],
     ['front page', "const g = window.nightExpress; g.data.press.trainName = 'The Moonlight Limited'; const item = g.press.print('refurb3', { carriage: 'Sleeper Car II' }); g.ui.showFrontPage(item, { cash: 0, gems: 10, railMiles: 2 }, 10, () => {})"],
-    ['chooser', "window.nightExpress.ui.showCarriageChoice([{ type: 'sleeper', name: 'Sleeper Car', pitch: '+4 cabins', inside: '', reason: 'Guests need beds' }, { type: 'cafe', name: 'Café Car', pitch: 'Coffee & cakes', inside: '', reason: null }, { type: 'bathroom', name: 'Washroom Car', pitch: '+3 washrooms', inside: '', reason: null }], () => {})"],
     ['upgrades', 'window.nightExpress.ui.screens.upgrades()'],
     ['daily', 'window.nightExpress.ui.screens.daily()'],
     ['album', 'window.nightExpress.ui.screens.album()'],
