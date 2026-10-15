@@ -19,12 +19,17 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   a steady 30 fps on Low; add `?quality=low|medium|high|ultra` to the URL to force one (no dynamic resolution then).
 - **Sound:** short, soft effects only (pops, clicks, marimba and bell notes, light whooshes), each on one step of a
   volume ladder with its own cooldown, rendered once at start-up and played back as recordings. No background music
-  (`MUSIC_ENABLED` in `src/config/audio.ts`); a very low rail clack and wind for atmosphere. Settings has one Volume
+  (`MUSIC_ENABLED` in `src/config/audio.ts`); a soft murmur of voices for atmosphere (fuller at stations), footsteps on
+  the walk animation; the rail clack and wind are off (`AUDIO.clack`, `AUDIO.wind`). Settings has one Volume
   slider and the Sound switch as mute. On Android, vibration starts off (Settings turns it on) and the audio asks for
   larger buffers.
 - **Progression (session 29):** help is earned: each helper's tile counts the work done by hand ("Tidy 5/6") before it
   takes money. Every new carriage is a surprise from a fixed order (`CARRIAGE_ORDER` in `src/config/content.ts`), rolling
   in under a tarp and unveiled once coupled.
+- **Session 30:** new characters after the owner's reference sheets (`src/world/CharacterParts.ts`; preview them with
+  `ENTRY=src/lineup.ts OUT=lineup.html node scripts/build.mjs`, then open `dist/lineup.html`). A slower, earned economy
+  (`priceScale` in `src/config/economy.ts`), guests asking for more (`trip.again`, `extra` in `src/config/classes.ts`),
+  tiny offline earnings, the Station Master's Chest (`chest`), and a refund for bags left behind (`luggage`).
 - **Android test build (APK):** every push to the working branch builds a signed test APK on GitHub Actions
   (`.github/workflows/android-apk.yml`) and publishes it as a pre-release named `android-test-N` on the
   repository's Releases page. On the phone: download the `.apk`, open it, allow "install unknown apps" for the
@@ -114,7 +119,7 @@ carriage, character and prop (`?t=0.82` time of day, `&z=` camera position, `&zo
 
 ## Developer tools
 
-Settings (gear) → **Developer tools** on → **Open developer tools**: skip to the next station, set the time of
+Open the game with `?dev=1` in the address, then Settings (gear) → **Open developer tools** (session 30: there is no switch for them in Settings any more): skip to the next station, set the time of
 day, fund the next tile, **Creative Mode** (hides the UI and grants cash for recording ad footage), camera zoom,
 mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest analytics events.
 **Live stats** (in Developer tools, or `?perf=1` on the page) shows fps, frame times and hitches, draw calls, triangles, heap, GPU resources, people, pools and the seconds the conductor had nothing to do.
