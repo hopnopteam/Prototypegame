@@ -845,13 +845,12 @@ function shade(hex: string, amount: number): string {
 /** What a level opens, each with its icon, in the fewest words (the level-up card's tiles). */
 export function levelPerkItems(level: number): { icon: IconName; text: string }[] {
   const items: { icon: IconName; text: string }[] = [];
-  const features: Record<number, { icon: IconName; text: string }> = {
-    2: { icon: 'conductor', text: 'Conductor upgrades' },
-    3: { icon: 'quest', text: 'Daily quests' },
-    4: { icon: 'calendar', text: 'Daily calendar' },
-    5: { icon: 'album', text: 'Passenger stories' },
+  // Session 30: the come-back hooks (calendar, quests, the chest) open at level 2 with the conductor's upgrades.
+  const features: Record<number, { icon: IconName; text: string }[]> = {
+    2: [{ icon: 'conductor', text: 'Conductor upgrades' }, { icon: 'chest', text: 'Daily chest' }, { icon: 'calendar', text: 'Daily rewards' }],
+    5: [{ icon: 'album', text: 'Passenger stories' }],
   };
-  if (features[level]) items.push(features[level]);
+  if (features[level]) items.push(...features[level]);
   if (!MONETIZATION_ENABLED && level === ECONOMY.perks.holdTrainLevel) items.push({ icon: 'hold', text: 'Hold the train' });
   if (!MONETIZATION_ENABLED && level === ECONOMY.perks.scooterLevel) items.push({ icon: 'skate', text: 'The scooter' });
   const cls = CLASSES.find((c) => c.level === level && c.tier > 0);
@@ -867,9 +866,7 @@ export function levelPerkItems(level: number): { icon: IconName; text: string }[
 export function levelPerks(level: number): string[] {
   const perks: string[] = [];
   const features: Record<number, string> = {
-    2: 'Conductor upgrades with Rail Miles',
-    3: 'Daily quests',
-    4: 'The daily calendar',
+    2: 'Conductor upgrades with Rail Miles, the daily calendar and quests, and the Station Master\'s Chest',
     5: 'Regular passengers with stories',
   };
   if (features[level]) perks.push(features[level]);
