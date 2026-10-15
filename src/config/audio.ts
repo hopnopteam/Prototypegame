@@ -133,13 +133,20 @@ export const AUDIO = {
    * The train's atmosphere, kept very low (partner: "keep only ambient train atmosphere (rail clack, soft wind) as part
    * of the SFX mix"): a soft, low "da-dum" per rail joint, faster with speed, and a soft wind that rises with speed.
    */
-  clack: { enabled: true, base: 0.022, perSpeed: 0.035 },
-  wind: { enabled: true, level: 0.035, cutoff: 420 },
+  clack: { enabled: false, base: 0.022, perSpeed: 0.035 },
+  wind: { enabled: false, level: 0.035, cutoff: 420 },
   /**
-   * Footsteps (partner: "very soft, only on hard floors, rate follows speed"): one every `stride` metres walked, on the
-   * platform and the bare floors of the cheaper refits (carriages refitted to `carpetFromTier` and up are carpeted).
+   * Session 30 (owner: "the running train and footsteps cause discomfort… the ambient noise when the station stops is
+   * nice and should be when the train moves as well, just lighter"): the clack and the wind are off; a soft, muffled
+   * murmur of voices runs all the time, `station` at a stop and `moving` between them.
    */
-  footsteps: { enabled: true, stride: 0.75, carpetFromTier: 2 },
+  murmur: { enabled: true, station: 0.12, moving: 0.05, cutoff: 520 },
+  /**
+   * Footsteps (partner: "very soft, only on hard floors"): session 30 (owner: "fix the footsteps sync"), one soft, low
+   * footfall each time a foot lands in the walk animation, on the platform and the bare floors of the cheaper refits
+   * (carriages refitted to `carpetFromTier` and up are carpeted, and quiet).
+   */
+  footsteps: { enabled: true, carpetFromTier: 2 },
   /**
    * Session 28: an Android WebView renders web audio in small buffers that run dry when a busy frame holds the processor,
    * and the sound breaks up right then. On Android the context asks for `playback` latency: larger buffers, a little more

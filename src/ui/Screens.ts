@@ -677,7 +677,6 @@ export class Screens {
       AUDIO.music.enabled ? toggle('Music', s.music, (v) => (s.music = v)) : null,
       toggle('Vibration', s.haptics, (v) => (s.haptics = v)),
       this.qualityPicker(),
-      toggle('Developer tools', s.devTools, (v) => (s.devTools = v)),
       s.devTools ? h('button.btn.primary', { onclick: () => { close(); this.devPanel(); } }, icon('wrench', 24), 'Open developer tools') : null,
       !MONETIZATION_ENABLED ? null : h('button.btn', {
         onclick: async () => {

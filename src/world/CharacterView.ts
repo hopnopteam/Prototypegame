@@ -405,6 +405,16 @@ export class CharacterView {
     return this.legs;
   }
 
+  private lastStrideSide = true;
+  private footfall = false;
+
+  /** True once each time a foot has landed in the walk cycle since the last call (footstep sounds follow it). */
+  takeFootfall(): boolean {
+    const f = this.footfall;
+    this.footfall = false;
+    return f;
+  }
+
   /** Hide the walk cycle (riding a scooter): legs straight, no bob. */
   riding = false;
   /** Right arm up, waving (onlookers by the line, the station master's flag). */
@@ -690,6 +700,10 @@ export class CharacterView {
     this.phase += dt * (moving ? 3 + speed * 2.2 : 1.6);
     const swing = moving ? Math.min(0.75, 0.25 + speed * 0.12) : 0;
     const s = Math.sin(this.phase);
+    // A foot lands at each end of the stride (the swing turns), twice a cycle.
+    const side = Math.cos(this.phase) >= 0;
+    if (moving && side !== this.lastStrideSide) this.footfall = true;
+    this.lastStrideSide = side;
     this.legs[0].rotation.x = s * swing;
     this.legs[1].rotation.x = -s * swing;
     const bob = moving ? Math.abs(Math.cos(this.phase)) * 0.06 : Math.sin(this.phase) * 0.008;

@@ -483,10 +483,11 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .segmented .seg { font: inherit; font-size: 12px; font-weight: 700; padding: 7px 0; border-radius: 9px; border: 2px solid var(--ink); background: #fff; color: var(--ink); }
 .segmented .seg.on { background: var(--gold, #F2B233); }
 .toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--cream); border: 2px solid var(--ink); font-weight: 700; font-size: 15px; }
-.switch { position: relative; width: 52px; height: 30px; border-radius: 15px; border: var(--line); background: var(--paper-2); cursor: pointer; padding: 0; flex: none; }
-.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 21px; height: 21px; border-radius: 50%; background: var(--cream); border: 2px solid var(--ink); transition: left 150ms; }
+.switch { position: relative; box-sizing: border-box; width: 54px; height: 32px; border-radius: 16px; border: var(--line); background: var(--paper-2); cursor: pointer; padding: 0; flex: none; }
+/* Session 30 (owner: "correct the alignment of the toggles"): the knob is centred in the track's inner height. */
+.switch::after { content: ''; position: absolute; box-sizing: border-box; top: 50%; left: 3px; width: 20px; height: 20px; margin-top: -10px; border-radius: 50%; background: var(--cream); border: 2px solid var(--ink); transition: left 150ms; }
 .switch.on { background: var(--green-light); }
-.switch.on::after { left: 24px; }
+.switch.on::after { left: 25px; }
 
 .upgrade { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 14px; background: var(--cream); border: var(--line); }
 .upgrade .info { flex: 1; min-width: 0; }

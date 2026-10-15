@@ -320,31 +320,38 @@ export class AudioEngine {
     this.night = amount;
   }
 
+  /**
+   * Session 30 (owner: "the ambient noise when the station stops is nice and should be when the train moves as well,
+   * just lighter"): one soft murmur runs all the time, fuller at a station and lighter on the move.
+   */
   setStationAmbience(on: boolean): void {
-    if (!this.ctx) return;
-    if (on && !this.crowd) {
-      const source = this.ctx.createBufferSource();
-      source.buffer = this.noiseBuffer;
-      source.loop = true;
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.value = 520;
-      const gain = this.ctx.createGain();
-      gain.gain.value = 0;
-      gain.gain.linearRampToValueAtTime(0.12, this.ctx.currentTime + 1.2);
-      source.connect(filter).connect(gain).connect(this.ambience);
-      source.start();
-      this.crowd = source;
-      this.crowdGain = gain;
-    } else if (!on && this.crowd && this.crowdGain) {
-      const t = this.ctx.currentTime;
-      this.crowdGain.gain.cancelScheduledValues(t);
-      this.crowdGain.gain.setValueAtTime(this.crowdGain.gain.value, t);
-      this.crowdGain.gain.linearRampToValueAtTime(0, t + 1.0);
-      this.crowd.stop(t + 1.1);
-      this.crowd = null;
-      this.crowdGain = null;
-    }
+    this.atStation = on;
+    if (this.ctx && this.crowdGain) this.crowdGain.gain.setTargetAtTime(this.murmurLevel(), this.ctx.currentTime, 0.6);
+  }
+
+  private atStation = false;
+
+  private murmurLevel(): number {
+    const m = AUDIO.murmur;
+    return m.enabled ? (this.atStation ? m.station : m.moving) : 0;
+  }
+
+  /** Starts the murmur loop the first time the context runs. */
+  private ensureMurmur(ctx: AudioContext): void {
+    if (this.crowd || !AUDIO.murmur.enabled) return;
+    const source = ctx.createBufferSource();
+    source.buffer = this.noiseBuffer;
+    source.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = AUDIO.murmur.cutoff;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    gain.gain.setTargetAtTime(this.murmurLevel(), ctx.currentTime, 1);
+    source.connect(filter).connect(gain).connect(this.ambience);
+    source.start();
+    this.crowd = source;
+    this.crowdGain = gain;
   }
 
   /**
@@ -411,6 +418,7 @@ export class AudioEngine {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== 'running') return;
     this.updateWind(ctx);
+    this.ensureMurmur(ctx);
     // Rail clack: a "da-dum" pair each rail joint; faster and louder with speed.
     if (this.soundOn && AUDIO.clack.enabled && this.speed > 0.05) {
       this.clackTimer -= dt;

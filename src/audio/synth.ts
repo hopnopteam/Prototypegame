@@ -41,14 +41,16 @@ export class Synth {
     switch (name) {
       // ─── Gameplay: quiet and frequent ───
       case 'step':
-        // A soft footfall on boards: a muffled tap and a low knock.
-        this.noise(t, 0.035, 'lowpass', 900 * p, 0.12 * v);
-        this.tone(t, 150 * p, 105 * p, 0.045, 'sine', 0.14 * v, 0.003);
+        // A soft footfall (session 30: lower and duller, no tap on top): a muffled low knock.
+        this.noise(t, 0.04, 'lowpass', 380 * p, 0.07 * v);
+        this.tone(t, 118 * p, 86 * p, 0.06, 'sine', 0.1 * v, 0.006);
         break;
       case 'coin':
-        // Cash scooped: a round pop with a tiny tick on top (the engine climbs its pitch for each one in a row).
-        this.tone(t, 760 * p, 1180 * p, 0.05, 'sine', 0.22 * v, 0.003);
-        this.tone(t + 0.008, 2300 * p, 2300 * p, 0.035, 'sine', 0.05 * v, 0.002);
+        // Cash scooped (session 30: "good but could be a bit better"): a round pop under a bright little coin ring of two
+        // bell partials, so each bill lands with a sparkle (the engine climbs its pitch for each one in a row).
+        this.tone(t, 620 * p, 1040 * p, 0.045, 'sine', 0.2 * v, 0.003);
+        this.bellNote(t + 0.006, 1568 * p, 0.1 * v, 0.16);
+        this.bellNote(t + 0.018, 2349 * p, 0.05 * v, 0.12);
         break;
       case 'fill':
         // Work filling a job's ring: a gentle soft tick.

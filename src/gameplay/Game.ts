@@ -189,6 +189,9 @@ export class Game implements World {
       newId: () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)),
     });
     this.save.load();
+    // Session 30 (owner: "remove developer tools"): no switch for them in Settings any more; `?dev=1` turns them on
+    // for a build being tested (the test scripts set the flag themselves).
+    if (typeof location !== 'undefined') this.data.settings.devTools = new URLSearchParams(location.search).get('dev') === '1';
     log.setVerbose(this.data.settings.devTools);
 
     const settings = this.data.settings;
@@ -672,29 +675,18 @@ export class Game implements World {
   }
 
   /** Distance walked since the last footstep, and where the conductor was last frame. */
-  private stepDistance = 0;
-  private readonly lastStep = { x: 0, z: 0 };
-
   /**
-   * Session 29 (partner: "footsteps: very soft, only on hard floors, rate follows speed"): one soft step every
-   * `footsteps.stride` metres walked, on the platform and the bare boards of the cheaper refits (a carriage refitted
-   * to `carpetFromTier` or beyond is carpeted, and quiet).
+   * Session 30 (owner: "fix the footsteps sync"): a soft footfall each time one of the conductor's feet lands in the
+   * walk animation, so the sound and the steps you see are the same beat. On the platform and the bare boards of the
+   * cheaper refits only (a carriage refitted to `carpetFromTier` or beyond is carpeted, and quiet).
    */
   private footsteps(): void {
+    if (!this.player.view.takeFootfall()) return;
     const p = this.player.pos;
-    const moved = Math.hypot(p.x - this.lastStep.x, p.z - this.lastStep.z);
-    this.lastStep.x = p.x;
-    this.lastStep.z = p.z;
-    // A jump (a dash, being put aboard) is not walking.
-    if (moved > 1) return;
-    this.stepDistance += moved;
-    const cfg = AUDIO.footsteps;
-    if (this.stepDistance < cfg.stride) return;
-    this.stepDistance = 0;
     const onPlatform = p.x > PLATFORM_X0 - 0.1;
     const index = Math.max(0, Math.min(this.train.count - 1, Math.floor(p.z / CARRIAGE_PITCH)));
-    if (!onPlatform && (this.train.tiers[index] ?? 0) >= cfg.carpetFromTier) return;
-    this.audio.step(onPlatform ? 0.9 : 1);
+    if (!onPlatform && (this.train.tiers[index] ?? 0) >= AUDIO.footsteps.carpetFromTier) return;
+    this.audio.step(onPlatform ? 0.92 : 1);
   }
 
   private setAdPlaying(playing: boolean): void {
