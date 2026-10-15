@@ -404,11 +404,17 @@ export class Game implements World {
    * Session 31: GameAnalytics, when its keys are set (`config/analytics.ts`) and this is not an automated test browser.
    * Uncaught errors are reported too, and a performance sample is taken every few minutes of play (`trackAnalytics`).
    */
+  /** What the Settings footer shows, so a tester can see whether this build reports to GameAnalytics. */
+  analyticsStatus = 'off';
+
   private connectGameAnalytics(): void {
-    if (typeof window === 'undefined' || !gameAnalyticsWanted(location.search, navigator.webdriver === true)) return;
+    if (typeof window === 'undefined') return;
+    if (!ANALYTICS.gameKey || !ANALYTICS.secretKey) { this.analyticsStatus = 'no keys'; return; }
+    if (!gameAnalyticsWanted(location.search, navigator.webdriver === true)) return;
     try {
       const ga = new GameAnalyticsService({ userId: this.data.profile.installId, platform: nativePlatform, verbose: this.data.settings.devTools });
       this.analytics.sinks.push(ga);
+      this.analyticsStatus = 'on';
       // Every event carries the player's level, train size and graphics tier, the first ones included.
       this.analytics.beforeSend = () => {
         if (this.progression && this.train) this.analytics.setDimensions(this.progression.level, this.train.count, this.stage.tier);
@@ -416,6 +422,7 @@ export class Game implements World {
       window.addEventListener('error', (e) => this.analytics.error(`${e.message} @ ${e.filename ?? ''}:${e.lineno ?? 0}`, false));
       window.addEventListener('unhandledrejection', (e) => this.analytics.error(`Unhandled: ${String((e as PromiseRejectionEvent).reason)}`, false));
     } catch (e) {
+      this.analyticsStatus = 'failed';
       log.error('Analytics', 'GameAnalytics could not start', e);
     }
   }

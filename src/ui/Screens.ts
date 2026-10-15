@@ -1,3 +1,4 @@
+import { ANALYTICS } from '../config/analytics';
 import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, type ProductDef } from '../config/content';
 import { CLASSES } from '../config/classes';
 import { AUDIO } from '../config/audio';
@@ -688,6 +689,7 @@ export class Screens {
       resetButton,
       confirmReset,
       h('p', { style: { fontSize: '13px', opacity: '0.7' }, text: `Night Express prototype · Session ${g.data.profile.sessionCount} · ${formatDuration(g.lifetimeSeconds())} played` }),
+      h('p', { style: { fontSize: '12px', opacity: '0.55' }, text: `Build ${ANALYTICS.build} · Analytics ${g.analyticsStatus}` }),
     ]);
   }
 

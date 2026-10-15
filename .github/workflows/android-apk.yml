@@ -46,6 +46,18 @@ jobs:
           GA_GAME_KEY: ${{ secrets.GA_GAME_KEY }}
           GA_SECRET_KEY: ${{ secrets.GA_SECRET_KEY }}
 
+      # Says on the run's summary whether this APK reports to GameAnalytics (the keys themselves are never printed).
+      - name: Check the GameAnalytics keys
+        env:
+          GA_GAME_KEY: ${{ secrets.GA_GAME_KEY }}
+          GA_SECRET_KEY: ${{ secrets.GA_SECRET_KEY }}
+        run: |
+          if [ ${#GA_GAME_KEY} -eq 32 ] && [ ${#GA_SECRET_KEY} -eq 40 ] && grep -q "$GA_GAME_KEY" dist/app/index.html; then
+            echo "::notice title=GameAnalytics::Keys built in (game key ${#GA_GAME_KEY} chars, secret ${#GA_SECRET_KEY} chars)"
+          else
+            echo "::warning title=GameAnalytics::Keys missing or wrong length (game key ${#GA_GAME_KEY}/32, secret ${#GA_SECRET_KEY}/40): this APK sends nothing"
+          fi
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
