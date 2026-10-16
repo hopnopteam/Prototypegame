@@ -136,7 +136,9 @@ export class Tiles {
     const opening = w.flow.openingTile();
     if (opening !== null) {
       // One guest first: the first upgrade appears once their fare is in the player's pocket.
-      const earned = w.data.profile.ftue.first_cash !== undefined || w.unlocks.paid(opening) > 0;
+      // Session 32: once the carriage is open, no upgrade shows until the first-passengers tutorial is over.
+      const held = (w.coach?.tutorial ?? false) && w.unlocks.isUnlocked('c0.open');
+      const earned = !held && (w.data.profile.ftue.first_cash !== undefined || w.unlocks.paid(opening) > 0);
       for (const def of eligible) {
         if (this.entries.has(def.id) || ((def.id !== opening || !earned) && w.unlocks.paid(def.id) <= 0)) continue;
         const pos = this.positionFor(def);
@@ -344,7 +346,12 @@ export class Tiles {
     const reveal = w.econ.flow.reveal;
     const flag = `reveal_${entry.def.kind}`;
     // (The game is paused under sheets and through the intro, so this never runs behind one.)
-    if (!reveal.kinds.includes(entry.def.kind) || w.flag(flag) || w.stage.rig.focusing) return;
+    if (w.stage.rig.focusing) return;
+    // Session 32 (owner: "never move the camera away from the player in the middle of a task"): not during the
+    // tutorial, not while a job is filling and not while the conductor carries something; it waits for a free moment.
+    if (w.coach?.tutorial || w.zones.playerWorking || !w.player.stack.isEmpty) return;
+    if (this.firstUpgradePan(entry)) return;
+    if (!reveal.kinds.includes(entry.def.kind) || w.flag(flag)) return;
     const p = w.player.pos;
     w.data.profile.flags[flag] = true;
     w.save.markDirty();
@@ -352,6 +359,24 @@ export class Tiles {
     w.stage.rig.focusOn(this.to.set(entry.pos.x, 0, entry.pos.z), reveal.seconds, reveal.zoom);
     w.audio.play('sparkle', { volume: 0.5, pitch: 1.1 });
     entry.age = 0;
+  }
+
+  /**
+   * Session 32: after the first-passengers tutorial, the first upgrade the player can afford is shown once: one
+   * short, gentle pan to it with the guide arrow over it, then back to the conductor (config: flow.firstUpgrade).
+   */
+  private firstUpgradePan(entry: TileEntry): boolean {
+    const w = this.w;
+    if (!w.flag('tut_v32') || w.flag('first_upgrade_pan') || isStation(entry.def) || entry.earning) return false;
+    if (w.wallet.get('cash') < w.unlocks.remaining(entry.def.id)) return false;
+    const pan = w.econ.flow.firstUpgrade;
+    w.setFlag('first_upgrade_pan');
+    w.guidance.pointAt(entry.pos, pan.arrowSeconds);
+    entry.age = 0;
+    if (Math.hypot(entry.pos.x - w.player.pos.x, entry.pos.z - w.player.pos.z) < w.econ.flow.reveal.minDistance) return true;
+    w.stage.rig.focusOn(this.to.set(entry.pos.x, 0, entry.pos.z), pan.seconds, pan.zoom, pan.sharpness);
+    w.audio.play('sparkle', { volume: 0.4, pitch: 1.1 });
+    return true;
   }
 
   /**

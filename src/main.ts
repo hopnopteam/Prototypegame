@@ -82,14 +82,10 @@ async function boot(): Promise<void> {
   game.audio.startMusic();
   game.stage.restartJudging();
 
-  // No title screen. A brand-new player gets the short story first (session 23: three camera shots with a caption
-  // each, about seven seconds, skippable); anyone with a save is straight back on their train.
-  const begin = (): void => {
-    game.paused = false;
-    ui.screens.holdForTitle(false);
-  };
-  if (game.isBrandNew) game.playIntro(begin);
-  else begin();
+  // No title screen and no story intro (session 32, owner: "loading and then gameplay"): everyone starts playing the
+  // moment the loading screen goes. `Game.playIntro` stays for a future trailer but is not called.
+  game.paused = false;
+  ui.screens.holdForTitle(false);
 }
 
 void boot();

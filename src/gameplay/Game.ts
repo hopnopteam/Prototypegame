@@ -75,6 +75,7 @@ import { TrainState } from './TrainState';
 import type { World } from './World';
 import { ZoneSystem } from './Zones';
 import { PerfStats } from '../core/PerfStats';
+import { CharacterDebug } from './CharacterDebug';
 import { PerfOverlay, type PerfReport } from '../ui/PerfOverlay';
 
 /** Milliseconds of each frame given to rebuilds spread over frames (see core/Background). */
@@ -172,6 +173,7 @@ export class Game implements World {
   private overlayRoot!: HTMLElement;
   /** Real frame times for the performance overlay and the soak test (session 24). */
   readonly perfStats = new PerfStats();
+  private characterDebug: CharacterDebug | null = null;
   private perfOverlay: PerfOverlay | null = null;
   /** Seconds of play (after the first minute) with no task to do: see `Guidance.idle` (session 24). */
   idleSeconds = 0;
@@ -310,6 +312,8 @@ export class Game implements World {
     this.input = new Input(canvas.parentElement ?? canvas, overlay);
     this.overlayRoot = overlay;
     if (new URLSearchParams(location.search).get('perf') === '1') this.setPerfOverlay(true);
+    // Session 32: the character safety net (`?debug=1`).
+    if (new URLSearchParams(location.search).get('debug') === '1') this.characterDebug = new CharacterDebug(this, this.overlayRoot);
     this.input.onFirstInteraction = () => this.audio.unlock();
     this.listenForAudioGesture();
 
@@ -607,9 +611,10 @@ export class Game implements World {
     this.ui.update(realDt);
     // Rebuilds in progress get a slice of every frame, never a whole frame.
     this.background.run(this.loading ? LOADING_WORK_MS : BACKGROUND_BUDGET_MS);
-    this.characters.sync();
+    this.characters.sync(this.stage.rig.camera);
     this.stage.render(realDt);
     this.perfOverlay?.update(realDt, () => this.perfReport());
+    this.characterDebug?.update(realDt);
     if (!this.paused && !this.loading) this.trackAnalytics(realDt);
   }
 

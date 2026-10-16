@@ -1,3 +1,4 @@
+import { iconFor } from '../config/itemIcons';
 import * as THREE from 'three';
 import { CLASS_BY_ID } from '../config/classes';
 import { VENUES, VENUE_MENUS, VENUE_TUNING, type VenueCharge } from '../config/venues';
@@ -384,7 +385,7 @@ export class Venues {
     const outing = guest.outing;
     if (!outing) return;
     const head = outing.venue.queue[0] === guest;
-    if (outing.venue.kind === 'cafe' && outing.seat.order) guest.view.showBubble(head ? (outing.seat.order as IconName) : null, 'request', 1.85);
+    if (outing.venue.kind === 'cafe' && outing.seat.order) guest.view.showBubble(head ? iconFor(outing.seat.order) : null, 'request', 1.85);
     else if (outing.venue.kind === 'dome') guest.view.showBubble(head ? 'binoculars' : null, 'request', 1.85);
   }
 
@@ -410,7 +411,7 @@ export class Venues {
       seat.order = w.rng.pick(venue.products());
       seat.orderAt = w.time;
       seat.state = 'waiting';
-      guest.view.showBubble(seat.order as IconName, 'request', 1.85);
+      guest.view.showBubble(iconFor(seat.order), 'request', 1.85);
       guest.view.act('wave', w.econ.guests.waveSeconds);
       w.audio.play('bloop');
     } else if (venue.kind === 'cinema') {
@@ -454,19 +455,19 @@ export class Venues {
     }
     if (guest.state === 'seated') {
       // Waiting to be served: the bubble stays up.
-      if (seat.order) guest.view.showBubble(seat.order as IconName, 'request', 1.85);
+      if (seat.order) guest.view.showBubble(iconFor(seat.order), 'request', 1.85);
       return;
     }
     if (guest.state === 'consuming') {
       seat.timer += dt;
       if (venue.kind === 'dome') {
         // Watching: views come round on their own (update); a blanket asked for shows its bubble.
-        guest.view.showBubble(seat.order ? (seat.order as IconName) : null, 'request', 1.85);
+        guest.view.showBubble(seat.order ? iconFor(seat.order) : null, 'request', 1.85);
         return;
       }
       if (venue.kind === 'cinema') {
         // Waiting for the film (a little reel), watching it, or wanting popcorn.
-        if (seat.order) guest.view.showBubble(seat.order as IconName, 'request', 1.85);
+        if (seat.order) guest.view.showBubble(iconFor(seat.order), 'request', 1.85);
         else guest.view.showBubble(seat.views === 0 ? 'film' : null, 'intent', 1.85);
         return;
       }
@@ -945,7 +946,7 @@ export class Venues {
     }
     steps.push({ kind: 'goto', target: counter });
     steps.push({ kind: 'stand', until: () => venue.queue[0] !== head || !m.stack.has(order), timeout: 8 });
-    return { label: 'brew', icon: order as IconName, steps, release: () => { if (venue.queueServer === m) venue.queueServer = null; m.wantItems = {}; } };
+    return { label: 'brew', icon: iconFor(order), steps, release: () => { if (venue.queueServer === m) venue.queueServer = null; m.wantItems = {}; } };
   }
 
   private chefTask(venue: Venue): VenueTask | null {
@@ -1017,7 +1018,7 @@ export class Venues {
     }
     steps.push({ kind: 'goto', target: seat.serve });
     steps.push({ kind: 'stand', until: () => seat.order !== item || !m.stack.has(item), timeout: 4 });
-    return { label: 'serve', icon: item as IconName, steps, release: () => { if (seat.servedBy === m) seat.servedBy = null; m.wantItems = {}; } };
+    return { label: 'serve', icon: iconFor(item), steps, release: () => { if (seat.servedBy === m) seat.servedBy = null; m.wantItems = {}; } };
   }
 
   private hostTask(venue: Venue, m: StaffMember): VenueTask | null {
@@ -1126,7 +1127,7 @@ export class Venues {
         continue;
       }
       w.zones.add(new Zone({
-        id: `venue:${venue.carriage}:${item}`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: item as IconName, kind: 'pickup',
+        id: `venue:${venue.carriage}:${item}`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: iconFor(item), kind: 'pickup',
         active: () => (item !== 'pastry' || venue.keys.has('menu_pastry')) && (w.demand.playerWants(item) > 0 || w.staff.members.some((m) => m.carriage === venue.carriage && (w.demand.wants(m, item) || (m.role === 'chef' && item === 'meal')))),
         highlight: () => w.demand.playerWants(item) > 0,
         stay: (zone, actor, dt) => this.makeStay(venue, item, zone, actor, dt, p),

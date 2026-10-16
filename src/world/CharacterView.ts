@@ -116,9 +116,9 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
       break;
     case 'cap':
       // A baseball cap: a soft crown over the hair and a peak forward.
-      b.add(dome(0.232, 0.62, 0.56), look.hatColor ?? look.accent, 0, HEAD_Y + 0.045, -0.005, 0, 0, 0, { shade: 0.9 });
+      b.add(dome(0.236, 0.74, 0.56), look.hatColor ?? look.accent, 0, HEAD_Y + 0.045, -0.005, 0, 0, 0, { shade: 0.9 });
       b.add(new THREE.CylinderGeometry(0.15, 0.15, 0.022, 16, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 1.15), shadeOf(look.hatColor ?? look.accent), 0, HEAD_Y + 0.085, 0.17, 0.12, 0, 0, flat);
-      b.sphere(0, HEAD_Y + 0.225, -0.005, 0.022, shadeOf(look.hatColor ?? look.accent), 0, 1, flat);
+      b.sphere(0, HEAD_Y + 0.215, -0.005, 0.022, shadeOf(look.hatColor ?? look.accent), 0, 1, flat);
       break;
     case 'beanie':
       b.add(dome(0.234, 0.85, 0.52), look.accent, 0, HEAD_Y + 0.06, -0.01, 0, 0, 0, { shade: 0.9 });
@@ -152,7 +152,11 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
     case 'backpack':
       b.rounded(0, 0.6, -0.2, 0.28, 0.34, 0.15, 0.06, look.accent, { shade: 0.82 });
       b.rounded(0, 0.53, -0.285, 0.2, 0.12, 0.04, 0.02, shadeOf(look.accent), flat);
-      for (const s of [-1, 1]) b.box(s * 0.09, 0.66, front(0.66) - 0.002, 0.035, 0.18, 0.012, '#5A3A26', 0, flat);
+      // Session 32: straps that run from the front up over each shoulder to the pack (they were flat bars on the chest).
+      for (const s of [-1, 1]) {
+        b.add(new THREE.TorusGeometry(0.1, 0.014, 6, 12, Math.PI).scale(1, 0.75, 1.35), '#5A3A26', s * 0.088, 0.72, -0.02, 0, Math.PI / 2, 0, flat);
+        b.box(s * 0.088, 0.62, front(0.62) + 0.004, 0.032, 0.2, 0.012, '#5A3A26', 0, flat);
+      }
       break;
     case 'flower':
       b.sphere(0.08, 0.68, front(0.68) + 0.01, 0.038, look.accent, 1);
@@ -736,6 +740,49 @@ export class CharacterView {
     } else {
       this.body.scale.set(1, 1, 1);
     }
+  }
+
+  /**
+   * Session 32: makes a pooled character a fresh one (a new guest from the pool). Every field a character carries is
+   * set again here, so nothing of whoever wore it before survives: look, size, pose, eyes, bubble, action, props,
+   * walk cycle, transforms and visibility. It is drawn through the batch again from the next frame.
+   */
+  reset(look: CharacterLook, scale: number): void {
+    this.setLook(look);
+    if (this.eyelids) this.eyelids.geometry = eyelidGeometryFor(look.skin);
+    this.setPose('stand');
+    this.showBubble(null);
+    this.bubbleTime = 0;
+    this.bubbleBaseY = 1.85;
+    this.action = 'none';
+    this.actionTime = 0;
+    this.actionClock = 0;
+    for (const mesh of this.props.values()) mesh.visible = false;
+    for (const mesh of this.inHand.values()) mesh.visible = false;
+    this.carrying = false;
+    this.riding = false;
+    this.waving = false;
+    this.leans = true;
+    this.squash = 0;
+    this.footfall = false;
+    this.phase = Math.random() * 10;
+    this.body.position.set(0, 0, 0);
+    this.body.rotation.set(0, 0, 0);
+    this.body.scale.set(1, 1, 1);
+    for (const leg of this.legs) leg.rotation.set(0, 0, 0);
+    this.arms.forEach((arm, i) => arm.rotation.set(0, 0, (i === 0 ? -1 : 1) * 0.1));
+    this.root.position.set(0, 0, 0);
+    this.root.rotation.set(0, 0, 0);
+    this.root.scale.setScalar(scale);
+    this.root.visible = true;
+    this.shadow.visible = true;
+    CharacterView.batch?.register(this.root);
+  }
+
+  /** Session 32: back to the pool (out of the scene and the batch; its meshes and materials are kept for reuse). */
+  park(): void {
+    this.root.removeFromParent();
+    CharacterView.batch?.unregister(this.root);
   }
 
   dispose(): void {

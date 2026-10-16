@@ -116,6 +116,32 @@ export class GeoBuilder {
     return this;
   }
 
+  /**
+   * Session 32: blends the last part's colour toward `color` by `weight(x, y, z)` (0 keeps it, 1 is all `color`),
+   * keeping its height shading. One mesh can then carry two colours with a clean edge between them (a head and the
+   * hair grown out of it), where two meshes cutting through each other would leave a zigzag.
+   */
+  blendLast(color: string, weight: (x: number, y: number, z: number) => number): this {
+    const g = this.parts[this.parts.length - 1];
+    if (!g) return this;
+    const position = g.getAttribute('position');
+    const colors = g.getAttribute('color') as THREE.BufferAttribute;
+    const colors2 = g.getAttribute('aColor2') as THREE.BufferAttribute;
+    tmpColor.set(color);
+    for (let i = 0; i < position.count; i++) {
+      const w = Math.max(0, Math.min(1, weight(position.getX(i), position.getY(i), position.getZ(i))));
+      if (w <= 0) continue;
+      for (const attr of [colors, colors2]) {
+        const r = attr.getX(i);
+        const gg = attr.getY(i);
+        const b = attr.getZ(i);
+        // Its shade factor is kept: the brightest channel's ratio to the original colour's, near enough for skin.
+        attr.setXYZ(i, r + (tmpColor.r * 0.95 - r) * w, gg + (tmpColor.g * 0.95 - gg) * w, b + (tmpColor.b * 0.95 - b) * w);
+      }
+    }
+    return this;
+  }
+
   /** Box by centre and size. */
   box(x: number, y: number, z: number, w: number, h: number, d: number, color: string, rotY = 0, style?: PartStyle): this {
     return this.add(new THREE.BoxGeometry(w, h, d), color, x, y, z, 0, rotY, 0, style);

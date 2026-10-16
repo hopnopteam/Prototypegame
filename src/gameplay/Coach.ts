@@ -1,8 +1,9 @@
-import { COACH_GESTURE_DELAY, COACH_GUIDANCE_LINES, COACH_HINTS, COACH_OPTIONAL_SECONDS, COACH_REST_SECONDS, COACH_LESSON_GAP_SECONDS, COACH_STEPS, type CoachLineDef } from '../config/coach';
+import { BRING_WORD, COACH_GESTURE_DELAY, COACH_GUIDANCE_LINES, COACH_HINTS, COACH_OPTIONAL_SECONDS, COACH_REST_SECONDS, COACH_LESSON_GAP_SECONDS, COACH_STEPS, type CoachLineDef } from '../config/coach';
 import { classStartingAt, isPassengerType } from '../config/classes';
 import type { StaffRole, Vec2 } from '../core/types';
 import { FLOOR_Y } from '../world/CarriageView';
 import type { World } from './World';
+import { iconFor } from '../config/itemIcons';
 import { PLATFORM } from '../world/platformLayout';
 
 const THINK_SECONDS = 0.25;
@@ -44,8 +45,17 @@ export class Coach {
 
   constructor(private readonly w: World) {
     this.spawn = { ...w.player.pos };
-    // Doing the thing is what completes a lesson.
+    // Session 32: a brand-new game gets the first-passengers tutorial; a save from before it counts it as done.
+    if (w.data.route.stopsCompleted === 0 && w.data.route.legsCompleted === 0 && w.data.profile.ftue.first_cash === undefined) w.setFlag('tut_v32');
     const e = w.events;
+    // The tutorial counts the first two passengers' check-ins, services and the tips collected after them.
+    e.on('guest.keyed', () => this.count('tut_key1', 'tut_key2'));
+    e.on('request.fulfilled', ({ byPlayer }) => byPlayer && this.count('tut_serve1', 'tut_serve2'));
+    e.on('cash.collected', () => {
+      if (this.w.flag('tut_serve2')) this.w.setFlag('tut_tip2');
+      if (this.w.flag('tut_serve1')) this.w.setFlag('tut_tip1');
+    });
+    // Doing the thing is what completes a lesson.
     e.on('request.fulfilled', ({ byPlayer }) => byPlayer && this.learn('request'));
     e.on('cabin.cleaned', ({ byPlayer }) => byPlayer && this.learn('dirty'));
     e.on('shoes.shined', ({ byPlayer }) => byPlayer && this.learn('shoes'));
@@ -61,6 +71,17 @@ export class Coach {
     e.on('unlock.completed', ({ id }) => id.startsWith('st.') && this.learn('workshop'));
     e.on('venue.served', ({ kind, byPlayer }) => byPlayer && this.learn(kind));
     e.on('venue.cleared', ({ byPlayer }) => byPlayer && this.learn('clear'));
+  }
+
+  /** Sets the first of two tutorial flags, or the second once the first is set. */
+  private count(first: string, second: string): void {
+    if (!this.w.flag(first)) this.w.setFlag(first);
+    else this.w.setFlag(second);
+  }
+
+  /** True while the first-passengers tutorial runs (a brand-new game until its last step). */
+  get tutorial(): boolean {
+    return this.w.flag('tut_v32') && !this.walkthroughDone;
   }
 
   private done(id: string): boolean {
@@ -85,8 +106,18 @@ export class Coach {
     const at = 'world' in line.anchor ? line.anchor.world : w.player.pos;
     w.ui.floatIcon('check', at.x, FLOOR_Y + PRAISE_HEIGHT, at.z, 'info');
     // (Session 29: no sound of its own: the thing just done already made one.)
+    if (line.id === 'tip') this.nice();
     this.current = null;
     this.rest = this.walkthroughDone ? COACH_LESSON_GAP_SECONDS : COACH_REST_SECONDS;
+  }
+
+  /** The first passenger's loop is done: a small "Nice!" over the conductor, a coin and a sparkle (no big show). */
+  private nice(): void {
+    const w = this.w;
+    const p = w.player.pos;
+    w.ui.floatText('Nice!', p.x, FLOOR_Y + 2.3, p.z, 'info');
+    w.audio.play('coin');
+    w.particles.emit('sparkle', p.x, FLOOR_Y + 1.6, p.z, 14, 0.5);
   }
 
   /**
@@ -126,11 +157,28 @@ export class Coach {
       if (this.done(step.id)) continue;
       if (this.stepComplete(step.id)) {
         this.finish(step.id);
+        if (step.silent && this.walkthroughDone) this.w.tiles.refresh();
         if (this.current?.id === step.id || this.current?.id.startsWith('g_')) {
           this.praise(this.current);
           return;
         }
+        if (step.id === 'tip') this.nice();
         continue;
+      }
+      // The second passenger: no words, the guide arrow and its ring alone show the way.
+      if (step.silent) {
+        this.current = null;
+        return;
+      }
+      if (step.id === 'serve') {
+        const item = this.w.guests.openRequests().find((g) => g.request && g.request !== 'bathroom')?.request;
+        if (!item) {
+          this.current = null;
+          return;
+        }
+        const target = this.w.guidance.bestTarget();
+        this.show({ id: 'serve', icon: iconFor(item), text: `Bring ${BRING_WORD[item] ?? 'it'}` }, target ? { world: target } : null);
+        return;
       }
       // Building needs cash: until there is enough, say what the arrow points at instead.
       if (step.id === 'tile' && !this.canAffordTile()) {
@@ -217,6 +265,19 @@ export class Coach {
       case 'key':
         // (Saves from before session 24 had no desk step: their first stop is long behind them.)
         return ftue.first_key !== undefined || w.data.route.stopsCompleted > 0;
+      // Session 32's first-passengers steps (a save from before them has no `tut_v32` and skips them).
+      case 'room':
+        return !w.flag('tut_v32') || w.guests.list.some((g) => g.inCabin || g.state === 'gone') || w.flag('tut_serve1');
+      case 'serve':
+        return !w.flag('tut_v32') || w.flag('tut_serve1');
+      case 'tip':
+        return !w.flag('tut_v32') || w.flag('tut_tip1');
+      case 'key2':
+        return !w.flag('tut_v32') || w.flag('tut_key2') || w.data.route.stopsCompleted > 0;
+      case 'serve2':
+        return !w.flag('tut_v32') || w.flag('tut_serve2') || w.data.route.stopsCompleted > 1;
+      case 'tip2':
+        return !w.flag('tut_v32') || w.flag('tut_tip2') || w.data.route.stopsCompleted > 1;
       default:
         return true;
     }
@@ -248,6 +309,14 @@ export class Coach {
         return world(w.tiles.cheapest()?.pos);
       case 'key':
         return w.guests.deskReady() ? world(w.map.anchor(0, 'deskService')) : null;
+      case 'room': {
+        const guest = w.guests.list.find((g) => g.cabin && (g.state === 'toCabin' || g.state === 'queue'));
+        return world(guest?.cabin?.center ?? w.guests.list.find((g) => g.cabin)?.cabin?.center);
+      }
+      case 'tip': {
+        const pile = w.cash.nearestWithCash(w.player.pos);
+        return pile && pile.value >= 1 ? world({ x: pile.x, z: pile.z }) : null;
+      }
       case 'request': {
         const guest = w.guests.openRequests().find((g) => !w.staff.isHandled(g));
         return world(guest?.cabin?.center);

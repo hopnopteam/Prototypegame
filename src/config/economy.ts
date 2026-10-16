@@ -468,6 +468,11 @@ export const ECONOMY = {
   flow: {
     /** The first purchases, one on show at a time, in this order (the next appears when the last is bought). */
     // Session 29: the attendant is no longer part of the opening; it is earned by hand afterwards (content.ts).
+    /**
+     * Session 32: once the first-passengers tutorial is over, the first upgrade the player can afford gets one gentle
+     * camera pan (seconds held there, zoom, how softly the camera eases: lower is gentler) and the guide arrow over it.
+     */
+    firstUpgrade: { seconds: 1.6, zoom: 1.0, sharpness: 2.6, arrowSeconds: 4 },
     openingTiles: ['c0.open', 'c0.cabin_1', 'c0.cabin_2', 'c0.refurb_1', 'couple_1'] as string[],
     /**
      * Where the first passengers come from (session 17, owner: "where guests are coming from… a whole system where

@@ -526,7 +526,8 @@ export class Station {
     }
     // Fix list 4.1: those who missed it go red in the face and stomp off to the station house, their fares lost
     // for good; the camera glances back at them once the soft cues are on, and the card shows the fares lost.
-    const showMissed = missed.length > 0 && w.feedback.cuesOn;
+    const tutorial = w.coach?.tutorial ?? false;
+    const showMissed = missed.length > 0 && w.feedback.cuesOn && !tutorial;
     let missedFare = 0;
     for (const guest of missed) missedFare += w.guests.estimatedFare(guest);
     let x = 0;
@@ -567,7 +568,8 @@ export class Station {
     const before = w.trainRating();
     const quality = stopQuality(this.boardedThisStop, waiting, this.luggageLoadedThisStop, this.luggageTotal, bagsDone, w.feedback.mood, w.econ.rating.weights);
     const recent = (route.recentStops ??= []);
-    recent.push(Math.round(quality * 1000) / 1000);
+    // (Session 32: a stop during the first-passengers tutorial never counts against the rating.)
+    if (!tutorial) recent.push(Math.round(quality * 1000) / 1000);
     while (recent.length > w.econ.rating.window) recent.shift();
     result.rating5 = w.trainRating();
     result.ratingDelta = result.rating5 - before;
@@ -645,6 +647,11 @@ export class Station {
       active: () => w.journey.doorsOpen && w.guests.canBoard(),
       stay: (zone, actor, dt) => {
         if (!w.guests.canBoard()) return false;
+        // Nobody at the window yet: wait behind the counter, the ring empty (it fills once, for a real sale).
+        if (!w.guests.windowReady()) {
+          zone.progress = 0;
+          return true;
+        }
         // Facing the window over the counter, stamping the ticket.
         actor.view.act('stamp');
         zone.progress += (dt / w.econ.zones.boardIntervalSeconds) * actor.workMultiplier;

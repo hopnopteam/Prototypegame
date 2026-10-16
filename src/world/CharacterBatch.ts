@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { MATERIALS } from './materials';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { MATERIALS, pullMaterial, pullTexture } from './materials';
 
 /**
  * Everyone in the game drawn in one go. A character is a small hierarchy of meshes (body, legs, arms, the
@@ -19,7 +20,25 @@ import { MATERIALS } from './materials';
 const LIT_ATTRIBUTES = ['position', 'normal', 'color', 'aSurface'];
 /** Carried items (towels, trays, luggage) use the patterned material. */
 const SOLID_ATTRIBUTES = [...LIT_ATTRIBUTES, 'aColor2', 'aPattern'];
-const INITIAL_VERTICES = 120_000;
+const INITIAL_VERTICES = 60_000;
+/** A character whose bounding sphere (this radius round a point this high, metres) is off screen is not drawn. */
+const CULL_RADIUS = 1.4;
+const CULL_HEIGHT = 0.9;
+
+const welds = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
+/**
+ * Session 32: a part's triangles with their shared corners welded (an indexed copy, cached). GeoBuilder's parts come
+ * apart into three corners a triangle; welded, a smooth head or sleeve runs the vertex shader 4–5 times less.
+ */
+export function welded(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
+  if (geometry.getIndex()) return geometry;
+  let w = welds.get(geometry);
+  if (!w) {
+    w = mergeVertices(geometry, 1e-4);
+    welds.set(geometry, w);
+  }
+  return w;
+}
 const INITIAL_INSTANCES = 256;
 /** A root detached from the scene this many frames is forgotten (its meshes draw themselves again). */
 const FORGET_FRAMES = 600;
@@ -36,97 +55,288 @@ interface Part {
   highlight: boolean;
 }
 
+/** Instance 0 is never handed out: freed vertices point at it, and its matrix hides them. */
+const HIDDEN_SLOT = 0;
+/** A hidden part: squashed to a point far below the world, so it draws nothing. */
+const HIDDEN = new THREE.Matrix4().set(0, 0, 0, 0, 0, 0, 0, -1e4, 0, 0, 0, 0, 0, 0, 0, 1);
+
+interface Range { start: number; count: number }
+
+/** First fit from a free list; null when nothing fits. */
+function takeFree(free: Range[], count: number): number | null {
+  for (let i = 0; i < free.length; i++) {
+    const r = free[i];
+    if (r.count < count) continue;
+    const start = r.start;
+    r.start += count;
+    r.count -= count;
+    if (r.count === 0) free.splice(i, 1);
+    return start;
+  }
+  return null;
+}
+
+interface Slot { vStart: number; vCount: number; iStart: number; iCount: number }
+
 /**
- * Per-instance colours carry the highlight in alpha (white, alpha 1 = plain; alpha 0 = full rim light, see the
- * lit shader in materials.ts): the colour multiply leaves every part as it was.
+ * Many characters' parts in one mesh and one draw (session 32, replacing three's BatchedMesh). BatchedMesh shared one
+ * copy of each geometry and found every draw's matrix through gl_DrawID and an integer lookup texture; on some Android
+ * GPUs that lookup came back wrong and people were drawn with each other's matrices (heads and bodies swapping as the
+ * draw order changed). Here every part owns its own copy of its vertices, each vertex carries the part's instance
+ * number (`aNxInst`), and the shader reads that instance's matrix from a float texture (`pullMaterial` in
+ * materials.ts): nothing can point one part at another's matrix. A part keeps its instance number and its vertices
+ * from adoption to release; freed vertices are pointed at the hidden instance and freed indices collapsed.
  */
-const PLAIN = new THREE.Vector4(1, 1, 1, 1);
-const HIGHLIT = new THREE.Vector4(1, 1, 1, 0);
-
-/** A BatchedMesh that grows as new geometries and instances arrive. */
 class Batch {
-  readonly mesh: THREE.BatchedMesh;
-  private readonly ids = new Map<THREE.BufferGeometry, number>();
-  private readonly attributes: string[];
+  readonly mesh: THREE.Mesh;
+  private readonly material: THREE.Material;
+  private readonly names: string[];
+  private readonly sizes: number[];
+  private readonly indexed: boolean;
+  private geometry!: THREE.BufferGeometry;
+  private arrays: Float32Array[] = [];
+  private inst!: Float32Array;
+  private index: Uint32Array | null = null;
   private vertexCapacity: number;
-  private verticesUsed = 0;
-  private instanceCapacity = INITIAL_INSTANCES;
-  private instances = 0;
-  private indexed: boolean;
+  private indexCapacity: number;
+  private vertexEnd = 0;
+  private indexEnd = 0;
+  private readonly freeVertices: Range[] = [];
+  private readonly freeIndices: Range[] = [];
+  private readonly slots = new Map<number, Slot>();
+  private readonly freeSlots: number[] = [];
+  private slotEnd = 1;
+  private slotCapacity = INITIAL_INSTANCES;
+  private texture!: THREE.DataTexture;
+  private dirtyVertex: [number, number] = [Infinity, -1];
+  private dirtyIndex: [number, number] = [Infinity, -1];
+  private matricesDirty = true;
 
-  constructor(material: THREE.Material, reference: THREE.BufferGeometry, castShadow: boolean, vertexCapacity: number, readonly colours = false) {
-    this.vertexCapacity = vertexCapacity;
+  constructor(base: THREE.Material, reference: THREE.BufferGeometry, castShadow: boolean, vertexCapacity: number, readonly colours = false) {
+    this.material = pullMaterial(base);
+    this.names = Object.keys(reference.attributes);
+    this.sizes = this.names.map((n) => reference.getAttribute(n).itemSize);
     this.indexed = reference.getIndex() !== null;
-    const indexCapacity = this.indexed ? vertexCapacity * 2 : 0;
-    this.mesh = new THREE.BatchedMesh(INITIAL_INSTANCES, vertexCapacity, indexCapacity, material);
+    this.vertexCapacity = vertexCapacity;
+    this.indexCapacity = this.indexed ? vertexCapacity * 2 : 0;
+    this.allocateGeometry();
+    this.allocateTexture();
+    this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.mesh.castShadow = castShadow;
     // As before batching: people cast the moon's shadow but are not darkened by it (they read better).
     this.mesh.receiveShadow = false;
-    // The crowd spreads along the whole train: cull per person, never the batch as a whole.
+    // The crowd spreads along the whole train: the mesh is always drawn (hidden parts are squashed away).
     this.mesh.frustumCulled = false;
-    this.attributes = Object.keys(reference.attributes);
-    // The first geometry fixes the batch's vertex layout: add the reference so only what it has is kept.
-    const referenceId = this.geometryId(reference);
-    if (colours) {
-      // The colour texture exists from the start, so the shader variant that reads it is the one warmed up.
-      const id = this.mesh.addInstance(referenceId);
-      this.mesh.setColorAt(id, PLAIN);
-      this.mesh.deleteInstance(id);
-    }
+    this.mesh.matrixAutoUpdate = false;
   }
 
   /** True when this geometry has the batch's layout (anything else renders on its own). */
   accepts(geometry: THREE.BufferGeometry): boolean {
-    if ((geometry.getIndex() !== null) !== this.indexed) return false;
-    for (const name of this.attributes) if (!geometry.hasAttribute(name)) return false;
+    // An indexed batch welds what comes in (`welded`); a plain one takes plain geometry only.
+    if (!this.indexed && geometry.getIndex() !== null) return false;
+    for (const name of this.names) if (!geometry.hasAttribute(name)) return false;
     return geometry.getAttribute('position').count > 0;
   }
 
-  add(geometry: THREE.BufferGeometry): number {
-    const geometryId = this.geometryId(geometry);
-    if (this.instances >= this.instanceCapacity) {
-      this.instanceCapacity *= 2;
-      this.mesh.setInstanceCount(this.instanceCapacity);
-    }
-    this.instances++;
-    const id = this.mesh.addInstance(geometryId);
-    // Instance ids are reused: every new one starts plain.
-    if (this.colours) this.mesh.setColorAt(id, PLAIN);
-    return id;
+  /** Parts in the batch and the vertices they use (the live overlay and the debug checks). */
+  stats(): { instances: number; vertices: number } {
+    let vertices = 0;
+    for (const s of this.slots.values()) vertices += s.vCount;
+    return { instances: this.slots.size, vertices };
   }
 
-  setHighlight(id: number, on: boolean): void {
-    if (this.colours) this.mesh.setColorAt(id, on ? HIGHLIT : PLAIN);
+  add(source: THREE.BufferGeometry): number {
+    const geometry = this.indexed ? welded(source) : source;
+    const vCount = geometry.getAttribute('position').count;
+    const src = geometry.getIndex();
+    const iCount = src ? src.count : 0;
+    const id = this.freeSlots.pop() ?? this.slotEnd++;
+    if (id >= this.slotCapacity) this.growTexture();
+    let vStart = takeFree(this.freeVertices, vCount);
+    if (vStart === null) {
+      if (this.vertexEnd + vCount > this.vertexCapacity) this.growGeometry(this.vertexEnd + vCount, this.indexEnd + iCount);
+      vStart = this.vertexEnd;
+      this.vertexEnd += vCount;
+    }
+    let iStart = 0;
+    if (src) {
+      const free = takeFree(this.freeIndices, iCount);
+      if (free === null) {
+        if (this.indexEnd + iCount > this.indexCapacity) this.growGeometry(this.vertexEnd, this.indexEnd + iCount);
+        iStart = this.indexEnd;
+        this.indexEnd += iCount;
+      } else iStart = free;
+    }
+    // Copy the part's own vertices in, each marked with its instance.
+    for (let a = 0; a < this.names.length; a++) {
+      const attr = geometry.getAttribute(this.names[a]);
+      const size = this.sizes[a];
+      const out = this.arrays[a];
+      const array = (attr as THREE.BufferAttribute).array;
+      if (!(attr as THREE.InterleavedBufferAttribute).isInterleavedBufferAttribute && array instanceof Float32Array && attr.itemSize === size && !attr.normalized) {
+        out.set(array.subarray(0, vCount * size), vStart * size);
+      } else {
+        for (let v = 0; v < vCount; v++) for (let c = 0; c < size; c++) out[(vStart + v) * size + c] = c < attr.itemSize ? attr.getComponent(v, c) : 0;
+      }
+    }
+    this.inst.fill(id, vStart, vStart + vCount);
+    if (src && this.index) for (let i = 0; i < iCount; i++) this.index[iStart + i] = src.getX(i) + vStart;
+    this.markVertices(vStart, vCount);
+    if (src) this.markIndices(iStart, iCount);
+    this.slots.set(id, { vStart, vCount, iStart, iCount });
+    this.writeMatrix(id, HIDDEN, false);
+    this.updateDrawRange();
+    return id;
   }
 
   remove(id: number): void {
-    this.mesh.deleteInstance(id);
-    this.instances--;
+    const slot = this.slots.get(id);
+    if (!slot) return;
+    this.slots.delete(id);
+    // Freed vertices point at the hidden instance and freed triangles collapse, so stale data can never draw.
+    this.inst.fill(HIDDEN_SLOT, slot.vStart, slot.vStart + slot.vCount);
+    this.markVertices(slot.vStart, slot.vCount);
+    this.freeVertices.push({ start: slot.vStart, count: slot.vCount });
+    if (this.index && slot.iCount > 0) {
+      this.index.fill(0, slot.iStart, slot.iStart + slot.iCount);
+      this.markIndices(slot.iStart, slot.iCount);
+      this.freeIndices.push({ start: slot.iStart, count: slot.iCount });
+    }
+    this.writeMatrix(id, HIDDEN, false);
+    this.freeSlots.push(id);
   }
 
-  private geometryId(geometry: THREE.BufferGeometry): number {
-    const known = this.ids.get(geometry);
-    if (known !== undefined) return known;
-    const count = geometry.getAttribute('position').count;
-    if (this.verticesUsed + count > this.vertexCapacity) {
-      while (this.verticesUsed + count > this.vertexCapacity) this.vertexCapacity *= 2;
-      this.mesh.setGeometrySize(this.vertexCapacity, this.indexed ? this.vertexCapacity * 2 : 0);
+  /** The part's world matrix, or hidden; the highlight (the conductor's rim light) rides in an unused element. */
+  set(id: number, visible: boolean, matrix: THREE.Matrix4, highlight: boolean): void {
+    this.writeMatrix(id, visible ? matrix : HIDDEN, highlight && this.colours);
+  }
+
+  /** True when this instance number is in use (the debug checks). */
+  has(id: number): boolean {
+    return this.slots.has(id);
+  }
+
+  /** Uploads what changed this frame. */
+  flush(): void {
+    if (this.dirtyVertex[1] >= 0) {
+      const [lo, hi] = this.dirtyVertex;
+      for (let a = 0; a < this.names.length; a++) {
+        const attr = this.geometry.getAttribute(this.names[a]) as THREE.BufferAttribute;
+        attr.clearUpdateRanges();
+        attr.addUpdateRange(lo * this.sizes[a], (hi - lo) * this.sizes[a]);
+        attr.needsUpdate = true;
+      }
+      const inst = this.geometry.getAttribute('aNxInst') as THREE.BufferAttribute;
+      inst.clearUpdateRanges();
+      inst.addUpdateRange(lo, hi - lo);
+      inst.needsUpdate = true;
+      this.dirtyVertex = [Infinity, -1];
     }
-    const id = this.mesh.addGeometry(geometry);
-    this.verticesUsed += count;
-    this.ids.set(geometry, id);
-    return id;
+    if (this.dirtyIndex[1] >= 0 && this.geometry.index) {
+      const [lo, hi] = this.dirtyIndex;
+      const index = this.geometry.index;
+      index.clearUpdateRanges();
+      index.addUpdateRange(lo, hi - lo);
+      index.needsUpdate = true;
+      this.dirtyIndex = [Infinity, -1];
+    }
+    if (this.matricesDirty) {
+      this.texture.needsUpdate = true;
+      this.matricesDirty = false;
+    }
+  }
+
+  private writeMatrix(id: number, matrix: THREE.Matrix4, highlight: boolean): void {
+    const data = this.texture.image.data as Float32Array;
+    const e = matrix.elements;
+    const o = id * 16;
+    for (let i = 0; i < 16; i++) data[o + i] = e[i];
+    data[o + 3] = highlight ? 1 : 0;
+    this.matricesDirty = true;
+  }
+
+  private markVertices(start: number, count: number): void {
+    this.dirtyVertex[0] = Math.min(this.dirtyVertex[0], start);
+    this.dirtyVertex[1] = Math.max(this.dirtyVertex[1], start + count);
+  }
+
+  private markIndices(start: number, count: number): void {
+    this.dirtyIndex[0] = Math.min(this.dirtyIndex[0], start);
+    this.dirtyIndex[1] = Math.max(this.dirtyIndex[1], start + count);
+  }
+
+  private updateDrawRange(): void {
+    this.geometry.setDrawRange(0, this.indexed ? this.indexEnd : this.vertexEnd);
+  }
+
+  private allocateGeometry(): void {
+    const old = this.geometry;
+    const g = new THREE.BufferGeometry();
+    this.arrays = this.names.map((name, a) => {
+      const array = new Float32Array(this.vertexCapacity * this.sizes[a]);
+      const prev = old?.getAttribute(name)?.array as Float32Array | undefined;
+      if (prev) array.set(prev.subarray(0, Math.min(prev.length, array.length)));
+      const attr = new THREE.BufferAttribute(array, this.sizes[a]);
+      attr.setUsage(THREE.DynamicDrawUsage);
+      g.setAttribute(name, attr);
+      return array;
+    });
+    const inst = new Float32Array(this.vertexCapacity);
+    if (this.inst) inst.set(this.inst.subarray(0, Math.min(this.inst.length, inst.length)));
+    this.inst = inst;
+    g.setAttribute('aNxInst', new THREE.BufferAttribute(inst, 1).setUsage(THREE.DynamicDrawUsage));
+    if (this.indexed) {
+      const index = new Uint32Array(this.indexCapacity);
+      if (this.index) index.set(this.index.subarray(0, Math.min(this.index.length, index.length)));
+      this.index = index;
+      g.setIndex(new THREE.BufferAttribute(index, 1).setUsage(THREE.DynamicDrawUsage));
+    }
+    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e5);
+    this.geometry = g;
+    this.updateDrawRange();
+    if (old) {
+      (this.mesh as THREE.Mesh | undefined)!.geometry = g;
+      old.dispose();
+    }
+  }
+
+  private growGeometry(vertices: number, indices: number): void {
+    while (this.vertexCapacity < vertices) this.vertexCapacity *= 2;
+    if (this.indexed) while (this.indexCapacity < indices) this.indexCapacity *= 2;
+    this.allocateGeometry();
+  }
+
+  private allocateTexture(): void {
+    // Four texels a matrix, rows a multiple of four wide, so a matrix never wraps a row.
+    let size = Math.ceil(Math.sqrt(this.slotCapacity * 4));
+    size = Math.ceil(size / 4) * 4;
+    const data = new Float32Array(size * size * 4);
+    const old = this.texture;
+    if (old) data.set((old.image.data as Float32Array).subarray(0, Math.min(data.length, (old.image.data as Float32Array).length)));
+    const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.FloatType);
+    texture.needsUpdate = true;
+    this.texture = texture;
+    // A texture of n texels per row holds n/4 matrices a row: every slot under capacity fits.
+    this.slotCapacity = (size * size) / 4;
+    for (let i = 0; i < 16; i++) data[HIDDEN_SLOT * 16 + i] = HIDDEN.elements[i];
+    pullTexture(this.material).value = texture;
+    old?.dispose();
+  }
+
+  private growTexture(): void {
+    this.slotCapacity *= 2;
+    this.allocateTexture();
   }
 }
 
 /** A degenerate triangle carrying just the attributes a batch keeps. */
-function reference(attributes: string[], from: THREE.BufferGeometry | null): THREE.BufferGeometry {
+function reference(attributes: string[], from: THREE.BufferGeometry | null, indexed = false): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();
   for (const name of attributes) {
     const size = from?.getAttribute(name)?.itemSize ?? (name === 'aSurface' ? 4 : name === 'aPattern' ? 2 : 3);
     g.setAttribute(name, new THREE.BufferAttribute(new Float32Array(3 * size), size));
   }
-  if (from?.getIndex()) g.setIndex([0, 1, 2]);
+  if (indexed || from?.getIndex()) g.setIndex([0, 1, 2]);
   return g;
 }
 
@@ -140,13 +350,16 @@ export class CharacterBatch {
   private readonly parts = new Map<THREE.Mesh, Part>();
   private readonly highlighted = new Set<THREE.Object3D>();
   private frame = 0;
+  private readonly frustum = new THREE.Frustum();
+  private readonly projScreen = new THREE.Matrix4();
+  private readonly sphere = new THREE.Sphere();
 
   constructor(shadowGeometry: THREE.BufferGeometry) {
     // Session 26 ("random shadow issues"): people and what they carry throw no moon shadow on any tier. On High and
     // Ultra they used to cast one as well as their soft blob, two shadows under everyone (and on the phone tiers only
     // the blob): now every tier shows the one blob, My Perfect Hotel's look.
-    this.lit = new Batch(MATERIALS.character, reference(LIT_ATTRIBUTES, null), false, INITIAL_VERTICES, true);
-    this.solid = new Batch(MATERIALS.solid, reference(SOLID_ATTRIBUTES, null), false, 16_384);
+    this.lit = new Batch(MATERIALS.character, reference(LIT_ATTRIBUTES, null, true), false, INITIAL_VERTICES, true);
+    this.solid = new Batch(MATERIALS.solid, reference(SOLID_ATTRIBUTES, null, true), false, 16_384);
     this.shadow = new Batch(MATERIALS.shadow, reference(Object.keys(shadowGeometry.attributes), shadowGeometry), false, 4_096);
     this.group.add(this.lit.mesh, this.solid.mesh, this.shadow.mesh);
   }
@@ -185,9 +398,39 @@ export class CharacterBatch {
     return { roots: this.roots.size, parts: this.parts.size };
   }
 
-  /** Once a frame, after the simulation and before rendering. */
-  sync(): void {
+  /**
+   * Session 32's debug safety net (`?debug=1`): problems in the batch's bookkeeping, as short warnings. A part whose
+   * character is not registered (drawn with no owner), two parts sharing one slot, a part pointing at a freed slot.
+   */
+  audit(): string[] {
+    const problems: string[] = [];
+    const used = new Map<Batch, Set<number>>();
+    for (const part of this.parts.values()) {
+      let ids = used.get(part.batch);
+      if (!ids) used.set(part.batch, (ids = new Set()));
+      if (ids.has(part.id)) problems.push(`two parts share batch slot ${part.id}`);
+      ids.add(part.id);
+      if (!part.batch.has(part.id)) problems.push(`a part points at a freed slot ${part.id}`);
+      let root: THREE.Object3D | null = part.mesh;
+      while (root && !this.roots.has(root)) root = root.parent;
+      if (!root) problems.push('a part is drawn with no character owning it');
+    }
+    return problems;
+  }
+
+  /**
+   * Once a frame, after the simulation and before rendering. With `camera`, anyone off screen is squashed away
+   * (session 32: the pull batch draws every part, so this is what keeps the crowd's cost to who is in view, as
+   * BatchedMesh's per-instance culling used to).
+   */
+  sync(camera?: THREE.Camera): void {
     const frame = ++this.frame;
+    if (camera) {
+      camera.updateMatrixWorld();
+      this.projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      this.frustum.setFromProjectionMatrix(this.projScreen);
+    }
+    const cull = camera !== undefined;
     for (const [root, lastSeen] of this.roots) {
       if (!attached(root)) {
         // Off the stage (a platform character between stations): nothing to draw, and after a while forget it.
@@ -200,11 +443,20 @@ export class CharacterBatch {
       parent.updateWorldMatrix(true, false);
       if (root.matrixAutoUpdate) root.updateMatrix();
       root.matrixWorld.multiplyMatrices(parent.matrixWorld, root.matrix);
-      this.visit(root, root.visible && visibleChain(parent), frame, true, this.highlighted.has(root));
+      let inView = true;
+      if (cull) {
+        this.sphere.center.set(0, CULL_HEIGHT, 0).applyMatrix4(root.matrixWorld);
+        this.sphere.radius = CULL_RADIUS * root.scale.x;
+        inView = this.frustum.intersectsSphere(this.sphere);
+      }
+      this.visit(root, inView && root.visible && visibleChain(parent), frame, true, this.highlighted.has(root));
     }
     // Parts not seen this frame left their character (a blanket swapped, a prop dropped, a character taken
     // off the stage): they go back to drawing themselves, wherever they are now.
     for (const part of this.parts.values()) if (part.seen !== frame) this.release(part);
+    this.lit.flush();
+    this.solid.flush();
+    this.shadow.flush();
   }
 
   private visit(object: THREE.Object3D, visible: boolean, frame: number, isRoot: boolean, highlight: boolean): void {
@@ -224,12 +476,8 @@ export class CharacterBatch {
       const part = found ?? this.adopt(mesh);
       if (part) {
         part.seen = frame;
-        if (part.highlight !== highlight) {
-          part.highlight = highlight;
-          part.batch.setHighlight(part.id, highlight);
-        }
-        part.batch.mesh.setVisibleAt(part.id, visible);
-        if (visible) part.batch.mesh.setMatrixAt(part.id, mesh.matrixWorld);
+        part.highlight = highlight;
+        part.batch.set(part.id, visible, mesh.matrixWorld, highlight);
       }
     }
     const children = object.children;

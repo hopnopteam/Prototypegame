@@ -43,6 +43,12 @@ const EYE = '#1F2B57';
 const LIPS = '#C24E56';
 const SOLE = '#F2EEE6';
 
+/** A colour a little darker (a neckline, a seam). */
+function shade(hex: string, k: number): string {
+  const c = new THREE.Color(hex).multiplyScalar(k);
+  return `#${c.getHexString()}`;
+}
+
 function smoothstep(e0: number, e1: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
   return t * t * (3 - 2 * t);
@@ -140,30 +146,30 @@ function hairThickness(style: HairStyle, ux: number, uy: number, uz: number): nu
 
 const headCache = new Map<string, THREE.BufferGeometry>();
 
-/** The bare head (shared shape), positioned at the origin. */
-function headShape(): THREE.BufferGeometry {
-  let g = headCache.get('head');
-  if (!g) {
-    g = deformed(22, 16, headRadius);
-    headCache.set('head', g);
-  }
-  return g.clone();
-}
-
-function hairShape(style: HairStyle, hatted: boolean): THREE.BufferGeometry {
+/**
+ * Session 32 (owner: "more precise and better connected"): the head and its hair are one mesh. The skull is pushed out
+ * where the hair covers it and coloured there (`hairWeight`), so the hairline is a clean colour edge on one surface;
+ * it used to be a second shell cutting through the skull, and where two meshes cross the line zigzags.
+ */
+function headWithHair(style: HairStyle, hatted: boolean): THREE.BufferGeometry {
   const key = `${style}:${hatted}`;
   let g = headCache.get(key);
   if (!g) {
     // Under a hat the hair lies flat (the hat sits on it), so nothing pokes through the crown.
-    // A flat layer still stands clear of the skull (a hair's breadth would flicker against it).
-    g = deformed(30, 22, (ux, uy, uz) => {
+    g = deformed(36, 26, (ux, uy, uz) => {
       const c = hairCover(style, ux, uy, uz);
-      const t = hatted ? 0.035 + hairThickness(style, ux, uy, uz) * 0.12 : hairThickness(style, ux, uy, uz);
-      return headRadius(ux, uy, uz) * (0.86 + c * (0.14 + t));
+      const t = hatted ? 0.03 + hairThickness(style, ux, uy, uz) * 0.12 : hairThickness(style, ux, uy, uz);
+      return headRadius(ux, uy, uz) * (1 + smoothstep(0.15, 0.85, c) * t);
     });
     headCache.set(key, g);
   }
   return g.clone();
+}
+
+/** How much a point on the head (head space) is hair rather than skin: a narrow band, so the hairline reads crisp. */
+function hairWeight(style: HairStyle, x: number, y: number, z: number): number {
+  const len = Math.hypot(x, y, z) || 1;
+  return smoothstep(0.44, 0.56, hairCover(style, x / len, y / len, z / len));
 }
 
 /** A lathe round the y axis from [radius, height] pairs, its seam at the back, squashed front to back. */
@@ -194,18 +200,22 @@ export interface FigureSpec {
 
 /** The head, face and hair. */
 export function addHead(b: GeoBuilder, f: FigureSpec): void {
-  b.add(headShape(), f.skin, 0, HEAD_Y, 0, 0, 0, 0, { shade: 0.86 });
+  b.add(headWithHair(f.hairStyle, f.hatted ?? false), f.skin, 0, HEAD_Y, 0, 0, 0, 0, { shade: 0.86 });
+  b.blendLast(f.hair, (x, y, z) => hairWeight(f.hairStyle, x, y - HEAD_Y, z));
   const open = f.hairStyle !== 'bob' && f.hairStyle !== 'long';
   if (open) {
     // Ears: round and a little forward of centre, so they read from the three-quarter view.
     for (const s of [-1, 1]) b.add(new THREE.SphereGeometry(0.05, 10, 8).scale(0.55, 1, 0.8), f.skin, s * 0.2, HEAD_Y - 0.02, 0.01, 0, 0, 0, SOFT);
   }
-  b.add(hairShape(f.hairStyle, f.hatted ?? false), f.hair, 0, HEAD_Y, 0, 0, 0, 0, { shade: 0.84 });
   if (f.hairStyle === 'bun') b.sphere(0, HEAD_Y + 0.15, -0.16, 0.085, f.hair, 2, 1, { shade: 0.86 });
   if (f.hairStyle === 'long') b.rounded(0, HEAD_Y - 0.17, -0.12, 0.36, 0.3, 0.13, 0.06, f.hair, { shade: 0.84 });
 
   // The face: small dark ovals for eyes set wide and low, a button nose, a small red mouth.
-  for (const x of [-0.078, 0.078]) b.add(new THREE.SphereGeometry(0.024, 10, 8).scale(0.78, 1.3, 0.45), EYE, x, HEAD_Y - 0.005, faceZ(x, -0.005) - 0.002, 0, 0, 0, FLAT);
+  for (const x of [-0.078, 0.078]) {
+    b.add(new THREE.SphereGeometry(0.024, 10, 8).scale(0.78, 1.3, 0.45), EYE, x, HEAD_Y - 0.005, faceZ(x, -0.005) - 0.002, 0, 0, 0, FLAT);
+    // A tiny catchlight, up and to the side, which gives the toy face its life.
+    b.add(new THREE.SphereGeometry(0.007, 6, 4), '#FFFFFF', x + 0.006, HEAD_Y + 0.008, faceZ(x, 0.008) + 0.006, 0, 0, 0, FLAT);
+  }
   b.add(new THREE.SphereGeometry(0.03, 10, 8).scale(1, 0.9, 0.8), f.skin, 0, HEAD_Y - 0.055, faceZ(0, -0.055) + 0.008, 0, 0, 0, { shade: 0.94 });
   b.add(new THREE.SphereGeometry(0.03, 10, 6).scale(0.85, 0.42, 0.4), LIPS, 0, HEAD_Y - 0.112, faceZ(0, -0.112) - 0.002, 0, 0, 0, FLAT);
   if (f.moustache) {
@@ -219,7 +229,8 @@ export function addHead(b: GeoBuilder, f: FigureSpec): void {
 
 /** The torso, its hem, and whatever covers the hips (trousers, a skirt, a coat's tails). */
 export function addTorso(b: GeoBuilder, f: FigureSpec): void {
-  const chest: [number, number][] = [[0, 0.43], [0.138, 0.43], [0.15, 0.47], [0.155, 0.56], [0.15, 0.66], [0.138, 0.73], [0.112, 0.785], [0.068, 0.81], [0, 0.815]];
+  // Session 32: rounder, fuller shoulders that meet the sleeves (they used to fall away under them, leaving a notch).
+  const chest: [number, number][] = [[0, 0.43], [0.138, 0.43], [0.15, 0.47], [0.155, 0.56], [0.153, 0.66], [0.148, 0.71], [0.132, 0.765], [0.098, 0.8], [0.06, 0.816], [0, 0.82]];
   if (f.stripes && f.trim) {
     // A striped tee: the same lathe cut into bands of the two colours.
     const bands: [number, number][] = [[0.43, 0.52], [0.52, 0.555], [0.555, 0.6], [0.6, 0.635], [0.635, 0.68], [0.68, 0.815]];
@@ -227,8 +238,9 @@ export function addTorso(b: GeoBuilder, f: FigureSpec): void {
   } else {
     b.add(lathe(chest), f.top, 0, 0, 0, 0, 0, 0, SOFT);
   }
-  // A short neck so the head sits on the shoulders rather than in them.
+  // A short neck so the head sits on the shoulders rather than in them, and a soft neckline where it meets the top.
   b.cylinder(0, 0.82, 0, 0.055, 0.06, 0.06, f.skin, 12, 'y', SOFT);
+  if (f.outfit !== 'coat' || !f.fur) b.add(new THREE.TorusGeometry(0.066, 0.014, 6, 18).scale(1, 1, 0.9), shade(f.top, 0.88), 0, 0.812, 0, Math.PI / 2, 0, 0, SOFT);
 
   switch (f.outfit) {
     case 'dress':

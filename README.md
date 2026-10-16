@@ -143,6 +143,7 @@ Open the game with `?dev=1` in the address, then Settings (gear) → **Open deve
 day, fund the next tile, **Creative Mode** (hides the UI and grants cash for recording ad footage), camera zoom,
 mock-service switches (ads no-fill, IAP failure, clear purchases) and the latest analytics events.
 **Live stats** (in Developer tools, or `?perf=1` on the page) shows fps, frame times and hitches, draw calls, triangles, heap, GPU resources, people, pools and the seconds the conductor had nothing to do.
+**Character checks** (`?debug=1`, session 32): every second it warns in the console if the player is not the conductor, two people stand on one spot or sleep in one room, a character, mesh or material is shared, a drawn part has no owner, or the guest pool's size changes; a small panel shows the GPU and the active/pooled counts.
 `window.nightExpress` exposes the game object in the browser console.
 
 ## Where to tune things

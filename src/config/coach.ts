@@ -11,18 +11,37 @@ export interface CoachLineDef {
   id: string;
   icon: IconName;
   text: string;
+  /** Session 32: the second passenger's steps show no words, only the arrow and the ring on the floor. */
+  silent?: boolean;
 }
 
+/**
+ * The first-passengers tutorial (session 32, owner: "the player understands the main loop before anything else…
+ * 2 to 4 words max… no pop-ups, no Next buttons"): the first passenger is walked through the whole loop step by
+ * step (ticket, cash, open the carriage, check in, to their room, bring what they ask for, collect the tip, then a
+ * small "Nice!"); the second passenger's steps have the arrow and the ring only. Each step ends when the player does
+ * it. Once both are done the tutorial is over for good (each step is a saved flag) and upgrades appear.
+ */
 export const COACH_STEPS: CoachLineDef[] = [
   { id: 'walk', icon: 'hand', text: 'Drag to walk' },
-  // Session 22, the station start: sell the first ticket at the booth, grab the fare, open the covered carriage;
-  // the guest walks in.
-  { id: 'tickets', icon: 'ticket', text: 'Sell tickets' },
-  { id: 'cash', icon: 'cash', text: 'Grab it' },
-  { id: 'tile', icon: 'carriage', text: 'Open' },
-  // Session 24: inside, the desk hands each ticketed guest the key to their cabin.
-  { id: 'key', icon: 'key', text: 'Hand keys' },
+  { id: 'tickets', icon: 'ticket', text: 'Issue ticket' },
+  { id: 'cash', icon: 'cash', text: 'Collect cash' },
+  { id: 'tile', icon: 'carriage', text: 'Open carriage' },
+  { id: 'key', icon: 'key', text: 'Check in' },
+  { id: 'room', icon: 'bed', text: 'Take to room' },
+  // The words follow the request ("Bring blanket", "Bring tea"); the icon is the item's own (config/itemIcons.ts).
+  { id: 'serve', icon: 'tea', text: 'Bring it' },
+  { id: 'tip', icon: 'cash', text: 'Collect cash' },
+  { id: 'key2', icon: 'key', text: '', silent: true },
+  { id: 'serve2', icon: 'tea', text: '', silent: true },
+  { id: 'tip2', icon: 'cash', text: '', silent: true },
 ];
+
+/** How a request reads in the tutorial's "Bring …" line. */
+export const BRING_WORD: Partial<Record<string, string>> = {
+  tea: 'tea', coffee: 'coffee', champagne: 'champagne', blanket: 'blanket', pillow: 'pillow', towel: 'towel',
+  newspaper: 'paper', breakfast: 'breakfast', snack: 'snacks',
+};
 
 export const COACH_HINTS: CoachLineDef[] = [
   { id: 'request', icon: 'tea', text: 'Serve' },

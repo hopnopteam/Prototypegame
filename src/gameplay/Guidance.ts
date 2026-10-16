@@ -5,6 +5,7 @@ import { sourceAnchorFor } from './Demand';
 import { FLOOR_Y } from '../world/CarriageView';
 import { guideArrowTexture, makeSprite } from '../world/sprites';
 import { markWorldUi } from '../world/ZoneViews';
+import { ADD_GLOW, glowTexture } from '../world/materials';
 import type { World } from './World';
 import { PLATFORM } from '../world/platformLayout';
 
@@ -36,6 +37,13 @@ const ARROW_HEIGHT = 1.75;
 const ARROW_BOB = 0.28;
 /** Over a job's badge the arrow's tip clears the badge's top by this much (metres; session 27). */
 const ARROW_OVER_BADGE = 0.55;
+/**
+ * Session 32's first-passengers tutorial: a soft glowing ring on the floor under the arrow (metres across, its colour,
+ * how bright it pulses and how fast). Only while the tutorial runs; added like the lamp pools, so it can only add light.
+ */
+const RING_COLOR_HEX = '#FFD36B';
+const TUTORIAL_RING = { size: 1.5, color: RING_COLOR_HEX, low: 0.45, high: 0.9, speed: 3.2, lift: 0.025 };
+const RING_COLOR = new THREE.Color(RING_COLOR_HEX);
 
 /**
  * A bouncing arrow over the next useful thing and a screen-edge pointer when it is off-screen (the Coach
@@ -47,9 +55,14 @@ export class Guidance {
   private target: Vec2 | null = null;
   /** Where the arrow hangs for the target: over the job's badge if the target is a job (session 27). */
   private readonly arrowAt = { x: 0, z: 0, y: ARROW_HEIGHT };
+  private readonly ring: THREE.Mesh;
+  private readonly ringMaterial: THREE.MeshBasicMaterial;
   /** Whether the arrow is up for the current target (see `shouldShow`), and its eased size. */
   private shown = false;
   private grow = 0;
+  private ringGrow = 0;
+  private pointed: Vec2 | null = null;
+  private pointedTime = 0;
   private thinkTimer = 0;
   private time = 0;
   readonly pointer: PointerState = { x: 0, y: 0, angle: 0, visible: false };
@@ -65,16 +78,33 @@ export class Guidance {
     this.arrow.visible = false;
     markWorldUi(this.arrow);
     w.scene.add(this.arrow);
+    const texture = glowTexture(128, 128, 64, 64, 0, 64, [[0.62, 0], [0.8, 1], [1, 0]]);
+    this.ringMaterial = new THREE.MeshBasicMaterial({ map: texture, color: TUTORIAL_RING.color, ...ADD_GLOW });
+    this.ring = new THREE.Mesh(new THREE.PlaneGeometry(TUTORIAL_RING.size, TUTORIAL_RING.size).rotateX(-Math.PI / 2), this.ringMaterial);
+    // Kept in the scene from the start (hidden by its scale) so its shader is compiled with the rest at boot.
+    this.ring.scale.setScalar(0.001);
+    this.ring.renderOrder = 2;
+    markWorldUi(this.ring);
+    w.scene.add(this.ring);
+  }
+
+  /** Points the arrow at one spot for a few seconds, whatever else is going on (session 32: the first upgrade). */
+  pointAt(spot: Vec2, seconds: number): void {
+    this.pointed = { x: spot.x, z: spot.z };
+    this.pointedTime = seconds;
+    this.thinkTimer = 0;
   }
 
   update(dt: number): void {
     const w = this.w;
     this.time += dt;
     this.thinkTimer -= dt;
+    this.pointedTime -= dt;
     if (this.thinkTimer <= 0) {
       this.thinkTimer = 0.3;
-      this.target = this.enabled ? this.pick() : null;
-      this.shown = this.shouldShow();
+      const pointed = this.pointedTime > 0 ? this.pointed : null;
+      this.target = pointed ?? (this.enabled ? this.pick() : null);
+      this.shown = pointed !== null || this.shouldShow();
       if (this.target) this.placeArrow(this.target);
     }
     const target = this.shown ? this.target : null;
@@ -90,6 +120,13 @@ export class Guidance {
     const g = this.grow * this.grow * (3 - 2 * this.grow);
     this.arrow.scale.setScalar(Math.max(0.001, g));
     this.updatePointer(target && !near ? target : null);
+    // The tutorial's floor ring stays on the spot until the job there is done (the arrow folds away once you arrive).
+    const ringOn = target !== null && (w.coach?.tutorial ?? false);
+    this.ringGrow = Math.max(0, Math.min(1, this.ringGrow + (ringOn ? dt : -dt) / ARROW_FADE));
+    if (target) this.ring.position.set(target.x, FLOOR_Y + TUTORIAL_RING.lift, target.z);
+    const pulse = 0.5 + 0.5 * Math.sin(this.time * TUTORIAL_RING.speed);
+    this.ring.scale.setScalar(Math.max(0.001, this.ringGrow * (0.94 + 0.06 * pulse)));
+    this.ringMaterial.color.copy(RING_COLOR).multiplyScalar(TUTORIAL_RING.low + (TUTORIAL_RING.high - TUTORIAL_RING.low) * pulse);
   }
 
   /**

@@ -1,3 +1,4 @@
+import { iconFor } from '../config/itemIcons';
 import * as THREE from 'three';
 import { ARCHETYPES, COMMON_MESS, type ArchetypeDef, type MessPiece, type StoryDef } from '../config/content';
 import { CLASS_BY_ID, isDwellNeed, type ClassId, type ServiceNeed } from '../config/classes';
@@ -5,8 +6,8 @@ import { CROWD, IDLES, type IdleAction } from '../config/crowd';
 import { log } from '../core/log';
 import type { Vec2 } from '../core/types';
 import { freshWish, nextTripPhase, rideProgress, type TripPhase } from '../sim/trip';
-import type { IconName } from '../ui/icons';
 import { BED_TOP, FLOOR_Y } from '../world/CarriageView';
+import { CharacterPool, GUEST_POOL_WARM } from '../world/CharacterPool';
 import { CharacterView, type CharacterLook } from '../world/CharacterView';
 import { BED_MESS } from '../world/Mess';
 import { PLATFORM, QUEUE_SPOTS, queueSpot, waitingSpot } from '../world/platformLayout';
@@ -23,6 +24,9 @@ export type GuestState =
   | 'toBathroom' | 'waitingBathroom' | 'inBathroom' | 'returning' | 'alighting' | 'leaving' | 'gone'
   // Session 20: an outing to a venue carriage (walking there, in its queue, seated waiting, eating or watching).
   | 'toVenue' | 'venueQueue' | 'seated' | 'consuming';
+
+/** Where guests set down on the platform as the doors close stand, a step apart (metres from the first). */
+const TELEPORT_SPREAD: readonly [number, number][] = [[0, 0], [0.55, 0.35], [0.55, -0.4], [1.1, 0], [0, 0.7], [0, -0.75], [1.1, 0.7], [1.1, -0.75]];
 
 /** Guest states on an outing to a venue (the venue runs them). */
 const OUTING_STATES: ReadonlySet<GuestState> = new Set<GuestState>(['toVenue', 'venueQueue', 'seated', 'consuming']);
@@ -135,7 +139,7 @@ export class Guest {
   idleLeft = 0;
   idleIn = 1 + Math.random() * 3;
 
-  constructor(readonly archetype: ArchetypeDef, x: number, z: number, speed: number, readonly story: StoryDef | null, variant = 0) {
+  constructor(readonly archetype: ArchetypeDef, x: number, z: number, speed: number, readonly story: StoryDef | null, variant: number, views: CharacterPool) {
     this.cls = archetype.cls;
     this.pos = { x, z };
     this.childPos = { x, z: z + 0.6 };
@@ -150,9 +154,9 @@ export class Guest {
     };
     const look = story ? base : guestLook(base, archetype, variant);
     const [short, tall] = CROWD.height;
-    this.view = new CharacterView(look, story ? 1 : short + (tall - short) * Math.random());
+    this.view = views.take(look, story ? 1 : short + (tall - short) * Math.random());
     this.child = !story && archetype.accessory === 'child'
-      ? new CharacterView({ body: '#F2C94C', accent: '#E26D8C', skin: colors.skin, hair: colors.hair, hat: 'none', outfit: 'dress', pants: '#E26D8C', hairStyle: 'bob', shoe: '#D64B6A' }, 0.62)
+      ? views.take({ body: '#F2C94C', accent: '#E26D8C', skin: colors.skin, hair: colors.hair, hat: 'none', outfit: 'dress', pants: '#E26D8C', hairStyle: 'bob', shoe: '#D64B6A' }, 0.62)
       : null;
   }
 
@@ -172,6 +176,8 @@ export class Guest {
  */
 export class Guests {
   readonly list: Guest[] = [];
+  /** Session 32: every guest's character comes from this pool and goes back to it. */
+  readonly views = new CharacterPool(GUEST_POOL_WARM);
   readonly queue: Guest[] = [];
   private readonly tmp = new THREE.Vector3();
   private alightStagger = 0;
@@ -333,6 +339,14 @@ export class Guests {
   private atWindow(): Guest | null {
     if (this.w.journey.phase !== 'stationStop') return null;
     return this.list.find((g) => g.state === 'platform' && !g.paid && g.spot === 'q0' && g.atSpot) ?? null;
+  }
+
+  /**
+   * Someone stands at the ticket window ready to pay (session 32: the stand's ring fills only then; it used to fill
+   * while the first traveller was still walking up, fail, and start again, a ring going round and round).
+   */
+  windowReady(): boolean {
+    return this.atWindow() !== null;
   }
 
   /** Someone is queueing for a ticket (the window's pad lights up as they step up to it). */
@@ -578,8 +592,10 @@ export class Guests {
     if (guest.state !== 'platform') return;
     guest.paid = false;
     this.setState(guest, 'leaving');
-    guest.storming = true;
-    guest.view.showBubble('angry', 'alert', 1.85);
+    // Session 32: no angry exits during the first-passengers tutorial (they simply walk home).
+    const calm = this.w.coach?.tutorial ?? false;
+    guest.storming = !calm;
+    guest.view.showBubble(calm ? null : 'angry', 'alert', 1.85);
     guest.mover.stop();
     w.tweens.delay(delay, () => {
       if (guest.state !== 'leaving') return;
@@ -779,7 +795,7 @@ export class Guests {
           guest.happyTime -= dt;
           if (guest.happyTime <= 0) this.afterRequest(guest);
         } else if (guest.request && guest.request !== 'bathroom') {
-          guest.view.showBubble(guest.request as IconName, guest.slow ? 'alert' : guest.pending.length > 0 ? 'royal' : 'request', 1.85);
+          guest.view.showBubble(iconFor(guest.request), guest.slow ? 'alert' : guest.pending.length > 0 ? 'royal' : 'request', 1.85);
         }
         break;
       case 'waitingBathroom': {
@@ -939,7 +955,7 @@ export class Guests {
       guest.pos.z = guest.cabin.center.z + 0.2;
       guest.mover.facing = -Math.PI / 2;
     }
-    guest.view.showBubble(need as IconName, guest.pending.length > 0 ? 'royal' : 'request', 1.85);
+    guest.view.showBubble(iconFor(need), guest.pending.length > 0 ? 'royal' : 'request', 1.85);
     guest.view.act('wave', w.econ.guests.waveSeconds);
     w.audio.play('bloop');
   }
@@ -1017,7 +1033,7 @@ export class Guests {
     if (next) {
       guest.request = next;
       guest.requestAt = w.time;
-      guest.view.showBubble(next as IconName, guest.pending.length > 0 ? 'royal' : 'request', 1.85);
+      guest.view.showBubble(iconFor(next), guest.pending.length > 0 ? 'royal' : 'request', 1.85);
       return;
     }
     if (listDone) {
@@ -1251,6 +1267,8 @@ export class Guests {
       w.train.luggageStored--;
       tip += w.econ.money.luggageTip;
     }
+    // Session 32: nothing counts against the player during the first-passengers tutorial.
+    if (w.coach?.tutorial) guest.unmet = 0;
     const unhappy = guest.unmet > 0;
     tip *= Math.max(0, 1 - g.unmetTipCut * guest.unmet);
     const tipAmount = unhappy ? Math.round(tip) : Math.max(1, Math.round(tip));
@@ -1326,9 +1344,12 @@ export class Guests {
     this.setState(guest, 'leaving');
     guest.onPlatform = true;
     if (teleported) {
+      // Session 32: each one a step apart (they all used to land on the same point, two people drawn over each
+      // other, flickering between the two until they faded; the debug checks caught it).
       const door = w.map.doors()[0];
-      guest.pos.x = door.outside.x + 1.5;
-      guest.pos.z = door.outside.z - 0.6;
+      const k = this.list.filter((g) => g !== guest && g.state === 'leaving' && g.onPlatform).length % TELEPORT_SPREAD.length;
+      guest.pos.x = door.outside.x + 1.5 + TELEPORT_SPREAD[k][0];
+      guest.pos.z = door.outside.z - 0.6 + TELEPORT_SPREAD[k][1];
     }
     // Happy, a heart; short of something they asked for, the frown stays up as they go (session 27).
     if (guest.unmet > 0) guest.view.showBubble('frown', 'alert', 1.85);
@@ -1401,7 +1422,7 @@ export class Guests {
 
   private create(archetype: ArchetypeDef, x: number, z: number, story: StoryDef | null): Guest {
     const speed = this.w.econ.guests.walkSpeed * archetype.speedMultiplier;
-    const guest = new Guest(archetype, x, z, speed, story, this.looks++ % CROWD.variants);
+    const guest = new Guest(archetype, x, z, speed, story, this.looks++ % CROWD.variants, this.views);
     this.w.scene.add(guest.view.root);
     if (guest.child) this.w.scene.add(guest.child.root);
     this.list.push(guest);
@@ -1426,9 +1447,9 @@ export class Guests {
       this.queue.splice(qi, 1);
       this.reflowQueue();
     }
-    this.w.scene.remove(guest.view.root);
-    if (guest.child) this.w.scene.remove(guest.child.root);
-    guest.view.dispose();
+    // Session 32: the characters go back to the pool (no geometry or material is made or freed during play).
+    this.views.give(guest.view);
+    if (guest.child) this.views.give(guest.child);
     const i = this.list.indexOf(guest);
     if (i >= 0) this.list.splice(i, 1);
   }

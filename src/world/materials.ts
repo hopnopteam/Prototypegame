@@ -173,6 +173,8 @@ interface LitOptions {
   surface?: 'vertex' | Surface;
   /** Reads the baked light (lamps, window spill, contact shading). */
   light?: boolean;
+  /** Drawn by CharacterBatch: each vertex names its instance (aNxInst), see `pullMaterial`. */
+  pull?: boolean;
 }
 
 interface Recipe {
@@ -191,10 +193,8 @@ varying float vNxHighlight;
 const LIT_VERTEX_BODY = /* glsl */ `
 vNxSurface = aSurface;
 vNxHighlight = 0.0;
-#ifdef USE_BATCHING_COLOR
-// CharacterBatch keeps every part's colour white and uses its alpha as the highlight (1 = none); the colour
-// multiply is a no-op and an opaque material ignores alpha.
-vNxHighlight = 1.0 - getBatchingColor(getIndirectIndex(gl_DrawID)).a;
+#ifdef NX_PULL
+vNxHighlight = nxInstHl;
 #endif
 {
   vec4 nxWorld = vec4(transformed, 1.0);
@@ -480,6 +480,64 @@ export function isLiteShading(): boolean {
   return liteShading;
 }
 
+/**
+ * Session 32 (characters swapping heads and bodies on Android): three's BatchedMesh finds each part's matrix through
+ * gl_DrawID and an integer lookup texture, and on some Android GPUs that lookup comes back wrong, so one person's body
+ * was drawn with another's matrix (the conductor's cap on a sleeping guest, a guest's head on the conductor) and the
+ * mix-up changed whenever the draw order did. CharacterBatch now gives every part its own copy of its vertices, each
+ * vertex carrying its instance number (`aNxInst`), and the vertex shader reads that instance's matrix from a float
+ * texture: no draw id, no integer texture, no multi-draw, one draw per material as before. Three's own batching code
+ * (normals, world position, projection) runs on `batchingMatrix`, so only its two batching chunks are replaced.
+ * The matrix's unused [0][3] carries the conductor's rim-light highlight.
+ */
+const PULL_DEFINES = { USE_BATCHING: '', NX_PULL: '' };
+const PULL_VERTEX_PARS = /* glsl */ `
+attribute float aNxInst;
+uniform highp sampler2D uNxInstTex;
+float nxInstHl;
+mat4 nxInstMatrix(const in float instance) {
+  int size = textureSize(uNxInstTex, 0).x;
+  int j = int(instance + 0.5) * 4;
+  int x = j % size;
+  int y = j / size;
+  mat4 m = mat4(
+    texelFetch(uNxInstTex, ivec2(x, y), 0),
+    texelFetch(uNxInstTex, ivec2(x + 1, y), 0),
+    texelFetch(uNxInstTex, ivec2(x + 2, y), 0),
+    texelFetch(uNxInstTex, ivec2(x + 3, y), 0));
+  nxInstHl = m[0][3];
+  m[0][3] = 0.0;
+  return m;
+}
+`;
+
+/** The texture of instance matrices a pull material reads (set by CharacterBatch). */
+export function pullTexture(material: THREE.Material): { value: THREE.Texture | null } {
+  const ud = material.userData as { nxInst?: { value: THREE.Texture | null } };
+  return (ud.nxInst ??= { value: null });
+}
+
+function pullShader(material: THREE.Material, shader: THREE.WebGLProgramParametersWithUniforms): void {
+  shader.uniforms.uNxInstTex = pullTexture(material);
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <batching_pars_vertex>', PULL_VERTEX_PARS)
+    .replace('#include <batching_vertex>', 'mat4 batchingMatrix = nxInstMatrix(aNxInst);');
+}
+
+/**
+ * The CharacterBatch variant of a material: the same look, its matrices pulled per vertex (see PULL_DEFINES). Lit
+ * materials are rebuilt from their recipe; the blob shadow's basic material is cloned.
+ */
+export function pullMaterial(base: THREE.Material): THREE.Material {
+  const recipe = recipes.get(base);
+  if (recipe) return build({ ...recipe, options: { ...recipe.options, pull: true } });
+  const m = base.clone();
+  m.defines = { ...(m.defines ?? {}), ...PULL_DEFINES };
+  m.onBeforeCompile = (shader) => pullShader(m, shader);
+  m.customProgramCacheKey = () => 'nx-pull-basic';
+  return m;
+}
+
 /** Adds patterns, per-vertex surfaces, the baked light and glow to a physically based material. */
 function patchLit(material: THREE.MeshStandardMaterial, options: LitOptions): void {
   const fixed = typeof options.surface === 'object' ? options.surface : SURFACES.matte;
@@ -487,6 +545,7 @@ function patchLit(material: THREE.MeshStandardMaterial, options: LitOptions): vo
   const defines: Record<string, string | number> = {};
   if (options.surface === 'vertex') defines.NX_VERTEX_SURFACE = '';
   if (options.light) defines.NX_LIGHT = '';
+  if (options.pull) Object.assign(defines, PULL_DEFINES);
   material.defines = { ...(material.defines ?? {}), ...defines };
   shaded.add(material);
   material.onBeforeCompile = (shader) => {
@@ -517,8 +576,9 @@ function patchLit(material: THREE.MeshStandardMaterial, options: LitOptions): vo
     }
     shader.vertexShader = vs;
     shader.fragmentShader = fs;
+    if (options.pull) pullShader(material, shader);
   };
-  const key = `nx|${options.pattern ? 'p' : ''}|${options.surface === 'vertex' ? 'v' : 'f'}|${options.light ? 'l' : ''}`;
+  const key = `nx|${options.pattern ? 'p' : ''}|${options.surface === 'vertex' ? 'v' : 'f'}|${options.light ? 'l' : ''}|${options.pull ? 'pull' : ''}`;
   material.customProgramCacheKey = () => `${key}|${liteShading ? 'lite' : 'pbr'}`;
 }
 

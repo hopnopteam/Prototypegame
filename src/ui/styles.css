@@ -708,6 +708,7 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 @keyframes capIn { from { opacity: 0; translate: 0 18px; } }
 .cine-kicker { margin-bottom: 4px; font-size: 11px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase; color: var(--raspberry-dark); }
 .cine-text { font-size: 18px; font-weight: 800; line-height: 1.2; color: var(--ink); text-wrap: balance; }
+.in-tutorial .hud-row .menu-btn, .in-tutorial .hud-row .conductor-btn, .in-tutorial .side, .in-tutorial .trainmap, .in-tutorial .objective { opacity: 0.35; pointer-events: none; filter: saturate(0.4); }
 .in-intro .hud-top, .in-intro .side, .in-intro .trainmap, .in-intro .objective, .in-intro .offers { visibility: hidden; }
 .cine-skip {
   position: absolute; z-index: 61; top: calc(var(--safe-top) + 14px); right: var(--gutter); padding: 7px 14px; border-radius: 999px; border: 2.5px solid var(--ink);
@@ -832,3 +833,6 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
   .pill.cash { min-width: 58px; }
   .pill.gems { min-width: 46px; }
 }
+
+/* Session 32: the character debug panel (?debug=1). */
+.char-debug { position: absolute; left: 6px; bottom: 6px; z-index: 60; padding: 4px 6px; border-radius: 6px; background: rgba(20, 18, 28, 0.72); color: #CFE9C8; font: 10px/1.3 ui-monospace, monospace; white-space: pre; pointer-events: none; }

@@ -1,3 +1,4 @@
+import { iconFor } from '../config/itemIcons';
 import * as THREE from 'three';
 import { CARRIAGE_CATALOGUE, CARRIAGE_ICON, MAX_CARRIAGES, type BedMess, type ComfortKey, type MessPiece, type UnlockDef } from '../config/content';
 import { buildUnlocks, nextCarriage } from '../sim/unlockPlan';
@@ -152,6 +153,8 @@ const CLEAN_STEPS = 7;
 /** A room's lamp light at lights out (share of full), and how quickly the lights and blinds change. */
 const NIGHT_LIGHT = 0.15;
 /** The opening's Open carriage tile, and the dimmer key for its carriage's lights (session 22). */
+/** The room the tutorial opens with the carriage ("Cabin 2"). */
+const TUTORIAL_ROOM = 'c0.cabin_1';
 const OPEN_CARRIAGE = 'c0.open';
 const CARRIAGE_LIGHT = 'carriage:0';
 const NIGHT_FADE = 2.5;
@@ -264,6 +267,15 @@ export class TrainState {
       view.setAllBlinds(0);
       open();
       return;
+    }
+    // Session 32: the first-passengers tutorial opens with two made-up rooms (the second traveller's room comes with
+    // the carriage, so no upgrade tile shows until the tutorial is over).
+    if (w.coach?.tutorial) {
+      const second = w.unlocks.defs.find((d) => d.id === TUTORIAL_ROOM);
+      if (second && !w.unlocks.isUnlocked(second.id)) {
+        w.unlocks.forceComplete(second.id);
+        this.applyUnlock(second, false);
+      }
     }
     const tarp = view.takeCarriageCover();
     const beds = this.cabins.filter((c) => c.carriage === 0 && c.unlocked).map((c) => view.cabinBeds[c.index]);
@@ -1489,6 +1501,8 @@ export class TrainState {
       z: bath.restock.z,
       radius: ZONE_RADIUS.restock,
       icon: 'towel',
+      // Session 32: the badge shows what the shelf is short of (rolls when the towels are full).
+      iconFor: () => (bath.towels < max.bathroomTowelMax ? 'towel' : 'roll'),
       // Session 27: walk in with the towels and rolls; anywhere in the washroom stocks its shelf.
       area: (x, z) => inRoom(bath.room, x, z),
       active: () => bath.unlocked && (bath.towels < max.bathroomTowelMax || bath.rolls < max.bathroomRollMax),
@@ -1626,7 +1640,13 @@ export class TrainState {
       x: p.x,
       z: p.z,
       radius: ZONE_RADIUS.source,
-      icon: icon ?? (items.length > 1 ? 'linen' : items[0]),
+      icon: icon ?? (items.length > 1 ? 'linen' : iconFor(items[0])),
+      // Session 32: the badge shows what is wanted from here right now (a blanket, the paper, a coffee), never a
+      // fixed picture of the counter, so it matches the guest's bubble and what the player then carries.
+      iconFor: () => {
+        const wanted = specs.find((s) => w.demand.playerWants(s.kind) > 0) ?? specs.find((s) => w.demand.wants(w.player, s.kind));
+        return wanted ? iconFor(wanted.kind) : icon ?? (items.length > 1 ? 'linen' : iconFor(items[0]));
+      },
       kind: 'pickup',
       active: () => specs.some((s) => sourceActive(w, s)),
       highlight: () => specs.some((s) => w.demand.playerWants(s.kind) > 0 && s.stock() > 0),

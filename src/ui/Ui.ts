@@ -369,6 +369,9 @@ export class Ui implements GameUi {
       this.snapTimer = SNAPSHOT_SECONDS;
       this.snapshot();
     }
+    // Session 32: menus, the map and the side rail are dimmed and out of reach during the first-passengers tutorial.
+    const tutorial = g.coach?.tutorial ?? false;
+    if (tutorial !== this.root.classList.contains('in-tutorial')) this.root.classList.toggle('in-tutorial', tutorial);
     this.sinceSpeech += dt;
     this.rectTimer -= dt;
     if (this.rectTimer <= 0) this.measure();
@@ -761,7 +764,7 @@ export class Ui implements GameUi {
     // A line about a tile gives way to the tile's own label (its marker, or the close-up label when you are near):
     // one label per spot (session 16).
     const labelled = line && !('gesture' in line.anchor) && !this.onTile(line.anchor) ? line : null;
-    const key = labelled ? `${labelled.id}` : '';
+    const key = labelled ? `${labelled.id}:${labelled.text}` : '';
     if (key !== this.guide.key) {
       this.guide.key = key;
       this.guide.age = 0;
