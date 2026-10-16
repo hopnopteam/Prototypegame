@@ -264,9 +264,11 @@ vec4 nxSurface() {
  * strength there) and a lift of their own colours (a share of the albedo added as light: brighter, same hue),
  * like a hero's key light on a night set.
  */
-const HIGHLIGHT_EDGE_POWER = 4.0;
-const HIGHLIGHT_RIM = 0.5;
-const HIGHLIGHT_FILL = 0.22;
+// Session 33 (owner: "our main character looks slightly opaque"): the bright gold rim glowed round the whole outline,
+// so the edges read as see-through against the floor; now only a faint edge and a small colour lift remain.
+const HIGHLIGHT_EDGE_POWER = 6.0;
+const HIGHLIGHT_RIM = 0.1;
+const HIGHLIGHT_FILL = 0.08;
 /** The brightest a specular highlight may get (linear), kept under the bloom threshold. */
 const SPECULAR_MAX = Math.min(0.9, VISUALS.night.bloom.threshold * 0.9);
 

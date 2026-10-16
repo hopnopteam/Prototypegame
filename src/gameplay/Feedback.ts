@@ -120,6 +120,16 @@ export class Feedback {
     this.maybeSay('reviewBad', guest, 0.6);
   }
 
+  /**
+   * Session 33: a request brought late (half the tip) or very late (no tip). Always shown at the guest (Guests.fulfil);
+   * here the service mood dips (the Train Rating's service share), more for no tip.
+   */
+  onSlowDelivery(guest: Guest, noTip: boolean): void {
+    const w = this.w;
+    this.nudge(w.econ.feedback.mood.slow * (noTip ? 1.5 : 1));
+    if (this.cuesOn) this.maybeSay('slowService', guest, noTip ? 0.8 : 0.4);
+  }
+
   /** A guest found the washroom out of towels or rolls (once per visit). */
   onEmptyWashroom(guest: Guest, missing: 'towel' | 'roll'): void {
     if (!this.cuesOn) return;

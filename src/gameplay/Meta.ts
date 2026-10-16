@@ -112,7 +112,7 @@ export class Meta {
   // ─── The Station Master's Chest ──────────────────────────────────────────────
 
   chestUnlocked(): boolean {
-    return this.w.progression.isFeatureUnlocked('chest');
+    return this.w.econ.chest.enabled && this.w.progression.isFeatureUnlocked('chest');
   }
 
   /** Seconds until the chest is full again (0 when it is ready). */

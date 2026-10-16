@@ -14,6 +14,7 @@ import { PLATFORM, QUEUE_SPOTS, queueSpot, waitingSpot } from '../world/platform
 import { Mover, type Actor } from './Actor';
 import type { Bathroom, Cabin } from './TrainState';
 import type { World } from './World';
+import type { FloatKind } from './UiApi';
 import type { Zone } from './Zones';
 import type { Outing } from './Venues';
 import { ratingEffect } from '../sim/stationResult';
@@ -73,6 +74,8 @@ export class Guest {
   request: GuestRequest | null = null;
   /** Game time the current request was made (fast service earns a bigger tip). */
   requestAt = 0;
+  /** The request (by its time) they last got cross about (session 33), so the angry face shows once per request. */
+  crossAt = -1;
   /** The current request has waited too long (a soft cue: the bubble turns red). */
   slow = false;
   /** Already grumbled about an empty washroom this visit. */
@@ -795,7 +798,8 @@ export class Guests {
           guest.happyTime -= dt;
           if (guest.happyTime <= 0) this.afterRequest(guest);
         } else if (guest.request && guest.request !== 'bathroom') {
-          guest.view.showBubble(iconFor(guest.request), guest.slow ? 'alert' : guest.pending.length > 0 ? 'royal' : 'request', 1.85);
+          const waited = this.patience(guest);
+          guest.view.showBubble(iconFor(guest.request), waited !== 'calm' || guest.slow ? 'alert' : guest.pending.length > 0 ? 'royal' : 'request', 1.85);
         }
         break;
       case 'waitingBathroom': {
@@ -1002,25 +1006,65 @@ export class Guests {
     guest.view.act('wave', w.econ.guests.waveSeconds);
   }
 
+  /**
+   * Session 33: how a guest waiting for something feels (`service` in economy.ts). Impatient: the bubble turns red and
+   * they check their watch. Late: once, an angry face over them and a grumble. Never during the first-passengers
+   * tutorial.
+   */
+  private patience(guest: Guest): 'calm' | 'impatient' | 'late' | 'noTip' {
+    const w = this.w;
+    if (w.coach?.tutorial) return 'calm';
+    const s = w.econ.service;
+    const waited = w.time - guest.requestAt;
+    const mood = waited >= s.noTipSeconds ? 'noTip' : waited >= s.lateSeconds ? 'late' : waited >= s.impatientSeconds ? 'impatient' : 'calm';
+    if (mood === 'impatient' && guest.view.currentAction === 'none') guest.view.act('watch', 1.2);
+    if ((mood === 'late' || mood === 'noTip') && guest.crossAt !== guest.requestAt) {
+      guest.crossAt = guest.requestAt;
+      w.ui.floatIcon('angry', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'miss');
+      w.audio.play('grumble', { volume: 0.5 });
+      guest.view.act('stomp', 0.6);
+    }
+    return mood;
+  }
+
   private fulfil(guest: Guest, item: ServiceNeed, byPlayer: boolean): void {
     const w = this.w;
     if (guest.state !== 'requesting' || !guest.cabin) return;
     const service = w.econ.service;
     const elapsed = w.time - guest.requestAt;
-    const speed = elapsed <= service.speedySeconds ? service.speedyTipMultiplier : elapsed <= service.quickSeconds ? service.quickTipMultiplier : 1;
+    // Session 33: the faster, the bigger the tip; late halves it, very late pays nothing (not in the tutorial).
+    const lenient = w.coach?.tutorial ?? false;
+    const late = !lenient && elapsed >= service.lateSeconds;
+    const noTip = !lenient && elapsed >= service.noTipSeconds;
+    const speed = elapsed <= service.speedySeconds ? service.speedyTipMultiplier : elapsed <= service.quickSeconds ? service.quickTipMultiplier : noTip ? 0 : late ? service.lateTipMultiplier : 1;
     const comfort = guest.cabin ? w.train.cabinTipMultiplier(guest.cabin) : 1;
     const base = item === 'turndown' ? w.econ.classes.turndownTip : w.econ.money.requestTip;
     // Royal: the butler's list pays out with a flourish once everything on it has been brought.
     const listDone = CLASS_BY_ID[guest.cls].butler && guest.pending.length === 0 && item !== 'turndown';
     const butler = listDone ? w.econ.classes.butlerBonus : 1;
-    const tip = Math.max(1, Math.round(base * guest.archetype.tipMultiplier * w.tipMultiplier() * comfort * speed * butler));
-    w.cash.add(guest.cabin.pileId, tip, this.tmp.set(guest.pos.x, FLOOR_Y + 1.1, guest.pos.z));
-    // Only the top speed earns the bolt (session 26: one sign, for the fastest service, not one for every quick one).
-    if (byPlayer && speed >= service.speedyTipMultiplier) {
-      w.ui.floatIcon('bolt', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, speed >= service.speedyTipMultiplier ? 'star' : 'info');
+    const tip = noTip ? 0 : Math.max(1, Math.round(base * guest.archetype.tipMultiplier * w.tipMultiplier() * comfort * speed * butler));
+    if (tip > 0) w.cash.add(guest.cabin.pileId, tip, this.tmp.set(guest.pos.x, FLOOR_Y + 1.1, guest.pos.z));
+    // What they say about it (session 33): a word or two over them, so the player sees why the tip was what it was.
+    const say = (text: string, kind: FloatKind): void => w.ui.floatText(text, guest.pos.x, FLOOR_Y + 2.6, guest.pos.z, kind);
+    if (noTip) {
+      say('Too slow!', 'miss');
+      w.ui.floatIcon('angry', guest.pos.x, FLOOR_Y + 2.2, guest.pos.z, 'miss');
+      w.audio.play('grumble', { volume: 0.7 });
+      guest.view.act('stomp', 0.8);
+      w.feedback.onSlowDelivery(guest, true);
+    } else if (late) {
+      say('Finally…', 'miss');
+      w.ui.floatIcon('frown', guest.pos.x, FLOOR_Y + 2.2, guest.pos.z, 'miss');
+      w.feedback.onSlowDelivery(guest, false);
+    } else if (speed >= service.speedyTipMultiplier) {
+      // Only the top speed earns the bolt (session 26: one sign, for the fastest service).
+      if (byPlayer) w.ui.floatIcon('bolt', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'star');
+      say('Speedy!', 'star');
+    } else if (speed > 1) {
+      say('Thanks!', 'info');
     }
     w.addStars(w.econ.stars.requestFulfilled * CLASS_BY_ID[guest.cls].stars, 'request', byPlayer ? guest.pos : undefined);
-    w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.6, guest.pos.z, 5, 0.2);
+    if (!late) w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.6, guest.pos.z, 5, 0.2);
     // Session 29: one small ding for a request served (a little higher for the speediest service).
     w.audio.play('ding', { pitch: byPlayer && speed >= service.speedyTipMultiplier ? 1.12 : 1 });
     guest.view.bounce(1);
@@ -1042,7 +1086,7 @@ export class Guests {
     }
     // The turndown leaves a chocolate on the pillow.
     if (item === 'turndown') w.ui.floatIcon('turndown', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'info');
-    guest.view.showBubble('heart', 'plain', 1.75);
+    guest.view.showBubble(noTip ? 'angry' : late ? 'frown' : 'heart', late ? 'alert' : 'plain', 1.75);
     guest.happyTime = w.econ.guests.enjoySeconds;
     // They enjoy it where you can see it: a sip of the tea, coffee or champagne, the paper read, a hug of the blanket.
     const drink = item === 'tea' || item === 'coffee' || item === 'champagne' || item === 'breakfast';

@@ -901,6 +901,8 @@ export class Game implements World {
     // The flow moves on with the ride (the first fare collected, a stop behind the train): what is on show follows.
     e.on('ftue.step', ({ step }) => step === 'first_cash' && this.tiles.refresh());
     e.on('journey.phase', () => this.tiles.refresh());
+    // Session 33: the Open carriage tile appears once the last Millbrook ticket is sold.
+    e.on('guest.boarded', () => this.station.prologue && this.tiles.refresh());
   }
 
   applySettings(): void {

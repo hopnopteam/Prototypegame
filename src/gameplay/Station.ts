@@ -234,6 +234,15 @@ export class Station {
     this.prologueClock = 0;
   }
 
+  /**
+   * Session 33 (owner: "the train should open only after both tickets have been collected"): true while a Millbrook
+   * traveller is still to come or still to buy their ticket; the Open carriage tile waits for it.
+   */
+  get prologueTicketsLeft(): boolean {
+    if (!this.prologue) return false;
+    return this.prologueArrivals.length > 0 || this.w.guests.list.some((g) => g.state === 'platform' && !g.paid);
+  }
+
   /** Seconds since play began at Millbrook, and the travellers still to come out of the station house. */
   private prologueClock = 0;
   private prologueArrivals: { at: number; archetype?: string }[] = [];
@@ -753,27 +762,40 @@ export class Station {
   bellReady(): boolean {
     const w = this.w;
     const j = w.journey;
-    return j.phase === 'stationStop' && !this.prologue && this.bellRungFor !== j.stopSerial && w.flow.allows('bell') && j.timeLeft > w.econ.bell.before;
+    return j.phase === 'stationStop' && !this.prologue && this.bellRungFor !== j.stopSerial && w.flow.allows('bell') && j.timeLeft > w.econ.bell.before && this.platformDone();
   }
 
-  /** "All aboard!": the bell rings, everyone on the platform looks up, and latecomers hurry out of the station house. */
+  /** Everyone the train has a bed for is aboard and no bag is left on the barrow (or the rack is full). */
+  platformDone(): boolean {
+    const w = this.w;
+    if (!w.journey.doorsOpen) return false;
+    const waiting = Math.min(w.guests.platformGuests().length, w.guests.bedsFree());
+    const storageFull = w.train.luggageStored >= w.train.luggageCapacity;
+    return waiting === 0 && (this.luggagePile === 0 || storageFull);
+  }
+
+  /**
+   * "All aboard!" (session 33): the bell rings, everyone looks up, the doors close in a moment and every second
+   * saved is paid as an on-time bonus.
+   */
   private ringBell(): void {
     const w = this.w;
     const j = w.journey;
     const bell = PLATFORM.bell;
+    const rules = w.econ.bell;
     this.bellRungFor = j.stopSerial;
+    const saved = Math.max(0, j.timeLeft - rules.leaveIn);
+    const bonus = Math.round(saved * rules.bonusPerSecond * w.train.count);
     w.audio.play('bell');
     w.haptics.light();
     w.particles.emit('sparkle', bell.x - 0.32, FLOOR_Y + 1.2, bell.z, 12, 0.35);
-    w.ui.floatIcon('person', PLATFORM.houseDoor.x, FLOOR_Y + 2, PLATFORM.houseDoor.z, 'info');
     w.guests.lookUp();
-    const stop = j.stopSerial;
-    for (let i = 0; i < w.econ.bell.travellers; i++) {
-      w.tweens.delay(0.6 + i * w.econ.bell.stagger, () => {
-        if (j.phase !== 'stationStop' || j.stopSerial !== stop) return;
-        w.guests.spawnLatecomer(this.travellerClasses(stop, 1)[0]);
-      });
+    if (bonus > 0) {
+      w.wallet.add('cash', bonus, 'bell');
+      w.ui.floatText(`+${bonus}`, bell.x, FLOOR_Y + 2.2, bell.z, 'cash');
+      w.ui.floatIcon('clock', bell.x, FLOOR_Y + 2.7, bell.z, 'info');
     }
+    j.departIn(rules.leaveIn);
     w.events.emit('station.bell', { byPlayer: true, x: bell.x, z: bell.z });
   }
 

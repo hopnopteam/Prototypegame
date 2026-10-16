@@ -138,7 +138,9 @@ export class Tiles {
       // One guest first: the first upgrade appears once their fare is in the player's pocket.
       // Session 32: once the carriage is open, no upgrade shows until the first-passengers tutorial is over.
       const held = (w.coach?.tutorial ?? false) && w.unlocks.isUnlocked('c0.open');
-      const earned = !held && (w.data.profile.ftue.first_cash !== undefined || w.unlocks.paid(opening) > 0);
+      // (Open carriage waits for both Millbrook tickets: session 33.)
+      const ticketsLeft = opening === 'c0.open' && w.station.prologueTicketsLeft;
+      const earned = !held && !ticketsLeft && (w.data.profile.ftue.first_cash !== undefined || w.unlocks.paid(opening) > 0);
       for (const def of eligible) {
         if (this.entries.has(def.id) || ((def.id !== opening || !earned) && w.unlocks.paid(def.id) <= 0)) continue;
         const pos = this.positionFor(def);

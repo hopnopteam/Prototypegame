@@ -51,8 +51,8 @@ export const COACH_HINTS: CoachLineDef[] = [
   // Session 24, the night shift: shoes left out at lights out.
   { id: 'shoes', icon: 'shoe', text: 'Shine shoes' },
   { id: 'station', icon: 'ticket', text: 'All aboard' },
-  // Session 29: the station bell calls the latecomers.
-  { id: 'bell', icon: 'bell', text: 'Ring the bell' },
+  // Session 33: the bell sends the train off early once the platform is done (an on-time bonus).
+  { id: 'bell', icon: 'bell', text: 'All aboard!' },
   { id: 'hire', icon: 'person', text: 'Hire help' },
   { id: 'couple', icon: 'carriage', text: 'New carriage' },
   { id: 'refurb', icon: 'paint', text: 'Upgrade' },
@@ -77,7 +77,7 @@ export const COACH_GUIDANCE_LINES: Record<string, CoachLineDef> = {
   cash: { id: 'g_cash', icon: 'cash', text: 'Grab it' },
   clean: { id: 'g_clean', icon: 'broom', text: 'Tidy up' },
   shine: { id: 'g_shine', icon: 'shoe', text: 'Shine shoes' },
-  bell: { id: 'g_bell', icon: 'bell', text: 'Ring the bell' },
+  bell: { id: 'g_bell', icon: 'bell', text: 'All aboard!' },
   fetch: { id: 'g_fetch', icon: 'tea', text: 'Pick up' },
   deliver: { id: 'g_deliver', icon: 'heart', text: 'Deliver' },
   board: { id: 'g_board', icon: 'ticket', text: 'All aboard' },

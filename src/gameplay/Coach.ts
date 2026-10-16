@@ -257,7 +257,8 @@ export class Coach {
       case 'walk':
         return Math.hypot(w.player.pos.x - this.spawn.x, w.player.pos.z - this.spawn.z) > WALK_METRES || ftue.first_checkin !== undefined;
       case 'tickets':
-        return w.station.prologueTicketsDone || !w.station.prologue || ftue.first_checkin !== undefined;
+        // Session 33: both Millbrook tickets (the carriage opens only after the second).
+        return !w.station.prologue || !w.station.prologueTicketsLeft || ftue.first_unlock !== undefined;
       case 'cash':
         return ftue.first_cash !== undefined;
       case 'tile':

@@ -228,8 +228,6 @@ export class Guidance {
     const stack = player.stack;
 
     if (w.journey.doorsOpen) {
-      // Session 29: the bell first (a second's work, and its latecomers need the stop's time to board).
-      if (w.station.bellReady() && stack.isEmpty) return this.because('bell', PLATFORM.bellPad);
       const boarding = w.guests.canBoard() && w.staff.count('porter') === 0;
       if (boarding && stack.isEmpty) return this.because('board', w.station.boardingPoint());
       if (!stack.isFull && w.demand.playerWants('luggage') > 0 && !stack.has('luggage')) return this.because('luggage', w.station.luggagePoint());
@@ -251,6 +249,8 @@ export class Guidance {
     // the cash on the floor wait for the train to pull out: that one first.
     const now = w.tiles.stationBuy(cash);
     if (now) return this.because('tile', now.pos);
+    // Session 33: once the platform is done, "All aboard!" sends the train off early for an on-time bonus.
+    if (w.journey.doorsOpen && w.station.bellReady() && stack.isEmpty) return this.because('bell', PLATFORM.bellPad);
 
     const pile = w.cash.nearestWithCash(player.pos);
     if (pile && pile.value >= 1) return this.because('cash', { x: pile.x, z: pile.z });

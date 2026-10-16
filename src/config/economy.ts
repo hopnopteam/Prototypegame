@@ -206,7 +206,14 @@ export const ECONOMY = {
    * are left on the clock and `travellers` latecomers hurry out of the station house, one every `stagger` seconds:
    * more fares, more guests, a beat of its own in each stop. Once a stop; the porter leaves it to the conductor.
    */
-  bell: { seconds: 1, before: 16, travellers: 2, stagger: 0.8 },
+  /**
+   * Session 33 (owner: "the bell-ringing mechanic feels almost pointless… give it a meaningful purpose"): "All
+   * aboard!". Once the platform is done (everyone with a bed aboard, no bags left on the barrow) and more than
+   * `before` seconds are left, ringing it (`seconds` by the post) closes the doors `leaveIn` seconds later and pays
+   * `bonusPerSecond` × carriages for every second saved: a quick, clean stop is worth more, and the next leg (and
+   * its fares) comes sooner. It no longer calls latecomers.
+   */
+  bell: { seconds: 0.8, before: 8, leaveIn: 3, bonusPerSecond: 0.5 },
 
   /**
    * Session 30 (owner: "leaving the baggage of the customer should have some penalty or reduced fares… communicated so
@@ -312,11 +319,21 @@ export const ECONOMY = {
   },
 
   service: {
-    /** Deliver a request this fast for a bigger tip. Slower is never worse than the base tip. */
+    /** Deliver a request this fast for a bigger tip. */
     speedySeconds: 8,
     quickSeconds: 16,
     speedyTipMultiplier: 1.6,
     quickTipMultiplier: 1.25,
+    /**
+     * Session 33 (owner: "consequences for failing to deliver items to passengers on time… anger, smaller tips, or no
+     * tips at all… faster deliveries should obviously result in better rewards"): after `impatientSeconds` the request
+     * bubble turns red and they check their watch; after `lateSeconds` they get cross (an angry face, a grumble) and a
+     * delivery pays `lateTipMultiplier` of the tip; after `noTipSeconds` they pay nothing and storm about it.
+     */
+    impatientSeconds: 18,
+    lateSeconds: 30,
+    noTipSeconds: 48,
+    lateTipMultiplier: 0.5,
   },
 
   money: {
@@ -710,7 +727,8 @@ export const ECONOMY = {
    * is opened (the first is ready as soon as it unlocks), paying `cashPerCarriage` per carriage and `gems`. A reason to
    * look in a few times a day; never a reward for being away long (it holds one chest, not a pile).
    */
-  chest: { hours: 4, cashPerCarriage: 30, gems: 3 },
+  // Session 33 (owner: "we don't need daily chest, remove it"): off; true brings it back.
+  chest: { enabled: false, hours: 4, cashPerCarriage: 30, gems: 3 },
 
   daily: {
     loginRewards: [

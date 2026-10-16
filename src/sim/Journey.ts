@@ -159,6 +159,12 @@ export class Journey {
     if (this.phase === 'stationStop') this.stationDuration += seconds;
   }
 
+  /** The doors close in `seconds` if the stop had longer left (session 33: the bell's early departure). */
+  departIn(seconds: number): void {
+    if (this.phase !== 'stationStop' || this.held || this.timeLeft <= seconds) return;
+    this.stationDuration = this.time + seconds;
+  }
+
   /** A held stop gets going: the doors close in `seconds` (the last call sounds at once if that is short). */
   release(seconds: number): void {
     if (!this.held) return;
