@@ -1,3 +1,4 @@
+import { welded } from './weld';
 import * as THREE from 'three';
 import type { StaffRole } from '../core/types';
 import type { IconName } from '../ui/icons';
@@ -180,7 +181,7 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
     default:
       break;
   }
-  const geometry = b.build();
+  const geometry = welded(b.build());
   bodyCache.set(key, geometry);
   return geometry;
 }
@@ -206,7 +207,7 @@ function legGeometryFor(look: CharacterLook): THREE.BufferGeometry {
   const key = `leg:${f.pants}:${look.shoe}:${bare}:${look.skin}:${look.sock}`;
   let g = limbCache.get(key);
   if (!g) {
-    g = legGeometry(f.pants, look.shoe ?? SHOE, bare, look.skin, look.sock ?? '#F4F1EA');
+    g = welded(legGeometry(f.pants, look.shoe ?? SHOE, bare, look.skin, look.sock ?? '#F4F1EA'));
     limbCache.set(key, g);
   }
   return g;
@@ -219,7 +220,7 @@ function armGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry
   const key = `arm:${look.body}:${look.skin}:${f.long}:${carried}:${side}:${cuff}`;
   let g = limbCache.get(key);
   if (!g) {
-    g = armGeometry(look.body, look.skin, f.long, side, carried, cuff);
+    g = welded(armGeometry(look.body, look.skin, f.long, side, carried, cuff));
     limbCache.set(key, g);
   }
   return g;

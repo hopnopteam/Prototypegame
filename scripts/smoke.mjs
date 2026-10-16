@@ -185,6 +185,9 @@ const after = await page.evaluate(() => ({ unlocked: window.nightExpress.data.ro
 check(after.unlocked === before, `save survives a reload (${after.unlocked}/${before} unlocks)`);
 check(after.cabins === snap.openCabins, `cabins bought are still open after a reload (${after.cabins}/${snap.openCabins})`);
 
+// Draw calls in play, not in the loading screen's warm-up (it draws every layer once, culling off, on purpose).
+await page.waitForFunction(() => { const g = window.nightExpress; return !g.loading && !g.paused; }, null, { timeout: 30000 });
+await page.waitForTimeout(2000);
 const perf = await page.evaluate(() => ({ draws: window.nightExpress.stage.drawCalls }));
 check(perf.draws < 200, `${perf.draws} draw calls (budget 200)`);
 check(errors.length === 0, `no console errors${errors.length ? ':\n  ' + [...new Set(errors)].slice(0, 8).join('\n  ') : ''}`);

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
-import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MATERIALS, pullMaterial, pullTexture } from './materials';
+import { welded } from './weld';
+
+export { welded };
 
 /**
  * Everyone in the game drawn in one go. A character is a small hierarchy of meshes (body, legs, arms, the
@@ -25,20 +27,6 @@ const INITIAL_VERTICES = 60_000;
 const CULL_RADIUS = 1.4;
 const CULL_HEIGHT = 0.9;
 
-const welds = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
-/**
- * Session 32: a part's triangles with their shared corners welded (an indexed copy, cached). GeoBuilder's parts come
- * apart into three corners a triangle; welded, a smooth head or sleeve runs the vertex shader 4–5 times less.
- */
-export function welded(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
-  if (geometry.getIndex()) return geometry;
-  let w = welds.get(geometry);
-  if (!w) {
-    w = mergeVertices(geometry, 1e-4);
-    welds.set(geometry, w);
-  }
-  return w;
-}
 const INITIAL_INSTANCES = 256;
 /** A root detached from the scene this many frames is forgotten (its meshes draw themselves again). */
 const FORGET_FRAMES = 600;
@@ -76,7 +64,7 @@ function takeFree(free: Range[], count: number): number | null {
   return null;
 }
 
-interface Slot { vStart: number; vCount: number; iStart: number; iCount: number }
+interface Slot { vStart: number; vCount: number; iStart: number; iCount: number; visible: boolean }
 
 /**
  * Many characters' parts in one mesh and one draw (session 32, replacing three's BatchedMesh). BatchedMesh shared one
@@ -96,7 +84,11 @@ class Batch {
   private geometry!: THREE.BufferGeometry;
   private arrays: Float32Array[] = [];
   private inst!: Float32Array;
+  /** Every part's triangles (the CPU's copy); `drawn` holds only those of parts on screen, and is what is drawn. */
   private index: Uint32Array | null = null;
+  private drawn: Uint32Array | null = null;
+  private drawnCount = 0;
+  private visibilityDirty = false;
   private vertexCapacity: number;
   private indexCapacity: number;
   private vertexEnd = 0;
@@ -109,7 +101,6 @@ class Batch {
   private slotCapacity = INITIAL_INSTANCES;
   private texture!: THREE.DataTexture;
   private dirtyVertex: [number, number] = [Infinity, -1];
-  private dirtyIndex: [number, number] = [Infinity, -1];
   private matricesDirty = true;
 
   constructor(base: THREE.Material, reference: THREE.BufferGeometry, castShadow: boolean, vertexCapacity: number, readonly colours = false) {
@@ -182,8 +173,7 @@ class Batch {
     this.inst.fill(id, vStart, vStart + vCount);
     if (src && this.index) for (let i = 0; i < iCount; i++) this.index[iStart + i] = src.getX(i) + vStart;
     this.markVertices(vStart, vCount);
-    if (src) this.markIndices(iStart, iCount);
-    this.slots.set(id, { vStart, vCount, iStart, iCount });
+    this.slots.set(id, { vStart, vCount, iStart, iCount, visible: false });
     this.writeMatrix(id, HIDDEN, false);
     this.updateDrawRange();
     return id;
@@ -199,9 +189,9 @@ class Batch {
     this.freeVertices.push({ start: slot.vStart, count: slot.vCount });
     if (this.index && slot.iCount > 0) {
       this.index.fill(0, slot.iStart, slot.iStart + slot.iCount);
-      this.markIndices(slot.iStart, slot.iCount);
       this.freeIndices.push({ start: slot.iStart, count: slot.iCount });
     }
+    if (slot.visible) this.visibilityDirty = true;
     this.writeMatrix(id, HIDDEN, false);
     this.freeSlots.push(id);
   }
@@ -209,6 +199,11 @@ class Batch {
   /** The part's world matrix, or hidden; the highlight (the conductor's rim light) rides in an unused element. */
   set(id: number, visible: boolean, matrix: THREE.Matrix4, highlight: boolean): void {
     this.writeMatrix(id, visible ? matrix : HIDDEN, highlight && this.colours);
+    const slot = this.slots.get(id);
+    if (slot && slot.visible !== visible) {
+      slot.visible = visible;
+      this.visibilityDirty = true;
+    }
   }
 
   /** True when this instance number is in use (the debug checks). */
@@ -232,13 +227,22 @@ class Batch {
       inst.needsUpdate = true;
       this.dirtyVertex = [Infinity, -1];
     }
-    if (this.dirtyIndex[1] >= 0 && this.geometry.index) {
-      const [lo, hi] = this.dirtyIndex;
+    // Only the triangles of parts on screen are drawn: the list is rebuilt when someone comes into or goes out of
+    // view, a prop shows or hides, or a part joins or leaves (a few hundred kilobytes at most, now and then).
+    if (this.visibilityDirty && this.index && this.drawn && this.geometry.index) {
+      let n = 0;
+      for (const slot of this.slots.values()) {
+        if (!slot.visible || slot.iCount === 0) continue;
+        this.drawn.set(this.index.subarray(slot.iStart, slot.iStart + slot.iCount), n);
+        n += slot.iCount;
+      }
+      this.drawnCount = n;
       const index = this.geometry.index;
       index.clearUpdateRanges();
-      index.addUpdateRange(lo, hi - lo);
+      index.addUpdateRange(0, Math.max(1, n));
       index.needsUpdate = true;
-      this.dirtyIndex = [Infinity, -1];
+      this.updateDrawRange();
+      this.visibilityDirty = false;
     }
     if (this.matricesDirty) {
       this.texture.needsUpdate = true;
@@ -260,13 +264,8 @@ class Batch {
     this.dirtyVertex[1] = Math.max(this.dirtyVertex[1], start + count);
   }
 
-  private markIndices(start: number, count: number): void {
-    this.dirtyIndex[0] = Math.min(this.dirtyIndex[0], start);
-    this.dirtyIndex[1] = Math.max(this.dirtyIndex[1], start + count);
-  }
-
   private updateDrawRange(): void {
-    this.geometry.setDrawRange(0, this.indexed ? this.indexEnd : this.vertexEnd);
+    this.geometry.setDrawRange(0, this.indexed ? this.drawnCount : this.vertexEnd);
   }
 
   private allocateGeometry(): void {
@@ -289,7 +288,9 @@ class Batch {
       const index = new Uint32Array(this.indexCapacity);
       if (this.index) index.set(this.index.subarray(0, Math.min(this.index.length, index.length)));
       this.index = index;
-      g.setIndex(new THREE.BufferAttribute(index, 1).setUsage(THREE.DynamicDrawUsage));
+      this.drawn = new Uint32Array(this.indexCapacity);
+      this.visibilityDirty = true;
+      g.setIndex(new THREE.BufferAttribute(this.drawn, 1).setUsage(THREE.DynamicDrawUsage));
     }
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e5);
     this.geometry = g;
