@@ -66,7 +66,7 @@ Where the build stands, milestone by milestone (SPEC A12). Newest entries at the
   never stand again).
 - Floating finger anchor: past a full tilt the touch-down point follows the finger, so easing back straightens at once.
 
-**Checks:** `npm run build` exits 0; 33 unit tests; `npm run play` 23/23 touch checks, no console errors;
+**Checks:** `npm run build` exits 0; 34 unit tests; `npm run play` 23/23 touch checks, no console errors;
 `npm run shots` (every screen at 390×844 3×, plus 360×780 and 430×932, five motion strips); `npm run perf` with the
 CPU throttled 4×: about 6 ms of CPU per frame (budget 16.7), 0.3 ms per simulation step, at most 8 draw calls.
 Frame rate itself cannot be judged here (a software renderer draws about 4 frames a second at 2× pixels), so 60 fps
@@ -75,7 +75,9 @@ the course is built; every texture is uploaded during loading so effects never h
 
 **Bugs found by the checks and fixed:** a crashed suit's removed body was still read (a wasm "unreachable" crash);
 a fallen suit could never stand up; particles born late in a frame drew once at their texture's pixel size in
-metres (a full-screen flash of dust at every liftoff); a texture's first use hitched (now warmed at boot).
+metres (a full-screen flash of dust at every liftoff); a texture's first use hitched (now warmed at boot); the full, cracked and lost plate icons were all drawn as the same
+teal box (a placeholder rule matched the HUD icons too); the Results card and count-up were judged before they had
+played on the slow test renderer.
 
 **Open visual issues:** none scored: every screen still uses placeholders, which the spec never scores
 (Part B §12.6). The Visual QA starts with the style frame in Milestone 2.

@@ -79,7 +79,7 @@ function body(a: Asset, w: number, h: number): string {
       <rect x="${w * 0.5}" y="${h * 0.28}" width="${w * 0.42}" height="${h * 0.32}" rx="${h * 0.14}" fill="${PAL.lantern}" stroke="#2a2026" stroke-width="${w * 0.02}"/>`;
   }
   if (id.endsWith('.boot')) return box('#5f5049', `<rect x="${w * 0.18}" y="${h * 0.8}" width="${w * 0.64}" height="${h * 0.16}" rx="${h * 0.05}" fill="#2a2026"/>`);
-  if (id.includes('.plate.')) return box('#4f8f89');
+  if (id.startsWith('suit.') && id.includes('.plate.')) return box('#4f8f89');
   if (id.endsWith('.upper_arm') || id.endsWith('.thigh')) return box('#7c6555');
   if (id.endsWith('.forearm')) return box('#6e5b4e', `<circle cx="${w / 2}" cy="${h * 0.8}" r="${w * 0.42}" fill="#594a40" stroke="#2a2026" stroke-width="${w * 0.04}"/>`);
   if (id.startsWith('drone.w1')) {

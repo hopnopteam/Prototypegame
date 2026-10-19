@@ -94,10 +94,12 @@ try {
   await page.waitForFunction(() => window.__exo!.state().screen === 'results', undefined, { timeout: 90_000 });
   const title = await page.locator('.results-title').textContent();
   check('Results follow the tow', title === 'TOWED HOME', String(title));
-  await page.waitForTimeout(1000);
-  const shown = await page.locator('.results-height-num').textContent();
+  // The height counts up on screen; wait for it to land.
   s = await state(page);
-  check('Results show the height reached', Number(shown) === Math.floor(s.maxHeight), `${shown} m`);
+  const target = String(Math.floor(s.maxHeight));
+  await page.waitForFunction((t) => document.querySelector('.results-height-num')?.textContent === t, target, { timeout: 20_000 }).catch(() => undefined);
+  const shown = await page.locator('.results-height-num').textContent();
+  check('Results show the height reached', shown === target, `${shown} m (max ${s.maxHeight.toFixed(1)})`);
   await tapSelector(page, '.results-continue');
   await page.waitForFunction(() => window.__exo!.state().screen === 'workshop');
   s = await state(page);
