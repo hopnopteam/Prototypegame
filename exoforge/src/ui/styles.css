@@ -1,0 +1,804 @@
+/* EXOFORGE overlay styles. One dark visual world (no light theme): colours are tokens on :root.
+   Layout contract: the #frame is the portrait game area (full screen on phones, a centred 9:19.5 frame on desktop);
+   the canvas fills it and every overlay is positioned inside it on an 8 px grid with 16 px outer margins. */
+:root {
+  color-scheme: dark;
+  --bg: #0d0b14;
+  --ink: #2a1a12;
+  --ink-cool: #1b2340;
+  --cream: #fff2d6;
+  --amber: #ffb547;
+  --teal: #4fd1c5;
+  --danger: #ff5a3a;
+  --panel-text: #f2e6d0;
+  --muted: #b8aac4;
+  --display: 'Lilita One', 'Trebuchet MS', system-ui, sans-serif;
+  --body: 'Nunito', 'Segoe UI', system-ui, sans-serif;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--cream);
+  overscroll-behavior: none;
+}
+
+body,
+#app,
+#frame,
+#frame * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+}
+
+#frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+  font-family: var(--body);
+  background: #14121f;
+}
+
+#frame.letterbox {
+  width: min(100vw, calc(100vh * 9 / 19.5));
+  height: min(100vh, calc(100vw * 19.5 / 9));
+  border-radius: 18px;
+  box-shadow: 0 0 0 1px #2b2236, 0 24px 80px #000a;
+}
+
+#frame canvas.stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+button:focus,
+button:focus-visible {
+  outline: none;
+}
+
+/* Display text: cream with a thick dark outline and a drop shadow (SPEC B10). */
+.display {
+  font-family: var(--display);
+  color: var(--cream);
+  letter-spacing: 0.01em;
+  text-shadow:
+    -3px -3px 0 var(--ink), 3px -3px 0 var(--ink), -3px 3px 0 var(--ink), 3px 3px 0 var(--ink),
+    0 -3px 0 var(--ink), 0 3px 0 var(--ink), -3px 0 0 var(--ink), 3px 0 0 var(--ink),
+    0 6px 0 rgb(20 10 6 / 0.55);
+}
+
+.stencil {
+  font-family: var(--body);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------- vignette */
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgb(5 3 10 / 0.55) 100%);
+}
+
+/* ---------------------------------------------------------------- painted buttons and panels */
+.painted-btn {
+  border-style: solid;
+  border-color: transparent;
+  background: transparent;
+  min-height: 56px;
+  min-width: 160px;
+  padding: 0 24px 6px;
+  font-family: var(--display);
+  font-size: 28px;
+  color: var(--cream);
+  text-shadow:
+    -2px -2px 0 var(--ink), 2px -2px 0 var(--ink), -2px 2px 0 var(--ink), 2px 2px 0 var(--ink),
+    0 4px 0 rgb(20 10 6 / 0.5);
+  cursor: pointer;
+  transform-origin: 50% 60%;
+  transition: transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1), filter 80ms ease-out;
+  filter: drop-shadow(0 6px 6px rgb(0 0 0 / 0.45));
+}
+
+.painted-btn:active {
+  transform: translateY(4px) scale(0.98);
+  filter: brightness(0.9) drop-shadow(0 2px 2px rgb(0 0 0 / 0.45));
+  transition: transform 80ms ease-out, filter 80ms ease-out;
+}
+
+.painted-btn.suggested {
+  animation: suggest 1.6s ease-in-out infinite;
+}
+
+@keyframes suggest {
+  0%,
+  100% {
+    scale: 1;
+  }
+  50% {
+    scale: 1.02;
+  }
+}
+
+.painted-panel {
+  border-style: solid;
+  border-color: transparent;
+  color: var(--panel-text);
+  padding: 8px 16px 16px;
+  filter: drop-shadow(0 10px 18px rgb(0 0 0 / 0.5));
+}
+
+/* ---------------------------------------------------------------- HUD */
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hud[hidden] {
+  display: none;
+}
+
+.hud-left {
+  position: absolute;
+  top: calc(16px + var(--safe-top));
+  left: calc(16px + var(--safe-left));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hud-plates {
+  display: flex;
+  gap: 4px;
+}
+
+.hud-plates .plate {
+  width: 34px;
+  height: 34px;
+  filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.5));
+}
+
+.hud-plates.pulse {
+  animation: pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.hud-callsign {
+  font-size: 11px;
+  color: var(--muted);
+  padding-left: 2px;
+}
+
+.hud-height {
+  position: absolute;
+  top: calc(8px + var(--safe-top));
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 48px;
+  line-height: 1;
+}
+
+.hud-unit {
+  font-size: 26px;
+}
+
+.rolling {
+  display: inline-flex;
+}
+
+.roll-col {
+  display: inline-block;
+  /* Each digit cell is taller than the digit, so the outline fits and the neighbours stay out of view. */
+  height: 1.6em;
+  width: 0.62em;
+  overflow: hidden;
+  margin: -0.3em 0;
+  padding: 0 4px;
+}
+
+.roll-col.blank {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.roll-strip {
+  display: flex;
+  flex-direction: column;
+  transition: transform 120ms ease-out;
+}
+
+.roll-digit {
+  height: 1.6em;
+  line-height: 1.6em;
+  text-align: center;
+}
+
+.hud-pause {
+  position: absolute;
+  top: calc(12px + var(--safe-top));
+  right: calc(16px + var(--safe-right));
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.hud-pause img {
+  width: 44px;
+  height: 44px;
+  display: block;
+}
+
+.hud-pause:active {
+  transform: translateY(2px) scale(0.96);
+}
+
+.hud-dials {
+  position: absolute;
+  left: calc(16px + var(--safe-left));
+  bottom: calc(24px + var(--safe-bottom));
+  display: flex;
+  gap: 8px;
+}
+
+.dial {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  filter: drop-shadow(0 4px 4px rgb(0 0 0 / 0.5));
+}
+
+.dial img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.dial .needle {
+  transition: transform 60ms linear;
+}
+
+.dial.warn .face {
+  animation: warn 0.36s ease-in-out infinite alternate;
+}
+
+.dial.sputter {
+  animation: shake 0.12s linear infinite;
+}
+
+.dial.low .face {
+  animation: warn 0.6s ease-in-out infinite alternate;
+}
+
+.dial.pulse {
+  animation: pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes warn {
+  from {
+    filter: none;
+  }
+  to {
+    filter: brightness(1.5) drop-shadow(0 0 10px var(--danger));
+  }
+}
+
+@keyframes shake {
+  0% {
+    translate: 0 0;
+  }
+  25% {
+    translate: -2px 1px;
+  }
+  50% {
+    translate: 2px -1px;
+  }
+  75% {
+    translate: -1px -1px;
+  }
+}
+
+@keyframes pop {
+  0% {
+    scale: 1;
+  }
+  40% {
+    scale: 1.22;
+  }
+  100% {
+    scale: 1;
+  }
+}
+
+.course-bar {
+  position: absolute;
+  right: calc(16px + var(--safe-right));
+  top: calc(96px + var(--safe-top));
+  bottom: calc(176px + var(--safe-bottom));
+  width: 10px;
+  border-radius: 5px;
+  background: rgb(10 8 16 / 0.55);
+  box-shadow: inset 0 0 0 2px rgb(255 242 214 / 0.18);
+}
+
+.course-tick {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  height: 2px;
+  background: rgb(255 242 214 / 0.35);
+}
+
+.course-exit {
+  position: absolute;
+  top: -6px;
+  left: -5px;
+  width: 20px;
+  height: 8px;
+  border-radius: 4px;
+  background: #fff6c2;
+  box-shadow: 0 0 10px #ffe9a0;
+}
+
+.course-suit {
+  position: absolute;
+  left: -4px;
+  width: 18px;
+  height: 18px;
+  margin-bottom: -9px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 3px var(--ink), 0 0 10px var(--amber);
+}
+
+.course-best {
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  height: 3px;
+  background: var(--cream);
+}
+
+.course-best-flag {
+  position: absolute;
+  right: 14px;
+  top: -14px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--cream);
+}
+
+.course-best-flag img {
+  width: 22px;
+  height: 22px;
+}
+
+.fx-text-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.float-text {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 26px;
+  white-space: nowrap;
+  animation: float-up 0.95s ease-out forwards;
+}
+
+.float-text.rest {
+  color: #dff6ff;
+}
+
+.float-text.patch {
+  color: #b8fff6;
+}
+
+.float-text.warn {
+  color: #ffd2b8;
+  font-size: 22px;
+}
+
+@keyframes float-up {
+  0% {
+    opacity: 0;
+    scale: 0.5;
+    translate: 0 8px;
+  }
+  18% {
+    opacity: 1;
+    scale: 1.15;
+  }
+  35% {
+    scale: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 -42px;
+  }
+}
+
+/* ---------------------------------------------------------------- Workshop */
+.workshop-ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.workshop-ui[hidden] {
+  display: none;
+}
+
+.workshop-top {
+  position: absolute;
+  top: calc(16px + var(--safe-top));
+  left: 16px;
+  right: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.workshop-chapter {
+  font-size: 22px;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.workshop-best {
+  position: absolute;
+  top: calc(56px + var(--safe-top));
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.workshop-fly {
+  position: absolute;
+  left: 50%;
+  bottom: calc(96px + var(--safe-bottom));
+  translate: -50% 0;
+  min-width: 220px;
+  min-height: 72px;
+  font-size: 40px;
+  pointer-events: auto;
+}
+
+.workshop-note {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(40px + var(--safe-bottom));
+  text-align: center;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(255 242 214 / 0.45);
+}
+
+/* ---------------------------------------------------------------- Results and pause */
+.results,
+.pause-sheet {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 0 16px;
+  background: rgb(8 6 14 / 0.6);
+  animation: fade-in 220ms ease-out;
+}
+
+.results[hidden],
+.pause-sheet[hidden] {
+  display: none;
+}
+
+.results-panel,
+.pause-panel {
+  width: min(340px, 100%);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  animation: panel-open 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.pause-panel {
+  gap: 16px;
+  padding-bottom: 24px;
+}
+
+.results-title,
+.pause-title {
+  font-size: 26px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.results-height {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 72px;
+  line-height: 1;
+  margin: 8px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.results-height-unit {
+  font-size: 36px;
+}
+
+.results-best {
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.results-best.new {
+  font-family: var(--display);
+  font-size: 30px;
+  color: var(--amber);
+  animation: pop 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.results-rows {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.results-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgb(0 0 0 / 0.25);
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.results-row b {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.results-plates {
+  display: flex;
+  gap: 4px;
+}
+
+.results-plates img {
+  width: 26px;
+  height: 26px;
+}
+
+.results-continue {
+  min-width: 240px;
+  min-height: 64px;
+  font-size: 32px;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes panel-open {
+  from {
+    scale: 0.8;
+    opacity: 0;
+  }
+}
+
+.confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.confetti i {
+  position: absolute;
+  top: -12px;
+  width: 9px;
+  height: 14px;
+  border-radius: 2px;
+  animation: confetti-fall linear forwards;
+}
+
+@keyframes confetti-fall {
+  to {
+    translate: var(--drift) 110vh;
+    rotate: var(--spin);
+  }
+}
+
+/* ---------------------------------------------------------------- boot and errors */
+.boot {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-size: 34px;
+  color: var(--cream);
+  background: #14121f;
+}
+
+.boot small {
+  display: block;
+  font-family: var(--body);
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 12px;
+  max-width: 300px;
+}
+
+/* ---------------------------------------------------------------- debug panel (tooling, not game UI) */
+.debug-panel {
+  position: absolute;
+  inset: 0 0 34% 0;
+  overflow-y: auto;
+  z-index: 50;
+  padding: calc(8px + var(--safe-top)) 12px 16px;
+  background: rgb(12 10 18 / 0.94);
+  font: 600 13px/1.3 var(--body);
+  color: #e8e0f0;
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: pan-y;
+}
+
+.debug-panel[hidden] {
+  display: none;
+}
+
+.debug-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 16px;
+}
+
+.debug-status {
+  margin: 4px 0 8px;
+  color: #9fe7dd;
+  font-variant-numeric: tabular-nums;
+}
+
+.debug-panel section {
+  border-top: 1px solid #3a3346;
+  padding: 6px 0;
+}
+
+.debug-panel h4 {
+  margin: 4px 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #c8b8d8;
+}
+
+.debug-panel button {
+  min-height: 34px;
+  padding: 0 10px;
+  margin: 2px 4px 2px 0;
+  border: 1px solid #5a5068;
+  border-radius: 8px;
+  background: #2a2434;
+  color: #f0e8f8;
+}
+
+.debug-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+}
+
+.debug-slider {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 8px;
+  padding: 2px 0;
+}
+
+.debug-slider input {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.debug-slider.changed span,
+.debug-slider.changed output {
+  color: var(--amber);
+}
+
+.debug-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.debug-out {
+  width: 100%;
+  min-height: 140px;
+  box-sizing: border-box;
+  background: #0b0a10;
+  color: #cfe;
+  font: 12px/1.3 ui-monospace, monospace;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .painted-btn.suggested,
+  .dial.warn .face,
+  .dial.sputter,
+  .float-text {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}

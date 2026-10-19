@@ -146,6 +146,26 @@ describe('impacts', () => {
   });
 });
 
+describe('getting up', () => {
+  it('a suit knocked flat on its side stands back up by itself', () => {
+    const run = boxRun();
+    run.suit.teleport(0, 1.3);
+    run.suit.body.setRotation(Math.PI / 2, true);
+    fly(run, 3, IDLE);
+    expect(Math.abs(run.suit.tilt)).toBeLessThan(0.2);
+    run.dispose();
+  });
+
+  it('holding a tilt into the floor does not leave it lying down', () => {
+    const run = boxRun();
+    fly(run, 0.6, HOLD);
+    fly(run, 1.6, { hold: true, tilt: -1 });
+    fly(run, 3, IDLE);
+    expect(Math.abs(run.suit.tilt)).toBeLessThan(0.3);
+    run.dispose();
+  });
+});
+
 describe('rest', () => {
   it('a gentle landing on a ledge rests and cools three times faster', () => {
     const run = boxRun();

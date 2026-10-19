@@ -12,6 +12,9 @@ import { PLATES } from './rig';
 
 export type RunPhase = 'flight' | 'ragdoll' | 'tow' | 'done';
 
+/** Below the course's floor by this much, a suit has left the course. */
+const OUT_OF_COURSE_M = 8;
+
 export interface RunStats {
   maxHeight: number;
   /** Distinct ledges rested on. */
@@ -133,6 +136,13 @@ export class Run {
 
   private checkFlightEnd(dt: number): void {
     const suit = this.suit;
+    // Safety net: a suit that somehow left the course (it should never) ends the run instead of falling forever.
+    if (suit.soles().y < -OUT_OF_COURSE_M) {
+      this.endReason = 'crash';
+      suit.disableCollisions();
+      this.startTow(suit.body, suit.params.massKg);
+      return;
+    }
     if (suit.soles().y >= this.course.exitY) {
       this.events.push({ type: 'exit' });
       this.finish('exit');
@@ -143,7 +153,8 @@ export class Run {
       this.endReason = 'crash';
       this.ragdoll = new Ragdoll(this.world, suit.body, suit.facing, suit.params.massKg, PLATES.length, suit.params.friction);
       for (const plate of this.ragdoll.plates) this.events.push({ type: 'plateOff', index: plate.index });
-      this.world.removeRigidBody(suit.body);
+      // Disabled rather than removed, so anything still reading the flight body stays safe.
+      suit.body.setEnabled(false);
       this.setPhase('ragdoll');
       return;
     }

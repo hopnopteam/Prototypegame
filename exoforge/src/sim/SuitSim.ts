@@ -2,7 +2,7 @@
 // with heat, battery, armor and rest (SPEC A5.2, A6). Pure simulation: no rendering.
 import { RAPIER, LAYER, groups, NO_COLLISION, type World, type RigidBody, type Collider } from './physics';
 import { FLIGHT_SHAPES } from './rig';
-import { G0, HEAT, IMPACT, REST, type SuitParams, type WorldPhysics } from '../econ/balance';
+import { G0, GET_UP, HEAT, IMPACT, REST, type SuitParams, type WorldPhysics } from '../econ/balance';
 import { newHeat, stepHeat, thrustFactor, type HeatState } from './Heat';
 import { impactDamage, patched } from './Damage';
 import type { PilotInput } from './Input';
@@ -57,6 +57,7 @@ export class Suit {
   readonly vectors: SuitVectors = { thrust: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, com: { x: 0, y: 0 }, contacts: [] };
 
   private restTimer = 0;
+  private fallenTimer = 0;
   private patchTimer = -1;
   private patchLedge: string | null = null;
   private lastHitTime = -1;
@@ -78,7 +79,7 @@ export class Suit {
     private readonly env: WorldPhysics,
     private readonly flags: SuitFlags,
   ) {
-    this.params = params;
+    this.params = { ...params };
     this.integrity = params.plates;
     this.terrain = terrain;
     this.ledges = ledges;
@@ -182,6 +183,16 @@ export class Suit {
     let torque = p.gyroKp * strength * error - p.gyroKd * Math.sqrt(strength) * w;
     const maxTorque = p.gyroMaxTorque * strength;
     torque = Math.max(-maxTorque, Math.min(maxTorque, torque));
+    // Fallen over on the ground: push back up, toward the asked tilt if holding, else upright.
+    if (this.wasGrounded && Math.abs(angle) > GET_UP.angleDeg * DEG) {
+      this.fallenTimer += dt;
+      if (this.fallenTimer > GET_UP.delay) {
+        const ramp = Math.min(1, (this.fallenTimer - GET_UP.delay) / GET_UP.rampSeconds);
+        torque += Math.sign(error) * GET_UP.torquePerKg * p.massKg * ramp - p.gyroKd * w * 0.5;
+      }
+    } else {
+      this.fallenTimer = 0;
+    }
     this.body.applyTorqueImpulse(torque * dt, true);
 
     // Facing follows the tilt asked for, with a dead band so it never flickers.
@@ -338,6 +349,14 @@ export class Suit {
       if (x >= l.x1 - tol && x <= l.x2 + tol && Math.abs(y - l.y) <= tol) return l;
     }
     return null;
+  }
+
+  /** Debug tuning: take new flight numbers mid-run (mass and inertia included). */
+  retune(params: SuitParams): void {
+    Object.assign(this.params, params);
+    const p = this.params;
+    this.body.setAdditionalMassProperties(p.massKg, { x: 0, y: p.comHeight }, p.massKg * p.gyrationRadius * p.gyrationRadius, true);
+    this.integrity = Math.min(this.integrity, p.plates);
   }
 
   /** Stops the suit touching anything (while it is towed off). */

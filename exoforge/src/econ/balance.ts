@@ -170,6 +170,18 @@ export const TOW = {
   cableLength: 1.4,
 };
 
+/** A suit lying on the ground pushes itself back up (otherwise a toppled suit could never stand again). */
+export const GET_UP = {
+  /** Tilted more than this (degrees) while touching the ground counts as fallen over. */
+  angleDeg: 55,
+  /** Seconds lying there before it starts to push up. */
+  delay: 0.25,
+  /** Righting torque per kilogram of suit, newton-metres (about mass × g × 1.2 m: enough to stand). */
+  torquePerKg: 12,
+  /** Seconds for the push to build to full. */
+  rampSeconds: 0.35,
+};
+
 export const BATTERY_END = {
   /** The run ends once a suit with a flat battery is slower than this (m/s)… */
   restSpeed: 0.25,
