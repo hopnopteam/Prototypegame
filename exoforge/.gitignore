@@ -1,0 +1,10 @@
+node_modules/
+dist/
+qa/shots/
+qa/sheets/
+art/incoming/*
+!art/incoming/.gitkeep
+# Third-party style references stay local: this repository is public.
+art/references/*
+!art/references/README.md
+*.log

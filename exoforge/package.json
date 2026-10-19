@@ -1,0 +1,35 @@
+{
+  "name": "exoforge",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "EXOFORGE: Scrap to Sky - a physics-based exo-suit building and flight game",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "test": "vitest run",
+    "chunks": "vite --host --open /tools/chunk-editor/index.html",
+    "art:placeholders": "tsx tools/art-placeholders.ts",
+    "shots": "tsx tools/shots.ts",
+    "play": "tsx tools/play.ts",
+    "check": "npm run build && npm test"
+  },
+  "dependencies": {
+    "@dimforge/rapier2d-deterministic-compat": "^0.21.0",
+    "@fontsource/lilita-one": "^5.3.0",
+    "@fontsource/nunito": "^5.3.0",
+    "earcut": "^3.2.4",
+    "pixi.js": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/earcut": "^3.0.0",
+    "@types/node": "^26.6.5",
+    "sharp": "^0.35.5",
+    "tsx": "^4.23.15",
+    "typescript": "5.9",
+    "vite": "^8.3.4",
+    "vite-plugin-singlefile": "^2.3.4",
+    "vitest": "^5.0.5"
+  }
+}
