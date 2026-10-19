@@ -98,6 +98,7 @@ export class SuitView {
   private pieceTracks: Track[] = [];
   private plateTracks: Track[] = [];
   private ragdollShown = false;
+  private pieceOrder: PieceId[] = [];
   private facing = 1;
   private flip = 1;
   private readonly swings = {
@@ -382,16 +383,13 @@ export class SuitView {
     this.pieceOrder = order.map((p) => p.id);
     for (const p of this.plates) p.visible = false;
     this.plateTracks = ragdoll.plates.map((p) => new Track(p.body));
-    ragdoll.plates.forEach((p, i) => {
+    for (const p of ragdoll.plates) {
       const s = this.loosePlates[p.index];
       s.visible = true;
       s.scale.x = Math.abs(s.scale.x) * ragdoll.facing;
       this.root.addChild(s);
-      void i;
-    });
+    }
   }
-
-  private pieceOrder: PieceId[] = [];
 
   private renderRagdoll(alpha: number): void {
     const ragdoll = this.run!.ragdoll!;
@@ -418,12 +416,10 @@ export class SuitView {
     const breath = 1 + Math.sin(time * 2.2) * 0.012;
     this.rig.scale.set(scale * facing, scale * breath);
     this.rig.rotation = 0;
-    const s = this.swings;
     this.placeChain('upperArmFar', 'forearmFar', -0.08 + Math.sin(time * 1.3) * 0.02, 0.3);
     this.placeChain('upperArmNear', 'forearmNear', 0.06 + Math.sin(time * 1.1 + 1) * 0.02, 0.4);
     this.placeChain('thighFar', 'bootFar', 0.02, -0.02);
     this.placeChain('thighNear', 'bootNear', -0.02, 0.0);
-    void s;
     const torso = this.nodes.torso;
     torso.position.set(PIECE_BY_ID.torso.cx, -PIECE_BY_ID.torso.cy);
     for (const f of this.flames) for (const sp of [f.outer, f.mid, f.core, f.glow]) sp.visible = false;

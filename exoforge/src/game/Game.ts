@@ -60,9 +60,11 @@ export class Game {
   state: GameState;
   readonly states: { workshop: WorkshopState; flight: FlightState; results: ResultsState };
   /** Frame timing for the debug status and the automated checks. */
-  readonly perf = { fps: 60, frameMs: 16.7, simMsPerStep: 0, steps: 0, maxDrawCalls: 0 };
+  readonly perf = { fps: 60, frameMs: 16.7, simMsPerStep: 0, steps: 0, maxDrawCalls: 0, cpuFrameMs: 0, cpuFrameMaxMs: 0 };
   private last = 0;
   private running = false;
+  /** Slow frames (for the perf check): what was on screen when they happened. */
+  readonly spikes: { ms: number; screen: string; chunks: number; tick: number }[] = [];
 
   constructor(readonly frameEl: HTMLElement, readonly stage: Stage) {
     this.course = buildCourse(this.world.index, this.world.chunks);
@@ -122,8 +124,14 @@ export class Game {
         this.perf.frameMs += (dt * 1000 - this.perf.frameMs) * 0.1;
         this.perf.fps = 1000 / this.perf.frameMs;
       }
+      const t0 = performance.now();
       this.state.frame(dt);
       this.stage.render();
+      // CPU time of a frame (the GPU's share runs after this): what the 4× throttled check reads.
+      const cpu = performance.now() - t0;
+      this.perf.cpuFrameMs += (cpu - this.perf.cpuFrameMs) * 0.05;
+      this.perf.cpuFrameMaxMs = Math.max(this.perf.cpuFrameMaxMs, cpu);
+      if (cpu > 25 && this.spikes.length < 20) this.spikes.push({ ms: Math.round(cpu), screen: this.state.name, chunks: this.terrain.builtCount, tick: this.run?.tick ?? 0 });
       this.perf.maxDrawCalls = Math.max(this.perf.maxDrawCalls, this.stage.drawCalls);
       requestAnimationFrame(loop);
     };
@@ -144,6 +152,12 @@ export class Game {
     this.workshopBackdrop.scale.set(cover);
     this.workshopBackdrop.position.set((widthPx - tex.width * cover) / 2, (heightPx - tex.height * cover) / 2);
     this.parallax.resize();
+  }
+
+  /** Where the suit's torso is on screen, CSS px (screenshot crops). */
+  suitScreen(): { x: number; y: number } {
+    const p = this.suitView.torsoPoint();
+    return this.stage.layers.world.toGlobal({ x: p.x, y: -p.y });
   }
 
   /** Read-only state for the automated play checks (window.__exo). */
@@ -174,6 +188,8 @@ export class Game {
       eventCounts: this.states.flight.eventCounts,
       drawCalls: this.stage.drawCalls,
       maxDrawCalls: this.perf.maxDrawCalls,
+      cpuFrameMs: this.perf.cpuFrameMs,
+      cpuFrameMaxMs: this.perf.cpuFrameMaxMs,
       fps: this.perf.fps,
       simMsPerStep: this.perf.simMsPerStep,
       particles: this.particles.count,

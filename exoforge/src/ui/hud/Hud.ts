@@ -1,6 +1,7 @@
 // The flight HUD (SPEC A5.2): height at the top, armor plates top-left with the callsign under them, the course bar
 // on the right, heat and battery dials lower-left, and a small pause button. Everything else shows on the suit.
 import { el, img, replay, RollingNumber } from '../common/dom';
+import { assetUrl } from '../../render/assets';
 import { plateStates, type PlateState } from '../../sim/Damage';
 import type { Run } from '../../sim/Run';
 import { HEAT } from '../../econ/balance';
@@ -91,7 +92,7 @@ export class Hud {
       this.plateCache[i] = s;
       const e = this.plateEls[i];
       if (!e) return;
-      e.src = img(`ui.icon.plate.${s}`).src;
+      e.src = assetUrl(`ui.icon.plate.${s}`);
     });
     const heat = suit.heat.heat;
     this.heatNeedle.style.transform = `rotate(${-NEEDLE_SWEEP + heat * 2 * NEEDLE_SWEEP}deg)`;

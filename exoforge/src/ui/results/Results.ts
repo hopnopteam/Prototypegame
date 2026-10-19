@@ -2,6 +2,7 @@
 // one CONTINUE button. Scrap and its bonuses join in Milestone 3.
 import { el, img, paintedButton, paintedPanel } from '../common/dom';
 import type { RunStats } from '../../sim/Run';
+import { plateStates } from '../../sim/Damage';
 
 const TITLES: Record<string, string> = {
   crash: 'TOWED HOME',
@@ -31,10 +32,7 @@ export class Results {
     const plates = el('div', 'results-row');
     plates.append(el('span', '', 'Armor left'));
     const icons = el('span', 'results-plates');
-    for (let i = 0; i < stats.plates; i++) {
-      const state = stats.platesLeft >= i + 1 - 1e-9 ? 'full' : stats.platesLeft > i + 1e-9 ? 'cracked' : 'lost';
-      icons.append(img(`ui.icon.plate.${state}`));
-    }
+    for (const state of plateStates(stats.platesLeft, stats.plates)) icons.append(img(`ui.icon.plate.${state}`));
     plates.append(icons);
     const rests = el('div', 'results-row');
     rests.append(el('span', '', 'Ledges rested on'), el('b', '', String(stats.rests)));

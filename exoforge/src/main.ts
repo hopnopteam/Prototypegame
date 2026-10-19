@@ -3,7 +3,7 @@ import '@fontsource/lilita-one';
 import '@fontsource/nunito/800.css';
 import './ui/styles.css';
 import { initPhysics } from './sim/physics';
-import { loadAssets } from './render/assets';
+import { allTextures, loadAssets } from './render/assets';
 import { Stage } from './render/Stage';
 import { VIEW } from './render/config';
 import { Game } from './game/Game';
@@ -43,6 +43,7 @@ async function boot(): Promise<void> {
     await Promise.all([document.fonts.load('48px "Lilita One"'), document.fonts.load('800 16px "Nunito"'), initPhysics(), loadAssets()]);
     const stage = new Stage(frame);
     await stage.init();
+    stage.warmUp(allTextures());
     const game = new Game(frame, stage);
     window.__exo = { state: () => game.snapshot(), game };
     loading.remove();

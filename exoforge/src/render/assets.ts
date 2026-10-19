@@ -46,6 +46,11 @@ export function entry(id: string): AssetEntry {
   return e;
 }
 
+/** Every loaded texture (for the boot warm-up). */
+export function allTextures(): Texture[] {
+  return [...textures.values()];
+}
+
 /** Loads every manifest asset. Placeholders fill in anything without final art. */
 export async function loadAssets(): Promise<{ final: number; placeholder: number }> {
   let final = 0;

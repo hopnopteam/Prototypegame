@@ -13,7 +13,9 @@
     "art:placeholders": "tsx tools/art-placeholders.ts",
     "shots": "tsx tools/shots.ts",
     "play": "tsx tools/play.ts",
-    "check": "npm run build && npm test"
+    "check": "npm run build && npm test",
+    "artifact": "npm run build && tsx tools/artifact.ts",
+    "perf": "tsx tools/perf.ts"
   },
   "dependencies": {
     "@dimforge/rapier2d-deterministic-compat": "^0.21.0",

@@ -124,6 +124,7 @@ function decorSprite(kind: string, x: number, y: number): Sprite | null {
 
 export class TerrainView {
   private readonly built = new Map<number, Container>();
+  private readonly decorFor = new Map<number, Container>();
 
   constructor(
     private readonly course: Course,
@@ -151,8 +152,6 @@ export class TerrainView {
   get builtCount(): number {
     return this.built.size;
   }
-
-  private readonly decorFor = new Map<number, Container>();
 
   private build(chunk: CourseChunk): Container {
     const group = new Container();

@@ -61,7 +61,7 @@ export class Particles {
     sprite.tint = spec.tint ?? 0xffffff;
     sprite.visible = true;
     (spec.additive ? this.additive : this.normal).addChild(sprite);
-    this.live.push({
+    const live: Live = {
       sprite,
       x: spec.x,
       y: spec.y,
@@ -80,7 +80,20 @@ export class Particles {
       age: 0,
       baseW: w,
       baseH: h,
-    });
+    };
+    this.live.push(live);
+    // Placed and sized at once: a particle born after this frame's update must not draw at its texture's size.
+    this.apply(live, 0);
+  }
+
+  private apply(p: Live, t: number): void {
+    const size = p.size + (p.sizeEnd - p.size) * t;
+    const s = p.sprite;
+    s.position.set(p.x, toScreenY(p.y));
+    s.width = p.baseW * size;
+    s.height = p.baseH * size;
+    s.alpha = p.alpha + (p.alphaEnd - p.alpha) * t;
+    s.rotation = p.align ? Math.atan2(-p.vy, p.vx) : p.rotation;
   }
 
   update(dt: number): void {
@@ -97,14 +110,7 @@ export class Particles {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.rotation += p.spin * dt;
-      const t = p.age / p.life;
-      const size = p.size + (p.sizeEnd - p.size) * t;
-      const s = p.sprite;
-      s.position.set(p.x, toScreenY(p.y));
-      s.width = p.baseW * size;
-      s.height = p.baseH * size;
-      s.alpha = p.alpha + (p.alphaEnd - p.alpha) * t;
-      s.rotation = p.align ? Math.atan2(-p.vy, p.vx) : p.rotation;
+      this.apply(p, p.age / p.life);
     }
   }
 

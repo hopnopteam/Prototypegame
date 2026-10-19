@@ -1,6 +1,6 @@
 // The Pixi stage: one canvas in the portrait frame, layers in draw order, and the world-to-screen scale.
 // World units are metres with +y up; the world container flips to Pixi's +y down (see toScreenY).
-import { Application, Container } from 'pixi.js';
+import { Application, Container, RenderTexture, Sprite, type Texture } from 'pixi.js';
 import { VIEW } from './config';
 
 export interface Layers {
@@ -71,6 +71,20 @@ export class Stage {
       this.measure();
       for (const fn of this.resizeListeners) fn();
     }).observe(this.host);
+  }
+
+  /** Uploads every texture to the GPU once while loading, so no effect hitches the first time it shows. */
+  warmUp(textures: Texture[]): void {
+    const holder = new Container();
+    for (const t of textures) {
+      const s = new Sprite(t);
+      s.width = s.height = 4;
+      holder.addChild(s);
+    }
+    const target = RenderTexture.create({ width: 8, height: 8 });
+    this.app.renderer.render({ container: holder, target });
+    holder.destroy({ children: true });
+    target.destroy(true);
   }
 
   onResize(fn: () => void): void {

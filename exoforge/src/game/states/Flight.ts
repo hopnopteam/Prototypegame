@@ -3,6 +3,7 @@
 import type { Game, GameState } from '../Game';
 import { Run } from '../../sim/Run';
 import { CRASH, MAX_STEPS_PER_FRAME, SIM_DT } from '../../econ/balance';
+import type { PilotInput } from '../../sim/Input';
 
 /** Seconds the last frame of a run holds before Results (longer for the exit). */
 const END_HOLD = { crash: 0.35, battery: 0.35, exit: 1.0, quit: 0 } as const;
@@ -15,6 +16,9 @@ export class FlightState implements GameState {
   eventCounts: Record<string, number> = {};
   private acc = 0;
   private endTimer = 0;
+  /** Tooling (screenshots): real time stops; scripted() advances play by exact amounts with a fixed input. */
+  manual = false;
+  private override: PilotInput | null = null;
 
   constructor(private readonly game: Game) {
     game.hud.pauseButton.addEventListener('click', () => this.setPaused(true));
@@ -81,11 +85,24 @@ export class FlightState implements GameState {
     this.game.camera.snap(cx, cy);
   }
 
+  /** Tooling: plays exactly `seconds` in 1/60 s frames with one input, then draws. */
+  scripted(seconds: number, input: PilotInput): void {
+    this.override = input;
+    const frames = Math.max(1, Math.round(seconds * 60));
+    for (let i = 0; i < frames && this.game.state === this; i++) this.update(1 / 60);
+    this.override = null;
+    this.game.stage.render();
+  }
+
   frame(dt: number): void {
+    this.update(this.manual ? 0 : dt);
+  }
+
+  private update(dt: number): void {
     const g = this.game;
     const run = g.run;
     if (!run) return;
-    const frozen = this.paused || g.debug.open;
+    const frozen = this.paused || g.debug.open || dt === 0;
     if (!frozen) {
       let scale = g.debug.settings.slowMo ? SLOW_MOTION : 1;
       if (run.phase === 'ragdoll' || run.phase === 'tow') scale *= CRASH.timeScale;
@@ -94,7 +111,7 @@ export class FlightState implements GameState {
       const t0 = performance.now();
       while (this.acc >= SIM_DT && steps < MAX_STEPS_PER_FRAME && !run.done) {
         g.suitView.capture();
-        run.step(g.input.sample());
+        run.step(this.override ?? g.input.sample());
         this.acc -= SIM_DT;
         steps++;
       }

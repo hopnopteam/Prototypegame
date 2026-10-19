@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { formatChunkJson } from './src/sim/chunkFormat';
 
 // Lets the chunk editor save straight into src/content/chunks while the dev server runs.
 function chunkSaver(): Plugin {
@@ -17,7 +18,7 @@ function chunkSaver(): Plugin {
             const chunk = JSON.parse(body) as { id?: unknown };
             if (typeof chunk.id !== 'string' || !/^w\d+_\d+$/.test(chunk.id)) throw new Error('bad chunk id');
             const file = resolve(__dirname, 'src/content/chunks', `${chunk.id}.json`);
-            writeFileSync(file, `${JSON.stringify(chunk, null, 2)}\n`);
+            writeFileSync(file, formatChunkJson(chunk));
             res.end(JSON.stringify({ ok: true, file }));
           } catch (error) {
             res.statusCode = 400;
