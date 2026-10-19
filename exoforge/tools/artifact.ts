@@ -4,7 +4,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = join(import.meta.dirname, '..');
-const html = readFileSync(join(root, 'dist/index.html'), 'utf8');
+const dir = process.argv[2] ?? 'dist';
+const html = readFileSync(join(root, dir, 'index.html'), 'utf8');
 const page = html
   .replace(/<!doctype html>\s*/i, '')
   .replace(/<html[^>]*>\s*/i, '')
@@ -15,5 +16,5 @@ const page = html
 // The title must sit in the first 8 KB, before the inlined script.
 const title = page.indexOf('<title>');
 if (title < 0 || title > 8000) throw new Error('The page title must come first');
-writeFileSync(join(root, 'dist/exoforge.html'), page);
-console.log(`artifact: dist/exoforge.html (${(page.length / 1e6).toFixed(2)} MB)`);
+writeFileSync(join(root, dir, 'exoforge.html'), page);
+console.log(`artifact: ${dir}/exoforge.html (${(page.length / 1e6).toFixed(2)} MB)`);

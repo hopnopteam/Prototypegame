@@ -8,8 +8,9 @@ Where the build stands, milestone by milestone (SPEC A12). Newest entries at the
   separate game with its own package; the Night Express files around it are untouched. The repo could not be
   created from the session (GitHub refused it), so it lives here until it gets its own repository; `git subtree
   split --prefix=exoforge` will move it with its history.
-- **Play link (phone):** see the latest entry. The cloud build environment cannot serve a phone over Wi-Fi, so each
-  milestone is published as one self-contained page (`npm run artifact` → `dist/exoforge.html`).
+- **Play link (phone):** https://claude.ai/artifact/Lj6VWjbBSKzCRTBymD3cbX (private to the owner; republish
+  `dist-play/exoforge.html` to the same link: `npx vite build --outDir dist-play && npx tsx tools/artifact.ts dist-play`).
+  The cloud build environment cannot serve a phone over Wi-Fi, so each milestone is published as one self-contained page.
 - **Style references:** `art/references/` (not committed: third-party art in a public repo; see its README).
 
 ## Commands (run in `exoforge/`)
@@ -24,7 +25,7 @@ Where the build stands, milestone by milestone (SPEC A12). Newest entries at the
 | `npm run perf` | 15 s of flying with the CPU throttled 4×: CPU frame and sim cost, draw calls |
 | `npm run chunks` | The chunk editor (draw and check course chunks; saves into `src/content/chunks/`) |
 | `npm run art:placeholders` | Placeholders for every manifest entry, into `art/placeholders/` |
-| `npm run artifact` | Build plus the page published as the play link |
+| `npm run artifact` | Build plus the page published as the play link (`dist/exoforge.html`) |
 
 ## Milestone 1: flight feel in greybox
 
