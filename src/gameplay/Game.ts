@@ -603,7 +603,7 @@ export class Game implements World {
     rig.clampZ[1] = this.map.rearZ + REAR_DECK_LENGTH - VISUALS.camera.endMargin * 0.5;
     this.frameCamera();
     this.updateCinematic(realDt);
-    rig.update(realDt, this.player.pos.x, this.player.pos.z);
+    rig.update(realDt, this.player.pos.x, this.player.pos.z, this.player.heading, this.player.speedNow);
     this.scenery.present(realDt, rig.focusPoint, night, this.stage.size, rig.zoomNow);
     this.particles.setNight(night);
     // Particle sizes are tuned at one device pixel per CSS pixel: keep them the same size on sharp screens.

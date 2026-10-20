@@ -10,6 +10,20 @@ export const WORLD_UI_LAYER = 1;
 
 const DEG = Math.PI / 180;
 
+declare const __CAMERA_MODE__: string;
+
+/** 'iso' (the three-quarter dollhouse view) or 'third' (behind the conductor): build flag, then ?cam= in the address. */
+function cameraMode(): 'iso' | 'third' {
+  let mode = typeof __CAMERA_MODE__ === 'string' ? __CAMERA_MODE__ : 'iso';
+  try {
+    const q = new URLSearchParams(location.search).get('cam');
+    if (q) mode = q;
+  } catch {
+    // No location (tests).
+  }
+  return mode === 'third' ? 'third' : 'iso';
+}
+
 /**
  * Three-quarter follow camera. The world is laid out in train coordinates (x across the train, +x the land
  * side; z along it, the locomotive toward -z) and never rotates: the camera orbits it instead, so the
@@ -46,12 +60,25 @@ export class CameraRig {
   private yaw = 0;
   private pitch = 0;
   private fov = 33;
+  readonly mode = cameraMode();
+  /** Third person: the ground angle the camera looks along (direction (sin, cos), like the conductor's facing). */
+  private heading = Math.PI;
 
   constructor() {
     const c = VISUALS.camera;
-    this.camera = new THREE.PerspectiveCamera(c.fovDeg, 9 / 16, c.near, c.far);
+    const third = this.mode === 'third';
+    this.camera = new THREE.PerspectiveCamera(c.fovDeg, 9 / 16, third ? c.third.near : c.near, c.far);
     this.camera.layers.enable(WORLD_UI_LAYER);
-    this.setAngles(c.trainYawDeg, c.pitchDeg, c.fovDeg);
+    if (third) this.setAngles(0, c.third.pitchDeg, c.third.fovDeg);
+    else this.setAngles(c.trainYawDeg, c.pitchDeg, c.fovDeg);
+    if (third) this.setHeading(this.heading);
+  }
+
+  /** Third person: points the view along a ground angle. */
+  private setHeading(h: number): void {
+    this.heading = h;
+    this.forward.set(Math.sin(h), Math.cos(h));
+    this.right.set(-this.forward.y, this.forward.x);
   }
 
   /** Re-aims the view (degrees). Everything else follows automatically. */
@@ -85,7 +112,7 @@ export class CameraRig {
   resize(aspect: number): void {
     this.camera.aspect = aspect;
     const halfFov = (this.fov / 2) * DEG;
-    this.baseDistance = VISUALS.camera.minVisibleWidth / (2 * Math.tan(halfFov) * aspect);
+    this.baseDistance = this.mode === 'third' ? VISUALS.camera.third.distance : VISUALS.camera.minVisibleWidth / (2 * Math.tan(halfFov) * aspect);
     this.camera.updateProjectionMatrix();
   }
 
@@ -108,7 +135,8 @@ export class CameraRig {
     }
     // Ground distances along the view are foreshortened on screen by sin(pitch): undo it.
     const a = sx;
-    const b = sy / Math.sin(this.pitch);
+    // Third person: the stick is read straight against the camera's ground directions (up is forward).
+    const b = this.mode === 'third' ? sy : sy / Math.sin(this.pitch);
     let gx = a * this.right.x - b * this.forward.x;
     let gz = a * this.right.y - b * this.forward.y;
     const snap = VISUALS.camera.axisSnapDeg * DEG;
@@ -169,11 +197,15 @@ export class CameraRig {
   }
 
   snapTo(x: number, z: number): void {
-    this.focus.set(x, 0, z - VISUALS.camera.lookAhead);
+    this.focus.set(x, 0, z - (this.mode === 'third' ? 0 : VISUALS.camera.lookAhead));
     this.initialised = false;
   }
 
-  update(dt: number, followX: number, followZ: number): void {
+  update(dt: number, followX: number, followZ: number, facing?: number, speed = 0): void {
+    if (this.mode === 'third') {
+      this.updateThird(dt, followX, followZ, facing, speed);
+      return;
+    }
     const cfg = VISUALS.camera;
     // Slow, even easing so framing changes read as a glide, never a jolt.
     const c = this.contextNow;
@@ -224,6 +256,64 @@ export class CameraRig {
     const fz = this.focus.z + this.right.y * sr;
     cam.position.set(fx - this.forward.x * back, Math.sin(this.pitch) * distance + su, fz - this.forward.y * back);
     cam.lookAt(fx, 0, fz);
+  }
+
+  /**
+   * Behind and above the conductor. While they walk, the camera swings round behind them, but only as far as
+   * they walk away from it: walking toward the camera does not spin it round (the stick is read against the
+   * camera, so a spin would turn the walk with it).
+   */
+  private updateThird(dt: number, followX: number, followZ: number, facing: number | undefined, speed: number): void {
+    const cfg = VISUALS.camera;
+    const t = cfg.third;
+    const c = this.contextNow;
+    c.zoom = damp(c.zoom, this.context.zoom, cfg.contextSharpness, dt);
+    if (facing !== undefined && speed > t.turnFromSpeed && this.overrideTime <= 0) {
+      let delta = facing - this.heading;
+      delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+      const away = Math.max(0, Math.cos(delta));
+      const k = 1 - Math.exp(-t.yawSharpness * away * dt);
+      this.setHeading(this.heading + delta * k);
+    }
+    let tx = followX + this.forward.x * t.lookAhead;
+    let tz = followZ + this.forward.y * t.lookAhead;
+    let zoom = this.zoom * c.zoom;
+    let sharpness = cfg.followSharpness * 1.6;
+    if (this.overrideTarget && this.overrideTime > 0) {
+      this.overrideTime -= dt;
+      tx = this.overrideTarget.x;
+      tz = this.overrideTarget.z;
+      // Celebrations pull back a little so the whole carriage or room reads.
+      zoom *= this.overrideZoom * 1.5;
+      sharpness = this.overrideSharpness;
+      if (this.overrideTime <= 0) this.overrideTarget = null;
+    }
+    if (!this.initialised) {
+      this.focus.set(tx, 0, tz);
+      this.distance = this.baseDistance * zoom;
+      this.initialised = true;
+    }
+    this.focus.x = damp(this.focus.x, tx, sharpness, dt);
+    this.focus.z = damp(this.focus.z, tz, sharpness, dt);
+    this.distance = damp(this.distance, this.baseDistance * zoom, Math.min(3, sharpness), dt);
+    if (this.punchAmount > 0.001) this.punchAmount = damp(this.punchAmount, 0, 6, dt);
+    else this.punchAmount = 0;
+    let sr = 0;
+    let su = 0;
+    if (this.shakeTime > 0) {
+      this.shakeTime -= dt;
+      const k = this.shakeStrength * Math.min(1, this.shakeTime * 3) * 0.4;
+      sr = (Math.random() - 0.5) * k;
+      su = (Math.random() - 0.5) * k;
+      if (this.shakeTime <= 0) this.shakeStrength = 0;
+    }
+    const distance = this.distance * (1 - this.punchAmount);
+    const back = Math.cos(this.pitch) * distance;
+    const fx = this.focus.x + this.right.x * sr;
+    const fz = this.focus.z + this.right.y * sr;
+    const y = t.lookHeight;
+    this.camera.position.set(fx - this.forward.x * back, y + Math.sin(this.pitch) * distance + su, fz - this.forward.y * back);
+    this.camera.lookAt(fx, y, fz);
   }
 
   /** The current zoom relative to the default framing (above 1 is further out). */

@@ -37,6 +37,27 @@ export const VISUALS = {
     axisSnapDeg: 12,
     /** Metres of the world beyond the train's ends the view may show (scenery always covers more). */
     endMargin: 4,
+    /**
+     * Third-person test camera (session 34, owner: "how would the game look with a third-person camera"): behind
+     * and above the conductor, turning to follow the way they walk. Build with CAMERA=third, or add ?cam=third
+     * (or ?cam=iso) to the address.
+     */
+    third: {
+      /** Metres from the look point to the camera. */
+      distance: 6.2,
+      /** Degrees the camera looks down. */
+      pitchDeg: 30,
+      fovDeg: 55,
+      /** Height of the look point above the floor (about the conductor's chest). */
+      lookHeight: 1.0,
+      /** Metres the look point leads ahead of the conductor. */
+      lookAhead: 1.6,
+      /** How briskly the camera swings round behind the conductor while they walk (higher is snappier). */
+      yawSharpness: 2.4,
+      /** Below this walking speed (m/s) the camera holds its angle. */
+      turnFromSpeed: 0.6,
+      near: 0.15,
+    },
   },
 
   /**
