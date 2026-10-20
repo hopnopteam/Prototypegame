@@ -1,7 +1,7 @@
 # Night Express playable ad
 
 `night-express-playable.html` is the whole ad: one self-contained file (code, art, font and sounds inlined; no
-external requests), about 1.1 MB. It is built from the game's own world code, so carriages, characters, the platform,
+external requests), about 1.12 MB. It is built from the game's own world code, so carriages, characters, the platform,
 cash and sounds are the real game's; the game itself is untouched.
 
 ## The flow (about five minutes)

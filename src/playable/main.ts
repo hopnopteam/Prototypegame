@@ -783,7 +783,7 @@ function updateBack(dt: number): void {
   player.stackAnchor.getWorldPosition(anchorPos);
   const fx = Math.sin(me.facing);
   const fz = Math.cos(me.facing);
-  backBase.set(anchorPos.x - fx * 0.62, anchorPos.y - 0.1, anchorPos.z - fz * 0.62);
+  backBase.set(anchorPos.x - fx * 0.55, anchorPos.y - 0.1, anchorPos.z - fz * 0.55);
   if (dt > 0) {
     const ax = (me.vx * me.speed - lastVx) / dt;
     const az = (me.vz * me.speed - lastVz) / dt;
@@ -808,7 +808,7 @@ function updateBack(dt: number): void {
   for (let i = 0; i < n; i++) {
     const h = i * BILL_STEP * squash;
     const bend = (h / 1.2) * (h / 1.2);
-    dummy.position.set(backBase.x + lean.x * bend, backBase.y + h, backBase.z + lean.z * bend);
+    dummy.position.set(clampX(backBase.x + lean.x * bend), backBase.y + h, backBase.z + lean.z * bend);
     dummy.rotation.set(0, me.facing + Math.PI / 2, 0);
     const s = i === n - 1 ? 1 + backBounce * 0.25 : 1;
     dummy.scale.set(s, s, s);
@@ -822,7 +822,12 @@ function backTopPos(): THREE.Vector3 {
   const n = Math.min(backCount, BACK_MAX);
   const h = n * BILL_STEP;
   const bend = (h / 1.2) * (h / 1.2);
-  return backTop.set(backBase.x + lean.x * bend, backBase.y + h + 0.04, backBase.z + lean.z * bend);
+  return backTop.set(clampX(backBase.x + lean.x * bend), backBase.y + h + 0.04, backBase.z + lean.z * bend);
+}
+/** Bills never poke through the carriage's side walls (the inner walls are knee-high, below the stack). */
+const STACK_WALL = INNER - 0.2;
+function clampX(x: number): number {
+  return Math.max(-STACK_WALL, Math.min(STACK_WALL, x));
 }
 
 // ================================================================ jobs at the furniture (the game's own job badges)
