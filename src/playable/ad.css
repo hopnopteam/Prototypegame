@@ -1,0 +1,71 @@
+html, body { height: 100%; margin: 0; background: #1C2740; overflow: hidden; overscroll-behavior: none; }
+body { font-family: 'Jost', 'Futura', 'Century Gothic', 'Trebuchet MS', sans-serif; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none; }
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 48%, transparent 58%, rgba(12, 10, 30, 0.38)); }
+#ui { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+
+.ad-cash { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px;
+  padding: 4px 18px 4px 8px; border-radius: 999px; background: linear-gradient(#FFFDF6, #F1E3C4); border: 3px solid #2B2230; box-shadow: 0 4px 0 #2B2230, inset 0 -3px 0 rgba(0,0,0,0.08);
+  font-weight: 800; font-size: 26px; color: #2B2230; font-variant-numeric: tabular-nums; }
+.ad-cash canvas { width: 34px; height: 34px; }
+.ad-cash.bump { animation: bump 0.22s ease-out; }
+@keyframes bump { 40% { transform: translateX(-50%) scale(1.14); } }
+
+.ad-banner { position: absolute; top: 18%; left: 50%; transform: translate(-50%, -20px) scale(0.6); opacity: 0; text-align: center; white-space: nowrap; transition: none; }
+.ad-banner.on { animation: bannerIn 1.9s ease-out forwards; }
+.ad-banner b { display: block; font-size: clamp(30px, 9vw, 52px); font-weight: 900; color: #FFE15A; letter-spacing: 0.02em;
+  -webkit-text-stroke: 7px #3B1466; paint-order: stroke fill; text-shadow: 0 5px 0 #3B1466; }
+.ad-banner i { display: inline-block; margin-top: 6px; font-style: normal; font-weight: 800; font-size: clamp(14px, 4vw, 20px); color: #fff; background: rgba(59, 20, 102, 0.85); padding: 4px 12px; border-radius: 999px; border: 2px solid #fff; }
+@keyframes bannerIn {
+  0% { opacity: 0; transform: translate(-50%, -20px) scale(0.4); }
+  14% { opacity: 1; transform: translate(-50%, 0) scale(1.15); }
+  24% { transform: translate(-50%, 0) scale(1); }
+  85% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -14px) scale(0.95); }
+}
+
+.ad-float { position: absolute; transform: translate(-50%, -50%); font-weight: 900; font-size: 30px; color: #7CFF6B; -webkit-text-stroke: 6px #14431A; paint-order: stroke fill;
+  animation: floatUp 1.1s ease-out forwards; white-space: nowrap; }
+@keyframes floatUp { 0% { opacity: 0; transform: translate(-50%, -30%) scale(0.5); } 18% { opacity: 1; transform: translate(-50%, -60%) scale(1.2); } 100% { opacity: 0; transform: translate(-50%, -260%) scale(1); } }
+
+.ad-hand { position: absolute; left: 0; top: 0; width: 74px; height: 88px; margin: -8px 0 0 -30px; opacity: 0; pointer-events: none; transform-origin: 30px 8px;
+  filter: drop-shadow(0 4px 0 rgba(0,0,0,0.25)); transition: opacity 0.2s; display: none; }
+.ad-hand.on { display: block; }
+
+.ad-cta { position: absolute; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%) scale(0); pointer-events: auto; border: 4px solid #1C3B0E; border-radius: 22px;
+  padding: 12px 40px 14px; font: inherit; font-weight: 900; font-size: 28px; color: #fff; letter-spacing: 0.03em; -webkit-text-stroke: 5px #1C3B0E; paint-order: stroke fill;
+  white-space: nowrap; background: linear-gradient(#9BF04A, #4DC21E); box-shadow: 0 6px 0 #1C3B0E, inset 0 4px 0 rgba(255,255,255,0.45); transition: transform 0.25s cubic-bezier(.3,1.6,.6,1); }
+.ad-cta.on { transform: translateX(-50%) scale(1); animation: ctaPulse 1s ease-in-out 0.3s infinite; }
+@keyframes ctaPulse { 50% { transform: translateX(-50%) scale(1.07); } }
+
+/* The end card, after the reference: a purple card with the next hotel, its rewards, a big green button. */
+.ad-end { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.7em; font-size: min(4.3vw, 2.5vh);
+  background: rgba(40, 6, 52, 0.55); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity 0.35s; }
+.ad-end.on { opacity: 1; pointer-events: auto; }
+.ad-end-title { font-weight: 900; font-size: 1.95em; color: #fff; letter-spacing: 0.01em; -webkit-text-stroke: 0.22em #5B12A6; paint-order: stroke fill; text-shadow: 0 0.12em 0 #3B0C70; white-space: nowrap; }
+.ad-end-card { width: 15.5em; padding: 0.75em; border-radius: 1.6em; background: linear-gradient(#9B3BF0, #7A1FD6); box-shadow: 0 0.25em 0 #4A0E8C, 0 0.8em 2em rgba(0,0,0,0.4);
+  display: flex; flex-direction: column; gap: 0.55em; padding-bottom: 1.1em; }
+.ad-end-art { position: relative; border-radius: 1.2em; background: radial-gradient(circle at 50% 42%, #B14DFF 0%, #7D1BD8 46%, #5C0FA8 100%); aspect-ratio: 1 / 0.86; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.ad-end-glow { position: absolute; inset: -30%; background: repeating-conic-gradient(from 0deg, rgba(255,255,255,0.10) 0deg 10deg, transparent 10deg 24deg); animation: spin 14s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ad-hotel { position: relative; width: 92%; height: 92%; filter: drop-shadow(0 0.3em 0.2em rgba(40, 0, 80, 0.35)); }
+.ad-end.on .ad-hotel { animation: hotelIn 0.7s cubic-bezier(.3,1.5,.5,1) both 0.15s; }
+@keyframes hotelIn { from { transform: scale(0.3) translateY(20%); opacity: 0; } }
+.puff { animation: puff 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.puff.p2 { animation-delay: -0.8s; } .puff.p3 { animation-delay: -1.6s; }
+@keyframes puff { 50% { transform: translateY(-4px) scale(1.12); } }
+.ad-end-row { position: relative; margin: 0 1.1em 0 1.9em; height: 2.6em; border-radius: 1.3em; background: #8C2EE8; box-shadow: inset 0 0.12em 0 rgba(0,0,0,0.12); display: flex; align-items: center; justify-content: center; }
+.ad-end-row b { font-weight: 900; font-size: 1.9em; color: #fff; -webkit-text-stroke: 0.16em #5B12A6; paint-order: stroke fill; }
+.ad-end-ico { position: absolute; left: -1.2em; top: 50%; width: 3.4em; height: 3.4em; transform: translateY(-50%); }
+.ad-end-ico svg { width: 100%; height: 100%; filter: drop-shadow(0 0.12em 0 rgba(60,0,90,0.45)); }
+.ad-end.on .ad-end-row { animation: rowIn 0.45s cubic-bezier(.3,1.6,.6,1) both; }
+.ad-end.on .ad-end-row:nth-child(2) { animation-delay: 0.45s; } .ad-end.on .ad-end-row:nth-child(3) { animation-delay: 0.6s; }
+@keyframes rowIn { from { transform: scale(0.3); opacity: 0; } }
+.ad-end-btn { margin-top: 0.4em; width: 15.5em; padding: 0.35em 0 0.45em; border-radius: 0.8em; border: 0.18em solid #1C3B0E; font: inherit; font-weight: 900; font-size: 1.85em; color: #fff;
+  letter-spacing: 0.02em; white-space: nowrap; -webkit-text-stroke: 0.16em #1C3B0E; paint-order: stroke fill; background: linear-gradient(#A6F542, #4DC21E); box-shadow: 0 0.2em 0 #2C7A12, inset 0 0.15em 0 rgba(255,255,255,0.5);
+  width: 8.4em; }
+.ad-end.on .ad-end-btn { animation: rowIn 0.45s cubic-bezier(.3,1.6,.6,1) both 0.8s, btnPulse 1s ease-in-out 1.4s infinite; }
+@keyframes btnPulse { 50% { transform: scale(1.06); } }
+
+/* Landscape: the card and the button side by side would crowd; the em scale above already fits the height. */
+@media (orientation: landscape) { .ad-end { font-size: min(2.6vw, 2.9vh); } }
