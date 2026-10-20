@@ -68,3 +68,9 @@ body { font-family: 'Jost', 'Futura', 'Century Gothic', 'Trebuchet MS', sans-ser
 
 /* Landscape: the card and the button side by side would crowd; the em scale above already fits the height. */
 @media (orientation: landscape) { .ad-end { font-size: min(2.6vw, 2.75vh); } }
+/* Landscape: the banner keeps to the top, small, never over the conductor in the middle of the screen. */
+@media (orientation: landscape) {
+  .ad-banner { top: 64px; }
+  .ad-banner b { font-size: clamp(22px, 4.2vh, 34px); -webkit-text-stroke-width: 5px; }
+  .ad-banner i { font-size: 13px; }
+}

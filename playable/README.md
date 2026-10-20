@@ -1,20 +1,21 @@
 # Night Express playable ad
 
 `night-express-playable.html` is the whole ad: one self-contained file (code, art, font and sounds inlined; no
-external requests), about 1.12 MB. It is built from the game's own world code, so carriages, characters, the platform,
+external requests), about 1.1 MB. It is built from the game's own world code, so carriages, characters, the platform,
 cash and sounds are the real game's; the game itself is untouched.
 
-## The flow (about five minutes)
+## The flow (about a minute; started from the first, quick version)
 
-1. Millbrook station: two travellers walk along the platform, in at the door and queue at the lobby desk.
-2. Check them in at the desk, then lead each one to their room (they follow you). Each pays.
-3. They ask for tea, luggage, a blanket: fetch it (urn, rack, linen cupboard) and bring it. Each delivery pays.
-4. The money on your back buys, one at a time: a new room → a new sleeper carriage (and a station full of new
-   guests) → the café (lattes and croissants) → the theatre (start the film, hand round popcorn) → the sleeper's
-   class refit, whose guests then want champagne and coffee.
-5. After those last deliveries, the end card: "CHOOSE NEXT TRAIN UPGRADE". It also shows after 15 s without a touch.
+1. Three passengers wait at their cabin doors for tea. Take a tray from the tea urn and serve them; each pays and goes
+   into their cabin.
+2. That money buys a Comfort Class refit of their carriage; the guests pay the dearer fare at their doors. Collect it.
+3. That buys Business Class; the guests pay the Business fare.
+4. That buys a Café Car (it rolls in and couples on). Two guests walk through to it and order lattes; make and serve them.
+5. That buys a Theatre Car; the guests take their seats. Start the film at the projector: every seat pays.
+6. The end card, "CHOOSE NEXT TRAIN UPGRADE" (also after 15 s without a touch).
 
-Every number (prices, pay, speeds, timings) is in `TUNE` at the top of `src/playable/main.ts`.
+Every price is less than what the step before it pays, so the next upgrade is always earned and never stuck; nothing
+is free. All numbers are in `TUNE` at the top of `src/playable/main.ts`.
 
 ## Switching ad networks
 
