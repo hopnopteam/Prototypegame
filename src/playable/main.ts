@@ -185,7 +185,10 @@ function updateJourney(dt: number): void {
   if (j.phase === 'departing') {
     j.speed = Math.min(TUNE.ride, j.speed + (TUNE.ride / TUNE.depart) * dt);
     j.offset += j.speed * dt;
-    if (j.offset > platform.z1 - platform.z0 + 30) j.phase = 'moving';
+    if (j.offset > platform.z1 - platform.z0 + 30) {
+      j.phase = 'moving';
+      j.t = 0;
+    }
   } else if (j.phase === 'arriving') {
     // Brake so the platform stops exactly alongside: v = sqrt(2 a d).
     const d = -j.offset;
@@ -196,12 +199,20 @@ function updateJourney(dt: number): void {
       j.offset = 0;
       j.speed = 0;
       j.phase = 'stopped';
+      j.t = 0;
       sfx('bell');
       const cb = j.onArrive;
       j.onArrive = null;
       cb?.();
     }
-  } else if (j.phase === 'moving') j.speed = TUNE.ride;
+  } else if (j.phase === 'moving') {
+    j.speed = TUNE.ride;
+    if (pendingArrival && j.t > 3) {
+      const cb = pendingArrival;
+      pendingArrival = null;
+      arrive(cb);
+    }
+  }
   const visible = j.phase !== 'moving';
   platform.group.visible = visible;
   platform.setOffset(j.offset);
@@ -221,12 +232,20 @@ let doorOpen = 1;
 function depart(): void {
   if (journey.phase !== 'stopped') return;
   journey.phase = 'departing';
+  journey.t = 0;
   journey.speed = 0;
   sfx('whistle');
   platform.setFlag(true);
   later(1.4, () => sfx('depart'));
 }
+/** The next station: if the train is still standing at one, it pulls out first and rides a few seconds. */
+let pendingArrival: (() => void) | null = null;
 function arrive(then: () => void): void {
+  if (journey.phase !== 'moving') {
+    pendingArrival = then;
+    if (journey.phase === 'stopped') depart();
+    return;
+  }
   journey.station = (journey.station + 1) % STATIONS.length;
   platform.setStationName(STATIONS[journey.station]);
   platform.setFlag(false);
@@ -928,6 +947,10 @@ function startGame(): void {
 /** What each stage waits for before its upgrade appears. */
 function checkStage(): void {
   safetyNet();
+  // At a later stop, the train leaves once everyone who boarded is checked in and shown to a room.
+  if (stageNo > 0 && journey.phase === 'stopped' && !pendingArrival && !guests.some((g) => g.state === 'boarding' || g.state === 'queue' || g.state === 'follow')) {
+    if (journey.t > 3.2) depart();
+  }
   if (tile || finale) return;
   const settled = (g: Guest) => g.state === 'room' || g.state === 'seated';
   if (stageNo === 0) {
