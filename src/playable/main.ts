@@ -60,7 +60,7 @@ const TUNE = {
   bill: 10,
   pay: { checkIn: 20, room: 20, deliver: 30, venue: 40, popcorn: 40, film: 40, suite: 50 },
   /** Upgrade prices (each is a little less than what its stage's jobs pay, so it is earned, never stuck). */
-  price: { room: 100, carriage: 160, cafe: 200, theatre: 240, refit: 250 },
+  price: { room: 100, carriage: 160, cafe: 190, theatre: 200, refit: 240 },
   /** Seconds between bills draining into an upgrade. */
   drain: 0.05,
   /** Seconds with no touch before the guide (hand and arrow) shows, and before the end card shows anyway. */
