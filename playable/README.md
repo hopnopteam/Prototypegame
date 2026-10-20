@@ -1,8 +1,20 @@
 # Night Express playable ad
 
 `night-express-playable.html` is the whole ad: one self-contained file (code, art, font and sounds inlined; no
-external requests), about 1.05 MB. It is built from the game's own world code, so carriages, characters, cash and
-sounds are the real game's; the game itself is untouched.
+external requests), about 1.1 MB. It is built from the game's own world code, so carriages, characters, the platform,
+cash and sounds are the real game's; the game itself is untouched.
+
+## The flow (about five minutes)
+
+1. Millbrook station: two travellers walk along the platform, in at the door and queue at the lobby desk.
+2. Check them in at the desk, then lead each one to their room (they follow you). Each pays.
+3. They ask for tea, luggage, a blanket: fetch it (urn, rack, linen cupboard) and bring it. Each delivery pays.
+4. The money on your back buys, one at a time: a new room → a new sleeper carriage (and a station full of new
+   guests) → the café (lattes and croissants) → the theatre (start the film, hand round popcorn) → the sleeper's
+   class refit, whose guests then want champagne and coffee.
+5. After those last deliveries, the end card: "CHOOSE NEXT TRAIN UPGRADE". It also shows after 15 s without a touch.
+
+Every number (prices, pay, speeds, timings) is in `TUNE` at the top of `src/playable/main.ts`.
 
 ## Switching ad networks
 
