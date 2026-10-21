@@ -4,21 +4,36 @@
 external requests), about 1.1 MB. It is built from the game's own world code, so carriages, characters, the platform,
 cash and sounds are the real game's; the game itself is untouched.
 
-## The flow (the test bot finishes in 6:10; a person takes about 8-9 minutes)
+## The flow (the test bot finishes in 6:44; a person takes about 8-10 minutes)
 
-The train never stops at a station. One mechanic is taught at a time, and each lesson ends with praise ("NICE!", "GREAT!"...):
+**Start.** A splash with the app icon shows while the shaders compile. The scene is never shown half-built. Then comes the start screen: "UPGRADE YOUR TRAIN!", "DRAG TO MOVE" with a hand on a joystick ring, the app icon (bottom left) and an INSTALL button (bottom right, there for the whole ad and opening the store). The first touch clears the titles.
 
-1. **Check in.** Four travellers queue at the reception desk. Stand there and each takes a key, pays the fare onto the desk and goes to their room. Three more wait in the lobby for rooms not yet built.
-2. **Collect the cash** from the desk.
-3. **Tea**, then **a blanket**, then **their bag.** One guest asks at a time. A gold trail of chevrons on the floor and an arrow lead to the urn, the linen cupboard and the rack, then to the guest. Each guest asks for their bag once only.
-4. **Upgrades.** Each one appears ("NEW UPGRADE!") only once you can afford it; until then the hint line shows "Comfort Class: $130/260". The order: New Room $60, New Room $100, New Room $140 (a waiting traveller checks in to each), **Comfort Class** $260, **Attendant** $200 (serves tea; her takings wait on the desk), **Café Car** $300, **Attendant+** $280 (blankets and towels too), **Theatre Car** $380.
-5. **Requests are capped:** one at a time at first, then one more after the second room, after Comfort Class and after the Attendant. Café and theatre visits join once those cars are open, and each is taught on first use with the guide on.
-6. **Rewards:** each guest reacts with an emoji (😊 🥰 🤩 😋 🍿), hearts and sparkles, and the +$ floats up. Serving within 9 s builds a combo ("COMBO x3!", a bonus bill from x3).
-7. **The guide** stays on until Comfort Class, and again while a new venue is taught. After that it shows when you stop.
-8. **The camera** eases in a little while walking and back out when standing or working.
-9. **The end.** "Dining Car: $X/300". The end card comes once you can afford it (or after 15 s without a touch, then without the price).
+**Tutorial (one guest, the whole loop).** Four travellers in all. One stands at the desk and three wait on the reception sofa.
+1. Check in the guest. They take a key, pay the fare onto the desk and go to their room.
+2. Grab the cash.
+3. Get the bag, then bring the bag.
+4. Get tea, then bring tea.
+5. "NICE WORK! Now check in the others." The sofa guests come to the desk one at a time, and normal play begins.
 
-In the ad build only, room doorways are 1.8 m wide (1.4 m in the game); `scripts/build-playable.mjs` patches this. All the numbers are in `TUNE` at the top of `src/playable/main.ts`.
+Each step ends with praise. The arrow at the conductor's feet turns toward the next step of the way, a bouncing arrow marks the goal, and the hint line says it in two or three words ("Get tea", "Bring the bag").
+
+**Requests.** Each guest asks for each thing once: their bag, tea, a blanket, then a towel in Comfort and coffee in Business. After that only drinks come round again, after a rest, along with café and theatre visits. The number of open requests is capped (one in the tutorial, then 2, 3 after Comfort, 4 with the Attendant).
+
+**Upgrades.** Each one appears ("NEW UPGRADE!") once you can afford it. Until then the hint line shows the progress ("Café Car: $50/220").
+
+| Upgrade | Price | What it does |
+|---|---|---|
+| Comfort Class | $180 | The makeover sweeps the lobby, then the sleeper; requests pay $20 → $30 |
+| Café Car | $220 | Coffee and croissants |
+| Café Makeover | $260 | A new look; orders pay $40 |
+| Attendant | $280 | Brings the tea; her takings wait on the desk |
+| Business Class | $320 | Requests pay $40; coffee in the rooms |
+| Luxury Café | $360 | Orders pay $50 |
+| Theatre Car | $400 | Start the movie; every seat pays |
+
+Then the goal is "Dining Car: $X/240", and the end card comes once you can afford it.
+
+The venues have plain floors (no patterned carpets). In the ad build only, room doorways are 1.8 m wide. All the numbers are in `TUNE` at the top of `src/playable/main.ts`.
 
 ## Switching ad networks
 

@@ -37,7 +37,13 @@ const result = await build({
   minify: process.env.MINIFY !== '0',
   write: false,
   legalComments: 'none',
-  define: { 'process.env.NODE_ENV': '"production"', __GA_GAME_KEY__: '""', __GA_SECRET_KEY__: '""' },
+  define: {
+    'process.env.NODE_ENV': '"production"',
+    __GA_GAME_KEY__: '""',
+    __GA_SECRET_KEY__: '""',
+    // The app icon for the start screen and the corner badge (inlined: the ad makes no requests).
+    __ICON__: JSON.stringify(`data:image/png;base64,${readFileSync(resolve(root, 'android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png')).toString('base64')}`),
+  },
   logLevel: 'warning',
   plugins: [noMusic],
 });
