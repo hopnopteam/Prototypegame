@@ -61,15 +61,15 @@ const TUNE = {
   /** One bill is $10. */
   bill: 10,
   /** Bills paid, by the room's class (Basic, Comfort, Business): the fare at the desk, each delivery, the tip on leaving. */
-  fare: { basic: 3, comfort: 6, business: 10 },
-  deliver: { basic: 2, comfort: 3, business: 5 },
+  fare: { basic: 3, comfort: 8, business: 12 },
+  deliver: { basic: 2, comfort: 4, business: 6 },
   tip: { basic: 1, comfort: 3, business: 5 },
   /** Bills for a café order, a popcorn, and each theatre ticket. */
-  cafe: 3,
+  cafe: 4,
   popcorn: 2,
-  ticket: 2,
+  ticket: 3,
   /** Upgrade prices, in order (each one is the next goal as soon as the last is bought). */
-  price: { room: 40, carriage: 200, berth3: 120, berth4: 150, comfort: 350, cafe: 420, theatre: 520, business: 700 },
+  price: { room: 40, carriage: 200, berth3: 120, berth4: 150, comfort: 300, cafe: 350, theatre: 420, business: 520 },
   /** Seconds a job takes. */
   checkIn: 0.75,
   pickUp: 0.4,
@@ -90,7 +90,7 @@ const TUNE = {
   /** Legs (stations) a guest rides before getting off. */
   legs: 2,
   /** The journey: seconds between stations, the train's speed, the stop's minimum length. */
-  rideSeconds: 22,
+  rideSeconds: 18,
   ride: 7,
   arriveFrom: 50,
   minStop: 6,
@@ -1467,13 +1467,16 @@ function target(): Target | null {
   if (frontReady() && freeRoom()) return { x: desk.x, z: desk.z, lift: 2.0, icon: 'key', text: 'Check in the guest' };
   const pile = piles.filter((p) => !taking.has(p.id) && cash.pileCount(p.id) > 0).sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z))[0];
   if (pile && (pile.id === 'desk' || Math.hypot(pile.x - me.x, pile.z - me.z) < 8)) return { x: pile.x, z: pile.z, lift: 1.4, icon: 'cash', text: 'Collect the cash' };
+  const dirtyRooms = rooms.filter((r) => r.dirty).sort((a, b) => Math.hypot(roomCentre(a).x - me.x, roomCentre(a).z - me.z) - Math.hypot(roomCentre(b).x - me.x, roomCentre(b).z - me.z));
+  // Travellers waiting at the desk with no room ready: tidy one for them first.
+  if (dirtyRooms[0] && queue.length > 0 && !freeRoom()) return { ...roomCentre(dirtyRooms[0]), lift: 1.8, icon: 'broom', text: 'Tidy a room for the new guest' };
   const open = guests.filter((g) => g.order && !carried.some((c) => c.item === g.order!.item)).sort((a, b) => a.order!.since - b.order!.since);
   if (open[0] && carried.length < MAX_CARRY) {
     const item = open[0].order!.item;
     const s = nearestStation(item);
     if (s) return { x: s.x, z: s.z, lift: 2.0, icon: ITEM_ICON[item], text: `Get ${ITEM_WORD[item]}` };
   }
-  const dirty = rooms.filter((r) => r.dirty).sort((a, b) => Math.hypot(roomCentre(a).x - me.x, roomCentre(a).z - me.z) - Math.hypot(roomCentre(b).x - me.x, roomCentre(b).z - me.z))[0];
+  const dirty = dirtyRooms[0];
   if (dirty) return { ...roomCentre(dirty), lift: 1.8, icon: 'broom', text: 'Tidy the room' };
   if (projector && filmT < 0 && projector.marker.visible) return { x: projector.x, z: projector.z, lift: 2.0, icon: 'film', text: 'Start the film' };
   if (pile) return { x: pile.x, z: pile.z, lift: 1.4, icon: 'cash', text: 'Collect the cash' };
