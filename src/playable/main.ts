@@ -2,14 +2,17 @@
 // carriages, the characters, the cash, the tiles, the makeover wipe, the tarp reveal and the sounds).
 //
 // One thing at a time. A single flow controller (`flow`) decides what may happen; nothing starts on its own.
-//  - The train is a luxury sleeper on its way through the night: it never stops, so nobody boards or leaves. Three
-//    passengers are aboard from the start, waiting at the reception (one at the desk, two on the sofa); once checked
-//    in they stay in their rooms all night and the conductor looks after them.
-//  - Tutorial: passenger 1, one step at a time (check them in, get their bag, bring it, grab the cash); passenger 2
-//    the same with arrows only. Then play: passenger 3 checks in and the requests come, one per guest at a time.
+//  - The train is a luxury sleeper on its way through the night: it never stops, and nobody leaves. Three passengers
+//    come to the reception one at a time (each walks in from the front of the carriage only once the one before is
+//    looked after); once checked in they stay in their rooms all night.
+//  - Tutorial: guests 1-3, each alone, each its own walkthrough (check in → their room → their one wish → the cash),
+//    with less help each time (arrow, ring and words; arrow and ring; a light arrow), and a pause between steps.
+//    Then play: their requests come, a few at a time.
 //  - Upgrades, one by one, each shown once affordable: the Café Car, Comfort Class, the Attendant, the Theatre, a
 //    faster Attendant, Business Class, a 2nd Attendant (serves the café and the theatre) and the Café Makeover. Then
 //    the Dining Car is the goal; the end card comes once affordable.
+// Messages: ONE on screen at a time (a caption, else the instruction). Labels over the world (bubbles, signs, tile
+// markers, floats) are checked every frame and never overlap each other or the HUD.
 // Captions go through one channel: one at a time; a small one (praise, a combo) is dropped if anything else shows.
 import * as THREE from 'three';
 import { AudioEngine, isAndroid, type Sfx } from '../audio/AudioEngine';
@@ -28,7 +31,7 @@ import { CashView } from '../world/CashView';
 import { Fireflies } from '../world/Fireflies';
 import { GeoBuilder } from '../world/geo';
 import { createItemMesh, ITEM_HEIGHT } from '../world/ItemMeshes';
-import { CARRIAGE_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, INNER, type CabinLayout, type VenueSeatLayout } from '../world/layout';
+import { CARRIAGE_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, INNER, REAR_TILE_X, REAR_TILE_Z, type CabinLayout, type VenueSeatLayout } from '../world/layout';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { clipSide, MATERIALS, SHADOW_GEOMETRY, setLivery, swapMaterials } from '../world/materials';
 import { liveryFor, PALETTE } from '../world/palette';
@@ -96,6 +99,10 @@ const TUNE = {
   attendantSpeed: 3.4,
   attendantFast: 1.5,
   attendantPick: 0.6,
+  /** The tutorial's pace: a breath after each step, a pause between guests, a moment before a guest asks. */
+  pace: { stepPause: 1.0, guestPause: 2.5, requestDelay: 1.4, enterSpeed: 1.9 },
+  /** Requests open at once in play: to start, and with an Attendant. */
+  openStart: 2,
   /** Captions: an important one; a small one (praise, combo); the class card. */
   caption: 1.8,
   small: 1.1,
@@ -113,6 +120,8 @@ const TIER = { basic: 1, comfort: 2, business: 3 } as const;
 const CINEMA_TIER = 2;
 /** Test runs only (`?ts=4` plays four times faster in a slow headless browser). */
 const TEST_SPEED = Math.min(8, Math.max(1, Number(new URLSearchParams(location.search).get('ts')) || 1));
+/** Test recordings only: the longest frame step (`?dtmax=0.25` keeps real time in a slow software renderer). */
+const DT_MAX = Math.min(0.3, Math.max(0.05, Number(new URLSearchParams(location.search).get('dtmax')) || 0.05));
 
 // ================================================================ the scene
 VISUALS.camera.followSharpness = TUNE.follow;
@@ -170,8 +179,6 @@ const SOFA = rect(0.92, 4.2, 1.57, 6.15);
   l.props.push({ kind: 'sofa', rect: SOFA, facing: 'left' });
   l.blocked.push(SOFA);
 }
-const SOFA_SEATS: Vec2[] = [{ x: 1.2, z: 4.75 }, { x: 1.2, z: 5.45 }];
-const SOFA_Y = FLOOR_Y + 0.42 - 0.24;
 
 // Every carriage the ad will show is built now, hidden, so an upgrade is a swap and never a hitch mid-play. The train
 // starts as ONE carriage (the lobby); the others join only when bought. Passenger carriages start repaired (Basic).
@@ -403,6 +410,8 @@ const hintIcon = (hintBox.querySelector('canvas') as HTMLCanvasElement).getConte
 const hintText = hintBox.querySelector('span') as HTMLElement;
 let hintKey = '';
 function setHint(t: { icon: IconName; text: string } | null): void {
+  // One message at a time: while a caption shows (or fades), the instruction waits.
+  if (showing || messageTime > 0 || messages.length > 0) t = null;
   const key = t ? `${t.icon}|${t.text}` : '';
   if (key === hintKey) return;
   hintKey = key;
@@ -413,6 +422,7 @@ function setHint(t: { icon: IconName; text: string } | null): void {
   hintIcon.clearRect(0, 0, 112, 112);
   drawIcon(hintIcon, t.icon, 56, 56, 84);
   hintText.textContent = t.text;
+  hintBox.classList.toggle('icon-only', !t.text);
   hintBox.classList.remove('on');
   void hintBox.offsetWidth;
   hintBox.classList.add('on');
@@ -495,13 +505,42 @@ const tmpV = new THREE.Vector3();
 function floatText(text: string, x: number, y: number, z: number, style = ''): void {
   tmpV.set(x, y, z);
   if (!stage.project(tmpV, proj)) return;
+  // A float never lands on another float or on the HUD: it steps up until it is clear, or is dropped.
+  const w = 110;
+  const h = 40;
+  let top = proj.y;
+  let r = { x0: proj.x - w / 2, y0: top - h, x1: proj.x + w / 2, y1: top };
+  for (let tries = 0; tries < 4 && (floats.some((f) => f.until > clock && overlaps(f.rect, r)) || hudRects().some((b) => overlaps(b, r))); tries++) {
+    top -= h + 6;
+    r = { x0: proj.x - w / 2, y0: top - h, x1: proj.x + w / 2, y1: top };
+  }
+  if (floats.some((f) => f.until > clock && overlaps(f.rect, r)) || hudRects().some((b) => overlaps(b, r))) return;
+  floats.push({ rect: r, until: clock + 1.1 });
+  if (floats.length > 12) floats.shift();
   const el = document.createElement('div');
   el.className = style ? `ad-float ${style}` : 'ad-float';
   el.innerHTML = text;
   el.style.left = `${proj.x}px`;
-  el.style.top = `${proj.y}px`;
+  el.style.top = `${top}px`;
   ui.appendChild(el);
   setTimeout(() => el.remove(), 1300);
+}
+interface ScreenRect { x0: number; y0: number; x1: number; y1: number }
+const floats: { rect: ScreenRect; until: number }[] = [];
+const overlaps = (a: ScreenRect, b: ScreenRect, pad = 6): boolean => a.x0 - pad < b.x1 && b.x0 - pad < a.x1 && a.y0 - pad < b.y1 && b.y0 - pad < a.y1;
+/** The HUD's boxes on screen right now (the money, the goal bar, the instruction, a caption, the corner buttons). */
+const HUD_SELECTOR = '.ad-cash, .ad-goal.on, .ad-hint.on, .ad-banner.on, .ad-class.on .ad-class-card, .ad-mute, .ad-install, .ad-icon';
+let hudCache: ScreenRect[] = [];
+let hudAt = -1;
+function hudRects(): ScreenRect[] {
+  if (hudAt === clock) return hudCache;
+  hudAt = clock;
+  hudCache = [];
+  for (const el of document.querySelectorAll(HUD_SELECTOR)) {
+    const b = (el as HTMLElement).getBoundingClientRect();
+    if (b.width > 0 && b.height > 0) hudCache.push({ x0: b.left, y0: b.top, x1: b.right, y1: b.bottom });
+  }
+  return hudCache;
 }
 /** A step done: a word of praise (through the caption channel), stars and sparkles over the conductor. */
 const PRAISE = ['NICE!', 'GREAT!', 'AWESOME!', 'PERFECT!'];
@@ -579,7 +618,9 @@ class Bubble {
   private key = '';
   private pop = 1;
   private t = Math.random() * 6;
-  constructor(private readonly size = 0.95) {
+  /** Hidden this frame by the label pass (it would overlap something more important). */
+  suppressed = false;
+  constructor(readonly size = 0.95) {
     this.sprite.renderOrder = 20;
     this.sprite.center.set(0.5, BUBBLE_TIP);
     this.sprite.visible = false;
@@ -599,7 +640,11 @@ class Bubble {
     }
     this.pop = 0;
   }
+  get shown(): boolean {
+    return this.key !== '';
+  }
   update(dt: number, x: number, y: number, z: number): void {
+    this.sprite.visible = this.key !== '' && !this.suppressed;
     if (!this.sprite.visible) return;
     this.t += dt;
     this.pop = Math.min(1, this.pop + dt * 4.5);
@@ -628,7 +673,7 @@ const freeRoom = (): Room | null => rooms.find((r) => !r.guest) ?? null;
 
 // ================================================================ people
 type Pose = 'stand' | 'sit' | 'sleep';
-type GuestState = 'waiting' | 'toDesk' | 'queue' | 'toRoom' | 'room' | 'toVenue' | 'venue' | 'back';
+type GuestState = 'away' | 'toDesk' | 'queue' | 'toRoom' | 'room' | 'toVenue' | 'venue' | 'back';
 type Venue = 'cafe' | 'cinema';
 const RADIUS = 0.3;
 interface Order { item: ItemKind; since: number; bills: number; claimed: boolean }
@@ -742,7 +787,8 @@ function guestLook(): CharacterLook {
   return { ...a.colors, ...a.figure, accessory: a.accessory, hat: a.hat ?? 'none', hatColor: a.hatColor } as CharacterLook;
 }
 class Guest extends Walker {
-  state: GuestState = 'waiting';
+  state: GuestState = 'away';
+  look: CharacterLook = guestLook();
   room: Room | null = null;
   seat: VenueSeatLayout | null = null;
   venue: Venue | null = null;
@@ -755,6 +801,7 @@ class Guest extends Walker {
   /** What they have asked for already (each thing once; drinks and visits come round again). */
   readonly had = new Set<ItemKind>();
   update(dt: number): void {
+    if (this.state === 'away') return;
     this.move(dt);
     if (this.order) {
       const long = clock - this.order.since > TUNE.patience;
@@ -766,44 +813,49 @@ class Guest extends Walker {
     if (clock < this.happyUntil && Math.random() < dt * 1.5) particles.emit('heart', this.x, this.y + head, this.z, 1, 0.15);
   }
 }
-// The passengers: three aboard for the whole night. One waits at the desk, two on the reception sofa.
+// The passengers: three, aboard for the whole night. Each walks into the reception from the front of the carriage
+// (from the seated coaches up front) when it is their turn, slowly and in view, and goes to the desk.
 const L = views.lobby[0].layout.anchors;
 const QUEUE_SPOT: Vec2 = { x: views.lobby[0].layout.queue[0].x, z: views.lobby[0].layout.queue[0].z };
+const ENTRANCE: Vec2 = walkableNear(0.25, 1.0);
 const guests: Guest[] = [];
 for (let i = 0; i < 3; i++) {
-  const g = new Guest(guestLook(), QUEUE_SPOT.x, QUEUE_SPOT.z);
-  if (i === 0) {
-    g.state = 'queue';
-    g.facing = -Math.PI / 2;
-  } else g.setPose('sit', { x: SOFA_SEATS[i - 1].x, y: SOFA_Y, z: SOFA_SEATS[i - 1].z, facing: -Math.PI / 2 });
+  const g = new Guest(guestLook(), ENTRANCE.x, ENTRANCE.z);
+  g.view.park();
   guests.push(g);
 }
-/** The next passenger on the sofa gets up and comes to the desk. */
+/** The next passenger comes in and walks to the desk. */
 function callNext(): Guest | null {
-  const g = guests.find((x) => x.state === 'waiting');
+  const g = guests.find((x) => x.state === 'away');
   if (!g) return null;
+  g.view.reset(g.look, 1.04);
+  scene.add(g.view.root);
   g.state = 'toDesk';
-  g.walkTo(route({ x: g.x, z: g.z }, QUEUE_SPOT), () => {
+  g.walkSpeed = TUNE.pace.enterSpeed;
+  g.setPose('stand', { x: ENTRANCE.x, y: FLOOR_Y, z: ENTRANCE.z, facing: 0 });
+  g.walkTo(route(ENTRANCE, QUEUE_SPOT), () => {
     g.state = 'queue';
     g.facing = -Math.PI / 2;
+    g.walkSpeed = TUNE.guestSpeed;
   });
+  sfx('door');
   return g;
 }
 /** The passenger at the desk, ready to check in. */
 const atDesk = (): Guest | null => guests.find((g) => g.state === 'queue') ?? null;
 
-/** Check-in: the key, and off to their room. Their bag stays at the rack: their first wish, as they go. */
+/** Check-in: the ticket is checked, the key handed over, and off they go to their room. */
 function checkIn(g: Guest, room: Room): void {
   room.guest = g;
   g.room = room;
   g.state = 'toRoom';
   sfx('ding');
   keyPop(g);
-  ask(g, 'luggage', roomBills(g));
   const sit = sitSpot(room);
   later(0.3, () => g.walkTo(route({ x: g.x, z: g.z }, { x: sit.x - 0.35, z: sit.z }, map.nodeId(room.car, cabinOf(room).node)), () => {
     g.setPose('sit', sitSpot(room));
     g.state = 'room';
+    g.restUntil = clock + TUNE.pace.requestDelay;
     sfx('door');
   }));
 }
@@ -846,6 +898,7 @@ function updateKeys(dt: number): void {
  */
 function nextWish(g: Guest): ItemKind {
   const tier = g.room ? train[g.room.car].tier : 1;
+  if (!g.had.has('luggage')) return 'luggage';
   if (!g.had.has('blanket')) return 'blanket';
   if (tier >= TIER.comfort && !g.had.has('towel')) return 'towel';
   return tier >= TIER.business && Math.random() < 0.5 ? 'coffee' : 'tea';
@@ -1123,21 +1176,27 @@ function backTopPos(): THREE.Vector3 {
 }
 
 // ================================================================ stations: the desk, the tea, the linen, the bags, the café
-interface Station { kind: 'desk' | 'source' | 'film'; items: ItemKind[]; car: number; x: number; z: number; marker: JobMarker; progress: number }
+interface Station { kind: 'desk' | 'source' | 'film'; items: ItemKind[]; car: number; x: number; z: number; marker: JobMarker; progress: number; icon: IconName; sign: THREE.Vector3; wanted: boolean }
 const stations: Station[] = [];
 function addStation(kind: Station['kind'], items: ItemKind[], car: number, local: Vec2, icon: IconName, badgeOver?: Vec2): Station {
   const z0 = carriageOriginZ(car);
   const p = walkableNear(local.x, local.z + z0);
   const marker = new JobMarker(icon);
   marker.setPosition(p.x, p.z);
-  if (badgeOver) marker.setIconAnchor(badgeOver.x - p.x, badgeOver.z + z0 - p.z, 1.6);
-  else {
+  const sign = new THREE.Vector3(p.x, FLOOR_Y + marker.height, p.z);
+  if (badgeOver) {
+    marker.setIconAnchor(badgeOver.x - p.x, badgeOver.z + z0 - p.z, 1.6);
+    sign.set(badgeOver.x, FLOOR_Y + 1.6, badgeOver.z + z0);
+  } else {
     const anchor = map.serviceAnchor(p.x, p.z, 1.3);
-    if (anchor) marker.setIconAnchor(anchor.x - p.x, anchor.z - p.z, anchor.height + 0.6);
+    if (anchor) {
+      marker.setIconAnchor(anchor.x - p.x, anchor.z - p.z, anchor.height + 0.6);
+      sign.set(anchor.x, FLOOR_Y + anchor.height + 0.6, anchor.z);
+    }
   }
   marker.visible = false;
   scene.add(marker.group);
-  const s: Station = { kind, items, car, x: p.x, z: p.z, marker, progress: 0 };
+  const s: Station = { kind, items, car, x: p.x, z: p.z, marker, progress: 0, icon, sign, wanted: false };
   stations.push(s);
   return s;
 }
@@ -1292,25 +1351,25 @@ const shrinking: { obj: THREE.Object3D; t: number }[] = [];
 interface Upgrade { at: () => Vec2; icon: IconName; name: string; price: number; buy: () => void }
 const cz = (): number => carriageOriginZ(SLOT.cafe);
 const PLAN: Upgrade[] = [
-  { at: () => ({ x: -0.2, z: 16.6 }), icon: 'latte', name: 'Café Car', price: TUNE.price.cafe, buy: buyCafe },
-  { at: () => ({ x: -0.6, z: 7.6 }), icon: 'star', name: 'Comfort Class', price: TUNE.price.comfort, buy: () => classUp(TIER.comfort) },
-  { at: () => ({ x: -0.55, z: 7.3 }), icon: 'person', name: 'Attendant', price: TUNE.price.attendant, buy: () => {
+  { at: () => ({ x: REAR_TILE_X, z: REAR_TILE_Z }), icon: 'latte', name: 'Café Car', price: TUNE.price.cafe, buy: buyCafe },
+  { at: () => ({ x: 0.1, z: 7.2 }), icon: 'star', name: 'Comfort Class', price: TUNE.price.comfort, buy: () => classUp(TIER.comfort) },
+  { at: () => ({ x: 0.1, z: 7.2 }), icon: 'person', name: 'Attendant', price: TUNE.price.attendant, buy: () => {
     hireAttendant(ROOM_ITEMS, ATTENDANT_HOME());
     say('ATTENDANT HIRED!', 'She brings the guests what they ask for');
   } },
-  { at: () => ({ x: 0, z: cz() + 16.4 }), icon: 'film', name: 'Theatre Car', price: TUNE.price.theatre, buy: buyTheatre },
-  { at: () => ({ x: -0.55, z: 7.3 }), icon: 'person', name: 'Faster Attendant', price: TUNE.price.fast, buy: () => {
+  { at: () => ({ x: REAR_TILE_X, z: cz() + REAR_TILE_Z }), icon: 'film', name: 'Theatre Car', price: TUNE.price.theatre, buy: buyTheatre },
+  { at: () => ({ x: 0.1, z: 7.2 }), icon: 'person', name: 'Faster Attendant', price: TUNE.price.fast, buy: () => {
     helperSpeed = TUNE.attendantSpeed * TUNE.attendantFast;
     for (const h of helpers) particles.emit('confetti', h.w.x, FLOOR_Y + 1.5, h.w.z, 30, 0.6);
     sfx('staff');
     say('FASTER ATTENDANT!', 'Deliveries in half the time');
   } },
-  { at: () => ({ x: -0.6, z: 7.6 }), icon: 'star', name: 'Business Class', price: TUNE.price.business, buy: () => classUp(TIER.business) },
-  { at: () => ({ x: -1.2, z: cz() + 7.4 }), icon: 'person', name: '2nd Attendant', price: TUNE.price.second, buy: () => {
+  { at: () => ({ x: 0.1, z: 7.2 }), icon: 'star', name: 'Business Class', price: TUNE.price.business, buy: () => classUp(TIER.business) },
+  { at: () => ({ x: 0, z: cz() + 10.4 }), icon: 'person', name: '2nd Attendant', price: TUNE.price.second, buy: () => {
     hireAttendant(VENUE_ITEMS, CAFE_HOME());
     say('2ND ATTENDANT!', 'She serves the café and the theatre');
   } },
-  { at: () => ({ x: -1.2, z: cz() + 7.4 }), icon: 'latte', name: 'Café Makeover', price: TUNE.price.makeover, buy: cafeMakeover },
+  { at: () => ({ x: 0, z: cz() + 10.4 }), icon: 'latte', name: 'Café Makeover', price: TUNE.price.makeover, buy: cafeMakeover },
 ];
 let planIndex = 0;
 let finalGoal = false;
@@ -1505,21 +1564,29 @@ function updateWipes(dt: number): void {
  * each step waits for its own event (`flow.done(...)`) and only then the next one shows. Play begins only after it.
  */
 type Phase = 'tutorial' | 'play' | 'end';
-type FlowEvent = 'checkin' | 'pick' | 'deliver' | 'cash';
-/** Each tutorial passenger: check them in → get their bag → bring it → grab the cash. */
+type FlowEvent = 'checkin' | 'room' | 'pick' | 'deliver' | 'cash';
+/**
+ * Each tutorial guest, alone: they walk in → check them in → they go to their room (and ask, a moment later) → get
+ * what they asked for → bring it → collect the cash. The next guest walks in only after a short "Done!" pause.
+ */
 const TUTORIAL: { id: string; wait: FlowEvent | null }[] = [
   { id: 'come', wait: null },
   { id: 'checkin', wait: 'checkin' },
+  { id: 'room', wait: 'room' },
   { id: 'get', wait: 'pick' },
   { id: 'bring', wait: 'deliver' },
   { id: 'cash', wait: 'cash' },
 ];
+/** Each tutorial guest's one wish: three wishes, three supply spots learnt. */
+const TUTORIAL_WISH: ItemKind[] = ['luggage', 'blanket', 'tea'];
 let teach: 'cafe' | 'cinema' | null = null;
 const flow = {
   phase: 'tutorial' as Phase,
-  /** Tutorial: which passenger (0, 1) and which step. */
+  /** Tutorial: which guest (0, 1, 2) and which step. Guest 1 gets the most help, guest 3 the least. */
   passenger: 0,
-  step: 1,
+  step: 0,
+  /** Nothing new is shown before this time (the breath after a step, the pause between guests). */
+  readyAt: 0,
   /** Is this allowed right now? */
   allows(what: 'request' | 'upgrade' | 'camera'): boolean {
     if (this.phase !== 'play') return false;
@@ -1533,31 +1600,44 @@ const flow = {
   get guest(): Guest {
     return guests[this.passenger];
   },
+  get resting(): boolean {
+    return clock < this.readyAt;
+  },
   /** Something happened; the tutorial moves on only when it is what the current step waits for. */
   done(event: FlowEvent): void {
     if (this.phase !== 'tutorial' || TUTORIAL[this.step]?.wait !== event) return;
     this.step++;
-    praise();
+    this.readyAt = clock + TUNE.pace.stepPause;
+    if (event !== 'room') praise();
     if (this.step < TUTORIAL.length) return;
-    if (this.passenger === 0) {
-      // Passenger 2: the same steps, with less help.
-      this.passenger = 1;
+    // This guest is looked after: a little "Done!", a pause, then the next one walks in.
+    later(0.5, () => say('DONE!'));
+    particles.emit('confetti', me.x, FLOOR_Y + 1.6, me.z, 30, 0.5);
+    this.readyAt = clock + TUNE.pace.guestPause;
+    if (this.passenger < 2) {
+      this.passenger++;
       this.step = 0;
-      later(1.0, () => callNext());
+      later(TUNE.pace.guestPause, () => callNext());
     } else {
       this.phase = 'play';
-      later(0.4, () => say('GREAT JOB!', 'Now earn your first upgrade'));
-      later(2.5, () => callNext());
+      later(TUNE.pace.guestPause, () => say('GREAT JOB!', 'Now earn your first upgrade'));
     }
   },
   update(): void {
-    if (this.phase === 'tutorial' && this.stepId === 'come' && this.guest.state === 'queue') this.step = 1;
+    if (this.phase !== 'tutorial') return;
+    const g = this.guest;
+    if (this.stepId === 'come' && g.state === 'queue') this.step = 1;
+    // In their room, a moment later, they ask for their one thing.
+    if (this.stepId === 'room' && g.state === 'room' && !g.order && clock > g.restUntil) {
+      ask(g, TUTORIAL_WISH[this.passenger], roomBills(g));
+      this.done('room');
+    }
   },
 };
 let askAt = 0;
 /** Play: a steady, capped flow of requests, decided here and nowhere else. One per guest at a time. */
 function maxOpen(): number {
-  return 2 + Math.min(1, helpers.length);
+  return TUNE.openStart + Math.min(1, helpers.length);
 }
 function director(): void {
   flow.update();
@@ -1591,10 +1671,12 @@ function updateJobs(dt: number): void {
       item = s.items.find((it) => guests.some((g) => g.order?.item === it && !g.order.claimed && sourceFor(it, g) === s && needed(it) > 0)) ?? null;
       if (flow.phase === 'tutorial' && (item !== tutorialItem || flow.stepId !== 'get')) item = null;
       wants = !!item && carried.length < TUNE.carry;
-      if (item) s.marker.setIcon(ITEM_ICON[item]);
+      // A supply spot always wears its sign (what you get here); it lights up when it is needed.
+      s.marker.setIcon(item ? ITEM_ICON[item] : s.icon);
     }
-    s.marker.visible = wants || s.progress > 0;
-    s.marker.iconShown = wants;
+    s.wanted = wants;
+    s.marker.visible = wants || s.progress > 0 || s.kind === 'source';
+    s.marker.iconShown = wants || s.kind === 'source';
     s.marker.highlight = wants;
     const near = Math.hypot(me.x - s.x, me.z - s.z) < (s.kind === 'desk' ? TUNE.deskReach : TUNE.pickReach);
     if (wants && near) {
@@ -1652,25 +1734,31 @@ function target(): Target | null {
   if (tile) return { x: tile.x, z: tile.z, lift: 1.5, icon: tile.icon, text: `Buy ${tile.name}` };
   return null;
 }
+/** The tutorial's one target, and its words: full for guest 1, one word for guest 2, none for guest 3. */
 function tutorialTarget(): Target | null {
+  if (flow.resting) return null;
   const g = flow.guest;
+  const words = (full: string, short: string): string => (flow.passenger === 0 ? full : flow.passenger === 1 ? short : '');
+  const item = g.order?.item ?? TUTORIAL_WISH[flow.passenger];
   switch (flow.stepId) {
-    case 'come':
     case 'checkin':
-      return { x: desk.x, z: desk.z, lift: 2.0, icon: 'key', text: 'Check in the guest' };
+      return { x: desk.x, z: desk.z, lift: 2.0, icon: 'key', text: words('Go to the desk', 'Desk') };
+    case 'room':
+      return g.room ? { ...roomCentre(g.room), lift: 2.4, icon: 'bed', text: words('Go to their room', 'Room') } : null;
     case 'get': {
-      const s = sourceFor('luggage');
-      return s ? { x: s.x, z: s.z, lift: 2.0, icon: 'luggage', text: 'Get their bag' } : null;
+      const s = sourceFor(item, g);
+      return s ? { x: s.x, z: s.z, lift: 2.0, icon: ITEM_ICON[item], text: words(`Grab ${ITEM_WORD[item]}`, ITEM_SHORT[item] ?? '') } : null;
     }
     case 'bring':
-      return g.room ? { ...roomCentre(g.room), lift: 2.4, icon: 'luggage', text: 'Bring it to their room' } : null;
+      return g.room ? { ...roomCentre(g.room), lift: 2.4, icon: ITEM_ICON[item], text: words('Bring to the guest', 'Guest') } : null;
     case 'cash': {
       const p = nearestPile();
-      return p ? { ...p, lift: 1.3, icon: 'cash', text: 'Grab the cash' } : null;
+      return p ? { ...p, lift: 1.3, icon: 'cash', text: words('Collect the cash', 'Cash') } : null;
     }
   }
   return null;
 }
+const ITEM_SHORT: Record<string, string> = { luggage: 'Bag', blanket: 'Blanket', tea: 'Tea' };
 
 // ================================================================ input: drag anywhere (an invisible floating stick), or tap to walk to the next job
 let pointerId = -1;
@@ -1890,7 +1978,7 @@ function inView(p: Vec2): boolean {
 }
 function updateFoot(dt: number, t: Target | null): void {
   // Only when the goal is out of sight: then it says which way to go; otherwise the arrow over the goal is enough.
-  const far = !!t && Math.hypot(t.x - me.x, t.z - me.z) > 1.8 && !inView(t);
+  const far = !!t && Math.hypot(t.x - me.x, t.z - me.z) > 1.2 && !inView(t);
   footShown += ((far ? 1 : 0) - footShown) * Math.min(1, dt * 7);
   foot.visible = footShown > 0.03;
   if (!foot.visible || !t) return;
@@ -1910,6 +1998,30 @@ function updateFoot(dt: number, t: Target | null): void {
   foot.rotation.y = footAngle;
   foot.scale.setScalar(footShown);
 }
+// The glowing ring on the floor where to go (the tutorial's first two guests): additive, so it only adds light.
+const ringTexture = (() => {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 128;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(64, 64, 30, 64, 64, 62);
+  g.addColorStop(0, 'rgba(255,220,90,0)');
+  g.addColorStop(0.55, 'rgba(255,220,90,0.95)');
+  g.addColorStop(0.7, 'rgba(255,240,170,1)');
+  g.addColorStop(1, 'rgba(255,200,60,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+const ringGeometry = new THREE.PlaneGeometry(1.5, 1.5);
+ringGeometry.rotateX(-Math.PI / 2);
+const ring = new THREE.Mesh(ringGeometry, new THREE.MeshBasicMaterial({ map: ringTexture, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, fog: false }));
+ring.renderOrder = 5;
+ring.visible = false;
+scene.add(ring);
+let ringShown = 0;
 function updateGuide(dt: number): void {
   const t = target();
   const hesitating = !started || (clock - lastInput > TUNE.hesitate && !autoWalk && pointerId < 0);
@@ -1917,14 +2029,28 @@ function updateGuide(dt: number): void {
   const guided = flow.phase === 'tutorial' || helpers.length === 0 || teach !== null;
   const show = !!t && !ended && (guided || hesitating);
   arrowShown += ((show ? 1 : 0) - arrowShown) * Math.min(1, dt * 8);
-  arrow.visible = arrowShown > 0.02 && !!t;
+  // One target, one arrow: over the goal when it is in view, else the arrow at the conductor's feet points the way.
+  const offScreen = !!t && !inView(t);
+  arrow.visible = arrowShown > 0.02 && !!t && !offScreen;
+  // Guest 3 gets only a light arrow.
+  const light = flow.phase === 'tutorial' && flow.passenger === 2;
+  arrow.material.opacity = light ? 0.6 : 1;
   if (t) {
     arrow.position.set(t.x, FLOOR_Y + t.lift + Math.abs(Math.sin(clock * 4)) * 0.22, t.z);
-    arrow.scale.set(0.62 * arrowShown, 0.62 * arrowShown, 1);
+    const size = (light ? 0.45 : 0.62) * arrowShown;
+    arrow.scale.set(size, size, 1);
   }
   updateFoot(dt, show ? t : null);
+  const ringOn = show && !!t && flow.phase === 'tutorial' && flow.passenger < 2;
+  ringShown += ((ringOn ? 1 : 0) - ringShown) * Math.min(1, dt * 6);
+  ring.visible = ringShown > 0.03 && !!t;
+  if (t) {
+    ring.position.set(t.x, FLOOR_Y + 0.04, t.z);
+    ring.scale.setScalar(ringShown * (1 + Math.sin(clock * 5) * 0.08));
+    (ring.material as THREE.MeshBasicMaterial).opacity = ringShown * (0.75 + Math.sin(clock * 5) * 0.25);
+  }
   // The instruction pill: the tutorial's one step (passenger 2 gets the arrows only), and the next job while guided.
-  const instruction = ended || !t ? null : flow.phase === 'tutorial' ? (flow.passenger === 0 ? t : null) : guided || hesitating ? t : null;
+  const instruction = ended || !t ? null : flow.phase === 'tutorial' ? (flow.passenger < 2 ? t : null) : guided || hesitating ? t : null;
   setHint(instruction);
   hintBox.classList.toggle('low', goalBox.classList.contains('on'));
   // The goal bar: the next upgrade's progress (from the end of the tutorial).
@@ -1956,6 +2082,71 @@ function updateGuide(dt: number): void {
   hand.style.transform = `translate(${(a.x + 26 + (dx / l) * reach * e).toFixed(1)}px, ${(a.y + 54 + (dy / l) * reach * e).toFixed(1)}px) scale(${(cyc < 0.18 ? 0.86 + cyc * 0.5 : 0.9).toFixed(3)})`;
   hand.style.opacity = cyc > 0.9 ? (1 - (cyc - 0.9) * 10).toFixed(2) : '1';
 }
+
+// ================================================================ labels over the world: never two on top of each other
+/**
+ * Every frame, each label over the world (the target arrow, guests' bubbles, the job and supply signs, the upgrade
+ * tile's marker) gets its box on screen. The most important go first; a label whose box would touch one already
+ * placed, or the HUD (money, goal, instruction, a caption, the corner buttons), is hidden for that frame.
+ */
+interface WorldLabel { rect: ScreenRect; priority: number; hide: () => void }
+const labelProj = { x: 0, y: 0 };
+const camUp = new THREE.Vector3();
+const labelTmp = new THREE.Vector3();
+/** The on-screen box of a sprite of `size` metres at `at` (its anchor `ax`, `ay` within the box, 0..1). */
+function spriteRect(at: THREE.Vector3, size: number, ax: number, ay: number, w = 1, h = 1): ScreenRect | null {
+  if (!stage.project(labelTmp.copy(at), labelProj)) return null;
+  const cx = labelProj.x;
+  const cy = labelProj.y;
+  camUp.set(0, 1, 0).applyQuaternion(stage.rig.camera.quaternion).multiplyScalar(size);
+  if (!stage.project(labelTmp.copy(at).add(camUp), labelProj)) return null;
+  const px = Math.abs(cy - labelProj.y);
+  return { x0: cx - px * w * ax, x1: cx + px * w * (1 - ax), y0: cy - px * h * (1 - ay), y1: cy + px * h * ay };
+}
+const bubbleAt = new THREE.Vector3();
+function placeLabels(): void {
+  const labels: WorldLabel[] = [];
+  const targetNow = target();
+  if (arrow.visible) {
+    const r = spriteRect(arrow.position, arrow.scale.y, 0.5, 0.55, 1.0, 1.3);
+    if (r) labels.push({ rect: r, priority: 10, hide: () => (arrow.visible = false) });
+  }
+  for (const g of guests) {
+    if (g.state === 'away' || !g.bubble.shown) continue;
+    g.bubble.suppressed = false;
+    bubbleAt.copy(g.bubble.sprite.position);
+    // The bubble's box: 220×128 of its 256² canvas, its tail tip at the anchor.
+    const r = spriteRect(bubbleAt, g.bubble.size, 0.5, 0.0, 0.86, 0.62);
+    if (!r) continue;
+    const isTarget = !!targetNow && g.room !== null && Math.hypot(roomCentre(g.room).x - targetNow.x, roomCentre(g.room).z - targetNow.z) < 0.5;
+    labels.push({ rect: r, priority: isTarget ? 9 : g.order ? 6 : 3, hide: () => {
+      g.bubble.suppressed = true;
+      g.bubble.sprite.visible = false;
+    } });
+  }
+  for (const s of stations) {
+    if (!s.marker.visible) continue;
+    const r = spriteRect(s.sign, VISUALS.pads.icon * 0.5, 0.5, 0.5);
+    if (r) labels.push({ rect: r, priority: s.wanted ? 8 : 2, hide: () => (s.marker.visible = false) });
+  }
+  if (tile && tile.view.marker.sprite.visible) {
+    tmpV.set(tile.x, FLOOR_Y + 1.4, tile.z);
+    if (stage.project(tmpV, labelProj)) labels.push({ rect: { x0: labelProj.x - 72, x1: labelProj.x + 72, y0: labelProj.y - 30, y1: labelProj.y + 26 }, priority: 7, hide: () => (tile!.view.marker.sprite.visible = false) });
+  }
+  labels.sort((a, b) => b.priority - a.priority);
+  const hud = hudRects();
+  const placed: ScreenRect[] = hud.slice();
+  shownLabels = [];
+  for (const l of labels) {
+    if (placed.some((p) => overlaps(p, l.rect))) l.hide();
+    else {
+      placed.push(l.rect);
+      shownLabels.push(l.rect);
+    }
+  }
+}
+/** What the label pass let through this frame (for the overlap test). */
+let shownLabels: ScreenRect[] = [];
 
 // ================================================================ the end card: the next upgrade, which the player can now afford
 const endCard = buildEndCard(() => openStore(), TUNE.diningCar);
@@ -2003,7 +2194,7 @@ let last = performance.now();
 let paused = false;
 let stepFailed = false;
 function frame(now: number): void {
-  const dt = Math.min(0.05, (now - last) / 1000) * TEST_SPEED;
+  const dt = Math.min(DT_MAX, (now - last) / 1000) * TEST_SPEED;
   last = now;
   requestAnimationFrame(frame);
   if (paused) return;
@@ -2098,6 +2289,7 @@ function step(dt: number): void {
   cash.update(dt);
   updateGuide(dt);
   updateMoney(dt);
+  placeLabels();
   if (!ended && clock - lastInput > TUNE.idleEnd) endGame();
   if (ended && money !== endMoney) {
     endMoney = money;
@@ -2119,6 +2311,16 @@ async function boot(): Promise<void> {
   stage.rig.snapTo(me.x, me.z);
   player.setPosition(me.x, FLOOR_Y, me.z);
   player.setFacing(me.facing);
+  // Guest 1 is at the desk when the ad opens; the others come one at a time.
+  const first = callNext();
+  if (first) {
+    first.path = [];
+    first.onArrive = null;
+    first.setPose('stand', { x: QUEUE_SPOT.x, y: FLOOR_Y, z: QUEUE_SPOT.z, facing: -Math.PI / 2 });
+    first.state = 'queue';
+    first.walkSpeed = TUNE.guestSpeed;
+    flow.step = 1;
+  }
   for (const g of guests) g.update(0);
   batch.sync(stage.rig.camera);
   // Every shader compiles behind the splash (the canvas stays hidden until real frames are on it).
@@ -2155,6 +2357,17 @@ void boot();
       caption: showing?.title ?? null, me: { x: +me.x.toFixed(2), z: +me.z.toFixed(2) },
       offFloor: [...guests, ...helpers.map((h) => h.w)].filter((g) => Math.abs(g.x) > INNER + 0.05).map((g) => `${g.x.toFixed(1)},${g.z.toFixed(1)}`),
     };
+  },
+  /** Every visible label and HUD box now, and any pair that overlaps (should always be none). */
+  overlaps: () => {
+    const boxes = [...shownLabels.map((r) => ({ r, kind: 'label' })), ...hudRects().map((r) => ({ r, kind: 'hud' }))];
+    const bad: string[] = [];
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      if (boxes[i].kind === 'hud' && boxes[j].kind === 'hud') continue;
+      if (overlaps(boxes[i].r, boxes[j].r, 0)) bad.push(`${boxes[i].kind}/${boxes[j].kind}`);
+    }
+    const msgs = document.querySelectorAll('.ad-banner.on, .ad-hint.on, .ad-class.on').length;
+    return { labels: shownLabels.length, bad, messages: msgs };
   },
   give: (bills: number) => {
     for (let i = 0; i < bills; i++) landBill();

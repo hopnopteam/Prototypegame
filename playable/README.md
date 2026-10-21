@@ -6,20 +6,22 @@ cash and sounds are the real game's; the game itself is untouched.
 
 ## The flow (the test bot finishes in about 7 minutes; a person takes about 8-10)
 
-One thing at a time. A single flow controller (`flow` in `src/playable/main.ts`) decides what is active, and requests, upgrade tiles and camera moves ask it first. Captions go through **one channel**: one at a time, each faded out before the next. A small caption (praise, a combo) is shown only if nothing else is showing, otherwise it is dropped. The same caption twice is dropped.
+**One thing at a time.** A single flow controller (`flow` in `src/playable/main.ts`) decides what is active.
+- **Messages:** only one is on screen at a time (a caption, or else the instruction pill). Each fades out before the next, and a small one (praise, a combo) is dropped if anything else is up.
+- **Labels over the world** (guest bubbles, item signs, the upgrade tile's marker, the guide arrow, the +$ floats) are checked every frame. A label that would touch a more important one, or the HUD, is hidden for that frame.
+- The bot checks this every poll on a small (360×640) and a tall (390×844) screen. Both runs had 0 overlaps and 0 moments with two messages.
 
-**The train never stops**, so nobody boards or leaves. Three passengers are aboard from the start: one at the reception desk, two waiting on the sofa. Once checked in they stay in their rooms all night, and the conductor looks after them. The train starts as **one carriage** (the lobby).
+**The train never stops; nobody leaves.** It starts as one carriage, the lobby. Three passengers come to the reception one at a time, each walking in slowly from the front of the carriage, and stay in their rooms all night.
 
-**Tutorial.**
-- Passenger 1, one step at a time, shown in a large instruction pill under the money: *Check in the guest* → *Get their bag* → *Bring it to their room* → *Grab the cash*.
-- Passenger 2 comes from the sofa and does the same, with the arrow only.
-- Then "GREAT JOB!", passenger 3 comes to the desk, and play begins.
+**Tutorial: three guests, each alone.** The next guest walks in only after the current one is fully looked after, and after a short "DONE!" pause.
+- **Steps for each guest:** check them in at the desk → they walk to their room and ask a moment later → get their one item → bring it → collect the cash.
+- **Each guest asks for one item:** guest 1 their bag (the rack), guest 2 a blanket (the linen cupboard), guest 3 tea (the tea counter). The supply spots always carry their icon sign, which lights up when needed.
+- **Help:** guest 1 gets an arrow, a glowing ring and short words ("Go to the desk", "Grab the bag", "Bring to the guest", "Collect the cash"). Guest 2 gets the arrow, the ring and one word. Guest 3 gets only a light arrow.
+- **One target at a time:** the arrow over the goal, or, when the goal is off screen, an arrow at the conductor's feet.
 
-**Guidance.** A bouncing arrow marks the goal, and an arrow at the conductor's feet appears only when the goal is off screen.
+**Pace** (all in `TUNE.pace`): a 1 s breath after each step, a 2.5 s pause between guests, requests 1.4 s after a guest reaches their room, and a slow walk-in.
 
-**Play.** Each guest asks for one thing at a time through the night: a blanket once, a towel once (Comfort), then tea (or coffee in Business). Later they also visit the café and the theatre. At most 2 requests are open (3 with an Attendant).
-
-**Deliveries.** Picking up takes 0.2 s. A delivery goes the moment the guest is in reach (anywhere in their room). Cash streams onto the back from a stride away. New sounds: a coin "ting" that climbs a scale as a pile streams in, a two-note bell for a delivery, and a rising arpeggio for an upgrade.
+**Play.** At most 2 requests are open at once (3 with an Attendant). Each guest asks for one thing at a time: their bag, a blanket, a towel in Comfort, then tea (or coffee in Business). They also visit the café and the theatre.
 
 **Upgrades, one by one.** A goal bar shows the next one; its tile appears once it is affordable.
 
@@ -31,12 +33,10 @@ One thing at a time. A single flow controller (`flow` in `src/playable/main.ts`)
 | Theatre Car | $240 |
 | Faster Attendant | $200 |
 | Business Class | $300 |
-| 2nd Attendant (serves the café and theatre) | $260 |
+| 2nd Attendant (café and theatre) | $260 |
 | Café Makeover | $320 |
 
-Class upgrades restyle the lobby and keep its three rooms. Then the goal is "Dining Car: $X/300", and the end card comes once you can afford it.
-
-All the numbers are in `TUNE` at the top of `src/playable/main.ts`.
+Tiles sit in open spots the camera always sees (the carriages' rear vestibule, the open lobby floor, the café's middle aisle). Then the goal is "Dining Car: $X/300", and the end card comes once you can afford it.
 
 ## Switching ad networks
 

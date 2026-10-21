@@ -183,3 +183,5 @@ html:not(.nx-started) .ad-goal, html:not(.nx-started) .ad-hand { visibility: hid
   .ad-goal.on, .ad-hint.on { transform: none; }
   .ad-goal.full.on { animation: none; }
 }
+/* Guest 2's instruction: the icon and one word. */
+.ad-hint.icon-only { padding-right: 6px; }
