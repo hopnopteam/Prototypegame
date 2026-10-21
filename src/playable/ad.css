@@ -143,3 +143,13 @@ body { font-family: 'Jost', 'Futura', 'Century Gothic', 'Trebuchet MS', sans-ser
 .ad-end.on ~ .ad-corner, body:has(.ad-end.on) .ad-corner { display: none; }
 html:not(.nx-started) .ad-goal, html:not(.nx-started) .ad-hand { visibility: hidden; }
 @media (orientation: landscape) { .ad-start-title { top: 18%; } .ad-start-drag { top: 50%; } }
+
+/* The goal line: the next upgrade with a progress bar (green and pulsing once it can be bought). */
+.ad-goal-txt { display: flex; flex-direction: column; gap: 4px; }
+.ad-goal-bar { display: none; width: 100%; min-width: 150px; height: 9px; border-radius: 5px; background: rgba(255,255,255,0.22); overflow: hidden; }
+.ad-goal.bar .ad-goal-bar { display: block; }
+.ad-goal-bar i { display: block; height: 100%; background: linear-gradient(#FFE15A, #F2A91E); transform-origin: 0 50%; transform: scaleX(0); transition: transform 0.25s; border-radius: 5px; }
+.ad-goal.full .ad-goal-bar i { background: linear-gradient(#A6F542, #4DC21E); }
+.ad-goal.full.on { animation: goalPulse 1s ease-in-out infinite; }
+@keyframes goalPulse { 50% { transform: translateX(-50%) scale(1.06); } }
+.ad-float.big { font-size: 34px; }
