@@ -25,7 +25,6 @@ import { BED_TOP, CarriageView, FLOOR_Y } from '../world/CarriageView';
 import { CharacterBatch } from '../world/CharacterBatch';
 import { CharacterView, CONDUCTOR_LOOK, type CharacterLook } from '../world/CharacterView';
 import { CashView } from '../world/CashView';
-import { ClassChips } from '../world/ClassChips';
 import { GeoBuilder } from '../world/geo';
 import { createItemMesh, ITEM_HEIGHT } from '../world/ItemMeshes';
 import { CARRIAGE_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, INNER, PLATFORM_X0, type CabinLayout, type VenueSeatLayout } from '../world/layout';
@@ -147,11 +146,6 @@ scene.add(particles.points);
 stage.attachParticles(particles);
 const cash = new CashView();
 scene.add(cash.mesh);
-const chips = new ClassChips();
-// The game hangs class chips out over the lake; with the camera on the conductor that is off-screen, so the ad brings
-// them in over the middle of the carriage (still above its walls).
-chips.group.position.x = HALF_WIDTH + 1.2;
-scene.add(chips.group);
 const audio = new AudioEngine();
 audio.prepare();
 audio.setVolume(0.7);
@@ -1795,7 +1789,6 @@ function step(dt: number): void {
     }
   }
   for (const c of train) c.view.animate(dt);
-  chips.sync(train.map((c) => (c.type === 'lobby' || c.type === 'sleeper' ? classOfTier(c.tier) : null)), (i) => carriageOriginZ(i), dt, 1);
   scenery.update(dt, journey.speed);
   loco.update(dt, journey.speed);
   smokeT -= dt;
@@ -1860,6 +1853,10 @@ void boot();
   },
   debug: () => guests.map((g) => ({ state: g.state, x: +g.x.toFixed(2), z: +g.z.toFixed(2), path: g.path.length, room: g.room ? `${g.room.car}:${g.room.cabin}` : null, near: map.nearestNode(g.x, g.z) })),
   route: (ax: number, az: number, bx: number, bz: number, node?: string) => ({ a: map.nearestNode(ax, az), b: node ?? map.nearestNode(bx, bz), r: route({ x: ax, z: az }, { x: bx, z: bz }, node) }),
+  /** Test runs only: put bills on the conductor's back. */
+  give: (bills: number) => {
+    for (let i = 0; i < bills; i++) landBill();
+  },
   tap: (x: number, y: number) => {
     window.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, pointerId: 1 }));
     window.dispatchEvent(new PointerEvent('pointerup', { clientX: x, clientY: y, pointerId: 1 }));
