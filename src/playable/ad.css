@@ -74,3 +74,25 @@ body { font-family: 'Jost', 'Futura', 'Century Gothic', 'Trebuchet MS', sans-ser
   .ad-banner b { font-size: clamp(22px, 4.2vh, 34px); -webkit-text-stroke-width: 5px; }
   .ad-banner i { font-size: 13px; }
 }
+
+/* The goal line: one short instruction with its icon, under the money (the tutorial; hints when the player hesitates). */
+.ad-goal { position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 58px); left: 50%; transform: translateX(-50%) scale(0.6); opacity: 0;
+  display: flex; align-items: center; gap: 8px; padding: 6px 16px 6px 8px; border-radius: 16px; background: rgba(32, 22, 52, 0.86); border: 2px solid rgba(255,255,255,0.85);
+  color: #fff; font-weight: 800; font-size: 19px; white-space: nowrap; pointer-events: none; transition: transform 0.25s cubic-bezier(.3,1.6,.6,1), opacity 0.2s; }
+.ad-goal.on { opacity: 1; transform: translateX(-50%) scale(1); }
+.ad-goal canvas { width: 34px; height: 34px; flex: none; background: #FFF6E4; border-radius: 50%; border: 2px solid #2B2230; }
+
+/* A class upgrade: the game's class card (the class colour, its stars, what it is worth). */
+.ad-class { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.ad-class-card { --cls: #3E8E8A; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 14px 26px 16px; border-radius: 22px;
+  background: linear-gradient(#2D3F6B, #1E2B4D); border: 4px solid #F2C24E; box-shadow: 0 6px 0 #14203D, 0 12px 30px rgba(0,0,0,0.45); opacity: 0; transform: scale(0.4); }
+.ad-class.on .ad-class-card { animation: classIn 2.6s cubic-bezier(.3,1.5,.5,1) forwards; }
+.ad-class-card canvas { width: 92px; height: 92px; filter: drop-shadow(0 3px 0 rgba(0,0,0,0.3)); }
+.ad-class-card b { font-weight: 900; font-size: 30px; color: #fff; letter-spacing: 0.03em; -webkit-text-stroke: 5px var(--cls); paint-order: stroke fill; white-space: nowrap; }
+.ad-stars { color: #FFD23A; font-size: 34px; letter-spacing: 4px; -webkit-text-stroke: 2px #8A5A00; line-height: 1; }
+.ad-class-card i { font-style: normal; font-weight: 800; font-size: 18px; color: #9BF04A; }
+@keyframes classIn {
+  0% { opacity: 0; transform: scale(0.4); } 12% { opacity: 1; transform: scale(1.08); } 20% { transform: scale(1); }
+  85% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.9) translateY(-20px); }
+}
+@media (orientation: landscape) { .ad-goal { font-size: 16px; } .ad-class-card { transform-origin: 50% 50%; } .ad-class-card canvas { width: 64px; height: 64px; } }
