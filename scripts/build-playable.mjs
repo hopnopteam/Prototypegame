@@ -14,6 +14,13 @@ const noMusic = {
   name: 'no-music',
   setup(b) {
     b.onResolve({ filter: /\/music$/ }, (args) => (args.importer.includes('/audio/') ? { path: 'music-stub', namespace: 'nx' } : undefined));
+    // Wider room doorways in the ad (easier in and out with a finger); the game itself is unchanged.
+    b.onLoad({ filter: /src\/world\/layout\.ts$/ }, (args) => {
+      const src = readFileSync(args.path, 'utf8');
+      const patched = src.replace('export const ROOM_DOOR_WIDTH = 1.4;', 'export const ROOM_DOOR_WIDTH = 1.8;');
+      if (patched === src) throw new Error('ROOM_DOOR_WIDTH not found');
+      return { contents: patched, loader: 'ts' };
+    });
     b.onResolve({ filter: /gameanalytics/ }, () => ({ path: 'ga-stub', namespace: 'nx' }));
     b.onLoad({ filter: /.*/, namespace: 'nx' }, (args) => ({
       contents: args.path === 'music-stub' ? 'export const MUSIC = { data: "", loopSeconds: 48 };' : 'export default {};',
@@ -27,7 +34,7 @@ const result = await build({
   bundle: true,
   format: 'iife',
   target: ['es2020', 'safari15'],
-  minify: true,
+  minify: process.env.MINIFY !== '0',
   write: false,
   legalComments: 'none',
   define: { 'process.env.NODE_ENV': '"production"', __GA_GAME_KEY__: '""', __GA_SECRET_KEY__: '""' },

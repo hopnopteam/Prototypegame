@@ -4,17 +4,21 @@
 external requests), about 1.1 MB. It is built from the game's own world code, so carriages, characters, the platform,
 cash and sounds are the real game's; the game itself is untouched.
 
-## The flow (the test bot finishes in 7:37; a person takes longer, about 8-10 minutes)
+## The flow (the test bot finishes in 6:10; a person takes about 8-9 minutes)
 
-The train never stops at a station: it rides on through the night from the first frame.
+The train never stops at a station. One mechanic is taught at a time, and each lesson ends with praise ("NICE!", "GREAT!"...):
 
-1. **Check-in (0:00).** Ten travellers queue at the lobby's reception desk. Stand at the desk and they check in one after another: each gets a key, pays the fare onto the desk and walks to their room. Whoever has no room yet waits in the lobby with a bed bubble.
-2. **Deliveries.** Guests ask for tea (the urn), then a blanket (the linen cupboard), then their bag (the luggage rack), then any of these. Fetch it, bring it, and they pay. Guests left waiting more than 16 s turn 😠, and they show 😍 when served.
-3. **Upgrades, one at a time** (only cash carried on your back goes in): New Room $40, New Room $60, New Room $80 (a waiting traveller checks in to each), **Comfort Class** $200 (the makeover, and dearer requests), **Attendant** $150 (serves tea by herself and leaves her takings on the desk for you to collect; you still do blankets, towels and bags), **Café Car** $260 (lattes and croissants), **Sleeper Car** $360 (the last travellers check in), **Theatre Car** $460 (start the film, every seat pays, popcorn).
-4. **The guide** (a gold arrow, the hint line and the hand) shows every step until Comfort Class. After that it shows only when you stop.
-5. **The end.** The goal line then reads "Next upgrade: Dining Car $X/300". The end card (CHOOSE NEXT TRAIN UPGRADE, the Dining Car, $300, "You have $..." in green) appears only once you can afford it. After 15 s without a touch the end card shows anyway (ad networks expect the CTA), but then without the price tag or the "You have" line.
+1. **Check in.** Four travellers queue at the reception desk. Stand there and each takes a key, pays the fare onto the desk and goes to their room. Three more wait in the lobby for rooms not yet built.
+2. **Collect the cash** from the desk.
+3. **Tea**, then **a blanket**, then **their bag.** One guest asks at a time. A gold trail of chevrons on the floor and an arrow lead to the urn, the linen cupboard and the rack, then to the guest. Each guest asks for their bag once only.
+4. **Upgrades.** Each one appears ("NEW UPGRADE!") only once you can afford it; until then the hint line shows "Comfort Class: $130/260". The order: New Room $60, New Room $100, New Room $140 (a waiting traveller checks in to each), **Comfort Class** $260, **Attendant** $200 (serves tea; her takings wait on the desk), **Café Car** $300, **Attendant+** $280 (blankets and towels too), **Theatre Car** $380.
+5. **Requests are capped:** one at a time at first, then one more after the second room, after Comfort Class and after the Attendant. Café and theatre visits join once those cars are open, and each is taught on first use with the guide on.
+6. **Rewards:** each guest reacts with an emoji (😊 🥰 🤩 😋 🍿), hearts and sparkles, and the +$ floats up. Serving within 9 s builds a combo ("COMBO x3!", a bonus bill from x3).
+7. **The guide** stays on until Comfort Class, and again while a new venue is taught. After that it shows when you stop.
+8. **The camera** eases in a little while walking and back out when standing or working.
+9. **The end.** "Dining Car: $X/300". The end card comes once you can afford it (or after 15 s without a touch, then without the price).
 
-All the numbers are in `TUNE` at the top of `src/playable/main.ts`.
+In the ad build only, room doorways are 1.8 m wide (1.4 m in the game); `scripts/build-playable.mjs` patches this. All the numbers are in `TUNE` at the top of `src/playable/main.ts`.
 
 ## Switching ad networks
 
