@@ -62,14 +62,14 @@ const TUNE = {
   bill: 10,
   /** Bills paid, by the room's class (Basic, Comfort, Business): the fare at the desk, each delivery, the tip on leaving. */
   fare: { basic: 2, comfort: 5, business: 9 },
-  deliver: { basic: 2, comfort: 3, business: 5 },
+  deliver: { basic: 1, comfort: 3, business: 5 },
   tip: { basic: 1, comfort: 3, business: 5 },
   /** Bills for a café order, a popcorn, and each theatre ticket. */
   cafe: 3,
   popcorn: 2,
   ticket: 2,
   /** Upgrade prices, in order (each one is the next goal as soon as the last is bought). */
-  price: { room: 40, carriage: 150, berth3: 70, berth4: 90, comfort: 260, cafe: 350, theatre: 480, business: 650 },
+  price: { room: 40, carriage: 200, berth3: 160, berth4: 200, comfort: 500, cafe: 600, theatre: 800, business: 1100 },
   /** Seconds a job takes. */
   checkIn: 0.75,
   pickUp: 0.4,
@@ -86,7 +86,7 @@ const TUNE = {
   patience: 12,
   /** Seconds before a settled guest asks for something, and between requests. */
   firstAsk: 2.2,
-  nextAsk: [9, 15] as [number, number],
+  nextAsk: [12, 20] as [number, number],
   /** Legs (stations) a guest rides before getting off. */
   legs: 2,
   /** The journey: seconds between stations, the train's speed, the stop's minimum length. */
@@ -1436,6 +1436,8 @@ function target(): Target | null {
     const g = guests.find((x) => x.order?.item === c.item && !x.walking);
     if (g) return { ...approach(g), lift: 2.4, icon: ITEM_ICON[c.item], text: `Bring ${ITEM_WORD[c.item]} to the guest` };
   }
+  // An upgrade you can afford: the best thing to do next.
+  if (tile && money >= tile.price - tile.paid) return { x: tile.x, z: tile.z, lift: 1.5, icon: tile.icon, text: `Buy: ${tile.name}` };
   if (frontReady() && freeRoom()) return { x: desk.x, z: desk.z, lift: 2.0, icon: 'key', text: 'Check in the guest' };
   const pile = piles.filter((p) => !taking.has(p.id) && cash.pileCount(p.id) > 0).sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z))[0];
   if (pile && (pile.id === 'desk' || Math.hypot(pile.x - me.x, pile.z - me.z) < 8)) return { x: pile.x, z: pile.z, lift: 1.4, icon: 'cash', text: 'Collect the cash' };
