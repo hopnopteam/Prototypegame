@@ -9,6 +9,9 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 - **In the Claude app:** open the published artifact (link in the latest session notes). A loading screen covers the
   first few seconds (shaders compile, the sounds render and the first frames are drawn behind it, so play is smooth
   from the first second), then gives way by itself; the sound fades in quietly on the first touch (no prompt). A brand-new player then sees a short story intro, skippable.
+- **God mode, for recording videos:** `?god=1` on the play link, or the "Night Express GOD" APK (`android-god-N`
+  pre-releases, built beside the normal one on every push). Unlimited money, gems and Rail Miles, every helper hireable
+  as soon as their tile shows, stars ×4, its own save, nothing sent to GameAnalytics (`src/config/god.ts`).
 - **The classic version** (before the session 12 lakeside, night look and carriage classes) is kept in
   [`archive/classic-v1/`](archive/classic-v1/README.md): a playable copy and the commit to return to.
 - **Graphics:** Settings has Auto / Low / Medium / High / Ultra (one look on every tier; Low and Medium render

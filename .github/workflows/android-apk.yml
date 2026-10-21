@@ -101,3 +101,69 @@ jobs:
             Test build of Night Express for Android (not for the Play Store).
             On the phone: download the APK, allow installs from this source when asked, and open it.
             Built from ${{ github.sha }}.
+
+  # The god-mode APK for recording launch videos: the wallet never runs dry, every helper can be hired at once,
+  # stars count four times over, nothing is sent to GameAnalytics (src/config/god.ts). It has its own app id
+  # ("Night Express GOD" on the phone), so it installs beside the normal test build with its own save.
+  god:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GOD_MODE: '1'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the game (god mode)
+        run: npm run build
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Android SDK packages
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools" > /dev/null
+
+      - name: Copy the game into the Android project
+        run: npx cap sync android
+
+      - name: Name the app on the phone
+        run: sed -i 's|<string name="app_name">Night Express</string>|<string name="app_name">Night Express GOD</string>|' android/app/src/main/res/values/strings.xml
+
+      - name: Build the APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk "night-express-god-${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: night-express-god-apk-${{ github.run_number }}
+          path: night-express-god-${{ github.run_number }}.apk
+
+      - name: Publish a god-mode pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-god-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Night Express GOD MODE build ${{ github.run_number }} (for recording videos)
+          prerelease: true
+          files: night-express-god-${{ github.run_number }}.apk
+          body: |
+            God-mode build of Night Express for recording gameplay videos (not for players or the Play Store).
+            Unlimited money, gems and Rail Miles; every helper can be hired as soon as their tile shows; stars count 4x
+            so levels and classes come quickly; nothing is sent to GameAnalytics.
+            Installs beside the normal test build as "Night Express GOD", with its own save.
+            Built from ${{ github.sha }}.

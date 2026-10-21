@@ -17,6 +17,7 @@ import { BrowserSaveStorage } from '../save/SaveStorage';
 import { forgetSave, mirrorSave, platform as nativePlatform } from '../services/native';
 import { ANALYTICS } from '../config/analytics';
 import { GameAnalyticsService, gameAnalyticsWanted } from '../services/gameAnalytics';
+import { GOD, GOD_MODE, GOD_WORK } from '../config/god';
 import { SaveSystem } from '../save/SaveSystem';
 import { MockAdService } from '../services/ads';
 import { EVENTS, MockAnalyticsService } from '../services/analytics';
@@ -90,7 +91,7 @@ const FRAME_WORK_MS = 2.5;
 /** Behind the loading screen nobody sees a slow frame: queued work (bakes, scenery, rebuilds) gets this much a frame. */
 const LOADING_WORK_MS = 40;
 /** Where the save lives (localStorage, mirrored into the app's own storage on iOS and Android). */
-export const SAVE_KEY = 'nightexpress.save';
+export const SAVE_KEY = 'nightexpress.save' + (GOD_MODE ? GOD.saveSuffix : '');
 const MAX_FRAME = 0.05;
 /** Where in the day cycle the held night sits (the middle of the night key). */
 const NIGHT_TIME = 0.82;
@@ -264,7 +265,7 @@ export class Game implements World {
     this.progression = new Progression(this.econ.progression, this.data.route);
     // Class upgrades wait for their route level: a flag per level reached (older saves get theirs here).
     for (let level = 1; level <= this.progression.level; level++) this.data.profile.flags[`level_${level}`] = true;
-    this.unlocks = new UnlockChain(buildUnlocks(this.data.route.carriages), this.data.route, () => this.data.profile.flags, () => this.data.profile.handWork);
+    this.unlocks = new UnlockChain(buildUnlocks(this.data.route.carriages), this.data.route, () => this.data.profile.flags, () => (GOD_MODE ? GOD_WORK : this.data.profile.handWork));
     const route = this.data.route;
     this.journey = new Journey(this.econ.journey, {
       onPhase: (phase, previous) => {
@@ -414,6 +415,7 @@ export class Game implements World {
   private connectGameAnalytics(): void {
     if (typeof window === 'undefined') return;
     if (!ANALYTICS.gameKey || !ANALYTICS.secretKey) { this.analyticsStatus = 'no keys'; return; }
+    if (GOD_MODE) { this.analyticsStatus = 'off (god mode)'; return; }
     if (!gameAnalyticsWanted(location.search, navigator.webdriver === true)) return;
     try {
       const ga = new GameAnalyticsService({ userId: this.data.profile.installId, platform: nativePlatform, verbose: this.data.settings.devTools });
@@ -480,6 +482,7 @@ export class Game implements World {
 
   addStars(amount: number, source: string, at?: { x: number; z: number }): void {
     if (amount <= 0) return;
+    if (GOD_MODE) amount *= GOD.starMultiplier;
     const levels = this.progression.addStars(amount);
     this.save.markDirty();
     this.events.emit('stars.added', { amount, source, x: at?.x, z: at?.z });
@@ -578,7 +581,16 @@ export class Game implements World {
     this.feedback.update(dt);
     this.save.update(dt);
     if (this.creativeMode && this.wallet.get('cash') < 5000) this.wallet.add('cash', 5000, 'creative');
+    if (GOD_MODE) this.topUpGod();
     if (this.lifetimeSeconds() > 720) this.ftue('session_12min');
+  }
+
+  /** God mode (config/god.ts): the wallet never runs dry. */
+  private topUpGod(): void {
+    const w = this.wallet;
+    if (w.get('cash') < GOD.cash / 2) w.add('cash', GOD.cash - w.get('cash'), 'dev');
+    if (w.get('gems') < GOD.gems / 2) w.add('gems', GOD.gems - w.get('gems'), 'dev');
+    if (w.get('railMiles') < GOD.railMiles / 2) w.add('railMiles', GOD.railMiles - w.get('railMiles'), 'dev');
   }
 
   /** Passengers and crew sway with the train's pull and braking (the rear of the train is +z). */

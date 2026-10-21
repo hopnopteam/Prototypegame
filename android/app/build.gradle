@@ -4,7 +4,8 @@ android {
     namespace = "com.hopnop.nightexpress"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.hopnop.nightexpress"
+        // The god-mode build for recording videos (GOD_MODE=1) installs beside the normal test build, with its own save.
+        applicationId System.getenv("GOD_MODE") == "1" ? "com.hopnop.nightexpress.god" : "com.hopnop.nightexpress"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Test builds from CI count up, so each new APK installs over the last one.
