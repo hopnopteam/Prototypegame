@@ -343,6 +343,9 @@ export class CharacterView {
   private bubbleBaseY = 1.85;
   private bubbleZ = 0;
   private squash = 0;
+  /** The walk's swing and forward lean, eased in and out so starting and stopping never snap the legs. */
+  private swingNow = 0;
+  private leanNow = 0;
   private blanket: THREE.Mesh | null = null;
   private eyelids: THREE.Mesh | null = null;
   /** The current action and how much longer it lasts (callers refresh it while it goes on). */
@@ -703,7 +706,9 @@ export class CharacterView {
 
     const moving = speed > 0.2 && !this.riding;
     this.phase += dt * (moving ? 3 + speed * 2.2 : 1.6);
-    const swing = moving ? Math.min(0.75, 0.25 + speed * 0.12) : 0;
+    const swingTarget = moving ? Math.min(0.75, 0.25 + speed * 0.12) : 0;
+    this.swingNow += (swingTarget - this.swingNow) * Math.min(1, dt * (moving ? 14 : 10));
+    const swing = this.swingNow;
     const s = Math.sin(this.phase);
     // A foot lands at each end of the stride (the swing turns), twice a cycle.
     const side = Math.cos(this.phase) >= 0;
@@ -711,9 +716,12 @@ export class CharacterView {
     this.lastStrideSide = side;
     this.legs[0].rotation.x = s * swing;
     this.legs[1].rotation.x = -s * swing;
-    const bob = moving ? Math.abs(Math.cos(this.phase)) * 0.06 : Math.sin(this.phase) * 0.008;
+    // A step's bob while walking, a slow breath while standing; the forward lean eases with the pace.
+    const walkBob = Math.abs(Math.cos(this.phase)) * 0.06 * (swing / 0.75);
+    const bob = walkBob + (1 - Math.min(1, swing / 0.3)) * Math.sin(this.phase) * 0.008;
     this.body.position.y = bob;
-    this.body.rotation.x = moving ? 0.08 : 0;
+    this.leanNow += ((moving ? 0.08 : 0) - this.leanNow) * Math.min(1, dt * 10);
+    this.body.rotation.x = this.leanNow;
 
     // An action owns the arms while it runs; otherwise they swing with the walk (or carry, or wave).
     if (this.action === 'none') {
@@ -739,7 +747,9 @@ export class CharacterView {
       const k = Math.sin(this.squash * Math.PI) * 0.12;
       this.body.scale.set(1 + k, 1 - k, 1 + k);
     } else {
-      this.body.scale.set(1, 1, 1);
+      // Standing still, a slow breath (barely there: it only keeps a waiting figure from looking frozen).
+      const breath = moving ? 0 : Math.sin(this.phase * 1.3) * 0.012;
+      this.body.scale.set(1, 1 + breath, 1);
     }
   }
 
@@ -765,6 +775,8 @@ export class CharacterView {
     this.waving = false;
     this.leans = true;
     this.squash = 0;
+    this.swingNow = 0;
+    this.leanNow = 0;
     this.footfall = false;
     this.phase = Math.random() * 10;
     this.body.position.set(0, 0, 0);

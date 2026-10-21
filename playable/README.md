@@ -1,42 +1,54 @@
 # Night Express playable ad
 
 `night-express-playable.html` is the whole ad: one self-contained file (code, art, font and sounds inlined; no
-external requests), about 1.1 MB. It is built from the game's own world code, so carriages, characters, the platform,
-cash and sounds are the real game's; the game itself is untouched.
+external requests), about 1.1 MB. It is built from the game's own world code, so carriages, characters, cash and
+sounds are the real game's; the game itself is untouched (apart from a smoother walk cycle shared with it).
 
-## The flow (the test bot finishes in about 7 minutes; a person takes about 8-10)
+## The flow (5–10 minutes): deliver → get paid → upgrade
 
-One thing at a time. A single flow controller (`flow` in `src/playable/main.ts`) decides what is active, and requests, upgrade tiles and camera moves ask it first. Captions go through **one channel**: one at a time, each faded out before the next. A small caption (praise, a combo) is shown only if nothing else is showing, otherwise it is dropped. The same caption twice is dropped.
+**Splash (1.8 s, or a tap):** "UPGRADE YOUR TRAIN" over the live scene, "Drag to move" with a hand on a pad, the app
+icon and Install in the corners (after the reference), then it fades into play.
 
-**The train never stops**, so nobody boards or leaves. Three passengers are aboard from the start: one at the reception desk, two waiting on the sofa. Once checked in they stay in their rooms all night, and the conductor looks after them. The train starts as **one carriage** (the lobby).
+**Tutorial (~0:00–1:00).** The train starts as one carriage, the lobby, with **one room open**; the other two are
+covered and padlocked. Passenger 1, one step at a time in the instruction pill: *Check in the guest* → *Get their bag*
+→ *Bring it to their room* (they pay: coins fly to the counter) → *Buy Room 2* (exactly what they paid). Passenger 2
+does the same with the arrow only. Then "GREAT JOB!" and play.
 
-**Tutorial.**
-- Passenger 1, one step at a time, shown in a large instruction pill under the money: *Check in the guest* → *Get their bag* → *Bring it to their room* → *Grab the cash*.
-- Passenger 2 comes from the sofa and does the same, with the arrow only.
-- Then "GREAT JOB!", passenger 3 comes to the desk, and play begins.
+**Play.** Each guest asks for one thing at a time (a blanket, a towel in Comfort, tea or coffee), and later visits the
+café and the theatre. Every delivery: "+$X" over the guest and a burst of coins flying to the money counter with a
+rising coin sound. A goal bar at the top always shows the next big goal ("Next: Comfort Class") and how far along the
+way to it you are.
 
-**Guidance.** A bouncing arrow marks the goal, and an arrow at the conductor's feet appears only when the goal is off screen.
+**Upgrades, in order.** Small ones show two tiles at a time; each changes something in place (the camera pushes in on
+it, it grows in with a sparkle, confetti and a small shake) and adds +$2 to every delivery. A big one (the Attendant, a
+new class, a new carriage) only appears once every small one before it is bought.
 
-**Play.** Each guest asks for one thing at a time through the night: a blanket once, a towel once (Comfort), then tea (or coffee in Business). Later they also visit the café and the theatre. At most 2 requests are open (3 with an Attendant).
+| # | Upgrade | Kind | Price | What you see |
+|---|---|---|---|---|
+| 1 | Room 2 | tutorial | $20 | the lid lifts off the room, the bed drops in |
+| 2–6 | Room 3, Reading Lamps, Lobby Rug, Fresh Flowers, Bigger Rack | small | $40–80 | a room opens; lamps / flowers in every room; a red rug; a longer rack |
+| 7 | Attendant | big | $130 | she arrives and takes over requests the player leaves for 4 s |
+| 8 | Comfort Class | big | $190 | the makeover sweeps the lobby; class card |
+| 9 | Minibars | small | $110 | a minibar in every room |
+| 10 | Café Car | big | $130 | rolls in under a tarp, ropes snap, the tarp slides off |
+| 11–12 | Pastry Stand, Faster Attendant | small | $110–130 | croissants on the counter; she walks faster |
+| 13 | Luxury Class | big | $180 | navy and gold makeover |
+| 14 | Theatre Car | big | $200 | covered-carriage reveal; start the movie at the projector |
+| 15–16 | Big Speakers, Red Carpet | small | $150–160 | speakers by the screen; a red carpet with spotlights |
+| 17 | **Dining Car** | final | $240 | covered-carriage reveal, then the end screen |
 
-**Deliveries.** Picking up takes 0.2 s. A delivery goes the moment the guest is in reach (anywhere in their room). Cash streams onto the back from a stride away. New sounds: a coin "ting" that climbs a scale as a pile streams in, a two-note bell for a delivery, and a rising arpeggio for an upgrade.
+**End screen.** The camera glides into the new Dining Car (the game's own Luxury dining carriage: white cloths, lamps,
+place settings and glasses, velvet chairs, diners at the tables) and drifts slowly along it; over it "UPGRADE YOUR
+TRAIN!" and one big **PLAY NOW** button. The button (and a tap anywhere) calls `openStore()` in
+`src/playable/network.ts`, the one place the store link lives. It also shows after 20 s without a touch.
 
-**Upgrades, one by one.** A goal bar shows the next one; its tile appears once it is affordable.
+**All the numbers** (prices, pay, timings, camera, the splash) are in `TUNE` at the top of `src/playable/main.ts`.
 
-| Upgrade | Price |
-|---|---|
-| Café Car | $100 |
-| Comfort Class | $160 |
-| Attendant | $180 |
-| Theatre Car | $240 |
-| Faster Attendant | $200 |
-| Business Class | $300 |
-| 2nd Attendant (serves the café and theatre) | $260 |
-| Café Makeover | $320 |
+## Testing
 
-Class upgrades restyle the lobby and keep its three rooms. Then the goal is "Dining Car: $X/300", and the end card comes once you can afford it.
-
-All the numbers are in `TUNE` at the top of `src/playable/main.ts`.
+`node scripts/playable-bot.mjs [ts] [maxSeconds] [shotDir]` plays the ad headless: it taps to walk to the next job every
+1.1 s of game time and prints when each upgrade is bought (and any long stall). Rebuild first:
+`node scripts/build-playable.mjs`.
 
 ## Switching ad networks
 
@@ -52,5 +64,5 @@ Open the file and edit the block at the very top (`window.NX_AD`):
 Set `iosUrl` and `androidUrl` to your store pages (used by Unity and AppLovin, and as the fallback when the file is
 opened outside an ad network). The ad waits for MRAID `ready` and for the ad to be on screen, and pauses while it is hidden.
 
-Or rebuild with a network preset: `node scripts/build-playable.mjs meta` (sources in `src/playable/`; tuning numbers in
-`TUNE` at the top of `src/playable/main.ts`; the end card's text in `src/playable/endcard.ts`).
+Or rebuild with a network preset: `node scripts/build-playable.mjs meta` (sources in `src/playable/`; the end screen's
+words in `src/playable/endcard.ts`).
