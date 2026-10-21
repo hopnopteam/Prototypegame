@@ -225,6 +225,8 @@ function route(from: Vec2, to: Vec2, toNode?: string): Vec2[] {
   if (!nodes) return straight(from, to) ? [{ x: to.x, z: to.z }] : [];
   const pts = nodes.map((p) => ({ x: p.x, z: p.z }));
   pts.push({ x: to.x, z: to.z });
+  // Cut the corner: start from the furthest point of the route already in plain view (no walking back to a node).
+  for (let k = pts.length - 1; k > 0; k--) if (straight(from, pts[k])) return pts.slice(k);
   return pts;
 }
 function straight(a: Vec2, b: Vec2): boolean {
@@ -513,6 +515,23 @@ function guestLook(): CharacterLook {
   return { ...a.colors, ...a.figure, accessory: a.accessory, hat: a.hat ?? 'none', hatColor: a.hatColor } as CharacterLook;
 }
 interface Order { item: ItemKind; since: number; bills: number }
+/** An idle conductor in a walking guest's way steps aside (sideways to the guest's path, onto open floor). */
+function yieldTo(g: { x: number; z: number }, dirX: number, dirZ: number, dt: number): void {
+  if (me.speed > 0.4 || pointerId >= 0 || autoWalk) return;
+  const px = -dirZ;
+  const pz = dirX;
+  const side = (me.x - g.x) * px + (me.z - g.z) * pz >= 0 ? 1 : -1;
+  const step = 1.6 * dt;
+  for (const s of [side, -side]) {
+    const nx = me.x + px * s * step;
+    const nz = me.z + pz * s * step;
+    if (map.walk.isWalkable(nx, nz)) {
+      me.x = nx;
+      me.z = nz;
+      return;
+    }
+  }
+}
 class Guest {
   readonly view: CharacterView;
   readonly bubble = new Bubble();
@@ -525,7 +544,6 @@ class Guest {
   path: Vec2[] = [];
   onArrive: (() => void) | null = null;
   blockedFor = 0;
-  sidestepped = false;
   state: GuestState = 'boarding';
   room: Room | null = null;
   seat: { venue: 'cafe' | 'cinema'; seat: VenueSeatLayout } | null = null;
@@ -574,25 +592,13 @@ class Guest {
       const nz = this.z + (dz / (d || 1)) * Math.min(step, d);
       const dNext = Math.hypot(nx - me.x, nz - me.z);
       const blocked = dNext < RADIUS * 2 && dNext < Math.hypot(this.x - me.x, this.z - me.z);
-      // Never through the conductor: a moment's wait, then a step round them (or, if there is no room, a little longer).
-      if (blocked && this.blockedFor > 0.35 && !this.sidestepped) {
-        const px = -(dz / (d || 1));
-        const pz = dx / (d || 1);
-        for (const side of [1, -1]) {
-          const sx = me.x + px * side * 0.7;
-          const sz = me.z + pz * side * 0.7;
-          if (map.walk.isWalkable(sx, sz) && straight({ x: this.x, z: this.z }, { x: sx, z: sz })) {
-            this.path.unshift({ x: sx, z: sz });
-            this.sidestepped = true;
-            break;
-          }
-        }
-      }
-      if (blocked && this.blockedFor < 1.6) {
+      // Never through the conductor: they wait, and a conductor standing idle in their way is eased aside; only if
+      // that cannot happen (a dead end) do they slip past after a while.
+      if (blocked) yieldTo(this, dx / (d || 1), dz / (d || 1), dt);
+      if (blocked && this.blockedFor < 2.5) {
         this.blockedFor += dt;
         this.speed = 0;
       } else {
-        if (!blocked) this.sidestepped = false;
         if (!blocked) this.blockedFor = 0;
         if (d <= step) {
           this.x = next.x;
@@ -1850,6 +1856,8 @@ void boot();
       offFloor: guests.filter((g) => g.x < -INNER - 0.05 || (g.x > INNER + 0.05 && journey.phase === 'moving')).map((g) => `${g.state}@${g.x.toFixed(1)},${g.z.toFixed(1)}`),
     };
   },
+  debug: () => guests.map((g) => ({ state: g.state, x: +g.x.toFixed(2), z: +g.z.toFixed(2), path: g.path.length, room: g.room ? `${g.room.car}:${g.room.cabin}` : null, near: map.nearestNode(g.x, g.z) })),
+  route: (ax: number, az: number, bx: number, bz: number, node?: string) => ({ a: map.nearestNode(ax, az), b: node ?? map.nearestNode(bx, bz), r: route({ x: ax, z: az }, { x: bx, z: bz }, node) }),
   tap: (x: number, y: number) => {
     window.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, pointerId: 1 }));
     window.dispatchEvent(new PointerEvent('pointerup', { clientX: x, clientY: y, pointerId: 1 }));
