@@ -806,7 +806,8 @@ function serve(g: Guest): void {
       done('serve');
       served++;
       if (finaleCount >= 0 && g.room?.car === SLOT.sleeper && g.state === 'room') finaleCount++;
-      g.askIn = TUNE.nextAsk[0] + Math.random() * (TUNE.nextAsk[1] - TUNE.nextAsk[0]);
+      // During the tutorial one thing at a time: nobody asks again until it is over.
+      g.askIn = (tutorialDone ? 0 : 30) + TUNE.nextAsk[0] + Math.random() * (TUNE.nextAsk[1] - TUNE.nextAsk[0]);
       // Content: a rest in bed, or back from the café to their room.
       if (g.state === 'room' && g.room) later(2.2, () => !g.order && g.state === 'room' && g.room && g.setPose('sleep', lieSpot(g.room), train[g.room.car].view.blanketColor));
       else if (g.state === 'venue' && g.seat?.venue === 'cafe') later(3.5, () => g.state === 'venue' && goBack(g));
