@@ -96,3 +96,10 @@ body { font-family: 'Jost', 'Futura', 'Century Gothic', 'Trebuchet MS', sans-ser
   85% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.9) translateY(-20px); }
 }
 @media (orientation: landscape) { .ad-goal { font-size: 16px; } .ad-class-card { transform-origin: 50% 50%; } .ad-class-card canvas { width: 64px; height: 64px; } }
+
+/* The end card's price tag on the carriage, and what the player has (enough: green). */
+.ad-end-price { position: absolute; right: 0.5em; top: 0.5em; padding: 0.15em 0.6em; border-radius: 0.8em; background: #FFE15A; border: 0.15em solid #3B1466; font-weight: 900; font-size: 1.5em; color: #3B1466; }
+.ad-end-have { text-align: center; font-weight: 800; font-size: 1.2em; color: #fff; }
+.ad-end-have b { color: #FFE15A; }
+.ad-end-have.ok b { color: #9BF04A; }
+.ad-end.idle .ad-end-price, .ad-end.idle .ad-end-have { display: none; }

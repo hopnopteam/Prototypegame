@@ -129,15 +129,16 @@ const MONEY = `<svg viewBox="0 0 72 56">${[0, 1, 2]
   })
   .join('')}</svg>`;
 
-export function buildEndCard(onPlay: () => void): HTMLElement {
+export function buildEndCard(onPlay: () => void, price: number): { el: HTMLElement; show(money: number, idle?: boolean): void } {
   const el = document.createElement('div');
   el.className = 'ad-end';
   el.innerHTML = `
     <div class="ad-end-title">${END_TITLE}</div>
     <div class="ad-end-card">
-      <div class="ad-end-art"><div class="ad-end-glow"></div>${carriageSvg()}</div>
+      <div class="ad-end-art"><div class="ad-end-glow"></div>${carriageSvg()}<span class="ad-end-price">$${price}</span></div>
       <div class="ad-end-row"><span class="ad-end-ico">${STAR}</span><b>+2</b></div>
       <div class="ad-end-row"><span class="ad-end-ico">${MONEY}</span><b>x5</b></div>
+      <div class="ad-end-have">You have <b></b></div>
     </div>
     <button class="ad-end-btn" type="button">${END_BUTTON}</button>`;
   // The whole end screen leads to the store (the button pulses as the obvious target).
@@ -146,5 +147,15 @@ export function buildEndCard(onPlay: () => void): HTMLElement {
     onPlay();
   });
   el.addEventListener('pointerdown', (e) => e.stopPropagation());
-  return el;
+  const have = el.querySelector('.ad-end-have') as HTMLElement;
+  return {
+    el,
+    show(money: number, idle = false) {
+      // Shown by the idle timeout before the goal is reached: no price to compare against yet.
+      el.classList.toggle('idle', idle);
+      (have.querySelector('b') as HTMLElement).textContent = `$${money}`;
+      have.classList.toggle('ok', money >= price);
+      el.classList.add('on');
+    },
+  };
 }

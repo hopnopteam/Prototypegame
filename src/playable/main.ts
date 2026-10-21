@@ -1,17 +1,16 @@
 // Night Express playable ad (a separate build: scripts/build-playable.mjs). It reuses the game's own world code (the
-// carriages, the characters, the platform, the cash, the tiles, the class chips, the makeover wipe, the room mess and
-// the sounds) so it looks and plays like the game, only faster.
+// carriages, the characters, the cash, the tiles, the makeover wipe and the sounds) so it looks and plays like the game.
 //
-// How it plays (everything follows from what came before):
-//  - Tutorial at Millbrook station: a traveller boards and queues at the reception desk. Check them in (they get their
-//    key and pay the fare onto the desk), collect the cash, and they walk to their room. They ask for tea: fetch it
-//    from the urn and bring it. A second traveller: check in, fetch their bag from the rack. Buy the third room. A
-//    third traveller boards, and the train leaves.
-//  - Then the game's loop, station after station: travellers board and queue at the desk; guests ask for tea,
-//    blankets and their bags; guests whose stop it is get off, leaving a tip and an untidy room to tidy for the next.
-//  - The money you carry buys one upgrade at a time: a new sleeper carriage, more rooms, Comfort Class, the Café Car,
-//    the Theatre Car, Business Class. Each brings new work and dearer fares. About 5-10 minutes for a person.
-//  - The end card after the Business Class guests' first orders (or after 15 s without a touch).
+// How it plays (the train never stops; everything follows from what came before):
+//  - From the first frame: the night train is on its way and ten travellers queue at the lobby's reception desk.
+//    Stand at the desk and they check in one after another (each pays the fare onto the desk) and go to their rooms;
+//    the rest wait in the lobby for a room. Collect the cash.
+//  - Guests ask for tea (the urn), a blanket (the linen cupboard), their bag (the luggage rack): fetch it, bring it,
+//    they pay. The guide (an arrow, a hand and a short line) leads every step until Comfort Class is bought.
+//  - The cash on your back buys one upgrade at a time: three more rooms (a waiting traveller checks in to each),
+//    Comfort Class (the game's makeover; dearer requests), an Attendant (serves tea by herself; you still do the rest
+//    and collect what she earns), the Café Car, a second Sleeper (the last travellers check in), the Theatre Car.
+//  - Then the next upgrade, the Dining Car, is shown as the goal; the end card comes once you can afford it.
 import * as THREE from 'three';
 import { AudioEngine, isAndroid, type Sfx } from '../audio/AudioEngine';
 import { classOfTier, type ClassDef } from '../config/classes';
@@ -23,21 +22,21 @@ import { TrainMap } from '../sim/TrainMap';
 import { drawIcon as drawIconAt, type IconName } from '../ui/icons';
 import { BED_TOP, CarriageView, FLOOR_Y } from '../world/CarriageView';
 import { CharacterBatch } from '../world/CharacterBatch';
-import { CharacterView, CONDUCTOR_LOOK, type CharacterLook } from '../world/CharacterView';
+import { CharacterView, CONDUCTOR_LOOK, STAFF_LOOKS, type CharacterLook } from '../world/CharacterView';
 import { CashView } from '../world/CashView';
 import { GeoBuilder } from '../world/geo';
 import { createItemMesh, ITEM_HEIGHT } from '../world/ItemMeshes';
-import { CARRIAGE_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, INNER, PLATFORM_X0, type CabinLayout, type VenueSeatLayout } from '../world/layout';
+import { CARRIAGE_LENGTH, carriageOriginZ, getLayout, HALF_WIDTH, INNER, type CabinLayout, type VenueSeatLayout } from '../world/layout';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { clipSide, MATERIALS, SHADOW_GEOMETRY, setLivery, swapMaterials } from '../world/materials';
 import { liveryFor, PALETTE } from '../world/palette';
 import { Particles } from '../world/Particles';
-import { PLATFORM } from '../world/platformLayout';
-import { PlatformView } from '../world/PlatformView';
 import { Scenery } from '../world/Scenery';
+import { Ambient } from '../world/Ambient';
+import { Fireflies } from '../world/Fireflies';
 import { guideArrowTexture, makeSprite } from '../world/sprites';
 import { Stage } from '../world/Stage';
-import { platformLightInput, trainLightInput } from '../world/trainLight';
+import { trainLightInput } from '../world/trainLight';
 import { JobMarker, TileView } from '../world/ZoneViews';
 import { buildEndCard } from './endcard';
 import { adReady, onViewable, openStore } from './network';
@@ -49,68 +48,64 @@ function drawIcon(ctx: CanvasRenderingContext2D, icon: IconName, cx: number, cy:
 
 // ================================================================ tuning: every number of the ad in one place
 const TUNE = {
-  /** Camera distance factor (the game's framing is 1). */
+  /** Camera (as in the approved build): distance factor and easing. */
   zoom: 0.8,
-  /** Camera easing: higher follows more tightly (the game uses 5). */
   follow: 7,
-  /** Walking speed (m/s): it rises a little with each upgrade. */
+  /** Walking speed (m/s), and what each upgrade adds. */
   speed: 5.6,
-  speedUp: 1.05,
-  guestSpeed: 3.4,
+  speedUp: 1.03,
+  guestSpeed: 3.2,
   /** One bill is $10. */
   bill: 10,
-  /** Bills paid, by the room's class (Basic, Comfort, Business): the fare at the desk, each delivery, the tip on leaving. */
-  fare: { basic: 3, comfort: 8, business: 12 },
-  deliver: { basic: 2, comfort: 4, business: 6 },
-  tip: { basic: 1, comfort: 3, business: 5 },
-  /** Bills for a café order, a popcorn, and each theatre ticket. */
-  cafe: 4,
-  popcorn: 2,
-  ticket: 3,
-  /** Upgrade prices, in order (each one is the next goal as soon as the last is bought). */
-  price: { room: 40, carriage: 200, berth3: 100, comfort: 250, cafe: 300, theatre: 350, business: 420 },
+  /** Travellers queueing at the desk at the start (more than the rooms: the rest wait for rooms you buy). */
+  travellers: 10,
+  /** Bills paid: the fare at check-in; a delivery to a Basic and to a Comfort room; a café order; a theatre ticket. */
+  fare: 2,
+  deliver: { basic: 1, comfort: 2 },
+  cafe: 2,
+  ticket: 2,
+  /** What the Attendant's deliveries leave on the desk (she earns the same as you; you collect it). */
+  attendantPays: true,
+  /** Upgrade prices, in order. Each is a few rounds of deliveries away, never a long grind. */
+  price: { room1: 40, room2: 60, room3: 80, comfort: 200, attendant: 150, cafe: 260, sleeper: 360, theatre: 460 },
+  /** The next upgrade shown at the end (the end card comes once you can afford it). */
+  diningCar: 300,
   /** Seconds a job takes. */
-  checkIn: 0.75,
+  checkIn: 0.45,
   pickUp: 0.4,
-  tidy: 1.1,
   projector: 0.9,
   /** Reaches (m). */
-  deskReach: 1.2,
+  deskReach: 1.25,
   pickReach: 1.15,
   serveReach: 1.6,
   scoopReach: 1.25,
   tileReach: 0.9,
   roomReach: 1.5,
+  /** Most things carried at once. */
+  carry: 4,
   /** A guest waiting this long for what they asked for is cross (😠). */
-  patience: 12,
-  /** Seconds before a settled guest asks for something, and between requests. */
-  firstAsk: 2.2,
-  nextAsk: [16, 24] as [number, number],
-  /** Legs (stations) a guest rides before getting off. */
-  legs: 2,
-  /** The journey: seconds between stations, the train's speed, the stop's minimum length. */
-  rideSeconds: 18,
+  patience: 16,
+  /** Seconds before a new guest asks for something, and between requests. */
+  firstAsk: 1.5,
+  nextAsk: [16, 26] as [number, number],
+  /** The train's speed (m/s; slow enough that the sleepers never strobe). */
   ride: 7,
-  arriveFrom: 50,
-  minStop: 6,
-  /** How many board at a station at most. */
-  boardMax: 5,
   /** Seconds between bills draining into an upgrade. */
   drain: 0.04,
-  /** Seconds without a touch before the hand and the hint show, and before the end card shows anyway. */
-  hesitate: 2.4,
+  /** Seconds without a touch before the hand shows, and before the end card shows anyway. */
+  hesitate: 2.2,
   idleEnd: 15,
-  /** Café and theatre: chance per second that a resting guest goes for a visit, seats used, the film's length. */
-  outing: 0.06,
+  /** Café and theatre: chance per second a resting guest goes for a visit; the film's length. */
+  outing: 0.05,
   film: 7,
-  /** Deliveries in Business Class that end the ad, and the pause before the end card. */
-  finaleDeliveries: 2,
-  endDelay: 2.6,
+  /** The Attendant: walking speed and how long she takes at the urn. */
+  attendantSpeed: 2.6,
+  attendantPick: 1.2,
 };
 const NIGHT_TIME = 0.82;
 const CAFE_TIER = 2;
 const CINEMA_TIER = 2;
-const TIER = { basic: 1, comfort: 2, business: 3 } as const;
+const TIER = { basic: 1, comfort: 2 } as const;
 /** Test runs only (`?ts=4` plays four times faster in a slow headless browser). */
 const TEST_SPEED = Math.min(8, Math.max(1, Number(new URLSearchParams(location.search).get('ts')) || 1));
 
@@ -118,17 +113,20 @@ const TEST_SPEED = Math.min(8, Math.max(1, Number(new URLSearchParams(location.s
 VISUALS.camera.followSharpness = TUNE.follow;
 VISUALS.camera.lookAhead = 0;
 VISUALS.camera.lakeBias = 0;
-// No shadow maps: everyone keeps their soft blob shadow. A shadow map redrawn as the train changed popped in after
-// upgrades and drew dark blocks on some phones; blobs are steady and cost nothing.
-for (const tier of Object.values(VISUALS.quality.tiers)) {
+// No shadow maps (soft blob shadows under everyone instead: steady, never popping in). Phones keep the game's lite
+// shading; tablets and desktops get its full shading, bloom on the lamps and the lake's real reflections.
+const desktop = !isAndroid() && !/iPhone|iPod/i.test(navigator.userAgent) && Math.min(screen.width, screen.height) >= 700;
+for (const [name, tier] of Object.entries(VISUALS.quality.tiers)) {
   tier.shadows = 'off';
-  tier.bloom = 0;
   tier.msaa = 0;
-  tier.reflections = 0;
   tier.ssao = false;
+  if (name !== 'high') {
+    tier.bloom = 0;
+    tier.reflections = 0;
+  }
 }
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
-const stage = new Stage(canvas, isAndroid() ? 'low' : 'medium', null);
+const stage = new Stage(canvas, desktop ? 'high' : 'medium', null);
 stage.lighting.setTime(NIGHT_TIME);
 const scene = stage.scene;
 const batch = new CharacterBatch(SHADOW_GEOMETRY);
@@ -138,6 +136,13 @@ const livery = liveryFor(3);
 setLivery(livery.body, livery.trim);
 const scenery = new Scenery();
 scene.add(scenery.group);
+const reflections = scenery.setReflections(stage.settings.reflections);
+stage.setPreRender(reflections);
+// The lakeside's life (from the game): lantern boats and swans on the water, fireflies over the reeds.
+const ambient = new Ambient();
+scene.add(ambient.group);
+const fireflies = new Fireflies();
+scene.add(fireflies.points);
 const loco = new LocomotiveView();
 loco.setName('The Night Owl');
 scene.add(loco.group);
@@ -155,7 +160,7 @@ getLayout('cafe', CAFE_TIER).venue!.carpets = [{ rect: rect(-INNER + 0.05, 0.05,
 
 // Every carriage the ad will show is built now, hidden, so an upgrade is a swap and never a hitch mid-play. Passenger
 // carriages start repaired (Basic, tier 1): the run-down tier's holes in the floor read as black boxes on a phone.
-const SLOT = { lobby: 0, sleeper: 1, cafe: 2, cinema: 3 } as const;
+const SLOT = { lobby: 0, sleeper: 1, cafe: 2, sleeper2: 3, cinema: 4 } as const;
 function buildView(type: CarriageType, slot: number, tier: number): CarriageView {
   const view = new CarriageView(getLayout(type, tier), slot, tier);
   view.group.position.z = carriageOriginZ(slot);
@@ -176,26 +181,36 @@ const views = {
   lobby: buildView('lobby', SLOT.lobby, TIER.basic),
   sleeper: buildView('sleeper', SLOT.sleeper, TIER.basic),
   sleeperComfort: buildView('sleeper', SLOT.sleeper, TIER.comfort),
-  sleeperBusiness: buildView('sleeper', SLOT.sleeper, TIER.business),
   cafe: buildView('cafe', SLOT.cafe, CAFE_TIER),
+  sleeper2: buildView('sleeper', SLOT.sleeper2, TIER.basic),
   cinema: buildView('cinema', SLOT.cinema, CINEMA_TIER),
 };
 views.lobby.group.visible = true;
+views.sleeper.group.visible = true;
 
 interface Car { type: CarriageType; tier: number; view: CarriageView }
-const train: Car[] = [{ type: 'lobby', tier: TIER.basic, view: views.lobby }];
+const train: Car[] = [
+  { type: 'lobby', tier: TIER.basic, view: views.lobby },
+  { type: 'sleeper', tier: TIER.basic, view: views.sleeper },
+];
 const map = new TrainMap(0.3);
 /** Rooms not bought yet, per carriage: shut and covered, their doorways walled off. */
-const locked = new Map<number, Set<number>>([[SLOT.lobby, new Set([2])], [SLOT.sleeper, new Set([2, 3, 4, 5])]]);
+const locked = new Map<number, Set<number>>([
+  [SLOT.lobby, new Set([2])],
+  [SLOT.sleeper, new Set([2, 3, 4, 5])],
+  [SLOT.sleeper2, new Set([3, 4, 5])],
+]);
 map.lockedRooms = (i) => new Set([...(locked.get(i) ?? [])].map((c) => `cabin:${c}`));
 const trainRear = (): number => carriageOriginZ(train.length - 1) + CARRIAGE_LENGTH;
 function rebuildTrain(): void {
   map.rebuild(train.map((c) => c.type), false, false, train.map((c) => c.tier));
   stage.lightMap.setTrain(trainLightInput(train.map((c, i) => ({ layout: c.view.layout, originZ: carriageOriginZ(i), tier: c.tier, lamps: c.view.lampAnchors(carriageOriginZ(i)) }))));
   scenery.setSpan(trainRear());
+  ambient.setSpan(trainRear());
 }
 views.lobby.setCabinLocked(2, true);
 for (const c of [2, 3, 4, 5]) views.sleeper.setCabinLocked(c, true);
+for (const c of [3, 4, 5]) views.sleeper2.setCabinLocked(c, true);
 rebuildTrain();
 
 /** The nearest point the conductor can stand on. */
@@ -210,6 +225,12 @@ function walkableNear(x: number, z: number): Vec2 {
   }
   return { x, z };
 }
+function straight(a: Vec2, b: Vec2): boolean {
+  const d = Math.hypot(b.x - a.x, b.z - a.z);
+  const n = Math.max(1, Math.ceil(d / 0.12));
+  for (let i = 1; i <= n; i++) if (!map.walk.isWalkable(a.x + ((b.x - a.x) * i) / n, a.z + ((b.z - a.z) * i) / n)) return false;
+  return true;
+}
 /** A route through the train (the game's nav graph: doorways, gangways, round furniture), ending exactly at `to`. */
 function route(from: Vec2, to: Vec2, toNode?: string): Vec2[] {
   const a = map.nearestNode(from.x, from.z);
@@ -219,15 +240,9 @@ function route(from: Vec2, to: Vec2, toNode?: string): Vec2[] {
   if (!nodes) return straight(from, to) ? [{ x: to.x, z: to.z }] : [];
   const pts = nodes.map((p) => ({ x: p.x, z: p.z }));
   pts.push({ x: to.x, z: to.z });
-  // Cut the corner: start from the furthest point of the route already in plain view (no walking back to a node).
+  // Cut the corner: start from the furthest point of the route already in plain view.
   for (let k = pts.length - 1; k > 0; k--) if (straight(from, pts[k])) return pts.slice(k);
   return pts;
-}
-function straight(a: Vec2, b: Vec2): boolean {
-  const d = Math.hypot(b.x - a.x, b.z - a.z);
-  const n = Math.max(1, Math.ceil(d / 0.12));
-  for (let i = 1; i <= n; i++) if (!map.walk.isWalkable(a.x + ((b.x - a.x) * i) / n, a.z + ((b.z - a.z) * i) / n)) return false;
-  return true;
 }
 
 // ================================================================ a scheduler on the ad's own clock (it pauses with the ad)
@@ -263,7 +278,7 @@ ui.innerHTML = `
   <div class="ad-hand"><svg viewBox="0 0 100 120" width="70" height="84"><path d="M38 10c0-6 10-6 10 0v40l3-1V40c0-6 10-6 10 0v12l3 0V46c0-6 10-6 10 0v10l3 1v-4c0-6 10-6 10 0v28c0 18-12 32-30 32H52c-10 0-16-4-22-12L10 74c-4-6 3-12 9-8l13 10h6z" fill="#FFF6E4" stroke="#2B2230" stroke-width="6" stroke-linejoin="round"/></svg></div>`;
 const cashBox = ui.querySelector('.ad-cash') as HTMLElement;
 const cashText = ui.querySelector('.ad-cash-n') as HTMLElement;
-drawIcon((ui.querySelector('.ad-cash canvas') as HTMLCanvasElement).getContext('2d')!, 'cash', 48, 48, 92);
+drawIcon((ui.querySelector('.ad-cash canvas') as HTMLCanvasElement).getContext('2d')!, 'cash', 48, 48, 88);
 const goalBox = ui.querySelector('.ad-goal') as HTMLElement;
 const goalIcon = (goalBox.querySelector('canvas') as HTMLCanvasElement).getContext('2d')!;
 const goalText = goalBox.querySelector('span') as HTMLElement;
@@ -293,7 +308,7 @@ function updateMoney(dt: number): void {
   bumpT = Math.max(0, bumpT - dt * 5);
   cashBox.style.setProperty('--bump', (1 + Math.sin(bumpT * Math.PI) * 0.1).toFixed(3));
 }
-/** The goal line under the money: one short instruction with its icon (the tutorial, then hints when you hesitate). */
+/** The goal line under the money: one short instruction with its icon. */
 let goalKey = '';
 function setGoal(icon: IconName | null, text: string): void {
   const key = `${icon}|${text}`;
@@ -304,7 +319,7 @@ function setGoal(icon: IconName | null, text: string): void {
     return;
   }
   goalIcon.clearRect(0, 0, 96, 96);
-  drawIcon(goalIcon, icon, 48, 48, 88);
+  drawIcon(goalIcon, icon, 48, 48, 72);
   goalText.textContent = text;
   goalBox.classList.remove('on');
   void goalBox.offsetWidth;
@@ -318,7 +333,7 @@ function showBanner(title: string, sub = ''): void {
   banner.classList.add('on');
   bannerTimer = 2.2;
 }
-/** A class upgrade's card, like the game's: the class emblem on its colour, its stars, and what it is worth. */
+/** A class upgrade's card, like the game's: the class colour, its stars, and what it is worth. */
 let classTimer = 0;
 function showClassCard(cls: ClassDef, stars: number): void {
   const c = classBox.querySelector('canvas') as HTMLCanvasElement;
@@ -331,10 +346,10 @@ function showClassCard(cls: ClassDef, stars: number): void {
   ctx.lineWidth = 8;
   ctx.strokeStyle = '#F2C24E';
   ctx.stroke();
-  drawIcon(ctx, 'bed', 80, 82, 96);
+  drawIcon(ctx, 'bed', 80, 82, 92);
   (classBox.querySelector('b') as HTMLElement).textContent = `${cls.name.toUpperCase()} CLASS`;
   (classBox.querySelector('.ad-stars') as HTMLElement).textContent = '★'.repeat(stars);
-  (classBox.querySelector('i') as HTMLElement).textContent = `Fares ×${cls.fare}`;
+  (classBox.querySelector('i') as HTMLElement).textContent = 'Bigger cabins · tips ×2';
   (classBox.querySelector('.ad-class-card') as HTMLElement).style.setProperty('--cls', cls.color);
   classBox.classList.remove('on');
   void classBox.offsetWidth;
@@ -363,16 +378,18 @@ function floatText(text: string, x: number, y: number, z: number): void {
 type Mood = 'wait' | 'angry' | 'love' | 'none';
 const EMOJI: Record<Exclude<Mood, 'none'>, string> = { wait: '🙂', angry: '😠', love: '😍' };
 const ITEM_ICON: Record<string, IconName> = {
-  tea: 'tea', coffee: 'coffee', champagne: 'champagne', blanket: 'blanket', towel: 'towel', luggage: 'luggage', latte: 'latte', pastry: 'pastry', popcorn: 'popcorn', room: 'bed',
+  tea: 'tea', blanket: 'blanket', towel: 'towel', luggage: 'luggage', latte: 'latte', pastry: 'pastry', popcorn: 'popcorn', room: 'bed',
 };
 const ITEM_WORD: Record<string, string> = {
-  tea: 'tea', coffee: 'coffee', champagne: 'champagne', blanket: 'a blanket', towel: 'a towel', luggage: 'their bag', latte: 'a latte', pastry: 'a croissant', popcorn: 'popcorn',
+  tea: 'tea', blanket: 'a blanket', towel: 'a towel', luggage: 'their bag', latte: 'a latte', pastry: 'a croissant', popcorn: 'popcorn',
+};
+const SOURCE_WORD: Record<string, string> = {
+  tea: 'from the tea urn', blanket: 'from the linen cupboard', towel: 'from the linen cupboard', luggage: 'from the luggage rack', latte: 'at the coffee machine', pastry: 'at the cake stand', popcorn: 'at the popcorn stand',
 };
 const bubbleTextures = new Map<string, THREE.CanvasTexture>();
 /**
  * A rounded bubble with a little tail at the bottom middle, its contents centred: the face, and what they want beside
- * it. The sprite's bottom middle (the tail's tip) sits just over the head, so the bubble is centred on the person.
- * Square power-of-two canvas, premultiplied: no dark box on any GPU.
+ * it. The sprite's tail tip sits just over the head. Square power-of-two canvas, premultiplied: no dark box on any GPU.
  */
 function bubbleTexture(mood: Exclude<Mood, 'none'>, want: string | null): THREE.CanvasTexture {
   const key = `${mood}:${want ?? ''}`;
@@ -422,7 +439,6 @@ function bubbleTexture(mood: Exclude<Mood, 'none'>, want: string | null): THREE.
   bubbleTextures.set(key, t);
   return t;
 }
-/** Height of the tail's tip on the bubble's canvas (from the bottom), as a share of the sprite. */
 const BUBBLE_TIP = 34 / 256 - 26 / 256;
 class Bubble {
   readonly sprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, premultipliedAlpha: true, depthWrite: false, depthTest: false, toneMapped: false, fog: false }));
@@ -430,7 +446,6 @@ class Bubble {
   private pop = 1;
   private t = Math.random() * 6;
   constructor(private readonly size = 0.95) {
-    // Drawn last and over everything: a bubble never cuts into a wall or a bed. Anchored at the tail's tip.
     this.sprite.renderOrder = 20;
     this.sprite.center.set(0.5, BUBBLE_TIP);
     this.sprite.visible = false;
@@ -450,9 +465,6 @@ class Bubble {
     }
     this.pop = 0;
   }
-  remove(): void {
-    scene.remove(this.sprite);
-  }
   update(dt: number, x: number, y: number, z: number): void {
     if (!this.sprite.visible) return;
     this.t += dt;
@@ -466,41 +478,25 @@ class Bubble {
 }
 
 // ================================================================ rooms
-type ClassId = 'basic' | 'comfort' | 'business';
-interface Room { car: number; cabin: number; guest: Guest | null; dirty: boolean; tidy: number; pile: string | null; marker: JobMarker }
+interface Room { car: number; cabin: number; guest: Guest | null }
 let rooms: Room[] = [];
-const roomCls = (r: Room): ClassId => {
-  const tier = train[r.car].tier;
-  return tier >= TIER.business ? 'business' : tier >= TIER.comfort ? 'comfort' : 'basic';
-};
+const isComfort = (r: Room): boolean => train[r.car].tier >= TIER.comfort;
 const cabinOf = (r: Room): CabinLayout => train[r.car].view.layout.cabins[r.cabin];
 const roomZ = (r: Room): number => carriageOriginZ(r.car);
 const sitSpot = (r: Room) => ({ x: cabinOf(r).bed.x0 + 0.12, y: FLOOR_Y + BED_TOP - 0.24, z: cabinOf(r).bedPose.z + roomZ(r), facing: -Math.PI / 2 });
 const lieSpot = (r: Room) => ({ x: cabinOf(r).bedPose.x, y: FLOOR_Y + BED_TOP, z: cabinOf(r).bedPose.z + roomZ(r), facing: 0 });
 const roomCentre = (r: Room): Vec2 => walkableNear(cabinOf(r).center.x, cabinOf(r).center.z + roomZ(r));
 function makeRooms(car: number): Room[] {
-  const view = train[car].view;
-  return view.layout.cabins.map((c, i) => {
-    const marker = new JobMarker('broom');
-    marker.visible = false;
-    scene.add(marker.group);
-    const room: Room = { car, cabin: i, guest: null, dirty: false, tidy: 0, pile: null, marker };
-    const p = walkableNear(c.center.x, c.center.z + carriageOriginZ(car));
-    marker.setPosition(p.x, p.z);
-    marker.setIconAnchor(c.bedPose.x - p.x, c.bedPose.z + carriageOriginZ(car) - p.z, 1.3);
-    return room;
-  });
+  return train[car].view.layout.cabins.map((_c, i) => ({ car, cabin: i, guest: null }));
 }
-rooms = makeRooms(SLOT.lobby);
+rooms = [...makeRooms(SLOT.lobby), ...makeRooms(SLOT.sleeper)];
 const roomOpen = (r: Room): boolean => !locked.get(r.car)?.has(r.cabin);
-/** A clean, open room nobody has, in a carriage not about to be rebuilt with fewer rooms. */
-function freeRoom(): Room | null {
-  return rooms.find((r) => roomOpen(r) && !r.guest && !r.dirty && !(refitPending && r.car === SLOT.sleeper && r.cabin >= 3)) ?? null;
-}
+/** The nearest open room nobody has (lobby first, then the sleepers in order). */
+const freeRoom = (): Room | null => rooms.find((r) => roomOpen(r) && !r.guest) ?? null;
 
 // ================================================================ guests
 type Pose = 'stand' | 'sit' | 'sleep';
-type GuestState = 'boarding' | 'queue' | 'toRoom' | 'room' | 'toVenue' | 'venue' | 'back' | 'leaving';
+type GuestState = 'queue' | 'toRoom' | 'room' | 'toVenue' | 'venue' | 'back';
 const RADIUS = 0.3;
 let lookSeq = 0;
 function guestLook(): CharacterLook {
@@ -508,7 +504,7 @@ function guestLook(): CharacterLook {
   const a = pool[(lookSeq++ * 5) % pool.length];
   return { ...a.colors, ...a.figure, accessory: a.accessory, hat: a.hat ?? 'none', hatColor: a.hatColor } as CharacterLook;
 }
-interface Order { item: ItemKind; since: number; bills: number }
+interface Order { item: ItemKind; since: number; bills: number; claimed: boolean }
 /** An idle conductor in a walking guest's way steps aside (sideways to the guest's path, onto open floor). */
 function yieldTo(g: { x: number; z: number }, dirX: number, dirZ: number, dt: number): void {
   if (me.speed > 0.4 || pointerId >= 0 || autoWalk) return;
@@ -526,31 +522,21 @@ function yieldTo(g: { x: number; z: number }, dirX: number, dirZ: number, dt: nu
     }
   }
 }
-class Guest {
+class Walker {
   readonly view: CharacterView;
   readonly bubble = new Bubble();
   x: number;
   z: number;
   y = FLOOR_Y;
-  facing = Math.PI;
+  facing = -Math.PI / 2;
   speed = 0;
+  walkSpeed = TUNE.guestSpeed;
   pose: Pose = 'stand';
   path: Vec2[] = [];
   onArrive: (() => void) | null = null;
   blockedFor = 0;
-  state: GuestState = 'boarding';
-  room: Room | null = null;
-  seat: { venue: 'cafe' | 'cinema'; seat: VenueSeatLayout } | null = null;
-  order: Order | null = null;
-  /** What they say they need while queueing for a room. */
-  waitingFor: string | null = null;
-  happyUntil = -1;
-  askIn = TUNE.firstAsk;
-  legsLeft = TUNE.legs;
-  queueSlot = -1;
-  firstAsk: ItemKind | null = null;
-  constructor(x: number, z: number) {
-    this.view = new CharacterView(guestLook(), 1.04);
+  constructor(look: CharacterLook, x: number, z: number) {
+    this.view = new CharacterView(look, 1.04);
     scene.add(this.view.root);
     this.x = x;
     this.z = z;
@@ -562,6 +548,11 @@ class Guest {
     if (this.pose !== 'stand') this.setPose('stand', { x: this.x, y: FLOOR_Y, z: this.z, facing: this.facing });
     this.path = points.slice();
     this.onArrive = onArrive;
+    if (this.path.length === 0) {
+      const cb = this.onArrive;
+      this.onArrive = null;
+      cb?.();
+    }
   }
   setPose(pose: Pose, at: { x: number; y: number; z: number; facing: number }, blanket?: string): void {
     this.pose = pose;
@@ -571,23 +562,18 @@ class Guest {
     this.z = at.z;
     this.facing = at.facing;
   }
-  remove(): void {
-    scene.remove(this.view.root);
-    this.bubble.remove();
-  }
-  update(dt: number): void {
+  move(dt: number): void {
     if (this.path.length > 0) {
       const next = this.path[0];
       const dx = next.x - this.x;
       const dz = next.z - this.z;
       const d = Math.hypot(dx, dz);
-      const step = TUNE.guestSpeed * dt;
+      const step = this.walkSpeed * dt;
       const nx = this.x + (dx / (d || 1)) * Math.min(step, d);
       const nz = this.z + (dz / (d || 1)) * Math.min(step, d);
       const dNext = Math.hypot(nx - me.x, nz - me.z);
       const blocked = dNext < RADIUS * 2 && dNext < Math.hypot(this.x - me.x, this.z - me.z);
-      // Never through the conductor: they wait, and a conductor standing idle in their way is eased aside; only if
-      // that cannot happen (a dead end) do they slip past after a while.
+      // Never through the conductor: they wait (an idle conductor is eased aside); only in a dead end do they slip past.
       if (blocked) yieldTo(this, dx / (d || 1), dz / (d || 1), dt);
       if (blocked && this.blockedFor < 2.5) {
         this.blockedFor += dt;
@@ -608,12 +594,26 @@ class Guest {
           this.z = nz;
         }
         if (d > 1e-3) this.facing = turnToward(this.facing, Math.atan2(dx, dz), dt * 12);
-        this.speed = TUNE.guestSpeed;
+        this.speed = this.walkSpeed;
       }
     } else this.speed = 0;
     this.view.setPosition(this.x, this.y, this.z);
     this.view.setFacing(this.facing);
     this.view.update(dt, this.speed);
+  }
+}
+class Guest extends Walker {
+  state: GuestState = 'queue';
+  room: Room | null = null;
+  seat: { venue: 'cafe' | 'cinema'; seat: VenueSeatLayout } | null = null;
+  order: Order | null = null;
+  waitingFor: string | null = null;
+  happyUntil = -1;
+  askIn = TUNE.firstAsk;
+  asked = 0;
+  queueSlot = -1;
+  update(dt: number): void {
+    this.move(dt);
     if (this.order) {
       const long = clock - this.order.since > TUNE.patience;
       if (long && this.bubble.mood !== 'angry') sfx('grumble');
@@ -634,27 +634,28 @@ function turnToward(a: number, b: number, k: number): number {
 const guests: Guest[] = [];
 const queue: Guest[] = [];
 const QUEUE = views.lobby.layout.queue;
-const DOOR = views.lobby.layout.doors[0];
-
-/** A traveller walks along the platform, in at the lobby's door and joins the queue at the desk. */
-function board(delay: number, i: number, firstAsk: ItemKind | null = null): void {
-  later(delay, () => {
-    const start = { x: PLATFORM.concourse[1].x + 0.4 - (i % 2) * 0.4, z: PLATFORM.concourse[1].z - 2.2 - i * 1.1 };
-    const g = new Guest(start.x, start.z);
-    g.firstAsk = firstAsk;
-    guests.push(g);
-    g.walkTo([PLATFORM.concourse[1], PLATFORM.concourse[0], { x: DOOR.outside.x - 0.4, z: DOOR.outside.z }, { x: DOOR.inside.x, z: DOOR.inside.z }], () => {
-      g.state = 'queue';
-      queue.push(g);
-      layoutQueue();
-    });
-  });
+/** Where travellers stand: the desk's queue first, then the open lobby floor (a tidy group, everyone facing the desk). */
+const WAITING: Vec2[] = (() => {
+  const spots: Vec2[] = QUEUE.map((q) => ({ x: q.x, z: q.z }));
+  for (let z = 4.7; z <= 7.4 && spots.length < TUNE.travellers + 2; z += 0.75) {
+    for (let x = -0.3; x <= 1.2 && spots.length < TUNE.travellers + 2; x += 0.72) {
+      if (map.walk.isWalkable(x, z) && spots.every((s) => Math.hypot(s.x - x, s.z - z) > 0.6)) spots.push({ x, z });
+    }
+  }
+  return spots;
+})();
+for (let i = 0; i < TUNE.travellers; i++) {
+  const spot = WAITING[Math.min(i, WAITING.length - 1)];
+  const g = new Guest(guestLook(), spot.x, spot.z);
+  g.queueSlot = i;
+  guests.push(g);
+  queue.push(g);
 }
 function layoutQueue(): void {
   queue.forEach((g, i) => {
     if (g.queueSlot === i) return;
     g.queueSlot = i;
-    const spot = QUEUE[Math.min(i, QUEUE.length - 1)];
+    const spot = WAITING[Math.min(i, WAITING.length - 1)];
     g.walkTo([spot], () => (g.facing = -Math.PI / 2));
   });
 }
@@ -671,62 +672,66 @@ function checkIn(g: Guest, room: Room): void {
   g.state = 'toRoom';
   sfx('ding');
   keyPop(g);
-  const bills = TUNE.fare[roomCls(room)];
-  cash.flyToPile('desk', new THREE.Vector3(g.x, FLOOR_Y + 1.1, g.z), bills);
+  cash.flyToPile('desk', new THREE.Vector3(g.x, FLOOR_Y + 1.1, g.z), TUNE.fare);
   later(0.25, () => sfx('cash'));
-  done('checkin');
-  later(0.5, () => {
-    const sit = sitSpot(room);
-    g.walkTo(route({ x: g.x, z: g.z }, { x: sit.x - 0.35, z: sit.z }, map.nodeId(room.car, cabinOf(room).node)), () => settle(g));
+  later(0.3, () => goToRoom(g));
+}
+function goToRoom(g: Guest): void {
+  const room = g.room!;
+  const sit = sitSpot(room);
+  g.walkTo(route({ x: g.x, z: g.z }, { x: sit.x - 0.35, z: sit.z }, map.nodeId(room.car, cabinOf(room).node)), () => {
+    g.setPose('sit', sitSpot(room));
+    g.state = 'room';
+    sfx('door');
   });
 }
-/** A key pops over a guest's head as it is handed over. */
 const keyTexture = (() => {
   const c = document.createElement('canvas');
   c.width = 128;
   c.height = 128;
-  drawIcon(c.getContext('2d')!, 'key', 64, 64, 110);
+  drawIcon(c.getContext('2d')!, 'key', 64, 64, 104);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 })();
+const keys: { s: THREE.Sprite; g: Guest; t: number }[] = [];
 function keyPop(g: Guest): void {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: keyTexture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
   s.renderOrder = 22;
   scene.add(s);
-  const t0 = clock;
-  const tick = (): void => {
-    const k = (clock - t0) / 0.9;
-    if (k >= 1) {
-      scene.remove(s);
-      s.material.dispose();
-      return;
-    }
-    const sc = 0.55 * (k < 0.25 ? k / 0.25 * 1.2 : 1);
-    s.scale.set(sc, sc, 1);
-    s.position.set(g.x, FLOOR_Y + 2.2 + k * 0.5, g.z);
-    s.material.opacity = k > 0.7 ? (1 - k) / 0.3 : 1;
-    requestAnimationFrame(tick);
-  };
-  tick();
+  keys.push({ s, g, t: 0 });
 }
-function settle(g: Guest): void {
-  const room = g.room!;
-  g.setPose('sit', sitSpot(room));
-  g.state = 'room';
-  g.askIn = g.firstAsk ? 0.9 : TUNE.firstAsk;
-  sfx('door');
+function updateKeys(dt: number): void {
+  for (let i = keys.length - 1; i >= 0; i--) {
+    const k = keys[i];
+    k.t += dt / 0.9;
+    if (k.t >= 1) {
+      scene.remove(k.s);
+      k.s.material.dispose();
+      keys.splice(i, 1);
+      continue;
+    }
+    const sc = 0.55 * (k.t < 0.25 ? (k.t / 0.25) * 1.2 : 1);
+    k.s.scale.set(sc, sc, 1);
+    k.s.position.set(k.g.x, FLOOR_Y + 2.2 + k.t * 0.5, k.g.z);
+    k.s.material.opacity = k.t > 0.7 ? (1 - k.t) / 0.3 : 1;
+  }
 }
 
-/** What guests of each class ask for (in their room), from what the train has. */
-function wishes(g: Guest): ItemKind[] {
-  const cls = g.room ? roomCls(g.room) : 'basic';
-  const list: ItemKind[] = cls === 'business' ? ['champagne', 'coffee', 'towel'] : cls === 'comfort' ? ['tea', 'towel', 'luggage'] : ['tea', 'blanket', 'luggage'];
-  if (train.length > SLOT.cafe && cls !== 'business') list.push('pastry');
-  return list;
+/** What a guest asks for: tea first, then a blanket, then their bag (only the lobby is near the rack), then any. */
+function nextWish(g: Guest): ItemKind {
+  const comfort = g.room ? isComfort(g.room) : false;
+  const nearRack = g.room ? g.room.car <= SLOT.sleeper : false;
+  const order: ItemKind[] = ['tea', 'blanket', nearRack ? 'luggage' : 'tea'];
+  if (g.asked < order.length) return order[g.asked];
+  const list: ItemKind[] = ['tea', comfort ? 'towel' : 'blanket'];
+  if (nearRack) list.push('luggage');
+  if (train.length > SLOT.cafe) list.push('pastry');
+  return list[Math.floor(Math.random() * list.length)];
 }
 function ask(g: Guest, item: ItemKind, bills: number): void {
-  g.order = { item, since: clock, bills };
+  g.order = { item, since: clock, bills, claimed: false };
+  g.asked++;
   if (g.pose === 'sleep' && g.room) g.setPose('sit', sitSpot(g.room));
   g.view.act('wave', 0.8);
   sfx('bloop');
@@ -734,26 +739,25 @@ function ask(g: Guest, item: ItemKind, bills: number): void {
 function think(g: Guest, dt: number): void {
   if (g.order || g.walking) return;
   if (g.state === 'room' && g.room) {
-    // Now and then a resting guest goes for a coffee or to the theatre (once those cars are on the train).
-    if (journey.phase === 'moving' && Math.random() < dt * TUNE.outing && g.askIn > 3 && tryOuting(g)) return;
+    if (Math.random() < dt * TUNE.outing && g.askIn > 4 && g.asked >= 3 && tryOuting(g)) return;
     g.askIn -= dt;
     if (g.askIn > 0) return;
-    const item = g.firstAsk ?? wishes(g)[Math.floor(Math.random() * wishes(g).length)];
-    g.firstAsk = null;
-    const cls = roomCls(g.room);
-    ask(g, item, item === 'pastry' ? TUNE.cafe : TUNE.deliver[cls]);
+    const item = nextWish(g);
+    ask(g, item, item === 'pastry' ? TUNE.cafe : TUNE.deliver[isComfort(g.room) ? 'comfort' : 'basic']);
   }
 }
 
-// ================================================================ venue outings: the café and the theatre
+// ================================================================ the café and the theatre: guests visit
+let filmT = -1;
 function tryOuting(g: Guest): boolean {
   const venues: ('cafe' | 'cinema')[] = [];
   if (train.length > SLOT.cafe) venues.push('cafe');
-  if (train.length > SLOT.cinema && filmT < 0) venues.push('cinema');
+  if (train.length > SLOT.cinema && filmT < 0) venues.push('cinema', 'cinema');
   if (venues.length === 0) return false;
   const venue = venues[Math.floor(Math.random() * venues.length)];
   const view = venue === 'cafe' ? views.cafe : views.cinema;
-  const z0 = carriageOriginZ(venue === 'cafe' ? SLOT.cafe : SLOT.cinema);
+  const slot = venue === 'cafe' ? SLOT.cafe : SLOT.cinema;
+  const z0 = carriageOriginZ(slot);
   const taken = new Set(guests.filter((x) => x.seat?.venue === venue).map((x) => x.seat!.seat));
   const seats = view.layout.venue!.seats.filter((s, i) => !taken.has(s) && (venue === 'cinema' || i % 2 === 0));
   if (seats.length === 0) return false;
@@ -762,15 +766,14 @@ function tryOuting(g: Guest): boolean {
   g.state = 'toVenue';
   const sitAt = { x: seat.sit.x, y: FLOOR_Y + seat.top - 0.24, z: seat.sit.z + z0, facing: seat.facing };
   const near = walkableNear(seat.serve ? seat.serve.x : seat.sit.x, seat.sit.z + z0);
-  g.walkTo(route({ x: g.x, z: g.z }, near, map.nodeId(venue === 'cafe' ? SLOT.cafe : SLOT.cinema, seat.node)), () => {
+  g.walkTo(route({ x: g.x, z: g.z }, near, map.nodeId(slot, seat.node)), () => {
     g.setPose('sit', sitAt);
     g.state = 'venue';
     if (venue === 'cafe') ask(g, Math.random() < 0.6 ? 'latte' : 'pastry', TUNE.cafe);
-    else if (Math.random() < 0.5) later(1.2, () => g.state === 'venue' && !g.order && filmT < 0 && ask(g, 'popcorn', TUNE.popcorn));
+    else if (Math.random() < 0.5) later(1.2, () => g.state === 'venue' && !g.order && filmT < 0 && ask(g, 'popcorn', TUNE.cafe));
   });
   return true;
 }
-/** Back to their room after a visit. */
 function goBack(g: Guest): void {
   if (!g.room) return;
   g.seat = null;
@@ -778,7 +781,7 @@ function goBack(g: Guest): void {
   const room = g.room;
   const sit = sitSpot(room);
   g.walkTo(route({ x: g.x, z: g.z }, { x: sit.x - 0.35, z: sit.z }, map.nodeId(room.car, cabinOf(room).node)), () => {
-    g.setPose('sit', sit);
+    g.setPose('sit', sitSpot(room));
     g.state = 'room';
     g.askIn = 3 + Math.random() * 4;
   });
@@ -788,55 +791,61 @@ function goBack(g: Guest): void {
 const player = new CharacterView(CONDUCTOR_LOOK, 1.12);
 scene.add(player.root);
 batch.highlight(player.root, true);
-const SPAWN = walkableNear(-0.6, 5.8);
+const L = views.lobby.layout.anchors;
+const SPAWN = walkableNear(L.deskService.x + 0.2, L.deskService.z + 0.9);
 const me = { x: SPAWN.x, z: SPAWN.z, facing: Math.PI, speed: 0, vx: 0, vz: 0 };
 let speedNow = TUNE.speed;
-const MAX_CARRY = 3;
 const carried: { item: ItemKind; mesh: THREE.Mesh }[] = [];
 const flying: { mesh: THREE.Object3D; from: THREE.Vector3; to: () => THREE.Vector3; t: number; dur: number; done: () => void }[] = [];
 const popping: { obj: THREE.Object3D; t: number; base: number }[] = [];
 const tmpTo = new THREE.Vector3();
-function pickUp(item: ItemKind): void {
-  const mesh = createItemMesh(item);
-  mesh.scale.setScalar(0.01);
-  scene.add(mesh);
-  carried.push({ item, mesh });
-  popping.push({ obj: mesh, t: 0, base: 1.15 });
+function pickUp(item: ItemKind, count: number): void {
+  for (let i = 0; i < count; i++) {
+    const mesh = createItemMesh(item);
+    mesh.scale.setScalar(0.01);
+    scene.add(mesh);
+    carried.push({ item, mesh });
+    popping.push({ obj: mesh, t: -i * 0.1, base: 1.15 });
+  }
   player.setCarrying(true);
-  sfx('pickup', 1 + carried.length * 0.06);
-  done(`fetch`);
+  sfx('pickup');
 }
-function serve(g: Guest): void {
+/** Hands what a guest asked for over (the conductor's or the Attendant's), and the guest pays. */
+function handOver(g: Guest, mesh: THREE.Object3D, toDesk: boolean): void {
   const order = g.order!;
-  const i = carried.findIndex((c) => c.item === order.item);
-  const { mesh } = carried.splice(i, 1)[0];
-  if (carried.length === 0) player.setCarrying(false);
   g.order = null;
   flying.push({
     mesh, from: mesh.position.clone(), to: () => tmpTo.set(g.x, g.y + (g.pose === 'stand' ? 1.05 : 0.9), g.z), t: 0, dur: 0.28,
     done: () => {
       scene.remove(mesh);
       g.happyUntil = clock + 2.4;
-      g.view.act(['tea', 'coffee', 'latte', 'champagne'].includes(order.item) ? 'sip' : 'hug', 2);
+      g.view.act(['tea', 'latte'].includes(order.item) ? 'sip' : 'hug', 2);
       g.view.bounce(1);
       sfx('heart');
       particles.emit('heart', g.x, g.y + 1.6, g.z, 7, 0.3);
       particles.emit('sparkle', g.x, g.y + 1.1, g.z, 10, 0.3);
-      pay(order.bills, g.x, g.y + 1.1, g.z);
-      done('serve');
+      if (toDesk) {
+        // The Attendant's earnings wait on the desk for the conductor to collect.
+        floatText(`+$${order.bills * TUNE.bill}`, g.x, g.y + 2, g.z);
+        cash.flyToPile('desk', new THREE.Vector3(g.x, g.y + 1.1, g.z), order.bills);
+      } else pay(order.bills, g.x, g.y + 1.1, g.z);
       served++;
-      if (finaleCount >= 0 && g.room?.car === SLOT.sleeper && g.state === 'room') finaleCount++;
-      // During the tutorial one thing at a time: nobody asks again until it is over.
-      g.askIn = (tutorialDone ? 0 : 30) + TUNE.nextAsk[0] + Math.random() * (TUNE.nextAsk[1] - TUNE.nextAsk[0]);
-      // Content: a rest in bed, or back from the café to their room.
+      g.askIn = TUNE.nextAsk[0] + Math.random() * (TUNE.nextAsk[1] - TUNE.nextAsk[0]);
       if (g.state === 'room' && g.room) later(2.2, () => !g.order && g.state === 'room' && g.room && g.setPose('sleep', lieSpot(g.room), train[g.room.car].view.blanketColor));
       else if (g.state === 'venue' && g.seat?.venue === 'cafe') later(3.5, () => g.state === 'venue' && goBack(g));
     },
   });
+}
+function serve(g: Guest): void {
+  const i = carried.findIndex((c) => c.item === g.order!.item);
+  const { mesh } = carried.splice(i, 1)[0];
+  if (carried.length === 0) player.setCarrying(false);
+  handOver(g, mesh, false);
   sfx('drop');
 }
+let served = 0;
 
-// ================================================================ cash: the desk's pile, the rooms' tips, the bills on the back
+// ================================================================ cash: the desk's pile, the bills on the back
 function pay(bills: number, x: number, y: number, z: number): void {
   floatText(`+$${bills * TUNE.bill}`, x, y + 0.9, z);
   const from = new THREE.Vector3(x, y, z);
@@ -849,12 +858,9 @@ function landBill(): void {
   bumpT = 1;
   sfx('coin');
 }
-const L = views.lobby.layout.anchors;
 cash.createPile('desk', L.deskCash.x, FLOOR_Y + 0.62, L.deskCash.z);
-const deskPile = walkableNear(L.deskCash.x - 0.2, L.deskCash.z + 0.3);
-interface PileRef { id: string; x: number; z: number }
-const piles: PileRef[] = [{ id: 'desk', x: deskPile.x, z: deskPile.z }];
-const taking = new Set<string>();
+const DESK_PILE = walkableNear(L.deskCash.x - 0.2, L.deskCash.z + 0.3);
+let deskTaking = false;
 
 const BACK_MAX = 44;
 const BILL_STEP = 0.05;
@@ -899,6 +905,7 @@ function updateBack(dt: number): void {
       lean.z *= 0.18 / l;
     }
   }
+  // Tall stacks are drawn up to a neat cap (the counter shows the real amount).
   const n = Math.min(backCount, BACK_MAX);
   back.count = n;
   const squash = 1 - 0.14 * backBounce;
@@ -921,7 +928,7 @@ function backTopPos(): THREE.Vector3 {
   return backTop.set(clampX(backBase.x + lean.x * bend), backBase.y + h + 0.04, backBase.z + lean.z * bend);
 }
 
-// ================================================================ stations: the desk, the urn, the linen cupboard, the rack, the café, the projector
+// ================================================================ stations: the desk, the urns, the linen cupboards, the rack, the café, the projector
 interface Station { kind: 'desk' | 'source' | 'film'; items: ItemKind[]; car: number; x: number; z: number; marker: JobMarker; progress: number }
 const stations: Station[] = [];
 function addStation(kind: Station['kind'], items: ItemKind[], car: number, local: Vec2, icon: IconName, badgeOver?: Vec2): Station {
@@ -940,14 +947,79 @@ function addStation(kind: Station['kind'], items: ItemKind[], car: number, local
   stations.push(s);
   return s;
 }
-const URN: ItemKind[] = ['tea', 'coffee', 'champagne'];
+const URN: ItemKind[] = ['tea'];
 const LINEN: ItemKind[] = ['blanket', 'towel'];
 const desk = addStation('desk', [], SLOT.lobby, L.deskService, 'key', { x: -1.17, z: 3.4 });
 addStation('source', URN, SLOT.lobby, L.urn, 'tea');
 addStation('source', LINEN, SLOT.lobby, L.linen, 'blanket');
 addStation('source', ['luggage'], SLOT.lobby, L.rack, 'luggage');
+const S1 = views.sleeper.layout.anchors;
+addStation('source', URN, SLOT.sleeper, S1.urn, 'tea');
+addStation('source', LINEN, SLOT.sleeper, S1.linen, 'blanket');
 let projector: Station | null = null;
-let filmT = -1;
+
+// ================================================================ the Attendant: hired, she serves tea by herself
+const ATTENDANT_HOME = (): Vec2 => walkableNear(S1.urn.x + 0.6, S1.urn.z + carriageOriginZ(SLOT.sleeper) + 1.2);
+interface Helper { w: Walker; task: Guest | null; carrying: THREE.Mesh | null; phase: 'idle' | 'toUrn' | 'pick' | 'toGuest'; t: number }
+let helper: Helper | null = null;
+function hireAttendant(): void {
+  const home = ATTENDANT_HOME();
+  const w = new Walker(STAFF_LOOKS.attendant, home.x, home.z);
+  w.walkSpeed = TUNE.attendantSpeed;
+  helper = { w, task: null, carrying: null, phase: 'idle', t: 0 };
+  particles.emit('confetti', home.x, FLOOR_Y + 1.5, home.z, 30, 0.6);
+  showBanner('ATTENDANT HIRED!', 'She serves tea · you collect the cash');
+  sfx('staff');
+}
+function updateHelper(dt: number): void {
+  const h = helper;
+  if (!h) return;
+  h.w.move(dt);
+  if (h.phase === 'idle') {
+    // The oldest tea nobody is bringing.
+    const g = guests.filter((x) => x.order?.item === 'tea' && !x.order.claimed && !x.walking && x.state === 'room').sort((a, b) => a.order!.since - b.order!.since)[0];
+    if (!g || carried.filter((c) => c.item === 'tea').length >= guests.filter((x) => x.order?.item === 'tea').length) {
+      if (!h.w.walking) {
+        const home = ATTENDANT_HOME();
+        if (Math.hypot(h.w.x - home.x, h.w.z - home.z) > 0.5) h.w.walkTo(route(h.w, home));
+      }
+      return;
+    }
+    g.order!.claimed = true;
+    h.task = g;
+    const urn = nearestStation('tea', g);
+    if (!urn) return;
+    h.phase = 'toUrn';
+    h.w.walkTo(route(h.w, urn), () => {
+      h.phase = 'pick';
+      h.t = TUNE.attendantPick;
+    });
+  } else if (h.phase === 'pick') {
+    h.t -= dt;
+    h.w.view.setCarrying(true);
+    if (h.t <= 0) {
+      const g = h.task;
+      if (!g || !g.order || g.order.item !== 'tea') {
+        h.phase = 'idle';
+        h.w.view.setCarrying(false);
+        return;
+      }
+      const mesh = createItemMesh('tea');
+      scene.add(mesh);
+      h.carrying = mesh;
+      h.phase = 'toGuest';
+      h.w.walkTo(route(h.w, approach(g)), () => {
+        if (g.order && g.order.item === 'tea' && h.carrying) handOver(g, h.carrying, true);
+        else if (h.carrying) scene.remove(h.carrying);
+        h.carrying = null;
+        h.task = null;
+        h.phase = 'idle';
+        h.w.view.setCarrying(false);
+      });
+    }
+  }
+  if (h.carrying) h.carrying.position.set(h.w.x + Math.sin(h.w.facing) * 0.35, FLOOR_Y + 0.85, h.w.z + Math.cos(h.w.facing) * 0.35);
+}
 
 // ================================================================ upgrade tiles (the game's own tiles; they fill as the bills fly in)
 interface Tile { view: TileView; x: number; z: number; icon: IconName; name: string; price: number; paid: number; sent: number; timer: number; done: boolean; onDone: () => void }
@@ -999,173 +1071,30 @@ function updateTile(dt: number): void {
 }
 const shrinking: { obj: THREE.Object3D; t: number }[] = [];
 
-// ================================================================ the journey: stations come and go; travellers board, guests get off
-const platform = new PlatformView();
-platform.build(carriageOriginZ(3) + CARRIAGE_LENGTH, null, null);
-platform.setStationName('Millbrook');
-scene.add(platform.group);
-const STATIONS = ['Millbrook', 'Ashby Lake', 'Thistledown', 'Harrowgate', 'Elmsworth', 'Kingsbridge'];
-type TrainPhase = 'stopped' | 'departing' | 'moving' | 'arriving';
-const journey = { phase: 'stopped' as TrainPhase, speed: 0, offset: 0, t: 0, station: 0, ridden: 0 };
-let lampsShown = false;
-let doorOpen = 1;
-function updateJourney(dt: number): void {
-  const j = journey;
-  j.t += dt;
-  if (j.phase === 'departing') {
-    j.speed = Math.min(TUNE.ride, j.speed + (TUNE.ride / 4) * dt);
-    j.offset += j.speed * dt;
-    if (j.offset > platform.z1 - platform.z0 + 30) {
-      j.phase = 'moving';
-      j.t = 0;
-    }
-  } else if (j.phase === 'moving') {
-    j.speed = TUNE.ride;
-    if (j.t > TUNE.rideSeconds && tutorialDone) arrive();
-  } else if (j.phase === 'arriving') {
-    const d = -j.offset;
-    const decel = (TUNE.ride * TUNE.ride) / (2 * TUNE.arriveFrom);
-    j.speed = Math.max(0.6, Math.min(TUNE.ride, Math.sqrt(2 * decel * Math.max(0, d))));
-    j.offset = Math.min(0, j.offset + j.speed * dt);
-    if (j.offset >= 0) {
-      j.offset = 0;
-      j.speed = 0;
-      j.phase = 'stopped';
-      j.t = 0;
-      sfx('bell');
-      atStation();
-    }
-  } else if (j.phase === 'stopped' && tutorialDone && j.t > TUNE.minStop && !guests.some((g) => g.state === 'boarding' || (g.state === 'leaving' && g.walking))) depart();
-  const visible = j.phase !== 'moving';
-  platform.group.visible = visible;
-  platform.setOffset(j.offset);
-  if (visible) platform.animate(dt);
-  if (visible !== lampsShown) {
-    lampsShown = visible;
-    stage.lightMap.setPlatform(visible ? platformLightInput(platform.lampAnchors, platform.z0, platform.z1) : null);
-  }
-  if (visible) stage.lightMap.setPlatformOffset(j.offset);
-  scenery.setHiddenRegion(visible ? { x0: PLATFORM_X0 - 0.2, x1: PLATFORM_X0 + 16, z0: platform.z0 + j.offset - 2, z1: platform.z1 + j.offset + 2 } : null);
-  doorOpen += ((j.phase === 'stopped' ? 1 : 0) - doorOpen) * Math.min(1, dt * 4);
-  views.lobby.setDoorOpen(Math.round(doorOpen * 50) / 50);
-}
-function depart(): void {
-  if (journey.phase !== 'stopped') return;
-  journey.phase = 'departing';
-  journey.t = 0;
-  journey.speed = 0;
-  platform.setFlag(true);
-  sfx('whistle');
-  later(1.2, () => sfx('depart'));
-}
-function arrive(): void {
-  journey.station = (journey.station + 1) % STATIONS.length;
-  platform.setStationName(STATIONS[journey.station]);
-  platform.setFlag(false);
-  journey.phase = 'arriving';
-  journey.t = 0;
-  journey.offset = -TUNE.arriveFrom;
-  showBanner(STATIONS[journey.station].toUpperCase(), 'Guests on and off');
-}
-/** At a station: those whose stop it is get off (a tip and an untidy room behind them); new travellers board. */
-function atStation(): void {
-  for (const g of guests) {
-    if (g.state === 'boarding' || g.state === 'queue' || g.state === 'leaving') continue;
-    g.legsLeft--;
-    if (g.legsLeft <= 0) leave(g);
-  }
-  const free = rooms.filter((r) => roomOpen(r) && !r.guest).length - queue.length;
-  const n = Math.max(0, Math.min(TUNE.boardMax, free));
-  for (let i = 0; i < n; i++) board(0.6 + i * 0.9, i);
-}
-function leave(g: Guest): void {
-  g.order = null;
-  g.seat = null;
-  g.state = 'leaving';
-  const room = g.room;
-  if (room) {
-    room.guest = null;
-    room.dirty = true;
-    const view = train[room.car].view;
-    view.setDirt(room.cabin, [true]);
-    view.playMessArrival(room.cabin);
-    // Their tip, left on the room's floor.
-    const c = cabinOf(room);
-    const id = `tip${tipSeq++}`;
-    const p = walkableNear(c.tipPile.x, c.tipPile.z + roomZ(room));
-    cash.createPile(id, c.tipPile.x, FLOOR_Y, c.tipPile.z + roomZ(room));
-    cash.setPileCount(id, TUNE.tip[roomCls(room)]);
-    piles.push({ id, x: p.x, z: p.z });
-    room.pile = id;
-  }
-  g.room = null;
-  g.view.act('wave', 0.8);
-  const exit = route({ x: g.x, z: g.z }, { x: DOOR.inside.x, z: DOOR.inside.z });
-  g.walkTo([...exit, { x: DOOR.outside.x - 0.4, z: DOOR.outside.z }, PLATFORM.concourse[0], PLATFORM.concourse[1], { x: PLATFORM.concourse[1].x + 0.5, z: PLATFORM.concourse[1].z - 6 }], () => {
-    g.remove();
-    guests.splice(guests.indexOf(g), 1);
-  });
-}
-let tipSeq = 0;
-
-// ================================================================ the tutorial and the upgrades
-let tutorialDone = false;
-let stepNo = 0;
-let served = 0;
-/** Steps the tutorial waits for, in order; `done(kind)` moves it on when the player does that thing. */
-const TUTORIAL: { kind: string; icon: IconName; text: string }[] = [
-  { kind: 'checkin', icon: 'key', text: 'Check in the guest' },
-  { kind: 'collect', icon: 'cash', text: 'Collect the cash' },
-  { kind: 'fetch', icon: 'tea', text: 'Get tea from the urn' },
-  { kind: 'serve', icon: 'tea', text: 'Bring the tea to the guest' },
-  { kind: 'checkin', icon: 'key', text: 'Check in the next guest' },
-  { kind: 'collect', icon: 'cash', text: 'Collect the cash' },
-  { kind: 'fetch', icon: 'luggage', text: 'Get their bag from the rack' },
-  { kind: 'serve', icon: 'luggage', text: 'Bring the bag to the guest' },
-  { kind: 'buy', icon: 'bed', text: 'Buy a new room' },
+// ================================================================ the upgrades, one at a time
+let guided = true;
+const sz = carriageOriginZ(SLOT.sleeper);
+interface Upgrade { at: Vec2; icon: IconName; name: string; price: number; buy: () => void }
+const PLAN: Upgrade[] = [
+  { at: { x: -1.3, z: 15.1 }, icon: 'bed', name: 'New Room', price: TUNE.price.room1, buy: () => openRoom(SLOT.lobby, 2) },
+  { at: { x: -1.3, z: sz + 8.1 }, icon: 'bed', name: 'New Room', price: TUNE.price.room2, buy: () => openRoom(SLOT.sleeper, 2) },
+  { at: { x: -1.3, z: sz + 10.5 }, icon: 'bed', name: 'New Room', price: TUNE.price.room3, buy: () => openRoom(SLOT.sleeper, 3) },
+  { at: { x: -1.5, z: sz + 13.4 }, icon: 'star', name: 'Comfort Class', price: TUNE.price.comfort, buy: refitComfort },
+  { at: { x: -1.5, z: sz + 2.4 }, icon: 'person', name: 'Attendant', price: TUNE.price.attendant, buy: hireAttendant },
+  { at: { x: -0.2, z: sz + 17.2 }, icon: 'latte', name: 'Café Car', price: TUNE.price.cafe, buy: buyCafe },
+  { at: { x: 0, z: carriageOriginZ(SLOT.cafe) + 16.4 }, icon: 'bed', name: 'Sleeper Car', price: TUNE.price.sleeper, buy: buySleeper2 },
+  { at: { x: -0.2, z: carriageOriginZ(SLOT.sleeper2) + 17.2 }, icon: 'film', name: 'Theatre Car', price: TUNE.price.theatre, buy: buyTheatre },
 ];
-function done(kind: string): void {
-  if (tutorialDone || stepNo >= TUTORIAL.length) return;
-  if (TUTORIAL[stepNo].kind !== kind) return;
-  stepNo++;
-  if (stepNo === 4) board(0.4, 0, 'luggage');
-  if (stepNo === TUTORIAL.length - 1) showTile(walkableNear(-1.3, 15.1), 'bed', 'New Room', TUNE.price.room, buyRoom);
-}
-let refitPending = false;
-let finaleCount = -1;
-interface Upgrade { at: Vec2; icon: IconName; name: string; price: number; buy: () => void; when?: () => boolean }
-const PLAN: Upgrade[] = [];
-let waiting: Upgrade | null = null;
+let planIndex = 0;
 function nextUpgrade(): void {
-  const next = PLAN.shift();
-  if (next) later(1.2, () => (waiting = next));
+  const next = PLAN[planIndex++];
+  if (next) later(1.0, () => showTile(next.at, next.icon, next.name, next.price, () => {
+    next.buy();
+    nextUpgrade();
+  }));
+  else later(1.0, () => (finalGoal = true));
 }
-/** The next upgrade shows as soon as it makes sense (Business Class waits until its three cabins can hold the sleeper's guests). */
-function updatePlan(): void {
-  const w = waiting;
-  if (!w || tile || (w.when && !w.when())) return;
-  waiting = null;
-  showTile(w.at, w.icon, w.name, w.price, w.buy);
-}
-
-function buyRoom(): void {
-  done('buy');
-  tutorialDone = true;
-  openRoom(SLOT.lobby, 2);
-  showBanner('NEW ROOM!', 'More guests, more fares');
-  // A third traveller hurries aboard for the new room, then the train leaves.
-  board(0.8, 0);
-  const sz = carriageOriginZ(SLOT.sleeper);
-  PLAN.push(
-    { at: { x: -0.2, z: 17.2 }, icon: 'carriage', name: 'New Carriage', price: TUNE.price.carriage, buy: buySleeper },
-    { at: { x: -1.3, z: sz + 8.1 }, icon: 'bed', name: 'New Room', price: TUNE.price.berth3, buy: () => (openRoom(SLOT.sleeper, 2), showBanner('NEW ROOM!', 'Room for one more'), nextUpgrade()) },
-    { at: { x: -1.5, z: sz + 13.2 }, icon: 'star', name: 'Comfort Class', price: TUNE.price.comfort, buy: () => refit('comfort') },
-    { at: { x: -0.2, z: sz + 17.2 }, icon: 'latte', name: 'Café Car', price: TUNE.price.cafe, buy: buyCafe },
-    { at: { x: 0, z: carriageOriginZ(SLOT.cafe) + 16.2 }, icon: 'film', name: 'Theatre Car', price: TUNE.price.theatre, buy: buyTheatre },
-    { at: { x: -1.5, z: sz + 13.2 }, icon: 'star', name: 'Business Class', price: TUNE.price.business, buy: () => refit('business'), when: () => !rooms.some((r) => r.car === SLOT.sleeper && r.cabin >= 3 && r.guest) },
-  );
-  nextUpgrade();
-}
+let finalGoal = false;
 function openRoom(car: number, cabin: number): void {
   locked.get(car)?.delete(cabin);
   train[car].view.setCabinLocked(cabin, false);
@@ -1173,38 +1102,23 @@ function openRoom(car: number, cabin: number): void {
   const c = train[car].view.layout.cabins[cabin];
   particles.emit('sparkle', (c.room.x0 + c.room.x1) / 2, FLOOR_Y + 0.6, (c.room.z0 + c.room.z1) / 2 + carriageOriginZ(car), 30, 0.8);
   sfx('reveal');
+  showBanner('NEW ROOM!', 'Check in a waiting guest');
   speedNow *= TUNE.speedUp;
 }
-
-/** A sleeper carriage rolls in and couples on, two rooms ready. */
-function buySleeper(): void {
-  couple(views.sleeper, 'sleeper', TIER.basic, 'NEW CARRIAGE!', 'The Sleeper · more rooms');
-  rooms = rooms.concat(makeRooms(SLOT.sleeper));
-  const S = views.sleeper.layout.anchors;
-  addStation('source', URN, SLOT.sleeper, S.urn, 'tea');
-  addStation('source', LINEN, SLOT.sleeper, S.linen, 'blanket');
-  nextUpgrade();
-}
-
-/** A class refit of the sleeper: the game's makeover wipe sweeps down it; its guests move into the new cabins. */
-function refit(to: 'comfort' | 'business'): void {
-  refitPending = false;
-  const old = train[SLOT.sleeper].view;
-  const next = to === 'comfort' ? views.sleeperComfort : views.sleeperBusiness;
-  const tier = TIER[to];
-  train[SLOT.sleeper] = { type: 'sleeper', tier, view: next };
+/** Comfort Class: the game's makeover wipe sweeps down the sleeper; its guests move into the new cabins. */
+function refitComfort(): void {
+  guided = false;
+  const old = views.sleeper;
+  const next = views.sleeperComfort;
+  train[SLOT.sleeper] = { type: 'sleeper', tier: TIER.comfort, view: next };
   locked.set(SLOT.sleeper, new Set());
-  // The guests and the rooms move over: same guests, new (fewer, bigger) cabins; any mess is gone with the refit.
   const oldRooms = rooms.filter((r) => r.car === SLOT.sleeper);
-  // (A tip still on a floor stays where it is, to be collected.)
-  for (const r of oldRooms) scene.remove(r.marker.group);
-  rooms = rooms.filter((r) => r.car !== SLOT.sleeper);
   const fresh = makeRooms(SLOT.sleeper);
-  rooms = rooms.concat(fresh);
-  const residents = guests.filter((g) => g.room && oldRooms.includes(g.room));
-  residents.forEach((g, i) => {
-    const r = fresh[i];
-    if (!r) return;
+  rooms = rooms.filter((r) => r.car !== SLOT.sleeper).concat(fresh);
+  for (const g of guests) {
+    if (!g.room || !oldRooms.includes(g.room)) continue;
+    const r = fresh[g.room.cabin];
+    if (!r) continue;
     r.guest = g;
     g.room = r;
     if (g.state === 'room') {
@@ -1212,18 +1126,12 @@ function refit(to: 'comfort' | 'business'): void {
       g.setPose('sit', sitSpot(r));
       g.happyUntil = clock + 2.5;
     }
-  });
+  }
   rebuildTrain();
   makeover(old, next);
-  const cls = classOfTier(tier);
-  showClassCard(cls, to === 'comfort' ? 2 : 3);
+  showClassCard(classOfTier(TIER.comfort), 2);
   speedNow *= TUNE.speedUp;
-  if (to === 'business') {
-    finaleCount = 0;
-    for (const g of residents) g.askIn = 1.5 + Math.random() * 2;
-  } else nextUpgrade();
 }
-/** The game's makeover: a band of warm light sweeps from front to back, the new finish appearing behind it. */
 const BAND = new THREE.Mesh(new THREE.BoxGeometry(HALF_WIDTH * 2 + 0.3, 1.5, 0.12), new THREE.MeshBasicMaterial({ color: '#FFF1C4', transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
 const wipes: { t: number; z0: number; front: THREE.Plane; back: THREE.Plane; old: CarriageView; next: CarriageView; newMap: Map<THREE.Material, THREE.Material>; oldMap: Map<THREE.Material, THREE.Material> }[] = [];
 function makeover(old: CarriageView, next: CarriageView): void {
@@ -1261,24 +1169,25 @@ function updateWipes(dt: number): void {
     }
   }
 }
-
-/** The café rolls in: guests drop by for a latte or a croissant (and ask for croissants in their rooms). */
 function buyCafe(): void {
-  couple(views.cafe, 'cafe', CAFE_TIER, 'CAFÉ CAR!', 'Lattes & croissants');
+  couple(views.cafe, 'cafe', CAFE_TIER, 'CAFÉ CAR!', 'Guests come for lattes & croissants');
   const v = views.cafe.layout.venue!;
   addStation('source', ['latte'], SLOT.cafe, v.stations[0].pad, 'latte');
   addStation('source', ['pastry'], SLOT.cafe, v.stations[1].pad, 'pastry');
-  nextUpgrade();
-  // Business Class (later) has three cabins: from now the sleeper's fourth takes no new guest, so the refit never waits.
-  refitPending = true;
 }
-/** The theatre rolls in: guests come for the film; start it at the projector, and every seat pays. */
+/** The second sleeper: three rooms ready for the travellers still waiting in the lobby. */
+function buySleeper2(): void {
+  couple(views.sleeper2, 'sleeper', TIER.basic, 'NEW SLEEPER CAR!', 'Rooms for the waiting guests');
+  rooms = rooms.concat(makeRooms(SLOT.sleeper2));
+  const S2 = views.sleeper2.layout.anchors;
+  addStation('source', URN, SLOT.sleeper2, S2.urn, 'tea');
+  addStation('source', LINEN, SLOT.sleeper2, S2.linen, 'blanket');
+}
 function buyTheatre(): void {
-  couple(views.cinema, 'cinema', CINEMA_TIER, 'THEATRE CAR!', 'Start the film');
+  couple(views.cinema, 'cinema', CINEMA_TIER, 'THEATRE CAR!', 'Start the film: every seat pays');
   const v = views.cinema.layout.venue!;
   addStation('source', ['popcorn'], SLOT.cinema, v.stations[0].pad, 'popcorn');
   projector = addStation('film', [], SLOT.cinema, v.projector!, 'film');
-  nextUpgrade();
 }
 function startFilm(): void {
   filmT = 0;
@@ -1327,16 +1236,16 @@ function burstAlong(z0: number, z1: number, kind: 'confetti' | 'dust' | 'sparkle
 
 // ================================================================ jobs each frame
 function updateJobs(dt: number): void {
+  const front = frontReady();
   for (const s of stations) {
     if (s.car >= train.length) continue;
     let wants = false;
     let item: ItemKind | null = null;
-    const front = frontReady();
     if (s.kind === 'desk') wants = !!front && !!freeRoom();
     else if (s.kind === 'film') wants = filmT < 0 && guests.filter((g) => g.seat?.venue === 'cinema' && g.state === 'venue').length >= 2;
     else {
-      item = s.items.find((it) => guests.filter((g) => g.order?.item === it).length > carried.filter((c) => c.item === it).length) ?? null;
-      wants = !!item && carried.length < MAX_CARRY && !(item !== 'luggage' && item !== 'latte' && item !== 'pastry' && item !== 'popcorn' && nearerSource(s, item));
+      item = s.items.find((it) => guests.some((g) => g.order?.item === it && !g.order.claimed && nearestStation(it, g) === s && needed(it) > 0)) ?? null;
+      wants = !!item && carried.length < TUNE.carry;
       if (item) s.marker.setIcon(ITEM_ICON[item]);
     }
     s.marker.visible = wants || s.progress > 0;
@@ -1350,16 +1259,16 @@ function updateJobs(dt: number): void {
         s.progress = 0;
         if (s.kind === 'desk' && front) checkIn(front, freeRoom()!);
         else if (s.kind === 'film') startFilm();
-        else if (item) pickUp(item);
+        // A tray for everyone waiting for it here (up to what can be carried).
+        else if (item) pickUp(item, Math.min(needed(item), TUNE.carry - carried.length));
       }
     } else s.progress = Math.max(0, s.progress - dt * 2);
     s.marker.working = s.progress > 0;
     s.marker.progress = s.progress;
     s.marker.update(dt);
   }
-  // Who is waiting at the desk for a room says so (a bed in their bubble) while every room is taken or untidy.
-  const front = frontReady();
-  for (const g of queue) g.waitingFor = g === front && !freeRoom() ? 'room' : null;
+  // The front of the queue says why they wait (a bed: no room yet).
+  for (const g of queue) g.waitingFor = g === queue[0] && !g.walking && !freeRoom() ? 'room' : null;
   // Deliveries: within reach and in plain sight (or anywhere in their room), never through a wall.
   for (const g of guests) {
     if (!g.order || g.walking || !carried.some((c) => c.item === g.order!.item)) continue;
@@ -1367,79 +1276,34 @@ function updateJobs(dt: number): void {
     const inRoom = g.room && g.state === 'room' && Math.hypot(me.x - a.x, me.z - a.z) < TUNE.roomReach;
     if (inRoom || (Math.hypot(me.x - g.x, me.z - g.z) < TUNE.serveReach && map.walk.lineClear(me.x, me.z, a.x, a.z))) serve(g);
   }
-  // Tidying: anywhere in the untidy room (the game's mess clears away as the ring fills).
-  for (const r of rooms) {
-    const wants = r.dirty;
-    r.marker.visible = wants;
-    r.marker.iconShown = wants;
-    r.marker.highlight = wants;
-    if (!wants) continue;
-    const c = roomCentre(r);
-    if (Math.hypot(me.x - c.x, me.z - c.z) < TUNE.roomReach) {
-      r.tidy = Math.min(1, r.tidy + dt / TUNE.tidy);
-      player.act('sweep', 0.2);
-      train[r.car].view.setDirtFade(r.cabin, 0, r.tidy, (x, y, z) => particles.emit('dust', x, y, z, 3, 0.1));
-      if (r.tidy >= 1) {
-        r.dirty = false;
-        r.tidy = 0;
-        train[r.car].view.setDirt(r.cabin, [false]);
-        particles.emit('sparkle', c.x, FLOOR_Y + 0.8, c.z, 20, 0.6);
-        sfx('done');
-        floatText('✨', c.x, FLOOR_Y + 1.2, c.z);
-      }
-    }
-    r.marker.working = r.tidy > 0;
-    r.marker.progress = r.tidy;
-    r.marker.update(dt);
-  }
-  // Cash on the desk and the rooms' tips: scooped as the conductor walks by.
-  for (let i = piles.length - 1; i >= 0; i--) {
-    const p = piles[i];
-    if (taking.has(p.id) || cash.pileCount(p.id) === 0) continue;
-    if (Math.hypot(p.x - me.x, p.z - me.z) < TUNE.scoopReach) {
-      taking.add(p.id);
-      floatText(`+$${cash.pileCount(p.id) * TUNE.bill}`, p.x, FLOOR_Y + 1.5, p.z);
-      cash.vacuum(p.id, backTopPos, landBill, () => {
-        taking.delete(p.id);
-        if (p.id !== 'desk') {
-          cash.removePile(p.id);
-          piles.splice(piles.indexOf(p), 1);
-        }
-        done('collect');
-      });
-    }
+  // The cash on the desk: scooped as the conductor comes by.
+  if (!deskTaking && cash.pileCount('desk') > 0 && Math.hypot(DESK_PILE.x - me.x, DESK_PILE.z - me.z) < TUNE.scoopReach) {
+    deskTaking = true;
+    floatText(`+$${cash.pileCount('desk') * TUNE.bill}`, DESK_PILE.x, FLOOR_Y + 1.5, DESK_PILE.z);
+    cash.vacuum('desk', backTopPos, landBill, () => (deskTaking = false));
   }
   if (filmT >= 0) {
     filmT += dt;
     if (filmT >= TUNE.film) endFilm();
   }
-  // The finale: Business Class guests served.
-  if (finaleCount >= TUNE.finaleDeliveries && endAt < 0) {
-    endAt = clock + TUNE.endDelay;
-    showBanner('5-STAR TRAIN!', 'Every guest delighted 😍');
-    sfx('perfect');
-    burstAlong(0, trainRear(), 'confetti', 80);
-  }
-  if (endAt > 0 && clock >= endAt) endGame();
+  // The end: the next upgrade (the Dining Car) is in reach.
+  if (finalGoal && money >= TUNE.diningCar && !ended) endGame();
 }
-let endAt = -1;
-/** The urn and linen of the guest's own carriage serve them (each sleeper has its own); the lobby's serve the lobby. */
-function nearerSource(s: Station, item: ItemKind): boolean {
-  const g = guests.find((x) => x.order?.item === item && !carried.some((c) => c.item === item));
-  if (!g) return false;
-  return stations.some((o) => o !== s && o.kind === 'source' && o.car < train.length && o.items.includes(item) && Math.abs(o.z - g.z) < Math.abs(s.z - g.z) - 4);
+/** How many of an item are asked for and not yet in hand (or on the Attendant's way). */
+function needed(item: ItemKind): number {
+  return guests.filter((g) => g.order?.item === item && !g.order.claimed).length - carried.filter((c) => c.item === item).length;
 }
 function approach(g: Guest): Vec2 {
   if (g.room && g.state === 'room') return roomCentre(g.room);
   return walkableNear(g.x + (g.x > -0.6 ? -0.8 : 0.8), g.z);
 }
-function nearestStation(item: ItemKind): Station | null {
+/** The station serving a guest: the urn or cupboard of their own carriage (or the nearest one). */
+function nearestStation(item: ItemKind, g?: Vec2): Station | null {
   let best: Station | null = null;
   let bestD = 1e9;
   for (const s of stations) {
     if (s.kind !== 'source' || s.car >= train.length || !s.items.includes(item)) continue;
-    const g = guests.find((x) => x.order?.item === item);
-    const d = Math.hypot(s.x - me.x, s.z - me.z) + (g ? Math.abs(s.z - g.z) : 0);
+    const d = g ? Math.abs(s.z - g.z) : Math.hypot(s.x - me.x, s.z - me.z);
     if (d < bestD) {
       bestD = d;
       best = s;
@@ -1452,28 +1316,21 @@ function nearestStation(item: ItemKind): Station | null {
 interface Target extends Vec2 { lift: number; icon: IconName; text: string }
 function target(): Target | null {
   for (const c of carried) {
-    const g = guests.find((x) => x.order?.item === c.item && !x.walking);
+    const g = guests.filter((x) => x.order?.item === c.item && !x.order.claimed && !x.walking).sort((a, b) => Math.hypot(approach(a).x - me.x, approach(a).z - me.z) - Math.hypot(approach(b).x - me.x, approach(b).z - me.z))[0];
     if (g) return { ...approach(g), lift: 2.4, icon: ITEM_ICON[c.item], text: `Bring ${ITEM_WORD[c.item]} to the guest` };
   }
-  // An upgrade you can afford: the best thing to do next.
-  if (tile && money >= tile.price - tile.paid) return { x: tile.x, z: tile.z, lift: 1.5, icon: tile.icon, text: `Buy: ${tile.name}` };
-  if (frontReady() && freeRoom()) return { x: desk.x, z: desk.z, lift: 2.0, icon: 'key', text: 'Check in the guest' };
-  const pile = piles.filter((p) => !taking.has(p.id) && cash.pileCount(p.id) > 0).sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z))[0];
-  if (pile && (pile.id === 'desk' || Math.hypot(pile.x - me.x, pile.z - me.z) < 8)) return { x: pile.x, z: pile.z, lift: 1.4, icon: 'cash', text: 'Collect the cash' };
-  const dirtyRooms = rooms.filter((r) => r.dirty).sort((a, b) => Math.hypot(roomCentre(a).x - me.x, roomCentre(a).z - me.z) - Math.hypot(roomCentre(b).x - me.x, roomCentre(b).z - me.z));
-  // Travellers waiting at the desk with no room ready: tidy one for them first.
-  if (dirtyRooms[0] && queue.length > 0 && !freeRoom()) return { ...roomCentre(dirtyRooms[0]), lift: 1.8, icon: 'broom', text: 'Tidy a room for the new guest' };
-  const open = guests.filter((g) => g.order && !carried.some((c) => c.item === g.order!.item)).sort((a, b) => a.order!.since - b.order!.since);
-  if (open[0] && carried.length < MAX_CARRY) {
+  if (tile && money >= tile.price - tile.paid) return { x: tile.x, z: tile.z, lift: 1.5, icon: tile.icon, text: `Buy the ${tile.name}` };
+  if (frontReady() && freeRoom()) return { x: desk.x, z: desk.z, lift: 2.0, icon: 'key', text: queue.length > 1 ? 'Check in the guests' : 'Check in the guest' };
+  if (cash.pileCount('desk') > 0 && !deskTaking) return { x: DESK_PILE.x, z: DESK_PILE.z, lift: 1.4, icon: 'cash', text: 'Collect the cash' };
+  const open = guests.filter((g) => g.order && !g.order.claimed && needed(g.order.item) > 0).sort((a, b) => a.order!.since - b.order!.since);
+  if (open[0] && carried.length < TUNE.carry) {
     const item = open[0].order!.item;
-    const s = nearestStation(item);
-    if (s) return { x: s.x, z: s.z, lift: 2.0, icon: ITEM_ICON[item], text: `Get ${ITEM_WORD[item]}` };
+    const s = nearestStation(item, open[0]);
+    if (s) return { x: s.x, z: s.z, lift: 2.0, icon: ITEM_ICON[item], text: `Get ${ITEM_WORD[item]} ${SOURCE_WORD[item]}` };
   }
-  const dirty = dirtyRooms[0];
-  if (dirty) return { ...roomCentre(dirty), lift: 1.8, icon: 'broom', text: 'Tidy the room' };
   if (projector && filmT < 0 && projector.marker.visible) return { x: projector.x, z: projector.z, lift: 2.0, icon: 'film', text: 'Start the film' };
-  if (pile) return { x: pile.x, z: pile.z, lift: 1.4, icon: 'cash', text: 'Collect the cash' };
-  if (tile) return { x: tile.x, z: tile.z, lift: 1.5, icon: tile.icon, text: money >= tile.price - tile.paid ? `Buy: ${tile.name}` : 'Serve guests to earn more' };
+  if (tile) return { x: tile.x, z: tile.z, lift: 1.5, icon: tile.icon, text: `Serve guests to earn $${tile.price - tile.paid - money}` };
+  if (finalGoal) return null;
   return null;
 }
 
@@ -1535,10 +1392,7 @@ window.addEventListener('pointerup', release);
 window.addEventListener('pointercancel', release);
 window.addEventListener('touchend', () => touched(), { passive: true });
 
-/**
- * Stuck-proofing: when the conductor is pushing but has barely moved for a moment (a doorway, a guest, a corner),
- * people stop blocking for a while and the move takes the nav route toward where the stick points.
- */
+/** Stuck-proofing: pushing but barely moving for a moment, people stop blocking and the move follows the nav route. */
 let stuckFor = 0;
 let ghostUntil = -1;
 function updatePlayer(dt: number): void {
@@ -1555,7 +1409,7 @@ function updatePlayer(dt: number): void {
     const t = target();
     if (t && Math.hypot(t.x - me.x, t.z - me.z) > 0.3) {
       const pts = route({ x: me.x, z: me.z }, t);
-      let next = pts[0];
+      let next = pts[0] ?? t;
       for (let k = pts.length - 1; k >= 0; k--) {
         if (straight(me, pts[k])) {
           next = pts[k];
@@ -1580,10 +1434,11 @@ function updatePlayer(dt: number): void {
   }
   if (me.speed > 0.01 && dt > 0) {
     const pos = { x: me.x, z: me.z };
-    const want = me.speed * dt;
-    map.walk.move(pos, me.vx * want, me.vz * want, 0.6, 1.3);
+    const step = me.speed * dt;
+    map.walk.move(pos, me.vx * step, me.vz * step, 0.6, 1.3);
     if (clock > ghostUntil) {
-      for (const g of guests) {
+      const solid: Walker[] = [...guests, ...(helper ? [helper.w] : [])];
+      for (const g of solid) {
         if (g.pose !== 'stand') continue;
         const dx = pos.x - g.x;
         const dz = pos.z - g.z;
@@ -1601,16 +1456,14 @@ function updatePlayer(dt: number): void {
     }
     pos.z = Math.max(0.45, Math.min(trainRear() - 0.5, pos.z));
     const moved = Math.hypot(pos.x - me.x, pos.z - me.z);
-    stuckFor = mag > 0.5 && moved < want * 0.15 ? stuckFor + dt : 0;
+    stuckFor = mag > 0.5 && moved < step * 0.15 ? stuckFor + dt : 0;
     if (stuckFor > 0.25) {
-      // Unstick: walk through people for a moment, and step along the nav route in the pushed direction.
       ghostUntil = clock + 0.8;
-      const ahead = { x: me.x + me.vx * 1.5, z: me.z + me.vz * 1.5 };
-      const pts = route({ x: me.x, z: me.z }, walkableNear(ahead.x, ahead.z));
-      const next = pts.find((p) => Math.hypot(p.x - me.x, p.z - me.z) > 0.2);
+      const ahead = walkableNear(me.x + me.vx * 1.5, me.z + me.vz * 1.5);
+      const next = route({ x: me.x, z: me.z }, ahead).find((p) => Math.hypot(p.x - me.x, p.z - me.z) > 0.2);
       if (next) {
         const l = Math.hypot(next.x - me.x, next.z - me.z) || 1;
-        map.walk.move(pos, ((next.x - me.x) / l) * want, ((next.z - me.z) / l) * want, 0.6, 1.3);
+        map.walk.move(pos, ((next.x - me.x) / l) * step, ((next.z - me.z) / l) * step, 0.6, 1.3);
       }
       stuckFor = 0;
     }
@@ -1631,6 +1484,7 @@ function updateDoors(dt: number): void {
       const dz = door.z + z0;
       let want = Math.abs(me.z - dz) < 1.25 && Math.abs(me.x - door.x) < 1.1 ? 1 : 0;
       for (const g of guests) if (g.walking && Math.abs(g.z - dz) < 1.3 && Math.abs(g.x - door.x) < 1.2) want = 1;
+      if (helper && Math.abs(helper.w.z - dz) < 1.3 && Math.abs(helper.w.x - door.x) < 1.2) want = 1;
       if (door.open === want) continue;
       car.view.setRoomDoor(door, want > door.open ? Math.min(1, door.open + dt * 5) : Math.max(0, door.open - dt * 2.5));
     }
@@ -1638,7 +1492,7 @@ function updateDoors(dt: number): void {
 }
 
 // ================================================================ the guide: the gold arrow, the hand and the hint line
-const arrow = makeSprite(guideArrowTexture(), 0.6);
+const arrow = makeSprite(guideArrowTexture(), 0.62);
 arrow.material.toneMapped = false;
 arrow.renderOrder = 21;
 scene.add(arrow);
@@ -1646,22 +1500,20 @@ let arrowShown = 0;
 function updateGuide(dt: number): void {
   const t = target();
   const hesitating = !started || (clock - lastInput > TUNE.hesitate && !autoWalk && pointerId < 0);
-  // The tutorial always points the way; afterwards the guide comes when the player hesitates.
-  const show = !!t && !ended && (!tutorialDone || hesitating);
+  // Until Comfort Class the guide always shows the way; afterwards it comes when the player hesitates.
+  const show = !!t && !ended && (guided || hesitating);
   arrowShown += ((show ? 1 : 0) - arrowShown) * Math.min(1, dt * 8);
   arrow.visible = arrowShown > 0.02 && !!t;
   if (t) {
     arrow.position.set(t.x, FLOOR_Y + t.lift + Math.abs(Math.sin(clock * 4)) * 0.22, t.z);
-    arrow.scale.set(0.6 * arrowShown, 0.6 * arrowShown, 1);
+    arrow.scale.set(0.62 * arrowShown, 0.62 * arrowShown, 1);
   }
-  // The hint line: the tutorial's step, then whatever the arrow points at when the player hesitates.
   if (ended) setGoal(null, '');
-  else if (!tutorialDone && stepNo < TUTORIAL.length) {
-    const s = TUTORIAL[stepNo];
-    setGoal(t?.icon && s.kind !== 'buy' && s.kind !== 'collect' ? t.icon : s.icon, s.kind === 'fetch' && t ? `${t.text}` : s.text);
-  } else if (t && hesitating) setGoal(t.icon, t.text);
+  else if (finalGoal) setGoal('star', `Next upgrade: Dining Car · $${Math.min(Math.round(shownMoney), TUNE.diningCar)}/${TUNE.diningCar}`);
+  else if (t && (guided || hesitating)) setGoal(t.icon, t.text);
   else setGoal(null, '');
-  const showHand = show && hesitating;
+  // The hand: at the start, then whenever the player stops (it drags from the conductor toward the goal).
+  const showHand = show && (hesitating || (!started && clock > 0.5));
   hand.classList.toggle('on', showHand);
   if (!showHand || !t) return;
   const a = { x: 0, y: 0 };
@@ -1681,19 +1533,22 @@ function updateGuide(dt: number): void {
   hand.style.opacity = cyc > 0.9 ? (1 - (cyc - 0.9) * 10).toFixed(2) : '1';
 }
 
-// ================================================================ the end card
-const endCard = buildEndCard(() => openStore());
-document.body.appendChild(endCard);
+// ================================================================ the end card: the next upgrade, which the player can now afford
+const endCard = buildEndCard(() => openStore(), TUNE.diningCar);
+document.body.appendChild(endCard.el);
+let endMoney = -1;
+let endIdle = false;
 function endGame(): void {
   if (ended) return;
   ended = true;
   hand.classList.remove('on');
   setGoal(null, '');
-  endCard.classList.add('on');
+  endIdle = !(finalGoal && money >= TUNE.diningCar);
+  endCard.show(money, endIdle);
   sfx('levelup');
 }
 
-// ================================================================ the camera: centred on the conductor, eased, clamped to the train
+// ================================================================ the camera (as in the approved build): centred on the conductor, eased, clamped to the train
 function resize(): void {
   stage.resize();
   const w = window.visualViewport?.width ?? window.innerWidth;
@@ -1723,22 +1578,23 @@ function step(dt: number): void {
   frameWork.begin(3);
   clock += dt;
   runTimers();
-  updateJourney(dt);
   if (started && !ended) {
     updatePlayer(dt);
     updateJobs(dt);
     updateTile(dt);
-    updatePlan();
+    updateHelper(dt);
   } else {
     updatePlayer(0);
-    desk.marker.visible = !!frontReady();
+    desk.marker.visible = true;
     desk.marker.iconShown = true;
+    desk.marker.highlight = true;
     desk.marker.update(dt);
   }
   for (const g of guests) {
-    think(g, dt);
+    if (started) think(g, dt);
     g.update(dt);
   }
+  updateKeys(dt);
   updateDoors(dt);
   updateWipes(dt);
   player.root.updateMatrixWorld(true);
@@ -1789,12 +1645,14 @@ function step(dt: number): void {
     }
   }
   for (const c of train) c.view.animate(dt);
-  scenery.update(dt, journey.speed);
-  loco.update(dt, journey.speed);
+  scenery.update(dt, TUNE.ride);
+  ambient.update(dt, TUNE.ride, stage.rig.target, stage.lighting.night, scenery.isHiddenAt);
+  fireflies.update(dt, TUNE.ride, stage.lighting.night, stage.renderer.getPixelRatio(), null);
+  loco.update(dt, TUNE.ride);
   smokeT -= dt;
   if (smokeT <= 0) {
-    smokeT = journey.speed > 0.5 ? 0.28 : 0.7;
-    particles.emit('smoke', loco.chimneyTop.x, loco.chimneyTop.y, loco.chimneyTop.z, journey.speed > 0.5 ? 2 : 1);
+    smokeT = 0.28;
+    particles.emit('smoke', loco.chimneyTop.x, loco.chimneyTop.y, loco.chimneyTop.z, 2);
   }
   particles.update(dt);
   cash.update(dt);
@@ -1809,6 +1667,10 @@ function step(dt: number): void {
     if (classTimer <= 0) classBox.classList.remove('on');
   }
   if (!ended && clock - lastInput > TUNE.idleEnd) endGame();
+  if (ended && money !== endMoney) {
+    endMoney = money;
+    endCard.show(money, endIdle);
+  }
   clampCamera();
   stage.rig.update(dt, me.x, me.z);
   batch.sync(stage.rig.camera);
@@ -1822,7 +1684,7 @@ async function boot(): Promise<void> {
   stage.rig.snapTo(me.x, me.z);
   player.setPosition(me.x, FLOOR_Y, me.z);
   player.setFacing(me.facing);
-  updateJourney(0);
+  for (const g of guests) g.update(0);
   batch.sync(stage.rig.camera);
   // A frame straight away (no loading screen), then every shader compiles before play.
   stage.render(0.016);
@@ -1834,8 +1696,7 @@ async function boot(): Promise<void> {
     last = performance.now();
   });
   document.documentElement.classList.add('nx-ready');
-  // The first traveller is already walking along the platform to the door.
-  board(0, 0, 'tea');
+  nextUpgrade();
   last = performance.now();
   requestAnimationFrame(frame);
 }
@@ -1845,15 +1706,12 @@ void boot();
 (window as unknown as { nxAd: unknown }).nxAd = {
   get state() {
     return {
-      clock: Math.round(clock), money, back: backCount, tutorial: tutorialDone ? 'done' : stepNo, tile: tile ? `${tile.name} ${tile.paid}/${tile.price}` : null, plan: PLAN.length,
-      guests: guests.length, queue: queue.length, orders: guests.filter((g) => g.order).map((g) => g.order!.item), dirty: rooms.filter((r) => r.dirty).length,
-      carried: carried.map((c) => c.item), journey: journey.phase, ended, finale: finaleCount, me: { x: +me.x.toFixed(2), z: +me.z.toFixed(2) },
-      offFloor: guests.filter((g) => g.x < -INNER - 0.05 || (g.x > INNER + 0.05 && journey.phase === 'moving')).map((g) => `${g.state}@${g.x.toFixed(1)},${g.z.toFixed(1)}`),
+      clock: Math.round(clock), money, back: backCount, guided, tile: tile ? `${tile.name} ${tile.paid}/${tile.price}` : null, plan: planIndex,
+      guests: guests.length, queue: queue.length, roomed: guests.filter((g) => g.room).length, orders: guests.filter((g) => g.order).map((g) => g.order!.item),
+      carried: carried.map((c) => c.item), ended, finalGoal, served, me: { x: +me.x.toFixed(2), z: +me.z.toFixed(2) },
+      offFloor: [...guests, ...(helper ? [helper.w] : [])].filter((g) => Math.abs(g.x) > INNER + 0.05).map((g) => `${g.x.toFixed(1)},${g.z.toFixed(1)}`),
     };
   },
-  debug: () => guests.map((g) => ({ state: g.state, x: +g.x.toFixed(2), z: +g.z.toFixed(2), path: g.path.length, room: g.room ? `${g.room.car}:${g.room.cabin}` : null, near: map.nearestNode(g.x, g.z) })),
-  route: (ax: number, az: number, bx: number, bz: number, node?: string) => ({ a: map.nearestNode(ax, az), b: node ?? map.nearestNode(bx, bz), r: route({ x: ax, z: az }, { x: bx, z: bz }, node) }),
-  /** Test runs only: put bills on the conductor's back. */
   give: (bills: number) => {
     for (let i = 0; i < bills; i++) landBill();
   },

@@ -4,21 +4,17 @@
 external requests), about 1.1 MB. It is built from the game's own world code, so carriages, characters, the platform,
 cash and sounds are the real game's; the game itself is untouched.
 
-## The flow (about 7-9 minutes for a person; the test bot finishes in 5:18)
+## The flow (the test bot finishes in 7:37; a person takes longer, about 8-10 minutes)
 
-1. **Tutorial at Millbrook station** (a hint line under the money says each step; an arrow and a hand point the way):
-   check in the first traveller at the reception desk (they get their key and pay onto the desk), collect the cash,
-   get tea from the urn, bring it to them; the same for a second traveller and their bag from the rack; buy a new room.
-2. **The game's loop, station after station:** travellers board and queue at the desk; guests ask for tea, blankets,
-   their bags (later towels, croissants, champagne, coffee); guests whose stop it is get off, leaving a tip and an
-   untidy room to tidy before the next guest can have it.
-3. **Upgrades, one at a time, paid only with cash you carry:** a new sleeper carriage, another room, Comfort Class
-   (the game's makeover sweeps down the carriage; fares x2.5), the Café Car, the Theatre Car (start the film: every
-   seat pays), Business Class (fares x5).
-4. After the Business Class guests' first orders: "5-STAR TRAIN!", then the end card, "CHOOSE NEXT TRAIN UPGRADE"
-   (also after 15 s without a touch).
+The train never stops at a station: it rides on through the night from the first frame.
 
-All numbers are in `TUNE` at the top of `src/playable/main.ts`.
+1. **Check-in (0:00).** Ten travellers queue at the lobby's reception desk. Stand at the desk and they check in one after another: each gets a key, pays the fare onto the desk and walks to their room. Whoever has no room yet waits in the lobby with a bed bubble.
+2. **Deliveries.** Guests ask for tea (the urn), then a blanket (the linen cupboard), then their bag (the luggage rack), then any of these. Fetch it, bring it, and they pay. Guests left waiting more than 16 s turn 😠, and they show 😍 when served.
+3. **Upgrades, one at a time** (only cash carried on your back goes in): New Room $40, New Room $60, New Room $80 (a waiting traveller checks in to each), **Comfort Class** $200 (the makeover, and dearer requests), **Attendant** $150 (serves tea by herself and leaves her takings on the desk for you to collect; you still do blankets, towels and bags), **Café Car** $260 (lattes and croissants), **Sleeper Car** $360 (the last travellers check in), **Theatre Car** $460 (start the film, every seat pays, popcorn).
+4. **The guide** (a gold arrow, the hint line and the hand) shows every step until Comfort Class. After that it shows only when you stop.
+5. **The end.** The goal line then reads "Next upgrade: Dining Car $X/300". The end card (CHOOSE NEXT TRAIN UPGRADE, the Dining Car, $300, "You have $..." in green) appears only once you can afford it. After 15 s without a touch the end card shows anyway (ad networks expect the CTA), but then without the price tag or the "You have" line.
+
+All the numbers are in `TUNE` at the top of `src/playable/main.ts`.
 
 ## Switching ad networks
 
