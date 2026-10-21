@@ -69,7 +69,7 @@ const TUNE = {
   popcorn: 2,
   ticket: 3,
   /** Upgrade prices, in order (each one is the next goal as soon as the last is bought). */
-  price: { room: 40, carriage: 200, berth3: 120, berth4: 150, comfort: 300, cafe: 350, theatre: 420, business: 520 },
+  price: { room: 40, carriage: 200, berth3: 100, comfort: 250, cafe: 300, theatre: 350, business: 420 },
   /** Seconds a job takes. */
   checkIn: 0.75,
   pickUp: 0.4,
@@ -86,7 +86,7 @@ const TUNE = {
   patience: 12,
   /** Seconds before a settled guest asks for something, and between requests. */
   firstAsk: 2.2,
-  nextAsk: [12, 20] as [number, number],
+  nextAsk: [16, 24] as [number, number],
   /** Legs (stations) a guest rides before getting off. */
   legs: 2,
   /** The journey: seconds between stations, the train's speed, the stop's minimum length. */
@@ -105,7 +105,7 @@ const TUNE = {
   outing: 0.06,
   film: 7,
   /** Deliveries in Business Class that end the ad, and the pause before the end card. */
-  finaleDeliveries: 3,
+  finaleDeliveries: 2,
   endDelay: 2.6,
 };
 const NIGHT_TIME = 0.82;
@@ -1165,7 +1165,6 @@ function buyRoom(): void {
   PLAN.push(
     { at: { x: -0.2, z: 17.2 }, icon: 'carriage', name: 'New Carriage', price: TUNE.price.carriage, buy: buySleeper },
     { at: { x: -1.3, z: sz + 8.1 }, icon: 'bed', name: 'New Room', price: TUNE.price.berth3, buy: () => (openRoom(SLOT.sleeper, 2), showBanner('NEW ROOM!', 'Room for one more'), nextUpgrade()) },
-    { at: { x: -1.3, z: sz + 10.5 }, icon: 'bed', name: 'New Room', price: TUNE.price.berth4, buy: () => (openRoom(SLOT.sleeper, 3), showBanner('NEW ROOM!', 'Room for one more'), nextUpgrade()) },
     { at: { x: -1.5, z: sz + 13.2 }, icon: 'star', name: 'Comfort Class', price: TUNE.price.comfort, buy: () => refit('comfort') },
     { at: { x: -0.2, z: sz + 17.2 }, icon: 'latte', name: 'Café Car', price: TUNE.price.cafe, buy: buyCafe },
     { at: { x: 0, z: carriageOriginZ(SLOT.cafe) + 16.2 }, icon: 'film', name: 'Theatre Car', price: TUNE.price.theatre, buy: buyTheatre },
@@ -1276,6 +1275,8 @@ function buyCafe(): void {
   addStation('source', ['latte'], SLOT.cafe, v.stations[0].pad, 'latte');
   addStation('source', ['pastry'], SLOT.cafe, v.stations[1].pad, 'pastry');
   nextUpgrade();
+  // Business Class (later) has three cabins: from now the sleeper's fourth takes no new guest, so the refit never waits.
+  refitPending = true;
 }
 /** The theatre rolls in: guests come for the film; start it at the projector, and every seat pays. */
 function buyTheatre(): void {
@@ -1284,8 +1285,6 @@ function buyTheatre(): void {
   addStation('source', ['popcorn'], SLOT.cinema, v.stations[0].pad, 'popcorn');
   projector = addStation('film', [], SLOT.cinema, v.projector!, 'film');
   nextUpgrade();
-  // From here, the next class refit waits for the sleeper to have at most three guests (its new plan has three cabins).
-  refitPending = true;
 }
 function startFilm(): void {
   filmT = 0;
