@@ -148,6 +148,9 @@ stage.attachParticles(particles);
 const cash = new CashView();
 scene.add(cash.mesh);
 const chips = new ClassChips();
+// The game hangs class chips out over the lake; with the camera on the conductor that is off-screen, so the ad brings
+// them in over the middle of the carriage (still above its walls).
+chips.group.position.x = HALF_WIDTH + 1.2;
 scene.add(chips.group);
 const audio = new AudioEngine();
 audio.prepare();
