@@ -33,9 +33,9 @@ new class, a new carriage) only appears once every small one before it is bought
 | 10 | Café Car | big | $130 | rolls in under a tarp, ropes snap, the tarp slides off |
 | 11–12 | Pastry Stand, Faster Attendant | small | $110–130 | croissants on the counter; she walks faster |
 | 13 | Luxury Class | big | $180 | navy and gold makeover |
-| 14 | Theatre Car | big | $200 | covered-carriage reveal; start the movie at the projector |
-| 15–16 | Big Speakers, Red Carpet | small | $150–160 | speakers by the screen; a red carpet with spotlights |
-| 17 | **Dining Car** | final | $240 | covered-carriage reveal, then the end screen |
+| 14 | Theatre Car | big | $180 | covered-carriage reveal; start the movie at the projector |
+| 15–16 | Big Speakers, Red Carpet | small | $120–130 | speakers by the screen; a red carpet with spotlights |
+| 17 | **Dining Car** | final | $200 | covered-carriage reveal, then the end screen |
 
 **End screen.** The camera glides into the new Dining Car (the game's own Luxury dining carriage: white cloths, lamps,
 place settings and glasses, velvet chairs, diners at the tables) and drifts slowly along it; over it "UPGRADE YOUR

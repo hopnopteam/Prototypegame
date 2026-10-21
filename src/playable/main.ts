@@ -82,9 +82,9 @@ const TUNE = {
     cafe: 130,
     pastry: 110, fast: 130,
     luxury: 180,
-    theatre: 200,
-    speakers: 150, premiere: 160,
-    dining: 240,
+    theatre: 180,
+    speakers: 120, premiere: 130,
+    dining: 200,
   },
   /** Most small upgrade tiles on show at once. */
   tilesAtOnce: 2,
@@ -291,10 +291,80 @@ function straight(a: Vec2, b: Vec2): boolean {
   for (let i = 1; i <= n; i++) if (!map.walk.isWalkable(a.x + ((b.x - a.x) * i) / n, a.z + ((b.z - a.z) * i) / n)) return false;
   return true;
 }
+/**
+ * Tap-to-walk's path: a search over the floor itself (cells of `CELL` metres, eight ways), so it always finds a way
+ * if there is one, however tight the furniture. The grid is rebuilt when the train changes; paths are cached.
+ */
+const CELL = 0.2;
+const GRID_X0 = -HALF_WIDTH;
+const GRID_W = Math.ceil((HALF_WIDTH * 2) / CELL);
+let gridH = 0;
+let grid = new Uint8Array(0);
+let gridKey = '';
+function floorGrid(): void {
+  const key = `${train.length}:${train.map((c) => c.tier).join()}:${rooms.filter((r) => r.open).length}`;
+  if (key === gridKey) return;
+  gridKey = key;
+  gridH = Math.ceil(trainRear() / CELL);
+  grid = new Uint8Array(GRID_W * gridH);
+  for (let j = 0; j < gridH; j++) for (let i = 0; i < GRID_W; i++) grid[j * GRID_W + i] = map.walk.isWalkable(GRID_X0 + (i + 0.5) * CELL, (j + 0.5) * CELL) ? 1 : 0;
+}
+const cellOf = (p: Vec2): number => {
+  const i = Math.max(0, Math.min(GRID_W - 1, Math.floor((p.x - GRID_X0) / CELL)));
+  const j = Math.max(0, Math.min(gridH - 1, Math.floor(p.z / CELL)));
+  return j * GRID_W + i;
+};
+let cameFrom = new Int32Array(0);
+const queue: number[] = [];
+function floorPath(from: Vec2, to: Vec2): Vec2[] | null {
+  floorGrid();
+  if (cameFrom.length !== grid.length) cameFrom = new Int32Array(grid.length);
+  cameFrom.fill(-1);
+  const goal = cellOf(walkableNear(to.x, to.z));
+  const start = cellOf(from);
+  queue.length = 0;
+  queue.push(start);
+  cameFrom[start] = start;
+  for (let q = 0; q < queue.length; q++) {
+    const c = queue[q];
+    if (c === goal) break;
+    const ci = c % GRID_W;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const i = ci + di;
+      const n = c + di + dj * GRID_W;
+      if (i < 0 || i >= GRID_W || n < 0 || n >= grid.length || cameFrom[n] >= 0 || !grid[n]) continue;
+      // Diagonals only where both sides are open (never through a corner).
+      if (di && dj && (!grid[c + di] || !grid[c + dj * GRID_W])) continue;
+      cameFrom[n] = c;
+      queue.push(n);
+    }
+  }
+  if (cameFrom[goal] < 0) return null;
+  const out: Vec2[] = [{ x: to.x, z: to.z }];
+  for (let c = cameFrom[goal]; c !== start; c = cameFrom[c]) out.push({ x: GRID_X0 + ((c % GRID_W) + 0.5) * CELL, z: (Math.floor(c / GRID_W) + 0.5) * CELL });
+  return out.reverse();
+}
+let walkPath: Vec2[] = [];
+let walkPathAt = -9;
+let walkPathTo = '';
+
+/** The nearest nav node in plain reach of a point (the very nearest can be behind a row of seats); a few tried, nearest first. */
+const nodeDist: { id: string; d: number }[] = [];
+function reachableNode(p: Vec2): string | null {
+  nodeDist.length = 0;
+  for (const id of map.nav.ids()) {
+    const q = map.nav.position(id);
+    nodeDist.push({ id, d: (q.x - p.x) ** 2 + (q.z - p.z) ** 2 });
+  }
+  nodeDist.sort((x, y) => x.d - y.d);
+  for (let i = 0; i < Math.min(6, nodeDist.length); i++) if (straight(p, map.nav.position(nodeDist[i].id))) return nodeDist[i].id;
+  return nodeDist[0]?.id ?? null;
+}
 /** A route through the train (the game's nav graph: doorways, gangways, round furniture), ending exactly at `to`. */
 function route(from: Vec2, to: Vec2, toNode?: string): Vec2[] {
-  const a = map.nearestNode(from.x, from.z);
-  const b = toNode ?? map.nearestNode(to.x, to.z);
+  // Start from the nearest node in plain reach (the nearest one can be behind a row of seats).
+  const a = reachableNode(from);
+  const b = toNode ?? reachableNode(to);
   const nodes = a && b ? map.pathBetweenNodes(a, b) : null;
   // No route (should not happen): never a straight line through walls; stay put unless the way is plainly clear.
   if (!nodes) return straight(from, to) ? [{ x: to.x, z: to.z }] : [];
@@ -1500,7 +1570,7 @@ const STEPS: Step[] = [
   upgrade({ id: 'theatre', name: 'Theatre Car', icon: 'film', big: true, tile: () => ({ x: 0, z: cz(17.1) }), focus: () => ({ x: 0, z: tz(9) }), buy: buyTheatre }),
   upgrade({ id: 'speakers', name: 'Big Speakers', icon: 'bolt', bonus: TUNE.smallBonus, tile: () => ({ x: -1.3, z: tz(14.2) }), focus: () => ({ x: -1.6, z: tz(9.5) }), buy: () => addExtra('station_sound') }),
   upgrade({ id: 'premiere', name: 'Red Carpet', icon: 'star', bonus: TUNE.smallBonus, tile: () => ({ x: -1.3, z: tz(2.9) }), focus: () => ({ x: 0, z: tz(3) }), buy: () => addExtra('menu_premiere') }),
-  upgrade({ id: 'dining', name: 'Dining Car', icon: 'meal', big: true, tile: () => ({ x: 0, z: tz(17.1) }), focus: () => ({ x: 0, z: carriageOriginZ(SLOT.dining) + 9 }), buy: buyDining }),
+  upgrade({ id: 'dining', name: 'Dining Car', icon: 'meal', big: true, tile: () => ({ x: -0.3, z: tz(14.4) }), focus: () => ({ x: 0, z: carriageOriginZ(SLOT.dining) + 9 }), buy: buyDining }),
 ];
 const bought = new Set<Step['id']>();
 /** The steps still to buy, in order. */
@@ -2058,7 +2128,14 @@ function updatePlayer(dt: number): void {
   } else if (autoWalk) {
     const t = target();
     if (t && Math.hypot(t.x - me.x, t.z - me.z) > 0.3) {
-      const pts = route({ x: me.x, z: me.z }, t);
+      // A path over the floor (refreshed a few times a second); head for its furthest point in plain view.
+      const key = `${t.x.toFixed(2)},${t.z.toFixed(2)}`;
+      if (key !== walkPathTo || clock - walkPathAt > 0.3) {
+        walkPathTo = key;
+        walkPathAt = clock;
+        walkPath = floorPath(me, t) ?? route({ x: me.x, z: me.z }, t);
+      }
+      const pts = walkPath;
       let next = pts[0] ?? t;
       for (let k = pts.length - 1; k >= 0; k--) {
         if (straight(me, pts[k])) {
@@ -2069,7 +2146,8 @@ function updatePlayer(dt: number): void {
       const l = Math.hypot(next.x - me.x, next.z - me.z) || 1;
       mx = (next.x - me.x) / l;
       mz = (next.z - me.z) / l;
-      mag = 1;
+      // Ease in on arrival (never overshoot the spot).
+      mag = Math.max(0.25, Math.min(1, Math.hypot(t.x - me.x, t.z - me.z) / 1.2));
     } else {
       autoWalk = false;
       mag = 0;
@@ -2510,6 +2588,24 @@ void boot();
     }
   },
   end: () => endGame(),
+  /** Test only: put the conductor somewhere, and the route from there to the current target. */
+  place: (x: number, z: number) => {
+    me.x = x;
+    me.z = z;
+  },
+  grid: (x0: number, z0: number, x1: number, z1: number, step = 0.25) => {
+    const rows: string[] = [];
+    for (let z = z0; z <= z1; z += step) {
+      let r = `${z.toFixed(2)} `;
+      for (let x = x0; x <= x1; x += step) r += map.walk.isWalkable(x, z) ? '.' : '#';
+      rows.push(r);
+    }
+    return rows.join('\n');
+  },
+  routeInfo: () => {
+    const t = target();
+    return { t, from: reachableNode(me), to: t && reachableNode(t), pts: t && route(me, t), walk: map.walk.isWalkable(me.x, me.z) };
+  },
   /** Test only: every guest still waiting goes straight to a free room (to test the mid-game quickly). */
   settle: () => {
     for (const g of guests) {
