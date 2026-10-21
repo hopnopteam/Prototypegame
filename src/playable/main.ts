@@ -69,7 +69,7 @@ const TUNE = {
   popcorn: 2,
   ticket: 2,
   /** Upgrade prices, in order (each one is the next goal as soon as the last is bought). */
-  price: { room: 40, carriage: 200, berth3: 160, berth4: 200, comfort: 500, cafe: 600, theatre: 800, business: 1100 },
+  price: { room: 40, carriage: 180, berth3: 100, berth4: 120, comfort: 400, cafe: 500, theatre: 650, business: 900 },
   /** Seconds a job takes. */
   checkIn: 0.75,
   pickUp: 0.4,
@@ -95,7 +95,7 @@ const TUNE = {
   arriveFrom: 50,
   minStop: 6,
   /** How many board at a station at most. */
-  boardMax: 3,
+  boardMax: 5,
   /** Seconds between bills draining into an upgrade. */
   drain: 0.04,
   /** Seconds without a touch before the hand and the hint show, and before the end card shows anyway. */
