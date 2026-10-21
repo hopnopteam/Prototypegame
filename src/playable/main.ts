@@ -61,15 +61,15 @@ const TUNE = {
   /** One bill is $10. */
   bill: 10,
   /** Bills paid, by the room's class (Basic, Comfort, Business): the fare at the desk, each delivery, the tip on leaving. */
-  fare: { basic: 2, comfort: 5, business: 9 },
-  deliver: { basic: 1, comfort: 3, business: 5 },
+  fare: { basic: 3, comfort: 6, business: 10 },
+  deliver: { basic: 2, comfort: 3, business: 5 },
   tip: { basic: 1, comfort: 3, business: 5 },
   /** Bills for a café order, a popcorn, and each theatre ticket. */
   cafe: 3,
   popcorn: 2,
   ticket: 2,
   /** Upgrade prices, in order (each one is the next goal as soon as the last is bought). */
-  price: { room: 40, carriage: 180, berth3: 100, berth4: 120, comfort: 400, cafe: 500, theatre: 650, business: 900 },
+  price: { room: 40, carriage: 200, berth3: 120, berth4: 150, comfort: 350, cafe: 420, theatre: 520, business: 700 },
   /** Seconds a job takes. */
   checkIn: 0.75,
   pickUp: 0.4,
@@ -221,7 +221,9 @@ function route(from: Vec2, to: Vec2, toNode?: string): Vec2[] {
   const a = map.nearestNode(from.x, from.z);
   const b = toNode ?? map.nearestNode(to.x, to.z);
   const nodes = a && b ? map.pathBetweenNodes(a, b) : null;
-  const pts = nodes ? nodes.map((p) => ({ x: p.x, z: p.z })) : [];
+  // No route (should not happen): never a straight line through walls; stay put unless the way is plainly clear.
+  if (!nodes) return straight(from, to) ? [{ x: to.x, z: to.z }] : [];
+  const pts = nodes.map((p) => ({ x: p.x, z: p.z }));
   pts.push({ x: to.x, z: to.z });
   return pts;
 }
@@ -523,6 +525,7 @@ class Guest {
   path: Vec2[] = [];
   onArrive: (() => void) | null = null;
   blockedFor = 0;
+  sidestepped = false;
   state: GuestState = 'boarding';
   room: Room | null = null;
   seat: { venue: 'cafe' | 'cinema'; seat: VenueSeatLayout } | null = null;
@@ -571,11 +574,25 @@ class Guest {
       const nz = this.z + (dz / (d || 1)) * Math.min(step, d);
       const dNext = Math.hypot(nx - me.x, nz - me.z);
       const blocked = dNext < RADIUS * 2 && dNext < Math.hypot(this.x - me.x, this.z - me.z);
-      // Never through the conductor: a moment's wait, then on past.
-      if (blocked && this.blockedFor < 0.6) {
+      // Never through the conductor: a moment's wait, then a step round them (or, if there is no room, a little longer).
+      if (blocked && this.blockedFor > 0.35 && !this.sidestepped) {
+        const px = -(dz / (d || 1));
+        const pz = dx / (d || 1);
+        for (const side of [1, -1]) {
+          const sx = me.x + px * side * 0.7;
+          const sz = me.z + pz * side * 0.7;
+          if (map.walk.isWalkable(sx, sz) && straight({ x: this.x, z: this.z }, { x: sx, z: sz })) {
+            this.path.unshift({ x: sx, z: sz });
+            this.sidestepped = true;
+            break;
+          }
+        }
+      }
+      if (blocked && this.blockedFor < 1.6) {
         this.blockedFor += dt;
         this.speed = 0;
       } else {
+        if (!blocked) this.sidestepped = false;
         if (!blocked) this.blockedFor = 0;
         if (d <= step) {
           this.x = next.x;
@@ -1830,6 +1847,7 @@ void boot();
       clock: Math.round(clock), money, back: backCount, tutorial: tutorialDone ? 'done' : stepNo, tile: tile ? `${tile.name} ${tile.paid}/${tile.price}` : null, plan: PLAN.length,
       guests: guests.length, queue: queue.length, orders: guests.filter((g) => g.order).map((g) => g.order!.item), dirty: rooms.filter((r) => r.dirty).length,
       carried: carried.map((c) => c.item), journey: journey.phase, ended, finale: finaleCount, me: { x: +me.x.toFixed(2), z: +me.z.toFixed(2) },
+      offFloor: guests.filter((g) => g.x < -INNER - 0.05 || (g.x > INNER + 0.05 && journey.phase === 'moving')).map((g) => `${g.state}@${g.x.toFixed(1)},${g.z.toFixed(1)}`),
     };
   },
   tap: (x: number, y: number) => {
