@@ -153,3 +153,33 @@ html:not(.nx-started) .ad-goal, html:not(.nx-started) .ad-hand { visibility: hid
 .ad-goal.full.on { animation: goalPulse 1s ease-in-out infinite; }
 @keyframes goalPulse { 50% { transform: translateX(-50%) scale(1.06); } }
 .ad-float.big { font-size: 34px; }
+
+/* The instruction pill: what to do now, big and clear, just under the top bar (under the goal bar when it shows). */
+.ad-hint { position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 60px); left: 50%; transform: translateX(-50%) scale(0.6); opacity: 0;
+  display: flex; align-items: center; gap: 10px; padding: 6px 22px 6px 6px; border-radius: 999px; background: linear-gradient(#FFFDF6, #F6E7C6);
+  border: 3px solid #2B2230; box-shadow: 0 4px 0 #2B2230; color: #2B2230; font-weight: 900; font-size: 23px; letter-spacing: 0.01em; white-space: nowrap; pointer-events: none;
+  transition: transform 0.3s cubic-bezier(.3,1.7,.6,1), opacity 0.2s, top 0.25s; }
+.ad-hint.on { opacity: 1; transform: translateX(-50%) scale(1); }
+.ad-hint.low { top: calc(max(12px, env(safe-area-inset-top)) + 122px); }
+.ad-hint canvas { width: 42px; height: 42px; flex: none; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #FFE680, #F2B92E); border: 3px solid #2B2230; }
+@media (orientation: landscape) { .ad-hint { font-size: 19px; } .ad-hint canvas { width: 34px; height: 34px; } }
+
+/* Captions: one at a time, for exactly as long as the channel shows them; small ones (praise, combos) smaller. */
+.ad-banner { top: 27%; }
+.ad-banner.on { animation: bannerIn var(--life, 1.8s) ease-out forwards; }
+.ad-banner.small b { font-size: clamp(26px, 7vw, 40px); }
+
+/* A guest's reaction and what they paid, one float over them. */
+.ad-float.pay { display: flex; align-items: center; gap: 4px; }
+.ad-float.pay i { font-style: normal; font-size: 30px; -webkit-text-stroke: 0; }
+.ad-float.pay b { font-weight: 900; }
+@media (orientation: landscape) { .ad-banner { top: auto; bottom: 16%; } }
+/* Landscape: the goal bar and the instruction pill stack in the top-left corner, clear of the middle of the train. */
+@media (orientation: landscape) {
+  .ad-goal, .ad-hint { left: 12px; transform-origin: 0 50%; transform: scale(0.6); }
+  .ad-goal { top: max(12px, env(safe-area-inset-top)); }
+  .ad-hint, .ad-hint.low { top: calc(max(12px, env(safe-area-inset-top)) + 62px); }
+  .ad-hint:not(.low) { top: max(12px, env(safe-area-inset-top)); }
+  .ad-goal.on, .ad-hint.on { transform: none; }
+  .ad-goal.full.on { animation: none; }
+}

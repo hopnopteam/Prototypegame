@@ -4,32 +4,37 @@
 external requests), about 1.1 MB. It is built from the game's own world code, so carriages, characters, the platform,
 cash and sounds are the real game's; the game itself is untouched.
 
-## The flow (the test bot finishes in about 6 minutes; a person takes about 7-9)
+## The flow (the test bot finishes in about 7 minutes; a person takes about 8-10)
 
-One thing at a time. A single flow controller (`flow` in `src/playable/main.ts`) decides what is active. Passengers, requests, upgrade tiles and camera moves all ask `flow.allows(...)` first. Big messages go through one queue: one at a time, 1.8 s each, a short gap between them, and duplicates dropped.
+One thing at a time. A single flow controller (`flow` in `src/playable/main.ts`) decides what is active, and requests, upgrade tiles and camera moves ask it first. Captions go through **one channel**: one at a time, each faded out before the next. A small caption (praise, a combo) is shown only if nothing else is showing, otherwise it is dropped. The same caption twice is dropped.
 
-**Start.** A splash with the app icon shows until the scene is ready. Then the start screen: "UPGRADE YOUR TRAIN!", "DRAG TO MOVE", the app icon and an INSTALL button. The train is **one carriage**, the lobby.
+**The train never stops**, so nobody boards or leaves. Three passengers are aboard from the start: one at the reception desk, two waiting on the sofa. Once checked in they stay in their rooms all night, and the conductor looks after them. The train starts as **one carriage** (the lobby).
 
-**1. Tutorial (about 30-60 s).** Nothing else happens while it runs: no other passengers, requests, upgrades or camera moves.
-- Passenger 1, step by step, one instruction at a time: *Check in the guest* → *Follow them to the room* → *Get the bag* → *Bring the bag* → *Grab the cash* (they pay into a little pile beside them). Each step ends with "NICE!".
-- Passenger 2 comes aboard through the lobby door and does the same, with arrows only and no text.
-- Then "GREAT JOB! Now hire an Attendant to help", and play begins.
+**Tutorial.**
+- Passenger 1, one step at a time, shown in a large instruction pill under the money: *Check in the guest* → *Get their bag* → *Bring it to their room* → *Grab the cash*.
+- Passenger 2 comes from the sofa and does the same, with the arrow only.
+- Then "GREAT JOB!", passenger 3 comes to the desk, and play begins.
 
-**2. Play.** A passenger comes aboard only while a room is free, one at a time. Each asks for one thing at a time: their bag first, then a blanket (a towel in Comfort), then tea. They ask 2-3 times, then leave and free the room. Only a few requests are open across the train (2 to start, more with a second carriage and with each Attendant). An item is delivered once: the order closes as it is handed over, and the guest asks for nothing new until it lands.
+**Guidance.** A bouncing arrow marks the goal, and an arrow at the conductor's feet appears only when the goal is off screen.
 
-**3. Upgrades, one by one.** The goal bar under the money always shows the next one with a progress bar. Its tile appears ("NEW UPGRADE!") once you can afford it.
+**Play.** Each guest asks for one thing at a time through the night: a blanket once, a towel once (Comfort), then tea (or coffee in Business). Later they also visit the café and the theatre. At most 2 requests are open (3 with an Attendant).
 
-| Upgrade | Price | What it does |
-|---|---|---|
-| Attendant | $120 | Takes over room deliveries; you collect the cash |
-| New Carriage | $200 | A sleeper rolls in under a tarp; more rooms, more guests |
-| Comfort Class | $240 | Makeover of both carriages; deliveries pay more |
-| Faster Attendant | $260 | Moves 1.5× faster |
-| Café Car | $300 | Rolls in under a tarp; guests come for coffee and croissants |
-| 2nd Attendant | $320 | A second Attendant |
-| Café Makeover | $340 | New café interior; orders pay more |
+**Deliveries.** Picking up takes 0.2 s. A delivery goes the moment the guest is in reach (anywhere in their room). Cash streams onto the back from a stride away. New sounds: a coin "ting" that climbs a scale as a pile streams in, a two-note bell for a delivery, and a rising arpeggio for an upgrade.
 
-Then the goal is "Dining Car: $X/300", and the end card comes once you can afford it.
+**Upgrades, one by one.** A goal bar shows the next one; its tile appears once it is affordable.
+
+| Upgrade | Price |
+|---|---|
+| Café Car | $100 |
+| Comfort Class | $160 |
+| Attendant | $180 |
+| Theatre Car | $240 |
+| Faster Attendant | $200 |
+| Business Class | $300 |
+| 2nd Attendant (serves the café and theatre) | $260 |
+| Café Makeover | $320 |
+
+Class upgrades restyle the lobby and keep its three rooms. Then the goal is "Dining Car: $X/300", and the end card comes once you can afford it.
 
 All the numbers are in `TUNE` at the top of `src/playable/main.ts`.
 
