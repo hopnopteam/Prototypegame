@@ -57,11 +57,11 @@ const TUNE = {
   speedUp: 1.02,
   guestSpeed: 3.6,
   /** What a delivery pays ($) by the lobby's class (index = tier: 1 Basic, 2 Comfort, 4 Luxury). */
-  deliver: [0, 10, 14, 14, 20] as number[],
+  deliver: [0, 10, 14, 14, 24] as number[],
   /** A café order ($); a theatre seat when the movie ends; popcorn. */
-  cafe: 12,
-  ticket: 12,
-  popcorn: 10,
+  cafe: 16,
+  ticket: 20,
+  popcorn: 14,
   /** Each small upgrade adds this much to every delivery and café order (earnings rise a little with each one). */
   smallBonus: 2,
   /** Coins in a payment's burst (just the look: the amount is what was paid). */
@@ -81,10 +81,10 @@ const TUNE = {
     minibar: 110,
     cafe: 130,
     pastry: 110, fast: 130,
-    luxury: 180,
-    theatre: 180,
-    speakers: 120, premiere: 130,
-    dining: 200,
+    luxury: 170,
+    theatre: 160,
+    speakers: 100, premiere: 110,
+    dining: 170,
   },
   /** Most small upgrade tiles on show at once. */
   tilesAtOnce: 2,
@@ -2310,7 +2310,8 @@ function updateGuide(dt: number): void {
   updateFoot(dt, show ? t : null);
   // The instruction pill: the tutorial's one step (passenger 2 gets the arrows only), and the next job while guided.
   const instruction = ended || !t ? null : flow.phase === 'tutorial' ? (flow.passenger === 0 ? t : null) : guided || hesitating ? t : null;
-  setHint(instruction);
+  // A caption over the middle of the screen has it to itself (the pill steps aside, never overlaps it).
+  setHint(showing && !showing.small ? null : instruction);
   hintBox.classList.toggle('low', goalBox.classList.contains('on'));
   // The goal bar: the next upgrade's progress (from the end of the tutorial).
   // The goal bar: the next big goal and how far along the way to it (from the end of the tutorial).
