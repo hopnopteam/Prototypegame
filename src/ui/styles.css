@@ -243,6 +243,10 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .float.miles { color: #FFD06A; }
 .float.info { color: var(--cream); font-size: 14px; letter-spacing: 0.12em; text-transform: uppercase; }
 /* Soft failure cue: grey and small, noticed but never alarming. */
+.float.praise { color: #FFE27A; font-size: 22px; }
+.float.praise .praise-word { display: flex; align-items: center; gap: 4px; animation: praisePop 0.42s cubic-bezier(0.34, 1.7, 0.5, 1) both; }
+.float.praise .ico { filter: drop-shadow(0 2px 0 var(--ink)); }
+@keyframes praisePop { 0% { transform: scale(0.3) rotate(-8deg); opacity: 0; } 60% { transform: scale(1.18) rotate(3deg); opacity: 1; } 100% { transform: scale(1) rotate(0); } }
 .float.miss { color: #D5CFDA; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; }
 /* Icon feedback (a tick, a bolt, a crossed-out towel) rising from the spot: no words. */
 .float.icon .ico { filter: drop-shadow(0 2px 0 var(--ink)); }

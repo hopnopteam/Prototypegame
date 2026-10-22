@@ -35,9 +35,10 @@ function canvas(size: number, resolution = 1): [HTMLCanvasElement, CanvasRenderi
 
 /**
  * Bubbles and the guide arrow show about 60 CSS pixels across, so 175 device pixels on a 3× phone: drawn at
- * 1.5× their old 128 px so they stay crisp (session 19) without making the cache of ring steps heavy.
+ * 1.5× their old 128 px so they stay crisp (session 19); session 35 (owner: "the quality of logos…"): 2×, so the
+ * icon inside reads sharp on a 3× phone (a bubble is a 256 px texture, 256 KB of GPU memory each).
  */
-const WORLD_UI_RES = 1.5;
+const WORLD_UI_RES = 2;
 
 function finishTexture(c: HTMLCanvasElement): THREE.CanvasTexture {
   const texture = new THREE.CanvasTexture(c);
@@ -103,7 +104,8 @@ export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ri
     ctx.beginPath();
     ctx.arc(cx, cy, 32, 0, Math.PI * 2);
     ctx.fill();
-    drawIcon(ctx, icon, cx - 25, cy - 26, 50);
+    // Session 35 (owner: "the quality of logos… quite clear"): the icon fills the badge's face.
+    drawIcon(ctx, icon, cx - 30, cy - 31, 60);
   } else if (style !== 'plain') {
     const cx = 64;
     const cy = 58;
@@ -121,7 +123,7 @@ export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ri
     ctx.beginPath();
     ctx.arc(cx, cy, 39, 0, Math.PI * 2);
     ctx.fill();
-    drawIcon(ctx, icon, cx - 31, cy - 33, 62);
+    drawIcon(ctx, icon, cx - 35, cy - 36, 70);
     if (ring >= 0) {
       const fraction = Math.min(1, ring / RING_STEPS);
       ctx.lineCap = 'round';

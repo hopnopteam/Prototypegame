@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { ARCHETYPES, COMMON_MESS, type ArchetypeDef, type MessPiece, type StoryDef } from '../config/content';
 import { CLASS_BY_ID, isDwellNeed, type ClassId, type ServiceNeed } from '../config/classes';
 import { CROWD, IDLES, type IdleAction } from '../config/crowd';
+import { PRAISE } from '../config/chatter';
 import { log } from '../core/log';
 import type { Vec2 } from '../core/types';
 import { freshWish, nextTripPhase, rideProgress, type TripPhase } from '../sim/trip';
@@ -1056,9 +1057,18 @@ export class Guests {
       say('Finally…', 'miss');
       w.ui.floatIcon('frown', guest.pos.x, FLOOR_Y + 2.2, guest.pos.z, 'miss');
       w.feedback.onSlowDelivery(guest, false);
+    } else if (byPlayer) {
+      // Session 35: the conductor's own service gets a happy word that fits it (config: PRAISE).
+      if (speed >= service.speedyTipMultiplier) {
+        // Only the top speed earns the bolt (session 26: one sign, for the fastest service).
+        w.ui.floatIcon('bolt', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'star');
+        w.feedback.praise(PRAISE.speedy, guest.pos.x, guest.pos.z);
+      } else if (speed > 1) {
+        w.feedback.praise(PRAISE.item[item] ?? PRAISE.quick, guest.pos.x, guest.pos.z);
+      } else {
+        w.feedback.praise(PRAISE.onTime, guest.pos.x, guest.pos.z);
+      }
     } else if (speed >= service.speedyTipMultiplier) {
-      // Only the top speed earns the bolt (session 26: one sign, for the fastest service).
-      if (byPlayer) w.ui.floatIcon('bolt', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'star');
       say('Speedy!', 'star');
     } else if (speed > 1) {
       say('Thanks!', 'info');

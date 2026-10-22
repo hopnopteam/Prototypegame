@@ -1031,7 +1031,10 @@ export class Ui implements GameUi {
 
   floatText(text: string, x: number, y: number, z: number, kind: FloatKind): void {
     if (this.floats.length > 24) return;
-    const el = h(`div.float.${kind}` as 'div', {}, kind === 'star' ? icon('star', 20) : null, text);
+    // Session 35: a passenger's praise pops in with a heart, bigger and bouncier than a number.
+    const el = kind === 'praise'
+      ? h('div.float.praise', {}, h('span.praise-word', {}, icon('heart', 20), text))
+      : h(`div.float.${kind}` as 'div', {}, kind === 'star' ? icon('star', 20) : null, text);
     this.floatLayer.appendChild(el);
     this.floats.push({ el, pos: new THREE.Vector3(x, y + this.stackOffset(x, z), z), age: 0, life: FLOAT_LIFE, rise: 1.1, speech: false, width: 0 });
   }

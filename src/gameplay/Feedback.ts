@@ -1,10 +1,12 @@
-import { REACTIONS, type ChatterSituation, type Reaction } from '../config/chatter';
+import { PRAISE, REACTIONS, type ChatterSituation, type Reaction } from '../config/chatter';
 import { FLOOR_Y } from '../world/CarriageView';
 import type { Guest } from './Guests';
 import type { World } from './World';
 
 const SPEECH_HEIGHT = 2.1;
 const FLOAT_HEIGHT = 2.35;
+/** Where a passenger's praise floats (over their head, above the floating icons). */
+const PRAISE_HEIGHT = 2.7;
 const THINK_SECONDS = 0.5;
 /** The desk bell rings again at most this often while a guest still waits. */
 const BELL_REPEAT_SECONDS = 20;
@@ -32,6 +34,17 @@ export class Feedback {
     this.mood = w.econ.feedback.mood.start;
   }
 
+  /** Each praise pool's next word (used in turn: no game randomness). */
+  private readonly praiseTurn = new Map<readonly string[], number>();
+
+  /** A happy word or two over someone the conductor served well (session 35, config: `PRAISE`). */
+  praise(pool: readonly string[], x: number, z: number): void {
+    if (pool.length === 0) return;
+    const turn = this.praiseTurn.get(pool) ?? 0;
+    this.praiseTurn.set(pool, turn + 1);
+    this.w.ui.floatText(pool[turn % pool.length], x, FLOOR_Y + PRAISE_HEIGHT, z, 'praise');
+  }
+
   /** Critical cues and lines wait until the player knows the ropes. */
   get cuesOn(): boolean {
     const f = this.w.econ.feedback;
@@ -43,6 +56,11 @@ export class Feedback {
     w.events.on('station.result', (r) => {
       if (r.clean) this.nudge(w.econ.feedback.mood.perfectStop);
     });
+    // Session 35: passengers call out when the conductor does right by them (staff work stays quiet).
+    w.events.on('guest.keyed', (e) => e.byPlayer && this.praise(PRAISE.key, e.x, e.z));
+    w.events.on('cabin.cleaned', (e) => e.byPlayer && this.praise(PRAISE.tidy, e.x, e.z));
+    w.events.on('shoes.shined', (e) => e.byPlayer && this.praise(PRAISE.shoes, e.x, e.z));
+    w.events.on('venue.served', (e) => e.byPlayer && this.praise(PRAISE.venue[e.kind] ?? PRAISE.quick, e.x, e.z));
     w.events.on('rush.bonus', () => {
       const guest = this.nearestGuest();
       if (guest) this.maybeSay('rush', guest);

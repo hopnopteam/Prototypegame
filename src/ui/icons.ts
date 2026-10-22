@@ -266,33 +266,44 @@ const ICONS: Record<IconName, Draw> = {
     c.stroke();
   },
   coffee: (c) => {
-    // A dark coffee in a cup on a saucer, steaming.
+    // Session 35: a tall red mug of black coffee with a bean on it, steaming (the tea is a china cup and saucer).
+    rr(c, 20, 32, 50, 56, 10);
+    fillStroke(c, '#C8463C');
     c.beginPath();
-    c.ellipse(50, 82, 36, 8, 0, 0, Math.PI * 2);
-    fillStroke(c, '#E8DCC6');
-    c.beginPath();
-    c.moveTo(24, 44);
-    c.lineTo(76, 44);
-    c.lineTo(70, 76);
-    c.quadraticCurveTo(50, 82, 30, 76);
-    c.closePath();
-    fillStroke(c, '#FFFFFF');
-    c.beginPath();
-    c.arc(78, 58, 9, -Math.PI / 2, Math.PI / 2);
-    c.lineWidth = 6;
+    c.arc(72, 58, 13, -Math.PI / 2, Math.PI / 2);
+    c.lineWidth = 8;
     c.strokeStyle = INK;
     c.stroke();
-    c.fillStyle = '#5A3524';
     c.beginPath();
-    c.ellipse(50, 48, 23, 4.5, 0, 0, Math.PI * 2);
+    c.arc(72, 58, 13, -Math.PI / 2, Math.PI / 2);
+    c.lineWidth = 3;
+    c.strokeStyle = '#C8463C';
+    c.stroke();
+    c.beginPath();
+    c.ellipse(45, 36, 20, 4.5, 0, 0, Math.PI * 2);
+    c.fillStyle = '#3B2216';
     c.fill();
-    c.strokeStyle = '#9A8F86';
+    // The bean.
+    c.save();
+    c.translate(45, 62);
+    c.rotate(-0.5);
+    c.beginPath();
+    c.ellipse(0, 0, 9, 13, 0, 0, Math.PI * 2);
+    fillStroke(c, '#6B3E26', 4);
+    c.beginPath();
+    c.moveTo(0, -11);
+    c.quadraticCurveTo(-5, 0, 0, 11);
+    c.lineWidth = 3;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.restore();
+    c.strokeStyle = '#B9B0C4';
     c.lineWidth = 5;
     c.lineCap = 'round';
-    for (const x of [42, 58]) {
+    for (const x of [36, 52]) {
       c.beginPath();
-      c.moveTo(x, 36);
-      c.quadraticCurveTo(x + 6, 26, x, 14);
+      c.moveTo(x, 24);
+      c.quadraticCurveTo(x + 6, 16, x, 6);
       c.stroke();
     }
   },
@@ -372,65 +383,168 @@ const ICONS: Record<IconName, Draw> = {
     fillStroke(c, '#5A3524', 3);
   },
   tea: (c) => {
+    // Session 35 (owner: "the tea… should be quite clear"): a china teacup on its saucer, the tea-bag's string over
+    // the rim and its tag hanging outside: tea at a glance, never mistaken for the coffee mug.
     c.beginPath();
-    c.ellipse(50, 80, 38, 9, 0, 0, Math.PI * 2);
-    fillStroke(c, '#E8DCC6');
+    c.ellipse(46, 82, 38, 9, 0, 0, Math.PI * 2);
+    fillStroke(c, '#E9E2F2');
     c.beginPath();
-    c.moveTo(22, 40);
-    c.lineTo(78, 40);
-    c.quadraticCurveTo(76, 76, 50, 76);
-    c.quadraticCurveTo(24, 76, 22, 40);
+    c.moveTo(14, 44);
+    c.lineTo(78, 44);
+    c.quadraticCurveTo(76, 78, 46, 78);
+    c.quadraticCurveTo(16, 78, 14, 44);
     fillStroke(c, '#FFFFFF');
+    c.save();
     c.beginPath();
-    c.arc(80, 52, 9, -Math.PI / 2, Math.PI / 2);
+    c.moveTo(14, 44);
+    c.lineTo(78, 44);
+    c.quadraticCurveTo(76, 78, 46, 78);
+    c.quadraticCurveTo(16, 78, 14, 44);
+    c.clip();
+    c.fillStyle = '#5B8FD0';
+    c.fillRect(10, 56, 72, 6);
+    c.restore();
+    c.beginPath();
+    c.ellipse(46, 45, 30, 4, 0, 0, Math.PI * 2);
+    c.fillStyle = '#B5652C';
+    c.fill();
+    c.beginPath();
+    c.arc(79, 56, 9, -Math.PI / 2.2, Math.PI / 2.2);
     c.lineWidth = 6;
     c.strokeStyle = INK;
     c.stroke();
-    c.fillStyle = '#B8733D';
-    c.fillRect(27, 43, 46, 7);
-    c.strokeStyle = '#9A8F86';
+    // The tea bag's string and tag.
+    c.strokeStyle = INK;
+    c.lineWidth = 2.5;
+    c.beginPath();
+    c.moveTo(56, 46);
+    c.quadraticCurveTo(66, 36, 70, 30);
+    c.lineTo(84, 34);
+    c.stroke();
+    c.save();
+    c.translate(86, 40);
+    c.rotate(0.25);
+    rr(c, -8, -8, 16, 18, 2);
+    fillStroke(c, '#7CC36B', 4);
+    c.restore();
+    c.strokeStyle = '#B9B0C4';
     c.lineWidth = 5;
     c.lineCap = 'round';
-    for (const x of [38, 52, 64]) {
+    for (const x of [30, 44]) {
       c.beginPath();
-      c.moveTo(x, 32);
-      c.quadraticCurveTo(x - 6, 22, x, 12);
+      c.moveTo(x, 34);
+      c.quadraticCurveTo(x - 6, 24, x, 13);
       c.stroke();
     }
   },
   blanket: (c) => {
-    rr(c, 14, 28, 72, 50, 10);
-    fillStroke(c, '#E9B949');
-    c.fillStyle = '#C0485C';
-    for (const x of [26, 42, 58, 74]) c.fillRect(x - 3, 30, 6, 46);
-    rr(c, 14, 28, 72, 50, 10);
-    c.lineWidth = 6;
+    // Session 35: a folded tartan blanket, the top fold curling over the front, a fringe at each end.
+    const tartan = (x: number, y: number, w: number, h: number, base: string): void => {
+      c.save();
+      rr(c, x, y, w, h, 8);
+      c.clip();
+      c.fillStyle = base;
+      c.fillRect(x, y, w, h);
+      c.fillStyle = 'rgba(40, 30, 60, 0.28)';
+      for (let i = x + 6; i < x + w; i += 18) c.fillRect(i, y, 8, h);
+      for (let j = y + 4; j < y + h; j += 16) c.fillRect(x, j, w, 7);
+      c.fillStyle = '#F2C94C';
+      for (let i = x + 14; i < x + w; i += 18) c.fillRect(i, y, 2, h);
+      c.restore();
+      rr(c, x, y, w, h, 8);
+      c.lineWidth = 6;
+      c.strokeStyle = INK;
+      c.stroke();
+    };
+    c.strokeStyle = INK;
+    c.lineWidth = 3;
+    for (const side of [1, -1]) {
+      const x0 = side > 0 ? 86 : 14;
+      for (let y = 50; y <= 78; y += 7) {
+        c.beginPath();
+        c.moveTo(x0, y);
+        c.lineTo(x0 + side * 7, y + 1);
+        c.stroke();
+      }
+    }
+    tartan(14, 44, 72, 40, '#C0485C');
+    tartan(14, 22, 72, 30, '#D85A6E');
+    // The fold's lip.
+    c.beginPath();
+    c.moveTo(18, 50);
+    c.quadraticCurveTo(50, 60, 82, 50);
+    c.lineWidth = 5;
     c.strokeStyle = INK;
     c.stroke();
   },
   pillow: (c) => {
-    c.beginPath();
-    c.moveTo(16, 32);
-    c.quadraticCurveTo(50, 22, 84, 32);
-    c.quadraticCurveTo(92, 50, 84, 70);
-    c.quadraticCurveTo(50, 80, 16, 70);
-    c.quadraticCurveTo(8, 50, 16, 32);
+    // Session 35: a plump pillow with corner points, a soft shadow and a stitched seam.
+    const shape = (): void => {
+      c.beginPath();
+      c.moveTo(12, 26);
+      c.quadraticCurveTo(50, 36, 88, 26);
+      c.quadraticCurveTo(80, 52, 88, 78);
+      c.quadraticCurveTo(50, 68, 12, 78);
+      c.quadraticCurveTo(20, 52, 12, 26);
+    };
+    shape();
     fillStroke(c, '#FFFFFF');
-    c.strokeStyle = '#C9BFD6';
-    c.lineWidth = 4;
+    c.save();
+    shape();
+    c.clip();
+    c.fillStyle = '#DCD3EE';
     c.beginPath();
-    c.moveTo(32, 50);
-    c.quadraticCurveTo(50, 44, 68, 50);
-    c.stroke();
-  },
-  towel: (c) => {
-    rr(c, 18, 26, 64, 50, 8);
-    fillStroke(c, '#F29CA8');
-    c.fillStyle = '#FFFFFF';
-    c.fillRect(22, 58, 56, 7);
-    rr(c, 18, 26, 64, 50, 8);
+    c.ellipse(50, 74, 44, 12, 0, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+    shape();
     c.lineWidth = 6;
     c.strokeStyle = INK;
+    c.stroke();
+    c.setLineDash([5, 5]);
+    c.strokeStyle = '#A99BC9';
+    c.lineWidth = 3;
+    c.beginPath();
+    c.moveTo(22, 36);
+    c.quadraticCurveTo(50, 44, 78, 36);
+    c.quadraticCurveTo(72, 52, 78, 68);
+    c.quadraticCurveTo(50, 60, 22, 68);
+    c.quadraticCurveTo(28, 52, 22, 36);
+    c.stroke();
+    c.setLineDash([]);
+  },
+  towel: (c) => {
+    // Session 35: a fluffy striped towel folded over a brass rail, its back half peeking out behind.
+    c.beginPath();
+    c.moveTo(8, 22);
+    c.lineTo(92, 22);
+    c.lineWidth = 9;
+    c.strokeStyle = INK;
+    c.lineCap = 'round';
+    c.stroke();
+    c.lineWidth = 4;
+    c.strokeStyle = '#E9B949';
+    c.stroke();
+    rr(c, 26, 14, 58, 54, 8);
+    fillStroke(c, '#3F86A0');
+    rr(c, 16, 14, 60, 74, 9);
+    fillStroke(c, '#73BFD3');
+    c.fillStyle = '#FFFFFF';
+    c.fillRect(19, 62, 54, 6);
+    c.fillRect(19, 72, 54, 3);
+    c.fillStyle = 'rgba(43, 34, 48, 0.18)';
+    c.fillRect(19, 28, 54, 5);
+    rr(c, 16, 14, 60, 74, 9);
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.strokeStyle = INK;
+    c.lineWidth = 2.5;
+    c.beginPath();
+    for (let x = 22; x <= 70; x += 6) {
+      c.moveTo(x, 88);
+      c.lineTo(x, 94);
+    }
     c.stroke();
   },
   roll: (c) => {
@@ -444,18 +558,38 @@ const ICONS: Record<IconName, Draw> = {
     fillStroke(c, '#BDB3A6', 4);
   },
   luggage: (c) => {
-    rr(c, 36, 14, 28, 16, 6);
+    // Session 35: a travel suitcase: handle, brass corners, two straps, a tag and wheels.
+    rr(c, 36, 10, 28, 16, 6);
     c.lineWidth = 7;
     c.strokeStyle = INK;
     c.stroke();
-    rr(c, 16, 26, 68, 58, 10);
+    for (const x of [28, 72]) {
+      c.beginPath();
+      c.arc(x, 86, 6, 0, Math.PI * 2);
+      fillStroke(c, '#4A4458', 4);
+    }
+    rr(c, 14, 22, 72, 60, 10);
     fillStroke(c, '#C9764A');
-    c.fillStyle = '#F6ECD6';
-    c.fillRect(32, 28, 8, 54);
-    c.fillRect(60, 28, 8, 54);
-    rr(c, 16, 26, 68, 58, 10);
+    c.fillStyle = '#8E4C2C';
+    c.fillRect(32, 24, 8, 56);
+    c.fillRect(60, 24, 8, 56);
+    c.fillStyle = '#E9B949';
+    for (const [x, y] of [[18, 26], [74, 26], [18, 70], [74, 70]]) c.fillRect(x, y, 8, 8);
+    rr(c, 14, 22, 72, 60, 10);
     c.lineWidth = 6;
+    c.strokeStyle = INK;
     c.stroke();
+    c.lineWidth = 2.5;
+    c.beginPath();
+    c.moveTo(60, 18);
+    c.lineTo(66, 38);
+    c.stroke();
+    c.save();
+    c.translate(68, 44);
+    c.rotate(-0.2);
+    rr(c, -7, -6, 14, 20, 3);
+    fillStroke(c, '#FFF6E4', 3.5);
+    c.restore();
   },
   crate: (c) => {
     rr(c, 16, 22, 68, 62, 6);
@@ -575,16 +709,34 @@ const ICONS: Record<IconName, Draw> = {
     c.stroke();
   },
   bath: (c) => {
+    // Session 35: a claw-foot bathtub brimming with bubbles (the washroom car), not a water drop.
+    for (const [x, y, r] of [[30, 38, 9], [44, 32, 11], [60, 34, 10], [72, 40, 8]]) {
+      c.beginPath();
+      c.arc(x, y, r, 0, Math.PI * 2);
+      fillStroke(c, '#FFFFFF', 4);
+    }
     c.beginPath();
-    c.moveTo(50, 12);
-    c.quadraticCurveTo(80, 50, 80, 62);
-    c.arc(50, 62, 30, 0, Math.PI);
-    c.quadraticCurveTo(20, 50, 50, 12);
+    c.moveTo(10, 44);
+    c.lineTo(90, 44);
+    c.quadraticCurveTo(88, 76, 64, 78);
+    c.lineTo(36, 78);
+    c.quadraticCurveTo(12, 76, 10, 44);
     fillStroke(c, '#7FC8E8');
-    c.fillStyle = '#FFFFFF';
+    rr(c, 6, 40, 88, 9, 4);
+    fillStroke(c, '#FFFFFF', 5);
+    c.strokeStyle = INK;
+    c.lineWidth = 6;
     c.beginPath();
-    c.ellipse(40, 60, 6, 10, -0.4, 0, Math.PI * 2);
-    c.fill();
+    c.moveTo(26, 78);
+    c.lineTo(20, 90);
+    c.moveTo(74, 78);
+    c.lineTo(80, 90);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(84, 40);
+    c.lineTo(84, 20);
+    c.quadraticCurveTo(84, 12, 74, 14);
+    c.stroke();
   },
   clock: (c) => {
     c.beginPath();
@@ -723,22 +875,41 @@ const ICONS: Record<IconName, Draw> = {
     fillStroke(c, '#8C6A44');
   },
   snack: (c) => {
-    // A chocolate bar in its gold foil, half unwrapped, beside a bag of crisps.
-    rr(c, 54, 22, 32, 58, 10);
-    fillStroke(c, '#FFD35C');
-    c.fillStyle = '#E8674F';
-    c.fillRect(58, 42, 24, 16);
-    rr(c, 16, 30, 34, 52, 5);
-    fillStroke(c, '#E2B653');
-    rr(c, 20, 16, 26, 26, 4);
-    fillStroke(c, '#6B4128');
+    // Session 35: a bag of crisps with crimped ends and a chocolate bar in gold foil beside it.
+    c.beginPath();
+    c.moveTo(14, 18);
+    c.lineTo(56, 18);
+    c.quadraticCurveTo(52, 50, 56, 84);
+    c.lineTo(14, 84);
+    c.quadraticCurveTo(18, 50, 14, 18);
+    fillStroke(c, '#F2C94C');
     c.strokeStyle = INK;
     c.lineWidth = 3;
     c.beginPath();
-    c.moveTo(20, 29);
-    c.lineTo(46, 29);
-    c.moveTo(33, 16);
-    c.lineTo(33, 42);
+    for (let x = 18; x <= 52; x += 6) {
+      c.moveTo(x, 18);
+      c.lineTo(x, 25);
+      c.moveTo(x, 77);
+      c.lineTo(x, 84);
+    }
+    c.stroke();
+    c.beginPath();
+    c.arc(35, 51, 11, 0, Math.PI * 2);
+    fillStroke(c, '#E8674F', 4);
+    rr(c, 60, 30, 28, 54, 5);
+    fillStroke(c, '#6B4128');
+    c.fillStyle = '#E9B949';
+    c.fillRect(63, 56, 22, 25);
+    rr(c, 60, 30, 28, 54, 5);
+    c.lineWidth = 5;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.lineWidth = 2.5;
+    c.beginPath();
+    c.moveTo(60, 43);
+    c.lineTo(88, 43);
+    c.moveTo(74, 32);
+    c.lineTo(74, 56);
     c.stroke();
   },
   angry: (c) => {
@@ -1150,17 +1321,25 @@ const ICONS: Record<IconName, Draw> = {
     c.stroke();
   },
   linen: (c) => {
-    // The linen cupboard: a folded blanket with a pillow on top.
-    rr(c, 14, 50, 72, 34, 10);
-    fillStroke(c, '#7D9CBB');
-    c.beginPath();
-    c.moveTo(22, 64);
-    c.lineTo(78, 64);
-    c.lineWidth = 4;
-    c.strokeStyle = '#FFFFFF';
-    c.stroke();
-    rr(c, 24, 18, 52, 30, 14);
-    fillStroke(c, '#FFFFFF');
+    // Session 35: the linen cupboard's stack: folded sheets and towels in three colours, a ribbon round them.
+    const slab = (y: number, h: number, fill: string): void => {
+      rr(c, 14, y, 72, h, 7);
+      fillStroke(c, fill, 5);
+      c.beginPath();
+      c.moveTo(20, y + h * 0.55);
+      c.quadraticCurveTo(50, y + h * 0.75, 80, y + h * 0.55);
+      c.lineWidth = 2.5;
+      c.strokeStyle = 'rgba(43, 34, 48, 0.45)';
+      c.stroke();
+    };
+    slab(62, 22, '#7D9CBB');
+    slab(42, 22, '#FFFFFF');
+    slab(22, 22, '#F29CA8');
+    c.fillStyle = '#E9B949';
+    c.fillRect(46, 22, 8, 62);
+    c.lineWidth = 3;
+    c.strokeStyle = INK;
+    c.strokeRect(46, 22, 8, 62);
   },
   hand: (c) => {
     // A pointing hand for the drag gesture.
@@ -1279,10 +1458,39 @@ const ICONS: Record<IconName, Draw> = {
     c.fillText('×2', 50, 54);
   },
   box: (c) => {
-    rr(c, 16, 22, 68, 62, 8);
-    fillStroke(c, '#D9A441');
+    // Session 35: a cardboard box, its flaps taped shut.
+    c.beginPath();
+    c.moveTo(14, 34);
+    c.lineTo(50, 20);
+    c.lineTo(86, 34);
+    c.lineTo(50, 48);
+    c.closePath();
+    fillStroke(c, '#E6B871');
+    c.beginPath();
+    c.moveTo(14, 34);
+    c.lineTo(50, 48);
+    c.lineTo(50, 88);
+    c.lineTo(14, 74);
+    c.closePath();
+    fillStroke(c, '#D39A4E');
+    c.beginPath();
+    c.moveTo(86, 34);
+    c.lineTo(50, 48);
+    c.lineTo(50, 88);
+    c.lineTo(86, 74);
+    c.closePath();
+    fillStroke(c, '#B87F3A');
+    c.beginPath();
+    c.moveTo(32, 27);
+    c.lineTo(68, 41);
+    c.lineWidth = 7;
+    c.strokeStyle = '#F3E2BC';
+    c.stroke();
   },
 };
+
+/** Every icon's name (the icon sheet, `src/iconsheet.ts`). */
+export const ICON_NAMES = Object.keys(ICONS) as IconName[];
 
 const canvasCache = new Map<string, HTMLCanvasElement>();
 

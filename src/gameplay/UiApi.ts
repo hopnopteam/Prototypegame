@@ -2,7 +2,7 @@ import type { ObjectiveDef } from '../config/objectives';
 import type { IconName } from '../ui/icons';
 import type { StationResult } from './events';
 
-export type FloatKind = 'cash' | 'star' | 'gem' | 'miles' | 'info' | 'miss';
+export type FloatKind = 'cash' | 'star' | 'gem' | 'miles' | 'info' | 'miss' | 'praise';
 
 /** What gameplay asks of the UI. Implemented by the DOM layer; gameplay never touches the DOM itself. */
 export interface UiApi {

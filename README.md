@@ -12,6 +12,9 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 - **God mode, for recording videos:** `?god=1` on the play link, or the "Night Express GOD" APK (`android-god-N`
   pre-releases, built beside the normal one on every push). Unlimited money, gems and Rail Miles, every helper hireable
   as soon as their tile shows, stars ×4, its own save, nothing sent to GameAnalytics (`src/config/god.ts`).
+- **Store screenshots:** `npm run build && GOD_MODE=1 OUT=god.html node scripts/build.mjs && node scripts/store-shots.mjs <outdir>`
+  renders 1080×1920 Play Store shots of real play on the Ultra tier (the early game, then every carriage worn and fully
+  refitted, lights out, a full station stop). Icon review: `ENTRY=src/iconsheet.ts OUT=iconsheet.html node scripts/build.mjs`.
 - **The classic version** (before the session 12 lakeside, night look and carriage classes) is kept in
   [`archive/classic-v1/`](archive/classic-v1/README.md): a playable copy and the commit to return to.
 - **Graphics:** Settings has Auto / Low / Medium / High / Ultra (one look on every tier; Low and Medium render
