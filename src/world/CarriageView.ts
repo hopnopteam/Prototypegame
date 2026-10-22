@@ -2028,6 +2028,17 @@ function buildBathComforts(b: GeoBuilder, room: Rect, fixtures: PropDef[], keys:
  * The morning papers, folded and stacked (session 28): three on top of one another, a little askew, the top one with
  * its headline and photo. 0.2 m across and 0.27 m long, standing on `y`.
  */
+/** Breakfast on the counter: a round tray with croissants and a little stack of plates beside it. */
+function breakfastTray(b: GeoBuilder, x: number, y: number, z: number): void {
+  b.object('prop:breakfast');
+  b.cylinder(x, y + 0.012, z, 0.15, 0.15, 0.024, PALETTE.brass, 18, 'y', { shade: 0.85 });
+  for (const [dx, dz] of [[-0.06, -0.05], [0.06, -0.03], [0, 0.06]]) {
+    b.sphere(x + dx, y + 0.05, z + dz, 0.045, '#E0A24A', 1, 0.55);
+    b.sphere(x + dx - 0.036, y + 0.045, z + dz, 0.025, '#C9862F', 1, 0.6);
+    b.sphere(x + dx + 0.036, y + 0.045, z + dz, 0.025, '#C9862F', 1, 0.6);
+  }
+  b.endObject();
+}
 function newspaperStack(b: GeoBuilder, x: number, y: number, z: number): void {
   const offsets = [[0, 0], [0.012, -0.008], [-0.006, 0.01]];
   offsets.forEach(([dx, dz], i) => b.box(x + dx, y + 0.012 + i * 0.023, z + dz, 0.2, 0.022, 0.27, '#F3EEE2', 0, { shade: 0.95 }));
@@ -2144,7 +2155,9 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       b.slab(r, y, y + 0.72, wood, 0, 0, { shade: 0.7 });
       // Session 28 (owner: "the coffee table in the reception should have newspaper visible so it makes sense when
       // passengers request newspaper"): the morning papers wait on the counter beside the urn, where they are picked up.
-      newspaperStack(b, cx - 0.32, y + 0.72, cz);
+      // The playable's lobby (variant 'food') keeps its papers at a newsstand and lays breakfast here instead.
+      if (prop.variant === 'food') breakfastTray(b, cx - 0.4, y + 0.72, cz);
+      else newspaperStack(b, cx - 0.32, y + 0.72, cz);
       b.cylinder(cx, y + 0.96, cz, 0.14, 0.18, 0.38, tier >= 2 ? PALETTE.brass : PALETTE.chrome, 14, 'y', { shade: 0.82 });
       b.sphere(cx, y + 1.17, cz, 0.11, tier >= 2 ? PALETTE.brass : PALETTE.chrome, 1, 0.8);
       b.cylinder(cx + 0.18, y + 0.77, cz + 0.12, 0.06, 0.06, 0.01, PALETTE.porcelain, 12);

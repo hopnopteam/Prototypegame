@@ -38,22 +38,37 @@ body { font-family: 'Jost', 'Futura', 'Century Gothic', 'Trebuchet MS', sans-ser
   filter: drop-shadow(0 4px 0 rgba(0,0,0,0.25)); display: none; will-change: transform; }
 .ad-hand.on { display: block; }
 
-/* The end screen: the Dining Car itself is the background (the 3D scene behind), a soft shade top and bottom so the
-   title and the button read, the big title and one big Play Now button. */
-.ad-end { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: space-between; font-size: min(4.3vw, 2.5vh);
-  padding: calc(max(16px, env(safe-area-inset-top)) + 6vh) 16px calc(max(16px, env(safe-area-inset-bottom)) + 7vh); box-sizing: border-box;
-  background: linear-gradient(rgba(24, 10, 46, 0.62), rgba(24, 10, 46, 0) 30%, rgba(24, 10, 46, 0) 64%, rgba(24, 10, 46, 0.66));
-  opacity: 0; pointer-events: none; transition: opacity 0.6s; }
+/* The end screen (after the reference): the game dimmed behind, the title, a purple card whose carriage slides from one
+   upgrade to the next, the rewards, one big Play Now button. */
+.ad-end { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.7em; font-size: min(4.3vw, 2.4vh);
+  background: rgba(40, 6, 52, 0.55); opacity: 0; pointer-events: none; transition: opacity 0.6s; }
 .ad-end.on { opacity: 1; pointer-events: auto; }
-.ad-end-title { font-weight: 900; font-size: 2.9em; line-height: 1.0; text-align: center; max-width: 7.2em; color: #fff; letter-spacing: 0.01em; -webkit-text-stroke: 0.2em #2A1A6E; paint-order: stroke fill; text-shadow: 0 0.1em 0 #2A1A6E; }
+.ad-end-title { font-weight: 900; font-size: 2.3em; line-height: 1.0; text-align: center; max-width: 9em; color: #fff; letter-spacing: 0.01em; -webkit-text-stroke: 0.2em #5B12A6; paint-order: stroke fill; text-shadow: 0 0.1em 0 #3B0C70; }
 .ad-end.on .ad-end-title { animation: titleIn 0.7s cubic-bezier(.3,1.6,.5,1) both 0.1s; }
 @keyframes titleIn { from { transform: scale(0.4); opacity: 0; } }
-.ad-end-btn { padding: 0.32em 1.4em 0.42em; border-radius: 0.8em; border: 0.16em solid #1C3B0E; font: inherit; font-weight: 900; font-size: 2.4em; color: #fff;
+.ad-end-card { width: 15.5em; padding: 0.75em 0.75em 1.1em; border-radius: 1.6em; background: linear-gradient(#9B3BF0, #7A1FD6); box-shadow: 0 0.25em 0 #4A0E8C, 0 0.8em 2em rgba(0,0,0,0.4);
+  display: flex; flex-direction: column; gap: 0.55em; }
+.ad-end.on .ad-end-card { animation: titleIn 0.6s cubic-bezier(.3,1.5,.5,1) both 0.25s; }
+.ad-end-art { position: relative; border-radius: 1.2em; background: radial-gradient(circle at 50% 42%, #B14DFF 0%, #7D1BD8 46%, #5C0FA8 100%); aspect-ratio: 1 / 0.86; overflow: hidden; }
+.ad-end-glow { position: absolute; inset: -30%; background: repeating-conic-gradient(from 0deg, rgba(255,255,255,0.10) 0deg 10deg, transparent 10deg 24deg); animation: spin 14s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ad-slide { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2em; transform: translateX(110%); opacity: 0;
+  transition: transform 0.55s cubic-bezier(.3,1.2,.5,1), opacity 0.4s; }
+.ad-slide.on { transform: translateX(0); opacity: 1; }
+.ad-slide.out { transform: translateX(-110%); opacity: 0; }
+.ad-slide .ad-art { width: 94%; height: 76%; filter: drop-shadow(0 0.3em 0.2em rgba(40, 0, 80, 0.35)); }
+.ad-slide b { font-weight: 900; font-size: 1.15em; color: #FFE15A; -webkit-text-stroke: 0.14em #3B1466; paint-order: stroke fill; letter-spacing: 0.03em; }
+.ad-end-row { position: relative; margin: 0 1.1em 0 1.9em; height: 2.6em; border-radius: 1.3em; background: #8C2EE8; box-shadow: inset 0 0.12em 0 rgba(0,0,0,0.12); display: flex; align-items: center; justify-content: center; }
+.ad-end-row b { font-weight: 900; font-size: 1.9em; color: #fff; -webkit-text-stroke: 0.16em #5B12A6; paint-order: stroke fill; }
+.ad-end-ico { position: absolute; left: -1.2em; top: 50%; width: 3.4em; height: 3.4em; transform: translateY(-50%); }
+.ad-end-ico svg { width: 100%; height: 100%; filter: drop-shadow(0 0.12em 0 rgba(60,0,90,0.45)); }
+.ad-end.on .ad-end-row { animation: rowIn 0.45s cubic-bezier(.3,1.6,.6,1) both 0.6s; }
+.ad-end.on .ad-end-row:nth-of-type(3) { animation-delay: 0.75s; }
+.ad-end-btn { margin-top: 0.3em; padding: 0.3em 1.6em 0.4em; border-radius: 0.8em; border: 0.16em solid #1C3B0E; font: inherit; font-weight: 900; font-size: 2.2em; color: #fff;
   letter-spacing: 0.02em; white-space: nowrap; -webkit-text-stroke: 0.15em #1C3B0E; paint-order: stroke fill; background: linear-gradient(#A6F542, #4DC21E); box-shadow: 0 0.2em 0 #2C7A12, inset 0 0.15em 0 rgba(255,255,255,0.5); }
-.ad-end.on .ad-end-btn { animation: rowIn 0.45s cubic-bezier(.3,1.6,.6,1) both 0.5s, btnPulse 1s ease-in-out 1.1s infinite; }
+.ad-end.on .ad-end-btn { animation: rowIn 0.45s cubic-bezier(.3,1.6,.6,1) both 0.9s, btnPulse 1s ease-in-out 1.5s infinite; }
 @keyframes rowIn { from { transform: scale(0.3); opacity: 0; } }
 @keyframes btnPulse { 50% { transform: scale(1.06); } }
-/* While the end screen shows, the play HUD steps away (only the scene, the title and the button). */
 .nx-ended #ui > * { opacity: 0 !important; transition: opacity 0.4s; }
 .nx-ended .ad-corner { display: none; }
 
@@ -174,3 +189,12 @@ html:not(.nx-started) .ad-goal, html:not(.nx-started) .ad-hand, html:not(.nx-sta
 }
 /* Short phones (an iPhone SE): the drag hint sits higher so the pad never meets the Install button. */
 @media (orientation: portrait) and (max-height: 640px) { .ad-start-drag { top: 50%; } .ad-start-pad { width: 100px; height: 100px; } .ad-start-hand { top: calc(100% - 100px + 42px); } }
+
+/* The carriage map: one chip per carriage on the left edge; tap one to walk there. */
+.ad-cars { position: fixed; left: 10px; top: 50%; transform: translateY(-50%); display: none; flex-direction: column; gap: 8px; pointer-events: none; }
+.ad-cars.on { display: flex; }
+.ad-cars button { width: 46px; height: 46px; padding: 5px; border-radius: 14px; border: 3px solid #2B2230; background: linear-gradient(#FFFDF6, #F1E3C4); box-shadow: 0 3px 0 #2B2230; pointer-events: auto; }
+.ad-cars button canvas { width: 100%; height: 100%; display: block; }
+.ad-cars button.tap { animation: carTap 0.3s ease-out; }
+@keyframes carTap { 50% { transform: scale(0.85); } }
+.nx-ended .ad-cars { display: none; }

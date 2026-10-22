@@ -600,6 +600,106 @@ function buildLobby(tier: number): CarriageLayout {
   return b.layout;
 }
 
+/**
+ * The playable ad's lobby (never used by the game: `useCompactLobby` switches it in): the reception up front with the
+ * sofa against the front wall, the rack and a newsstand along the right wall, then a small washroom and four rooms.
+ */
+export const COMPACT_LOBBY = {
+  end: 5.4,
+  washEnd: 7.3,
+  washDoor: 1.1,
+  newsstand: rect(1.86, 4.62, INNER, 5.26),
+  /** The shoe-shine stand in the rear vestibule (a job at the far end of the carriage). */
+  shoeStand: rect(1.55, 16.66, INNER, 17.4),
+  /** In each room, a strip along its front wall where the room's upgrades stand (lamp, flowers, minibar). */
+  decorDepth: 0.5,
+  sofa: rect(0.98, WALL + 0.02, INNER, 0.8),
+};
+function buildCompactLobby(tier: number): CarriageLayout {
+  const b = new LayoutBuilder('lobby');
+  const { end, washEnd } = COMPACT_LOBBY;
+  b.shell({ frontGangway: false, doors: true });
+  b.vestibules(0);
+  b.room(-INNER, WALL, INNER, end);
+  b.prop('desk', -1.55, 2.55, -0.79, 4.25, 'right');
+  // The urn's counter carries breakfast (variant 'food'): tea, coffee and something to eat in one place.
+  b.prop('urn', -INNER, WALL, -1.15, 0.66, 'rear', true, 'food');
+  b.prop('linen', -0.6, WALL, 0.9, 0.62, 'rear');
+  const sofa = COMPACT_LOBBY.sofa;
+  b.prop('sofa', sofa.x0, sofa.z0, sofa.x1, sofa.z1, 'rear');
+  b.prop('rack', out(1.9), 1.95, INNER, 4.4, 'left');
+  // The newsstand is drawn by the playable itself; here it only blocks the way.
+  b.layout.blocked.push(COMPACT_LOBBY.newsstand);
+  const lane = (-INNER + -1.55) / 2;
+  b.anchor('deskService', lane, 4.75);
+  b.anchor('deskCash', -1.1, 5.1);
+  b.anchor('startCash', -1.75, 5.0);
+  b.anchor('playerSpawn', 0.0, 4.9);
+  b.anchor('urn', -1.75, 1.12);
+  b.anchor('linen', 0.15, 1.12);
+  b.anchor('blanket', 0.15, 1.12);
+  b.anchor('pillow', 0.15, 1.12);
+  b.anchor('rack', 1.25, 3.2);
+  b.anchor('news', 1.3, 4.95);
+  b.anchor('home_attendant', lane, 1.75);
+  b.anchor('tile_up_attendant', lane, 1.75);
+  b.anchor('home_porter', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('idle_porter', lane, 2.15);
+  b.anchor('tile_up_porter', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('stackItems', 0.9, 1.3);
+  b.layout.queue = QUEUE_SLOTS.map((p) => ({ ...p }));
+  b.node('lobby_front', 0.3, 1.6);
+  b.node('lobby_fl', lane, 1.6);
+  b.node('desk', lane, 3.4);
+  b.node('lobby_rl', -1.75, 4.95);
+  b.node('lobby_rear', 0.4, 4.6);
+  b.node('rack', 1.25, 3.2);
+  b.node('corr_in', (-INNER + PARTITION_X0) / 2, end - 0.1);
+  b.chain('door_in', 'lobby_front', 'lobby_fl');
+  b.chain('desk', 'lobby_rl', 'corr_in');
+  b.chain('lobby_front', 'lobby_rear', 'rack');
+  b.edge('lobby_rl', 'lobby_rear');
+
+  // The washroom: small, well kept (a loo by the window, a basin with a mirror), a narrow door off the corridor.
+  const z0 = end;
+  const z1 = washEnd;
+  const doorZ = (z0 + z1) / 2;
+  const door: [number, number] = [doorZ - COMPACT_LOBBY.washDoor / 2, doorZ + COMPACT_LOBBY.washDoor / 2];
+  b.wall(PARTITION_X1, z0 - 0.06, INNER, z0 + 0.06);
+  b.room(PARTITION_X1, z0 + 0.06, INNER, z1 - 0.06);
+  b.connector(-INNER, z0 - 0.5, PARTITION_X0, z1 + 0.5, 'z');
+  b.connector(PARTITION_X0 - 0.45, door[0], PARTITION_X1 + 0.45, door[1], 'x', false, 'bath:0');
+  b.prop('toilet', INNER - 0.62, z0 + 0.2, INNER, z0 + 0.85, 'left');
+  b.prop('sink', INNER - 0.5, z1 - 0.78, INNER, z1 - 0.2, 'left');
+  b.wallAlongZ(PARTITION_X0, PARTITION_X1, z0, z1, [door], 'interior');
+  const corridorNode = b.node('corr_w', (-INNER + PARTITION_X0) / 2, doorZ);
+  const node = b.node('bath_0', PARTITION_X1 + 0.7, doorZ);
+  const useNode = b.node('bath_use_0', INNER - 1.0, z0 + 0.55);
+  b.chain('corr_in', corridorNode, node, useNode);
+  b.layout.bathrooms.push({
+    index: 0,
+    room: rect(PARTITION_X1, z0 + 0.06, INNER, z1 - 0.06),
+    doorZ,
+    door,
+    restock: { x: PARTITION_X1 + 0.85, z: doorZ + 0.1 },
+    useSpot: { x: INNER - 1.0, z: z0 + 0.55 },
+    node,
+    useNode,
+  });
+  const [, style] = LOBBY_ROOMS[Math.min(LOBBY_ROOMS.length - 1, Math.max(0, tier))];
+  b.rooms(washEnd, INTERIOR_END, 4, corridorNode, style);
+  b.layout.blocked.push(COMPACT_LOBBY.shoeStand);
+  b.anchor('shoe', 0.95, 17.03);
+  for (const cabin of b.layout.cabins) b.layout.blocked.push(rect(cabin.room.x0 + 0.04, cabin.room.z0, cabin.bed.x0 - 0.12, cabin.room.z0 + COMPACT_LOBBY.decorDepth));
+  return b.layout;
+}
+/** The playable ad's lobby replaces the game's (call before any carriage is built). */
+export function useCompactLobby(): void {
+  BUILDERS.lobby = buildCompactLobby;
+  cache.clear();
+}
+
 function buildSleeper(tier: number): CarriageLayout {
   const b = new LayoutBuilder('sleeper');
   // Deep enough that the linen pad in the nook stands clear of the first room's wall (in full view).

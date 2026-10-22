@@ -9,45 +9,60 @@ sounds are the real game's; the game itself is untouched (apart from a smoother 
 **Splash (1.8 s, or a tap):** "UPGRADE YOUR TRAIN" over the live scene, "Drag to move" with a hand on a pad, the app
 icon and Install in the corners (after the reference), then it fades into play.
 
-**Tutorial (~0:00–1:00), light on purpose.** The train starts as one carriage, the lobby, with **one room open**; the
-other two are covered and padlocked. Only passenger 1 is walked through, one short line at a time (*Check in the guest*
-→ *Get their bag* → *Bring it to their room* → *Buy Room 2*), with an arrow and a badge on the station. Passenger 2 is
-up to the player: the arrow comes back only after 3 s standing still. From then on, no arrows or lines unless the
-player stops for 5 s (the dragging hand after 8 s), so working the train out is the player's own doing.
+**The lobby (the playable's own plan, `useCompactLobby` in `src/world/layout.ts`; the game's lobby is unchanged).**
+Reception up front: the desk, the urn's counter (tea, coffee and a breakfast tray), the linen cupboard, the waiting sofa
+against the front wall, the luggage rack and a newsstand along the right wall. Behind it a small washroom (a loo and a
+basin) and **four rooms**. The shoe-shine stand stands in the rear vestibule. **Four guests**, one per room.
 
-**Where things are.** Every station wears a small painted plaque on its furniture, still and quiet: tea + the paper on
-the urn, blanket + towel on the linen cupboard, the suitcase on the luggage rack, the key on the desk, a latte on the
-espresso machine, a croissant on the pastry case, popcorn at the counter, the film reel on the projector. Nothing floats
-over the stations after the tutorial; what a guest wants is in their bubble, and matching it to a plaque is the game.
-The rack holds exactly the bags waiting to go to their rooms; each guest has one bag, asked for once, carried one at a
-time.
+**Tutorial (~0:00–1:00), light on purpose.** One room open; the others are covered and padlocked. Only passenger 1 is
+walked through, one short line at a time (*Check in the guest* → *Get their bag* → *Bring it to their room* → *Buy Room
+2*), with **one arrow** (nothing else points). Passenger 2 is up to the player: the arrow comes back only after 3 s
+standing still. From then on, no arrows or lines unless the player stops for 5 s (the dragging hand after 8 s).
 
-**Play.** Each guest asks for one thing at a time (a blanket once, a towel once in Comfort, then tea, coffee in Luxury, or the morning paper), and later visits the
-café and the theatre. Every delivery: "+$X" over the guest and a burst of coins flying to the money counter with a
-rising coin sound. A goal bar at the top always shows the next big goal ("Next: Comfort Class") and how far along the
-way to it you are.
+**One request at a time.** While the conductor works alone, only one guest asks for something at a time; when it is
+done, the next asks. With the Attendant, two at a time.
 
-**Upgrades, in order.** Small ones show two tiles at a time; each changes something in place (the camera pushes in on
-it, it grows in with a sparkle, confetti and a small shake) and adds +$2 to every delivery. A big one (the Attendant, a
-new class, a new carriage) only appears once every small one before it is bought.
+**Where things are.** Every station wears a small painted plaque on its furniture, still and quiet: coffee + breakfast
+on the urn's counter, blanket + towel on the linen cupboard, the suitcase on the rack, the paper on the newsstand, the
+shoe on the shoe-shine stand, a latte on the espresso machine, a croissant on the pastry case, popcorn at the counter,
+the film reel on the projector. What a guest wants is in their bubble; matching it to a plaque is the game.
+
+**The jobs (different walks).**
+- Check-in at the desk, then the guest's bag from the rack (one bag per guest, asked for once, carried one at a time).
+- A blanket once, a towel once (Comfort), then round again, never the same twice running: tea (coffee in Luxury) or
+  breakfast from the urn's counter, the paper from the newsstand, or **their shoes**: collect them from the room, shine
+  them at the stand at the back of the carriage, bring them back (pays more).
+- **The washroom:** now and then a guest uses it; it is left messy (a puddle, paper towels) with a broom badge over it;
+  tidy it from anywhere inside for a tip.
+- Later the café (lattes, then croissants) and the theatre (start the film at the projector, popcorn).
+
+Every payment: "+$X" over whoever paid and a burst of coins flying to the money counter.
+
+**Movement.** Everyone paths over the real floor and steers round anyone in their way (the conductor included), so
+nobody stands blocked; the conductor is only stopped by someone standing still. The carriage chips on the left (once the
+train has two) walk the conductor to that carriage when tapped.
+
+**Upgrades, one tile at a time.** Each small one changes something in place (the camera pushes in on it, it grows in
+with a sparkle, confetti and a small shake) and adds +$2 to every delivery. A big one (the Attendant, a new class, a new
+carriage) appears once every small one before it is bought. Paying fills the tile smoothly.
 
 | # | Upgrade | Kind | Price | What you see |
 |---|---|---|---|---|
 | 1 | Room 2 | tutorial | $20 | the lid lifts off the room, the bed drops in |
-| 2–6 | Room 3, Reading Lamps, Lobby Rug, Fresh Flowers, Bigger Rack | small | $40–80 | a room opens; lamps / flowers in every room; a red rug; a longer rack |
-| 7 | Attendant | big | $130 | she arrives and takes over requests the player leaves for 4 s |
-| 8 | Comfort Class | big | $190 | the makeover sweeps the lobby; class card |
-| 9 | Minibars | small | $110 | a minibar in every room |
-| 10 | Café Car | big | $130 | rolls in under a tarp, ropes snap, the tarp slides off |
-| 11–12 | Pastry Stand, Faster Attendant | small | $110–130 | croissants on the counter; she walks faster |
+| 2–6 | Room 3, Reading Lamps, Room 4, Fresh Flowers, Lobby Rug | small | $40–65 | rooms open; a tall lit floor lamp and a big bouquet in every room; a red rug |
+| 7 | Attendant | big | $120 | she arrives (fast from the start) and takes requests the player leaves for 4 s |
+| 8 | Comfort Class | big | $170 | the makeover sweeps the lobby; class card |
+| 9–10 | Minibars, Skates | small | $110–120 | a lit glass-front minibar in every room; the conductor glides 15% faster |
+| 11 | Café Car | big | $130 | rolls in under a tarp, ropes snap, the tarp slides off |
+| 12 | Pastry Stand | small | $110 | croissants on the counter |
 | 13 | Luxury Class | big | $170 | navy and gold makeover |
-| 14 | Theatre Car | big | $160 | covered-carriage reveal; start the movie at the projector |
-| 15–16 | Big Speakers, Red Carpet | small | $100–110 | speakers by the screen; a red carpet with spotlights |
-| 17 | **Dining Car** | final | $170 | covered-carriage reveal, then the end screen |
+| 14 | Theatre Car | big | $150 | covered-carriage reveal |
+| 15–16 | Big Speakers, Red Carpet | small | $100 | speakers by the screen; a red carpet with spotlights |
+| 17 | **Dining Car** | final | $150 | covered-carriage reveal, then the end screen |
 
-**End screen.** The camera glides into the new Dining Car (the game's own Luxury dining carriage: white cloths, lamps,
-place settings and glasses, velvet chairs, diners at the tables) and drifts slowly along it; over it "UPGRADE YOUR
-TRAIN!" and one big **PLAY NOW** button. The button (and a tap anywhere) calls `openStore()` in
+**End screen (after the reference).** The game dimmed behind; "UPGRADE YOUR TRAIN!"; a purple card whose picture slides
+from one next carriage to another (an observation deck under a glass dome, a pool car, a gym car), with +2 stars and
+x5 money; one big **PLAY NOW** button. The button (and a tap anywhere) calls `openStore()` in
 `src/playable/network.ts`, the one place the store link lives. It also shows after 20 s without a touch.
 
 **All the numbers** (prices, pay, timings, camera, the splash) are in `TUNE` at the top of `src/playable/main.ts`.
