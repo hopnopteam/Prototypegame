@@ -399,13 +399,35 @@ const ICONS: Record<IconName, Draw> = {
     }
   },
   blanket: (c) => {
-    rr(c, 14, 28, 72, 50, 10);
-    fillStroke(c, '#E9B949');
-    c.fillStyle = '#C0485C';
-    for (const x of [26, 42, 58, 74]) c.fillRect(x - 3, 30, 6, 46);
-    rr(c, 14, 28, 72, 50, 10);
-    c.lineWidth = 6;
+    // A folded plaid blanket seen side on (two soft layers, the fold rounded at the right, a fringe at the left):
+    // soft and red, never a box like the suitcase.
+    const layer = (y: number, h: number, fill: string): void => {
+      c.beginPath();
+      c.moveTo(16, y);
+      c.lineTo(70, y);
+      c.arc(70, y + h / 2, h / 2, -Math.PI / 2, Math.PI / 2);
+      c.lineTo(16, y + h);
+      c.quadraticCurveTo(12, y + h / 2, 16, y);
+      c.closePath();
+      fillStroke(c, fill, 5);
+      c.save();
+      c.clip();
+      c.fillStyle = 'rgba(255, 236, 210, 0.55)';
+      for (const x of [30, 52]) c.fillRect(x, y, 6, h);
+      c.restore();
+      c.lineWidth = 5;
+      c.strokeStyle = INK;
+      c.stroke();
+    };
+    layer(52, 28, '#C8463E');
+    layer(26, 28, '#E2685A');
     c.strokeStyle = INK;
+    c.lineWidth = 3;
+    c.beginPath();
+    for (const y of [34, 44, 60, 70]) {
+      c.moveTo(13, y);
+      c.lineTo(7, y);
+    }
     c.stroke();
   },
   pillow: (c) => {
@@ -444,18 +466,34 @@ const ICONS: Record<IconName, Draw> = {
     fillStroke(c, '#BDB3A6', 4);
   },
   luggage: (c) => {
-    rr(c, 36, 14, 28, 16, 6);
-    c.lineWidth = 7;
+    // An upright trolley suitcase: a pull handle, a teal shell with ribs, two wheels.
+    c.strokeStyle = INK;
+    c.lineWidth = 6;
+    c.beginPath();
+    c.moveTo(40, 30);
+    c.lineTo(40, 8);
+    c.lineTo(60, 8);
+    c.lineTo(60, 30);
+    c.stroke();
+    rr(c, 24, 26, 52, 58, 12);
+    fillStroke(c, '#2FA3A0');
+    c.strokeStyle = '#1E716F';
+    c.lineWidth = 5;
+    c.beginPath();
+    for (const x of [38, 50, 62]) {
+      c.moveTo(x, 34);
+      c.lineTo(x, 76);
+    }
+    c.stroke();
+    rr(c, 24, 26, 52, 58, 12);
+    c.lineWidth = 6;
     c.strokeStyle = INK;
     c.stroke();
-    rr(c, 16, 26, 68, 58, 10);
-    fillStroke(c, '#C9764A');
-    c.fillStyle = '#F6ECD6';
-    c.fillRect(32, 28, 8, 54);
-    c.fillRect(60, 28, 8, 54);
-    rr(c, 16, 26, 68, 58, 10);
-    c.lineWidth = 6;
-    c.stroke();
+    for (const x of [34, 66]) {
+      c.beginPath();
+      c.arc(x, 88, 6, 0, Math.PI * 2);
+      fillStroke(c, '#3A3550', 4);
+    }
   },
   crate: (c) => {
     rr(c, 16, 22, 68, 62, 6);

@@ -9,12 +9,20 @@ sounds are the real game's; the game itself is untouched (apart from a smoother 
 **Splash (1.8 s, or a tap):** "UPGRADE YOUR TRAIN" over the live scene, "Drag to move" with a hand on a pad, the app
 icon and Install in the corners (after the reference), then it fades into play.
 
-**Tutorial (~0:00–1:00).** The train starts as one carriage, the lobby, with **one room open**; the other two are
-covered and padlocked. Passenger 1, one step at a time in the instruction pill: *Check in the guest* → *Get their bag*
-→ *Bring it to their room* (they pay: coins fly to the counter) → *Buy Room 2* (exactly what they paid). Passenger 2
-does the same with the arrow only. Then "GREAT JOB!" and play.
+**Tutorial (~0:00–1:00), light on purpose.** The train starts as one carriage, the lobby, with **one room open**; the
+other two are covered and padlocked. Only passenger 1 is walked through, one short line at a time (*Check in the guest*
+→ *Get their bag* → *Bring it to their room* → *Buy Room 2*), with an arrow and a badge on the station. Passenger 2 is
+up to the player: the arrow comes back only after 3 s standing still. From then on, no arrows or lines unless the
+player stops for 5 s (the dragging hand after 8 s), so working the train out is the player's own doing.
 
-**Play.** Each guest asks for one thing at a time (a blanket, a towel in Comfort, tea or coffee), and later visits the
+**Where things are.** Every station wears a small painted plaque on its furniture, still and quiet: tea + the paper on
+the urn, blanket + towel on the linen cupboard, the suitcase on the luggage rack, the key on the desk, a latte on the
+espresso machine, a croissant on the pastry case, popcorn at the counter, the film reel on the projector. Nothing floats
+over the stations after the tutorial; what a guest wants is in their bubble, and matching it to a plaque is the game.
+The rack holds exactly the bags waiting to go to their rooms; each guest has one bag, asked for once, carried one at a
+time.
+
+**Play.** Each guest asks for one thing at a time (a blanket once, a towel once in Comfort, then tea, coffee in Luxury, or the morning paper), and later visits the
 café and the theatre. Every delivery: "+$X" over the guest and a burst of coins flying to the money counter with a
 rising coin sound. A goal bar at the top always shows the next big goal ("Next: Comfort Class") and how far along the
 way to it you are.

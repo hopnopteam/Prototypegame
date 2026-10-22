@@ -138,7 +138,11 @@ const TUNE = {
   /** The splash: seconds on screen before it fades by itself (a tap skips it). */
   splash: 1.8,
   /** Seconds without a touch before the hand shows, and before the end screen shows anyway. */
-  hesitate: 3,
+  hesitate: 5,
+  /** Passenger 2 (the second time through) gets the arrow only after this long without a move. */
+  hesitateTutorial: 3,
+  /** The dragging hand shows only after this long without a touch. */
+  handAfter: 8,
   idleEnd: 20,
   /** After the Dining Car's reveal, seconds before the end screen. */
   endDelay: 1.2,
@@ -241,7 +245,7 @@ function buildView(type: CarriageType, slot: number, tier: number, planTier = ti
   }
   if (type === 'lobby') {
     view.setRackLevel(0);
-    view.setLuggageCount(3);
+    view.setLuggageCount(0);
   }
   return view;
 }
@@ -657,11 +661,11 @@ function praise(): void {
 // ================================================================ thought bubbles: a face and what they want, centred over the head
 type Mood = 'wait' | 'angry' | 'love' | 'none';
 const ITEM_ICON: Record<string, IconName> = {
-  tea: 'tea', coffee: 'coffee', blanket: 'blanket', towel: 'towel', luggage: 'luggage', latte: 'latte', pastry: 'pastry', popcorn: 'popcorn', room: 'bed',
+  tea: 'tea', coffee: 'coffee', newspaper: 'newspaper', blanket: 'blanket', towel: 'towel', luggage: 'luggage', latte: 'latte', pastry: 'pastry', popcorn: 'popcorn', room: 'bed', film: 'film',
 };
 /** Plain words for the hint line ("Get tea", "Bring the bag"). */
 const ITEM_WORD: Record<string, string> = {
-  tea: 'tea', coffee: 'coffee', blanket: 'a blanket', towel: 'a towel', luggage: 'the bag', latte: 'a latte', pastry: 'a croissant', popcorn: 'popcorn',
+  tea: 'tea', coffee: 'coffee', newspaper: 'the paper', blanket: 'a blanket', towel: 'a towel', luggage: 'the bag', latte: 'a latte', pastry: 'a croissant', popcorn: 'popcorn',
 };
 /**
  * A face drawn on a canvas (never an emoji: emoji fonts differ on every phone, and some draw a black box): a round
@@ -975,13 +979,15 @@ class Guest extends Walker {
   restUntil = 0;
   /** What they have asked for already (each thing once; drinks and visits come round again). */
   readonly had = new Set<ItemKind>();
+  lastWish: ItemKind | null = null;
   update(dt: number): void {
     this.move(dt);
     if (this.order) {
       const long = clock - this.order.since > TUNE.patience;
       if (long && this.bubble.mood !== 'angry') sfx('grumble');
       this.bubble.set(long ? 'angry' : 'wait', this.order.item);
-    } else this.bubble.set(clock < this.happyUntil ? 'love' : 'none');
+    } else if (this.state === 'venue' && this.venue === 'cinema' && filmT < 0) this.bubble.set('wait', 'film');
+    else this.bubble.set(clock < this.happyUntil ? 'love' : 'none');
     const head = this.pose === 'sit' ? 1.5 : this.pose === 'sleep' ? 0.85 : 1.98;
     this.bubble.update(dt, this.x, this.y + head, this.z);
     if (clock < this.happyUntil && Math.random() < dt * 1.5) particles.emit('heart', this.x, this.y + head, this.z, 1, 0.15);
@@ -1070,11 +1076,14 @@ function nextWish(g: Guest): ItemKind {
   const tier = g.room ? train[g.room.car].tier : 1;
   if (!g.had.has('blanket')) return 'blanket';
   if (tier >= TIER.comfort && !g.had.has('towel')) return 'towel';
+  // Then the morning things, round again: tea (coffee in Luxury) or the paper from the stack beside the urn.
+  if (Math.random() < 0.35 && g.lastWish !== 'newspaper') return 'newspaper';
   return tier >= TIER.luxury && Math.random() < 0.5 ? 'coffee' : 'tea';
 }
 function ask(g: Guest, item: ItemKind, amount: number): void {
   g.order = { item, since: clock, pay: amount, claimed: false };
   g.had.add(item);
+  g.lastWish = item;
   if (g.pose === 'sleep' && g.room) g.setPose('sit', sitSpot(g.room));
   g.view.act('wave', 0.8);
   sfx('bloop');
@@ -1149,7 +1158,8 @@ function endFilm(): void {
 const player = new CharacterView(CONDUCTOR_LOOK, 1.12);
 scene.add(player.root);
 batch.highlight(player.root, true);
-const SPAWN = walkableNear(L.deskService.x + 0.2, L.deskService.z + 0.9);
+// A couple of steps from the desk: the very first move (walking to it) is the player's own.
+const SPAWN = walkableNear(L.deskService.x + 0.5, L.deskService.z + 2.4);
 const me = { x: SPAWN.x, z: SPAWN.z, facing: Math.PI, speed: 0, vx: 0, vz: 0 };
 let speedNow = TUNE.speed;
 const carried: { item: ItemKind; mesh: THREE.Mesh }[] = [];
@@ -1188,7 +1198,8 @@ function handOver(g: Guest, order: Order, mesh: THREE.Object3D, byPlayer: boolea
       scene.remove(mesh);
       g.receiving = false;
       g.happyUntil = clock + 2.4;
-      g.view.act(['tea', 'latte'].includes(order.item) ? 'sip' : 'hug', 2);
+      // What they do with it: sip a drink, open the paper, hug the rest.
+      g.view.act(['tea', 'coffee', 'latte'].includes(order.item) ? 'sip' : order.item === 'newspaper' ? 'read' : 'hug', 2.4);
       g.view.bounce(1);
       deliverSound();
       particles.emit('heart', g.x, g.y + 1.6, g.z, 7, 0.3);
@@ -1311,18 +1322,89 @@ function updateCoins(dt: number): void {
   }
 }
 
+// ================================================================ signs: what each station holds, painted on a little plaque
+/**
+ * Every station wears a small painted plaque standing on its furniture (the urn's "tea and the paper", the linen
+ * cupboard's "blanket and towel", the rack's suitcase): part of the train, still and quiet, so the player can always
+ * see where things are without anything floating over them. The bobbing badges show only during the tutorial.
+ */
+const signs: THREE.Mesh[] = [];
+function signTexture(icons: IconName[]): THREE.CanvasTexture {
+  const cell = 110;
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 128;
+  const ctx = c.getContext('2d')!;
+  const w = 26 + icons.length * cell;
+  const x0 = (c.width - w) / 2;
+  // A rounded plate (drawn by hand: roundRect is missing on older phones' browsers).
+  const [rx, ry, rw, rh, r] = [x0 + 4, 8, w - 8, 112, 22];
+  ctx.beginPath();
+  ctx.moveTo(rx + r, ry);
+  ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, r);
+  ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, r);
+  ctx.arcTo(rx, ry + rh, rx, ry, r);
+  ctx.arcTo(rx, ry, rx + rw, ry, r);
+  ctx.closePath();
+  ctx.fillStyle = '#FFF4DE';
+  ctx.fill();
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = '#6B4A2E';
+  ctx.stroke();
+  icons.forEach((icon, i) => drawIcon(ctx, icon, x0 + 13 + cell * i + cell / 2, 64, 92));
+  return spriteTexture(c);
+}
+function addSign(icons: IconName[], x: number, z: number, height: number): void {
+  const geometry = new THREE.PlaneGeometry(0.86, 0.43);
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: signTexture(icons), transparent: true, premultipliedAlpha: true, depthWrite: false, toneMapped: false, fog: false, color: '#FFFFFF' }));
+  mesh.position.set(x, FLOOR_Y + height, z);
+  mesh.renderOrder = 5;
+  mesh.scale.setScalar(0.001);
+  scene.add(mesh);
+  signs.push(mesh);
+  popping.push({ obj: mesh, t: 0, base: 1 });
+}
+const signFacing = new THREE.Quaternion();
+const signEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+/** Signs face the camera's side of the train (turned once to its heading, leaning back a touch; never spinning). */
+function updateSigns(): void {
+  const cam = stage.rig.camera.position;
+  const t = stage.rig.target;
+  signEuler.set(-0.35, Math.atan2(cam.x - t.x, cam.z - t.z), 0);
+  signFacing.setFromEuler(signEuler);
+  for (const m of signs) m.quaternion.copy(signFacing);
+}
+
+/** The rack holds exactly the bags waiting to be taken to their rooms (a guest's bag appears as they check in). */
+let rackBags = -1;
+let rackView: CarriageView | null = null;
+function updateRackBags(): void {
+  const n = guests.filter((g) => g.order?.item === 'luggage' && !g.order.claimed).length - carried.filter((c) => c.item === 'luggage').length
+    + helpers.filter((h) => h.phase === 'toSource' && h.order?.item === 'luggage').length;
+  const view = train[SLOT.lobby].view;
+  if (n === rackBags && view === rackView) return;
+  rackBags = n;
+  rackView = view;
+  view.setLuggageCount(Math.max(0, n));
+}
+
 // ================================================================ stations: the desk, the tea, the linen, the bags, the café
 interface Station { kind: 'desk' | 'source' | 'film'; items: ItemKind[]; car: number; x: number; z: number; marker: JobMarker; progress: number; wants: boolean }
 const stations: Station[] = [];
-function addStation(kind: Station['kind'], items: ItemKind[], car: number, local: Vec2, icon: IconName, badgeOver?: Vec2): Station {
+function addStation(kind: Station['kind'], items: ItemKind[], car: number, local: Vec2, icon: IconName, badgeOver?: Vec2, signIcons: IconName[] = [icon]): Station {
   const z0 = carriageOriginZ(car);
   const p = walkableNear(local.x, local.z + z0);
   const marker = new JobMarker(icon);
   marker.setPosition(p.x, p.z);
-  if (badgeOver) marker.setIconAnchor(badgeOver.x - p.x, badgeOver.z + z0 - p.z, 1.6);
-  else {
+  if (badgeOver) {
+    marker.setIconAnchor(badgeOver.x - p.x, badgeOver.z + z0 - p.z, 1.6);
+    addSign(signIcons, badgeOver.x, badgeOver.z + z0, 1.12);
+  } else {
     const anchor = map.serviceAnchor(p.x, p.z, 1.3);
-    if (anchor) marker.setIconAnchor(anchor.x - p.x, anchor.z - p.z, anchor.height + 0.6);
+    if (anchor) {
+      marker.setIconAnchor(anchor.x - p.x, anchor.z - p.z, anchor.height + 0.6);
+      addSign(signIcons, anchor.x, anchor.z, anchor.height + 0.24);
+    } else addSign(signIcons, p.x, p.z, 1.0);
   }
   marker.visible = false;
   scene.add(marker.group);
@@ -1331,8 +1413,8 @@ function addStation(kind: Station['kind'], items: ItemKind[], car: number, local
   return s;
 }
 const desk = addStation('desk', [], SLOT.lobby, L.deskService, 'key', { x: -1.17, z: 3.4 });
-addStation('source', ['tea', 'coffee'], SLOT.lobby, L.urn, 'tea');
-addStation('source', ['blanket', 'towel'], SLOT.lobby, L.linen, 'blanket');
+addStation('source', ['tea', 'coffee', 'newspaper'], SLOT.lobby, L.urn, 'tea', undefined, ['tea', 'newspaper']);
+addStation('source', ['blanket', 'towel'], SLOT.lobby, L.linen, 'blanket', undefined, ['blanket', 'towel']);
 addStation('source', ['luggage'], SLOT.lobby, L.rack, 'luggage');
 
 /** How many of an item are asked for and not yet in hand (or on an Attendant's way). */
@@ -1364,7 +1446,7 @@ const CAFE_HOME = (): Vec2 => walkableNear(-1.0, carriageOriginZ(SLOT.cafe) + 16
 interface Helper { w: Walker; items: ItemKind[]; task: Guest | null; order: Order | null; carrying: THREE.Mesh | null; phase: 'idle' | 'toSource' | 'pick' | 'toGuest'; t: number }
 const helpers: Helper[] = [];
 let helperSpeed = TUNE.attendantSpeed;
-const ROOM_ITEMS: ItemKind[] = ['tea', 'coffee', 'blanket', 'towel', 'luggage'];
+const ROOM_ITEMS: ItemKind[] = ['tea', 'coffee', 'newspaper', 'blanket', 'towel', 'luggage'];
 const VENUE_ITEMS: ItemKind[] = ['latte', 'pastry', 'popcorn'];
 function hireAttendant(items: ItemKind[], home: Vec2): void {
   const w = new Walker(STAFF_LOOKS.attendant, home.x, home.z);
@@ -1654,7 +1736,7 @@ function setRack(level: number): void {
   rackLevel = level;
   const view = train[SLOT.lobby].view;
   view.setRackLevel(level);
-  view.setLuggageCount(3 + level * 3);
+  rackBags = -1;
 }
 /** The lobby's welcome rug over the waiting area (a plain rug with a border; the classes bring their own floors). */
 const rug = plainMat(RUG.x0, RUG.z0, RUG.x1, RUG.z1, '#B5473F', '#E9C46A');
@@ -1788,7 +1870,6 @@ function classUp(tier: number): void {
   // What was bought for the lobby comes along, dressed for the new class.
   next.setComforts(comforts);
   next.setRackLevel(rackLevel);
-  next.setLuggageCount(3 + rackLevel * 3);
   rug.visible = false;
   pushIn(0, lz(9.5), 2.6, 1.0);
   refitCar(SLOT.lobby, next, tier);
@@ -1962,14 +2043,17 @@ function updateJobs(dt: number): void {
     else {
       item = s.items.find((it) => guests.some((g) => g.order?.item === it && !g.order.claimed && sourceFor(it, g) === s && needed(it) > 0)) ?? null;
       if (flow.phase === 'tutorial' && (item !== tutorialItem || flow.stepId !== 'get')) item = null;
-      wants = !!item && carried.length < TUNE.carry;
+      // A bag is carried one at a time (it's a suitcase, not a towel).
+      wants = !!item && carried.length < TUNE.carry && !(item === 'luggage' && carried.some((c) => c.item === 'luggage'));
       if (item) s.marker.setIcon(ITEM_ICON[item]);
     }
     // Always in the scene: the badge fades in when its job wants you and out when done (never pops).
     s.marker.visible = true;
     s.wants = wants;
-    s.marker.iconShown = wants;
-    s.marker.highlight = wants;
+    // The bobbing badge is the first passenger's lesson only; after that the plaques and the guests' bubbles say it all.
+    const lesson = wants && flow.phase === 'tutorial' && flow.passenger === 0;
+    s.marker.iconShown = lesson;
+    s.marker.highlight = lesson;
     const near = Math.hypot(me.x - s.x, me.z - s.z) < (s.kind === 'desk' ? TUNE.deskReach : TUNE.pickReach);
     if (wants && near) {
       s.progress = Math.min(1, s.progress + dt / (s.kind === 'desk' ? TUNE.checkIn : s.kind === 'film' ? TUNE.projector : TUNE.pickUp));
@@ -1979,7 +2063,7 @@ function updateJobs(dt: number): void {
           checkIn(front, freeRoom()!);
           flow.done('checkin');
         } else if (s.kind === 'film') startFilm();
-        else if (item) pickUp(item, Math.min(needed(item), TUNE.carry - carried.length));
+        else if (item) pickUp(item, Math.min(item === 'luggage' ? 1 : needed(item), TUNE.carry - carried.length));
       }
     } else s.progress = Math.max(0, s.progress - dt * 2);
     s.marker.working = s.progress > 0;
@@ -2297,9 +2381,13 @@ function updateFoot(dt: number, t: Target | null): void {
 }
 function updateGuide(dt: number): void {
   const t = target();
-  const hesitating = !started || (clock - lastInput > TUNE.hesitate && !autoWalk && pointerId < 0);
-  // The guide always shows the way until the Attendant is hired (and while the café is new); then when you stop.
-  const guided = flow.phase === 'tutorial' || helpers.length === 0 || teach !== null;
+  // Light guidance: the first passenger is walked through; after that the arrow comes only when the player stops
+  // and seems unsure (sooner for the second passenger), so figuring the train out is the player's own doing.
+  const idle = clock - lastInput;
+  const still = !autoWalk && pointerId < 0;
+  const firstLesson = flow.phase === 'tutorial' && flow.passenger === 0;
+  const hesitating = still && idle > (flow.phase === 'tutorial' ? TUNE.hesitateTutorial : TUNE.hesitate);
+  const guided = firstLesson || flow.stepId === 'buy';
   const show = !!t && !ended && started && (guided || hesitating);
   arrowShown += ((show ? 1 : 0) - arrowShown) * Math.min(1, dt * 8);
   arrow.visible = arrowShown > 0.02 && !!t;
@@ -2309,7 +2397,7 @@ function updateGuide(dt: number): void {
   }
   updateFoot(dt, show ? t : null);
   // The instruction pill: the tutorial's one step (passenger 2 gets the arrows only), and the next job while guided.
-  const instruction = ended || !t ? null : flow.phase === 'tutorial' ? (flow.passenger === 0 ? t : null) : guided || hesitating ? t : null;
+  const instruction = ended || !t ? null : guided || (hesitating && flow.phase === 'play') ? t : null;
   // A caption over the middle of the screen has it to itself (the pill steps aside, never overlaps it).
   setHint(showing && !showing.small ? null : instruction);
   hintBox.classList.toggle('low', goalBox.classList.contains('on'));
@@ -2319,7 +2407,7 @@ function updateGuide(dt: number): void {
   if (big) setGoal(big.step.icon, `Next: ${big.step.name}`, big.progress);
   else setGoal(null, '');
   // The hand: whenever the player stops (it drags from the conductor toward the goal).
-  const showHand = show && hesitating && started && flow.phase === 'play';
+  const showHand = show && still && idle > TUNE.handAfter && started && flow.phase === 'play';
   hand.classList.toggle('on', showHand);
   if (!showHand || !t) return;
   const a = { x: 0, y: 0 };
@@ -2516,6 +2604,8 @@ function step(dt: number): void {
   updateGuide(dt);
   updateMoney(dt);
   updateCoins(dt);
+  updateSigns();
+  updateRackBags();
   if (!ended && started && clock - lastInput > TUNE.idleEnd) endGame();
   updateEndCamera();
   clampCamera();
