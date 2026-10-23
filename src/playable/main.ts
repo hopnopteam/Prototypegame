@@ -23,13 +23,14 @@ import { drawIcon as drawIconAt, type IconName } from '../ui/icons';
 import { Ambient } from '../world/Ambient';
 import { BED_TOP, CarriageView, deformTarp, disposeTree, FLOOR_Y, TARP_TIE_Z } from '../world/CarriageView';
 import { CharacterBatch } from '../world/CharacterBatch';
+import { LEG_LENGTH } from '../world/CharacterParts';
 import { CharacterView, CONDUCTOR_LOOK, STAFF_LOOKS, type CharacterLook } from '../world/CharacterView';
 import { CashView } from '../world/CashView';
 import { Fireflies } from '../world/Fireflies';
 import { GeoBuilder } from '../world/geo';
 import { createItemMesh, ITEM_HEIGHT } from '../world/ItemMeshes';
 import { shoesGeometry } from '../world/Shoes';
-import { CARRIAGE_LENGTH, carriageOriginZ, COMPACT_LOBBY, getLayout, HALF_WIDTH, INNER, useCompactLobby, type CabinLayout, type VenueSeatLayout } from '../world/layout';
+import { CARRIAGE_LENGTH, carriageOriginZ, COMPACT_LOBBY, INTERIOR_WALL_HEIGHT, PARTITION_X0, PARTITION_X1, getLayout, HALF_WIDTH, INNER, useCompactLobby, type CabinLayout, type VenueSeatLayout } from '../world/layout';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { clipSide, MATERIALS, SHADOW_GEOMETRY, setLivery, swapMaterials } from '../world/materials';
 import { liveryFor } from '../world/palette';
@@ -39,7 +40,7 @@ import { guideArrowTexture, makeSprite } from '../world/sprites';
 import { Stage } from '../world/Stage';
 import { trainLightInput } from '../world/trainLight';
 import { JobMarker, TileView } from '../world/ZoneViews';
-import { bouquet, floorLamp, minibar, newsstand, shoeStand, washMess } from './decor';
+import { bouquet, curvedWall, floorLamp, minibar, newsstand, slidingDoor, washMess } from './decor';
 import { buildEndCard } from './endcard';
 import { adReady, onViewable, openStore } from './network';
 
@@ -130,7 +131,8 @@ const TUNE = {
   /** Shoe shine: the chance a request is shoes (from Comfort Class), what it pays, seconds at the stand. */
   shoeChance: 0.3,
   shoePay: 22,
-  shineSeconds: 1.2,
+  shineSeconds: 1.3,
+  shoeReach: 0.75,
   /** The skates upgrade: how much faster the conductor walks. */
   skates: 1.15,
   /** The movie's length. */
@@ -142,6 +144,8 @@ const TUNE = {
   attendantPick: 0.6,
   /** She takes a request only once it has waited this long (the player gets the first go: there is always work). */
   attendantWait: 4,
+  /** A job she has not finished in this long is let go (someone else can take it). */
+  attendantGiveUp: 25,
   /** An upgrade's moment: the camera's push-in (seconds, zoom) and the shake. */
   pushIn: 1.1,
   pushZoom: 0.7,
@@ -889,8 +893,8 @@ const RADIUS = 0.3;
  * What can be asked for or carried: the game's items, and a guest's shoes (collected from their room, shined at the
  * stand at the back of the lobby, brought back: `stage` says which part of that is next).
  */
-type Want = ItemKind | 'shoes' | 'shined';
-interface Order { item: Want; since: number; pay: number; claimed: boolean; stage?: 'collect' | 'shine' | 'return' }
+type Want = ItemKind | 'shoes';
+interface Order { item: Want; since: number; pay: number; claimed: boolean }
 function turnToward(a: number, b: number, k: number): number {
   let d = b - a;
   while (d > Math.PI) d -= Math.PI * 2;
@@ -918,7 +922,13 @@ class Walker {
   get walking(): boolean {
     return this.path.length > 0;
   }
+  /** The watchdog's memory: the nearest it has got to the next point, for how long it has not improved, ghost time. */
+  private bestD = Infinity;
+  private stuckT = 0;
+  private ghostT = 0;
   walkTo(points: Vec2[], onArrive: (() => void) | null = null): void {
+    this.bestD = Infinity;
+    this.stuckT = 0;
     if (this.pose !== 'stand') this.setPose('stand', { x: this.x, y: FLOOR_Y, z: this.z, facing: this.facing });
     this.path = points.slice();
     this.onArrive = onArrive;
@@ -945,13 +955,26 @@ class Walker {
       const dz = next.z - this.z;
       const d = Math.hypot(dx, dz);
       const step = this.walkSpeed * dt;
+      // Watchdog: not getting any closer to the next point for a second means something is in the way for good;
+      // then walk straight through for a moment (never stand still, never circle round someone).
+      if (d < this.bestD - 0.05) {
+        this.bestD = d;
+        this.stuckT = 0;
+      } else this.stuckT += dt;
+      if (this.stuckT > 1.0) {
+        this.ghostT = 1.2;
+        this.stuckT = 0;
+        this.bestD = d;
+      }
+      this.ghostT = Math.max(0, this.ghostT - dt);
+      const ghost = this.ghostT > 0;
       // Steering: anyone standing or walking just ahead (the conductor included) is passed round on the side away
       // from them, so nobody ever stops dead in front of another; if the floor allows no way round, they slip past.
       let ax = dx / (d || 1);
       let az = dz / (d || 1);
       const px = -az;
       const pz = ax;
-      for (const o of agents) {
+      for (const o of ghost ? [] : agents) {
         if (o === this || o.pose !== 'stand') continue;
         const rx = o.x - this.x;
         const rz = o.z - this.z;
@@ -971,6 +994,8 @@ class Walker {
         this.x = next.x;
         this.z = next.z;
         this.path.shift();
+        this.bestD = Infinity;
+        this.stuckT = 0;
         if (this.path.length === 0) {
           const cb = this.onArrive;
           this.onArrive = null;
@@ -979,7 +1004,7 @@ class Walker {
       } else {
         const sx = this.x + ax * step;
         const sz = this.z + az * step;
-        if (map.walk.isWalkable(sx, sz)) {
+        if (!ghost && map.walk.isWalkable(sx, sz)) {
           this.x = sx;
           this.z = sz;
         } else {
@@ -1129,7 +1154,8 @@ function nextWish(g: Guest): Want {
   return fresh[Math.floor(Math.random() * fresh.length)] ?? drink;
 }
 function ask(g: Guest, item: Want, amount: number): void {
-  g.order = item === 'shoes' ? { item, since: clock, pay: TUNE.shoePay, claimed: false, stage: 'collect' } : { item, since: clock, pay: amount, claimed: false };
+  g.order = { item, since: clock, pay: item === 'shoes' ? TUNE.shoePay : amount, claimed: false };
+  if (item === 'shoes') leaveShoes(g);
   g.had.add(item);
   g.lastWish = item;
   if (g.pose === 'sleep' && g.room) g.setPose('sit', sitSpot(g.room));
@@ -1213,14 +1239,14 @@ let speedNow = TUNE.speed;
 agents.push({ get x() { return me.x; }, get z() { return me.z; }, pose: 'stand' as Pose });
 agents.push(...guests);
 /** What the conductor carries; a pair of shoes knows whose they are. */
-const carried: { item: Want; mesh: THREE.Mesh; owner?: Guest }[] = [];
+const carried: { item: Want; mesh: THREE.Mesh }[] = [];
 const flying: { mesh: THREE.Object3D; from: THREE.Vector3; to: () => THREE.Vector3; t: number; dur: number; done: () => void }[] = [];
 const popping: { obj: THREE.Object3D; t: number; base: number }[] = [];
 const tmpTo = new THREE.Vector3();
 /** A carried thing: the game's item, or a pair of shoes (scuffed, or gleaming once shined). */
 function itemMesh(item: Want): THREE.Mesh {
-  if (item === 'shoes' || item === 'shined') {
-    const mesh = new THREE.Mesh(shoesGeometry(item === 'shined'), MATERIALS.solid);
+  if (item === 'shoes') {
+    const mesh = new THREE.Mesh(shoesGeometry(false), MATERIALS.solid);
     mesh.scale.setScalar(1.6);
     return mesh;
   }
@@ -1286,11 +1312,8 @@ function handOver(g: Guest, order: Order, mesh: THREE.Object3D, byPlayer: boolea
   });
 }
 /** Does this carried thing answer the guest's order (their own shoes, shined, for a shoe order)? */
-function fits(c: { item: Want; owner?: Guest }, g: Guest): boolean {
-  const o = g.order;
-  if (!o) return false;
-  if (o.item === 'shoes') return c.item === 'shined' && c.owner === g && o.stage === 'return';
-  return c.item === o.item;
+function fits(c: { item: Want }, g: Guest): boolean {
+  return !!g.order && g.order.item !== 'shoes' && c.item === g.order.item;
 }
 function serve(g: Guest): void {
   const order = g.order!;
@@ -1389,60 +1412,6 @@ function updateCoins(dt: number): void {
   }
 }
 
-// ================================================================ signs: what each station holds, painted on a little plaque
-/**
- * Every station wears a small painted plaque standing on its furniture (the urn's "tea and the paper", the linen
- * cupboard's "blanket and towel", the rack's suitcase): part of the train, still and quiet, so the player can always
- * see where things are without anything floating over them. The bobbing badges show only during the tutorial.
- */
-const signs: THREE.Mesh[] = [];
-function signTexture(icons: IconName[]): THREE.CanvasTexture {
-  const cell = 110;
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 128;
-  const ctx = c.getContext('2d')!;
-  const w = 26 + icons.length * cell;
-  const x0 = (c.width - w) / 2;
-  // A rounded plate (drawn by hand: roundRect is missing on older phones' browsers).
-  const [rx, ry, rw, rh, r] = [x0 + 4, 8, w - 8, 112, 22];
-  ctx.beginPath();
-  ctx.moveTo(rx + r, ry);
-  ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, r);
-  ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, r);
-  ctx.arcTo(rx, ry + rh, rx, ry, r);
-  ctx.arcTo(rx, ry, rx + rw, ry, r);
-  ctx.closePath();
-  ctx.fillStyle = '#FFF4DE';
-  ctx.fill();
-  ctx.lineWidth = 8;
-  ctx.strokeStyle = '#6B4A2E';
-  ctx.stroke();
-  icons.forEach((icon, i) => drawIcon(ctx, icon, x0 + 13 + cell * i + cell / 2, 64, 92));
-  return spriteTexture(c);
-}
-function addSign(icons: IconName[], x: number, z: number, height: number): void {
-  if (icons.length === 0) return;
-  const geometry = new THREE.PlaneGeometry(0.86, 0.43);
-  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: signTexture(icons), transparent: true, premultipliedAlpha: true, depthWrite: false, toneMapped: false, fog: false, color: '#FFFFFF' }));
-  mesh.position.set(x, FLOOR_Y + height, z);
-  mesh.renderOrder = 5;
-  mesh.scale.setScalar(0.001);
-  scene.add(mesh);
-  signs.push(mesh);
-  popping.push({ obj: mesh, t: 0, base: 1 });
-}
-const signFacing = new THREE.Quaternion();
-const signEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-/** Signs face the camera's side of the train (turned once to its heading, leaning back a touch; never spinning). */
-function updateSigns(): void {
-  const cam = stage.rig.camera.position;
-  const t = stage.rig.target;
-  signEuler.set(-0.35, Math.atan2(cam.x - t.x, cam.z - t.z), 0);
-  signFacing.setFromEuler(signEuler);
-  for (const m of signs) m.quaternion.copy(signFacing);
-}
-
 /** The rack holds exactly the bags waiting to be taken to their rooms (a guest's bag appears as they check in). */
 let rackBags = -1;
 let rackView: CarriageView | null = null;
@@ -1459,20 +1428,15 @@ function updateRackBags(): void {
 // ================================================================ stations: the desk, the tea, the linen, the bags, the café
 interface Station { kind: 'desk' | 'source' | 'film' | 'shine' | 'clean'; items: Want[]; car: number; x: number; z: number; marker: JobMarker; progress: number; wants: boolean }
 const stations: Station[] = [];
-function addStation(kind: Station['kind'], items: Want[], car: number, local: Vec2, icon: IconName, badgeOver?: Vec2, signIcons: IconName[] = [icon]): Station {
+function addStation(kind: Station['kind'], items: Want[], car: number, local: Vec2, icon: IconName, badgeOver?: Vec2): Station {
   const z0 = carriageOriginZ(car);
   const p = walkableNear(local.x, local.z + z0);
   const marker = new JobMarker(icon);
   marker.setPosition(p.x, p.z);
-  if (badgeOver) {
-    marker.setIconAnchor(badgeOver.x - p.x, badgeOver.z + z0 - p.z, 1.6);
-    addSign(signIcons, badgeOver.x, badgeOver.z + z0, 1.12);
-  } else {
+  if (badgeOver) marker.setIconAnchor(badgeOver.x - p.x, badgeOver.z + z0 - p.z, 1.6);
+  else {
     const anchor = map.serviceAnchor(p.x, p.z, 1.3);
-    if (anchor) {
-      marker.setIconAnchor(anchor.x - p.x, anchor.z - p.z, anchor.height + 0.6);
-      addSign(signIcons, anchor.x, anchor.z, anchor.height + 0.24);
-    } else addSign(signIcons, p.x, p.z, 1.0);
+    if (anchor) marker.setIconAnchor(anchor.x - p.x, anchor.z - p.z, anchor.height + 0.6);
   }
   marker.visible = false;
   scene.add(marker.group);
@@ -1481,28 +1445,101 @@ function addStation(kind: Station['kind'], items: Want[], car: number, local: Ve
   return s;
 }
 const desk = addStation('desk', [], SLOT.lobby, L.deskService, 'key', { x: -1.17, z: 3.4 });
-addStation('source', ['tea', 'coffee', 'breakfast'], SLOT.lobby, L.urn, 'tea', undefined, ['coffee', 'breakfast']);
-addStation('source', ['blanket', 'towel'], SLOT.lobby, L.linen, 'blanket', undefined, ['blanket', 'towel']);
+addStation('source', ['tea', 'coffee', 'breakfast'], SLOT.lobby, L.urn, 'tea');
+addStation('source', ['blanket', 'towel'], SLOT.lobby, L.linen, 'blanket');
 addStation('source', ['luggage'], SLOT.lobby, L.rack, 'luggage');
 // The papers have their own stand on the far side of the reception, and shoes go to the stand at the back of the
 // carriage: different jobs, different walks.
 scene.add(newsstand(COMPACT_LOBBY.newsstand));
 addStation('source', ['newspaper'], SLOT.lobby, L.news, 'newspaper', { x: (COMPACT_LOBBY.newsstand.x0 + COMPACT_LOBBY.newsstand.x1) / 2, z: (COMPACT_LOBBY.newsstand.z0 + COMPACT_LOBBY.newsstand.z1) / 2 });
-scene.add(shoeStand(COMPACT_LOBBY.shoeStand));
-const shineStand = addStation('shine', [], SLOT.lobby, L.shoe, 'shoe', { x: (COMPACT_LOBBY.shoeStand.x0 + COMPACT_LOBBY.shoeStand.x1) / 2, z: (COMPACT_LOBBY.shoeStand.z0 + COMPACT_LOBBY.shoeStand.z1) / 2 });
 
 // ================================================================ the washroom: a guest uses it, the conductor tidies it (a tip)
 const BATH = views.lobby[TIER.basic].layout.bathrooms[0];
 type WashState = 'free' | 'busy' | 'dirty';
 let washState: WashState = 'free';
-/** The mess sweeping away (0 = none; counts up to 1 as it shrinks into nothing). */
-let messFade = 0;
 /** Test counts (shown in the test hook's state). */
-const stats = { cleaned: 0, shined: 0, washed: 0 };
-const mess = washMess(BATH.room.x0 + 1.3, BATH.room.z0 + 1.15);
-mess.visible = false;
-scene.add(mess);
-addStation('clean', [], SLOT.lobby, BATH.restock, 'broom', { x: BATH.room.x0 + 1.3, z: BATH.room.z0 + 1.15 }, []);
+const stats = { cleaned: 0, shined: 0, washed: 0, attendant: 0, dropped: 0 };
+const MESS_AT = { x: BATH.room.x0 + 1.3, z: BATH.room.z0 + 1.15 };
+const WALL_HEIGHT = INTERIOR_WALL_HEIGHT;
+const washDoor = slidingDoor(BATH.door[1] - BATH.door[0], WALL_HEIGHT + 0.02);
+const mess = washMess(MESS_AT.x, MESS_AT.z);
+mess.group.visible = false;
+scene.add(mess.group);
+const washStation = addStation('clean', [], SLOT.lobby, BATH.restock, 'broom', MESS_AT);
+// The washroom's entry: the curved front corner and a wide sliding door of frosted glass on the corridor side.
+{
+  const R = COMPACT_LOBBY.washCurve;
+  scene.add(curvedWall(PARTITION_X1 + R, BATH.room.z0 - 0.06 + R, R, WALL_HEIGHT));
+  const [d0, d1] = BATH.door;
+  washDoor.position.set(PARTITION_X0 - 0.05, FLOOR_Y, (d0 + d1) / 2);
+  washDoor.userData.closedZ = (d0 + d1) / 2;
+  washDoor.userData.travel = d1 - d0 - 0.1;
+  scene.add(washDoor);
+}
+/** The door slides open for anyone coming in or out, and closes behind them. */
+let washDoorOpen = 0;
+function updateWashDoor(dt: number): void {
+  const cz = washDoor.userData.closedZ as number;
+  const near = (x: number, z: number): boolean => Math.hypot(x - PARTITION_X0, z - cz) < 1.4 || inWashroom(x, z);
+  const want = near(me.x, me.z) || guests.some((g) => near(g.x, g.z) && (g.walking || g.state === 'washing')) ? 1 : 0;
+  washDoorOpen += (want - washDoorOpen) * Math.min(1, dt * (want ? 9 : 4));
+  washDoor.position.z = cz - washDoorOpen * (washDoor.userData.travel as number);
+}
+/**
+ * The mess, animated: on arrival a splash, the puddle spreads and each piece drops in with a bounce, then a little
+ * cloud of flies; while it is tidied, the pieces vanish one by one in order with the ring's fill, the puddle dries
+ * away, and it ends in a ring of sparkle and "Spotless!".
+ */
+let messT = -1;
+const flies = new THREE.Group();
+{
+  const geo = new THREE.SphereGeometry(0.018, 6, 4);
+  const mat = new THREE.MeshBasicMaterial({ color: '#2B2230' });
+  for (let i = 0; i < 4; i++) flies.add(new THREE.Mesh(geo, mat));
+  flies.visible = false;
+  flies.position.set(MESS_AT.x, FLOOR_Y + 0.55, MESS_AT.z);
+  scene.add(flies);
+}
+function messArrives(): void {
+  mess.group.visible = true;
+  messT = 0;
+  mess.puddle.scale.setScalar(0.001);
+  for (const p of mess.pieces) p.visible = false;
+  particles.emit('sparkle', MESS_AT.x, FLOOR_Y + 0.3, MESS_AT.z, 14, 0.4);
+}
+function updateMess(dt: number): void {
+  if (!mess.group.visible) {
+    flies.visible = false;
+    return;
+  }
+  if (messT >= 0) messT += dt;
+  const clean = washState === 'dirty' ? washStation.progress : 0;
+  // The puddle spreads in, then dries away with the cleaning.
+  const spread = messT < 0 ? 1 : Math.min(1, messT / 0.6);
+  mess.puddle.scale.set(spread * (1 - clean * 0.95), 1, spread * (1 - clean * 0.95));
+  mess.pieces.forEach((p, i) => {
+    const at = 0.25 + i * 0.12;
+    const k = messT < 0 ? 1 : Math.max(0, Math.min(1, (messT - at) / 0.35));
+    // Dropping in with a bounce; gone once the cleaning has got past its share.
+    const gone = clean > (i + 1) / (mess.pieces.length + 1);
+    if (gone && p.visible && p.userData.gone !== true) {
+      p.userData.gone = true;
+      particles.emit('dust', MESS_AT.x + p.position.x, FLOOR_Y + 0.1, MESS_AT.z + p.position.z, 5, 0.2);
+      sfx('pop', 1 + i * 0.08);
+    }
+    p.visible = k > 0 && !gone;
+    if (!gone) p.userData.gone = false;
+    p.position.y = k < 1 ? (1 - k) * 0.45 + Math.abs(Math.sin(k * Math.PI * 2)) * 0.05 * (1 - k) : 0;
+  });
+  // A little cloud of flies over it while it waits.
+  flies.visible = washState === 'dirty' && clean < 0.5 && (messT < 0 || messT > 1.0);
+  if (flies.visible) {
+    flies.children.forEach((f, i) => {
+      const t = clock * (2.2 + i * 0.4) + i * 1.7;
+      f.position.set(Math.cos(t) * 0.18, Math.sin(t * 1.7) * 0.08, Math.sin(t * 1.3) * 0.18);
+    });
+  }
+}
 const inWashroom = (x: number, z: number): boolean => x > BATH.room.x0 && x < BATH.room.x1 && z > BATH.room.z0 && z < BATH.room.z1;
 /** A guest goes to the washroom (between requests); it is left in need of a tidy. */
 function visitWashroom(g: Guest): boolean {
@@ -1516,8 +1553,7 @@ function visitWashroom(g: Guest): boolean {
     g.view.act('wash', TUNE.washSeconds);
     later(TUNE.washSeconds, () => {
       washState = 'dirty';
-      mess.visible = true;
-      popping.push({ obj: mess, t: 0, base: 1 });
+      messArrives();
       sfx('drip');
       backToRoom(g);
     });
@@ -1538,37 +1574,87 @@ function backToRoom(g: Guest): void {
 function cleanWashroom(): void {
   washState = 'free';
   stats.cleaned++;
-  messFade = 0.001;
-  particles.emit('sparkle', BATH.room.x0 + 1.3, FLOOR_Y + 0.5, BATH.room.z0 + 1.0, 26, 0.5);
+  mess.group.visible = false;
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    particles.emit('sparkle', MESS_AT.x + Math.cos(a) * 0.5, FLOOR_Y + 0.3, MESS_AT.z + Math.sin(a) * 0.5, 2, 0.2);
+  }
+  floatText('<b>Spotless!</b>', MESS_AT.x, FLOOR_Y + 1.6, MESS_AT.z, 'praise');
   deliverSound();
   pay({ x: BATH.room.x0 + 1.3, y: FLOOR_Y, z: BATH.room.z0 + 1.0, pose: 'stand' }, TUNE.washTip + bonus);
 }
 
-// ================================================================ shoe shine: collect, shine at the stand, bring back
-function collectShoes(g: Guest): void {
-  const order = g.order!;
-  order.stage = 'shine';
+// ================================================================ shoe shine: the shoes wait outside the door; stand there and they shine
+/**
+ * A guest who wants their shoes shined leaves them in the corridor beside their door. The conductor stands on them a
+ * moment (the ring fills, a brisk polish, sparkles) and they gleam; the guest pays. No stand, no carrying.
+ */
+interface ShoeJob { g: Guest; mesh: THREE.Mesh; marker: JobMarker; x: number; z: number; progress: number; done: boolean; t: number }
+const shoeJobs: ShoeJob[] = [];
+function leaveShoes(g: Guest): void {
+  const c = cabinOf(g.room!);
+  const x = PARTITION_SHOE_X;
+  const z = lz(c.door[0] - 0.25);
   const mesh = itemMesh('shoes');
-  mesh.scale.setScalar(0.01);
+  mesh.position.set(x, FLOOR_Y + 0.01, z);
+  mesh.rotation.y = Math.PI / 2;
+  mesh.scale.setScalar(0.001);
   scene.add(mesh);
-  carried.push({ item: 'shoes', mesh, owner: g });
-  popping.push({ obj: mesh, t: 0, base: 1.3 });
-  player.setCarrying(true);
-  g.view.act('hug', 0.6);
-  sfx('pickup');
+  popping.push({ obj: mesh, t: 0, base: 1.5 });
+  const marker = new JobMarker('shoe');
+  marker.setPosition(x, z);
+  marker.setIconAnchor(0, 0, 0.9);
+  scene.add(marker.group);
+  shoeJobs.push({ g, mesh, marker, x, z, progress: 0, done: false, t: 0 });
 }
-function shineShoes(): void {
-  stats.shined++;
-  for (const c of carried) {
-    if (c.item !== 'shoes') continue;
-    c.item = 'shined';
-    c.mesh.geometry = shoesGeometry(true);
-    popping.push({ obj: c.mesh, t: 0, base: 1.3 });
-    if (c.owner?.order?.item === 'shoes') c.owner.order.stage = 'return';
+function updateShoes(dt: number): void {
+  for (let i = shoeJobs.length - 1; i >= 0; i--) {
+    const j = shoeJobs[i];
+    if (j.done) {
+      j.t += dt;
+      // Taken back in after a moment to gleam.
+      if (j.t > 1.4) {
+        shrinking.push({ obj: j.mesh, t: 0 });
+        scene.remove(j.marker.group);
+        shoeJobs.splice(i, 1);
+      }
+      j.marker.iconShown = false;
+      j.marker.update(dt);
+      continue;
+    }
+    const on = Math.hypot(me.x - j.x, me.z - j.z) < TUNE.shoeReach && flow.phase === 'play';
+    j.progress = on ? Math.min(1, j.progress + dt / TUNE.shineSeconds) : Math.max(0, j.progress - dt * 2);
+    if (on) {
+      if (Math.random() < dt * 10) particles.emit('sparkle', j.x, FLOOR_Y + 0.25, j.z, 1, 0.2);
+      player.act('wash', 0.3);
+    }
+    j.marker.iconShown = true;
+    j.marker.working = j.progress > 0;
+    j.marker.progress = j.progress;
+    j.marker.update(dt);
+    if (j.progress >= 1) {
+      j.done = true;
+      j.mesh.geometry = shoesGeometry(true);
+      popping.push({ obj: j.mesh, t: 0, base: 1.5 });
+      particles.emit('sparkle', j.x, FLOOR_Y + 0.4, j.z, 26, 0.4);
+      particles.emit('star', j.x, FLOOR_Y + 0.6, j.z, 8, 0.3);
+      sfx('sparkle');
+      stats.shined++;
+      const g = j.g;
+      if (g.order?.item === 'shoes') {
+        const amount = g.order.pay + bonus;
+        g.order = null;
+        g.happyUntil = clock + 2.4;
+        g.restUntil = clock + TUNE.rest[0] + Math.random() * (TUNE.rest[1] - TUNE.rest[0]);
+        deliverSound();
+        pay(g, amount);
+        flow.done('deliver');
+      }
+    }
   }
-  particles.emit('sparkle', shineStand.x, FLOOR_Y + 1.0, shineStand.z, 24, 0.4);
-  sfx('sparkle');
 }
+/** Shoes stand in the corridor just outside the room, against its wall. */
+const PARTITION_SHOE_X = -0.98;
 
 // ================================================================ the rooms' own upgrades: big enough to see
 /** Each room's lamp, flowers and minibar, along its front wall (a strip kept clear for them in the plan). */
@@ -1578,12 +1664,19 @@ function syncDecor(pop: boolean): void {
   for (const r of rooms) {
     if (!r.open || r.car !== SLOT.lobby) continue;
     const c = cabinOf(r);
-    const z = lz(c.room.z0 + 0.28);
-    const at = { lamp: c.bed.x0 - 0.42, flowers: c.room.x0 + 0.26, minibar: (c.room.x0 + c.bed.x0) / 2 - 0.1 };
+    // Along the front wall, clear of the door leaves' swing: the minibar, then the lamp by the head of the bed; the
+    // flowers on their little table by the back wall (each spot is kept clear in the plan).
+    const front = lz(c.room.z0 + 0.27);
+    const pos = {
+      minibar: { x: COMPACT_LOBBY.decorX0 + 0.3, z: front },
+      lamp: { x: c.bed.x0 - 0.24, z: front },
+      flowers: { x: 0.7, z: lz(c.room.z1 - 0.28) },
+    };
     for (const key of decorBought) {
       const id = `${r.cabin}:${key}`;
       if (decorShown.has(id)) continue;
-      const g = key === 'lamp' ? floorLamp(at.lamp, z) : key === 'flowers' ? bouquet(at.flowers, z) : minibar(at.minibar, z);
+      const p = pos[key];
+      const g = key === 'lamp' ? floorLamp(p.x, p.z) : key === 'flowers' ? bouquet(p.x, p.z) : minibar(p.x, p.z);
       scene.add(g);
       decorShown.set(id, g);
       if (pop) {
@@ -1601,7 +1694,7 @@ function addDecor(key: 'lamp' | 'flowers' | 'minibar'): void {
 /** How many of an item are asked for and not yet in hand (or on an Attendant's way). */
 function needed(item: Want): number {
   // Shoes come from their owner, never from a cupboard.
-  if (item === 'shoes' || item === 'shined') return 0;
+  if (item === 'shoes') return 0;
   return guests.filter((g) => g.order?.item === item && !g.order.claimed).length - carried.filter((c) => c.item === item).length;
 }
 function approach(g: Guest): Vec2 {
@@ -1626,7 +1719,7 @@ function sourceFor(item: Want, near?: Vec2): Station | null {
 // ================================================================ the Attendants: they take the room deliveries over
 const ATTENDANT_HOME = (): Vec2 => walkableNear(L.home_attendant.x, L.home_attendant.z);
 const CAFE_HOME = (): Vec2 => walkableNear(-1.0, carriageOriginZ(SLOT.cafe) + 16.2);
-interface Helper { w: Walker; items: Want[]; task: Guest | null; order: Order | null; carrying: THREE.Mesh | null; phase: 'idle' | 'toSource' | 'pick' | 'toGuest'; t: number }
+interface Helper { w: Walker; items: Want[]; task: Guest | null; order: Order | null; carrying: THREE.Mesh | null; phase: 'idle' | 'toSource' | 'pick' | 'toGuest'; t: number; since: number }
 const helpers: Helper[] = [];
 let helperSpeed = TUNE.attendantSpeed;
 const ROOM_ITEMS: Want[] = ['tea', 'coffee', 'breakfast', 'newspaper', 'blanket', 'towel', 'luggage'];
@@ -1634,7 +1727,7 @@ const VENUE_ITEMS: Want[] = ['latte', 'pastry', 'popcorn'];
 function hireAttendant(items: Want[], home: Vec2): void {
   const w = new Walker(STAFF_LOOKS.attendant, home.x, home.z);
   w.walkSpeed = helperSpeed;
-  helpers.push({ w, items, task: null, order: null, carrying: null, phase: 'idle', t: 0 });
+  helpers.push({ w, items, task: null, order: null, carrying: null, phase: 'idle', t: 0, since: 0 });
   agents.push(w);
   // She grows in with a bounce (never pops in).
   popping.push({ obj: w.view.root, t: 0, base: w.view.root.scale.x });
@@ -1642,10 +1735,31 @@ function hireAttendant(items: Want[], home: Vec2): void {
   particles.emit('confetti', w.x, FLOOR_Y + 1.5, w.z, 40, 0.6);
   sfx('staff');
 }
+/** Lets go of a job she cannot finish (the guest left, or it ran too long): the request is free again for anyone. */
+function dropTask(h: Helper): void {
+  stats.dropped++;
+  if (h.order && h.task?.order === h.order) h.order.claimed = false;
+  if (h.carrying) shrinking.push({ obj: h.carrying, t: 0 });
+  h.carrying = null;
+  h.task = null;
+  h.order = null;
+  h.phase = 'idle';
+  h.w.path = [];
+  h.w.onArrive = null;
+  h.w.view.setCarrying(false);
+}
 function updateHelpers(dt: number): void {
   for (const h of helpers) {
     h.w.walkSpeed = helperSpeed;
     h.w.move(dt);
+    // Never stuck on a job: if the guest's request changed or went, or it is taking far too long, she lets it go.
+    if (h.phase !== 'idle') {
+      const gone = !h.task || h.task.order !== h.order || (h.task.state !== 'room' && h.task.state !== 'venue');
+      if (gone || clock - h.since > TUNE.attendantGiveUp) {
+        dropTask(h);
+        continue;
+      }
+    }
     if (h.phase === 'idle') {
       // The oldest request of her kind nobody is bringing.
       const g = guests.filter((x) => x.order && h.items.includes(x.order.item) && !x.order.claimed && clock - x.order.since > TUNE.attendantWait && (x.state === 'room' || x.state === 'venue') && needed(x.order.item) > 0).sort((a, b) => a.order!.since - b.order!.since)[0];
@@ -1662,6 +1776,7 @@ function updateHelpers(dt: number): void {
       h.task = g;
       h.order = g.order;
       h.phase = 'toSource';
+      h.since = clock;
       h.w.walkTo(route(h.w, src), () => {
         h.phase = 'pick';
         h.t = TUNE.attendantPick;
@@ -1682,7 +1797,10 @@ function updateHelpers(dt: number): void {
       h.carrying = mesh;
       h.phase = 'toGuest';
       h.w.walkTo(route(h.w, approach(g)), () => {
-        if (h.carrying) handOver(g, order, h.carrying, false);
+        if (h.carrying) {
+          handOver(g, order, h.carrying, false);
+          stats.attendant++;
+        }
         h.carrying = null;
         h.task = null;
         h.order = null;
@@ -1831,11 +1949,11 @@ const STEPS: Step[] = [
   upgrade({ id: 'lamps', name: 'Reading Lamps', icon: 'star', bonus: TUNE.smallBonus, tile: corridorBy(0), focus: roomFocus(0), buy: () => addDecor('lamp') }),
   upgrade({ id: 'room4', name: 'Room 4', icon: 'bed', note: 'A new guest can check in', tile: corridorBy(3), focus: roomFocus(3), buy: () => openRoom(3) }),
   upgrade({ id: 'flowers', name: 'Fresh Flowers', icon: 'heart', bonus: TUNE.smallBonus, tile: corridorBy(1), focus: roomFocus(1), buy: () => addDecor('flowers') }),
-  upgrade({ id: 'rug', name: 'Lobby Rug', icon: 'star', bonus: TUNE.smallBonus, tile: () => ({ x: 0.3, z: lz(4.95) }), focus: () => ({ x: 0.5, z: lz(3.0) }), buy: () => setRug(true) }),
+  upgrade({ id: 'rug', name: 'Lobby Rug', icon: 'star', bonus: TUNE.smallBonus, tile: () => ({ x: 0.5, z: lz(3.75) }), focus: () => ({ x: 0.5, z: lz(3.0) }), buy: () => setRug(true) }),
   upgrade({ id: 'attendant', name: 'Attendant', icon: 'person', big: true, tile: () => ({ x: -1.5, z: lz(6.35) }), focus: () => ({ x: L.home_attendant.x, z: lz(L.home_attendant.z) }), buy: hireFirstAttendant }),
   upgrade({ id: 'comfort', name: 'Comfort Class', icon: 'star', big: true, tile: () => ({ x: -1.5, z: lz(6.35) }), focus: () => ({ x: 0, z: lz(10) }), buy: () => classUp(TIER.comfort) }),
   upgrade({ id: 'minibar', name: 'Minibars', icon: 'snack', bonus: TUNE.smallBonus, tile: corridorBy(0), focus: roomFocus(0), buy: () => addDecor('minibar') }),
-  upgrade({ id: 'skates', name: 'Skates', icon: 'skate', note: 'You move a little faster', tile: () => ({ x: 0.3, z: lz(4.95) }), focus: () => ({ x: me.x, z: me.z }), buy: buySkates }),
+  upgrade({ id: 'skates', name: 'Skates', icon: 'skate', note: 'You move a little faster', tile: () => ({ x: 0.5, z: lz(3.75) }), focus: () => ({ x: me.x, z: me.z }), buy: buySkates }),
   upgrade({ id: 'cafe', name: 'Café Car', icon: 'latte', big: true, tile: () => ({ x: -1.0, z: lz(17.05) }), focus: () => ({ x: 0, z: cz(9) }), buy: buyCafe }),
   upgrade({ id: 'pastry', name: 'Pastry Stand', icon: 'pastry', bonus: TUNE.smallBonus, tile: () => ({ x: -1.15, z: cz(6.35) }), focus: () => ({ x: 1.0, z: cz(6.35) }), buy: buyPastries }),
   upgrade({ id: 'luxury', name: 'Luxury Class', icon: 'crown', big: true, tile: () => ({ x: -1.5, z: lz(6.35) }), focus: () => ({ x: 0, z: lz(10) }), buy: () => classUp(TIER.luxury) }),
@@ -1932,7 +2050,7 @@ const extras: string[] = [];
 function buyPastries(): void {
   pastries = true;
   views.cafe.setVenueExtras(['menu_pastry']);
-  addStation('source', ['pastry'], SLOT.cafe, views.cafe.layout.venue!.stations[1].pad, 'pastry');
+  addStation('source', ['pastry'], SLOT.cafe, views.cafe.layout.venue!.stations[1].pad, 'pastry', { x: 1.91, z: 6.35 });
 }
 function hireFirstAttendant(): void {
   const home = ATTENDANT_HOME();
@@ -1942,8 +2060,31 @@ function hireFirstAttendant(): void {
 }
 /** Roller skates: the conductor glides a little faster (never so fast it feels slippery). */
 let skates = false;
+/** How far the wheels reach below the shoe soles (m). */
+const SKATE_LIFT = 0.05;
+/** The skates themselves, on the conductor's feet (the game's own model: a boot over the shoe, two wheels). */
+const skateMeshes: THREE.Mesh[] = [];
+{
+  const skate = new GeoBuilder()
+    .rounded(0, -LEG_LENGTH + 0.06, 0.03, 0.13, 0.08, 0.24, 0.03, '#E26D8C', { shade: 0.95 })
+    .box(0, -LEG_LENGTH + 0.01, 0.03, 0.1, 0.02, 0.22, '#2B2230', 0, { shade: 1 });
+  for (const z of [-0.06, 0.12]) skate.cylinder(0, -LEG_LENGTH - 0.015, z, 0.035, 0.035, 0.1, '#FFD35C', 10, 'x', { shade: 1 });
+  const geometry = skate.build();
+  for (const pivot of player.legPivots) {
+    const mesh = new THREE.Mesh(geometry, MATERIALS.character);
+    mesh.visible = false;
+    pivot.add(mesh);
+    skateMeshes.push(mesh);
+  }
+}
 function buySkates(): void {
   skates = true;
+  for (const m of skateMeshes) {
+    m.visible = true;
+    m.scale.setScalar(0.001);
+    popping.push({ obj: m, t: 0, base: 1 });
+  }
+
   speedNow *= TUNE.skates;
   particles.emit('confetti', me.x, FLOOR_Y + 1.4, me.z, 30, 0.6);
   sfx('staff');
@@ -2018,7 +2159,7 @@ function buyCafe(): void {
   couple(views.cafe, 'cafe', 1, () => {
     cafeTier = 1;
     const v = views.cafe.layout.venue!;
-    addStation('source', ['latte'], SLOT.cafe, v.stations[0].pad, 'latte');
+    addStation('source', ['latte'], SLOT.cafe, v.stations[0].pad, 'latte', { x: 1.93, z: 3.07 });
     say('CAFÉ CAR!', 'Guests come for coffee');
     teach = 'cafe';
   });
@@ -2028,7 +2169,7 @@ function buyTheatre(): void {
   couple(views.cinema, 'cinema', CINEMA_TIER, () => {
     theatreOpen = true;
     const v = views.cinema.layout.venue!;
-    addStation('source', ['popcorn'], SLOT.cinema, v.stations[0].pad, 'popcorn');
+    addStation('source', ['popcorn'], SLOT.cinema, v.stations[0].pad, 'popcorn', { x: 1.93, z: 2.9 });
     projector = addStation('film', [], SLOT.cinema, v.projector!, 'film');
     say('THEATRE CAR!', 'Start the movie · every seat pays');
     teach = 'cinema';
@@ -2195,6 +2336,8 @@ function maxOpen(): number {
 }
 function director(): void {
   flow.update();
+  // Whenever a room is free and nobody is at (or on the way to) the desk, the next waiting guest comes over.
+  if (flow.phase === 'play' && freeRoom() && !guests.some((g) => g.state === 'queue' || g.state === 'toDesk')) callNext();
   if (!flow.allows('request') || clock < askAt) return;
   const open = guests.filter((g) => g.order || g.state === 'toVenue' || g.state === 'toWash' || g.state === 'washing' || (g.venue === 'cinema' && filmT < 0)).length + (washState === 'dirty' ? 1 : 0);
   if (open >= maxOpen()) return;
@@ -2222,7 +2365,6 @@ function updateJobs(dt: number): void {
     let item: Want | null = null;
     if (s.kind === 'desk') wants = !!front && !!freeRoom() && (flow.phase !== 'tutorial' || flow.stepId === 'checkin');
     else if (s.kind === 'film') wants = flow.phase === 'play' && audienceReady;
-    else if (s.kind === 'shine') wants = carried.some((c) => c.item === 'shoes');
     else if (s.kind === 'clean') wants = washState === 'dirty';
     else {
       item = s.items.find((it) => guests.some((g) => g.order?.item === it && !g.order.claimed && sourceFor(it, g) === s && needed(it) > 0)) ?? null;
@@ -2235,8 +2377,9 @@ function updateJobs(dt: number): void {
     s.marker.visible = true;
     s.wants = wants;
     // The washroom's broom is a request of its own (it says the washroom needs a tidy), so it shows whenever it does.
-    // One pointer at a time: the guide arrow does the tutorial alone (no badge on the station as well).
-    const lesson = wants && s.kind === 'clean';
+    // A station's badge floats over it only while it is needed (what a guest is waiting for comes from here), and
+    // fades away when it is not.
+    const lesson = wants;
     s.marker.iconShown = lesson;
     s.marker.highlight = lesson;
     // The washroom is tidied from anywhere inside it.
@@ -2254,7 +2397,6 @@ function updateJobs(dt: number): void {
           checkIn(front, freeRoom()!);
           flow.done('checkin');
         } else if (s.kind === 'film') startFilm();
-        else if (s.kind === 'shine') shineShoes();
         else if (s.kind === 'clean') cleanWashroom();
         else if (item) pickUp(item, Math.min(item === 'luggage' ? 1 : needed(item), TUNE.carry - carried.length));
       }
@@ -2270,11 +2412,6 @@ function updateJobs(dt: number): void {
     const inRoom = g.room && g.state === 'room' && Math.hypot(me.x - a.x, me.z - a.z) < TUNE.roomReach && map.walk.lineClear(me.x, me.z, a.x, a.z);
     const reached = inRoom || (Math.hypot(me.x - g.x, me.z - g.z) < TUNE.serveReach && map.walk.lineClear(me.x, me.z, a.x, a.z));
     if (!reached) continue;
-    // A shoe order: first the conductor takes the shoes (hands free for them), then brings them back shined.
-    if (g.order.item === 'shoes' && g.order.stage === 'collect' && flow.phase === 'play') {
-      if (carried.length < TUNE.carry) collectShoes(g);
-      continue;
-    }
     if (carried.some((c) => fits(c, g))) serve(g);
   }
   if (filmT >= 0) {
@@ -2290,8 +2427,6 @@ interface Target extends Vec2 { lift: number; icon: IconName; text: string }
 function target(): Target | null {
   if (flow.phase === 'tutorial') return tutorialTarget();
   for (const c of carried) {
-    if (c.item === 'shoes') return { x: shineStand.x, z: shineStand.z, lift: 2.0, icon: 'shoe', text: 'Shine the shoes' };
-    if (c.item === 'shined' && c.owner && c.owner.order?.item === 'shoes') return { ...approach(c.owner), lift: 2.4, icon: 'shoe', text: 'Bring the shoes back' };
     const g = guests.filter((x) => x.order?.item === c.item && !x.order.claimed && !x.walking).sort((a, b) => Math.hypot(approach(a).x - me.x, approach(a).z - me.z) - Math.hypot(approach(b).x - me.x, approach(b).z - me.z))[0];
     if (g) return { ...approach(g), lift: 2.4, icon: ITEM_ICON[c.item], text: `Bring ${ITEM_WORD[c.item]}` };
   }
@@ -2299,8 +2434,8 @@ function target(): Target | null {
   if (buy) return { x: buy.x, z: buy.z, lift: 1.5, icon: buy.step.icon, text: `Buy ${buy.step.name}` };
   if (atDesk() && freeRoom()) return { x: desk.x, z: desk.z, lift: 2.0, icon: 'key', text: 'Check in the guest' };
   if (washState === 'dirty') return { x: BATH.restock.x, z: lz(BATH.restock.z), lift: 2.0, icon: 'broom', text: 'Tidy the washroom' };
-  const shoes = guests.find((g) => g.order?.item === 'shoes' && g.order.stage === 'collect' && g.state === 'room');
-  if (shoes && carried.length < TUNE.carry) return { ...approach(shoes), lift: 2.4, icon: 'shoe', text: 'Collect the shoes' };
+  const shoes = shoeJobs.find((j) => !j.done);
+  if (shoes) return { x: shoes.x, z: shoes.z, lift: 1.4, icon: 'shoe', text: 'Shine the shoes' };
   if (projector && stations.includes(projector) && projector.wants) return { x: projector.x, z: projector.z, lift: 2.0, icon: 'film', text: 'Start the movie' };
   const open = guests.filter((g) => g.order && !g.order.claimed && needed(g.order.item) > 0).sort((a, b) => a.order!.since - b.order!.since);
   if (open[0] && carried.length < TUNE.carry) {
@@ -2534,7 +2669,8 @@ function updatePlayer(dt: number): void {
     me.x = pos.x;
     me.z = pos.z;
   }
-  player.setPosition(me.x, FLOOR_Y, me.z);
+  // On skates the conductor rides the wheels' height, so they never sink into the floor.
+  player.setPosition(me.x, FLOOR_Y + (skates ? SKATE_LIFT : 0), me.z);
   player.setFacing(me.facing);
   player.update(dt, me.speed);
   // On skates, a little puff behind the heels as they glide.
@@ -2784,15 +2920,8 @@ function step(dt: number): void {
   updateTarps(dt);
   updateTiles(dt);
   updateLifting(dt);
-  if (messFade > 0) {
-    messFade += dt * 3;
-    mess.scale.setScalar(Math.max(0.001, 1 - messFade));
-    if (messFade >= 1) {
-      messFade = 0;
-      mess.visible = false;
-      mess.scale.setScalar(1);
-    }
-  }
+  updateMess(dt);
+  updateWashDoor(dt);
   updateMessages(dt);
   player.root.updateMatrixWorld(true);
   player.stackAnchor.getWorldPosition(anchorPos);
@@ -2848,7 +2977,7 @@ function step(dt: number): void {
   updateGuide(dt);
   updateMoney(dt);
   updateCoins(dt);
-  updateSigns();
+  updateShoes(dt);
   updateCarMap();
   updateRackBags();
   if (!ended && started && clock - lastInput > TUNE.idleEnd) endGame();
@@ -2924,6 +3053,11 @@ void boot();
     }
   },
   end: () => endGame(),
+  /** Test only: the washroom left messy now. */
+  dirty: () => {
+    washState = 'dirty';
+    messArrives();
+  },
   /** Test only: put the conductor somewhere, and the route from there to the current target. */
   place: (x: number, z: number) => {
     me.x = x;

@@ -40,55 +40,61 @@ function lightPool(radius: number): THREE.Mesh {
   }
   const geometry = new THREE.PlaneGeometry(radius * 2, radius * 2);
   geometry.rotateX(-Math.PI / 2);
-  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: poolTexture, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, fog: false }));
+  // Faint: a hint of warmth on the boards, never a spotlight (the night look depends on it).
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: poolTexture, transparent: true, opacity: 0.1, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: true, fog: false }));
   mesh.position.y = 0.012;
   mesh.renderOrder = 2;
   return mesh;
 }
 
-/** A tall brass reading lamp with a big pleated shade, glowing, and the warm pool it throws on the floor. */
+/**
+ * A brass reading lamp with a fabric shade. The shade is lit only by the room's own light (a solid, warm cream, not a
+ * glowing lamp material: an emissive shade blew the whole room out); a faint warm pool sits under it.
+ */
 export function floorLamp(x: number, z: number): THREE.Group {
   const b = new GeoBuilder();
-  const glow = new GeoBuilder();
-  b.cylinder(0, 0.02, 0, 0.15, 0.17, 0.04, '#B98B3A', 16, 'y', FLAT);
-  b.cylinder(0, 0.62, 0, 0.022, 0.022, 1.16, '#C9A04E', 8, 'y', FLAT);
-  b.sphere(0, 0.62, 0, 0.04, '#B98B3A', 1, 1);
-  glow.cylinder(0, 1.26, 0, 0.12, 0.22, 0.28, '#FFE2A6', 18, 'y', { shade: 1 });
-  b.cylinder(0, 1.41, 0, 0.125, 0.125, 0.02, '#9C6E2E', 18, 'y', FLAT);
-  const g = group(b, glow, x, z);
-  g.add(lightPool(0.75));
+  b.cylinder(0, 0.02, 0, 0.13, 0.15, 0.04, '#9C7432', 16, 'y', FLAT);
+  b.cylinder(0, 0.56, 0, 0.02, 0.02, 1.04, '#B8903F', 8, 'y', FLAT);
+  b.cylinder(0, 1.14, 0, 0.1, 0.17, 0.24, '#E9D2A4', 18, 'y', { shade: 0.95 });
+  b.cylinder(0, 1.265, 0, 0.102, 0.102, 0.012, '#8C6A30', 18, 'y', FLAT);
+  b.cylinder(0, 1.015, 0, 0.172, 0.172, 0.012, '#8C6A30', 18, 'y', FLAT);
+  const g = group(b, null, x, z);
+  g.add(lightPool(0.55));
   return g;
 }
 
-/** A big bouquet in a tall glazed vase: roses, daisies and greenery, almost waist high. */
+/**
+ * Fresh flowers: a small round side table with a white vase on it and a neat posy of roses and sprigs of green, about
+ * hip high (so it reads, without towering over the room).
+ */
 export function bouquet(x: number, z: number): THREE.Group {
   const b = new GeoBuilder();
-  b.cylinder(0, 0.2, 0, 0.11, 0.15, 0.4, '#3D6FB6', 14, 'y', { shade: 0.95 });
-  b.cylinder(0, 0.41, 0, 0.13, 0.11, 0.04, '#2F5A99', 14, 'y', FLAT);
-  // Greenery first, then the blooms over it.
-  for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * Math.PI * 2;
-    b.cone(Math.cos(a) * 0.13, 0.62, Math.sin(a) * 0.13, 0.07, 0.3, '#4F9A4A', 5, { shade: 0.9 });
+  // The table: a round top on a turned leg and a foot.
+  b.cylinder(0, 0.015, 0, 0.12, 0.13, 0.03, '#6B4429', 14, 'y', FLAT);
+  b.cylinder(0, 0.22, 0, 0.025, 0.035, 0.4, '#7A4E2D', 10, 'y', FLAT);
+  b.cylinder(0, 0.435, 0, 0.17, 0.17, 0.03, '#8A5A33', 18, 'y', { shade: 0.95 });
+  // A small white vase, a little narrower at the neck.
+  b.cylinder(0, 0.53, 0, 0.055, 0.07, 0.16, '#F4F1EA', 14, 'y', { shade: 0.95 });
+  b.cylinder(0, 0.62, 0, 0.045, 0.05, 0.03, '#E8E3DA', 14, 'y', FLAT);
+  // Leaves, then roses in a soft dome: two pinks, white and a touch of yellow.
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.3;
+    b.cone(Math.cos(a) * 0.07, 0.69, Math.sin(a) * 0.07, 0.035, 0.12, '#5E9E4E', 5, { shade: 0.9 });
   }
-  const blooms: [number, number, number, number, string][] = [
-    [0, 0.84, 0, 0.1, '#F06A8A'], [0.12, 0.76, 0.04, 0.085, '#FFF4F0'], [-0.12, 0.77, 0.03, 0.085, '#FFD24A'],
-    [0.05, 0.74, -0.12, 0.08, '#E8455E'], [-0.04, 0.73, 0.13, 0.08, '#F7A7C0'], [0.13, 0.7, -0.08, 0.07, '#FFFFFF'],
-    [-0.13, 0.69, -0.09, 0.075, '#F06A8A'], [0.02, 0.92, 0.07, 0.07, '#FFD24A'],
+  const blooms: [number, number, number, string][] = [
+    [0, 0.77, 0, '#E86C8A'], [0.06, 0.73, 0.04, '#F7B4C6'], [-0.06, 0.73, 0.03, '#FFFFFF'],
+    [0.03, 0.72, -0.06, '#E86C8A'], [-0.04, 0.72, -0.05, '#F7B4C6'], [0.0, 0.71, 0.07, '#FFE07A'],
   ];
-  for (const [bx, by, bz, r, c] of blooms) {
-    b.sphere(bx, by, bz, r, c, 1, 0.85);
-    b.sphere(bx, by + r * 0.55, bz, r * 0.35, '#FFE78A', 0, 0.8);
-  }
+  for (const [bx, by, bz, c] of blooms) b.sphere(bx, by, bz, 0.04, c, 1, 0.8);
   return group(b, null, x, z);
 }
 
 /** A walnut minibar, its glass door lit from inside: bottles, cans, a bowl of fruit on top. */
 export function minibar(x: number, z: number): THREE.Group {
   const b = new GeoBuilder();
-  const glow = new GeoBuilder();
   b.box(0, 0.36, 0, 0.5, 0.72, 0.42, '#6B4429', 0, { shade: 0.9 });
-  // The glass door faces into the room (+z), lit inside, the drinks behind it.
-  glow.box(0, 0.38, 0.212, 0.4, 0.5, 0.008, '#BFE6F2', 0, FLAT);
+  // The glass door faces into the room (+z): a cool tint over the drinks (lit by the room, not glowing itself).
+  b.box(0, 0.38, 0.212, 0.4, 0.5, 0.008, '#8FB2BF', 0, FLAT);
   const colors = ['#E24B4B', '#3FA34D', '#F2C14E', '#4C7FD1'];
   for (let i = 0; i < 4; i++) b.cylinder(-0.13 + i * 0.087, 0.5, 0.22, 0.026, 0.026, 0.14, colors[i], 8, 'y', FLAT);
   for (let i = 0; i < 3; i++) b.box(-0.1 + i * 0.1, 0.24, 0.22, 0.06, 0.1, 0.012, colors[(i + 2) % 4], 0, FLAT);
@@ -96,7 +102,7 @@ export function minibar(x: number, z: number): THREE.Group {
   // A bowl of fruit on top.
   b.cylinder(0, 0.76, 0, 0.13, 0.08, 0.06, '#F4EFE6', 14, 'y', FLAT);
   for (const [fx, fz, c] of [[-0.05, 0, '#F0A030'], [0.05, 0.02, '#D9332E'], [0, -0.05, '#9BC53D']] as [number, number, string][]) b.sphere(fx, 0.82, fz, 0.05, c, 1, 1);
-  return group(b, glow, x, z);
+  return group(b, null, x, z);
 }
 
 /** A wooden newsstand against the wall: slanted shelves of the morning papers under a little sign. */
@@ -141,11 +147,78 @@ export function shoeStand(r: Rect): THREE.Group {
   return group(b, null, cx, cz);
 }
 
-/** What a washroom guest leaves: a puddle by the basin, crumpled paper towels, an unrolled loo roll. */
-export function washMess(x: number, z: number): THREE.Group {
+/**
+ * The washroom's front corner: a curved wall (knee high like every wall inside the cut-away) from the end of the
+ * front wall round to the partition, tiled white with a wooden cap.
+ */
+export function curvedWall(cx: number, cz: number, radius: number, height: number): THREE.Group {
   const b = new GeoBuilder();
-  b.disc(0, 0.006, 0, 0.32, '#8FC3DB', 20, { shade: 1 });
-  for (const [px, pz] of [[0.42, -0.12], [-0.3, 0.28], [0.18, 0.36]] as [number, number][]) b.sphere(px, 0.05, pz, 0.055, '#F4F1EA', 0, 0.8);
-  b.box(-0.18, 0.008, -0.28, 0.12, 0.012, 0.5, '#FFFFFF', 0.4, FLAT);
-  return group(b, null, x, z);
+  const n = 14;
+  for (let i = 0; i < n; i++) {
+    const a0 = (i / n) * (Math.PI / 2);
+    const a1 = ((i + 1) / n) * (Math.PI / 2);
+    const am = (a0 + a1) / 2;
+    const x = cx - Math.cos(am) * radius;
+    const z = cz - Math.sin(am) * radius;
+    const len = radius * (a1 - a0) + 0.012;
+    // Each segment lies along the curve's tangent.
+    const rot = Math.atan2(Math.sin(am), -Math.cos(am));
+    b.box(x, height / 2, z, len, height, 0.12, '#EDE6DA', rot, { shade: 0.9 });
+    b.box(x, height + 0.015, z, len, 0.03, 0.15, '#9C6E40', rot, FLAT);
+  }
+  return group(b, null, 0, 0);
+}
+
+/** A sliding door of frosted glass in a brass frame (knee high, like the walls), its own group to slide. */
+export function slidingDoor(length: number, height: number): THREE.Group {
+  const b = new GeoBuilder();
+  b.box(0, height / 2, 0, 0.05, height, length, '#CFE3EA', 0, { shade: 0.95 });
+  b.box(0, height, 0, 0.07, 0.03, length, '#C9A04E', 0, FLAT);
+  for (const z of [-length / 2 + 0.02, length / 2 - 0.02]) b.box(0, height / 2, z, 0.07, height, 0.04, '#C9A04E', 0, FLAT);
+  b.box(-0.04, height * 0.55, length / 2 - 0.14, 0.02, 0.14, 0.03, '#8C6A30', 0, FLAT);
+  const g = group(b, null, 0, 0);
+  return g;
+}
+
+/** What a washroom guest leaves, piece by piece (so it can arrive and be cleaned up one bit at a time). */
+export interface WashMess {
+  group: THREE.Group;
+  puddle: THREE.Group;
+  pieces: THREE.Group[];
+}
+function piece(build: (b: GeoBuilder) => void, x: number, z: number): THREE.Group {
+  const b = new GeoBuilder();
+  build(b);
+  const g = new THREE.Group();
+  const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+  mesh.receiveShadow = true;
+  g.add(mesh);
+  g.position.set(x, 0, z);
+  return g;
+}
+export function washMess(x: number, z: number): WashMess {
+  const group = new THREE.Group();
+  group.position.set(x, FLOOR_Y, z);
+  const puddle = piece((b) => {
+    b.disc(0, 0.005, 0, 0.3, '#86BBD4', 22, { shade: 1 });
+    b.disc(0.22, 0.006, 0.12, 0.12, '#86BBD4', 16, { shade: 1 });
+    b.disc(0.06, 0.007, -0.04, 0.1, '#B5D9E8', 14, { shade: 1 });
+  }, 0, 0);
+  // A towel dropped in a heap, paper towels screwed up, the loo roll trailing across the floor.
+  const towel = piece((b) => {
+    b.rounded(0, 0.04, 0, 0.3, 0.08, 0.22, 0.04, '#F29CA8', { shade: 0.95 });
+    b.rounded(0.05, 0.09, 0.02, 0.18, 0.05, 0.14, 0.03, '#F6B7C0', { shade: 0.95 });
+  }, 0.45, -0.2);
+  const papers = [[-0.32, 0.3], [0.1, 0.38], [-0.12, -0.34]].map(([px, pz]) =>
+    piece((b) => {
+      b.sphere(0, 0.045, 0, 0.05, '#F4F1EA', 0, 0.8);
+      b.sphere(0.02, 0.06, 0.01, 0.03, '#FFFFFF', 0, 0.8);
+    }, px, pz));
+  const roll = piece((b) => {
+    b.cylinder(0, 0.05, 0, 0.05, 0.05, 0.1, '#FFFFFF', 12, 'x', { shade: 0.95 });
+    b.box(-0.3, 0.006, 0.02, 0.5, 0.008, 0.1, '#FFFFFF', 0, FLAT);
+  }, -0.42, -0.05);
+  const pieces = [towel, ...papers, roll];
+  group.add(puddle, ...pieces);
+  return { group, puddle, pieces };
 }

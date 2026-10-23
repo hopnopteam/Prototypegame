@@ -99,7 +99,7 @@ body { font-family: 'Jost', 'Futura', 'Century Gothic', 'Trebuchet MS', sans-ser
 .ad-class.on .ad-class-card { animation: classIn 2.6s cubic-bezier(.3,1.5,.5,1) forwards; }
 .ad-class-card canvas { width: 92px; height: 92px; filter: drop-shadow(0 3px 0 rgba(0,0,0,0.3)); }
 .ad-class-card b { font-weight: 900; font-size: 30px; color: #fff; letter-spacing: 0.03em; -webkit-text-stroke: 5px var(--cls); paint-order: stroke fill; white-space: nowrap; }
-.ad-stars { width: 120px; height: 32px; }
+.ad-class-card canvas.ad-stars { width: 120px; height: 32px; filter: none; }
 .ad-class-card i { font-style: normal; font-weight: 800; font-size: 18px; color: #9BF04A; }
 @keyframes classIn {
   0% { opacity: 0; transform: scale(0.4); } 12% { opacity: 1; transform: scale(1.08); } 20% { transform: scale(1); }

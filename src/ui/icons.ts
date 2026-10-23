@@ -65,27 +65,40 @@ const star = (c: CanvasRenderingContext2D, cx: number, cy: number, outer: number
 const ICONS: Record<IconName, Draw> = {
   newspaper: (c) => ICONS.news(c),
   breakfast: (c) => {
-    // A breakfast tray: a croissant and a cup of coffee.
+    // Breakfast on a plate: a slice of toast and a fried egg (food at a glance, nothing like the café's croissant).
     c.beginPath();
-    c.ellipse(50, 72, 42, 14, 0, 0, Math.PI * 2);
-    fillStroke(c, '#E2B653');
+    c.ellipse(50, 60, 44, 26, 0, 0, Math.PI * 2);
+    fillStroke(c, '#FFFFFF');
     c.beginPath();
-    c.moveTo(16, 64);
-    c.quadraticCurveTo(26, 38, 46, 38);
-    c.quadraticCurveTo(62, 40, 64, 62);
-    c.quadraticCurveTo(54, 56, 48, 60);
-    c.quadraticCurveTo(34, 68, 24, 60);
-    c.closePath();
-    fillStroke(c, '#E7A84B', 5);
-    rr(c, 62, 34, 22, 26, 6);
-    fillStroke(c, '#FFFFFF', 5);
-    c.beginPath();
-    c.arc(86, 46, 6, -1.3, 1.3);
-    c.lineWidth = 4;
-    c.strokeStyle = INK;
+    c.ellipse(50, 60, 34, 18, 0, 0, Math.PI * 2);
+    c.lineWidth = 3;
+    c.strokeStyle = '#9DB8D9';
     c.stroke();
-    c.fillStyle = '#5A3524';
-    c.fillRect(65, 37, 16, 5);
+    // Toast: golden with a darker crust.
+    c.save();
+    c.translate(33, 56);
+    c.rotate(-0.25);
+    rr(c, -16, -15, 32, 30, 7);
+    fillStroke(c, '#C98A3E', 5);
+    rr(c, -11, -10, 22, 20, 5);
+    c.fillStyle = '#F2C774';
+    c.fill();
+    c.restore();
+    // A fried egg: an uneven white and a round yolk.
+    c.beginPath();
+    c.moveTo(56, 52);
+    c.bezierCurveTo(60, 38, 82, 40, 84, 52);
+    c.bezierCurveTo(90, 62, 80, 74, 68, 72);
+    c.bezierCurveTo(56, 74, 50, 64, 56, 52);
+    c.closePath();
+    fillStroke(c, '#FFFDF6', 5);
+    c.beginPath();
+    c.arc(70, 57, 8, 0, Math.PI * 2);
+    fillStroke(c, '#FFB21E', 4);
+    c.beginPath();
+    c.arc(67, 54, 2.5, 0, Math.PI * 2);
+    c.fillStyle = '#FFE59A';
+    c.fill();
   },
   wakeup: (c) => {
     // An alarm clock with its two bells: the wake-up call.

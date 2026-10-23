@@ -1764,7 +1764,7 @@ export class CarriageView {
   private buildRoomDoors(): void {
     const doors: { kind: 'cabin' | 'bath'; index: number; span: [number, number] }[] = [
       ...this.layout.cabins.map((c) => ({ kind: 'cabin' as const, index: c.index, span: c.door })),
-      ...this.layout.bathrooms.map((b) => ({ kind: 'bath' as const, index: b.index, span: b.door })),
+      ...this.layout.bathrooms.filter((b) => !b.sliding).map((b) => ({ kind: 'bath' as const, index: b.index, span: b.door })),
     ];
     if (doors.length === 0) return;
     const x = (PARTITION_X0 + PARTITION_X1) / 2;
@@ -1804,7 +1804,7 @@ export class CarriageView {
   private buildDoorFrames(s: GeoBuilder): void {
     const x = (PARTITION_X0 + PARTITION_X1) / 2;
     const thick = PARTITION_X1 - PARTITION_X0;
-    const spans = [...this.layout.cabins.map((c) => c.door), ...this.layout.bathrooms.map((b) => b.door)];
+    const spans = [...this.layout.cabins.map((c) => c.door), ...this.layout.bathrooms.filter((b) => !b.sliding).map((b) => b.door)];
     for (const span of spans) {
       for (const z of span) s.box(x, FLOOR_Y + (INTERIOR_WALL_HEIGHT + 0.06) / 2, z, thick + 0.04, INTERIOR_WALL_HEIGHT + 0.06, 0.06, this.finish.cap, 0, { shade: 0.85 });
       s.box(x, FLOOR_Y + 0.004, (span[0] + span[1]) / 2, thick, 0.008, span[1] - span[0], this.doorMetal(), 0, FLAT);
@@ -2316,6 +2316,16 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
     case 'sofa': {
       const cushion = tier <= 0 ? '#8E8577' : theme.deep;
       b.slab(r, y + 0.08, y + 0.3, tier <= 0 ? '#7B6A58' : wood, 0, 0.02, { shade: 0.75 });
+      if (prop.facing === 'rear' || prop.facing === 'front') {
+        // Against an end wall: the back along that wall, the arms at its two ends, seated toward the room.
+        const back = prop.facing === 'rear' ? r.z0 + 0.09 : r.z1 - 0.09;
+        const seat = prop.facing === 'rear' ? 0.05 : -0.05;
+        b.rounded(cx, y + 0.36, cz + seat, w - 0.2, 0.12, d - 0.16, 0.05, cushion, { shade: 0.9 });
+        b.rounded(cx, y + 0.58, back, w - 0.04, 0.5, 0.16, 0.06, cushion, { shade: 0.85 });
+        for (const ax of [r.x0 + 0.08, r.x1 - 0.08]) b.rounded(ax, y + 0.44, cz, 0.14, 0.3, d - 0.08, 0.05, cushion, { shade: 0.85 });
+        if (tier >= 2) for (const px of [cx - w * 0.22, cx + w * 0.22]) b.rounded(px, y + 0.48, cz + seat, 0.3, 0.18, 0.12, 0.05, PALETTE.pillow, { shade: 0.9 });
+        break;
+      }
       b.rounded(cx + (prop.facing === 'right' ? 0.05 : -0.05), y + 0.36, cz, w - 0.16, 0.12, d - 0.2, 0.05, cushion, { shade: 0.9 });
       const backX = prop.facing === 'right' ? r.x0 + 0.09 : r.x1 - 0.09;
       b.rounded(backX, y + 0.58, cz, 0.16, 0.5, d - 0.04, 0.06, cushion, { shade: 0.85 });

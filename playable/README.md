@@ -11,8 +11,9 @@ icon and Install in the corners (after the reference), then it fades into play.
 
 **The lobby (the playable's own plan, `useCompactLobby` in `src/world/layout.ts`; the game's lobby is unchanged).**
 Reception up front: the desk, the urn's counter (tea, coffee and a breakfast tray), the linen cupboard, the waiting sofa
-against the front wall, the luggage rack and a newsstand along the right wall. Behind it a small washroom (a loo and a
-basin) and **four rooms**. The shoe-shine stand stands in the rear vestibule. **Four guests**, one per room.
+against the front wall (back to the wall, facing the room), the luggage rack and a newsstand along the right wall. Behind
+it a small washroom (a loo and a basin, a curved front corner and a wide sliding door of frosted glass) and **four
+rooms**. **Four guests**, one per room; whenever a room is free the next waiting guest comes to the desk.
 
 **Tutorial (~0:00–1:00), light on purpose.** One room open; the others are covered and padlocked. Only passenger 1 is
 walked through, one short line at a time (*Check in the guest* → *Get their bag* → *Bring it to their room* → *Buy Room
@@ -22,18 +23,17 @@ standing still. From then on, no arrows or lines unless the player stops for 5 s
 **One request at a time.** While the conductor works alone, only one guest asks for something at a time; when it is
 done, the next asks. With the Attendant, two at a time.
 
-**Where things are.** Every station wears a small painted plaque on its furniture, still and quiet: coffee + breakfast
-on the urn's counter, blanket + towel on the linen cupboard, the suitcase on the rack, the paper on the newsstand, the
-shoe on the shoe-shine stand, a latte on the espresso machine, a croissant on the pastry case, popcorn at the counter,
-the film reel on the projector. What a guest wants is in their bubble; matching it to a plaque is the game.
+**Where things are.** A station's badge (its icon) floats over it only while something there is needed, and fades away
+when it is not; what a guest wants is in their bubble.
 
 **The jobs (different walks).**
 - Check-in at the desk, then the guest's bag from the rack (one bag per guest, asked for once, carried one at a time).
 - A blanket once, a towel once (Comfort), then round again, never the same twice running: tea (coffee in Luxury) or
-  breakfast from the urn's counter, the paper from the newsstand, or **their shoes**: collect them from the room, shine
-  them at the stand at the back of the carriage, bring them back (pays more).
-- **The washroom:** now and then a guest uses it; it is left messy (a puddle, paper towels) with a broom badge over it;
-  tidy it from anywhere inside for a tip.
+  breakfast from the urn's counter, the paper from the newsstand, or **their shoes**: they leave them in the corridor
+  outside their door; stand on them a moment and they shine (pays more).
+- **The washroom:** now and then a guest uses it; the mess arrives animated (the puddle spreads, a towel, paper towels
+  and the loo roll drop in, flies buzz over it) under a broom badge; tidy it from anywhere inside and the pieces go one
+  by one as the ring fills, the puddle dries, "Spotless!" and a tip.
 - Later the café (lattes, then croissants) and the theatre (start the film at the projector, popcorn).
 
 Every payment: "+$X" over whoever paid and a burst of coins flying to the money counter.
@@ -49,10 +49,10 @@ carriage) appears once every small one before it is bought. Paying fills the til
 | # | Upgrade | Kind | Price | What you see |
 |---|---|---|---|---|
 | 1 | Room 2 | tutorial | $20 | the lid lifts off the room, the bed drops in |
-| 2–6 | Room 3, Reading Lamps, Room 4, Fresh Flowers, Lobby Rug | small | $40–65 | rooms open; a tall lit floor lamp and a big bouquet in every room; a red rug |
+| 2–6 | Room 3, Reading Lamps, Room 4, Fresh Flowers, Lobby Rug | small | $40–65 | rooms open; a brass reading lamp by each bed (a soft warm pool, nothing glaring); flowers on a little side table by each room's back wall; a red rug |
 | 7 | Attendant | big | $120 | she arrives (fast from the start) and takes requests the player leaves for 4 s |
 | 8 | Comfort Class | big | $170 | the makeover sweeps the lobby; class card |
-| 9–10 | Minibars, Skates | small | $110–120 | a lit glass-front minibar in every room; the conductor glides 15% faster |
+| 9–10 | Minibars, Skates | small | $110–120 | a glass-front minibar in every room; skates on the conductor's feet, 15% faster |
 | 11 | Café Car | big | $130 | rolls in under a tarp, ropes snap, the tarp slides off |
 | 12 | Pastry Stand | small | $110 | croissants on the counter |
 | 13 | Luxury Class | big | $170 | navy and gold makeover |

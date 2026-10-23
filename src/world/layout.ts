@@ -157,6 +157,8 @@ export interface BathroomLayout {
   useSpot: Vec2;
   node: string;
   useNode: string;
+  /** A sliding door drawn by whoever builds this washroom (no hinged leaves, no frame). */
+  sliding?: boolean;
 }
 
 export interface DoorLayout {
@@ -607,13 +609,15 @@ function buildLobby(tier: number): CarriageLayout {
 export const COMPACT_LOBBY = {
   end: 5.4,
   washEnd: 7.3,
-  washDoor: 1.1,
-  newsstand: rect(1.86, 4.62, INNER, 5.26),
-  /** The shoe-shine stand in the rear vestibule (a job at the far end of the carriage). */
-  shoeStand: rect(1.55, 16.66, INNER, 17.4),
-  /** In each room, a strip along its front wall where the room's upgrades stand (lamp, flowers, minibar). */
+  washDoor: 1.2,
+  newsstand: rect(1.84, 4.66, INNER - 0.08, 5.2),
+  /** In each room, a strip along its front wall (clear of the door leaves' swing) for the lamp and the minibar. */
   decorDepth: 0.5,
-  sofa: rect(0.98, WALL + 0.02, INNER, 0.8),
+  decorX0: 0.32,
+  /** The washroom's entry: a wide sliding door off the corridor, its front corner a curved wall (radius). */
+  washDoorZ0: 6.05,
+  washCurve: 0.62,
+  sofa: rect(1.02, WALL + 0.06, INNER - 0.08, 0.8),
 };
 function buildCompactLobby(tier: number): CarriageLayout {
   const b = new LayoutBuilder('lobby');
@@ -664,15 +668,25 @@ function buildCompactLobby(tier: number): CarriageLayout {
   // The washroom: small, well kept (a loo by the window, a basin with a mirror), a narrow door off the corridor.
   const z0 = end;
   const z1 = washEnd;
-  const doorZ = (z0 + z1) / 2;
-  const door: [number, number] = [doorZ - COMPACT_LOBBY.washDoor / 2, doorZ + COMPACT_LOBBY.washDoor / 2];
-  b.wall(PARTITION_X1, z0 - 0.06, INNER, z0 + 0.06);
+  const door: [number, number] = [COMPACT_LOBBY.washDoorZ0, Math.min(z1 - 0.05, COMPACT_LOBBY.washDoorZ0 + COMPACT_LOBBY.washDoor)];
+  const doorZ = (door[0] + door[1]) / 2;
+  // The front wall stops short of the corridor: the corner between it and the partition is a curved wall, drawn by
+  // the playable (here it only blocks: a few small rects along the curve).
+  const R = COMPACT_LOBBY.washCurve;
+  b.wall(PARTITION_X1 + R, z0 - 0.06, INNER, z0 + 0.06);
+  for (let i = 0; i < 6; i++) {
+    const a = ((i + 0.5) / 6) * (Math.PI / 2);
+    const cx = PARTITION_X1 + R - Math.cos(a) * R;
+    const cz = z0 + R - Math.sin(a) * R;
+    b.layout.blocked.push(rect(cx - 0.09, cz - 0.09, cx + 0.09, cz + 0.09));
+  }
   b.room(PARTITION_X1, z0 + 0.06, INNER, z1 - 0.06);
   b.connector(-INNER, z0 - 0.5, PARTITION_X0, z1 + 0.5, 'z');
   b.connector(PARTITION_X0 - 0.45, door[0], PARTITION_X1 + 0.45, door[1], 'x', false, 'bath:0');
   b.prop('toilet', INNER - 0.62, z0 + 0.2, INNER, z0 + 0.85, 'left');
   b.prop('sink', INNER - 0.5, z1 - 0.78, INNER, z1 - 0.2, 'left');
-  b.wallAlongZ(PARTITION_X0, PARTITION_X1, z0, z1, [door], 'interior');
+  // The partition along the washroom: from the end of the curve to the door, and past the door to the next room.
+  b.wallAlongZ(PARTITION_X0, PARTITION_X1, z0 + R, z1, [door], 'interior');
   const corridorNode = b.node('corr_w', (-INNER + PARTITION_X0) / 2, doorZ);
   const node = b.node('bath_0', PARTITION_X1 + 0.7, doorZ);
   const useNode = b.node('bath_use_0', INNER - 1.0, z0 + 0.55);
@@ -686,12 +700,15 @@ function buildCompactLobby(tier: number): CarriageLayout {
     useSpot: { x: INNER - 1.0, z: z0 + 0.55 },
     node,
     useNode,
+    sliding: true,
   });
   const [, style] = LOBBY_ROOMS[Math.min(LOBBY_ROOMS.length - 1, Math.max(0, tier))];
   b.rooms(washEnd, INTERIOR_END, 4, corridorNode, style);
-  b.layout.blocked.push(COMPACT_LOBBY.shoeStand);
-  b.anchor('shoe', 0.95, 17.03);
-  for (const cabin of b.layout.cabins) b.layout.blocked.push(rect(cabin.room.x0 + 0.04, cabin.room.z0, cabin.bed.x0 - 0.12, cabin.room.z0 + COMPACT_LOBBY.decorDepth));
+  for (const cabin of b.layout.cabins) {
+    // The lamp and the minibar along the front wall; the flowers on a little table by the back wall.
+    b.layout.blocked.push(rect(COMPACT_LOBBY.decorX0, cabin.room.z0, cabin.bed.x0 - 0.04, cabin.room.z0 + COMPACT_LOBBY.decorDepth));
+    b.layout.blocked.push(rect(0.5, cabin.room.z1 - 0.48, 0.9, cabin.room.z1 - 0.08));
+  }
   return b.layout;
 }
 /** The playable ad's lobby replaces the game's (call before any carriage is built). */
