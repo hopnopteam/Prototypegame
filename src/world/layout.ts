@@ -567,6 +567,8 @@ function buildLobby(tier: number): CarriageLayout {
   b.anchor('bin', out(1.66), 4.72);
   // The rack's upgrade tiles wait beside it, toward the cabins.
   b.anchor('tile_rack', 0.62, 7.98);
+  // Session 37: the conductor's shoes (walking speed), between the waiting line and the rack.
+  b.anchor('tile_shoes', 0.85, 5.65);
   b.anchor('home_attendant', -0.55, 6.95);
   b.anchor('tile_up_attendant', -0.55, 6.95);
   // The porter's post is at the carriage's back door, out of the busy lobby.

@@ -153,7 +153,9 @@ export type UnlockKind =
   // Session 22: the opening's covered carriage, opened at its door.
   | 'open'
   // Session 26: the lobby's luggage rack, made bigger (it replaces the Luggage Car).
-  | 'rack';
+  | 'rack'
+  // Session 37: the conductor's shoes, each pair a brisker walk (it replaces the Rail Miles speed upgrade).
+  | 'shoes';
 
 /** Small comforts bought per carriage: each shows up in every room and lifts that carriage's tips. */
 /** Fix list 4.6: the minibar replaced the radio (its tiles keep the `comfort_radio` id, so old saves keep it). */
@@ -262,7 +264,9 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       // (was 45, about 3.5×), on show from the end of the opening with its count, and payable once the conductor has
       // tidied 6 rooms and served 15 requests by hand (about 8 minutes in on the autopilot: rooms come about one a
       // minute early on, as guests ride several stops; 12 rooms took 14 minutes and left nothing to buy for 3).
-      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 160, stars: 4, role: 'attendant', requires: ['cabin_1', '@couple_1'], work: { rooms: 6, requests: 15 }, effect: 'Tidies, serves' },
+      // Session 37: 120 (was 160): with the Café Car first, its tiles compete for the same early takings (the work was
+      // earned at 4:34 on the autopilot, the money only at 24:45).
+      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 120, stars: 4, role: 'attendant', requires: ['cabin_1', '@couple_1'], work: { rooms: 6, requests: 15 }, effect: 'Tidies, serves' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 60, stars: 3, tier: 1, requires: ['cabin_2'], effect: 'Fares +25%' },
       // Session 17: 30 (was 35). Bought on the first leg for the travellers waiting at the first stop.
       { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 25, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
@@ -272,6 +276,13 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       // hold more luggage, and on upgrade it gets bigger"): the rack grows along the wall, then turns brass.
       // Session 33 (owner: "the baggage upgrade comes too early"): after the porter and the third carriage (it was
       // after the first coupling), the grand rack after the fifth.
+      // Session 37 (owner: "the player should start normal, a little slow even, but as we grow it gets faster… first
+      // upgrade in movement speed should come earlier… like my perfect hotel"): walking speed is bought in the lobby,
+      // one pair of shoes at a time (each `player.shoes.perLevel` faster), the first straight after the Repair.
+      { key: 'shoes_1', kind: 'shoes', label: 'Comfy Shoes', price: 45, stars: 2, requires: ['refurb_1'], effect: 'Walk faster' },
+      { key: 'shoes_2', kind: 'shoes', label: 'Sport Shoes', price: 110, stars: 2, requires: ['shoes_1', '@couple_2'], effect: 'Walk faster' },
+      { key: 'shoes_3', kind: 'shoes', label: 'Swift Shoes', price: 240, stars: 2, requires: ['shoes_2', '@couple_4'], effect: 'Walk faster' },
+      { key: 'shoes_4', kind: 'shoes', label: 'Gold Shoes', price: 480, stars: 3, requires: ['shoes_3', '@couple_6'], effect: 'Walk faster' },
       { key: 'rack_1', kind: 'rack', label: 'Bigger Rack', price: 240, stars: 2, requires: ['hire_porter', '@couple_3'], effect: '+3 bags' },
       { key: 'rack_2', kind: 'rack', label: 'Grand Rack', price: 480, stars: 3, requires: ['rack_1', '@couple_5'], effect: '+3 bags' },
       // Session 29: earned like the attendant (tickets sold and bags loaded by hand); the bell stays the conductor's.
@@ -457,7 +468,9 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
  * Sleeper (more guests to feed the café and washrooms), then the big ones: the Dining Car (cook, serve, clear), the
  * Cinema (choose when the film starts), the Bar Lounge (Happy Hour) and the Observation Dome (scenic views).
  */
-export const CARRIAGE_ORDER: CarriageType[] = ['lobby', 'sleeper', 'bathroom', 'cafe', 'sleeper', 'dining', 'cinema', 'bar', 'dome'];
+// Session 37 (owner: "the first upgrade should be a cafe car, not sleeping carriage, the sleeping carriage should be
+// upgrade after"): the Café Car is the first coupling; it opens the passenger routine (every guest's outings) at once.
+export const CARRIAGE_ORDER: CarriageType[] = ['lobby', 'cafe', 'sleeper', 'bathroom', 'sleeper', 'dining', 'cinema', 'bar', 'dome'];
 /** Each carriage type's emblem (the train map, the card as it is unveiled). */
 export const CARRIAGE_ICON: Record<CarriageType, IconName> = {
   lobby: 'ticket', sleeper: 'bed', bathroom: 'bath', supply: 'towel', luggage: 'luggage',
@@ -481,8 +494,12 @@ export const COUPLE_SLOTS: CoupleSlot[] = [
   // attendant, so the help arrives just as there is a new carriage (and its new work) to save for.
   { price: 140, stars: 6, requires: ['c0.refurb_1'] },
   // 200 (was 240): the attendant's 160 has just been spent, and the wait for this one is short (136 s at 240 on the autopilot).
-  { price: 200, stars: 6, requires: ['couple_1', 'c0.hire_attendant'] },
-  { price: 320, stars: 8, requires: ['couple_2'] },
+  // Session 37: with the Café Car first, this coupling brings the Sleeper (more rooms, which is what earns the
+  // attendant), so it no longer waits for the attendant; the third (the Washroom Car, a new chore) does.
+  // Session 37: 110 (was 200): with the café first only the lobby's three rooms earn, and the Sleeper is what grows the
+  // takings (at 200 the autopilot had not saved for it after 18 minutes).
+  { price: 110, stars: 6, requires: ['couple_1'] },
+  { price: 320, stars: 8, requires: ['couple_2', 'c0.hire_attendant'] },
   { price: 460, stars: 8, requires: ['couple_3'] },
   // Session 20: three more couplings for the venues (route 1 holds eight carriages).
   { price: 680, stars: 9, requires: ['couple_4'] },

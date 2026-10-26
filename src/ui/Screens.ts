@@ -241,12 +241,29 @@ export class Screens {
     close = this.sheet('Menu', 'menu', [
       RIVALS_ENABLED ? row('trophy', 'League', `#${standing.rank} of ${standing.total}`, go(() => this.leagueSheet())) : null,
       row('star', 'Route level', `Level ${g.progression.level}`, go(() => this.progress())),
+      g.objectives.visible ? row(g.objectives.visible.icon, 'Goal', `${g.objectives.visible.text} · ${Math.min(g.objectives.shown.progress, g.objectives.shown.target)}/${g.objectives.shown.target}`, go(() => this.goal())) : null,
       g.progression.isFeatureUnlocked('conductorUpgrades') ? row('conductor', 'Conductor', 'Upgrades and outfits', go(() => this.upgrades()), upgrades) : null,
       MONETIZATION_ENABLED ? null : row('paint', 'Paint Shop', 'Liveries for your train', go(() => this.paintSheet())),
       g.meta.questsUnlocked() || g.meta.loginUnlocked() ? row('calendar', 'Daily', 'Calendar and quests', go(() => this.daily()), dailyCount) : null,
       g.data.meta.postcards.length > 0 ? row('album', 'Postcards', `${g.data.meta.postcards.length} collected`, go(() => this.album())) : null,
       row('gear', 'Settings', 'Sound, vibration, more', go(() => this.settings())),
     ], { className: 'menu-sheet' });
+  }
+
+  /** Session 37: the current goal, its progress and reward (goals no longer sit on the play screen). */
+  goal(): void {
+    const g = this.game;
+    const def = g.objectives.visible;
+    if (!def) return;
+    const { progress, target } = g.objectives.shown;
+    const pct = Math.round((Math.min(progress, target) / target) * 100);
+    const r = def.reward;
+    const reward = r.cash ? `${formatNumber(r.cash)} Fares` : r.gems ? `${r.gems} gems` : r.railMiles ? `${r.railMiles} Rail Miles` : '';
+    this.sheet('Goal', def.icon, [
+      h('div.quest', {}, icon(def.icon, 30), h('div.info', {}, `${def.text} · ${Math.min(progress, target)} / ${target}`, h('div.bar', {}, h('i', { style: { width: `${pct}%` } })))),
+      reward ? h('p', { text: `Reward: ${reward}` }) : null,
+      def.event === 'conductor' ? h('button.btn', { text: 'Conductor', onclick: () => this.upgrades() }) : null,
+    ]);
   }
 
   /** The next Golden Whistle (fix list 4.4): the Train Rating to hold and how many stops in a row so far. */
@@ -466,7 +483,7 @@ export class Screens {
     const g = this.game;
     const miles = g.wallet.get('railMiles');
     let n = 0;
-    for (const key of ['speed', 'capacity', 'fareBonus'] as const) {
+    for (const key of ['capacity', 'fareBonus'] as const) {
       const cost = conductorCost(g.econ.conductor[key], g.data.conductor[key]);
       if (cost !== null && cost <= miles) n++;
     }
@@ -483,8 +500,8 @@ export class Screens {
       if (key === 'speed') return `${(base.moveSpeed * (1 + level * track.perLevel)).toFixed(1)} m/s`;
       return `+${Math.round(level * track.perLevel * 100)}%`;
     };
+    // Session 37: walking speed is bought in the lobby (the Shoes tiles), not with Rail Miles.
     const rows = ([
-      ['speed', 'Brisk stride', 'Walking speed', 'bolt'],
       ['capacity', 'Strong arms', 'Carry at once', 'box'],
       ['fareBonus', 'Charm', 'Every fare', 'ticket'],
     ] as const).map(([key, name, desc, iconName]) => {

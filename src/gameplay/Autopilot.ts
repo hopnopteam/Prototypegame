@@ -27,7 +27,7 @@ export class Autopilot {
     this.repath -= dt;
     // Like a player who follows the Rail Miles hint: spend them as soon as the Conductor sheet unlocks.
     if (w.progression.level >= w.econ.progression.unlockLevels.conductorUpgrades) {
-      for (const key of ['speed', 'capacity', 'fareBonus'] as const) if (w.buyConductorUpgrade(key)) break;
+      for (const key of ['capacity', 'fareBonus'] as const) if (w.buyConductorUpgrade(key)) break;
     }
     const target = w.guidance.bestTarget(true);
     const changed = !target || !this.target || Math.hypot(target.x - this.target.x, target.z - this.target.z) > 0.3;

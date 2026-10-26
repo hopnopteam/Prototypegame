@@ -63,6 +63,7 @@ const ICON_BY_KIND: Record<UnlockDef['kind'], IconName> = {
   station: 'gear',
   open: 'carriage',
   rack: 'luggage',
+  shoes: 'skate',
 };
 
 /** A tile's icon: its kind's, or for a venue's seats and menus the venue's own (a cup, a cloche, a glass). */
@@ -609,6 +610,9 @@ export class Tiles {
       // The lobby rack's upgrades wait beside the rack (session 26).
       case 'rack':
         return map.hasAnchor(def.carriage, 'tile_rack') ? map.anchor(def.carriage, 'tile_rack') : null;
+      // The conductor's shoes wait in the lobby, between the desk queue and the rack (session 37).
+      case 'shoes':
+        return map.hasAnchor(def.carriage, 'tile_shoes') ? map.anchor(def.carriage, 'tile_shoes') : null;
       case 'station': {
         // A venue with more than one station tile gives each its own spot (`tile_station_jukebox`, fix list 4.8).
         const own = `tile_${def.id.split('.')[1] ?? ''}`;

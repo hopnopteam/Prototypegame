@@ -376,20 +376,21 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 /* ── Coach line, tile labels, train map ──────────────── */
 /* Coach line: a label right where the action is, with a tail pointing at it. */
 .guide { position: absolute; left: 0; top: 0; z-index: 6; display: flex; align-items: center; gap: 6px; max-width: 200px; padding: 5px 11px 5px 5px; border-radius: 16px; background: var(--mustard); border: var(--line); box-shadow: 0 3px 0 var(--ink); font-weight: 800; font-size: 13px; line-height: 1.15; will-change: transform; pointer-events: none; }
-.guide.in { animation: guideIn 380ms cubic-bezier(.2,1.5,.4,1); }
+.guide.in { animation: guideIn 420ms ease-out; }
 .guide-icon { width: 28px; height: 28px; border-radius: 50%; background: var(--cream); border: 2px solid var(--ink); display: grid; place-items: center; flex: none; }
 .guide-text { min-width: 0; text-wrap: balance; white-space: nowrap; }
 /* After a moment the words fold away and the cue is just its icon, bobbing where the action is. */
 .guide.compact { padding: 4px; gap: 0; }
 .guide.compact .guide-text { display: none; }
-.guide.compact .guide-icon { animation: cueBob 1.1s ease-in-out infinite; }
-@keyframes cueBob { 50% { transform: translateY(-3px); } }
+.guide.compact .guide-icon { animation: cueBob 2.4s ease-in-out infinite; }
+@keyframes cueBob { 50% { transform: translateY(-2px); } }
 .guide::after { content: ''; position: absolute; width: 10px; height: 10px; background: var(--mustard); border: var(--line); border-width: 0 2.5px 2.5px 0; }
 .guide[data-tail="down"]::after { left: 50%; bottom: -7px; margin-left: -6px; transform: rotate(45deg); }
 .guide[data-tail="up"]::after { left: 50%; top: -7px; margin-left: -6px; transform: rotate(-135deg); }
 .guide[data-tail="left"]::after { left: -7px; top: 50%; margin-top: -6px; transform: rotate(135deg); }
 .guide[data-tail="right"]::after { right: -7px; top: 50%; margin-top: -6px; transform: rotate(-45deg); }
-@keyframes guideIn { from { opacity: 0; scale: 0.6; } }
+/* Session 37: a soft fade and rise (it used to pop in from 60% with an overshoot, which read as a flash). */
+@keyframes guideIn { from { opacity: 0; translate: 0 6px; } }
 /* The walk gesture: a hand sweeping a little arc in the thumb zone. */
 .gesture { position: absolute; z-index: 6; left: 50%; bottom: calc(var(--safe-bottom) + 22%); width: 160px; height: 120px; margin-left: -80px; pointer-events: none; }
 .gesture .track { position: absolute; left: 20px; right: 20px; top: 34px; height: 2px; border-top: 3px dashed #FBF3E4CC; border-radius: 2px; }
@@ -422,9 +423,9 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .trainmap .emblem { display: grid; place-items: center; width: 20px; height: 20px; }
 .trainmap .emblem .ico { width: 18px; height: 18px; }
 /* Fix list 5.8: the need badge sits on the corner, so the carriage's emblem always shows. */
-.trainmap .need { position: absolute; top: -7px; right: -9px; width: 20px; height: 20px; border-radius: 50%; background: var(--cream); border: 2px solid var(--ink); display: grid; place-items: center; animation: needPulse 1.2s ease-in-out infinite; box-sizing: border-box; }
+.trainmap .need { position: absolute; top: -7px; right: -9px; width: 20px; height: 20px; border-radius: 50%; background: var(--cream); border: 2px solid var(--ink); display: grid; place-items: center; animation: needPulse 2.4s ease-in-out infinite; box-sizing: border-box; }
 .trainmap .need .ico { width: 14px; height: 14px; }
-@keyframes needPulse { 50% { transform: scale(1.12); } }
+@keyframes needPulse { 50% { transform: scale(1.06); } }
 
 /* ── Sheets (modals) ──────────────────────────────────── */
 .scrim { position: absolute; z-index: 50; inset: 0; background: #1F355180; pointer-events: auto; animation: fade 200ms ease-out; display: flex; align-items: flex-end; justify-content: center; padding: 0 12px calc(var(--safe-bottom) + 12px); }
@@ -840,3 +841,91 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 
 /* Session 32: the character debug panel (?debug=1). */
 .char-debug { position: absolute; left: 6px; bottom: 6px; z-index: 60; padding: 4px 6px; border-radius: 6px; background: rgba(20, 18, 28, 0.72); color: #CFE9C8; font: 10px/1.3 ui-monospace, monospace; white-space: pre; pointer-events: none; }
+
+/* ── Session 37: chunkier, more 3D (owner: "the over all UI of the game is too flat… make sure it looks 3D and
+   actually quite similar to My perfect hotel", with screenshots) ──────────────────────────────────────────────
+   One language for every HUD piece: a glossy top highlight, a coloured lip under it and the ink line below that,
+   white lettering outlined in ink with a drop under it. Sizes and positions are unchanged (the layout audit holds);
+   only depth, gloss and lettering change. */
+:root {
+  --gloss: inset 0 3px 0 rgba(255, 255, 255, 0.75), inset 0 -5px 0 rgba(20, 30, 60, 0.22);
+  --outline-num: 0 2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink), 1.5px 1.5px 0 var(--ink), -1.5px 1.5px 0 var(--ink), 1.5px -1.5px 0 var(--ink), -1.5px -1.5px 0 var(--ink), 0 3.5px 0 var(--ink);
+  --outline-thin: 0 1.5px 0 var(--ink), 1.5px 0 0 var(--ink), -1.5px 0 0 var(--ink), 0 -1.5px 0 var(--ink), 1px 1px 0 var(--ink), -1px 1px 0 var(--ink), 1px -1px 0 var(--ink), -1px -1px 0 var(--ink), 0 2.5px 0 var(--ink);
+}
+/* Counters: a deep navy glass pill, the number white and outlined, the icon standing proud over the pill's edge. */
+.pill { background: linear-gradient(#3E6492, #24426A 55%, #1A3152); border-color: var(--ink); box-shadow: 0 4px 0 var(--ink), inset 0 2px 0 rgba(255, 255, 255, 0.35), inset 0 -4px 0 rgba(0, 0, 0, 0.25); color: #FFFFFF; }
+.pill .val, .pill.cash .val, .pill.gems .val, .pill.miles .val { color: #FFFFFF; text-shadow: var(--outline-num); }
+.pill > .ico, .pill.cash > .ico, .pill.gems > .ico { filter: drop-shadow(0 3px 0 rgba(20, 20, 30, 0.55)); transform: scale(1.12); }
+/* Square buttons (menu, conductor, the rail): white enamel shading to sky blue, a blue lip, the ink line. */
+.side button, .hud-row .menu-btn {
+  background: linear-gradient(#FFFFFF, #EAF5FF 45%, #BFDDF6);
+  box-shadow: 0 3px 0 #3B79B5, 0 6px 0 var(--ink), var(--gloss);
+}
+.side button:active, .hud-row .menu-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #3B79B5, 0 3px 0 var(--ink), var(--gloss); }
+.side .dot, .hud-row .dot { background: linear-gradient(#FF7B7B, #D93A4B); box-shadow: 0 2px 0 var(--ink); text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35); }
+/* The level star: a touch bigger, with a lip, and the number outlined like the counters. */
+.level .lv-star { filter: drop-shadow(0 4px 0 var(--ink)) drop-shadow(0 6px 4px rgba(0, 0, 0, 0.3)); }
+.level .lv-star::after { background: linear-gradient(#FFF2B8, #FFD54A 45%, #F2A51E 80%, #D9871A); }
+.level .badge { text-shadow: var(--outline-num); font-size: 19px; }
+/* The route line: a chunkier rail, a glossy gold fill, the clock and rating in the same enamel. */
+.journey .track { background: linear-gradient(#22385A, #2F4D75); box-shadow: inset 0 2px 0 rgba(0, 0, 0, 0.35); }
+.journey .fill { background: linear-gradient(#FFF0A8, #FFC93A 55%, #E79A1C); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7); }
+.journey .train { background: linear-gradient(#FFFFFF, #E2EEF9); box-shadow: 0 2px 0 var(--ink); }
+.journey .clock { background: linear-gradient(#5CC2B9, #2F8580); text-shadow: var(--outline-thin); box-shadow: 0 2px 0 var(--ink), inset 0 2px 0 rgba(255, 255, 255, 0.35); }
+.journey.warn .clock { background: linear-gradient(#FFF0A8, #FFC93A 55%, #E79A1C); color: #FFFFFF; }
+.journey .rating { background: linear-gradient(#3E6492, #1A3152); box-shadow: 0 2px 0 var(--ink); text-shadow: var(--outline-thin); color: #FFE27A; }
+/* Boost timers: round enamel badges with a gold rim and an outlined time. */
+.boost .badge { background: radial-gradient(circle at 35% 30%, #FFFFFF, #DDF3E8 50%, #8FD3B4); box-shadow: 0 3px 0 #2F7D63, 0 6px 0 var(--ink), var(--gloss); }
+.boost .badge span { background: linear-gradient(#3E6492, #1A3152); color: #FFFFFF; text-shadow: var(--outline-thin); font-weight: 800; border: 2px solid var(--ink); line-height: 13px; }
+/* Buttons in sheets and cards: taller lip, gloss, and white outlined lettering on the coloured ones. */
+.btn { box-shadow: 0 3px 0 #9A8460, 0 6px 0 var(--ink), var(--gloss); background: linear-gradient(#FFFFFF, #FBF1DD 55%, #EBD8B2); }
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #9A8460, 0 3px 0 var(--ink), var(--gloss); }
+.btn.primary { background: linear-gradient(#FFE58A, #FFC22E 55%, #E99A12); color: #FFFFFF; text-shadow: var(--outline-thin); box-shadow: 0 3px 0 #B06E0A, 0 6px 0 var(--ink), var(--gloss); }
+.btn.green { background: linear-gradient(#B9F28E, #6CCB3E 55%, #43A324); color: #FFFFFF; text-shadow: var(--outline-thin); box-shadow: 0 3px 0 #2E7A17, 0 6px 0 var(--ink), var(--gloss); }
+.btn.gem { background: linear-gradient(#BDE7FF, #5DB8F0 55%, #2F8BD8); color: #FFFFFF; text-shadow: var(--outline-thin); box-shadow: 0 3px 0 #1E5E9C, 0 6px 0 var(--ink), var(--gloss); }
+.btn.danger { background: linear-gradient(#FFB0B0, #F06A6A 55%, #D23F4C); color: #FFFFFF; text-shadow: var(--outline-thin); box-shadow: 0 3px 0 #8E2232, 0 6px 0 var(--ink), var(--gloss); }
+/* Sheets: a sky-blue ribbon header with the title in outlined white, a red round close button. */
+.sheet { box-shadow: 0 6px 0 var(--ink), 0 14px 26px rgba(0, 0, 0, 0.35); }
+.sheet header { background: linear-gradient(#7FD3FF, #3FA6EE 55%, #2C82D2); box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.55), inset 0 -4px 0 rgba(20, 40, 90, 0.3); }
+.sheet header h2 { color: #FFFFFF; text-shadow: var(--outline-num); }
+.sheet .close { background: linear-gradient(#FF8C8C, #E04656 60%, #B8303F); color: #FFFFFF; text-shadow: var(--outline-thin); box-shadow: 0 3px 0 var(--ink), inset 0 2px 0 rgba(255, 255, 255, 0.45); }
+.menu-row { box-shadow: 0 3px 0 #9A8460, 0 5px 0 var(--ink), var(--gloss); }
+/* The train map: chunkier glossy carriages, each in its own colour, a gold rim on the one you are in. */
+.trainmap { background: linear-gradient(rgba(30, 48, 80, 0.78), rgba(20, 33, 58, 0.78)); border: 2.5px solid var(--ink); box-shadow: 0 4px 0 var(--ink), inset 0 2px 0 rgba(255, 255, 255, 0.18); }
+.trainmap .loco { background: linear-gradient(#5A86BD, #2C4A6E); box-shadow: 0 2px 0 var(--ink); }
+.trainmap .car { background: linear-gradient(#FFFFFF, #E2ECF5 50%, #BCD3E6); box-shadow: 0 2px 0 #3B5F86, 0 4px 0 var(--ink), inset 0 2px 0 rgba(255, 255, 255, 0.8); }
+.trainmap .car[data-tier="1"] { background: linear-gradient(#FFFFFF, #F4EBCD 50%, #E2CF97); }
+.trainmap .car[data-tier="2"] { background: linear-gradient(#FFFFFF, #F6D6CF 50%, #E6A79A); }
+.trainmap .car[data-tier="3"] { background: linear-gradient(#FFF6C9, #FFD65A 50%, #E9A51E); }
+.trainmap .car.here { box-shadow: 0 0 0 3px #FFD54A, 0 4px 0 var(--ink); }
+.trainmap .emblem .ico { filter: drop-shadow(0 1.5px 0 rgba(20, 20, 30, 0.45)); }
+
+/* Title cards: a glossy sky-blue ribbon with a sunburst behind it, the name in big outlined white capitals and the
+   emblem in a gold medallion on top (a new carriage, a class, a hire, a story). */
+.celebrate::before {
+  content: ''; position: absolute; z-index: -1; left: 50%; top: 50%; width: 360px; height: 360px; margin: -180px 0 0 -180px; border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 228, 140, 0.42) 0 9deg, rgba(255, 228, 140, 0) 9deg 18deg);
+  -webkit-mask: radial-gradient(circle, #000 22%, transparent 68%); mask: radial-gradient(circle, #000 22%, transparent 68%);
+  animation: spin 14s linear infinite; pointer-events: none;
+}
+.celebrate .card {
+  padding: 38px 26px 15px; background: linear-gradient(#86D8FF, #45ADF0 50%, #2B80D0); border: 4px solid var(--ink); border-radius: 18px;
+  box-shadow: 0 5px 0 #1C4E86, 0 9px 0 var(--ink), 0 16px 24px rgba(0, 0, 0, 0.35), inset 0 4px 0 rgba(255, 255, 255, 0.55), inset 0 -6px 0 rgba(15, 40, 90, 0.3);
+}
+.celebrate .card::after { content: ''; position: absolute; left: 10px; right: 10px; top: 7px; height: 34%; border-radius: 12px 12px 50% 50% / 12px 12px 14px 14px; background: linear-gradient(rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0)); pointer-events: none; }
+.celebrate .ico {
+  top: -34px; width: 50px; height: 50px; padding: 6px; border-width: 4px;
+  background: radial-gradient(circle at 35% 30%, #FFFFFF, #FFEBB0 45%, #FFC93A 80%, #E79A1C); box-shadow: 0 4px 0 var(--ink), inset 0 -3px 0 rgba(160, 90, 10, 0.35);
+}
+.celebrate .big { color: #FFFFFF; font-size: clamp(20px, 6.6vw, 28px); letter-spacing: 0.06em; padding-left: 0.06em; text-shadow: var(--outline-num); position: relative; z-index: 1; }
+.celebrate .small { color: #FFF1A8; text-shadow: var(--outline-thin); position: relative; z-index: 1; }
+/* The station banner in the same language: a navy ribbon, the name in outlined white, the emblem on gold. */
+.banner .sign {
+  background: linear-gradient(#4E78AC, #2C4A6E 55%, #1F3551); border-width: 4px; border-radius: 14px; color: #FFFFFF; text-shadow: var(--outline-num);
+  box-shadow: 0 5px 0 #13243A, 0 9px 0 var(--ink), 0 14px 22px rgba(0, 0, 0, 0.35), inset 0 3px 0 rgba(255, 255, 255, 0.35), inset 0 -5px 0 rgba(0, 0, 0, 0.25);
+}
+.banner .sub { background: radial-gradient(circle at 35% 30%, #FFFFFF, #FFEBB0 45%, #FFC93A 80%, #E79A1C); box-shadow: 0 3px 0 var(--ink); }
+/* The goal chip (shown only as a goal is met): the same ribbon, green. */
+.objective { background: linear-gradient(#B9F28E, #6CCB3E 55%, #43A324); box-shadow: 0 3px 0 #2E7A17, 0 6px 0 var(--ink), var(--gloss); }
+.objective .obj-text, .objective .obj-count { color: #FFFFFF; text-shadow: var(--outline-thin); }
+.objective.done { background: linear-gradient(#B9F28E, #6CCB3E 55%, #43A324); }

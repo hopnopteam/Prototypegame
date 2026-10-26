@@ -125,7 +125,8 @@ check(snap.debut, 'the Gazette interviewed the conductor after the first stop');
 check(snap.taunts === 0 && !snap.rivalBar, `the rivals are switched off (taunts ${snap.taunts}, Rival Watch bar ${snap.rivalBar ? 'shown' : 'gone'})`);
 check(!snap.types.includes('luggage'), `no Luggage Car joins the train (${snap.types.join(', ')})`);
 // Session 29: carriages are a surprise, in the designed order (config: CARRIAGE_ORDER), and no chooser ever opens.
-const ORDER = ['lobby', 'sleeper', 'bathroom', 'cafe', 'sleeper', 'dining', 'cinema', 'bar', 'dome'];
+// Session 37: the Café Car first.
+const ORDER = ['lobby', 'cafe', 'sleeper', 'bathroom', 'sleeper', 'dining', 'cinema', 'bar', 'dome'];
 check(snap.types.every((t, i) => t === ORDER[i]), `carriages join in the designed order (${snap.types.join(', ')})`);
 check(!chooserSeen, 'no carriage chooser ever opened');
 check((snap.handWork.rooms ?? 0) >= 6 && (snap.handWork.requests ?? 0) >= 15, `the attendant was earned by hand (${snap.handWork.rooms ?? 0} rooms, ${snap.handWork.requests ?? 0} requests)`);

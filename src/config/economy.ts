@@ -61,7 +61,10 @@ export const ECONOMY = {
    * half a throw, near-instant start and stop, a quick turn; a light stride stays for the long corridors.
    */
   player: {
-    moveSpeed: 5.6,
+    // Session 37 (owner: "reduce the speed of the player movement… start normal, a little slow even, but as we grow it
+    // gets faster"): 4.6 (was 5.6); each pair of shoes bought in the lobby adds `shoes.perLevel` (four pairs: ×1.48).
+    moveSpeed: 4.6,
+    shoes: { perLevel: 0.12 },
     acceleration: 70,
     /** Stopping and turning back are firmer than starting, so the conductor stops where you let go. */
     braking: 110,

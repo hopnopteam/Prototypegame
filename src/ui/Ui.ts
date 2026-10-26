@@ -76,12 +76,16 @@ const TILE_TAG_POINTER = 6;
 const GUIDE_HEIGHT = 2.55;
 const TOAST_SECONDS = 2.2;
 /** Fix list 6.3: the pop-ups and labels a floating world label steps aside for, and the margin round them (px). */
-const POPUP_SELECTOR = '.celebrate .card, .banner, .ticket, .wire, .toast, .guide, .tile-tag';
+// Session 37: not the coach line: it points down at its spot, so the badge there must stay (it hid, and the tutorial's
+// halo ringed an empty spot).
+const POPUP_SELECTOR = '.celebrate .card, .banner, .ticket, .wire, .toast, .tile-tag';
 const POPUP_MARGIN = 14;
 /** A coach line shows its words this long, then shrinks to its icon (the arrow still points the way). */
 const GUIDE_WORDS_SECONDS = 4;
 /** The walkthrough's first lines keep their words a little longer. */
 const GUIDE_STEP_WORDS_SECONDS = 7;
+/** A coach cue that drops out for a moment stays up this long (no blinking). */
+const GUIDE_GRACE_SECONDS = 0.9;
 /** A new goal says what it is this long, then folds into its icon and count (tap it to read it again). */
 const GOAL_WORDS_SECONDS = 3.5;
 const MAX_TOASTS = 2;
@@ -132,6 +136,8 @@ export class Ui implements GameUi {
   private readonly boostLayer: HTMLElement;
   private readonly pointerEl: HTMLElement;
   private readonly guide: { el: HTMLElement; icon: HTMLElement; text: HTMLElement; key: string; age: number };
+  private guideLast: NonNullable<Game['coach']['current']> | null = null;
+  private guideGone = 0;
   /** The intro's caption card and its Skip button. */
   private readonly caption: { el: HTMLElement; kicker: HTMLElement; text: HTMLElement; skip: HTMLElement };
   private readonly gesture: HTMLElement;
@@ -765,7 +771,18 @@ export class Ui implements GameUi {
     // A walk-gesture line has no spot to point at: while the gesture gives way it waits (never a label in a corner).
     // A line about a tile gives way to the tile's own label (its marker, or the close-up label when you are near):
     // one label per spot (session 16).
-    const labelled = line && !('gesture' in line.anchor) && !this.onTile(line.anchor) ? line : null;
+    let labelled = line && !('gesture' in line.anchor) && !this.onTile(line.anchor) ? line : null;
+    // Session 37 (owner: "I don't like the flashing of the icons when they are shown… smoother"): a cue that drops
+    // out for a moment (the arrow re-picking its target) stays up through a short grace instead of blinking.
+    if (labelled) {
+      this.guideLast = labelled;
+      this.guideGone = 0;
+    } else if (this.guideLast && this.guideGone < GUIDE_GRACE_SECONDS && !this.hidden && !this.screens.isOpen && !g.inIntro) {
+      this.guideGone += dt;
+      labelled = this.guideLast;
+    } else {
+      this.guideLast = null;
+    }
     const key = labelled ? `${labelled.id}:${labelled.text}` : '';
     if (key !== this.guide.key) {
       this.guide.key = key;
@@ -892,7 +909,9 @@ export class Ui implements GameUi {
     const g = this.game;
     const o = this.objective;
     const def = g.objectives.visible;
-    const show = !!def && !this.hidden && !this.resultEl;
+    // Session 37 (owner: "don't show challenges on main screen, only show them when they are achieved, otherwise keep
+    // the progress hidden under UI"): the chip appears only for the moment a goal is met; progress lives in the menu.
+    const show = !!def && g.objectives.done && !this.hidden && !this.resultEl;
     setVisible(o.el, show);
     if (!show || !def) return;
     // The goal's words show while it is new (or tapped), then fold away: the icon and count remain.

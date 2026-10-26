@@ -3,6 +3,8 @@ import { approach, dampAngle } from '../core/math';
 
 /** The share of full braking a quick-travel dash plans its stop with (it arrives without overshooting). */
 const DASH_BRAKE_SHARE = 0.6;
+/** How many pairs of shoes the lobby sells (content.ts `shoes_1`…). */
+const SHOE_TILES = 4;
 /** How fast a dash takes a turn of its route, as a multiple of walking pace. */
 const DASH_CORNER_SPEED = 1.2;
 /** How briskly the conductor turns to face the way they walk (session 20: 22, was 14: near on the spot, as in MPH). */
@@ -74,10 +76,18 @@ export class Player implements Actor {
 
   speed(): number {
     const w = this.w;
-    let speed = w.econ.player.moveSpeed * (1 + w.data.conductor.speed * w.econ.conductor.speed.perLevel) * (1 + w.data.meta.perks.speedBonus);
+    // The lobby's shoes (session 37); a speed bought with Rail Miles before then still counts.
+    let speed = w.econ.player.moveSpeed * (1 + this.shoesLevel() * w.econ.player.shoes.perLevel) * (1 + w.data.conductor.speed * w.econ.conductor.speed.perLevel) * (1 + w.data.meta.perks.speedBonus);
     if (w.monetization.scooterOwned) speed *= 1 + SCOOTER_SPEED_BONUS;
     if (Date.now() < w.data.monetization.speedBoostUntil) speed *= w.econ.rewarded.speedBoost.multiplier;
     return speed;
+  }
+
+  /** Pairs of shoes bought in the lobby (tiles `c0.shoes_1`…). */
+  shoesLevel(): number {
+    let n = 0;
+    for (let i = 1; i <= SHOE_TILES; i++) if (this.w.unlocks.isUnlocked(`c0.shoes_${i}`)) n++;
+    return n;
   }
 
   get boosted(): boolean {
@@ -184,7 +194,7 @@ export class Player implements Actor {
     const m = w.data.monetization;
     this.gear.update(dt, {
       outfit: this.outfit(),
-      speedLevel: w.data.conductor.speed,
+      speedLevel: w.data.conductor.speed + this.shoesLevel(),
       capacityLevel: w.data.conductor.capacity,
       charmLevel: w.data.conductor.fareBonus,
       skating: this.boosted,

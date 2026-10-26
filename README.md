@@ -40,6 +40,9 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   long they stay in `consumeSeconds` in `src/config/venues.ts`); the scooter is the level-6 reward for 7 minutes of play
   (`perks.scooterSeconds`); the camera is closer (`minVisibleWidth` in `src/config/visuals.ts`); plain old-money mats in
   the café, bar and dome and camel suede in the Royal Suite (`venueCarpets`, `suedeRoom` in `src/world/Floors.ts`).
+- **Session 37:** the Café Car is the first coupling (`CARRIAGE_ORDER`); walking speed is bought as shoes in the lobby
+  (`player.moveSpeed`, `player.shoes` in `src/config/economy.ts`); goals show only when met (progress in the menu); a 3D,
+  My Perfect Hotel-like HUD (the session 37 block at the end of `src/ui/styles.css`).
 - **Android test build (APK):** every push to the working branch builds a signed test APK on GitHub Actions
   (`.github/workflows/android-apk.yml`) and publishes it as a pre-release named `android-test-N` on the
   repository's Releases page. On the phone: download the `.apk`, open it, allow "install unknown apps" for the

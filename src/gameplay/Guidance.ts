@@ -38,11 +38,15 @@ const ARROW_BOB = 0.28;
 /** Over a job's badge the arrow's tip clears the badge's top by this much (metres; session 27). */
 const ARROW_OVER_BADGE = 0.55;
 /**
- * Session 32's first-passengers tutorial: a soft glowing ring on the floor under the arrow (metres across, its colour,
- * how bright it pulses and how fast). Only while the tutorial runs; added like the lamp pools, so it can only add light.
+ * The first-passengers tutorial's highlight (session 37, owner: "the check in golden circle… is off placed… maybe not
+ * in a round circle as it will clip, find a better way to highlight it"; session 32 laid a glowing ring on the floor,
+ * which cut into the desk and the wall behind it): a soft gold halo round the job's own badge, floating over the
+ * furniture like the badge, so it never clips and sits right on the thing to do. It breathes slowly (metres across,
+ * colour, brightness, speed); added like the lamp pools, so it can only add light. Targets without a badge (a tile, the
+ * cash) keep just the arrow.
  */
 const RING_COLOR_HEX = '#FFD36B';
-const TUTORIAL_RING = { size: 1.5, color: RING_COLOR_HEX, low: 0.45, high: 0.9, speed: 3.2, lift: 0.025 };
+const TUTORIAL_RING = { size: 1.25, color: RING_COLOR_HEX, low: 0.55, high: 0.8, speed: 1.6 };
 const RING_COLOR = new THREE.Color(RING_COLOR_HEX);
 
 /**
@@ -55,8 +59,10 @@ export class Guidance {
   private target: Vec2 | null = null;
   /** Where the arrow hangs for the target: over the job's badge if the target is a job (session 27). */
   private readonly arrowAt = { x: 0, z: 0, y: ARROW_HEIGHT };
-  private readonly ring: THREE.Mesh;
-  private readonly ringMaterial: THREE.MeshBasicMaterial;
+  private readonly ring: THREE.Sprite;
+  private readonly ringMaterial: THREE.SpriteMaterial;
+  /** The badge the target's job floats (the halo's place), or none. */
+  private readonly badgeAt = { x: 0, y: 0, z: 0, on: false };
   /** Whether the arrow is up for the current target (see `shouldShow`), and its eased size. */
   private shown = false;
   private grow = 0;
@@ -79,8 +85,8 @@ export class Guidance {
     markWorldUi(this.arrow);
     w.scene.add(this.arrow);
     const texture = glowTexture(128, 128, 64, 64, 0, 64, [[0.62, 0], [0.8, 1], [1, 0]]);
-    this.ringMaterial = new THREE.MeshBasicMaterial({ map: texture, color: TUTORIAL_RING.color, ...ADD_GLOW });
-    this.ring = new THREE.Mesh(new THREE.PlaneGeometry(TUTORIAL_RING.size, TUTORIAL_RING.size).rotateX(-Math.PI / 2), this.ringMaterial);
+    this.ringMaterial = new THREE.SpriteMaterial({ map: texture, color: TUTORIAL_RING.color, ...ADD_GLOW, depthTest: false });
+    this.ring = new THREE.Sprite(this.ringMaterial);
     // Kept in the scene from the start (hidden by its scale) so its shader is compiled with the rest at boot.
     this.ring.scale.setScalar(0.001);
     this.ring.renderOrder = 2;
@@ -120,12 +126,14 @@ export class Guidance {
     const g = this.grow * this.grow * (3 - 2 * this.grow);
     this.arrow.scale.setScalar(Math.max(0.001, g));
     this.updatePointer(target && !near ? target : null);
-    // The tutorial's floor ring stays on the spot until the job there is done (the arrow folds away once you arrive).
-    const ringOn = target !== null && (w.coach?.tutorial ?? false);
+    // The tutorial's halo stays round the job's badge until the job is done (the arrow folds away once you arrive).
+    const b = this.badgeAt;
+    const ringOn = target !== null && b.on && (w.coach?.tutorial ?? false);
     this.ringGrow = Math.max(0, Math.min(1, this.ringGrow + (ringOn ? dt : -dt) / ARROW_FADE));
-    if (target) this.ring.position.set(target.x, FLOOR_Y + TUTORIAL_RING.lift, target.z);
+    if (ringOn) this.ring.position.set(b.x, FLOOR_Y + b.y, b.z);
     const pulse = 0.5 + 0.5 * Math.sin(this.time * TUTORIAL_RING.speed);
-    this.ring.scale.setScalar(Math.max(0.001, this.ringGrow * (0.94 + 0.06 * pulse)));
+    const eased = this.ringGrow * this.ringGrow * (3 - 2 * this.ringGrow);
+    this.ring.scale.setScalar(Math.max(0.001, eased * TUTORIAL_RING.size * (0.97 + 0.03 * pulse)));
     this.ringMaterial.color.copy(RING_COLOR).multiplyScalar(TUTORIAL_RING.low + (TUTORIAL_RING.high - TUTORIAL_RING.low) * pulse);
   }
 
@@ -138,11 +146,16 @@ export class Guidance {
     a.x = target.x;
     a.z = target.z;
     a.y = ARROW_HEIGHT;
+    this.badgeAt.on = false;
     for (const zone of this.w.zones.zones) {
       if (!zone.marker || Math.abs(zone.x - target.x) > 0.05 || Math.abs(zone.z - target.z) > 0.05) continue;
       a.x = zone.ax;
       a.z = zone.az;
       a.y = Math.max(ARROW_HEIGHT, zone.marker.height + ARROW_OVER_BADGE);
+      this.badgeAt.x = zone.ax;
+      this.badgeAt.z = zone.az;
+      this.badgeAt.y = zone.marker.height;
+      this.badgeAt.on = true;
       return;
     }
   }

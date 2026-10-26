@@ -116,14 +116,15 @@ export class JobMarker {
   update(dt: number): void {
     if (!this.badge || !this.fill || !this.fillMaterial) return;
     this.time += dt;
-    this.litAmount += ((this.lit ? 1 : 0) - this.litAmount) * Math.min(1, dt * 8);
+    // Session 37: eased slowly, so a badge picked out by the guide grows in instead of jumping (it read as a flash).
+    this.litAmount += ((this.lit ? 1 : 0) - this.litAmount) * Math.min(1, dt * 3);
     const lit = this.litAmount;
     this.popT = Math.min(DONE_POP_SECONDS, this.popT + dt);
     const popping = this.popT < DONE_POP_SECONDS;
     // Up while the job wants you, while the player is at it, and through the pop that says it is done.
     const fillShown = this.working && this.progressValue > 0.01;
     const want = this.iconAllowed || fillShown || popping;
-    this.shownAmount += ((want ? 1 : 0) - this.shownAmount) * Math.min(1, dt * 10);
+    this.shownAmount += ((want ? 1 : 0) - this.shownAmount) * Math.min(1, dt * 5);
     // Fix list 6.3: the badge gives way to a pop-up over it and to a tile's marker right beside it.
     const gp = this.group.position;
     const ix = gp.x + this.iconX;
@@ -133,7 +134,7 @@ export class JobMarker {
     this.fill.visible = shown && (fillShown || popping);
     if (!shown) return;
     // Steady while you work at it (a bobbing target is hard to read); a gentle bob while it waits for you.
-    const bob = fillShown ? 0 : Math.sin(this.time * (2.2 + lit * 3)) * (0.05 + lit * 0.07);
+    const bob = fillShown ? 0 : Math.sin(this.time * 2.2) * (0.05 + lit * 0.03);
     const y = FLOOR_Y + this.iconHeight + lit * 0.22 + bob;
     const pop = 1 + DONE_POP_SCALE * Math.sin((this.popT / DONE_POP_SECONDS) * Math.PI);
     const s = (VISUALS.pads.icon + lit * VISUALS.pads.iconLit) * pop * (0.6 + 0.4 * this.shownAmount);

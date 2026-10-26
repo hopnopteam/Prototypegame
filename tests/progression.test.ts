@@ -147,16 +147,19 @@ describe('carriage choice', () => {
     for (let next = nextCarriage(train); next; next = nextCarriage(train)) train.push(next);
     expect(train).toEqual(DEFAULT_TRAIN);
     expect(MAX_CARRIAGES).toBe(DEFAULT_TRAIN.length);
-    expect(nextCarriage(['lobby'])).toBe('sleeper');
-    expect(nextCarriage(['lobby', 'sleeper'])).toBe('bathroom');
+    // Session 37: the Café Car first, then the Sleeper.
+    expect(nextCarriage(['lobby'])).toBe('cafe');
+    expect(nextCarriage(['lobby', 'cafe'])).toBe('sleeper');
   });
 
   it('gives an older train that chose differently what it still lacks', () => {
     // A session 26 train took the café second: the washroom car comes next, then the second sleeper.
     expect(nextCarriage(['lobby', 'sleeper', 'cafe'])).toBe('bathroom');
     expect(nextCarriage(['lobby', 'sleeper', 'cafe', 'bathroom'])).toBe('sleeper');
+    // A session 29–36 train took the sleeper first: the café comes next.
+    expect(nextCarriage(['lobby', 'sleeper'])).toBe('cafe');
     // A train with a retired Luggage Car keeps it; the order fills in round it until the train is full.
-    expect(nextCarriage(['lobby', 'luggage', 'sleeper'])).toBe('bathroom');
+    expect(nextCarriage(['lobby', 'luggage', 'sleeper', 'cafe'])).toBe('bathroom');
     expect(nextCarriage([...DEFAULT_TRAIN])).toBeNull();
   });
 
