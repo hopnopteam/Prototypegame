@@ -339,7 +339,7 @@ export class Venues {
     guest.visited.add(venue.kind);
     guest.request = null;
     w.guests.setOutingState(guest, 'toVenue');
-    guest.view.showBubble(this.venueIcon(venue.kind), 'intent');
+    guest.view.showMood('wait', this.venueIcon(venue.kind));
     if (venue.kind === 'cafe' || venue.kind === 'dome') {
       venue.queue.push(guest);
       // Café guests know what they want before they reach the counter (so a coffee can be brewed ahead).
@@ -383,12 +383,18 @@ export class Venues {
     this.showQueueBubble(guest);
   }
 
+  /** Session 38b: calm while they wait, cross once they have waited long (the same time as a room request). */
+  private moodOf(guest: Guest): 'wait' | 'angry' {
+    const since = this.waitingSince(guest);
+    return since !== null && this.w.time - since >= this.w.econ.service.impatientSeconds ? 'angry' : 'wait';
+  }
+
   private showQueueBubble(guest: Guest): void {
     const outing = guest.outing;
     if (!outing) return;
     const head = outing.venue.queue[0] === guest;
-    if (outing.venue.kind === 'cafe' && outing.seat.order) guest.view.showBubble(head ? iconFor(outing.seat.order) : null, 'request', 1.85);
-    else if (outing.venue.kind === 'dome') guest.view.showBubble(head ? 'binoculars' : null, 'request', 1.85);
+    if (outing.venue.kind === 'cafe' && outing.seat.order) guest.view.showMood(head ? this.moodOf(guest) : null, iconFor(outing.seat.order));
+    else if (outing.venue.kind === 'dome') guest.view.showMood(head ? this.moodOf(guest) : null, 'binoculars');
   }
 
   /** The queue moved up one: everyone steps forward to their new place. */
@@ -413,7 +419,7 @@ export class Venues {
       seat.order = w.rng.pick(venue.products());
       seat.orderAt = w.time;
       seat.state = 'waiting';
-      guest.view.showBubble(iconFor(seat.order), 'request', 1.85);
+      guest.view.showMood('wait', iconFor(seat.order));
       guest.view.act('wave', w.econ.guests.waveSeconds);
       w.audio.play('bloop');
     } else if (venue.kind === 'cinema') {
@@ -422,7 +428,7 @@ export class Venues {
       seat.views = 0;
       outing.waitSince = w.time;
       if (venue.filmWaiting().length === 1) venue.waitingSince = w.time;
-      guest.view.showBubble('film', 'intent', 1.85);
+      guest.view.showMood('wait', 'film');
     } else {
       seat.state = 'consuming';
       guest.view.showBubble(null);
@@ -457,20 +463,20 @@ export class Venues {
     }
     if (guest.state === 'seated') {
       // Waiting to be served: the bubble stays up.
-      if (seat.order) guest.view.showBubble(iconFor(seat.order), 'request', 1.85);
+      if (seat.order) guest.view.showMood(this.moodOf(guest), iconFor(seat.order));
       return;
     }
     if (guest.state === 'consuming') {
       seat.timer += dt;
       if (venue.kind === 'dome') {
         // Watching: views come round on their own (update); a blanket asked for shows its bubble.
-        guest.view.showBubble(seat.order ? iconFor(seat.order) : null, 'request', 1.85);
+        guest.view.showMood(seat.order ? this.moodOf(guest) : null, seat.order ? iconFor(seat.order) : null);
         return;
       }
       if (venue.kind === 'cinema') {
         // Waiting for the film (a little reel), watching it, or wanting popcorn.
-        if (seat.order) guest.view.showBubble(iconFor(seat.order), 'request', 1.85);
-        else guest.view.showBubble(seat.views === 0 ? 'film' : null, 'intent', 1.85);
+        if (seat.order) guest.view.showMood(this.moodOf(guest), iconFor(seat.order));
+        else guest.view.showMood(seat.views === 0 ? this.moodOf(guest) : null, 'film');
         return;
       }
       if (seat.timer >= VENUES[venue.kind].consumeSeconds) this.finish(guest);
@@ -487,7 +493,7 @@ export class Venues {
     // A popcorn asked for and never brought before the film ended: they go back unhappy (session 27).
     if (seat.order && venue.kind !== 'cafe') w.guests.unhappy(guest);
     else {
-      guest.view.showBubble('heart', 'plain', 1.7);
+      guest.view.showMood('love');
       w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.4, guest.pos.z, 4, 0.2);
     }
     this.leave(guest);
@@ -764,7 +770,7 @@ export class Venues {
   }
 
   private finishDome(guest: Guest): void {
-    guest.view.showBubble('heart', 'plain', 1.7);
+    guest.view.showMood('love');
     this.leave(guest);
   }
 

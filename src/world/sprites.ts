@@ -147,6 +147,129 @@ export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ri
   return texture;
 }
 
+/**
+ * Session 38b (owner, with the ad playable: "the character reaction and emoji thing… completely implement it"): how a
+ * passenger feels, shown as a drawn face in their bubble beside what they want. `wait` a calm smile, `angry` red with
+ * knitted brows (they have waited too long, or leave unhappy), `love` heart eyes and a grin (just served).
+ */
+export type Mood = 'wait' | 'angry' | 'love';
+
+/** A round face drawn on a canvas (never an emoji: emoji fonts differ on every phone, some draw a black box). */
+export function drawFace(ctx: CanvasRenderingContext2D, mood: Mood, cx: number, cy: number, r: number): void {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(r / 50, r / 50);
+  const grad = ctx.createRadialGradient(-14, -18, 6, 0, 0, 52);
+  if (mood === 'angry') {
+    grad.addColorStop(0, '#FF9A7A');
+    grad.addColorStop(1, '#E2483A');
+  } else {
+    grad.addColorStop(0, '#FFF27A');
+    grad.addColorStop(1, '#FFC21A');
+  }
+  ctx.beginPath();
+  ctx.arc(0, 0, 46, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = '#5A3A10';
+  ctx.stroke();
+  ctx.fillStyle = '#3B2210';
+  ctx.strokeStyle = '#3B2210';
+  ctx.lineCap = 'round';
+  if (mood === 'love') {
+    for (const ex of [-17, 17]) {
+      ctx.save();
+      ctx.translate(ex, -8);
+      ctx.beginPath();
+      ctx.moveTo(0, 10);
+      ctx.bezierCurveTo(-16, 0, -12, -15, 0, -7);
+      ctx.bezierCurveTo(12, -15, 16, 0, 0, 10);
+      ctx.fillStyle = '#F2405A';
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.beginPath();
+    ctx.moveTo(-20, 12);
+    ctx.quadraticCurveTo(0, 38, 20, 12);
+    ctx.closePath();
+    ctx.fillStyle = '#7A2A20';
+    ctx.fill();
+  } else if (mood === 'angry') {
+    ctx.lineWidth = 6;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * 28, -22);
+      ctx.lineTo(side * 8, -12);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(side * 16, -2, 5, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.moveTo(-16, 26);
+    ctx.quadraticCurveTo(0, 12, 16, 26);
+    ctx.stroke();
+  } else {
+    for (const ex of [-16, 16]) {
+      ctx.beginPath();
+      ctx.ellipse(ex, -8, 5.5, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(-18, 14);
+    ctx.quadraticCurveTo(0, 30, 18, 14);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** The mood bubble's canvas (square) and where its tail's tip sits, as a share of its height from the bottom. */
+export const MOOD_BUBBLE_PX = 256;
+const moodCache = new Map<string, THREE.CanvasTexture>();
+
+/**
+ * A passenger's bubble (after the ad playable): a rounded bubble with a tail at the bottom middle, the face and, beside
+ * it, what they want. Red-edged and pink when they are cross. Cached per mood and icon.
+ */
+export function moodBubbleTexture(mood: Mood, icon: IconName | null): THREE.CanvasTexture {
+  const key = `${mood}:${icon ?? ''}`;
+  const cached = moodCache.get(key);
+  if (cached) return cached;
+  const S = MOOD_BUBBLE_PX;
+  const [c, ctx] = canvas(S, WORLD_UI_RES);
+  const w = icon ? 220 : 136;
+  const h = 128;
+  const x0 = (S - w) / 2;
+  const y0 = 46;
+  const r = 52;
+  ctx.beginPath();
+  ctx.moveTo(x0 + r, y0);
+  ctx.arcTo(x0 + w, y0, x0 + w, y0 + h, r);
+  ctx.arcTo(x0 + w, y0 + h, S / 2 + 16, y0 + h, r);
+  ctx.lineTo(S / 2 + 16, y0 + h);
+  ctx.lineTo(S / 2, y0 + h + 26);
+  ctx.lineTo(S / 2 - 16, y0 + h);
+  ctx.arcTo(x0, y0 + h, x0, y0, r);
+  ctx.arcTo(x0, y0, x0 + w, y0, r);
+  ctx.closePath();
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 12;
+  ctx.strokeStyle = mood === 'angry' ? '#B3243B' : INK;
+  ctx.stroke();
+  ctx.fillStyle = mood === 'angry' ? '#FFE6E2' : '#FFFFFF';
+  ctx.fill();
+  const cy = y0 + h / 2 + 3;
+  if (icon) {
+    drawFace(ctx, mood, S / 2 - 50, cy, 40);
+    drawIcon(ctx, icon, S / 2 + 50 - 43, cy - 43, 86);
+  } else drawFace(ctx, mood, S / 2, cy, 44);
+  const texture = finishTexture(c);
+  moodCache.set(key, texture);
+  return texture;
+}
+
 /** Where the job badge's disc sits on its 128-pixel canvas (its pointer hangs below it). */
 const JOB_BADGE_CX = 64;
 const JOB_BADGE_CY = 56;

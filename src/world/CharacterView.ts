@@ -5,7 +5,7 @@ import type { IconName } from '../ui/icons';
 import { GeoBuilder } from './geo';
 import { MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
-import { bubbleTexture, makeSprite, type BubbleStyle } from './sprites';
+import { bubbleTexture, makeSprite, moodBubbleTexture, type BubbleStyle, type Mood } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 import { addHead, addTorso, armGeometry, eyelidGeometry, faceDepth, HAND_Y, HEAD_TOP, HEAD_Y, HIP_Y, LEG_LENGTH, legGeometry, SHOULDER_X, SHOULDER_Y, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
 import { underPopup } from './screenMask';
@@ -50,6 +50,10 @@ export interface CharacterLook {
 
 export const STACK_BASE_Y = 0.74;
 const SHOE = '#2A2433';
+/** Session 38b: the mood bubble's world size (its canvas is square), how fast a bubble pops in, and how much higher it hangs. */
+const MOOD_BUBBLE_SIZE = 1.0;
+const BUBBLE_POP_RATE = 4.5;
+const MOOD_BUBBLE_LIFT = 0.08;
 /** World size of a guest's request bubble (fix list 3.4: smaller, was 0.9). */
 const BUBBLE_SIZE = 0.74;
 /** How far the body drops to sit (hips onto a seat about 0.24 m up). */
@@ -346,7 +350,13 @@ export class CharacterView {
   private bubbleTime = 0;
   private bubbleBaseY = 1.85;
   private bubbleZ = 0;
+  /** Session 38b: the face in the bubble (null for a plain icon bubble) and whether it is the wide mood bubble. */
+  private bubbleMood: Mood | null = null;
+  private bubbleWide = false;
   private squash = 0;
+  /** Session 38b: the walk's swing and forward lean, eased in and out. */
+  private swingNow = 0;
+  private leanNow = 0;
   private blanket: THREE.Mesh | null = null;
   private eyelids: THREE.Mesh | null = null;
   /** The current action and how much longer it lasts (callers refresh it while it goes on). */
@@ -663,6 +673,8 @@ export class CharacterView {
       if (this.bubble) this.bubble.visible = false;
       return;
     }
+    this.bubbleMood = null;
+    this.bubbleWide = false;
     if (!this.bubble) {
       // Fix list 3.4: a small bubble with just the wanted thing (was 0.9, with a countdown ring round it).
       this.bubble = makeSprite(bubbleTexture(icon, style, ring), BUBBLE_SIZE);
@@ -680,6 +692,37 @@ export class CharacterView {
     if (!sameIcon) this.bubbleTime = 0;
   }
 
+  /**
+   * Session 38b (after the ad playable): how a passenger feels, a drawn face in their bubble beside what they want
+   * (`icon`), or the face alone. `null` hides it. Shares the bubble sprite with `showBubble`.
+   */
+  showMood(mood: Mood | null, icon: IconName | null = null, height = 1.85): void {
+    if (!mood) {
+      this.showBubble(null);
+      return;
+    }
+    const key = `mood:${mood}:${icon ?? ''}`;
+    if (key === this.bubbleKey) return;
+    // Pops in again only when the face changes (a new wish keeps the same face: a little re-pop all the same).
+    const sameMood = this.bubbleKey.startsWith(`mood:${mood}:`) && mood !== 'love';
+    this.bubbleKey = key;
+    const texture = moodBubbleTexture(mood, icon);
+    if (!this.bubble) {
+      this.bubble = makeSprite(texture, MOOD_BUBBLE_SIZE);
+      this.bubble.layers.set(WORLD_UI_LAYER);
+      this.root.add(this.bubble);
+    } else {
+      (this.bubble.material as THREE.SpriteMaterial).map = texture;
+      (this.bubble.material as THREE.SpriteMaterial).needsUpdate = true;
+    }
+    this.bubbleMood = mood;
+    this.bubbleWide = true;
+    this.bubble.visible = true;
+    this.bubbleBaseY = height + MOOD_BUBBLE_LIFT;
+    this.bubble.position.set(0, this.bubbleBaseY, this.bubbleZ);
+    if (!sameMood) this.bubbleTime = 0;
+  }
+
   get hasBubble(): boolean {
     return this.bubbleKey !== '';
   }
@@ -690,12 +733,16 @@ export class CharacterView {
     if (this.bubble?.visible) {
       // Pop in with a small overshoot, then bob gently so requests catch the eye. Fix list 6.3: shrunk away while a
       // pop-up or label is over it on screen.
-      const pop = Math.min(1, this.bubbleTime * 5);
+      // Session 38b (after the ad playable): a springy pop (a quick overshoot that settles), a slow breath once in, a
+      // gentle bob, and a cross passenger's bubble shakes.
+      const pop = Math.min(1, this.bubbleTime * BUBBLE_POP_RATE);
       const p = this.root.position;
       const masked = underPopup(p.x, p.y + this.bubbleBaseY, p.z);
-      const s = masked ? 0.0001 : 0.9 * (pop < 1 ? 0.5 + 0.6 * Math.sin(pop * Math.PI * 0.5) : 1);
+      const spring = pop < 1 ? Math.min(1.25, 1 - Math.cos(pop * Math.PI * 2.6) * Math.exp(-pop * 4.5)) : 1 + Math.sin(this.bubbleTime * 3) * 0.02;
+      const s = masked ? 0.0001 : (this.bubbleWide ? MOOD_BUBBLE_SIZE : 0.9) * spring;
       this.bubble.scale.set(s, s, 1);
-      this.bubble.position.y = this.bubbleBaseY + Math.sin(this.bubbleTime * 3) * 0.05;
+      this.bubble.position.x = this.bubbleMood === 'angry' ? Math.sin(this.bubbleTime * 38) * 0.015 : 0;
+      this.bubble.position.y = this.bubbleBaseY + Math.sin(this.bubbleTime * 2.4) * 0.025;
     }
     this.root.rotation.x = this.pose === 'sleep' || !this.leans ? 0 : CharacterView.lean;
     if (this.pose !== 'stand') {
@@ -720,7 +767,11 @@ export class CharacterView {
     for (const leg of this.legs) leg.scale.y = 1;
     const moving = speed > 0.2;
     this.phase += dt * (moving ? 3 + speed * 2.2 : 1.6);
-    const swing = moving ? Math.min(0.75, 0.25 + speed * 0.12) : 0;
+    // Session 38b (after the ad playable): the swing and the forward lean ease in and out, so starting and stopping
+    // never snap the legs.
+    const swingTarget = moving ? Math.min(0.75, 0.25 + speed * 0.12) : 0;
+    this.swingNow += (swingTarget - this.swingNow) * Math.min(1, dt * (moving ? 14 : 10));
+    const swing = this.swingNow;
     const s = Math.sin(this.phase);
     // A foot lands at each end of the stride (the swing turns), twice a cycle.
     const side = Math.cos(this.phase) >= 0;
@@ -728,9 +779,11 @@ export class CharacterView {
     this.lastStrideSide = side;
     this.legs[0].rotation.x = s * swing;
     this.legs[1].rotation.x = -s * swing;
-    const bob = moving ? Math.abs(Math.cos(this.phase)) * 0.06 : Math.sin(this.phase) * 0.008;
-    this.body.position.y = bob;
-    this.body.rotation.x = moving ? 0.08 : 0;
+    // A step's bob while walking, a slow breath while standing; the forward lean eases with the pace.
+    const walkBob = Math.abs(Math.cos(this.phase)) * 0.06 * (swing / 0.75);
+    this.body.position.y = walkBob + (1 - Math.min(1, swing / 0.3)) * Math.sin(this.phase) * 0.008;
+    this.leanNow += ((moving ? 0.08 : 0) - this.leanNow) * Math.min(1, dt * 10);
+    this.body.rotation.x = this.leanNow;
 
     // An action owns the arms while it runs; otherwise they swing with the walk (or carry, or wave).
     if (this.action === 'none') {
@@ -756,7 +809,9 @@ export class CharacterView {
       const k = Math.sin(this.squash * Math.PI) * 0.12;
       this.body.scale.set(1 + k, 1 - k, 1 + k);
     } else {
-      this.body.scale.set(1, 1, 1);
+      // Standing still, a slow breath (barely there: it only keeps a waiting figure from looking frozen).
+      const breath = moving ? 0 : Math.sin(this.phase * 1.3) * 0.012;
+      this.body.scale.set(1, 1 + breath, 1);
     }
   }
 
@@ -807,6 +862,8 @@ export class CharacterView {
     this.showBubble(null);
     this.bubbleTime = 0;
     this.bubbleBaseY = 1.85;
+    this.bubbleMood = null;
+    this.bubbleWide = false;
     this.action = 'none';
     this.actionTime = 0;
     this.actionClock = 0;
@@ -819,6 +876,8 @@ export class CharacterView {
     this.waving = false;
     this.leans = true;
     this.squash = 0;
+    this.swingNow = 0;
+    this.leanNow = 0;
     this.footfall = false;
     this.phase = Math.random() * 10;
     this.body.position.set(0, 0, 0);

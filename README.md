@@ -47,6 +47,9 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   `src/config/classes.ts`); guests whose class has no room left are upgraded at the desk (`TrainState.roomFor`); food
   requests (`sandwich`); small TVs (`comfort_tv`); café and dining pay into the wallet (`CashPiles.payDirect`); harsher
   station stars (`rating.stars` in `src/config/economy.ts`); a walking-speed camera lead (`camera.walkLead`).
+- **Session 38b:** after the ad playable: its camera (`camera` in `src/config/economy.ts`, `Game.frameCamera`), no
+  shadow maps on any tier (`VISUALS.quality.tiers`), eased walking, and reaction faces in every passenger bubble
+  (`moodBubbleTexture` in `src/world/sprites.ts`, `CharacterView.showMood`).
 - **Android test build (APK):** every push to the working branch builds a signed test APK on GitHub Actions
   (`.github/workflows/android-apk.yml`) and publishes it as a pre-release named `android-test-N` on the
   repository's Releases page. On the phone: download the `.apk`, open it, allow "install unknown apps" for the

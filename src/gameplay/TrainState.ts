@@ -1381,7 +1381,7 @@ export class TrainState {
     const night = w.econ.night;
     const tip = Math.max(1, Math.round(night.shineTip * (CLASSES.find((c) => c.id === guest.cls)?.tip ?? 1) * w.tipMultiplier()));
     w.cash.add(cabin.pileId, tip, this.tmpShoe.set(cabin.shoeSpot.x, FLOOR_Y + 0.4, cabin.shoeSpot.z));
-    guest.view.showBubble('heart', 'plain', 1.7);
+    guest.view.showMood('love', 'shoe');
     w.ui.floatText(`+${tip}`, cabin.center.x, FLOOR_Y + 1.9, cabin.center.z, 'cash');
   }
 

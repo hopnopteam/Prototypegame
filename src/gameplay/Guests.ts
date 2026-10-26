@@ -29,6 +29,8 @@ export type GuestState =
   | 'toVenue' | 'venueQueue' | 'seated' | 'consuming';
 
 /** Where guests set down on the platform as the doors close stand, a step apart (metres from the first). */
+/** Session 38b: hearts a second over a passenger enjoying what was just brought. */
+const HAPPY_HEARTS_PER_SECOND = 1.5;
 const TELEPORT_SPREAD: readonly [number, number][] = [[0, 0], [0.55, 0.35], [0.55, -0.4], [1.1, 0], [0, 0.7], [0, -0.75], [1.1, 0.7], [1.1, -0.75]];
 
 /** Guest states on an outing to a venue (the venue runs them). */
@@ -293,7 +295,7 @@ export class Guests {
       }
       // A ticket in their class's colour, or a "no room" sign: they cannot board this time.
       if (eligible) guest.view.showBubble('ticket', guest.cls, 1.85);
-      else guest.view.showBubble('noroom', 'alert', 1.85);
+      else guest.view.showMood('wait', 'noroom');
       const key = eligible && q < QUEUE_SPOTS ? `q${q++}` : `w${k++}`;
       if (key !== guest.spot) this.sendToSpot(guest, key, snap);
     }
@@ -608,7 +610,7 @@ export class Guests {
     // Session 32: no angry exits during the first-passengers tutorial (they simply walk home).
     const calm = this.w.coach?.tutorial ?? false;
     guest.storming = !calm;
-    guest.view.showBubble(calm ? null : 'angry', 'alert', 1.85);
+    guest.view.showMood(calm ? null : 'angry');
     guest.mover.stop();
     w.tweens.delay(delay, () => {
       if (guest.state !== 'leaving') return;
@@ -636,7 +638,7 @@ export class Guests {
     if (this.list.some((g) => g.state === 'platform')) this.arrangePlatform(false);
     for (const guest of this.list) {
       if (guest.state !== 'platform' || !guest.paid) continue;
-      guest.view.showBubble('check', 'plain', 1.85);
+      guest.view.showMood('love', 'ticket');
       this.boardPaid(guest);
     }
     for (const guest of [...this.list]) {
@@ -762,7 +764,7 @@ export class Guests {
         // Waiting at the desk for a key: the first in line shows it once a room of their class is made up.
         if (guest.queueSlot !== 0 || !guest.arrivedInQueue) guest.view.showBubble(null);
         else if (w.train.roomFor(guest.cls)) guest.view.showBubble('key', guest.cls);
-        else guest.view.showBubble('noroom', 'alert');
+        else guest.view.showMood('wait', 'noroom');
         break;
       case 'settling': {
         // Awake in their room (evening or morning), sitting on the bed. Their stop may have come: off they get.
@@ -806,10 +808,12 @@ export class Guests {
           this.startAlighting(guest);
         } else if (guest.happyTime > 0) {
           guest.happyTime -= dt;
+          // Session 38b (after the ad playable): little hearts drift up while they enjoy it (visual only).
+          if (Math.random() < dt * HAPPY_HEARTS_PER_SECOND) w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.85, guest.pos.z, 1, 0.15);
           if (guest.happyTime <= 0) this.afterRequest(guest);
         } else if (guest.request && guest.request !== 'bathroom') {
           const waited = this.patience(guest);
-          guest.view.showBubble(iconFor(guest.request), waited !== 'calm' || guest.slow ? 'alert' : guest.pending.length > 0 ? 'royal' : 'request', 1.85);
+          guest.view.showMood(waited !== 'calm' || guest.slow ? 'angry' : 'wait', iconFor(guest.request));
         }
         break;
       case 'waitingBathroom': {
@@ -834,7 +838,7 @@ export class Guests {
           w.events.emit('bathroom.used', { tipped: true });
           this.leaveBathroom(guest);
         } else {
-          guest.view.showBubble(bath.towels <= 0 ? 'towel' : 'roll', 'alert');
+          guest.view.showMood('angry', bath.towels <= 0 ? 'towel' : 'roll');
           if (!guest.complained) {
             guest.complained = true;
             w.feedback.onEmptyWashroom(guest, bath.towels <= 0 ? 'towel' : 'roll');
@@ -971,7 +975,7 @@ export class Guests {
       guest.pos.z = guest.cabin.center.z + 0.2;
       guest.mover.facing = -Math.PI / 2;
     }
-    guest.view.showBubble(iconFor(need), guest.pending.length > 0 ? 'royal' : 'request', 1.85);
+    guest.view.showMood('wait', iconFor(need));
     guest.view.act('wave', w.econ.guests.waveSeconds);
     w.audio.play('bloop');
   }
@@ -1029,7 +1033,7 @@ export class Guests {
       guest.pos.z = guest.cabin.center.z + 0.2;
       guest.mover.facing = -Math.PI / 2;
     }
-    guest.view.showBubble('turndown', 'request', 1.85);
+    guest.view.showMood('wait', 'turndown');
     guest.view.act('wave', w.econ.guests.waveSeconds);
   }
 
@@ -1113,7 +1117,7 @@ export class Guests {
     if (next) {
       guest.request = next;
       guest.requestAt = w.time;
-      guest.view.showBubble(iconFor(next), guest.pending.length > 0 ? 'royal' : 'request', 1.85);
+      guest.view.showMood('wait', iconFor(next));
       return;
     }
     if (listDone) {
@@ -1122,7 +1126,9 @@ export class Guests {
     }
     // The turndown leaves a chocolate on the pillow.
     if (item === 'turndown') w.ui.floatIcon('turndown', guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'info');
-    guest.view.showBubble(noTip ? 'angry' : late ? 'frown' : 'heart', late ? 'alert' : 'plain', 1.75);
+    // Session 38b (after the ad playable): heart eyes and floating hearts when it came in time, a cross face when late.
+    guest.view.showMood(late ? 'angry' : 'love');
+    if (!late) w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.6, guest.pos.z, 7, 0.3);
     guest.happyTime = w.econ.guests.enjoySeconds;
     // They enjoy it where you can see it: a sip of the tea, coffee or champagne, the paper read, a hug of the blanket.
     const drink = item === 'tea' || item === 'coffee' || item === 'champagne' || item === 'breakfast' || item === 'sandwich';
@@ -1164,7 +1170,7 @@ export class Guests {
     guest.bathroom = bath;
     bath.waiting.push(guest);
     this.setState(guest, 'toBathroom');
-    guest.view.showBubble('bath', 'intent');
+    guest.view.showMood('wait', 'bath');
     const from = guest.cabin?.node ?? this.w.map.nearestNode(guest.pos.x, guest.pos.z);
     const path = from ? this.w.map.nav.findPath(from, bath.node) : null;
     guest.mover.go(path ?? [bath.restock], () => {
@@ -1255,7 +1261,7 @@ export class Guests {
       guest.booked = true;
       w.cash.add('desk', fee, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
       w.ui.floatText(`+${fee}`, guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'cash');
-      guest.view.showBubble(venue, 'intent', 1.85);
+      guest.view.showMood('wait', venue);
       guest.view.act('wave', 0.8);
     } else {
       guest.view.showBubble(null);
@@ -1316,7 +1322,7 @@ export class Guests {
     const cabin = guest.cabin;
     if (!cabin || !w.train.hasMinibar(cabin) || cabin.snacks <= 0 || !w.rng.chance(w.econ.minibar.buyChance)) return;
     w.tweens.delay(2.5, () => {
-      if (guest.cabin === cabin && guest.aboard && w.train.sellSnack(cabin, guest)) guest.view.showBubble('snack', 'plain', 1.7);
+      if (guest.cabin === cabin && guest.aboard && w.train.sellSnack(cabin, guest)) guest.view.showMood('love', 'snack');
     });
   }
 
@@ -1383,7 +1389,7 @@ export class Guests {
     if (unhappy) {
       // Off with a frown, all the way to the station house: plain to see, nothing taken from the player.
       this.audit.unhappy++;
-      guest.view.showBubble('frown', 'alert', 1.85);
+      guest.view.showMood('angry');
       guest.view.act('stomp', 0.8);
       w.feedback.onUnhappyAlight(guest);
     } else {
@@ -1453,8 +1459,8 @@ export class Guests {
       guest.pos.z = door.outside.z - 0.6 + TELEPORT_SPREAD[k][1];
     }
     // Happy, a heart; short of something they asked for, the frown stays up as they go (session 27).
-    if (guest.unmet > 0) guest.view.showBubble('frown', 'alert', 1.85);
-    else guest.view.showBubble('heart', 'plain', 1.7);
+    if (guest.unmet > 0) guest.view.showMood('angry');
+    else guest.view.showMood('love');
     w.events.emit('guest.alighted', { tip: 0 });
     if (guest.story) w.meta?.onStoryGuestAlighted(guest.story);
   }

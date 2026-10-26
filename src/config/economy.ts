@@ -104,12 +104,19 @@ export const ECONOMY = {
    * and a touch out while you stride down the train, leading the way you are going.
    */
   camera: {
-    roomZoom: 0.9, roomBias: 0.22, platformZoom: 1.1, strideZoom: 0.04, travelZoom: 1.08, lead: 0.5,
-    /** Session 38: metres the view leads ahead of the conductor at walking speed (from the first step). */
-    walkLead: 1.1,
+    /**
+     * Session 38b (after the ad playable): the camera's distance factor standing or working, × `walkZoom` while walking
+     * (a little closer, as the playable does), how fast it eases in and out, the speed (m/s) that counts as walking, and on a wide screen
+     * (aspect over `wideAspect`) never closer than `wideZoomPerAspect` × aspect. The playable's numbers.
+     */
+    standZoom: 0.72, walkZoom: 0.95, zoomInRate: 1.1, zoomOutRate: 0.8, walkSpeed: 1, wideAspect: 0.9, wideZoomPerAspect: 1.27,
+    /** Inside the train the view's centre keeps this far inside the walls. */
+    clampInset: 0.6,
+    platformZoom: 1.1, travelZoom: 1.08,
     /** Session 23: on the Millbrook platform, while the carriage is still covered, the view leans this far toward it. */
     prologueLean: { x: 0.7, z: 0.9 },
   },
+
 
   zones: {
     /**

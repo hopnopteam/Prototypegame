@@ -37,7 +37,7 @@ import { FLOOR_Y } from '../world/CarriageView';
 import { CharacterView } from '../world/CharacterView';
 import { beginMaskFrame, setPopupTest } from '../world/screenMask';
 import { CharacterBatch } from '../world/CharacterBatch';
-import { CARRIAGE_PITCH, carriageOriginZ, GANGWAY_LENGTH, HALF_WIDTH, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0, REAR_DECK_LENGTH } from '../world/layout';
+import { CARRIAGE_PITCH, carriageOriginZ, GANGWAY_LENGTH, HALF_WIDTH, INNER, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0, REAR_DECK_LENGTH } from '../world/layout';
 import { VISUALS, type QualityTier, type TierSettings } from '../config/visuals';
 import { setLivery, SHADOW_GEOMETRY } from '../world/materials';
 import { LIVERIES, liveryFor, type Livery } from '../world/palette';
@@ -610,10 +610,11 @@ export class Game implements World {
     this.audio.update(realDt);
     const rig = this.stage.rig;
     // A clamp only keeps the view on the world (the train, and the platform while the doors are open).
-    rig.clampX = this.journey.doorsOpen ? [-HALF_WIDTH, PLATFORM_X0 + PLATFORM_WIDTH - 1] : [-HALF_WIDTH, HALF_WIDTH];
+    // Session 38b (after the ad playable): inside the train the view stays over its floor (never drifting over the lake).
+    rig.clampX = this.journey.doorsOpen ? [-HALF_WIDTH, PLATFORM_X0 + PLATFORM_WIDTH - 1] : [-INNER + this.econ.camera.clampInset, INNER - this.econ.camera.clampInset];
     rig.clampZ[0] = -GANGWAY_LENGTH - LOCOMOTIVE_LENGTH + VISUALS.camera.endMargin;
     rig.clampZ[1] = this.map.rearZ + REAR_DECK_LENGTH - VISUALS.camera.endMargin * 0.5;
-    this.frameCamera();
+    this.frameCamera(realDt);
     this.updateCinematic(realDt);
     rig.update(realDt, this.player.pos.x, this.player.pos.z);
     this.scenery.present(realDt, rig.focusPoint, night, this.stage.size, rig.zoomNow);
@@ -679,35 +680,33 @@ export class Game implements World {
    * Context framing: ease in on the room the conductor is in (a better look at the bed, the mess, the
    * guest), out on the platform, and out a touch with a lead while striding or quick-travelling.
    */
-  private frameCamera(): void {
+  private frameCamera(dt: number): void {
+    // Session 38b (owner, with the ad playable: "camera placement and movement, make it exactly how it is in the ad
+    // playable"): centred on the conductor (no lead, no lean over the lake), easing in a little while walking and back
+    // out when standing or working, the platform a touch wider. On a wide screen it never comes closer than fits.
     const cam = this.econ.camera;
     const p = this.player;
-    let zoom = 1;
-    let ox = 0;
-    let oz = 0;
-    const room = this.train.roomAt(p.pos);
-    if (room) {
-      zoom = cam.roomZoom;
-      ox = ((room.x0 + room.x1) / 2 - p.pos.x) * cam.roomBias;
-      oz = ((room.z0 + room.z1) / 2 - p.pos.z) * cam.roomBias;
-    } else if (p.pos.x > HALF_WIDTH + 0.3) {
-      zoom = cam.platformZoom;
-      // At Millbrook the old carriage is the star: the view leans toward it from the ticket stand.
-      if (this.station.prologue && this.train.covered) {
-        ox -= cam.prologueLean.x;
-        oz += cam.prologueLean.z;
-      }
-    }
     const v = p.velocity;
     const speed = Math.hypot(v.x, v.z);
-    const pace = p.travel.active ? 1 : p.strideAmount;
-    if (pace > 0 && speed > 0.5) zoom *= p.travel.active ? cam.travelZoom : 1 + cam.strideZoom * pace;
-    // Session 38: the view leads the way the conductor walks from the first step (it used to wait for the stride),
-    // more the faster they go, and a little more again in a stride or a dash.
-    const lead = speed > 0.3 ? Math.min(1, speed / this.econ.player.moveSpeed) * (cam.walkLead + cam.lead * pace) / speed : 0;
-    this.stage.rig.setLead(v.x * lead, v.z * lead);
+    const aspect = this.stage.rig.camera.aspect;
+    const base = aspect > cam.wideAspect ? Math.max(cam.standZoom, cam.wideZoomPerAspect * aspect) : cam.standZoom;
+    const want = base * (speed > cam.walkSpeed ? cam.walkZoom : 1);
+    this.camZoom += (want - this.camZoom) * Math.min(1, dt * (want < this.camZoom ? cam.zoomInRate : cam.zoomOutRate));
+    this.stage.rig.setZoom(this.camZoom);
+    let zoom = 1;
+    if (p.pos.x > HALF_WIDTH + 0.3) zoom = cam.platformZoom;
+    else if (p.travel.active && speed > 0.5) zoom = cam.travelZoom;
+    let ox = 0;
+    let oz = 0;
+    // At Millbrook the old carriage is the star: the view leans toward it from the ticket stand.
+    if (p.pos.x > HALF_WIDTH + 0.3 && this.station.prologue && this.train.covered) {
+      ox -= cam.prologueLean.x;
+      oz += cam.prologueLean.z;
+    }
     this.stage.rig.setContext(zoom, ox, oz);
   }
+  /** The camera's eased distance factor (session 38b). */
+  private camZoom = ECONOMY.camera.standZoom;
 
   private dayCycleOverride: number | null = null;
 
