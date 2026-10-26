@@ -54,6 +54,13 @@ function drawIcon(ctx: CanvasRenderingContext2D, icon: IconName, cx: number, cy:
   drawIconAt(ctx, icon, cx - size / 2, cy - size / 2, size);
 }
 
+/**
+ * The no-tutorial build (`NO_TUTORIAL=1 node scripts/build-playable.mjs`, or `?notut=1`): play from the first touch,
+ * no walkthrough; the arrow and the hint line come only when the player stands still, like the rest of the game.
+ */
+declare const __NO_TUTORIAL__: boolean;
+const NO_TUTORIAL = __NO_TUTORIAL__ || new URLSearchParams(location.search).get('notut') === '1';
+
 // ================================================================ CONFIG: every number of the ad in one place
 const TUNE = {
   /** Camera distance factor; it eases in a little while walking and back out when standing or working. */
@@ -2288,7 +2295,7 @@ const TUTORIAL: { id: string; wait: FlowEvent | null }[][] = [
 ];
 let teach: 'cafe' | 'cinema' | null = null;
 const flow = {
-  phase: 'tutorial' as Phase,
+  phase: (NO_TUTORIAL ? 'play' : 'tutorial') as Phase,
   /** Tutorial: which passenger (0, 1) and which step. */
   passenger: 0,
   step: 1,
@@ -2776,7 +2783,8 @@ function updateGuide(dt: number): void {
   const idle = clock - lastInput;
   const still = !autoWalk && pointerId < 0;
   const firstLesson = flow.phase === 'tutorial' && flow.passenger === 0;
-  const hesitating = still && idle > (flow.phase === 'tutorial' ? TUNE.hesitateTutorial : TUNE.hesitate);
+  // Before the very first delivery (the tutorial, or the no-tutorial build's opening) the hint comes a little sooner.
+  const hesitating = still && idle > (flow.phase === 'tutorial' || served === 0 ? TUNE.hesitateTutorial : TUNE.hesitate);
   const guided = firstLesson || flow.stepId === 'buy';
   const show = !!t && !ended && started && (guided || hesitating);
   arrowShown += ((show ? 1 : 0) - arrowShown) * Math.min(1, dt * 8);

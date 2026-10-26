@@ -67,6 +67,14 @@ x5 money; one big **PLAY NOW** button. The button (and a tap anywhere) calls `op
 
 **All the numbers** (prices, pay, timings, camera, the splash) are in `TUNE` at the top of `src/playable/main.ts`.
 
+## The no-tutorial build
+
+`night-express-playable-no-tutorial.html` is the same ad with no walkthrough: after the splash the player is straight
+in play (one room open, the first guest at the desk, Room 2 the first upgrade). Nothing is explained up front; the
+arrow and the hint line come only when the player stands still (after 3 s until the first delivery, then 5 s), and
+the dragging hand after 8 s. Build it with `NO_TUTORIAL=1 node scripts/build-playable.mjs [network]`, or open either
+build with `?notut=1` to try it.
+
 ## Testing
 
 `node scripts/playable-bot.mjs [ts] [maxSeconds] [shotDir]` plays the ad headless: it taps to walk to the next job every

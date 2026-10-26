@@ -1,6 +1,7 @@
 // Builds the playable ad into one self-contained HTML file: playable/night-express-playable.html.
 // The ad network and the store links are one block at the very top of that file (NX_AD); see playable/README.md.
 // Usage: node scripts/build-playable.mjs [network]   (network: unity | applovin | meta | google; default unity)
+//        NO_TUTORIAL=1 node scripts/build-playable.mjs [network]   (the no-tutorial variant: playable/night-express-playable-no-tutorial.html)
 import { build } from 'esbuild';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -8,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const network = process.argv[2] ?? 'unity';
+const noTutorial = process.env.NO_TUTORIAL === '1';
+const fileName = noTutorial ? 'night-express-playable-no-tutorial.html' : 'night-express-playable.html';
 
 // The game's theme music is switched off (config/audio.ts) but its MP3 is imported by the audio engine: leave it out.
 const noMusic = {
@@ -42,6 +45,8 @@ const result = await build({
     __GA_GAME_KEY__: '""',
     __GA_SECRET_KEY__: '""',
     // The app icon for the start screen and the corner badge (inlined: the ad makes no requests).
+    // The no-tutorial variant (NO_TUTORIAL=1): play from the first touch, built to its own file.
+    __NO_TUTORIAL__: noTutorial ? 'true' : 'false',
     __ICON__: JSON.stringify(`data:image/png;base64,${readFileSync(resolve(root, 'android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png')).toString('base64')}`),
   },
   logLevel: 'warning',
@@ -94,6 +99,6 @@ ${js}
 </html>
 `;
 mkdirSync(resolve(root, 'playable'), { recursive: true });
-const out = resolve(root, 'playable/night-express-playable.html');
+const out = resolve(root, `playable/${fileName}`);
 writeFileSync(out, page);
-console.log(`Built playable/night-express-playable.html (${(Buffer.byteLength(page) / 1024).toFixed(0)} KB, network: ${network})`);
+console.log(`Built playable/${fileName} (${(Buffer.byteLength(page) / 1024).toFixed(0)} KB, network: ${network})`);
