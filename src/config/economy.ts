@@ -259,6 +259,13 @@ export const ECONOMY = {
      * `delay` seconds later (config/classes.ts).
      */
     again: { chance: 0.85, count: 1, delay: [5, 9] as [number, number] },
+    /**
+     * Session 36, the routine (owner: "every onboarded passenger… explores every single part of the train"): once a
+     * venue carriage is open, every guest (`chance`) takes up to `outings` outings in each waking part of the night,
+     * one after each request seen to, preferring venues they have not visited yet this ride (a visited one weighs
+     * `revisitWeight`). When no venue has a seat they try again `retrySeconds` later, up to `tries` times.
+     */
+    routine: { chance: 1, outings: { evening: 3, morning: 2 }, revisitWeight: 0.2, retrySeconds: 5, tries: 3 },
     owl: { chance: 0.25, later: 0.14, pool: { tea: 1, blanket: 1 } as Partial<Record<ServiceNeed, number>> },
   },
 
@@ -698,9 +705,10 @@ export const ECONOMY = {
    * - `holdTrainLevel`: from this route level, "Hold the train" (+15 s, once a stop) is a free button at last call.
    * - `skatesStreak`: a perfect-stop streak this long puts the conductor on roller skates (`rewarded.speedBoost`).
    * - `doubleFaresStreak`: every this many perfect stops in a row, fares at the next stop are doubled.
-   * - `scooterLevel`: the Conductor's Scooter (+25% walking, for good) is this route level's reward.
+   * - `scooterLevel`: the Conductor's Scooter (+25% walking) is this route level's reward, for `scooterSeconds` of play
+   *   (session 36, owner: "available for a limited time only, perhaps around 7 minutes of gameplay"; it was for good).
    */
-  perks: { holdTrainLevel: 3, skatesStreak: 3, doubleFaresStreak: 5, scooterLevel: 6 },
+  perks: { holdTrainLevel: 3, skatesStreak: 3, doubleFaresStreak: 5, scooterLevel: 6, scooterSeconds: 420 },
 
   /**
    * Fix list 2.2: later purchases cost gently more, so the train fills out over about two hours with no wall.

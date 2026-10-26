@@ -320,6 +320,9 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'up_porter', kind: 'staffUpgrade', label: 'Expert Porter', price: 1050, stars: 3, role: 'porter', requires: ['hire_porter'], flags: ['level_7'], effect: 'Faster, +1 carry' },
     ],
   },
+  // Session 36 (owner: "remove unnecessary upgrades"): Better Coffee, the Roast Menu and the Telescopes are gone, and
+  // the Waiter is paused (no hire tile; the code stays, so it can come back with its line here). The chef still puts
+  // plates on the pass and the conductor serves and clears.
   // Session 20: the venue carriages (config/venues.ts has their mechanics). A table, stool or row is a 'seat' tile
   // (it opens that group of seats); the menu tiles make dishes dearer; a 'station' adds a second machine or range
   // or the bar's grand piano; each venue hires its own staff.
@@ -335,7 +338,6 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'table_3', kind: 'seat', label: 'Table', price: 170, stars: 2, group: 3, requires: ['table_2'], effect: '+2 seats' },
       { key: 'station_machine', kind: 'station', label: 'Coffee Machine', price: 220, stars: 2, requires: ['hire_barista', 'menu_pastry'], effect: 'Brews faster' },
       { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 300, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Prices +60%' },
-      { key: 'menu_beans', kind: 'menu', label: 'Better Coffee', price: 380, stars: 2, requires: ['menu_pastry', '@couple_3'], effect: 'Coffee ×1.5' },
       { key: 'table_4', kind: 'seat', label: 'Table', price: 260, stars: 2, group: 4, requires: ['table_3', '@couple_3'], effect: '+2 seats' },
       { key: 'table_5', kind: 'seat', label: 'Table', price: 320, stars: 2, group: 5, requires: ['table_4'], effect: '+2 seats' },
       { key: 'up_barista', kind: 'staffUpgrade', label: 'Faster Barista', price: 340, stars: 2, role: 'barista', requires: ['hire_barista', '@couple_4'], effect: 'Faster' },
@@ -349,17 +351,14 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'table_2', kind: 'seat', label: 'Table', price: 160, stars: 2, group: 2, requires: ['couple'], effect: '+1 seat' },
       { key: 'hire_chef', kind: 'hire', label: 'Chef', price: 260, stars: 3, role: 'chef', requires: ['couple'], work: { dining: 8 }, effect: 'Cooks the orders' },
       { key: 'table_3', kind: 'seat', label: 'Table', price: 200, stars: 2, group: 3, requires: ['table_2'], effect: '+1 seat' },
-      { key: 'hire_waiter', kind: 'hire', label: 'Waiter', price: 320, stars: 3, role: 'waiter', requires: ['hire_chef'], work: { dining: 20 }, effect: 'Serves & clears' },
-      { key: 'menu_roast', kind: 'menu', label: 'Roast Menu', price: 360, stars: 2, requires: ['table_3'], effect: 'Dishes ×1.6' },
       { key: 'table_4', kind: 'seat', label: 'Table', price: 260, stars: 2, group: 4, requires: ['table_3', '@couple_4'], effect: '+1 seat' },
       { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 420, stars: 4, tier: 2, requires: ['refurb_1', '@couple_4'], effect: 'Prices +60%' },
-      { key: 'station_range', kind: 'station', label: 'Second Stove', price: 380, stars: 2, requires: ['hire_chef', 'menu_roast'], effect: 'Cooks faster' },
+      { key: 'station_range', kind: 'station', label: 'Second Stove', price: 380, stars: 2, requires: ['hire_chef', 'table_3'], effect: 'Cooks faster' },
       { key: 'table_5', kind: 'seat', label: 'Table', price: 320, stars: 2, group: 5, requires: ['table_4'], effect: '+1 seat' },
       { key: 'table_6', kind: 'seat', label: 'Table', price: 380, stars: 2, group: 6, requires: ['table_5', '@couple_5'], effect: '+1 seat' },
       { key: 'table_7', kind: 'seat', label: 'Table', price: 440, stars: 2, group: 7, requires: ['table_6'], effect: '+1 seat' },
       { key: 'up_chef', kind: 'staffUpgrade', label: 'Faster Chef', price: 520, stars: 2, role: 'chef', requires: ['hire_chef', '@couple_5'], effect: 'Faster' },
-      { key: 'up_waiter', kind: 'staffUpgrade', label: 'Faster Waiter', price: 560, stars: 2, role: 'waiter', requires: ['hire_waiter', '@couple_5'], effect: 'Faster, +1 carry' },
-      { key: 'menu_lobster', kind: 'menu', label: 'Lobster Menu', price: 900, stars: 3, requires: ['menu_roast'], flags: ['level_5'], effect: 'Dishes ×1.5' },
+      { key: 'menu_lobster', kind: 'menu', label: 'Lobster Menu', price: 900, stars: 3, requires: ['table_3'], flags: ['level_5'], effect: 'Dishes ×1.5' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 950, stars: 5, tier: 3, requires: ['refurb_2', '@couple_6'], effect: 'Prices ×2.1' },
     ],
   },
@@ -393,7 +392,6 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'hire_host', kind: 'hire', label: 'Host', price: 450, stars: 3, role: 'host', requires: ['row_1'], work: { dome: 8 }, effect: 'Shows guests in' },
       { key: 'row_2', kind: 'seat', label: 'Seats', price: 420, stars: 2, group: 2, requires: ['row_1'], effect: '+2 seats' },
       { key: 'row_3', kind: 'seat', label: 'Seats', price: 520, stars: 2, group: 3, requires: ['row_2', '@couple_6'], effect: '+2 seats' },
-      { key: 'menu_telescopes', kind: 'menu', label: 'Telescopes', price: 800, stars: 3, requires: ['row_2', '@couple_6'], effect: 'Views ×1.6' },
       { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 760, stars: 4, tier: 2, requires: ['refurb_1', '@couple_6'], effect: 'Views +60%' },
       { key: 'row_4', kind: 'seat', label: 'Seats', price: 620, stars: 2, group: 4, requires: ['row_3'], effect: '+2 seats' },
       { key: 'row_5', kind: 'seat', label: 'Seats', price: 720, stars: 2, group: 5, requires: ['row_4', '@couple_7'], effect: '+2 seats' },

@@ -58,21 +58,23 @@ export const VENUES: Record<VenueKind, VenueDef> = {
       { item: 'latte', price: 5, makeSeconds: 1.4 },
       { item: 'pastry', price: 8, makeSeconds: 0.6, menu: 'menu_pastry' },
     ],
-    consumeSeconds: 7,
+    // Session 36, the routine: guests linger over a coffee, a dinner, a cocktail (7, 8 and 7 s before), so the
+    // venues look lived in and more tables pay.
+    consumeSeconds: 14,
     roles: ['barista'],
     tierPrice: [1, 1.25, 1.6, 2.1],
   },
   dining: {
     kind: 'dining', name: 'Dining Car', visitWeight: 1.0, when: ['evening', 'morning'],
     products: [{ item: 'meal', price: 14, makeSeconds: 2.2 }],
-    consumeSeconds: 8,
+    consumeSeconds: 16,
     roles: ['chef', 'waiter'],
     tierPrice: [1, 1.25, 1.6, 2.1],
   },
   bar: {
     kind: 'bar', name: 'Bar Lounge', visitWeight: 0.9, when: ['evening'],
     products: [{ item: 'cocktail', price: 11, makeSeconds: 1.8 }],
-    consumeSeconds: 7,
+    consumeSeconds: 14,
     roles: ['bartender'],
     tierPrice: [1, 1.25, 1.6, 2.1],
   },
@@ -99,11 +101,8 @@ export type VenueCharge = ItemKind | 'scenic' | 'ticket';
 
 /** Price multipliers from menu and station tiles (by unlock key), and what each applies to. */
 export const VENUE_MENUS: Record<string, { price: number; items: VenueCharge[] }> = {
-  menu_beans: { price: 1.5, items: ['latte'] },
-  menu_roast: { price: 1.6, items: ['meal'] },
   menu_lobster: { price: 1.5, items: ['meal'] },
   menu_cocktails: { price: 1.5, items: ['cocktail'] },
-  menu_telescopes: { price: 1.6, items: ['scenic'] },
   // Session 21, the cinema: premieres (a red carpet and spotlights), the candy cart, the speakers by the screen.
   menu_premiere: { price: 1.6, items: ['ticket'] },
   menu_snacks: { price: 1.5, items: ['popcorn'] },
@@ -133,7 +132,7 @@ export const VENUE_TUNING = {
   usherSeconds: 0.8,
   /**
    * Dome: scenic views come round this often while the train is moving; each pays every seated guest
-   * `scenicTip` (×telescopes, ×refit), and a guest stays for this many views before going back to bed.
+   * `scenicTip` (×refit), and a guest stays for this many views before going back to bed.
    */
   scenicEverySeconds: 26,
   scenicTip: 6,

@@ -21,6 +21,8 @@ const SURFACE_TABLE = {
   varnish: { roughness: 0.34, metalness: 0 },
   fabric: { roughness: 0.94, metalness: 0, sheen: 0.25 },
   velvet: { roughness: 0.86, metalness: 0, sheen: 0.8 },
+  /** Session 36: the Royal Suite's floor, soft and matte with a gentle nap. */
+  suede: { roughness: 0.95, metalness: 0, sheen: 0.45 },
   leather: { roughness: 0.5, metalness: 0, sheen: 0.1 },
   brass: { roughness: 0.3, metalness: 1 },
   steel: { roughness: 0.28, metalness: 1 },

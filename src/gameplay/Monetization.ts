@@ -71,10 +71,24 @@ export class Monetization {
     return !this.enabled || this.w.iap.isOwned('first_class_ticket');
   }
 
-  /** The Conductor's Scooter: bought (monetization on) or a route level's reward (off). */
+  /** The Conductor's Scooter: bought (monetization on, for good) or a route level's reward for a while (off). */
   get scooterOwned(): boolean {
+    return this.w.iap.isOwned('conductor_scooter') || this.scooterLeft > 0;
+  }
+
+  /** Seconds of play left on the earned scooter (session 36: `perks.scooterSeconds`, counted in play, not on the clock). */
+  get scooterLeft(): number {
     const w = this.w;
-    return w.iap.isOwned('conductor_scooter') || (!this.enabled && w.progression.level >= w.econ.perks.scooterLevel);
+    if (this.enabled) return 0;
+    return Math.max(0, w.data.monetization.scooterUntil - w.lifetimeSeconds());
+  }
+
+  /** The route level's scooter: on for `perks.scooterSeconds` of play from now. */
+  grantScooter(): void {
+    const w = this.w;
+    w.data.monetization.scooterUntil = w.lifetimeSeconds() + w.econ.perks.scooterSeconds;
+    w.events.emit('boost.changed', {});
+    w.save.markDirty();
   }
 
   /** "Hold the train" is a free button once a stop from this route level (monetization off). */

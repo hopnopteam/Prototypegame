@@ -18,6 +18,7 @@ import type { World } from './World';
 import type { FloatKind } from './UiApi';
 import type { Zone } from './Zones';
 import type { Outing } from './Venues';
+import type { VenueKind } from '../core/types';
 import { ratingEffect } from '../sim/stationResult';
 import { guestLook } from './guestLook';
 
@@ -97,7 +98,15 @@ export class Guest {
   boardStop = 0;
   trip: TripPhase = 'evening';
   phaseRequested = false;
-  phaseOuting = false;
+  /**
+   * Session 36, the routine: outings taken this part of the night, whether an outing comes before the next extra
+   * request, tries left when every seat was taken, and the venues already visited this ride (the next one prefers a
+   * new one, so every guest tours the train).
+   */
+  phaseOutings = 0;
+  outingNext = false;
+  outingTries = 0;
+  readonly visited = new Set<VenueKind>();
   wishIn = 0;
   readonly asked = new Set<ServiceNeed>();
   sleptFor = 0;
@@ -772,7 +781,7 @@ export class Guests {
           guest.owlNow = true;
           guest.phaseRequested = false;
           guest.wishIn = w.rng.range(...w.econ.trip.requestDelay);
-        } else if (!guest.phaseOuting && guest.stateTime >= guest.settleFor) this.maybeOuting(guest);
+        } else if (guest.stateTime >= guest.settleFor && this.outingDue(guest)) this.maybeOuting(guest);
         else if (guest.again > 0 && guest.trip !== 'night' && !guest.story) {
           // Their request seen to, one more thing (session 30): guests keep asking through the evening and morning.
           guest.again--;
@@ -882,7 +891,9 @@ export class Guests {
     this.logTrip(guest, guest.trip, next, progress);
     guest.trip = next;
     guest.phaseRequested = false;
-    guest.phaseOuting = false;
+    guest.phaseOutings = 0;
+    guest.outingNext = false;
+    guest.outingTries = 0;
     guest.again = this.extraRequests();
     guest.againNow = false;
     guest.request = null;
@@ -972,14 +983,29 @@ export class Guests {
   private maybeOuting(guest: Guest): void {
     const w = this.w;
     const rules = w.econ.trip;
-    guest.phaseOuting = true;
+    const routine = this.routineOn();
+    guest.phaseOutings++;
+    guest.outingNext = false;
     // A table booked at the desk is kept (session 24): the evening's outing, if a seat is free.
     if (guest.booked && guest.trip === 'evening' && w.venues.tryOuting(guest, 'evening')) {
       guest.booked = false;
+      guest.outingTries = 0;
       return;
     }
-    if (guest.story || !w.rng.chance(rules.outingChance)) return;
-    if (guest.trip !== 'night' && w.venues.tryOuting(guest, guest.trip)) return;
+    if (guest.story || !w.rng.chance(routine ? rules.routine.chance : rules.outingChance)) return;
+    if (guest.trip !== 'night' && w.venues.tryOuting(guest, guest.trip)) {
+      guest.outingTries = 0;
+      return;
+    }
+    // Every seat taken (session 36): they wait a little in their room and try again, rather than skip the outing.
+    if (routine && guest.trip !== 'night' && guest.outingTries < rules.routine.tries) {
+      guest.outingTries++;
+      guest.phaseOutings--;
+      guest.outingNext = true;
+      guest.settleFor = guest.stateTime + rules.routine.retrySeconds;
+      return;
+    }
+    guest.outingTries = 0;
     const bathroomOpen = w.train.bathrooms.some((b) => b.unlocked);
     if (!bathroomOpen || guest.washes >= rules.washroomsPerTrip || !w.rng.chance(rules.washroomChance)) return;
     guest.washes++;
@@ -1103,10 +1129,28 @@ export class Guests {
     guest.view.act(drink ? 'sip' : item === 'newspaper' ? 'read' : 'hug', w.econ.guests.enjoySeconds);
   }
 
-  /** Served: they sit back on the bed (the night comes when it is time, see advanceTrip). */
+  /**
+   * Session 36, the routine (owner: "every onboarded passenger… explores every single part of the train… so the train
+   * feels alive"): once a venue is open, each part of the night (evening, morning) a guest takes up to
+   * `trip.routine.outings` outings, one after each request seen to, each to a venue they have not visited yet this
+   * ride when one has a seat. Before any venue opens, one outing chance as before (the washroom).
+   */
+  private routineOn(): boolean {
+    return this.w.venues.list.length > 0;
+  }
+
+  private outingDue(guest: Guest): boolean {
+    if (guest.trip === 'night') return false;
+    const limit = this.routineOn() && !guest.story ? this.w.econ.trip.routine.outings[guest.trip] : 1;
+    if (guest.phaseOutings >= limit) return false;
+    return guest.phaseOutings === 0 || guest.outingNext || guest.again <= 0;
+  }
+
+  /** Served: they sit back on the bed (the night comes when it is time, see advanceTrip); an outing may come next. */
   private afterRequest(guest: Guest): void {
     this.setState(guest, 'settling');
     guest.settleFor = 0;
+    guest.outingNext = true;
     guest.view.showBubble(null);
   }
 
@@ -1239,7 +1283,10 @@ export class Guests {
     guest.boardStop = w.journey.stopSerial;
     guest.trip = 'evening';
     guest.phaseRequested = false;
-    guest.phaseOuting = false;
+    guest.phaseOutings = 0;
+    guest.outingNext = false;
+    guest.outingTries = 0;
+    guest.visited.clear();
     guest.again = this.extraRequests();
     guest.againNow = false;
     guest.asked.clear();

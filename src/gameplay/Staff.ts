@@ -4,7 +4,7 @@ import { isDwellNeed } from '../config/classes';
 import { sourceAnchorFor } from './Demand';
 import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from '../world/CarriageView';
-import { CharacterView, STAFF_LOOKS } from '../world/CharacterView';
+import { CharacterView, EXPERT_STAFF_LOOKS, STAFF_LOOKS } from '../world/CharacterView';
 import { Mover, type Actor } from './Actor';
 import { CarryStack } from './CarryStack';
 import type { Guest } from './Guests';
@@ -69,6 +69,9 @@ export class StaffMember implements Actor {
   }
 
   applyLevel(level: number): void {
+    // Session 36: a trained helper wears their expert uniform from its level on.
+    const expert = EXPERT_STAFF_LOOKS[this.role];
+    if (expert && (this.level >= expert.fromLevel) !== (level >= expert.fromLevel)) this.view.setLook(level >= expert.fromLevel ? expert.look : STAFF_LOOKS[this.role]);
     this.level = level;
     this.mover.speed = this.baseSpeed();
     this.stack.capacity = this.baseCapacity();

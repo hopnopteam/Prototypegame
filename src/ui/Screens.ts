@@ -856,7 +856,7 @@ export function levelPerkItems(level: number): { icon: IconName; text: string }[
   };
   if (features[level]) items.push(...features[level]);
   if (!MONETIZATION_ENABLED && level === ECONOMY.perks.holdTrainLevel) items.push({ icon: 'hold', text: 'Hold the train' });
-  if (!MONETIZATION_ENABLED && level === ECONOMY.perks.scooterLevel) items.push({ icon: 'skate', text: 'The scooter' });
+  if (!MONETIZATION_ENABLED && level === ECONOMY.perks.scooterLevel) items.push({ icon: 'skate', text: `Scooter ${Math.round(ECONOMY.perks.scooterSeconds / 60)} min` });
   const cls = CLASSES.find((c) => c.level === level && c.tier > 0);
   if (cls) items.push({ icon: cls.icon, text: cls.name });
   const livery = LIVERIES.find((l) => l.minLevel === level);
@@ -876,7 +876,7 @@ export function levelPerks(level: number): string[] {
   if (features[level]) perks.push(features[level]);
   // Monetization off: what used to be an ad or a purchase is a level's reward (config: perks).
   if (!MONETIZATION_ENABLED && level === ECONOMY.perks.holdTrainLevel) perks.push('Hold the train at last call');
-  if (!MONETIZATION_ENABLED && level === ECONOMY.perks.scooterLevel) perks.push("The Conductor's Scooter");
+  if (!MONETIZATION_ENABLED && level === ECONOMY.perks.scooterLevel) perks.push(`The Conductor's Scooter for ${Math.round(ECONOMY.perks.scooterSeconds / 60)} minutes`);
   // A new carriage class to upgrade to (Basic is where every carriage starts).
   const cls = CLASSES.find((c) => c.level === level && c.tier > 0);
   if (cls) perks.push(`${cls.name} carriages`);

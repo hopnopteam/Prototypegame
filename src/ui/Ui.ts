@@ -505,11 +505,13 @@ export class Ui implements GameUi {
     const doubled = g.data.monetization.doubleFaresStop !== null && g.data.monetization.doubleFaresStop >= g.journey.stopSerial && g.data.monetization.doubleFaresStop <= g.journey.stopSerial + 1;
     // Happy Hour in the bar lounge (session 20): tips and fares up on the whole train for a while.
     const happy = g.venues.happyLeft;
-    const boostKey = `${boostLeft > 0 ? Math.ceil(boostLeft) : 0}|${doubled}|${happy > 0 ? Math.ceil(happy) : 0}`;
+    const scooterLeft = g.monetization.scooterLeft;
+    const boostKey = `${boostLeft > 0 ? Math.ceil(boostLeft) : 0}|${doubled}|${happy > 0 ? Math.ceil(happy) : 0}|${Math.ceil(scooterLeft)}`;
     if (this.boostLayer.dataset.key !== boostKey) {
       this.boostLayer.dataset.key = boostKey;
       this.boostLayer.replaceChildren();
       if (happy > 0) this.boostLayer.append(h('div.badge.happy', { title: 'Happy Hour' }, icon('party', 24), h('span', { text: formatClock(happy) })));
+      if (scooterLeft > 0) this.boostLayer.append(h('div.badge', { title: 'Scooter' }, icon('skate', 24), h('span', { text: formatClock(scooterLeft) })));
       if (boostLeft > 0) this.boostLayer.append(h('div.badge', { title: 'Roller skates' }, icon('skate', 24), h('span', { text: formatClock(boostLeft) })));
       if (doubled) this.boostLayer.append(h('div.badge', { title: 'Double fares at the next stop' }, icon('double', 24), h('span', { text: '×2' })));
     }

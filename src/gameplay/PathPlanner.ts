@@ -3,6 +3,8 @@ import type { World } from './World';
 
 /** Distance at which a waypoint counts as reached. */
 export const WAYPOINT_REACHED = 0.22;
+/** A waypoint overshot by less than this along its leg counts as reached. */
+const PASSED_WITHIN = 1.2;
 
 /** True when a straight walk from a to b never leaves the floor. */
 export function lineOfSight(w: World, a: Vec2, b: Vec2): boolean {
@@ -69,6 +71,8 @@ export class PathFollower {
   target: Vec2 | null = null;
   private stuck = 0;
   private last: Vec2 = { x: 0, z: 0 };
+  /** Where the leg to the current waypoint started (the start, then each waypoint passed). */
+  private prev: Vec2 = { x: 0, z: 0 };
   private readonly stick = { x: 0, y: 0 };
 
   constructor(private readonly w: World) {}
@@ -78,6 +82,13 @@ export class PathFollower {
     this.path = planPath(this.w, from, target);
     this.stuck = 0;
     this.last = { ...from };
+    this.prev = { ...from };
+  }
+
+  /** Metres to the next turn of the route (a waypoint with more after it), or Infinity on the last leg. */
+  toTurn(pos: Vec2): number {
+    if (this.path.length <= 1) return Infinity;
+    return Math.hypot(this.path[0].x - pos.x, this.path[0].z - pos.z);
   }
 
   stop(): void {
@@ -101,10 +112,23 @@ export class PathFollower {
     return total;
   }
 
+  /** The walker is already past the current waypoint along its leg, and close to it (never walk back to it). */
+  private passed(pos: Vec2): boolean {
+    const wp = this.path[0];
+    const lx = wp.x - this.prev.x;
+    const lz = wp.z - this.prev.z;
+    return (pos.x - wp.x) * lx + (pos.z - wp.z) * lz > 0 && Math.hypot(pos.x - wp.x, pos.z - wp.z) < PASSED_WITHIN;
+  }
+
   steer(pos: Vec2, dt: number): { x: number; y: number } | null {
     const target = this.target;
     if (!target) return null;
-    while (this.path.length > 1 && Math.hypot(this.path[0].x - pos.x, this.path[0].z - pos.z) < WAYPOINT_REACHED * 1.5) this.path.shift();
+    // A waypoint is done once it is reached or the one after it is in plain sight (session 36, owner: "the player
+    // reverses for some reason when entering the carriage": at dash speed the conductor overshot the waypoint at a
+    // gangway and turned back to touch it).
+    while (this.path.length > 1 && (Math.hypot(this.path[0].x - pos.x, this.path[0].z - pos.z) < WAYPOINT_REACHED * 1.5 || this.passed(pos) || lineOfSight(this.w, pos, this.path[1]))) {
+      this.prev = this.path.shift()!;
+    }
     const next = this.path[0] ?? target;
     const dx = next.x - pos.x;
     const dz = next.z - pos.z;
@@ -119,8 +143,11 @@ export class PathFollower {
     this.stuck = moved < 0.002 ? this.stuck + dt : 0;
     if (this.stuck > 0.8) {
       this.stuck = 0;
-      if (this.path.length > 1 && d < 0.8) this.path.shift();
-      else this.path = planPath(this.w, pos, target);
+      if (this.path.length > 1 && d < 0.8) this.prev = this.path.shift()!;
+      else {
+        this.path = planPath(this.w, pos, target);
+        this.prev = { ...pos };
+      }
     }
     const k = Math.min(1, d / 0.5);
     this.stick.x = (dx / d) * k;

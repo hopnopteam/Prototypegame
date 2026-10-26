@@ -18,13 +18,19 @@ export interface GearState {
   scooter: boolean;
   /** Double fares at this stop. */
   doubled: boolean;
+  /** How fast the conductor is going (m/s), for the scooter's wheels. */
+  speed: number;
   /** Something is on the stack (the tray only appears under a load, never on its own). */
   carrying: boolean;
 }
 
 /** The rim light's colour: warm gold, cyan on skates, a brighter gold with double fares (linear, before strength). */
 const RIM_COLOURS = { normal: new THREE.Color('#FFC75A'), skating: new THREE.Color('#5FD2F0'), doubled: new THREE.Color('#FFE27A') };
-const SCOOTER_LIFT = 0.16;
+/** The scooter deck's top, the handlebar's height and how far ahead of the rider it is, and its wheels. */
+const SCOOTER_LIFT = 0.11;
+const SCOOTER_BAR_Y = 0.72;
+const SCOOTER_BAR_Z = 0.4;
+const WHEEL_RADIUS = 0.06;
 
 /**
  * Everything that makes the conductor unmistakable and shows what you have earned: a soft rim of warm light
@@ -40,6 +46,7 @@ export class ConductorGear {
   private readonly epaulettes: THREE.Mesh;
   private readonly skates: THREE.Mesh[] = [];
   private readonly scooter: THREE.Group;
+  private readonly wheels: THREE.Mesh[] = [];
   private key = '';
   private time = 0;
 
@@ -83,17 +90,33 @@ export class ConductorGear {
       this.skates.push(mesh);
     }
 
-    // The Conductor's Scooter: a brass-trimmed deck on two wheels with a handlebar.
+    // The Conductor's Scooter: a navy deck with a brass grip under the conductor's feet, a raked stem rising to
+    // a handlebar at the hands' height, and two wheels that turn with the ride (session 36: sized to the rider,
+    // the bar where the hands reach).
     this.scooter = new THREE.Group();
     const deck = new GeoBuilder()
-      .rounded(0, 0.08, 0.05, 0.3, 0.05, 0.78, 0.04, PALETTE.navy, { shade: 0.9 })
-      .box(0, 0.108, 0.05, 0.26, 0.01, 0.7, PALETTE.brass, 0, { shade: 1 })
-      .cylinder(0, 0.07, -0.33, 0.07, 0.07, 0.06, PALETTE.ink, 14, 'x', { shade: 1 })
-      .cylinder(0, 0.07, 0.43, 0.07, 0.07, 0.06, PALETTE.ink, 14, 'x', { shade: 1 })
-      .cylinder(0, 0.5, 0.42, 0.02, 0.02, 0.8, PALETTE.brass, 8, 'y', { shade: 1 })
-      .cylinder(0, 0.9, 0.42, 0.018, 0.018, 0.42, PALETTE.ink, 8, 'x', { shade: 1 })
+      .rounded(0, SCOOTER_LIFT - 0.022, 0.0, 0.2, 0.04, 0.74, 0.018, PALETTE.navy, { shade: 0.9 })
+      .box(0, SCOOTER_LIFT - 0.001, -0.02, 0.16, 0.004, 0.56, PALETTE.brass, 0, { shade: 1 })
+      .box(0, SCOOTER_LIFT - 0.03, -0.36, 0.05, 0.05, 0.08, PALETTE.ink, 0, { shade: 1 })
+      .box(0, 0.32, 0.37, 0.034, 0.5, 0.034, PALETTE.brass, 0, { shade: 1 })
+      .box(0, 0.07, 0.37, 0.05, 0.08, 0.05, PALETTE.ink, 0, { shade: 1 })
+      .cylinder(0, SCOOTER_BAR_Y, SCOOTER_BAR_Z, 0.016, 0.016, 0.44, PALETTE.ink, 8, 'x', { shade: 1 })
+      .cylinder(-0.2, SCOOTER_BAR_Y, SCOOTER_BAR_Z, 0.024, 0.024, 0.07, '#7A2E2E', 8, 'x', { shade: 1 })
+      .cylinder(0.2, SCOOTER_BAR_Y, SCOOTER_BAR_Z, 0.024, 0.024, 0.07, '#7A2E2E', 8, 'x', { shade: 1 })
       .build();
-    this.scooter.add(new THREE.Mesh(deck, MATERIALS.character));
+    const stem = new THREE.Mesh(deck, MATERIALS.character);
+    this.scooter.add(stem);
+    const wheel = new GeoBuilder()
+      .cylinder(0, 0, 0, WHEEL_RADIUS, WHEEL_RADIUS, 0.045, PALETTE.ink, 14, 'x', { shade: 1 })
+      .cylinder(0, 0, 0, WHEEL_RADIUS * 0.45, WHEEL_RADIUS * 0.45, 0.05, PALETTE.brass, 10, 'x', { shade: 1 })
+      .box(0, 0, 0, 0.052, WHEEL_RADIUS * 1.6, 0.012, '#C9A24A', 0, { shade: 1 })
+      .build();
+    for (const z of [-0.3, 0.37]) {
+      const w = new THREE.Mesh(wheel, MATERIALS.character);
+      w.position.set(0, WHEEL_RADIUS, z);
+      this.scooter.add(w);
+      this.wheels.push(w);
+    }
     this.scooter.visible = false;
     view.root.add(this.scooter);
   }
@@ -120,10 +143,11 @@ export class ConductorGear {
       for (const s of this.skates) s.visible = state.skating && !state.scooter;
       this.scooter.visible = state.scooter;
       this.view.riding = state.scooter;
+      this.view.rideLift = state.scooter ? SCOOTER_LIFT : 0;
       this.view.body.position.y = 0;
     }
     this.tray.visible = state.carrying && state.capacityLevel >= 1;
-    if (state.scooter) this.view.body.position.y = SCOOTER_LIFT;
+    if (state.scooter) for (const w of this.wheels) w.rotation.x += (state.speed * dt) / WHEEL_RADIUS;
     // The rim breathes gently; it turns cyan on skates and a brighter, quicker gold with double fares.
     const boosted = state.skating || state.doubled;
     const colour = state.skating ? RIM_COLOURS.skating : state.doubled ? RIM_COLOURS.doubled : RIM_COLOURS.normal;

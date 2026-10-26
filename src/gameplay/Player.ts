@@ -1,6 +1,10 @@
 import { SCOOTER_SPEED_BONUS } from '../config/content';
 import { approach, dampAngle } from '../core/math';
 
+/** The share of full braking a quick-travel dash plans its stop with (it arrives without overshooting). */
+const DASH_BRAKE_SHARE = 0.6;
+/** How fast a dash takes a turn of its route, as a multiple of walking pace. */
+const DASH_CORNER_SPEED = 1.2;
 /** How briskly the conductor turns to face the way they walk (session 20: 22, was 14: near on the spot, as in MPH). */
 const TURN_SHARPNESS = 22;
 import type { Vec2 } from '../core/types';
@@ -103,6 +107,12 @@ export class Player implements Actor {
         stick = this.travel.steer(this.pos, dt) ?? { x: 0, y: 0 };
         // Quick travel takes at most a second and a half, however long the train has grown.
         max *= Math.min(p.maxDashMultiplier, Math.max(p.dashMultiplier, left / (p.dashMaxSeconds * this.speed())));
+        // Ease off in time to stop on the spot instead of overshooting it and stepping back (session 36).
+        max = Math.min(max, Math.max(this.speed(), Math.sqrt(2 * p.braking * DASH_BRAKE_SHARE * left)));
+        // …and slow into each turn (a gangway, a doorway) so it is taken in one smooth arc, never overshot.
+        const turn = this.travel.toTurn(this.pos);
+        const corner = this.speed() * DASH_CORNER_SPEED;
+        if (turn < Infinity) max = Math.min(max, Math.sqrt(corner * corner + 2 * p.braking * DASH_BRAKE_SHARE * turn));
         this.dashTrail -= dt;
         if (this.dashTrail <= 0 && this.speedNow > 1) {
           this.dashTrail = 0.06;
@@ -180,6 +190,7 @@ export class Player implements Actor {
       skating: this.boosted,
       scooter: w.monetization.scooterOwned,
       doubled: m.doubleFaresStop !== null && m.doubleFaresStop >= w.journey.stopSerial && m.doubleFaresStop <= w.journey.stopSerial + 1,
+      speed: this.speedNow,
       carrying: !this.stack.isEmpty,
     });
     this.stack.update(dt, moving, w.time);

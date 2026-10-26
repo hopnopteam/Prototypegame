@@ -7,7 +7,7 @@ import { MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, type BubbleStyle } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
-import { addHead, addTorso, armGeometry, eyelidGeometry, faceDepth, HAND_Y, HEAD_TOP, HEAD_Y, HIP_Y, legGeometry, SHOULDER_X, SHOULDER_Y, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
+import { addHead, addTorso, armGeometry, eyelidGeometry, faceDepth, HAND_Y, HEAD_TOP, HEAD_Y, HIP_Y, LEG_LENGTH, legGeometry, SHOULDER_X, SHOULDER_Y, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
 import { underPopup } from './screenMask';
 import type { CharacterBatch } from './CharacterBatch';
 
@@ -54,6 +54,10 @@ const SHOE = '#2A2433';
 const BUBBLE_SIZE = 0.74;
 /** How far the body drops to sit (hips onto a seat about 0.24 m up). */
 const SIT_DROP = HIP_Y - 0.26;
+/** The share of a scooter kick cycle the back foot is down pushing; the rest is coasting. */
+const RIDE_PUSH = 0.45;
+/** The arms' reach forward to the scooter's handlebar. */
+const RIDE_ARM = -1.05;
 
 const bodyCache = new Map<string, THREE.BufferGeometry>();
 const limbCache = new Map<string, THREE.BufferGeometry>();
@@ -420,8 +424,14 @@ export class CharacterView {
     return f;
   }
 
-  /** Hide the walk cycle (riding a scooter): legs straight, no bob. */
+  /**
+   * Riding a scooter (session 36, owner: "the player just stands on top of it"): the front foot on the deck, the
+   * back foot kicking off the floor in a rhythm while moving, hands on the handlebar, a lean into the ride.
+   */
   riding = false;
+  /** How high the deck stands off the floor while riding. */
+  rideLift = 0;
+  private kick = 0;
   /** Right arm up, waving (onlookers by the line, the station master's flag). */
   waving = false;
   private waveTime = Math.random() * 10;
@@ -701,7 +711,14 @@ export class CharacterView {
       return;
     }
 
-    const moving = speed > 0.2 && !this.riding;
+    if (this.riding) {
+      this.animateRide(dt, speed);
+      this.applyAction(dt);
+      this.body.scale.set(1, 1, 1);
+      return;
+    }
+    for (const leg of this.legs) leg.scale.y = 1;
+    const moving = speed > 0.2;
     this.phase += dt * (moving ? 3 + speed * 2.2 : 1.6);
     const swing = moving ? Math.min(0.75, 0.25 + speed * 0.12) : 0;
     const s = Math.sin(this.phase);
@@ -744,6 +761,41 @@ export class CharacterView {
   }
 
   /**
+   * The scooter ride: a kick cycle while moving (the back leg reaches down and back to the floor, stretching a
+   * little so the toe touches, the body dipping on the front knee), coasting between kicks; standing still, both
+   * feet on the deck. A footfall is reported as the kicking foot meets the floor.
+   */
+  private animateRide(dt: number, speed: number): void {
+    const moving = speed > 0.3;
+    const before = this.kick;
+    if (moving) this.kick = (this.kick + dt * (0.9 + speed * 0.12)) % 1;
+    else this.kick = 0;
+    const push = moving && this.kick < RIDE_PUSH ? Math.sin((this.kick / RIDE_PUSH) * Math.PI) : 0;
+    if (moving && before < RIDE_PUSH * 0.5 && this.kick >= RIDE_PUSH * 0.5) this.footfall = true;
+    const lean = moving ? 0.1 + 0.05 * push : 0.03;
+    const bodyY = this.rideLift - 0.035 * push;
+    this.body.position.y = bodyY;
+    this.body.rotation.set(lean, 0, 0.035 * push);
+    // The front foot stays planted on the deck; the back foot kicks.
+    const front = this.legs[0];
+    front.rotation.x = -lean - 0.08;
+    front.scale.y = 1;
+    const back = this.legs[1];
+    const angle = 0.1 + 0.55 * push;
+    back.rotation.x = angle - lean;
+    const reach = (HIP_Y + bodyY) / (LEG_LENGTH * Math.cos(angle));
+    back.scale.y = 1 + (reach - 1) * push;
+    if (this.action === 'none') {
+      for (let i = 0; i < 2; i++) {
+        const arm = this.arms[i];
+        arm.rotation.x += (RIDE_ARM - lean - arm.rotation.x) * Math.min(1, dt * 14);
+        const rest = i === 0 ? -0.06 : 0.06;
+        arm.rotation.z += (rest - arm.rotation.z) * Math.min(1, dt * 14);
+      }
+    }
+  }
+
+  /**
    * Session 32: makes a pooled character a fresh one (a new guest from the pool). Every field a character carries is
    * set again here, so nothing of whoever wore it before survives: look, size, pose, eyes, bubble, action, props,
    * walk cycle, transforms and visibility. It is drawn through the batch again from the next frame.
@@ -762,6 +814,8 @@ export class CharacterView {
     for (const mesh of this.inHand.values()) mesh.visible = false;
     this.carrying = false;
     this.riding = false;
+    this.rideLift = 0;
+    this.kick = 0;
     this.waving = false;
     this.leans = true;
     this.squash = 0;
@@ -770,7 +824,10 @@ export class CharacterView {
     this.body.position.set(0, 0, 0);
     this.body.rotation.set(0, 0, 0);
     this.body.scale.set(1, 1, 1);
-    for (const leg of this.legs) leg.rotation.set(0, 0, 0);
+    for (const leg of this.legs) {
+      leg.rotation.set(0, 0, 0);
+      leg.scale.set(1, 1, 1);
+    }
     this.arms.forEach((arm, i) => arm.rotation.set(0, 0, (i === 0 ? -1 : 1) * 0.1));
     this.root.position.set(0, 0, 0);
     this.root.rotation.set(0, 0, 0);
@@ -809,6 +866,21 @@ export const STAFF_LOOKS: Record<StaffRole, CharacterLook> = {
   host: { body: '#2E5A7A', accent: '#2E5A7A', skin: '#F2CFB3', hair: '#C9A15A', pants: '#22324A', hat: 'pillbox', arms: true },
   // Session 21: the cinema's projectionist, in an usher's red jacket with gold braid and a cap.
   projectionist: { body: '#A3283A', accent: PALETTE.gold, skin: '#E3AE87', hair: '#2A1C16', pants: '#22181C', hat: 'pillbox', accessory: 'sash', arms: true },
+};
+
+/**
+ * A trained helper's look (session 36, owner: "the Expert Attendant should look different, more professional, and
+ * visually more distinct"): from the staff level named here, the uniform changes. The Expert Attendant is a head
+ * housekeeper: a tailored aubergine jacket with gold buttons and sash, a peaked cap with a gold band, her hair in a bun.
+ */
+export const EXPERT_STAFF_LOOKS: Partial<Record<StaffRole, { fromLevel: number; look: CharacterLook }>> = {
+  attendant: {
+    fromLevel: 3,
+    look: {
+      body: '#33253F', accent: PALETTE.gold, skin: '#E3AE87', hair: '#2F2520', pants: '#1F1828', hat: 'conductor', hatColor: '#33253F',
+      bandColor: PALETTE.gold, accessory: 'sash', arms: true, outfit: 'jacket', sleeves: 'long', hairStyle: 'bun', trim: '#F2EEE6', shoe: '#1A1418',
+    },
+  },
 };
 
 function castsShadow<T extends THREE.Mesh>(mesh: T): T {

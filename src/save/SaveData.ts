@@ -120,6 +120,8 @@ export interface SaveData {
     firstClassIgnored: number;
     lastFirstClassSession: number;
     speedBoostUntil: number;
+    /** Session 36: the earned scooter runs until this much lifetime play (seconds); 0 when there is none. */
+    scooterUntil: number;
     doubleFaresStop: number | null;
     lastCashStashAt: number | null;
     lastSpeedOfferAt: number | null;
@@ -191,6 +193,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
       firstClassIgnored: 0,
       lastFirstClassSession: 0,
       speedBoostUntil: 0,
+      scooterUntil: 0,
       doubleFaresStop: null,
       lastCashStashAt: null,
       lastSpeedOfferAt: null,

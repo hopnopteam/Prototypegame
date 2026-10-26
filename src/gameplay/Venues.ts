@@ -322,7 +322,8 @@ export class Venues {
       if ((v.kind === 'cafe' || v.kind === 'dome') && v.queue.length >= VENUE_TUNING.cafeQueueMax) continue;
       // The dome is for the ride: nobody goes up to watch a station platform.
       if (v.kind === 'dome' && w.journey.phase !== 'onTheMove') continue;
-      weights[String(v.carriage)] = VENUES[v.kind].visitWeight;
+      // The routine (session 36): a venue they have already visited this ride weighs less, so they tour the train.
+      weights[String(v.carriage)] = VENUES[v.kind].visitWeight * (guest.visited.has(v.kind) ? w.econ.trip.routine.revisitWeight : 1);
     }
     const keys = Object.keys(weights);
     if (keys.length === 0) return false;
@@ -335,6 +336,7 @@ export class Venues {
     seat.order = null;
     seat.views = 0;
     guest.outing = { venue, seat, seated: false, paid: false, waitSince: 0 };
+    guest.visited.add(venue.kind);
     guest.request = null;
     w.guests.setOutingState(guest, 'toVenue');
     guest.view.showBubble(this.venueIcon(venue.kind), 'intent');

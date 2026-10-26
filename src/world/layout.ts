@@ -240,7 +240,7 @@ export interface VenueLayout {
  * Fix list 5.4–5.5: the café's floors are tiles (cream and sage, then cream and mocha marble) and the dining car's
  * a claret carpet with a tiled kitchen, so the two never look alike.
  */
-export type CarpetStyle = 'jute' | 'runner' | 'persian' | 'plaid' | 'theatre' | 'checker' | 'starry' | 'sage' | 'grandCheck' | 'kitchen' | 'wine' | 'claret';
+export type CarpetStyle = 'jute' | 'runner' | 'persian' | 'theatre' | 'checker' | 'kitchen' | 'wine' | 'claret' | 'oatmeal' | 'camel' | 'moss' | 'tobacco' | 'dove';
 
 export interface VenueCarpet {
   rect: Rect;
@@ -827,7 +827,6 @@ function buildCafe(tier: number): CarriageLayout {
   v.extras.push(
     { key: 'menu_pastry', props: [b.prop('pastries', 1.66, 5.85, 2.16, 6.85, 'left', false)] },
     { key: 'station_machine', props: [b.prop('espresso', 1.62, 3.62, 2.24, 4.3, 'left', false)] },
-    { key: 'menu_beans', props: [b.prop('beans', 1.62, 4.9, 2.24, 5.55, 'left', false)] },
   );
   // Session 24 (owner: "in the café car they are misaligned and partly hidden"): the camera looks over the counter
   // from the platform side, so a pad right against it was half hidden behind it. The pads stand a step out from the
@@ -886,10 +885,11 @@ function buildCafe(tier: number): CarriageLayout {
     b.prop('planter', 1.88, 0.26, NEAR, 0.7, 'left', true, 'low');
     b.prop('trolley', LAKE, 15.15, -1.72, 16.2, 'right', true, 'cafe');
   }
-  // Fix list 5.5: each refit lays a new floor across the whole room (a jute runner on the boards, then cream and sage
-  // tiles, then cream and mocha marble in a brass border), so the café changes from end to end.
+  // Each refit lays a new floor (a jute runner on the boards, then a mat across the room). Session 36 (owner: "mats…
+  // good-quality materials rather than patterns… old-money vibes"): the tiles became plain wool mats on the polished
+  // boards, an oatmeal mat in a sage border, then a camel mat in forest green with a gold line.
   if (tier === 1) v.carpets.push({ rect: rect(-0.55, 8.1, 0.55, 16.3), style: 'jute' });
-  if (tier >= 2) v.carpets.push({ rect: rect(-INNER + 0.05, 0.05, INNER - 0.05, 15.2), style: tier >= 3 ? 'grandCheck' : 'sage' });
+  if (tier >= 2) v.carpets.push({ rect: rect(-INNER + 0.3, 0.45, INNER - 0.3, 14.8), style: tier >= 3 ? 'camel' : 'oatmeal' });
   return b.layout;
 }
 
@@ -912,9 +912,8 @@ function buildDining(tier: number): CarriageLayout {
   v.stations.push({ item: 'meal', pad: { x: 0.48, z: 1.85 } });
   v.pass = { x: 1.25, z: 4.42 };
   v.extras.push(
-    // On the lake side, where the camera sees them whole: a second range, the wine rack, the lobster tank.
+    // On the lake side, where the camera sees them whole: a second range and the lobster tank.
     { key: 'station_range', props: [b.prop('range', -INNER, 1.95, -1.62, 3.45, 'right')] },
-    { key: 'menu_roast', props: [b.prop('wineRack', -INNER, 3.75, -2.02, 5.0, 'right')] },
     { key: 'menu_lobster', props: [b.prop('aquarium', -INNER, 0.15, -1.75, 0.85, 'right')] },
   );
   b.node('kitchen', -0.3, 2.3);
@@ -954,7 +953,6 @@ function buildDining(tier: number): CarriageLayout {
   b.anchor('home_chef', -0.2, 2.9);
   b.anchor('home_waiter', -1.45, 4.6);
   b.anchor('tile_up_chef', -REAR_TILE_X, REAR_TILE_Z);
-  b.anchor('tile_up_waiter', -1.2, 15.75);
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_menu', -1.45, 1.4);
   b.anchor('tile_station', -1.3, 2.7);
@@ -1058,11 +1056,9 @@ function buildBar(tier: number): CarriageLayout {
   }
   backRoom(b, 'cellar', 'right', 0.5, 14.95);
   if (tier >= 2) b.prop('trolley', 1.82, 8.2, NEAR, 9.25, 'left', true, 'bar');
-  if (tier === 2) v.carpets.push({ rect: rect(0.55, 9.85, INNER - 0.1, 16.25), style: 'persian' });
-  if (tier >= 3) {
-    v.carpets.push({ rect: rect(-INNER + 0.1, 2.15, INNER - 0.1, 14.85), style: 'plaid' });
-    v.carpets.push({ rect: rect(-INNER + 0.1, 14.85, 0.4, 16.35), style: 'plaid' });
-  }
+  // Session 36: plain wool mats, no figure (a moss mat in tobacco, then deep chocolate in cognac with a gold line).
+  if (tier === 2) v.carpets.push({ rect: rect(0.55, 9.85, INNER - 0.1, 16.25), style: 'moss' });
+  if (tier >= 3) v.carpets.push({ rect: rect(-INNER + 0.3, 2.4, INNER - 0.3, 14.6), style: 'tobacco' });
   return b.layout;
 }
 
@@ -1082,7 +1078,6 @@ function buildDome(tier: number): CarriageLayout {
   v.stations.push({ item: 'blanket', pad: { x: 1.15, z: 14.6 } });
   v.cash = { x: -0.25, z: 14.8 };
   v.sign = { x: 0.8, z: 9.0 };
-  v.extras.push({ key: 'menu_telescopes', props: [5.85, 9.25, 12.65].map((z) => b.prop('telescope', -INNER + 0.06, z - 0.22, -1.94, z + 0.22, 'right')) });
   b.node('dome_front', 0.3, 2.4);
   b.node('rope', -0.9, 4.2);
   b.chain('vest_front', 'dome_front', 'rope');
@@ -1109,7 +1104,7 @@ function buildDome(tier: number): CarriageLayout {
   b.anchor('tile_menu', -1.5, 7.6);
 
   // The furnishings: the route map on the front wall and the guidebooks and binoculars on the dresser below it, a
-  // lamp on a side table between the telescopes, plants at the back; a runner, then a starry carpet, under the rows.
+  // lamp on a side table between the telescopes, plants at the back; a runner, then a plain powder-blue mat, under the rows.
   b.prop('wallBoard', 1.0, WALL, 2.1, WALL + 0.05, 'rear', false, 'dome');
   if (tier <= 0) {
     b.prop('crates', 1.5, 0.3, NEAR, 1.3, 'left', true, 'dome');
@@ -1129,7 +1124,8 @@ function buildDome(tier: number): CarriageLayout {
     v.carpets.push({ rect: rect(0.12, 4.3, 2.18, 14.1), style: 'runner' });
     v.carpets.push({ rect: rect(-1.8, 4.3, -0.95, 14.1), style: 'runner' });
   }
-  if (tier >= 3) v.carpets.push({ rect: rect(-INNER + 0.1, 4.15, INNER - 0.1, 14.3), style: 'starry' });
+  // Session 36 (owner: "too dark… lighter… fewer patterns"): a powder-blue mat in ivory and gold, plain.
+  if (tier >= 3) v.carpets.push({ rect: rect(-INNER + 0.1, 4.15, INNER - 0.1, 14.3), style: 'dove' });
   return b.layout;
 }
 

@@ -876,7 +876,10 @@ export class Game implements World {
       this.ui.toast('New outfit', 'conductor');
       this.particles.emit('sparkle', this.player.pos.x, FLOOR_Y + 1.2, this.player.pos.z, 18, 0.5);
     }
-    if (!this.monetization.enabled && level === this.econ.perks.scooterLevel) this.ui.toast('Scooter!', 'skate');
+    if (!this.monetization.enabled && level === this.econ.perks.scooterLevel) {
+      this.monetization.grantScooter();
+      this.ui.toast('Scooter!', 'skate');
+    }
     const reward = this.progression.rewardFor(level);
     this.analytics.log(EVENTS.routeLevelUp, { level, time: Math.round(this.lifetimeSeconds()) });
     this.events.emit('level.up', { level });

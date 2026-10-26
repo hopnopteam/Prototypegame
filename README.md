@@ -8,7 +8,7 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 
 - **In the Claude app:** open the published artifact (link in the latest session notes). A loading screen covers the
   first few seconds (shaders compile, the sounds render and the first frames are drawn behind it, so play is smooth
-  from the first second), then gives way by itself; the sound fades in quietly on the first touch (no prompt). A brand-new player then sees a short story intro, skippable.
+  from the first second), then gives way by itself; the sound fades in quietly on the first touch (no prompt). A brand-new player is taught the first two passengers by doing.
 - **God mode, for recording videos:** `?god=1` on the play link, or the "Night Express GOD" APK (`android-god-N`
   pre-releases, built beside the normal one on every push). Unlimited money, gems and Rail Miles, every helper hireable
   as soon as their tile shows, stars ×4, its own save, nothing sent to GameAnalytics (`src/config/god.ts`).
@@ -36,6 +36,10 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
   `ENTRY=src/lineup.ts OUT=lineup.html node scripts/build.mjs`, then open `dist/lineup.html`). A slower, earned economy
   (`priceScale` in `src/config/economy.ts`), guests asking for more (`trip.again`, `extra` in `src/config/classes.ts`),
   tiny offline earnings, the Station Master's Chest (`chest`), and a refund for bags left behind (`luggage`).
+- **Session 36:** every passenger tours the venues once one is open (`trip.routine` in `src/config/economy.ts`, how
+  long they stay in `consumeSeconds` in `src/config/venues.ts`); the scooter is the level-6 reward for 7 minutes of play
+  (`perks.scooterSeconds`); the camera is closer (`minVisibleWidth` in `src/config/visuals.ts`); plain old-money mats in
+  the café, bar and dome and camel suede in the Royal Suite (`venueCarpets`, `suedeRoom` in `src/world/Floors.ts`).
 - **Android test build (APK):** every push to the working branch builds a signed test APK on GitHub Actions
   (`.github/workflows/android-apk.yml`) and publishes it as a pre-release named `android-test-N` on the
   repository's Releases page. On the phone: download the `.apk`, open it, allow "install unknown apps" for the

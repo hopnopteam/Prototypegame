@@ -21,7 +21,7 @@ import { PALETTE, shadeHex, type CarriageTheme } from './palette';
  * jointed in a regular stagger, and the damage is one clear hole per room.
  * 2 Cosy: polished oak boards; the lobby gets a waiting-room rug and a doormat.
  * 3 Luxurious: walnut chevron parquet in a border in every room; a grand rug in the lobby.
- * 4 (passenger carriages, Royal Suite): marble checker in a dark red border with a gold line.
+ * 4 (passenger carriages, Royal Suite): camel suede in a chocolate border with a gold line (session 36).
  *
  * Damage never sits on a pad, a doorway, a guest's spot or under furniture (where it would be hidden
  * anyway), so the floor tells the story without getting in the way.
@@ -38,6 +38,10 @@ const BOARD = 0.3;
 const BOARD_LENGTH = 2.1;
 const TILE = 0.25;
 const FLAT: PartStyle = { shade: 1 };
+/** Plain mat materials (session 36): wool, velvet and a brass line, no printed figure. */
+const WOOL: PartStyle = { shade: 1, surface: 'fabric' };
+const VELVET: PartStyle = { shade: 1, surface: 'velvet' };
+const BRASS: PartStyle = { shade: 1, surface: 'brass' };
 
 /** Three close shades per tier (a whisper of variety, never a pattern of its own). */
 const OLD_TONES = ['#8D8476', '#918879', '#898072'];
@@ -319,7 +323,7 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
   // Cosy and Luxurious: one sound base of wide boards, rooms laid over it, and rugs.
   f.box(0, FLOOR_Y - 0.03, L / 2, HALF_WIDTH * 2 - 0.04, 0.06, L - 0.04, PALETTE.boards, 0, { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1 });
   for (const cabin of layout.cabins) {
-    if (tier >= 4) marbleRoom(f, cabin.room);
+    if (tier >= 4) suedeRoom(f, cabin.room);
     else if (tier >= 3) firstClassRoom(f, cabin.room, theme);
     else f.slab(cabin.room, FLOOR_Y, FLOOR_Y + ROOM_LIFT, PALETTE.boardsPolished, 0, 0, { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1 });
   }
@@ -340,7 +344,9 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
       { color: cream ? PALETTE.gold : '#F1E7D4', inset: 0.1 },
       cream
         ? { color: '#EFE5CF', inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: '#D9CBAA', scale: 0.2, shade: 1 } }
-        : { color: theme.deep, inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: shadeHex(theme.deep, 20), scale: 0.2, shade: 1 } },
+        : tier >= 4
+          ? { color: theme.deep, inset: 0.13, pattern: VELVET }
+          : { color: theme.deep, inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: shadeHex(theme.deep, 20), scale: 0.2, shade: 1 } },
     ];
     if (sofa && table) rug(f, rect(table.rect.x0 - 0.22, sofa.rect.z0 + 0.04, sofa.rect.x1 - 0.02, sofa.rect.z1 - 0.04), base, layers(tier >= 4 || cream));
     if (dining) rug(f, rect(dining.rect.x0 - 0.06, dining.rect.z0 - 0.06, dining.rect.x1 + 0.06, dining.rect.z1 + 0.06), base, layers(true));
@@ -372,7 +378,7 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
 
 /**
  * A venue's floor coverings (session 21): each refit lays its own (a jute runner, the venue's runner, a Persian rug,
- * the bar's plaid, the picture palace's red carpet, the café's marble checker, the dome's starry carpet). Plain
+ * the bar's chocolate mat, the picture palace's red carpet, the café's camel mat, the dome's powder-blue mat). Plain
  * layered slabs like every rug, the pattern only on the top one.
  */
 function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageTheme): void {
@@ -391,13 +397,12 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
     };
     switch (c.style) {
       case 'jute':
-        lay([{ color: '#A88E66', inset: 0 }, { color: '#C2AA82', inset: 0.04, pattern: { pattern: PATTERN.checker, color2: '#B59C74', scale: 0.05, shade: 1 } }]);
+        lay([{ color: '#A88E66', inset: 0 }, { color: '#C2AA82', inset: 0.04, pattern: WOOL }]);
         break;
       case 'runner':
         lay([
           { color: '#C9A45C', inset: 0 },
-          { color: deep, inset: 0.04 },
-          { color: deep, inset: 0.1, pattern: { pattern: PATTERN.diamond, color2: shadeHex(deep, 16), scale: 0.22, shade: 1 } },
+          { color: deep, inset: 0.04, pattern: WOOL },
         ]);
         break;
       case 'persian':
@@ -405,12 +410,6 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
           { color: '#C9A45C', inset: 0 },
           { color: '#EAD9B8', inset: 0.04 },
           { color: deep, inset: 0.11, pattern: { pattern: PATTERN.diamond, color2: shadeHex(deep, 12), scale: 0.13, shade: 1 } },
-        ]);
-        break;
-      case 'plaid':
-        lay([
-          { color: '#4A3022', inset: 0 },
-          { color: '#C9AA82', inset: 0.06, pattern: { pattern: PATTERN.plaid, color2: '#6E4C34', scale: 0.2, shade: 1, surface: 'fabric' } },
         ]);
         break;
       case 'theatre':
@@ -426,27 +425,48 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
           { color: '#EFE9DE', inset: 0.07, pattern: { pattern: PATTERN.checker, color2: '#8A847A', scale: 0.36, shade: 1, surface: 'marble' } },
         ]);
         break;
-      case 'starry':
-        lay([
-          { color: '#C9A45C', inset: 0 },
-          { color: '#2C3C62', inset: 0.05, pattern: { pattern: PATTERN.dots, color2: '#C9A45C', scale: 0.3, shade: 1 } },
-        ]);
-        break;
       // Fix list 5.4–5.5: the café's tiles and the dining car's carpets (soft, warm colours that sit well together;
       // nothing stark).
-      case 'sage':
-        // The café's Makeover: cream and sage tiles in a terracotta border.
+      // Session 36 (owner: "mats… made of good-quality materials rather than having patterns… old-money vibes"):
+      // plain wool and velvet mats on the polished boards, a band and a fine line framing a plain field.
+      case 'oatmeal':
+        // The café's Makeover: oatmeal wool in a sage border.
         lay([
-          { color: '#C98B62', inset: 0 },
-          { color: '#F3ECDC', inset: 0.07, pattern: { pattern: PATTERN.checker, color2: '#B9CCA8', scale: 0.26, shade: 1, surface: 'ceramic' } },
+          { color: '#6F8466', inset: 0 },
+          { color: '#EFE6D2', inset: 0.1 },
+          { color: '#E3D6BC', inset: 0.125, pattern: WOOL },
         ]);
         break;
-      case 'grandCheck':
-        // The café's Luxury: big cream and soft mocha marble squares in a brass border.
+      case 'camel':
+        // The café's Luxury: camel velvet in forest green with a gold line.
         lay([
-          { color: '#C9A45C', inset: 0 },
-          { color: '#6E5A4C', inset: 0.035 },
-          { color: '#F1ECE2', inset: 0.1, pattern: { pattern: PATTERN.checker, color2: '#A08672', scale: 0.42, shade: 1, surface: 'marble' } },
+          { color: '#2E4636', inset: 0, pattern: VELVET },
+          { color: PALETTE.gold, inset: 0.12, pattern: BRASS },
+          { color: '#B98F62', inset: 0.14, pattern: VELVET },
+        ]);
+        break;
+      case 'moss':
+        // The bar's Makeover: a moss wool mat in tobacco.
+        lay([
+          { color: '#5C3B28', inset: 0 },
+          { color: '#6E774C', inset: 0.08, pattern: WOOL },
+        ]);
+        break;
+      case 'tobacco':
+        // The bar's Luxury: deep chocolate velvet in cognac with a gold line (under the green bar, ochre chairs and the
+        // orange banquette).
+        lay([
+          { color: '#8A5632', inset: 0, pattern: VELVET },
+          { color: PALETTE.gold, inset: 0.12, pattern: BRASS },
+          { color: '#6B4733', inset: 0.14, pattern: VELVET },
+        ]);
+        break;
+      case 'dove':
+        // The dome's Luxury: soft powder blue in ivory and gold, light under the night sky.
+        lay([
+          { color: PALETTE.gold, inset: 0, pattern: BRASS },
+          { color: '#EEE8DA', inset: 0.04 },
+          { color: '#AEBDCB', inset: 0.13, pattern: WOOL },
         ]);
         break;
       case 'kitchen':
@@ -468,25 +488,28 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
   }
 }
 
-/** The Royal Suite: cream and grey marble in a checker, framed in dark red marble with a gold line. */
-function marbleRoom(f: GeoBuilder, r: Rect): void {
-  const border = 0.1;
+/**
+ * The Royal Suite (session 36, owner: "use suede or some other luxurious mat… old-money aesthetic"; it was a cream
+ * and grey marble checker): wall to wall camel suede inside a deep chocolate border with a fine gold line, plain.
+ */
+function suedeRoom(f: GeoBuilder, r: Rect): void {
+  const border = 0.12;
   const y0 = FLOOR_Y;
   const y1 = FLOOR_Y + ROOM_LIFT;
-  const edge = '#5A2330';
-  const marble = { shade: 1, surface: 'marble' as const };
-  f.slab(rect(r.x0, r.z0, r.x1, r.z0 + border), y0, y1, edge, 0, 0, marble);
-  f.slab(rect(r.x0, r.z1 - border, r.x1, r.z1), y0, y1, edge, 0, 0, marble);
-  f.slab(rect(r.x0, r.z0 + border, r.x0 + border, r.z1 - border), y0, y1, edge, 0, 0, marble);
-  f.slab(rect(r.x1 - border, r.z0 + border, r.x1, r.z1 - border), y0, y1, edge, 0, 0, marble);
+  const edge = '#3F2A22';
+  const suede = { shade: 1, surface: 'suede' as const };
+  f.slab(rect(r.x0, r.z0, r.x1, r.z0 + border), y0, y1, edge, 0, 0, suede);
+  f.slab(rect(r.x0, r.z1 - border, r.x1, r.z1), y0, y1, edge, 0, 0, suede);
+  f.slab(rect(r.x0, r.z0 + border, r.x0 + border, r.z1 - border), y0, y1, edge, 0, 0, suede);
+  f.slab(rect(r.x1 - border, r.z0 + border, r.x1, r.z1 - border), y0, y1, edge, 0, 0, suede);
   const inner = rect(r.x0 + border, r.z0 + border, r.x1 - border, r.z1 - border);
-  // A gold line just inside the border, then the checker (each a separate, non-overlapping band).
+  // A gold line just inside the border, then the suede field (each a separate, non-overlapping band).
   const line = 0.02;
-  f.slab(rect(inner.x0, inner.z0, inner.x1, inner.z0 + line), y0, y1, PALETTE.gold, 0, 0, { shade: 1, surface: 'brass' });
-  f.slab(rect(inner.x0, inner.z1 - line, inner.x1, inner.z1), y0, y1, PALETTE.gold, 0, 0, { shade: 1, surface: 'brass' });
-  f.slab(rect(inner.x0, inner.z0 + line, inner.x0 + line, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, { shade: 1, surface: 'brass' });
-  f.slab(rect(inner.x1 - line, inner.z0 + line, inner.x1, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, { shade: 1, surface: 'brass' });
-  f.slab(rect(inner.x0 + line, inner.z0 + line, inner.x1 - line, inner.z1 - line), y0, y1, '#EFEAE2', 0, 0, { pattern: PATTERN.checker, color2: '#D5CEC3', scale: 0.32, shade: 1, surface: 'marble' });
+  f.slab(rect(inner.x0, inner.z0, inner.x1, inner.z0 + line), y0, y1, PALETTE.gold, 0, 0, BRASS);
+  f.slab(rect(inner.x0, inner.z1 - line, inner.x1, inner.z1), y0, y1, PALETTE.gold, 0, 0, BRASS);
+  f.slab(rect(inner.x0, inner.z0 + line, inner.x0 + line, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, BRASS);
+  f.slab(rect(inner.x1 - line, inner.z0 + line, inner.x1, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, BRASS);
+  f.slab(rect(inner.x0 + line, inner.z0 + line, inner.x1 - line, inner.z1 - line), y0, y1, '#B48E66', 0, 0, suede);
 }
 
 /**
