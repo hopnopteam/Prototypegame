@@ -12,7 +12,8 @@ icon and Install in the corners (after the reference), then it fades into play.
 **The lobby (the playable's own plan, `useCompactLobby` in `src/world/layout.ts`; the game's lobby is unchanged).**
 Reception up front: the desk, the urn's counter (tea, coffee and a breakfast tray), the linen cupboard, the waiting sofa
 against the front wall (back to the wall, facing the room), the luggage rack and a newsstand along the right wall. Behind
-it a small washroom (a loo and a basin, a curved front corner and a wide sliding door of frosted glass) and **four
+it a small washroom (a loo and a basin, a curved front corner) entered from the reception through its front wall: a
+frosted-glass door that slides aside along that wall when someone walks up to it and shuts behind them. Then **four
 rooms**. **Four guests**, one per room; whenever a room is free the next waiting guest comes to the desk.
 
 **Tutorial (~0:00–1:00), light on purpose.** One room open; the others are covered and padlocked. Only passenger 1 is
@@ -49,16 +50,15 @@ carriage) appears once every small one before it is bought. Paying fills the til
 | # | Upgrade | Kind | Price | What you see |
 |---|---|---|---|---|
 | 1 | Room 2 | tutorial | $20 | the lid lifts off the room, the bed drops in |
-| 2–6 | Room 3, Reading Lamps, Room 4, Fresh Flowers, Lobby Rug | small | $40–65 | rooms open; a brass reading lamp by each bed (a soft warm pool, nothing glaring); flowers on a little side table by each room's back wall; a red rug |
-| 7 | Attendant | big | $120 | she arrives (fast from the start) and takes requests the player leaves for 4 s |
+| 2–5 | Reading Lamps, Room 3, Room 4, Fresh Flowers | small | $30–70 | a brass reading lamp by each bed (a soft warm pool, nothing glaring); rooms open; flowers on a little side table by each room's back wall |
+| 6 | Attendant | big | $120 | she arrives (fast from the start) and takes requests the player leaves for 4 s |
+| 7 | Café Car | big | $140 | straight after the Attendant: rolls in under a tarp, ropes snap, the tarp slides off |
 | 8 | Comfort Class | big | $170 | the makeover sweeps the lobby; class card |
-| 9–10 | Minibars, Skates | small | $110–120 | a glass-front minibar in every room; skates on the conductor's feet, 15% faster |
-| 11 | Café Car | big | $130 | rolls in under a tarp, ropes snap, the tarp slides off |
-| 12 | Pastry Stand | small | $110 | croissants on the counter |
-| 13 | Luxury Class | big | $170 | navy and gold makeover |
-| 14 | Theatre Car | big | $150 | covered-carriage reveal |
-| 15–16 | Big Speakers, Red Carpet | small | $100 | speakers by the screen; a red carpet with spotlights |
-| 17 | **Dining Car** | final | $150 | covered-carriage reveal, then the end screen |
+| 9 | Pastry Stand | small | $110 | croissants on the counter |
+| 10 | Luxury Class | big | $180 | navy and gold makeover |
+| 11 | Theatre Car | big | $160 | covered-carriage reveal |
+| 12–13 | Big Speakers, Red Carpet | small | $110 | speakers by the screen; a red carpet with spotlights |
+| 14 | **Dining Car** | final | $160 | covered-carriage reveal, then the end screen |
 
 **End screen (after the reference).** The game dimmed behind; "UPGRADE YOUR TRAIN!"; a purple card whose picture slides
 from one next carriage to another (an observation deck under a glass dome, a pool car, a gym car), with +2 stars and

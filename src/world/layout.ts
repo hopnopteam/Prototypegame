@@ -609,13 +609,13 @@ function buildLobby(tier: number): CarriageLayout {
 export const COMPACT_LOBBY = {
   end: 5.4,
   washEnd: 7.3,
-  washDoor: 1.2,
+  /** The washroom's way in: a gap in its front wall (x from, x to), off the reception. */
+  washDoorX: [0.26, 1.26] as [number, number],
   newsstand: rect(1.84, 4.66, INNER - 0.08, 5.2),
   /** In each room, a strip along its front wall (clear of the door leaves' swing) for the lamp and the minibar. */
   decorDepth: 0.5,
   decorX0: 0.32,
-  /** The washroom's entry: a wide sliding door off the corridor, its front corner a curved wall (radius). */
-  washDoorZ0: 6.05,
+  /** The washroom's front corner toward the corridor: a curved wall (radius). */
   washCurve: 0.62,
   sofa: rect(1.02, WALL + 0.06, INNER - 0.08, 0.8),
 };
@@ -665,15 +665,14 @@ function buildCompactLobby(tier: number): CarriageLayout {
   b.chain('lobby_front', 'lobby_rear', 'rack');
   b.edge('lobby_rl', 'lobby_rear');
 
-  // The washroom: small, well kept (a loo by the window, a basin with a mirror), a narrow door off the corridor.
+  // The washroom: small, well kept (a loo by the window, a basin with a mirror). Its way in is off the reception,
+  // through its front wall: a wide sliding door that runs along that wall and parks in front of it when open. The
+  // corner toward the corridor is a curved wall (drawn by the playable; here a few small rects along it block).
   const z0 = end;
   const z1 = washEnd;
-  const door: [number, number] = [COMPACT_LOBBY.washDoorZ0, Math.min(z1 - 0.05, COMPACT_LOBBY.washDoorZ0 + COMPACT_LOBBY.washDoor)];
-  const doorZ = (door[0] + door[1]) / 2;
-  // The front wall stops short of the corridor: the corner between it and the partition is a curved wall, drawn by
-  // the playable (here it only blocks: a few small rects along the curve).
+  const [dx0, dx1] = COMPACT_LOBBY.washDoorX;
   const R = COMPACT_LOBBY.washCurve;
-  b.wall(PARTITION_X1 + R, z0 - 0.06, INNER, z0 + 0.06);
+  b.wallAlongX(z0 - 0.06, z0 + 0.06, PARTITION_X1 + R, INNER, [[dx0, dx1]], 'interior');
   for (let i = 0; i < 6; i++) {
     const a = ((i + 0.5) / 6) * (Math.PI / 2);
     const cx = PARTITION_X1 + R - Math.cos(a) * R;
@@ -681,23 +680,26 @@ function buildCompactLobby(tier: number): CarriageLayout {
     b.layout.blocked.push(rect(cx - 0.09, cz - 0.09, cx + 0.09, cz + 0.09));
   }
   b.room(PARTITION_X1, z0 + 0.06, INNER, z1 - 0.06);
-  b.connector(-INNER, z0 - 0.5, PARTITION_X0, z1 + 0.5, 'z');
-  b.connector(PARTITION_X0 - 0.45, door[0], PARTITION_X1 + 0.45, door[1], 'x', false, 'bath:0');
+  b.connector(dx0, z0 - 0.5, dx1, z0 + 0.5, 'z', false, 'bath:0');
   b.prop('toilet', INNER - 0.62, z0 + 0.2, INNER, z0 + 0.85, 'left');
   b.prop('sink', INNER - 0.5, z1 - 0.78, INNER, z1 - 0.2, 'left');
-  // The partition along the washroom: from the end of the curve to the door, and past the door to the next room.
-  b.wallAlongZ(PARTITION_X0, PARTITION_X1, z0 + R, z1, [door], 'interior');
-  const corridorNode = b.node('corr_w', (-INNER + PARTITION_X0) / 2, doorZ);
-  const node = b.node('bath_0', PARTITION_X1 + 0.7, doorZ);
-  const useNode = b.node('bath_use_0', INNER - 1.0, z0 + 0.55);
-  b.chain('corr_in', corridorNode, node, useNode);
+  // The partition along the washroom is solid now (from the end of the curve to the next room).
+  b.wallAlongZ(PARTITION_X0, PARTITION_X1, z0 + R, z1, [], 'interior');
+  b.connector(-INNER, z0 - 0.5, PARTITION_X0, z1 + 0.5, 'z');
+  const doorMid = (dx0 + dx1) / 2;
+  const corridorNode = b.node('corr_w', (-INNER + PARTITION_X0) / 2, (z0 + z1) / 2);
+  const outside = b.node('bath_out', doorMid, z0 - 0.45);
+  const node = b.node('bath_0', doorMid, z0 + 0.5);
+  const useNode = b.node('bath_use_0', INNER - 1.0, z0 + 0.6);
+  b.chain('corr_in', corridorNode);
+  b.chain('lobby_rear', outside, node, useNode);
   b.layout.bathrooms.push({
     index: 0,
     room: rect(PARTITION_X1, z0 + 0.06, INNER, z1 - 0.06),
-    doorZ,
-    door,
-    restock: { x: PARTITION_X1 + 0.85, z: doorZ + 0.1 },
-    useSpot: { x: INNER - 1.0, z: z0 + 0.55 },
+    doorZ: z0,
+    door: [dx0, dx1],
+    restock: { x: doorMid, z: z0 + 0.95 },
+    useSpot: { x: INNER - 1.0, z: z0 + 0.6 },
     node,
     useNode,
     sliding: true,

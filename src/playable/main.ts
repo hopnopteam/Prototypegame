@@ -23,14 +23,13 @@ import { drawIcon as drawIconAt, type IconName } from '../ui/icons';
 import { Ambient } from '../world/Ambient';
 import { BED_TOP, CarriageView, deformTarp, disposeTree, FLOOR_Y, TARP_TIE_Z } from '../world/CarriageView';
 import { CharacterBatch } from '../world/CharacterBatch';
-import { LEG_LENGTH } from '../world/CharacterParts';
 import { CharacterView, CONDUCTOR_LOOK, STAFF_LOOKS, type CharacterLook } from '../world/CharacterView';
 import { CashView } from '../world/CashView';
 import { Fireflies } from '../world/Fireflies';
 import { GeoBuilder } from '../world/geo';
 import { createItemMesh, ITEM_HEIGHT } from '../world/ItemMeshes';
 import { shoesGeometry } from '../world/Shoes';
-import { CARRIAGE_LENGTH, carriageOriginZ, COMPACT_LOBBY, INTERIOR_WALL_HEIGHT, PARTITION_X0, PARTITION_X1, getLayout, HALF_WIDTH, INNER, useCompactLobby, type CabinLayout, type VenueSeatLayout } from '../world/layout';
+import { CARRIAGE_LENGTH, carriageOriginZ, COMPACT_LOBBY, INTERIOR_WALL_HEIGHT, PARTITION_X1, getLayout, HALF_WIDTH, INNER, useCompactLobby, type CabinLayout, type VenueSeatLayout } from '../world/layout';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { clipSide, MATERIALS, SHADOW_GEOMETRY, setLivery, swapMaterials } from '../world/materials';
 import { liveryFor } from '../world/palette';
@@ -90,16 +89,15 @@ const TUNE = {
    */
   price: {
     room2: 20,
-    room3: 40, lamps: 50, room4: 60, flowers: 60, rug: 65,
+    lamps: 30, room3: 45, room4: 60, flowers: 70,
     attendant: 120,
+    cafe: 140,
     comfort: 170,
-    minibar: 110, skates: 120,
-    cafe: 130,
     pastry: 110,
-    luxury: 170,
-    theatre: 150,
-    speakers: 100, premiere: 100,
-    dining: 150,
+    luxury: 180,
+    theatre: 160,
+    speakers: 110, premiere: 110,
+    dining: 160,
   },
   /** Most small upgrade tiles on show at once. */
   tilesAtOnce: 1,
@@ -140,8 +138,6 @@ const TUNE = {
   shoePay: 22,
   shineSeconds: 1.3,
   shoeReach: 0.75,
-  /** The skates upgrade: how much faster the conductor walks. */
-  skates: 1.15,
   /** The movie's length. */
   film: 7,
   /** Viewers seated before the movie can start. */
@@ -1473,24 +1469,28 @@ const mess = washMess(MESS_AT.x, MESS_AT.z);
 mess.group.visible = false;
 scene.add(mess.group);
 const washStation = addStation('clean', [], SLOT.lobby, BATH.restock, 'broom', MESS_AT);
-// The washroom's entry: the curved front corner and a wide sliding door of frosted glass on the corridor side.
+// The washroom's entry: the curved corner toward the corridor, and a wide sliding door of frosted glass in its front
+// wall, off the reception. The door hangs on the reception side of that wall and slides along it toward the windows,
+// parking in front of the solid wall there (nothing stands in its way: the newsstand stops short of it).
+const WASH_DOOR_Z = BATH.room.z0 - 0.06 - 0.1;
 {
   const R = COMPACT_LOBBY.washCurve;
   scene.add(curvedWall(PARTITION_X1 + R, BATH.room.z0 - 0.06 + R, R, WALL_HEIGHT));
   const [d0, d1] = BATH.door;
-  washDoor.position.set(PARTITION_X0 - 0.05, FLOOR_Y, (d0 + d1) / 2);
-  washDoor.userData.closedZ = (d0 + d1) / 2;
-  washDoor.userData.travel = d1 - d0 - 0.1;
+  washDoor.rotation.y = Math.PI / 2;
+  washDoor.position.set((d0 + d1) / 2, FLOOR_Y, WASH_DOOR_Z);
+  washDoor.userData.closedX = (d0 + d1) / 2;
+  washDoor.userData.travel = d1 - d0;
   scene.add(washDoor);
 }
 /** The door slides open for anyone coming in or out, and closes behind them. */
 let washDoorOpen = 0;
 function updateWashDoor(dt: number): void {
-  const cz = washDoor.userData.closedZ as number;
-  const near = (x: number, z: number): boolean => Math.hypot(x - PARTITION_X0, z - cz) < 1.4 || inWashroom(x, z);
-  const want = near(me.x, me.z) || guests.some((g) => near(g.x, g.z) && (g.walking || g.state === 'washing')) ? 1 : 0;
+  const cx = washDoor.userData.closedX as number;
+  const near = (x: number, z: number): boolean => Math.hypot(x - cx, z - WASH_DOOR_Z) < 1.4 || inWashroom(x, z);
+  const want = near(me.x, me.z) || guests.some((g) => near(g.x, g.z) && (g.walking || g.state === 'washing')) || helpers.some((h) => near(h.w.x, h.w.z)) ? 1 : 0;
   washDoorOpen += (want - washDoorOpen) * Math.min(1, dt * (want ? 9 : 4));
-  washDoor.position.z = cz - washDoorOpen * (washDoor.userData.travel as number);
+  washDoor.position.x = cx + washDoorOpen * (washDoor.userData.travel as number);
 }
 /**
  * The mess, animated: on arrival a splash, the puddle spreads and each piece drops in with a bounce, then a little
@@ -1923,7 +1923,7 @@ function pushIn(x: number, z: number, seconds = TUNE.pushIn, zoom = TUNE.pushZoo
 // ================================================================ the upgrades: small ones in place, then the big ones
 /**
  * One purchase. A small one changes something you can see in place (a room opens, lamps and flowers appear in every
- * room, a rug, a bigger luggage rack) and adds a little to every delivery; a big one (the Attendant, a new class, a
+ * room) and adds a little to every delivery; a big one (the Attendant, a new class, a
  * new carriage) is a moment of its own and only comes once every small one before it is bought.
  */
 interface Step {
@@ -1948,20 +1948,16 @@ const tz = (z: number): number => carriageOriginZ(SLOT.cinema) + z;
 const lobbyCabin = (i: number): CabinLayout => views.lobby[TIER.basic].layout.cabins[i];
 const roomFocus = (i: number) => (): Vec2 => ({ x: lobbyCabin(i).center.x, z: lz(lobbyCabin(i).center.z) });
 const corridorBy = (i: number) => (): Vec2 => ({ x: -1.4, z: lz(lobbyCabin(i).center.z) });
-const RUG = { x0: -0.45, z0: 1.55, x1: 1.5, z1: 4.45 };
 const upgrade = (s: Omit<Step, 'price'>): Step => ({ ...s, get price() { return TUNE.price[s.id]; } });
 const STEPS: Step[] = [
   upgrade({ id: 'room2', name: 'Room 2', icon: 'bed', note: 'A new guest can check in', tile: corridorBy(1), focus: roomFocus(1), buy: () => openRoom(1) }),
-  upgrade({ id: 'room3', name: 'Room 3', icon: 'bed', note: 'A new guest can check in', tile: corridorBy(2), focus: roomFocus(2), buy: () => openRoom(2) }),
   upgrade({ id: 'lamps', name: 'Reading Lamps', icon: 'star', bonus: TUNE.smallBonus, tile: corridorBy(0), focus: roomFocus(0), buy: () => addDecor('lamp') }),
+  upgrade({ id: 'room3', name: 'Room 3', icon: 'bed', note: 'A new guest can check in', tile: corridorBy(2), focus: roomFocus(2), buy: () => openRoom(2) }),
   upgrade({ id: 'room4', name: 'Room 4', icon: 'bed', note: 'A new guest can check in', tile: corridorBy(3), focus: roomFocus(3), buy: () => openRoom(3) }),
   upgrade({ id: 'flowers', name: 'Fresh Flowers', icon: 'heart', bonus: TUNE.smallBonus, tile: corridorBy(1), focus: roomFocus(1), buy: () => addDecor('flowers') }),
-  upgrade({ id: 'rug', name: 'Lobby Rug', icon: 'star', bonus: TUNE.smallBonus, tile: () => ({ x: 0.5, z: lz(3.75) }), focus: () => ({ x: 0.5, z: lz(3.0) }), buy: () => setRug(true) }),
   upgrade({ id: 'attendant', name: 'Attendant', icon: 'person', big: true, tile: () => ({ x: -1.5, z: lz(6.35) }), focus: () => ({ x: L.home_attendant.x, z: lz(L.home_attendant.z) }), buy: hireFirstAttendant }),
-  upgrade({ id: 'comfort', name: 'Comfort Class', icon: 'star', big: true, tile: () => ({ x: -1.5, z: lz(6.35) }), focus: () => ({ x: 0, z: lz(10) }), buy: () => classUp(TIER.comfort) }),
-  upgrade({ id: 'minibar', name: 'Minibars', icon: 'snack', bonus: TUNE.smallBonus, tile: corridorBy(0), focus: roomFocus(0), buy: () => addDecor('minibar') }),
-  upgrade({ id: 'skates', name: 'Skates', icon: 'skate', note: 'You move a little faster', tile: () => ({ x: 0.5, z: lz(3.75) }), focus: () => ({ x: me.x, z: me.z }), buy: buySkates }),
   upgrade({ id: 'cafe', name: 'Café Car', icon: 'latte', big: true, tile: () => ({ x: -1.0, z: lz(17.05) }), focus: () => ({ x: 0, z: cz(9) }), buy: buyCafe }),
+  upgrade({ id: 'comfort', name: 'Comfort Class', icon: 'star', big: true, tile: () => ({ x: -1.5, z: lz(6.35) }), focus: () => ({ x: 0, z: lz(10) }), buy: () => classUp(TIER.comfort) }),
   upgrade({ id: 'pastry', name: 'Pastry Stand', icon: 'pastry', bonus: TUNE.smallBonus, tile: () => ({ x: -1.15, z: cz(6.35) }), focus: () => ({ x: 1.0, z: cz(6.35) }), buy: buyPastries }),
   upgrade({ id: 'luxury', name: 'Luxury Class', icon: 'crown', big: true, tile: () => ({ x: -1.5, z: lz(6.35) }), focus: () => ({ x: 0, z: lz(10) }), buy: () => classUp(TIER.luxury) }),
   upgrade({ id: 'theatre', name: 'Theatre Car', icon: 'film', big: true, tile: () => ({ x: 0, z: cz(17.1) }), focus: () => ({ x: 0, z: tz(9) }), buy: buyTheatre }),
@@ -2040,14 +2036,6 @@ function updateLifting(dt: number): void {
     }
   }
 }
-/** The lobby's welcome rug over the waiting area (a plain rug with a border; the classes bring their own floors). */
-const rug = plainMat(RUG.x0, RUG.z0, RUG.x1, RUG.z1, '#B5473F', '#E9C46A');
-rug.visible = false;
-scene.add(rug);
-function setRug(on: boolean): void {
-  rug.visible = on && train[SLOT.lobby].tier === TIER.basic;
-  if (on) popping.push({ obj: rug, t: 0, base: 1 });
-}
 function addExtra(key: string): void {
   const view = views.cinema;
   extras.push(key);
@@ -2064,37 +2052,6 @@ function hireFirstAttendant(): void {
   pushIn(home.x, home.z, 2.2, 0.75);
   hireAttendant(ROOM_ITEMS, home);
   later(0.3, () => say('ATTENDANT HIRED!', 'She brings the guests what they ask for'));
-}
-/** Roller skates: the conductor glides a little faster (never so fast it feels slippery). */
-let skates = false;
-/** How far the wheels reach below the shoe soles (m). */
-const SKATE_LIFT = 0.05;
-/** The skates themselves, on the conductor's feet (the game's own model: a boot over the shoe, two wheels). */
-const skateMeshes: THREE.Mesh[] = [];
-{
-  const skate = new GeoBuilder()
-    .rounded(0, -LEG_LENGTH + 0.06, 0.03, 0.13, 0.08, 0.24, 0.03, '#E26D8C', { shade: 0.95 })
-    .box(0, -LEG_LENGTH + 0.01, 0.03, 0.1, 0.02, 0.22, '#2B2230', 0, { shade: 1 });
-  for (const z of [-0.06, 0.12]) skate.cylinder(0, -LEG_LENGTH - 0.015, z, 0.035, 0.035, 0.1, '#FFD35C', 10, 'x', { shade: 1 });
-  const geometry = skate.build();
-  for (const pivot of player.legPivots) {
-    const mesh = new THREE.Mesh(geometry, MATERIALS.character);
-    mesh.visible = false;
-    pivot.add(mesh);
-    skateMeshes.push(mesh);
-  }
-}
-function buySkates(): void {
-  skates = true;
-  for (const m of skateMeshes) {
-    m.visible = true;
-    m.scale.setScalar(0.001);
-    popping.push({ obj: m, t: 0, base: 1 });
-  }
-
-  speedNow *= TUNE.skates;
-  particles.emit('confetti', me.x, FLOOR_Y + 1.4, me.z, 30, 0.6);
-  sfx('staff');
 }
 
 /** A new carriage's moment: seconds rolling in, seconds for the tarp to come off. */
@@ -2198,7 +2155,6 @@ function classUp(tier: number): void {
   // What was bought for the lobby comes along, dressed for the new class.
   next.setRackLevel(1);
   rackBags = -1;
-  rug.visible = false;
   pushIn(0, lz(9.5), 2.6, 1.0);
   refitCar(SLOT.lobby, next, tier);
   later(1.8, () => {
@@ -2676,12 +2632,9 @@ function updatePlayer(dt: number): void {
     me.x = pos.x;
     me.z = pos.z;
   }
-  // On skates the conductor rides the wheels' height, so they never sink into the floor.
-  player.setPosition(me.x, FLOOR_Y + (skates ? SKATE_LIFT : 0), me.z);
+  player.setPosition(me.x, FLOOR_Y, me.z);
   player.setFacing(me.facing);
   player.update(dt, me.speed);
-  // On skates, a little puff behind the heels as they glide.
-  if (skates && me.speed > 2 && Math.random() < dt * 7) particles.emit('dust', me.x - me.vx * 0.3, FLOOR_Y + 0.08, me.z - me.vz * 0.3, 1, 0.12);
 }
 
 /** Cabin doors swing open for anyone at them (the game's hinged leaves), and shut behind. */
