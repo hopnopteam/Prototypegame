@@ -509,7 +509,9 @@ export class Station {
     const storageFull = w.train.luggageStored >= w.train.luggageCapacity;
     const bagsDone = this.luggagePile === 0 || storageFull;
     const { bags: bagsLeft, refund: bagRefund } = this.chargeLeftBags(storageFull);
-    const clean = waiting === 0 && bagsDone;
+    const quality = stopQuality(this.boardedThisStop, waiting, this.luggageLoadedThisStop, this.luggageTotal, bagsDone, w.feedback.mood, w.econ.rating.weights);
+    // Session 38: a perfect stop is a three-star one (nobody missed, the bags loaded and the service good).
+    const clean = waiting === 0 && bagsDone && quality >= w.econ.rating.stars.three;
     const money = w.econ.money;
     const route = w.data.route;
     // The perfect streak (session 24): each perfect stop in a row grows the bonus; any other stop starts again.
@@ -562,7 +564,7 @@ export class Station {
       stars: w.progression.stars - this.starsAtArrival,
       clean,
       bonusCash,
-      rating: stopRating(waiting, bagsDone),
+      rating: stopRating(quality, waiting, bagsDone, w.econ.rating.stars),
       earned: this.faresThisStop + this.tipsThisStop,
       streak: route.perfectStreak,
       streakBonus: streakExtra,
@@ -575,7 +577,6 @@ export class Station {
     };
     // The Train Rating (fix list 4.2): this stop's quality joins the recent ones.
     const before = w.trainRating();
-    const quality = stopQuality(this.boardedThisStop, waiting, this.luggageLoadedThisStop, this.luggageTotal, bagsDone, w.feedback.mood, w.econ.rating.weights);
     const recent = (route.recentStops ??= []);
     // (Session 32: a stop during the first-passengers tutorial never counts against the rating.)
     if (!tutorial) recent.push(Math.round(quality * 1000) / 1000);

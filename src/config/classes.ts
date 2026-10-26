@@ -68,17 +68,17 @@ export const CLASSES: ClassDef[] = [
   {
     id: 'basic', name: 'Basic', chip: 'BASIC', tier: 0, level: 1,
     livery: { body: '#4F5D55', trim: '#B9C2B5' }, color: '#6E7D72', ink: '#FFFFFF',
-    fare: 1, tip: 1, stars: 1, evening: { blanket: 1 }, morning: { tea: 2, newspaper: 1 }, extra: { pillow: 2, tea: 1, newspaper: 1, blanket: 1 }, turndown: false, butler: false, adds: 'clean', icon: 'broom',
+    fare: 1, tip: 1, stars: 1, evening: { blanket: 2, sandwich: 1 }, morning: { tea: 2, newspaper: 1 }, extra: { pillow: 2, tea: 1, newspaper: 1, blanket: 1, sandwich: 2 }, turndown: false, butler: false, adds: 'clean', icon: 'broom',
   },
   {
     id: 'comfort', name: 'Comfort', chip: 'COMFORT', tier: 2, level: 2,
     livery: { body: '#2C7A76', trim: '#EAD9B0' }, color: '#2F8F89', ink: '#FFFFFF',
-    fare: 2.5, tip: 2, stars: 2, evening: { tea: 1 }, morning: { towel: 1 }, extra: { blanket: 1, pillow: 1, newspaper: 1, tea: 1 }, turndown: false, butler: false, adds: 'towel', icon: 'towel',
+    fare: 1.8, tip: 1.6, stars: 2, evening: { tea: 1, sandwich: 1 }, morning: { towel: 1 }, extra: { blanket: 1, pillow: 1, newspaper: 1, tea: 1, sandwich: 2 }, turndown: false, butler: false, adds: 'towel', icon: 'towel',
   },
   {
     id: 'business', name: 'Business', chip: 'BUSINESS', tier: 3, level: 4,
     livery: { body: '#233A5E', trim: '#C9D2DC' }, color: '#2D4C7C', ink: '#FFFFFF',
-    fare: 5, tip: 3.5, stars: 3, evening: { newspaper: 1 }, morning: { coffee: 1 }, extra: { tea: 1, towel: 1, pillow: 1, coffee: 1 }, turndown: false, butler: false, adds: 'coffee', icon: 'coffee',
+    fare: 5, tip: 3.5, stars: 3, evening: { newspaper: 1 }, morning: { coffee: 1 }, extra: { tea: 1, towel: 1, pillow: 1, coffee: 1, sandwich: 1 }, turndown: false, butler: false, adds: 'coffee', icon: 'coffee',
   },
   {
     id: 'first', name: 'First Class', chip: 'FIRST CLASS', tier: 4, level: 6,

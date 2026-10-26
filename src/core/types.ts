@@ -33,7 +33,9 @@ export type ItemKind =
   // Session 22: the morning paper and the breakfast tray.
   | 'newspaper' | 'breakfast'
   // Fix list 4.6: a box of snacks for a room's minibar.
-  | 'snack';
+  | 'snack'
+  // Session 38: a plate of sandwiches, food a guest can ask for (from the tea counter).
+  | 'sandwich';
 
 export type CurrencyKind = 'cash' | 'gems' | 'railMiles';
 

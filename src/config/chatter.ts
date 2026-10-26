@@ -66,6 +66,7 @@ export const PRAISE = {
     towel: ['So fluffy!', 'Lovely!'],
     newspaper: ['Splendid!', 'Thank you!'],
     breakfast: ['Delicious!', 'Yum!'],
+    sandwich: ['Delicious!', 'Just what I needed!'],
     turndown: ['Chocolate!', 'How lovely!'],
   } as Record<string, string[]>,
   /** A cabin key handed over at the desk. */

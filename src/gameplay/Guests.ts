@@ -468,7 +468,7 @@ export class Guests {
   /** Someone is at the desk and a clean cabin of their class (or someone else's in the line) is ready. */
   deskReady(): boolean {
     if (!this.hasGuestAtDesk()) return false;
-    return this.queue.some((g) => g.arrivedInQueue && g.state === 'queue' && this.w.train.freeCabin(g.cls) !== null);
+    return this.queue.some((g) => g.arrivedInQueue && g.state === 'queue' && this.w.train.roomFor(g.cls) !== null);
   }
 
   hasGuestAtDesk(): boolean {
@@ -481,7 +481,7 @@ export class Guests {
     this.callForward();
     const guest = this.queue[0];
     if (!guest || !this.hasGuestAtDesk()) return false;
-    const cabin = this.w.train.freeCabin(guest.cls);
+    const cabin = this.w.train.roomFor(guest.cls);
     if (!cabin) {
       zone.progress = 0;
       return false;
@@ -501,8 +501,8 @@ export class Guests {
    */
   private callForward(): void {
     const head = this.queue[0];
-    if (!head || !head.arrivedInQueue || head.state !== 'queue' || this.w.train.freeCabin(head.cls)) return;
-    const i = this.queue.findIndex((g) => g.arrivedInQueue && g.state === 'queue' && this.w.train.freeCabin(g.cls) !== null);
+    if (!head || !head.arrivedInQueue || head.state !== 'queue' || this.w.train.roomFor(head.cls)) return;
+    const i = this.queue.findIndex((g) => g.arrivedInQueue && g.state === 'queue' && this.w.train.roomFor(g.cls) !== null);
     if (i <= 0) return;
     const [next] = this.queue.splice(i, 1);
     this.queue.unshift(next);
@@ -761,7 +761,7 @@ export class Guests {
       case 'queue':
         // Waiting at the desk for a key: the first in line shows it once a room of their class is made up.
         if (guest.queueSlot !== 0 || !guest.arrivedInQueue) guest.view.showBubble(null);
-        else if (w.train.freeCabin(guest.cls)) guest.view.showBubble('key', guest.cls);
+        else if (w.train.roomFor(guest.cls)) guest.view.showBubble('key', guest.cls);
         else guest.view.showBubble('noroom', 'alert');
         break;
       case 'settling': {
@@ -1125,7 +1125,7 @@ export class Guests {
     guest.view.showBubble(noTip ? 'angry' : late ? 'frown' : 'heart', late ? 'alert' : 'plain', 1.75);
     guest.happyTime = w.econ.guests.enjoySeconds;
     // They enjoy it where you can see it: a sip of the tea, coffee or champagne, the paper read, a hug of the blanket.
-    const drink = item === 'tea' || item === 'coffee' || item === 'champagne' || item === 'breakfast';
+    const drink = item === 'tea' || item === 'coffee' || item === 'champagne' || item === 'breakfast' || item === 'sandwich';
     guest.view.act(drink ? 'sip' : item === 'newspaper' ? 'read' : 'hug', w.econ.guests.enjoySeconds);
   }
 

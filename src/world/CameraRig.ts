@@ -33,6 +33,8 @@ export class CameraRig {
   private overrideZoom = 1;
   /** How briskly the camera glides to an override (slower for the intro's cinematic moves). */
   private overrideSharpness = VISUALS.camera.followSharpness;
+  private readonly lead = { x: 0, z: 0 };
+  private readonly leadNow = { x: 0, z: 0 };
   private initialised = false;
   /** Context framing (rooms, platform, stride): targets, and the smoothed values actually used. */
   private readonly context = { zoom: 1, x: 0, z: 0 };
@@ -157,6 +159,12 @@ export class CameraRig {
   }
 
   /** Framing for where the player is: a zoom factor and an offset of the look point (smoothed here). */
+  /** Session 38: where the view leads ahead of the conductor (metres on the floor), eased on its own, quicker clock. */
+  setLead(x: number, z: number): void {
+    this.lead.x = x;
+    this.lead.z = z;
+  }
+
   setContext(zoom: number, offsetX: number, offsetZ: number): void {
     this.context.zoom = zoom;
     this.context.x = offsetX;
@@ -180,11 +188,14 @@ export class CameraRig {
     c.zoom = damp(c.zoom, this.context.zoom, cfg.contextSharpness, dt);
     c.x = damp(c.x, this.context.x, cfg.contextSharpness, dt);
     c.z = damp(c.z, this.context.z, cfg.contextSharpness, dt);
+    // The lead (session 38, owner: "the camera should be more reactive and dynamic to where the player is going").
+    this.leadNow.x = damp(this.leadNow.x, this.lead.x, cfg.leadSharpness, dt);
+    this.leadNow.z = damp(this.leadNow.z, this.lead.z, cfg.leadSharpness, dt);
     // Follow the conductor fully on both axes: on a diagonal train anything less makes them drift across
     // the screen in a different direction from the stick (session 13).
-    let tx = Math.min(this.clampX[1], Math.max(this.clampX[0], followX + c.x)) - cfg.lakeBias;
+    let tx = Math.min(this.clampX[1], Math.max(this.clampX[0], followX + c.x + this.leadNow.x)) - cfg.lakeBias;
     // Lead along the train toward the locomotive, never past either end of the world.
-    let tz = Math.min(this.clampZ[1], Math.max(this.clampZ[0], followZ - cfg.lookAhead + c.z));
+    let tz = Math.min(this.clampZ[1], Math.max(this.clampZ[0], followZ - cfg.lookAhead + c.z + this.leadNow.z));
     let zoom = this.zoom * c.zoom;
     let sharpness = cfg.followSharpness;
     if (this.overrideTarget && this.overrideTime > 0) {

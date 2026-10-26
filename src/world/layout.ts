@@ -508,8 +508,10 @@ class LayoutBuilder {
 }
 
 /** Rooms per passenger carriage and their style, by class (refit tier 0–1 Basic … 5 Royal Suite). */
-const LOBBY_ROOMS: [number, RoomStyle][] = [[3, 'berth'], [3, 'berth'], [2, 'cabin'], [2, 'business'], [2, 'first'], [1, 'royal']];
-const SLEEPER_ROOMS: [number, RoomStyle][] = [[6, 'berth'], [6, 'berth'], [4, 'cabin'], [3, 'business'], [2, 'first'], [1, 'royal']];
+// Session 38 (owner: "in Comfort Class, don't upgrade the space. KEEP all the rooms… just upgrade the overall interior"):
+// Comfort keeps the Basic plan (its look comes from the tier's finish and furnishings); Business and up rebuild.
+const LOBBY_ROOMS: [number, RoomStyle][] = [[3, 'berth'], [3, 'berth'], [3, 'berth'], [2, 'business'], [2, 'first'], [1, 'royal']];
+const SLEEPER_ROOMS: [number, RoomStyle][] = [[6, 'berth'], [6, 'berth'], [6, 'berth'], [3, 'business'], [2, 'first'], [1, 'royal']];
 
 /** How many rooms a passenger carriage has at a refit tier (the economy and the tiles use this). */
 export function roomsAt(type: CarriageType, tier: number): number {
@@ -1260,12 +1262,15 @@ export const isVenueType = (type: CarriageType): boolean => VENUE_TYPES.has(type
 const cache = new Map<string, CarriageLayout>();
 
 /** Which floor plan a carriage uses at a refit tier: passenger carriages change plan with their class. */
+/** The highest refit tier that keeps the Basic floor plan (session 38: Comfort). */
+const COMFORT_TIER = 2;
+
 export function layoutKey(type: CarriageType, tier = 0): string {
   // Session 21: a venue's furnishings change with every refit (its tables, seats and pads stay where they are).
   if (isVenueType(type)) return `${type}:${Math.min(3, Math.max(0, tier))}`;
   if (type !== 'lobby' && type !== 'sleeper') return type;
   const t = Math.min(5, Math.max(0, tier));
-  return `${type}:${t <= 1 ? 0 : t}`;
+  return `${type}:${t <= COMFORT_TIER ? 0 : t}`;
 }
 
 /** The floor plan of a carriage type (passenger carriages: at a refit tier, which sets their class). */

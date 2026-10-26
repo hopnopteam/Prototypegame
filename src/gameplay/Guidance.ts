@@ -38,15 +38,13 @@ const ARROW_BOB = 0.28;
 /** Over a job's badge the arrow's tip clears the badge's top by this much (metres; session 27). */
 const ARROW_OVER_BADGE = 0.55;
 /**
- * The first-passengers tutorial's highlight (session 37, owner: "the check in golden circle… is off placed… maybe not
- * in a round circle as it will clip, find a better way to highlight it"; session 32 laid a glowing ring on the floor,
- * which cut into the desk and the wall behind it): a soft gold halo round the job's own badge, floating over the
- * furniture like the badge, so it never clips and sits right on the thing to do. It breathes slowly (metres across,
- * colour, brightness, speed); added like the lamp pools, so it can only add light. Targets without a badge (a tile, the
- * cash) keep just the arrow.
+ * The first-passengers tutorial's highlight round the job's own badge (session 37 laid a soft gold halo there; session 38,
+ * owner: "the golden ring doesn't look nice… make it more refined"): a thin cream ring that ripples out from the badge
+ * and fades, once every `period` seconds, like a soft ping. It floats over the furniture like the badge, so it never
+ * clips, and is added like the lamp pools, so it can only add light. Sizes in metres across.
  */
-const RING_COLOR_HEX = '#FFD36B';
-const TUTORIAL_RING = { size: 1.25, color: RING_COLOR_HEX, low: 0.55, high: 0.8, speed: 1.6 };
+const RING_COLOR_HEX = '#FFF4DA';
+const TUTORIAL_RING = { from: 0.5, to: 1.2, period: 1.6, strength: 0.75 };
 const RING_COLOR = new THREE.Color(RING_COLOR_HEX);
 
 /**
@@ -84,8 +82,8 @@ export class Guidance {
     this.arrow.visible = false;
     markWorldUi(this.arrow);
     w.scene.add(this.arrow);
-    const texture = glowTexture(128, 128, 64, 64, 0, 64, [[0.62, 0], [0.8, 1], [1, 0]]);
-    this.ringMaterial = new THREE.SpriteMaterial({ map: texture, color: TUTORIAL_RING.color, ...ADD_GLOW, depthTest: false });
+    const texture = glowTexture(128, 128, 64, 64, 0, 64, [[0.8, 0], [0.88, 1], [0.95, 1], [1, 0]]);
+    this.ringMaterial = new THREE.SpriteMaterial({ map: texture, color: RING_COLOR_HEX, ...ADD_GLOW, depthTest: false });
     this.ring = new THREE.Sprite(this.ringMaterial);
     // Kept in the scene from the start (hidden by its scale) so its shader is compiled with the rest at boot.
     this.ring.scale.setScalar(0.001);
@@ -131,10 +129,12 @@ export class Guidance {
     const ringOn = target !== null && b.on && (w.coach?.tutorial ?? false);
     this.ringGrow = Math.max(0, Math.min(1, this.ringGrow + (ringOn ? dt : -dt) / ARROW_FADE));
     if (ringOn) this.ring.position.set(b.x, FLOOR_Y + b.y, b.z);
-    const pulse = 0.5 + 0.5 * Math.sin(this.time * TUTORIAL_RING.speed);
+    // One ripple a period: out from the badge's edge, easing as it goes, and gone by the end.
+    const t = (this.time % TUTORIAL_RING.period) / TUTORIAL_RING.period;
+    const out = 1 - (1 - t) * (1 - t);
     const eased = this.ringGrow * this.ringGrow * (3 - 2 * this.ringGrow);
-    this.ring.scale.setScalar(Math.max(0.001, eased * TUTORIAL_RING.size * (0.97 + 0.03 * pulse)));
-    this.ringMaterial.color.copy(RING_COLOR).multiplyScalar(TUTORIAL_RING.low + (TUTORIAL_RING.high - TUTORIAL_RING.low) * pulse);
+    this.ring.scale.setScalar(eased > 0.001 ? TUTORIAL_RING.from + (TUTORIAL_RING.to - TUTORIAL_RING.from) * out : 0.001);
+    this.ringMaterial.color.copy(RING_COLOR).multiplyScalar(eased * TUTORIAL_RING.strength * (1 - t) * Math.min(1, t * 8));
   }
 
   /**

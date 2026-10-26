@@ -159,7 +159,8 @@ export type UnlockKind =
 
 /** Small comforts bought per carriage: each shows up in every room and lifts that carriage's tips. */
 /** Fix list 4.6: the minibar replaced the radio (its tiles keep the `comfort_radio` id, so old saves keep it). */
-export type ComfortKey = 'lamp' | 'flowers' | 'minibar' | 'soap' | 'rail';
+/** Session 38: `tv`, a small television set in every room of the carriage. */
+export type ComfortKey = 'lamp' | 'flowers' | 'minibar' | 'soap' | 'rail' | 'tv';
 
 /**
  * Hand work the conductor does, counted for the earned-help gates (session 29): rooms tidied, requests served, tickets
@@ -270,7 +271,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 60, stars: 3, tier: 1, requires: ['cabin_2'], effect: 'Fares +25%' },
       // Session 17: 30 (was 35). Bought on the first leg for the travellers waiting at the first stop.
       { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 25, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
-      { key: 'refurb_2', kind: 'refurb', label: 'Comfort', price: 150, stars: 4, tier: 2, requires: ['refurb_1', '@couple_1'], flags: ['level_2'], effect: '2 cabins · Fares ×2.5' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Comfort', price: 150, stars: 4, tier: 2, requires: ['refurb_1', '@couple_1'], flags: ['level_2'], effect: 'Comfier rooms · Fares ×1.8' },
       { key: 'comfort_lamp', kind: 'comfort', label: 'Lamps', price: 85, stars: 2, comfort: 'lamp', requires: ['refurb_1', '@couple_1'], effect: 'Tips +20%' },
       // Session 26 (owner: "remove the luggage carriage… instead the luggage area should have a little upgrade where it can
       // hold more luggage, and on upgrade it gets bigger"): the rack grows along the wall, then turns brass.
@@ -290,6 +291,8 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'comfort_flowers', kind: 'comfort', label: 'Flowers', price: 150, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_2'], effect: 'Tips +20%' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 240, stars: 2, role: 'attendant', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
       { key: 'comfort_radio', kind: 'comfort', label: 'Minibars', price: 320, stars: 2, comfort: 'minibar', requires: ['comfort_flowers', '@couple_3'], effect: 'Snack sales' },
+      // Session 38 (owner: "a small TV upgrade, placed nicely within the room"): a television set in every room.
+      { key: 'comfort_tv', kind: 'comfort', label: 'Small TVs', price: 520, stars: 2, comfort: 'tv', requires: ['comfort_radio', '@couple_4'], effect: 'Tips +20%' },
       { key: 'up_porter', kind: 'staffUpgrade', label: 'Faster Porter', price: 420, stars: 2, role: 'porter', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
       { key: 'refurb_3', kind: 'refurb', label: 'Business', price: 880, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_4'], effect: 'Fares ×5' },
       { key: 'refurb_4', kind: 'refurb', label: 'First Class', price: 1700, stars: 6, tier: 4, requires: ['refurb_3'], flags: ['level_6'], effect: 'Fares ×14' },
@@ -439,7 +442,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       // Session 24: the later beds cheaper (150/200/240/280 → 110/150/180/220): beds are the income, and the
       // mid-game's long saves (95–115 s on the autopilot) were waits for them.
       { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 110, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
-      { key: 'refurb_2', kind: 'refurb', label: 'Comfort', price: 300, stars: 4, tier: 2, requires: ['cabin_1', 'refurb_1'], flags: ['level_2'], effect: '4 cabins · Fares ×2.5' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Comfort', price: 300, stars: 4, tier: 2, requires: ['cabin_1', 'refurb_1'], flags: ['level_2'], effect: 'Comfier rooms · Fares ×1.8' },
       { key: 'cabin_3', kind: 'cabin', label: 'Cabin {n}', price: 150, stars: 2, cabin: 3, requires: ['cabin_2', '@couple_2'], effect: '+1 guest' },
       { key: 'cabin_4', kind: 'cabin', label: 'Cabin {n}', price: 180, stars: 2, cabin: 4, requires: ['cabin_3'], effect: '+1 guest' },
       { key: 'cabin_5', kind: 'cabin', label: 'Cabin {n}', price: 220, stars: 2, cabin: 5, requires: ['cabin_4'], effect: '+1 guest' },
@@ -447,6 +450,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'comfort_flowers', kind: 'comfort', label: 'Flowers', price: 240, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_3'], effect: 'Tips +20%' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 380, stars: 2, role: 'attendant', requires: ['hire_attendant', '@couple_3'], effect: 'Faster, +1 carry' },
       { key: 'comfort_radio', kind: 'comfort', label: 'Minibars', price: 420, stars: 2, comfort: 'minibar', requires: ['comfort_flowers', '@couple_3'], effect: 'Snack sales' },
+      { key: 'comfort_tv', kind: 'comfort', label: 'Small TVs', price: 620, stars: 2, comfort: 'tv', requires: ['comfort_radio', '@couple_4'], effect: 'Tips +20%' },
       { key: 'refurb_3', kind: 'refurb', label: 'Business', price: 1350, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_4'], effect: '3 cabins · Fares ×5' },
       { key: 'refurb_4', kind: 'refurb', label: 'First Class', price: 2200, stars: 6, tier: 4, requires: ['refurb_3'], flags: ['level_6'], effect: '2 suites · Fares ×14' },
       { key: 'up2_attendant', kind: 'staffUpgrade', label: 'Expert Attendant', price: 1250, stars: 3, role: 'attendant', requires: ['up_attendant'], flags: ['level_6'], effect: 'Faster, +1 carry' },

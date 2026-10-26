@@ -4,10 +4,12 @@ import { nextStreak, ratingEffect, stopQuality, stopRating, streakBonus, trainRa
 
 describe('station result', () => {
   it('gives three stars only to a perfect stop', () => {
-    expect(stopRating(0, true)).toBe(3);
-    expect(stopRating(2, true)).toBe(2);
-    expect(stopRating(0, false)).toBe(2);
-    expect(stopRating(1, false)).toBe(1);
+    const bands = { three: 0.92, two: 0.8, one: 0.55 };
+    expect(stopRating(1, 0, true, bands)).toBe(3);
+    expect(stopRating(0.95, 1, true, bands)).toBe(2);
+    expect(stopRating(0.95, 0, false, bands)).toBe(2);
+    expect(stopRating(0.7, 1, false, bands)).toBe(1);
+    expect(stopRating(0.4, 3, false, bands)).toBe(0);
   });
 
   it('grows the streak on perfect stops and starts again otherwise', () => {

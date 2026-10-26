@@ -34,6 +34,8 @@ export interface ZoneOptions {
    * here counts as at the job too (a room to tidy, a guest's room to bring their request to, a washroom to restock).
    */
   area?: (x: number, z: number) => boolean;
+  /** Session 38: where the badge hangs, when it is set by hand (the middle of the reception desk) instead of found. */
+  badgeAt?: { x: number; z: number; height: number };
   /** Draw attention: the player is needed here right now (a shelf with something someone asked for). */
   highlight?: () => boolean;
   /**
@@ -153,9 +155,9 @@ export class Zone {
     const iconShown = this.enabled && (this.opts.highlight ? lit : active) && (!this.opts.showIcon || this.opts.showIcon());
     // Each time the badge comes up it finds the furniture it belongs over (a refit may have moved it); the floor
     // under it is where standing counts as at the job.
-    if (anchor && (!this.anchored || (iconShown && !this.iconWasShown))) {
+    if ((anchor || this.opts.badgeAt) && (!this.anchored || (iconShown && !this.iconWasShown))) {
       this.anchored = true;
-      const a = anchor(this.x, this.z);
+      const a = this.opts.badgeAt ?? anchor?.(this.x, this.z) ?? null;
       this.ax = a ? a.x : this.x;
       this.az = a ? a.z : this.z;
       this.marker?.setIconAnchor(this.ax - this.x, this.az - this.z, a ? a.height + ICON_OVER_FURNITURE : null);

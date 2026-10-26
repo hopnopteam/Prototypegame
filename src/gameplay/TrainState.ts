@@ -7,7 +7,7 @@ import { ClassChips } from '../world/ClassChips';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Rect, Vec2 } from '../core/types';
 import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
-import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, GANGWAY_LENGTH, LOCOMOTIVE_LENGTH, REAR_DECK_LENGTH, carriageOriginZ, doorTileSpot, getLayout, HALF_WIDTH, layoutKey, PARTITION_X0, ZONE_RADIUS, type BathroomLayout, type CabinLayout } from '../world/layout';
+import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, GANGWAY_LENGTH, LOCOMOTIVE_LENGTH, REAR_DECK_LENGTH, carriageOriginZ, doorTileSpot, getLayout, HALF_WIDTH, layoutKey, PARTITION_X0, ZONE_RADIUS, SERVICE_PROP_HEIGHT, type BathroomLayout, type CabinLayout, type CarriageLayout } from '../world/layout';
 import { shoesGeometry } from '../world/Shoes';
 import { ExteriorView } from '../world/ExteriorView';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
@@ -159,7 +159,7 @@ const OPEN_CARRIAGE = 'c0.open';
 const CARRIAGE_LIGHT = 'carriage:0';
 const NIGHT_FADE = 2.5;
 /** What a passenger carriage's service counter (the urn) hands out: drinks, the morning paper, breakfast trays. */
-const SERVICE_ITEMS: ItemKind[] = ['tea', 'coffee', 'champagne', 'newspaper', 'breakfast', 'snack'];
+const SERVICE_ITEMS: ItemKind[] = ['tea', 'coffee', 'champagne', 'newspaper', 'breakfast', 'snack', 'sandwich'];
 
 /** Whether a point is on a room's floor (its walls' inner faces, world coordinates). */
 function inRoom(room: { x0: number; x1: number; z0: number; z1: number }, x: number, z: number): boolean {
@@ -473,6 +473,26 @@ export class TrainState {
   /** The best free cabin for a new guest of this class (any class if none given): the lowest carriage first. */
   freeCabin(cls?: ClassId): Cabin | null {
     for (const cabin of this.cabins) if (cabin.isFree && (!cls || this.cabinClass(cabin) === cls)) return cabin;
+    return null;
+  }
+
+  /**
+   * The room a guest of this class is handed at the desk (session 38): a free one of their class; or, when the train
+   * no longer has a single open room of their class (a refit moved the only Basic carriage up to Comfort while they
+   * waited), a free one of the nearest class above, on the house. Without this they stood at the desk for good.
+   */
+  roomFor(cls: ClassId): Cabin | null {
+    const own = this.freeCabin(cls);
+    if (own || this.openCabinCount(cls) > 0) return own;
+    const from = CLASSES.findIndex((c) => c.id === cls);
+    for (let i = from + 1; i < CLASSES.length; i++) {
+      const up = this.freeCabin(CLASSES[i].id);
+      if (up) return up;
+    }
+    for (let i = from - 1; i >= 0; i--) {
+      const down = this.freeCabin(CLASSES[i].id);
+      if (down) return down;
+    }
     return null;
   }
 
@@ -1064,7 +1084,10 @@ export class TrainState {
   retireBerthTiles(): void {
     const u = this.w.unlocks;
     for (const d of u.defs) {
-      if (d.kind !== 'cabin' || (this.tiers[d.carriage] ?? 0) < 2 || u.isUnlocked(d.id)) continue;
+      if (d.kind !== 'cabin' || u.isUnlocked(d.id)) continue;
+      // Only a refit that rebuilt the rooms settles their tiles (session 38: Comfort keeps the Basic plan and its tiles).
+      const type = this.types[d.carriage];
+      if (!type || layoutKey(type, this.tiers[d.carriage] ?? 0) === layoutKey(type, 0)) continue;
       const paid = u.paid(d.id);
       u.forceComplete(d.id);
       if (paid > 0) this.w.wallet.add('cash', paid, 'refund:berth');
@@ -1552,6 +1575,10 @@ export class TrainState {
         z: desk.z,
         radius: ZONE_RADIUS.desk,
         icon: 'key',
+        // Session 38 (owner: "the check-in prompt is still placed weirdly… it should be in the middle of the desk, with a
+        // bigger area where it registers"): the key hangs over the middle of the desk, and anywhere round the desk counts.
+        badgeAt: deskBadge(layout, originZ),
+        area: (x, z) => inDeskArea(layout, originZ, x, z),
         active: () => w.guests.hasGuestAtDesk(),
         stay: (zone, actor, dt) => w.guests.deskStay(zone, actor, dt),
       }));
@@ -1723,4 +1750,26 @@ export class TrainState {
   anchor(carriage: number, name: string): Vec2 {
     return this.w.map.anchor(carriage, name);
   }
+}
+
+/** How far round the reception desk standing counts as at it (metres, session 38). */
+const DESK_AREA_MARGIN = 0.75;
+
+function deskRect(layout: CarriageLayout): { x0: number; z0: number; x1: number; z1: number } | null {
+  const desk = layout.props.find((p) => p.kind === 'desk');
+  return desk ? desk.rect : null;
+}
+
+/** The middle of the reception desk's top, in world coordinates. */
+function deskBadge(layout: CarriageLayout, originZ: number): { x: number; z: number; height: number } | undefined {
+  const r = deskRect(layout);
+  if (!r) return undefined;
+  return { x: (r.x0 + r.x1) / 2, z: originZ + (r.z0 + r.z1) / 2, height: SERVICE_PROP_HEIGHT.desk ?? 0.9 };
+}
+
+function inDeskArea(layout: CarriageLayout, originZ: number, x: number, z: number): boolean {
+  const r = deskRect(layout);
+  if (!r) return false;
+  const lz = z - originZ;
+  return x >= r.x0 - DESK_AREA_MARGIN && x <= r.x1 + DESK_AREA_MARGIN && lz >= r.z0 - DESK_AREA_MARGIN && lz <= r.z1 + DESK_AREA_MARGIN;
 }

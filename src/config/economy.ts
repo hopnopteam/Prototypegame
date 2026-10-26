@@ -63,7 +63,7 @@ export const ECONOMY = {
   player: {
     // Session 37 (owner: "reduce the speed of the player movement… start normal, a little slow even, but as we grow it
     // gets faster"): 4.6 (was 5.6); each pair of shoes bought in the lobby adds `shoes.perLevel` (four pairs: ×1.48).
-    moveSpeed: 4.6,
+    moveSpeed: 4.2,
     shoes: { perLevel: 0.12 },
     acceleration: 70,
     /** Stopping and turning back are firmer than starting, so the conductor stops where you let go. */
@@ -104,7 +104,9 @@ export const ECONOMY = {
    * and a touch out while you stride down the train, leading the way you are going.
    */
   camera: {
-    roomZoom: 0.9, roomBias: 0.22, platformZoom: 1.1, strideZoom: 0.04, travelZoom: 1.08, lead: 0.8,
+    roomZoom: 0.9, roomBias: 0.22, platformZoom: 1.1, strideZoom: 0.04, travelZoom: 1.08, lead: 0.5,
+    /** Session 38: metres the view leads ahead of the conductor at walking speed (from the first step). */
+    walkLead: 1.1,
     /** Session 23: on the Millbrook platform, while the carriage is still covered, the view leans this far toward it. */
     prologueLean: { x: 0.7, z: 0.9 },
   },
@@ -439,6 +441,12 @@ export const ECONOMY = {
     extraTravellers: { high: 2 },
     richer: { low: 0.5, high: 2 },
     tips: { low: 0.8, high: 1.25 },
+    /**
+     * Session 38 (owner: "the review rating should be harsher… it says 'Not bad' too readily"): the stop's stars follow
+     * its quality (0..1, the Train Rating's own measure): three only for a clean stop at least `three`, two from `two`,
+     * one from `one`, none below.
+     */
+    stars: { three: 0.92, two: 0.8, one: 0.55 },
   },
 
   /** What a departing guest leaves behind: pieces from their archetype's pool, sometimes a common one. */

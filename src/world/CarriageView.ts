@@ -1948,11 +1948,36 @@ function buildCabinComforts(b: GeoBuilder, glow: GeoBuilder, cabin: CabinLayout,
       b.sphere(vx + Math.cos(a) * 0.026, y + 0.62 + (i % 2) * 0.025, vz + Math.sin(a) * 0.026, 0.028, color, 1, 0.9);
     });
     b.sphere(vx, y + 0.6, vz + 0.03, 0.02, '#7FA66B', 0, 0.9);
-    // A little picture above, on the wall between the door and the bed.
-    b.object('comfort:picture');
-    const fx = cabin.room.x0 + 0.24;
-    b.box(fx, y + PICTURE_Y, wallZ + 0.012, 0.3, 0.2, 0.02, PALETTE.gold, 0, FLAT);
-    b.box(fx, y + PICTURE_Y, wallZ + 0.026, 0.24, 0.14, 0.004, PALETTE.frameCanvas[cabin.index % 4], 0, FLAT);
+    // A little picture above, on the wall between the door and the bed (the television stands there once bought).
+    if (!keys.includes('tv')) {
+      b.object('comfort:picture');
+      const fx = cabin.room.x0 + 0.24;
+      b.box(fx, y + PICTURE_Y, wallZ + 0.012, 0.3, 0.2, 0.02, PALETTE.gold, 0, FLAT);
+      b.box(fx, y + PICTURE_Y, wallZ + 0.026, 0.24, 0.14, 0.004, PALETTE.frameCanvas[cabin.index % 4], 0, FLAT);
+    }
+  }
+  if (keys.includes('tv')) {
+    // Session 38: a little television on a low cabinet in the corner by the corridor wall, before the door, its screen
+    // turned toward the bed (and the camera): a wooden set with a pale blue screen and rabbit-ear aerials.
+    const tx0 = cabin.room.x0 + 0.03;
+    const tz0 = wallZ + 0.05;
+    const tz1 = Math.min(cabin.door[0] - 0.08, tz0 + 0.42);
+    if (tz1 - tz0 > 0.3) {
+      const tzc = (tz0 + tz1) / 2;
+      const len = tz1 - tz0;
+      b.object('comfort:tv');
+      glow.object('comfort:tv~glow');
+      b.slab(rect(tx0, tz0, tx0 + 0.3, tz1), y, y + 0.32, wood, 0, 0, { shade: 0.8 });
+      b.slab(rect(tx0, tz0, tx0 + 0.3, tz1), y + 0.32, y + 0.34, PALETTE.walnutDark, 0, -0.01, FLAT);
+      const sw = Math.min(0.32, len - 0.06);
+      b.rounded(tx0 + 0.14, y + 0.47, tzc, 0.22, 0.24, sw, 0.03, tier >= 3 ? PALETTE.walnutDark : '#8C5E3C', { shade: 0.85, surface: 'varnish' });
+      glow.box(tx0 + 0.255, y + 0.48, tzc - 0.02, 0.012, 0.16, sw - 0.12, '#9CC3D9', 0, { shade: 1 });
+      b.cylinder(tx0 + 0.256, y + 0.4, tzc + sw / 2 - 0.04, 0.012, 0.012, 0.01, PALETTE.brass, 8, 'x', { surface: 'brass' });
+      b.cylinder(tx0 + 0.256, y + 0.44, tzc + sw / 2 - 0.04, 0.012, 0.012, 0.01, PALETTE.brass, 8, 'x', { surface: 'brass' });
+      for (const lean of [-0.35, 0.35]) b.add(new THREE.CylinderGeometry(0.004, 0.004, 0.2, 4).rotateX(lean), PALETTE.iron, tx0 + 0.12, y + 0.68, tzc + lean * 0.12, 0, 0, 0, { shade: 1 });
+      b.endObject();
+      glow.endObject();
+    }
   }
   if (keys.includes('minibar')) {
     // Fix list 4.6: a minibar on a wall shelf beside the picture (where the wireless stood): a little cabinet with a
@@ -2036,6 +2061,27 @@ function newspaperStack(b: GeoBuilder, x: number, y: number, z: number): void {
   // The print stands 4 mm proud of the paper (closer than 3 mm the two faces would flicker at a distance).
   b.box(x + tx, top + 0.002, z + tz - 0.08, 0.17, 0.004, 0.035, '#2B2230', 0, { shade: 1 });
   b.box(x + tx - 0.04, top + 0.002, z + tz + 0.04, 0.07, 0.004, 0.09, '#9DB8CF', 0, { shade: 1 });
+}
+
+/**
+ * A plate of club sandwiches (session 38), cut in triangles with the filling showing, standing on `y`; with `stand`, raised
+ * on a little brass cake stand. 0.18 m across.
+ */
+function sandwichPlate(b: GeoBuilder, x: number, y: number, z: number, stand: boolean): void {
+  let top = y;
+  if (stand) {
+    b.cylinder(x, y + 0.006, z, 0.05, 0.05, 0.012, PALETTE.brass, 12, 'y', { surface: 'brass' });
+    b.cylinder(x, y + 0.04, z, 0.012, 0.012, 0.06, PALETTE.brass, 8, 'y', { surface: 'brass' });
+    top = y + 0.07;
+  }
+  b.cylinder(x, top + 0.008, z, 0.09, 0.09, 0.016, PALETTE.porcelain, 16, 'y', { surface: 'ceramic' });
+  // Two halves, their cut faces toward each other a finger apart.
+  for (const [dx, dz, turn] of [[-0.032, 0, -Math.PI / 2], [0.032, 0, Math.PI / 2]] as const) {
+    const bread = new THREE.CylinderGeometry(0.045, 0.045, 0.04, 3, 1).rotateY(turn);
+    b.add(bread, '#F2D49A', x + dx, top + 0.038, z + dz, 0, 0, 0, { shade: 0.9 });
+    const leaf = new THREE.CylinderGeometry(0.058, 0.058, 0.008, 3, 1).rotateY(turn);
+    b.add(leaf, '#7CC36A', x + dx, top + 0.04, z + dz, 0, 0, 0, { shade: 1 });
+  }
 }
 
 export function buildLobbyRack(b: GeoBuilder, r: Rect, tier: number, level: number): void {
@@ -2139,6 +2185,7 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
         b.sphere(cx, y + 0.72, cz, 0.15, PALETTE.iron, 1, 0.85);
         b.cylinder(cx + 0.16, y + 0.75, cz, 0.02, 0.03, 0.14, PALETTE.iron, 6, 'x');
         newspaperStack(b, cx - 0.31, y + 0.6, cz);
+        sandwichPlate(b, cx + 0.25, y + 0.6, cz - 0.12, false);
         break;
       }
       b.slab(r, y, y + 0.72, wood, 0, 0, { shade: 0.7 });
@@ -2147,8 +2194,15 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       newspaperStack(b, cx - 0.32, y + 0.72, cz);
       b.cylinder(cx, y + 0.96, cz, 0.14, 0.18, 0.38, tier >= 2 ? PALETTE.brass : PALETTE.chrome, 14, 'y', { shade: 0.82 });
       b.sphere(cx, y + 1.17, cz, 0.11, tier >= 2 ? PALETTE.brass : PALETTE.chrome, 1, 0.8);
-      b.cylinder(cx + 0.18, y + 0.77, cz + 0.12, 0.06, 0.06, 0.01, PALETTE.porcelain, 12);
-      b.cylinder(cx + 0.18, y + 0.81, cz + 0.12, 0.04, 0.032, 0.07, PALETTE.porcelain, 12);
+      // Session 38 (owner: "better-quality items on the coffee table… the food visible on it"): the sandwiches guests ask
+      // for wait under a glass dome beside the urn, and the cups are china on saucers with a gold rim, a sugar bowl by them.
+      sandwichPlate(b, cx + 0.25, y + 0.72, cz - 0.13, true);
+      for (const dz of [0.09, 0.23]) {
+        b.cylinder(cx + 0.17, y + 0.725, cz + dz, 0.055, 0.055, 0.01, PALETTE.porcelain, 14, 'y', { surface: 'ceramic' });
+        b.cylinder(cx + 0.17, y + 0.765, cz + dz, 0.038, 0.03, 0.07, PALETTE.porcelain, 14, 'y', { surface: 'ceramic' });
+        b.cylinder(cx + 0.17, y + 0.801, cz + dz, 0.039, 0.039, 0.004, PALETTE.gold, 14, 'y', { surface: 'brass' });
+      }
+      b.cylinder(cx + 0.3, y + 0.75, cz + 0.17, 0.035, 0.03, 0.06, tier >= 2 ? PALETTE.brass : PALETTE.chrome, 12, 'y', { surface: tier >= 2 ? 'brass' : 'steel' });
       break;
     }
     case 'linen': {
@@ -2913,6 +2967,15 @@ function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout
     const cx = lx0 + 0.3;
     b.rounded(cx, y + 0.511, fzc, 0.44, 0.22, ld - 0.08, 0.04, theme.deep, { shade: 0.9, surface: 'leather' });
     b.box(cx, y + 0.635, fzc, 0.12, 0.025, 0.03, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
+    // Session 38: Comfort keeps the berths' rooms, so its light is a little lamp with a fabric shade on the bench.
+    if (lx1 - lx0 > 0.68) {
+      const lampX = lx1 - 0.1;
+      lamps.object('class:bench~glow');
+      b.cylinder(lampX, y + 0.41, fzc, 0.045, 0.055, 0.02, PALETTE.brass, 10, 'y', { surface: 'brass' });
+      b.cylinder(lampX, y + 0.5, fzc, 0.01, 0.01, 0.17, PALETTE.brass, 6, 'y', { surface: 'brass' });
+      lamps.cylinder(lampX, y + 0.62, fzc, 0.05, 0.08, 0.1, '#F3E3C2', 12, 'y', { shade: 0.95 });
+      lamps.endObject();
+    }
     b.endObject();
     return;
   }

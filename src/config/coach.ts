@@ -40,7 +40,7 @@ export const COACH_STEPS: CoachLineDef[] = [
 /** How a request reads in the tutorial's "Bring …" line. */
 export const BRING_WORD: Partial<Record<string, string>> = {
   tea: 'tea', coffee: 'coffee', champagne: 'champagne', blanket: 'blanket', pillow: 'pillow', towel: 'towel',
-  newspaper: 'paper', breakfast: 'breakfast', snack: 'snacks',
+  newspaper: 'paper', breakfast: 'breakfast', snack: 'snacks', sandwich: 'sandwich',
 };
 
 export const COACH_HINTS: CoachLineDef[] = [

@@ -494,17 +494,18 @@ export class Venues {
   }
 
   /** What they had is paid for at the table (dining) or the venue's takings. */
-  private pay(guest: Guest): void {
+  private pay(guest: Guest): number {
     const w = this.w;
     const outing = guest.outing;
-    if (!outing || outing.paid) return;
-    const { venue, seat } = outing;
+    if (!outing || outing.paid) return 0;
+    const { venue } = outing;
     const item = VENUES[venue.kind].products[0]?.item ?? 'latte';
     const amount = venue.priceFor(item, guest);
-    const pile = venue.kind === 'dining' ? this.groupPile(venue, seat.group) : venue.pileId;
-    w.cash.add(pile, amount, tmp.set(guest.pos.x, FLOOR_Y + 1.0, guest.pos.z));
+    if (venue.kind === 'dining' || venue.kind === 'cafe') w.cash.payDirect(amount, guest.pos.x, guest.pos.z, `venue:${venue.kind}`);
+    else w.cash.add(venue.pileId, amount, tmp.set(guest.pos.x, FLOOR_Y + 1.0, guest.pos.z));
     outing.paid = true;
     if (venue.kind === 'bar') this.addParty(venue);
+    return amount;
   }
 
   /**
@@ -630,7 +631,7 @@ export class Venues {
       if (!item || !actor.stack.has(item)) return false;
       actor.stack.remove(item, () => tmp.set(guest.pos.x, FLOOR_Y + 1.1, guest.pos.z));
       const amount = venue.priceFor(item, guest);
-      w.cash.add(venue.pileId, amount, tmp.set(guest.pos.x, FLOOR_Y + 1.1, guest.pos.z));
+      w.cash.payDirect(amount, guest.pos.x, guest.pos.z, 'venue:cafe');
       outing.paid = true;
       this.served(venue, guest, item, amount, actor);
     } else {
@@ -676,8 +677,10 @@ export class Venues {
         seat.state = 'consuming';
         seat.timer = 0;
         w.guests.setOutingState(guest, 'consuming');
-        this.served(venue, guest, item, 0, actor);
-        guest.view.act(item === 'meal' ? 'sip' : 'sip', VENUES[venue.kind].consumeSeconds);
+        // Session 38: dinner is paid as it is served, straight into the wallet (a drink at the bar is still paid at the end).
+        const amount = venue.kind === 'dining' ? this.pay(guest) : 0;
+        this.served(venue, guest, item, amount, actor);
+        guest.view.act('sip', VENUES[venue.kind].consumeSeconds);
       }
       return true;
     }

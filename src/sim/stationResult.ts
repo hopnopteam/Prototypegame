@@ -3,9 +3,12 @@
  * streak's bonus. Nothing here ever takes anything away: a stop that is not perfect only starts the streak again.
  */
 
-/** Stars for a stop: one for showing up, one when everyone with a bed boarded, one when the bags were loaded. */
-export function stopRating(missed: number, bagsDone: boolean): number {
-  return 1 + (missed === 0 ? 1 : 0) + (bagsDone ? 1 : 0);
+/** Stars for a stop (session 38: earned, not given): by its quality, three only when nobody was missed and the bags were loaded. */
+export function stopRating(quality: number, missed: number, bagsDone: boolean, bands: { three: number; two: number; one: number }): number {
+  if (missed === 0 && bagsDone && quality >= bands.three) return 3;
+  if (quality >= bands.two) return 2;
+  if (quality >= bands.one) return 1;
+  return 0;
 }
 
 /** The perfect streak after a stop: one more when it was perfect, back to 0 otherwise. */

@@ -175,6 +175,8 @@ interface LitOptions {
   light?: boolean;
   /** Drawn by CharacterBatch: each vertex names its instance (aNxInst), see `pullMaterial`. */
   pull?: boolean;
+  /** People (session 38): a little light of their own so they never sink into a dark floor and read as see-through. */
+  figure?: boolean;
 }
 
 interface Recipe {
@@ -269,6 +271,8 @@ vec4 nxSurface() {
 const HIGHLIGHT_EDGE_POWER = 6.0;
 const HIGHLIGHT_RIM = 0.1;
 const HIGHLIGHT_FILL = 0.08;
+/** How much of their own colour people give off (session 38, owner: "a weird opacity issue with the player and character models"): at night they were lit like the floor and their edges melted into it. */
+const FIGURE_LIFT = 0.16;
 /** The brightest a specular highlight may get (linear), kept under the bloom threshold. */
 const SPECULAR_MAX = Math.min(0.9, VISUALS.night.bloom.threshold * 0.9);
 
@@ -321,6 +325,9 @@ if (vNxHighlight > 0.001) {
   float nxEdge = pow(1.0 - saturate(dot(normal, geometryViewDir)), ${HIGHLIGHT_EDGE_POWER.toFixed(1)});
   totalEmissiveRadiance += vNxHighlight * (uNxHighlight * (nxEdge * ${HIGHLIGHT_RIM.toFixed(2)}) + diffuseColor.rgb * ${HIGHLIGHT_FILL.toFixed(2)});
 }
+#ifdef NX_FIGURE
+totalEmissiveRadiance += diffuseColor.rgb * ${FIGURE_LIFT.toFixed(2)};
+#endif
 `;
 
 /**
@@ -460,6 +467,9 @@ if (vNxHighlight > 0.001) {
   float nxEdge = pow(1.0 - saturate(dot(normal, geometryViewDir)), ${HIGHLIGHT_EDGE_POWER.toFixed(1)});
   totalEmissiveRadiance += vNxHighlight * (uNxHighlight * (nxEdge * ${HIGHLIGHT_RIM.toFixed(2)}) + diffuseColor.rgb * ${HIGHLIGHT_FILL.toFixed(2)});
 }
+#ifdef NX_FIGURE
+totalEmissiveRadiance += diffuseColor.rgb * ${FIGURE_LIFT.toFixed(2)};
+#endif
 `;
 
 /** Lite shading on (the phone tiers) or off (full physically based shading). Set before the first compile. */
@@ -532,7 +542,7 @@ function pullShader(material: THREE.Material, shader: THREE.WebGLProgramParamete
  */
 export function pullMaterial(base: THREE.Material): THREE.Material {
   const recipe = recipes.get(base);
-  if (recipe) return build({ ...recipe, options: { ...recipe.options, pull: true } });
+  if (recipe) return build({ ...recipe, options: { ...recipe.options, pull: true, figure: base === MATERIALS.character } });
   const m = base.clone();
   m.defines = { ...(m.defines ?? {}), ...PULL_DEFINES };
   m.onBeforeCompile = (shader) => pullShader(m, shader);
@@ -548,6 +558,7 @@ function patchLit(material: THREE.MeshStandardMaterial, options: LitOptions): vo
   if (options.surface === 'vertex') defines.NX_VERTEX_SURFACE = '';
   if (options.light) defines.NX_LIGHT = '';
   if (options.pull) Object.assign(defines, PULL_DEFINES);
+  if (options.figure) defines.NX_FIGURE = '';
   material.defines = { ...(material.defines ?? {}), ...defines };
   shaded.add(material);
   material.onBeforeCompile = (shader) => {
@@ -580,7 +591,7 @@ function patchLit(material: THREE.MeshStandardMaterial, options: LitOptions): vo
     shader.fragmentShader = fs;
     if (options.pull) pullShader(material, shader);
   };
-  const key = `nx|${options.pattern ? 'p' : ''}|${options.surface === 'vertex' ? 'v' : 'f'}|${options.light ? 'l' : ''}|${options.pull ? 'pull' : ''}`;
+  const key = `nx|${options.pattern ? 'p' : ''}|${options.surface === 'vertex' ? 'v' : 'f'}|${options.light ? 'l' : ''}|${options.pull ? 'pull' : ''}|${options.figure ? 'fig' : ''}`;
   material.customProgramCacheKey = () => `${key}|${liteShading ? 'lite' : 'pbr'}`;
 }
 
@@ -743,7 +754,7 @@ export const MATERIALS = {
   lamps: build({ kind: 'glow', params: { vertexColors: true, emissive: new THREE.Color('#FFD68A'), emissiveIntensity: 0.05 }, options: {} }),
   lamp: new THREE.MeshBasicMaterial({ color: PALETTE.lampGlow }) as THREE.Material,
   character: lit({ vertexColors: true }, { surface: 'vertex', light: true }),
-  shadow: new THREE.MeshBasicMaterial({ color: '#1A1420', transparent: true, opacity: 0.16, depthWrite: false }) as THREE.Material,
+  shadow: new THREE.MeshBasicMaterial({ color: '#1A1420', transparent: true, opacity: 0.24, depthWrite: false }) as THREE.Material,
   lockedOverlay: new THREE.MeshBasicMaterial({ color: '#3C4A63', transparent: true, opacity: 0.32, depthWrite: false }) as THREE.Material,
 };
 

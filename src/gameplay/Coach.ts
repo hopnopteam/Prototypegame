@@ -15,7 +15,14 @@ const PRAISE_HEIGHT = 1.9;
 const AGREE_METRES = 1.2;
 
 /** Where a coach line is shown: over a spot in the world, by a HUD element, or as the walk gesture. */
-export type CoachAnchor = { world: Vec2 } | { hud: 'map' | 'conductor' } | { gesture: true };
+/**
+ * A spot in the world (the guide arrow's target; with `label` and `height` the line hangs there instead, over the job's
+ * badge, session 38), a HUD button or the walk gesture.
+ */
+/** How far over a job badge's centre a coach label hangs (metres). */
+const BADGE_LABEL_CLEARANCE = 1.0;
+
+export type CoachAnchor = { world: Vec2; label?: Vec2; height?: number } | { hud: 'map' | 'conductor' } | { gesture: true };
 
 export interface CoachLine extends CoachLineDef {
   anchor: CoachAnchor;
@@ -309,7 +316,13 @@ export class Coach {
       case 'tile':
         return world(w.tiles.cheapest()?.pos);
       case 'key':
-        return w.guests.deskReady() ? world(w.map.anchor(0, 'deskService')) : null;
+        if (!w.guests.deskReady()) return null;
+        {
+          // Session 38: over the key badge in the middle of the desk, above it (the label used to cover it).
+          const desk = w.zones.get('desk');
+          const spot = w.map.anchor(0, 'deskService');
+          return desk ? { world: spot, label: { x: desk.ax, z: desk.az }, height: (desk.marker?.height ?? 1.4) + BADGE_LABEL_CLEARANCE } : world(spot);
+        }
       case 'room': {
         const guest = w.guests.list.find((g) => g.cabin && (g.state === 'toCabin' || g.state === 'queue'));
         return world(guest?.cabin?.center ?? w.guests.list.find((g) => g.cabin)?.cabin?.center);

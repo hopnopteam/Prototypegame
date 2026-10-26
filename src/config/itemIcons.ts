@@ -26,6 +26,7 @@ export const ITEM_ICON: Record<ItemKind | 'turndown', IconName> = {
   newspaper: 'newspaper',
   breakfast: 'breakfast',
   snack: 'snack',
+  sandwich: 'sandwich',
   turndown: 'turndown',
 };
 

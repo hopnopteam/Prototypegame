@@ -73,6 +73,22 @@ export class CashPiles {
     }
   }
 
+  /**
+   * Paid straight into the wallet (session 38, owner: "when the food is delivered, the player should receive the money
+   * directly"): the amount pops up where it was paid with a burst of bills and the coin, no pile to walk back to.
+   */
+  payDirect(amount: number, x: number, z: number, source: string): void {
+    if (amount <= 0) return;
+    const w = this.w;
+    w.wallet.add('cash', amount, source);
+    w.ui.cashCollected(amount);
+    w.ui.floatText(`+${amount}`, x, FLOOR_Y + 2.0, z, 'cash');
+    w.particles.emit('cash', x, FLOOR_Y + 1.3, z, 8, 0.25);
+    w.audio.play('coin');
+    w.haptics.tick();
+    w.events.emit('cash.collected', { amount, x, z });
+  }
+
   /** Magnet: any pile within reach of the player streams in. Also makes big piles glint for attention. */
   update(dt: number): void {
     const player = this.w.player.pos;

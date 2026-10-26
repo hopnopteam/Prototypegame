@@ -16,6 +16,7 @@ export function sourceAnchorFor(item: ItemKind): string {
     case 'newspaper':
     case 'breakfast':
     case 'snack':
+    case 'sandwich':
       return 'urn';
     case 'blanket':
     case 'pillow':
@@ -45,6 +46,7 @@ export class Demand {
       case 'pillow':
       case 'newspaper':
       case 'breakfast':
+      case 'sandwich':
         return this.requestNeed(kind);
       case 'blanket':
         // Cabin requests, and the dome's guests who would like one for the view.

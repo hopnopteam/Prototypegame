@@ -43,6 +43,10 @@ browser, portrait, one thumb. Design and working rules live in [`CLAUDE.md`](CLA
 - **Session 37:** the Café Car is the first coupling (`CARRIAGE_ORDER`); walking speed is bought as shoes in the lobby
   (`player.moveSpeed`, `player.shoes` in `src/config/economy.ts`); goals show only when met (progress in the menu); a 3D,
   My Perfect Hotel-like HUD (the session 37 block at the end of `src/ui/styles.css`).
+- **Session 38:** Comfort keeps the Basic rooms (`LOBBY_ROOMS`/`SLEEPER_ROOMS` in `src/world/layout.ts`; fares in
+  `src/config/classes.ts`); guests whose class has no room left are upgraded at the desk (`TrainState.roomFor`); food
+  requests (`sandwich`); small TVs (`comfort_tv`); café and dining pay into the wallet (`CashPiles.payDirect`); harsher
+  station stars (`rating.stars` in `src/config/economy.ts`); a walking-speed camera lead (`camera.walkLead`).
 - **Android test build (APK):** every push to the working branch builds a signed test APK on GitHub Actions
   (`.github/workflows/android-apk.yml`) and publishes it as a pre-release named `android-test-N` on the
   repository's Releases page. On the phone: download the `.apk`, open it, allow "install unknown apps" for the

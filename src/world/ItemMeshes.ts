@@ -23,6 +23,7 @@ export const ITEM_HEIGHT: Record<ItemKind, number> = {
   newspaper: 0.06,
   breakfast: 0.16,
   snack: 0.12,
+  sandwich: 0.14,
 };
 
 const cache = new Map<ItemKind, THREE.BufferGeometry>();
@@ -135,6 +136,20 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       b.box(-0.06, 0.13, 0, 0.1, 0.05, 0.16, '#5A3524', 0, { shade: 0.95 });
       b.box(-0.06, 0.156, 0, 0.11, 0.004, 0.17, '#E2B653', 0, { shade: 1 });
       b.rounded(0.07, 0.15, 0, 0.12, 0.1, 0.07, 0.03, '#FFD35C', { shade: 0.95 });
+      break;
+    case 'sandwich':
+      // Session 38: a club sandwich cut in two triangles on a white plate, the filling showing in the cut, a stick and olive.
+      b.cylinder(0, 0.009, 0, 0.16, 0.16, 0.018, PALETTE.porcelain, 18);
+      for (const side of [-1, 1]) {
+        const tri = new THREE.CylinderGeometry(0.1, 0.1, 0.07, 3, 1).rotateY(side < 0 ? Math.PI / 6 : -Math.PI / 6 + Math.PI);
+        b.add(tri, '#F2D49A', side * 0.035, 0.055, 0, 0, 0, 0, { shade: 0.9 });
+        const fill = new THREE.CylinderGeometry(0.112, 0.112, 0.014, 3, 1).rotateY(side < 0 ? Math.PI / 6 : -Math.PI / 6 + Math.PI);
+        b.add(fill, '#7CC36A', side * 0.035, 0.058, 0, 0, 0, 0, { shade: 1 });
+        const ham = new THREE.CylinderGeometry(0.108, 0.108, 0.012, 3, 1).rotateY(side < 0 ? Math.PI / 6 : -Math.PI / 6 + Math.PI);
+        b.add(ham, '#E5574F', side * 0.035, 0.043, 0, 0, 0, 0, { shade: 1 });
+      }
+      b.cylinder(0, 0.13, 0, 0.004, 0.004, 0.08, '#D8C29A', 4);
+      b.sphere(0, 0.17, 0, 0.016, '#6E8B3D', 0);
       break;
     case 'crate':
       b.box(0, 0.17, 0, 0.5, 0.34, 0.42, PALETTE.oak, 0, { pattern: PATTERN.stripesZ, color2: '#A87544', scale: 0.09, shade: 0.8 });

@@ -515,6 +515,7 @@ export class StaffManager {
       case 'newspaper':
       case 'breakfast':
       case 'snack':
+      case 'sandwich':
         return this.nearestSource(kind, m.carriage);
       case 'towel':
       case 'roll':

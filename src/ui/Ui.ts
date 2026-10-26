@@ -101,9 +101,10 @@ const SPEECH_GAP_SECONDS = 4;
 /** Session 26: a shorter stay (the card is smaller and reads at a glance). */
 const RESULT_SECONDS = 4;
 /** The station card's headline by its stars (and, for three, whether the stop was perfect: everyone and every bag). */
-const RESULT_HEADLINES: Record<1 | 2 | 3, [string, string]> = {
-  1: ['Rough stop', 'Rough stop'],
-  2: ['Not bad', 'Not bad'],
+const RESULT_HEADLINES: Record<0 | 1 | 2 | 3, [string, string]> = {
+  0: ['Terrible stop', 'Terrible stop'],
+  1: ['Poor stop', 'Poor stop'],
+  2: ['Okay stop', 'Okay stop'],
   3: ['Great stop!', 'All aboard!'],
 };
 /** Stars and notes in flight at once, at most (beyond this a reward just counts in). */
@@ -843,7 +844,8 @@ export class Ui implements GameUi {
         return;
       }
     } else if ('world' in anchor) {
-      this.tmp.set(anchor.world.x, GUIDE_HEIGHT, anchor.world.z);
+      const at = anchor.label ?? anchor.world;
+      this.tmp.set(at.x, anchor.height ?? GUIDE_HEIGHT, at.z);
       const onScreen = g.stage.project(this.tmp, this.screen);
       x = this.screen.x;
       y = this.screen.y - height / 2;
@@ -1264,8 +1266,8 @@ export class Ui implements GameUi {
     const chip = (name: IconName | null, text: string, cls = ''): HTMLElement => h(`span${cls}` as 'span', {}, name ? icon(name, 16) : null, text);
     // Session 28 (owner: "if we get 1 star or 2 it should say… the negative, middle or average through words"): the
     // words follow the stars: three a good stop, two an average one, one a poor one (its card a little red).
-    const rated = Number.isFinite(result.rating) ? Math.max(1, Math.min(3, Math.round(result.rating))) : 3;
-    const headline = RESULT_HEADLINES[rated as 1 | 2 | 3][result.clean ? 1 : 0];
+    const rated = Number.isFinite(result.rating) ? Math.max(0, Math.min(3, Math.round(result.rating))) : 3;
+    const headline = RESULT_HEADLINES[rated as 0 | 1 | 2 | 3][result.clean ? 1 : 0];
     const stars = h('div.stars', {});
     for (let i = 0; i < 3; i++) {
       const star = h(`i${i < result.rating ? '.on' : '.off'}` as 'i', {}, icon('star', 20));

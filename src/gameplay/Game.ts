@@ -701,12 +701,11 @@ export class Game implements World {
     const v = p.velocity;
     const speed = Math.hypot(v.x, v.z);
     const pace = p.travel.active ? 1 : p.strideAmount;
-    if (pace > 0 && speed > 0.5) {
-      zoom *= p.travel.active ? cam.travelZoom : 1 + cam.strideZoom * pace;
-      // The lead follows the direction of travel evenly, so the view moves the way the conductor does.
-      ox += (v.x / speed) * cam.lead * pace;
-      oz += (v.z / speed) * cam.lead * pace;
-    }
+    if (pace > 0 && speed > 0.5) zoom *= p.travel.active ? cam.travelZoom : 1 + cam.strideZoom * pace;
+    // Session 38: the view leads the way the conductor walks from the first step (it used to wait for the stride),
+    // more the faster they go, and a little more again in a stride or a dash.
+    const lead = speed > 0.3 ? Math.min(1, speed / this.econ.player.moveSpeed) * (cam.walkLead + cam.lead * pace) / speed : 0;
+    this.stage.rig.setLead(v.x * lead, v.z * lead);
     this.stage.rig.setContext(zoom, ox, oz);
   }
 

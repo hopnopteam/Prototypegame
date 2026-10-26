@@ -22,7 +22,9 @@ export const VISUALS = {
     /** Metres the view leans out over the lake, so more of it is on screen (the player sits a little low). */
     lakeBias: 0.8,
     /** Follow and framing easing (higher is snappier). */
-    followSharpness: 5,
+    followSharpness: 6,
+    /** How quickly the lead ahead of the conductor turns with them (session 38: its own, quicker than the framing). */
+    leadSharpness: 3.2,
     contextSharpness: 2.2,
     /**
      * A deep near plane buys depth precision (phones with 16-bit depth buffers otherwise flicker on surfaces a

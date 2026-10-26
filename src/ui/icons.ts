@@ -24,7 +24,9 @@ export type IconName =
   // Session 27: the lobby's waste-paper basket (where anything extra goes).
   | 'bin'
   // Session 29: the station bell (ring it to call the latecomers aboard).
-  | 'bell';
+  | 'bell'
+  // Session 38: a plate of sandwiches (food asked for in the rooms).
+  | 'sandwich';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -63,6 +65,58 @@ const star = (c: CanvasRenderingContext2D, cx: number, cy: number, outer: number
 };
 
 const ICONS: Record<IconName, Draw> = {
+  sandwich: (c) => {
+    // Session 38: two triangles of a club sandwich on a white plate: bread, lettuce, tomato and ham showing in the cut.
+    c.beginPath();
+    c.ellipse(50, 74, 42, 15, 0, 0, Math.PI * 2);
+    fillStroke(c, '#FFFFFF');
+    const half = (x: number, flip: number): void => {
+      c.save();
+      c.translate(x, 0);
+      c.scale(flip, 1);
+      // The bread's crust and face.
+      c.beginPath();
+      c.moveTo(0, 74);
+      c.lineTo(0, 22);
+      c.lineTo(30, 74);
+      c.closePath();
+      fillStroke(c, '#F2D49A');
+      // The filling in the cut, layer by layer.
+      c.lineWidth = 0;
+      const layers: [string, number][] = [['#7CC36A', 34], ['#E5574F', 46], ['#F3A6A0', 58]];
+      for (const [color, y] of layers) {
+        c.beginPath();
+        c.moveTo(2, y);
+        c.lineTo(2 + (y - 22) * 0.57, y);
+        c.lineTo(2 + (y + 6 - 22) * 0.57, y + 6);
+        c.lineTo(2, y + 6);
+        c.closePath();
+        c.fillStyle = color;
+        c.fill();
+      }
+      c.beginPath();
+      c.moveTo(0, 74);
+      c.lineTo(0, 22);
+      c.lineTo(30, 74);
+      c.closePath();
+      c.lineWidth = 5;
+      c.strokeStyle = INK;
+      c.stroke();
+      c.restore();
+    };
+    half(46, -1);
+    half(54, 1);
+    // A cocktail stick with an olive.
+    c.lineWidth = 4;
+    c.strokeStyle = INK;
+    c.beginPath();
+    c.moveTo(50, 14);
+    c.lineTo(50, 40);
+    c.stroke();
+    c.beginPath();
+    c.arc(50, 14, 6, 0, Math.PI * 2);
+    fillStroke(c, '#6E8B3D', 4);
+  },
   newspaper: (c) => ICONS.news(c),
   breakfast: (c) => {
     // A breakfast tray: a croissant and a cup of coffee.
@@ -1564,4 +1618,5 @@ export const ITEM_ICON: Record<string, IconName> = {
   newspaper: 'newspaper',
   breakfast: 'breakfast',
   snack: 'snack',
+  sandwich: 'sandwich',
 };

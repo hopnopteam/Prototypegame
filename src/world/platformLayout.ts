@@ -48,8 +48,8 @@ export const PLATFORM = {
   master: { x: X + 0.95, z: -8.6 } as Vec2,
   /** The station's name board, over the way in from the station. */
   sign: { x: X + 4.6, z: -11.0 } as Vec2,
-  /** The opening's Open carriage tile: on the platform beside the covered carriage's door, clear of everyone. */
-  openTile: { x: X + 2.55, z: 1.75 } as Vec2,
+  /** The opening's Open carriage tile: on the platform just behind the covered carriage's door, clear of everyone (session 38: out of the bell post's line of sight to the camera, which hid part of it). */
+  openTile: { x: X + 2.2, z: 2.95 } as Vec2,
   /**
    * Session 29: the station bell, a brass hand bell on an iron post behind the door, out of everyone's way (the queue,
    * the walk to the door and the latecomers' walkway are all ahead of it); ringing it calls the latecomers aboard.
