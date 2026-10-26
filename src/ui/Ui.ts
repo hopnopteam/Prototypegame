@@ -511,7 +511,7 @@ export class Ui implements GameUi {
       this.boostLayer.dataset.key = boostKey;
       this.boostLayer.replaceChildren();
       if (happy > 0) this.boostLayer.append(h('div.badge.happy', { title: 'Happy Hour' }, icon('party', 24), h('span', { text: formatClock(happy) })));
-      if (scooterLeft > 0) this.boostLayer.append(h('div.badge', { title: 'Scooter' }, icon('skate', 24), h('span', { text: formatClock(scooterLeft) })));
+      if (scooterLeft > 0) this.boostLayer.append(h('div.badge', { title: 'Scooter' }, icon('scooter', 24), h('span', { text: formatClock(scooterLeft) })));
       if (boostLeft > 0) this.boostLayer.append(h('div.badge', { title: 'Roller skates' }, icon('skate', 24), h('span', { text: formatClock(boostLeft) })));
       if (doubled) this.boostLayer.append(h('div.badge', { title: 'Double fares at the next stop' }, icon('double', 24), h('span', { text: '×2' })));
     }

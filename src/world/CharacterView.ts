@@ -877,7 +877,7 @@ export const EXPERT_STAFF_LOOKS: Partial<Record<StaffRole, { fromLevel: number; 
   attendant: {
     fromLevel: 3,
     look: {
-      body: '#33253F', accent: PALETTE.gold, skin: '#E3AE87', hair: '#2F2520', pants: '#1F1828', hat: 'conductor', hatColor: '#33253F',
+      body: '#4A3262', accent: PALETTE.gold, skin: '#E3AE87', hair: '#2F2520', pants: '#2A2034', hat: 'conductor', hatColor: '#4A3262',
       bandColor: PALETTE.gold, accessory: 'sash', arms: true, outfit: 'jacket', sleeves: 'long', hairStyle: 'bun', trim: '#F2EEE6', shoe: '#1A1418',
     },
   },

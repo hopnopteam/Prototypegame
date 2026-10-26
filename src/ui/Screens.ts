@@ -856,7 +856,7 @@ export function levelPerkItems(level: number): { icon: IconName; text: string }[
   };
   if (features[level]) items.push(...features[level]);
   if (!MONETIZATION_ENABLED && level === ECONOMY.perks.holdTrainLevel) items.push({ icon: 'hold', text: 'Hold the train' });
-  if (!MONETIZATION_ENABLED && level === ECONOMY.perks.scooterLevel) items.push({ icon: 'skate', text: `Scooter ${Math.round(ECONOMY.perks.scooterSeconds / 60)} min` });
+  if (!MONETIZATION_ENABLED && level === ECONOMY.perks.scooterLevel) items.push({ icon: 'scooter', text: `Scooter ${Math.round(ECONOMY.perks.scooterSeconds / 60)} min` });
   const cls = CLASSES.find((c) => c.level === level && c.tier > 0);
   if (cls) items.push({ icon: cls.icon, text: cls.name });
   const livery = LIVERIES.find((l) => l.minLevel === level);

@@ -878,7 +878,7 @@ export class Game implements World {
     }
     if (!this.monetization.enabled && level === this.econ.perks.scooterLevel) {
       this.monetization.grantScooter();
-      this.ui.toast('Scooter!', 'skate');
+      this.ui.toast('Scooter!', 'scooter');
     }
     const reward = this.progression.rewardFor(level);
     this.analytics.log(EVENTS.routeLevelUp, { level, time: Math.round(this.lifetimeSeconds()) });

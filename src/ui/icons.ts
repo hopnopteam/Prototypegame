@@ -6,7 +6,7 @@ export type IconName =
   | 'tea' | 'blanket' | 'pillow' | 'towel' | 'roll' | 'luggage' | 'crate' | 'broom' | 'bed' | 'person'
   | 'star' | 'cash' | 'gem' | 'miles' | 'bath' | 'clock' | 'ad' | 'lock' | 'plus' | 'carriage' | 'zzz'
   | 'heart' | 'bolt' | 'bag' | 'gear' | 'album' | 'calendar' | 'quest' | 'ticket' | 'check' | 'camera'
-  | 'wrench' | 'skate' | 'hold' | 'chest' | 'noroom' | 'double' | 'box' | 'paint' | 'news' | 'trophy'
+  | 'wrench' | 'skate' | 'scooter' | 'hold' | 'chest' | 'noroom' | 'double' | 'box' | 'paint' | 'news' | 'trophy'
   | 'mic' | 'dash' | 'hand' | 'menu' | 'conductor' | 'linen' | 'megaphone' | 'smile' | 'frown'
   | 'coffee' | 'champagne' | 'crown' | 'turndown'
   // Session 20: the venue carriages.
@@ -1416,6 +1416,33 @@ const ICONS: Record<IconName, Draw> = {
       c.beginPath();
       c.arc(x, 80, 9, 0, Math.PI * 2);
       fillStroke(c, '#FFD35C', 5);
+    }
+  },
+  // Session 36: the Conductor's Scooter (a navy deck, a brass stem and bar, two wheels), apart from the skates.
+  scooter: (c) => {
+    c.lineCap = 'round';
+    c.strokeStyle = INK;
+    c.lineWidth = 13;
+    c.beginPath();
+    c.moveTo(70, 70);
+    c.lineTo(62, 18);
+    c.moveTo(50, 18);
+    c.lineTo(76, 18);
+    c.stroke();
+    c.strokeStyle = '#C9A24A';
+    c.lineWidth = 6;
+    c.beginPath();
+    c.moveTo(70, 70);
+    c.lineTo(62, 18);
+    c.moveTo(50, 18);
+    c.lineTo(76, 18);
+    c.stroke();
+    rr(c, 14, 62, 62, 12, 6);
+    fillStroke(c, '#2E3A66');
+    for (const x of [24, 72]) {
+      c.beginPath();
+      c.arc(x, 80, 10, 0, Math.PI * 2);
+      fillStroke(c, '#3A3340', 5);
     }
   },
   hold: (c) => {
