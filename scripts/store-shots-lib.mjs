@@ -112,6 +112,69 @@ const HELPERS = () => {
       };
       requestAnimationFrame(tick);
     },
+    // ─── Hero shots (session 38d): the conductor in the picture, at work ──────────────────────────────────────────
+    /** Puts the conductor on a spot, facing a point (the guest they serve). */
+    place(x, z, faceX, faceZ) {
+      const p = g().player;
+      p.travel?.stop?.();
+      p.pos.x = x;
+      p.pos.z = z;
+      if (faceX !== undefined) p.facing = Math.atan2(faceX - x, faceZ - z);
+    },
+    /** What the conductor carries (the tray shows it). */
+    carry(kinds) {
+      const p = g().player;
+      p.stack.clear();
+      for (const k of kinds) p.stack.add(k);
+    },
+    /** A zone's spot by id (the desk's service spot, a cabin's pad…). */
+    zoneSpot(id) {
+      const z = g().zones.zones.find((zone) => zone.id === id);
+      return z ? { x: z.x, z: z.z } : null;
+    },
+    /** A venue's places in world coordinates: its counter pad, first station, projector, sign and the middle of its seats. */
+    venueSpots(carriage) {
+      const v = g().venues.byCarriage(carriage);
+      if (!v) return null;
+      const L = v.layout;
+      const seats = v.seats.map((s) => s.sit);
+      const mid = seats.length ? { x: seats.reduce((a, s) => a + s.x, 0) / seats.length, z: seats.reduce((a, s) => a + s.z, 0) / seats.length } : null;
+      const busy = v.seats.filter((s) => s.guest).map((s) => s.sit);
+      return {
+        counter: L.counter ? v.world(L.counter.pad) : null,
+        queueHead: L.counter && L.counter.queue[0] ? v.world(L.counter.queue[0]) : null,
+        station: L.stations[0] ? { ...v.world(L.stations[0].pad), item: L.stations[0].item } : null,
+        projector: L.projector ? v.world(L.projector) : null,
+        sign: L.sign ? v.world(L.sign) : null,
+        seats: mid,
+        busy: busy.length ? busy : null,
+      };
+    },
+    /** Happy Hour on the bar (the bulbs lit, the badge up). */
+    happyHour() {
+      g().venues.happyLeft = 40;
+    },
+    /** Starts a film in the cinema for whoever is seated. */
+    film(carriage) {
+      const v = g().venues.byCarriage(carriage);
+      return v ? g().venues.startFilm(v, g().player) : false;
+    },
+    /** The first cabin in a carriage waiting to be tidied (its pad), if any. */
+    dirtyCabin(carriage) {
+      const c = g().train.cabins.find((cab) => cab.carriage === carriage && cab.unlocked && cab.dirty.some(Boolean));
+      return c ? { x: c.spots[0].x, z: c.spots[0].z, id: c.id } : null;
+    },
+    /** Hides the blue job badges every frame while `on` (the guests' own bubbles stay). */
+    hideJobs(on) {
+      window.__hideJobs = on;
+      if (!on || window.__jobsLoop) return;
+      window.__jobsLoop = true;
+      const hide = () => {
+        if (window.__hideJobs) for (const zone of g().zones.zones) if (zone.marker) zone.marker.group.visible = false;
+        requestAnimationFrame(hide);
+      };
+      requestAnimationFrame(hide);
+    },
     worldUi(on) {
       g().stage.rig.showWorldUi(on);
     },
