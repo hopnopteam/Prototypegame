@@ -115,10 +115,26 @@ const HELPERS = () => {
     // ─── Hero shots (session 38d): the conductor in the picture, at work ──────────────────────────────────────────
     /** Puts the conductor on a spot, facing a point (the guest they serve). */
     place(x, z, faceX, faceZ) {
-      const p = g().player;
+      const game = g();
+      const p = game.player;
       p.travel?.stop?.();
-      p.pos.x = x;
-      p.pos.z = z;
+      // The nearest open floor to the spot asked for that nobody else stands on (never inside a chair or a guest).
+      const walk = game.map.walk;
+      const clear = (px, pz) => walk.isWalkable(px, pz) && game.guests.list.every((o) => Math.hypot(o.pos.x - px, o.pos.z - pz) > 0.6);
+      let best = null;
+      for (let r = 0; r <= 2 && !best; r += 0.2) {
+        for (let a = 0; a < 16 && !best; a++) {
+          const px = x + r * Math.cos((a / 16) * Math.PI * 2);
+          const pz = z + r * Math.sin((a / 16) * Math.PI * 2);
+          if (clear(px, pz)) best = { x: px, z: pz };
+          if (r === 0) break;
+        }
+      }
+      best = best ?? walk.nearestWalkable(x, z);
+      p.pos.x = best.x;
+      p.pos.z = best.z;
+      x = best.x;
+      z = best.z;
       if (faceX !== undefined) p.facing = Math.atan2(faceX - x, faceZ - z);
     },
     /** What the conductor carries (the tray shows it). */

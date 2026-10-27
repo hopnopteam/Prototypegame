@@ -30,6 +30,8 @@ async function shot(name, { hud = false, wait = 2600 } = {}) {
     s.closeAll();
     // The class chips float over the lake side of each carriage: a close shot catches half of one at its edge.
     window.nightExpress.train.chips.group.visible = h;
+    // A station's result card or a toast still up from the last stop.
+    for (const el of document.querySelectorAll('.ticket, .toast, .wire')) el.remove();
     if (h) window.nightExpress.wallet.add('cash', 24860 - window.nightExpress.wallet.get('cash'), 'staging');
   }, hud);
   await settle(page, wait);
@@ -108,8 +110,9 @@ await until('onTheMove', 0.2, 0.3);
 /** The middle of the venue's occupied seats (the busy part of the room), or of all its seats. */
 const busyMid = (v) => {
   const b = v?.busy;
-  if (!b?.length) return v?.seats;
-  return { x: b.reduce((a, s) => a + s.x, 0) / b.length, z: b.reduce((a, s) => a + s.z, 0) / b.length };
+  if (!b?.length || !v.seats) return v?.seats;
+  // Along the train, the middle of the busy seats; across it, the room's middle (the busy seats pull to a wall).
+  return { x: v.seats.x, z: b.reduce((a, s) => a + s.z, 0) / b.length };
 };
 {
   const v = await busyVenue(1);
@@ -152,7 +155,15 @@ const busyMid = (v) => {
     window.__s.film(6);
     window.nightExpress.simulate(2);
     const venue = window.nightExpress.venues.byCarriage(6);
-    for (const seat of venue.seats) if (seat.guest) { seat.views = 1; seat.guest.view.showMood(null); }
+    // Everyone watching from the start; two of them would like popcorn (more bubbles would bury the picture).
+    let asks = 0;
+    for (const seat of venue.seats) {
+      if (!seat.guest) continue;
+      seat.views = 1;
+      if (seat.order && asks < 2) asks++;
+      else seat.order = null;
+      seat.guest.view.showMood(null);
+    }
   });
   const mid = busyMid(v);
   if (mid) {
@@ -179,7 +190,7 @@ await evaluate(() => { window.nightExpress.simulate(2.5); window.__s.closeAll();
   // the stand, the queue along the edge ahead of it.
   const serve = { x: 6.15, z: -1.9 };
   await evaluate((s) => { window.__s.carry([]); window.__s.place(s.x, s.z, s.x - 2, s.z); }, serve);
-  await look(5.0, -2.6, CLOSE);
+  await look(4.7, -3.6, CLOSE);
   await shot('h-11-station-tickets');
   await look(5.0, -1.0, MEDIUM);
   await shot('h-11b-station-gameplay', { hud: true });
