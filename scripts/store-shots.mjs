@@ -1,8 +1,11 @@
-// Play Store screenshots (session 35, owner: "high quality screenshots… the full carriages and nuances… low levels too…
-// good crowd density"). Real play on the Ultra tier at 1080×1920: the opening and the run-down early train from the
-// normal build, then the god build (unlimited cash) staged through the game's own purchases: every carriage worn, then
-// fully refitted, with passengers aboard, on the platform and in the venues.
+// Store screenshots (session 35, rebuilt in session 38c: owner: "desirable… before and after of carriages so I can
+// show the progression… professional… not stuck or mid-gameplay, the vibe and feeling of the game").
+// Real play on the Ultra tier at 1080×1920. Every carriage is shot twice from exactly the same camera: run-down, then
+// refitted, with passengers aboard and the venues busy, between stations (the train calm, nobody mid-walk through a
+// wall); the HUD, upgrade tiles and cross faces are hidden in the clean shots. The early game comes from the normal
+// build; the whole train from the god build, staged through the game's own purchases.
 // Usage: npm run build && GOD_MODE=1 OUT=god.html node scripts/build.mjs && node scripts/store-shots.mjs <outdir> [early|god]
+// then: python3 scripts/store-pairs.py <outdir>   (before/after side by side)
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { launch, openGame, play, settle } from './store-shots-lib.mjs';
@@ -12,134 +15,135 @@ const only = process.argv[3];
 mkdirSync(out, { recursive: true });
 const browser = await launch();
 
+/** Every carriage's portrait: the whole 18 m in frame, the lake above and the countryside below. */
+const CARRIAGE_ZOOM = 1.8;
+/** The train's order: lobby, café, sleeper, washrooms, sleeper II, dining, cinema, bar, dome. */
+const CARS = [[0, 'lobby'], [1, 'cafe'], [2, 'sleeper'], [3, 'washrooms'], [4, 'sleeper-ii'], [5, 'dining'], [6, 'cinema'], [7, 'bar'], [8, 'dome']];
+const VENUE = new Set([1, 5, 6, 7, 8]);
+
 async function shot(page, name, { hud = false, wait = 3000 } = {}) {
-  // Clean shots hide the HUD and the upgrade tiles but keep the people's bubbles; gameplay shots show everything.
-  await page.evaluate((h) => { window.__s.clean(!h); window.__s.calm(true); window.__s.worldUi(true); window.__s.hideTiles(!h); if (!h) window.__s.tidyCash(); if (h && window.nightExpress.wallet.get('cash') < 1000) window.__s.showCash(18640); window.__s.closeAll(); }, hud);
+  await page.evaluate((h) => {
+    const s = window.__s;
+    s.clean(!h);
+    s.calm(true);
+    s.worldUi(true);
+    s.hideTiles(!h);
+    s.tidyCash();
+    s.closeAll();
+  }, hud);
   await settle(page, wait);
   await page.screenshot({ path: `${out}/${name}.png` });
   console.log('shot', name, JSON.stringify(await page.evaluate(() => window.__s.state())));
 }
-const look = (page, carriage, zoom, dz = 9, x = 0) => page.evaluate(([c, zm, d, xx]) => window.__s.look(xx, window.__s.carriageZ(c) + d, zm), [carriage, zoom, dz, x]);
-const free = (page) => page.evaluate(() => window.__s.free());
-const until = (page, phase, from = 0, to = 1, limit = 400) => page.evaluate(([p, a, b, l]) => window.__s.until(p, a, b, l), [phase, from, to, limit]);
+const look = (page, carriage, zoom = CARRIAGE_ZOOM, dz = 9, x = 0) =>
+  page.evaluate(([c, zm, d, xx]) => window.__s.look(xx, window.__s.carriageZ(c) + d, zm), [carriage, zoom, dz, x]);
+const until = (page, phase, from = 0, to = 1, limit = 400) =>
+  page.evaluate(([p, a, b, l]) => window.__s.until(p, a, b, l), [phase, from, to, limit]);
 
-/** Buys everything on show again and again (skipping tiles whose id contains any of `skip`) until nothing is left. */
-async function stage(page, maxCarriages, skip) {
+/** Buys everything on show (skipping ids containing any of `skip`) until nothing is left; the autopilot stays off. */
+async function stage(page, skip) {
+  await page.evaluate(() => window.nightExpress.setAutopilot(false));
   let quiet = 0;
-  for (let i = 0; i < 600 && quiet < 25; i++) {
-    const bought = await page.evaluate(([m, s]) => { const n = window.__s.buyShown(m, s); window.nightExpress.simulate(2); window.__s.closeAll(); return n; }, [maxCarriages, skip]);
-    quiet = bought ? 0 : quiet + 1;
+  for (let i = 0; i < 800 && quiet < 25; i++) {
+    const n = await page.evaluate((s) => { const n = window.__s.buyShown(9, s); window.nightExpress.simulate(2); window.__s.closeAll(); return n; }, skip);
+    quiet = n ? 0 : quiet + 1;
   }
   console.log('staged', JSON.stringify(await page.evaluate(() => window.__s.state())));
+}
+
+/** Two full stations with busy platforms, so every open bed has a guest; then the calm early evening of a ride. */
+async function populate(page) {
+  await page.evaluate(() => { const e = window.nightExpress.econ.guests; e.extraBoarders = [5, 7]; e.maxBoarders = 16; });
+  for (let i = 0; i < 2; i++) {
+    await until(page, 'stationStop', 0, 1, 400);
+    await until(page, 'onTheMove', 0.05, 0.12);
+  }
+}
+
+/** Every carriage in `cars` from the same camera; venues are filled first through the game's own outing logic. */
+async function portraits(page, prefix, cars) {
+  // The bar and the cinema take evening outings only, so a ride's evening comes first for them.
+  const order = [...cars].sort((a, b) => Number(VENUE.has(b[0])) - Number(VENUE.has(a[0])));
+  for (const [i, label] of order) {
+    if (VENUE.has(i)) {
+      await until(page, 'onTheMove', 0.14, 0.24);
+      await page.evaluate(([c, wait]) => { window.__s.fillVenue(c, 10); window.nightExpress.simulate(wait); window.nightExpress.setAutopilot(false); }, [i, 14 + 3 * Math.abs(i - 3)]);
+    } else {
+      await until(page, 'onTheMove', 0.22, 0.34);
+    }
+    await look(page, i);
+    await shot(page, `${prefix}-${String(i).padStart(2, '0')}-${label}`);
+  }
 }
 
 // ─── The early game: the normal build from a brand-new save ──────────────────────────────────────────────────────
 if (!only || only === 'early') {
   const page = await openGame(browser, resolve('dist/index.html'));
   await settle(page, 2500);
-  await shot(page, '01-opening-millbrook-platform', { hud: true });
-  await play(page, 16);
-  await free(page);
-  await shot(page, '02-first-tickets', { hud: true });
-  await play(page, 12);
-  await shot(page, '03-carriage-revealed', { hud: true });
-  await play(page, 20);
-  await shot(page, '04-first-passengers-check-in', { hud: true });
-  await until(page, 'stationStop', 0, 1, 300);
-  await play(page, 4);
-  await free(page);
-  await shot(page, '05-first-station-stop', { hud: true });
-  await play(page, 200);
-  await until(page, 'onTheMove', 0.25, 0.4);
-  await page.evaluate(() => window.nightExpress.setAutopilot(false));
-  await look(page, 0, 1.05, 10);
-  await shot(page, '06-rundown-lobby-basic');
-  await look(page, 0, 1.0, 10);
-  await shot(page, '07-rundown-lobby-gameplay', { hud: true });
+  // Millbrook at night: the old carriage under its tarp, the first traveller at the ticket stand.
+  await page.evaluate(() => window.__s.look(4.0, window.__s.carriageZ(0) + 6.5, 1.5));
+  await shot(page, 'a-01-millbrook-platform', { hud: true });
+  await play(page, 45);
+  await page.evaluate(() => { window.__s.free(); window.nightExpress.setAutopilot(false); });
+  await shot(page, 'a-02-first-guests-gameplay', { hud: true });
+  // The run-down lobby with its first guests: the "before" of the lobby pair.
+  await until(page, 'onTheMove', 0.22, 0.34);
+  await look(page, 0);
+  await shot(page, 'b-00-lobby');
   await page.close();
 }
 
-// ─── The god build: the whole train, worn and then refitted ──────────────────────────────────────────────────────
-// A Royal Suite takes one guest, so the grandest train is the quietest: the busy shots keep the sleepers at Comfort
-// (the most beds) while the lobby and venues are refitted, and the Royal and First Class carriages get shots of their own.
-const SLEEPER_CLASSES = ['refurb_3', 'refurb_4', 'refurb_5'].flatMap((r) => ['c1.', 'c4.'].map((c) => c + r));
-const venueShots = async (page, prefix, venues, hudFor = []) => {
-  for (const [i, label] of venues) {
-    await until(page, 'onTheMove', 0.16, 0.26);
-    // Guests walk from the sleepers (carriages 1 and 4): the further the venue, the longer they need to get there.
-    await page.evaluate(([c, wait]) => { window.__s.fillVenue(c, 10); window.nightExpress.simulate(wait); window.nightExpress.setAutopilot(false); }, [i, 14 + 4 * Math.abs(i - 3)]);
-    await look(page, i, 1.05);
-    await shot(page, `${prefix}-${label}`);
-    if (hudFor.includes(i)) await shot(page, `${prefix}-${label}-gameplay`, { hud: true });
-  }
-};
-// The bar and the cinema take evening outings only, so they go first in a ride's evening.
-const VENUES = [[7, 'bar'], [6, 'cinema'], [3, 'cafe'], [5, 'dining'], [8, 'dome']];
-
+// ─── The god build: the whole train run-down, then refitted ──────────────────────────────────────────────────────
 if (!only || only === 'god') {
   const page = await openGame(browser, resolve('dist/god.html'));
-  await play(page, 240);
-  // 1. Worn: every carriage joins, nothing refitted (venues get their tables, staff and menus).
-  await stage(page, 9, ['refurb', 'comfort_']);
-  await play(page, 260, true, false);
-  await until(page, 'onTheMove', 0.18, 0.3);
-  await page.evaluate(() => window.nightExpress.setAutopilot(false));
-  for (const [i, label] of [[0, 'lobby'], [1, 'sleeper'], [2, 'washrooms'], [4, 'sleeper-ii']]) {
-    await look(page, i, 1.05);
-    await shot(page, `1${i}-worn-${label}`);
-  }
-  await venueShots(page, '15-worn', VENUES, [3]);
-
-  // 2. Refitted lobby, washrooms and venues; the sleepers at Comfort, full of guests.
-  await page.evaluate(() => window.nightExpress.devAddStars(20000));
-  await stage(page, 9, SLEEPER_CLASSES);
-  await play(page, 300, true, false);
-  await until(page, 'onTheMove', 0.18, 0.3);
-  await page.evaluate(() => window.nightExpress.setAutopilot(false));
-  for (const [i, label] of [[0, 'lobby-luxury'], [1, 'sleeper-comfort'], [2, 'washrooms-luxury'], [4, 'sleeper-ii-comfort']]) {
-    await look(page, i, 1.05);
-    await shot(page, `2${i}-${label}`);
-  }
-  await look(page, 0, 1.0);
-  await shot(page, '29-lobby-gameplay', { hud: true });
-  await venueShots(page, '3-luxury', VENUES, [3, 5, 7]);
+  await play(page, 50);
+  // 1. Run-down: every carriage, its rooms, tables, staff and menus, but no refit (the lobby keeps the Repair every
+  //    coupling needs; its run-down picture comes from the early game) and no station dressing yet.
+  const REFITS = [1, 2, 3, 4, 5, 6, 7, 8].map((i) => `c${i}.refurb`);
+  await stage(page, ['c0.refurb_2', 'c0.refurb_3', 'c0.refurb_4', 'c0.refurb_5', ...REFITS, 'comfort_', 'st.']);
+  await populate(page);
+  await portraits(page, 'b', CARS.slice(1));
   await until(page, 'onTheMove', 0.2, 0.3);
-  await page.evaluate(() => { window.__s.fillVenue(3, 6); window.__s.fillVenue(5, 6); window.nightExpress.simulate(14); window.nightExpress.setAutopilot(false); });
-  for (const [i, label] of [[1, 'sleepers'], [4, 'cafe-to-dining']]) {
-    await look(page, i, 2.3, 18);
-    await shot(page, `4${i}-wide-${label}`);
-  }
-  await look(page, 6, 2.3, 18);
-  await shot(page, '47-wide-venues');
   await look(page, 3, 3.4, 9);
-  await shot(page, '49-wide-train');
-  await until(page, 'onTheMove', 0.5, 0.58);
-  await page.evaluate(() => window.nightExpress.setAutopilot(false));
-  await look(page, 1, 1.0);
-  await shot(page, '50-lights-out');
+  await shot(page, 'w-01-train-before');
 
-  // A station stop: a full platform (more travellers than beds wait, as at five stars), the stand, the bags.
-  await page.evaluate(() => { const e = window.nightExpress.econ.guests; e.extraBoarders = [5, 7]; e.maxBoarders = 14; });
+  // 2. Refitted: venues and washrooms in Luxury, the lobby in First Class, the sleepers in Comfort (the same rooms,
+  //    so the pair compares like with like), comforts and the station dressing bought.
+  await page.evaluate(() => window.nightExpress.devAddStars(30000));
+  const SLEEPER_TOP = ['c2.refurb_3', 'c2.refurb_4', 'c2.refurb_5', 'c4.refurb_3', 'c4.refurb_4', 'c4.refurb_5'];
+  await stage(page, [...SLEEPER_TOP, 'c0.refurb_5']);
+  await populate(page);
+  await portraits(page, 'c', CARS);
+  await until(page, 'onTheMove', 0.2, 0.3);
+  await look(page, 3, 3.4, 9);
+  await shot(page, 'w-02-train-after');
+  // A little play with the HUD: the lobby and the café as the player sees them.
+  await until(page, 'onTheMove', 0.16, 0.24);
+  await page.evaluate(() => { window.__s.fillVenue(1, 8); window.nightExpress.simulate(12); window.nightExpress.setAutopilot(false); window.__s.showCash(24860); });
+  await look(page, 1, 1.15, 9);
+  await shot(page, 'd-01-cafe-gameplay', { hud: true });
+  await look(page, 0, 1.15, 10);
+  await shot(page, 'd-02-lobby-gameplay', { hud: true });
+
+  // A station stop: a full platform, the stand, the bags, the train in its station dressing.
   await until(page, 'stationStop', 0, 1, 400);
-  await page.evaluate(() => { window.nightExpress.simulate(2.5); window.nightExpress.setAutopilot(false); });
-  await look(page, 0, 1.3, 1, 4.6);
-  await shot(page, '60-station-platform');
-  await look(page, 0, 1.15, 2, 4.2);
-  await shot(page, '61-station-gameplay', { hud: true });
-  await look(page, 0, 2.4, 6, 4.5);
-  await shot(page, '62-station-wide');
+  await page.evaluate(() => { window.nightExpress.simulate(3); window.nightExpress.setAutopilot(false); });
+  await look(page, 0, 1.6, 2, 4.4);
+  await shot(page, 'e-01-station');
+  await look(page, 0, 1.25, 2, 4.0);
+  await shot(page, 'e-02-station-gameplay', { hud: true });
 
-  // 3. The top classes: the Royal Suite (lobby and sleeper) and First Class (the second sleeper).
-  await stage(page, 9, ['c4.refurb_5']);
-  await play(page, 300, true, false);
-  await until(page, 'onTheMove', 0.18, 0.3);
-  await page.evaluate(() => window.nightExpress.setAutopilot(false));
-  for (const [i, label] of [[0, 'lobby-royal'], [1, 'sleeper-royal-suite'], [4, 'sleeper-first-class']]) {
-    await look(page, i, 1.05);
-    await shot(page, `7${i}-${label}`);
+  // 3. The top classes: the Royal Suite in the first sleeper, First Class in the second, the lobby Royal; then lights out.
+  await stage(page, ['c4.refurb_5']);
+  await populate(page);
+  for (const [i, label] of [[0, 'lobby-royal'], [2, 'sleeper-royal-suite'], [4, 'sleeper-first-class']]) {
+    await until(page, 'onTheMove', 0.22, 0.34);
+    await look(page, i);
+    await shot(page, `f-${String(i).padStart(2, '0')}-${label}`);
   }
-  await look(page, 2, 2.4, 18);
-  await shot(page, '79-wide-royal-first');
+  await until(page, 'onTheMove', 0.52, 0.58);
+  await look(page, 2);
+  await shot(page, 'f-09-lights-out');
   await page.close();
 }
 await browser.close();
