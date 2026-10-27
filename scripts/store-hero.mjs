@@ -28,6 +28,8 @@ async function shot(name, { hud = false, wait = 2600 } = {}) {
     s.hideJobs(true);
     s.tidyCash();
     s.closeAll();
+    // The class chips float over the lake side of each carriage: a close shot catches half of one at its edge.
+    window.nightExpress.train.chips.group.visible = h;
     if (h) window.nightExpress.wallet.add('cash', 24860 - window.nightExpress.wallet.get('cash'), 'staging');
   }, hud);
   await settle(page, wait);
@@ -61,19 +63,16 @@ async function populate() {
  * A venue at its busiest: guests sent there through the game's outing logic, then a while with the staff and the
  * conductor serving (the autopilot plays, buying nothing), so some are being served, some eating, some waiting.
  */
-async function busyVenue(carriage, wait) {
-  await until('onTheMove', 0.12, 0.2);
-  await evaluate(([c, t]) => {
-    const g = window.nightExpress;
+async function busyVenue(carriage) {
+  await until('onTheMove', 0.1, 0.24);
+  const n = await evaluate((c) => {
     window.__s.emptyWallet();
-    window.__s.fillVenue(c, 12);
-    g.setAutopilot(true);
-    for (let s = 0; s < t; s += 0.5) g.simulate(0.5);
-    window.__s.fillVenue(c, 12);
-    g.simulate(6);
-    g.setAutopilot(false);
+    const n = window.__s.seatVenue(c, 14);
+    window.nightExpress.simulate(1.2);
     window.__s.closeAll();
-  }, [carriage, wait]);
+    return n;
+  }, carriage);
+  console.log('seated', carriage, n);
   return evaluate((c) => window.__s.venueSpots(c), carriage);
 }
 
@@ -106,61 +105,98 @@ await until('onTheMove', 0.2, 0.3);
 }
 
 // ─── The venues at their busiest ──────────────────────────────────────────────────────────────────────────────
+/** The middle of the venue's occupied seats (the busy part of the room), or of all its seats. */
+const busyMid = (v) => {
+  const b = v?.busy;
+  if (!b?.length) return v?.seats;
+  return { x: b.reduce((a, s) => a + s.x, 0) / b.length, z: b.reduce((a, s) => a + s.z, 0) / b.length };
+};
 {
-  const v = await busyVenue(1, 20);
-  if (v?.counter) {
-    await conductor(v.counter, v.queueHead, ['latte', 'latte'], 0, 0);
-    await look(v.counter.x - 0.5, v.counter.z - 0.6, CLOSE);
-    await shot('h-04-cafe-counter');
-    await look(v.counter.x - 0.5, v.counter.z - 0.6, CLOSE);
+  const v = await busyVenue(1);
+  const mid = busyMid(v);
+  if (mid) {
+    // Serving the tables: the conductor in the aisle with two lattes, the café full round them.
+    await conductor(mid, v.busy?.[0] ?? mid, ['latte', 'latte'], 0.9, 0.5);
+    await look(mid.x + 0.4, mid.z, CLOSE);
+    await shot('h-04-cafe-service');
+    await look(mid.x + 0.4, mid.z, CLOSE);
     await shot('h-05-cafe-gameplay', { hud: true });
-  }
-  if (v?.seats) {
-    await look(v.seats.x, v.seats.z, MEDIUM);
+    await look(mid.x, mid.z, MEDIUM);
     await shot('h-06-cafe-tables');
   }
 }
 {
-  const v = await busyVenue(5, 26);
-  const at = v?.busy?.[0] ?? v?.seats;
-  if (at) {
-    await conductor(at, at, ['meal'], 0.7, 0.2);
-    await look(at.x + 0.3, at.z - 0.8, CLOSE);
+  const v = await busyVenue(5);
+  const mid = busyMid(v);
+  if (mid) {
+    await conductor(v.busy?.[1] ?? mid, v.busy?.[1] ?? mid, ['meal'], 0.8, 0.3);
+    await look(mid.x + 0.3, mid.z, CLOSE);
     await shot('h-07-dining-service');
   }
 }
 {
   await evaluate(() => window.__s.happyHour());
-  const v = await busyVenue(7, 30);
+  const v = await busyVenue(7);
   await evaluate(() => window.__s.happyHour());
-  if (v?.station) {
-    await conductor(v.station, v.busy?.[0] ?? v.seats, ['cocktail', 'cocktail'], 0.3, 0.8);
-    await look(v.station.x - 0.3, v.station.z + 1.4, CLOSE);
+  const mid = busyMid(v);
+  if (mid) {
+    await conductor(v.busy?.[0] ?? mid, v.busy?.[0] ?? mid, ['cocktail', 'cocktail'], 0.9, 0.4);
+    await look(mid.x + 0.3, mid.z, CLOSE);
     await shot('h-08-bar-happy-hour');
   }
 }
 {
-  const v = await busyVenue(6, 34);
-  await evaluate(() => { window.__s.film(6); window.nightExpress.simulate(3); window.nightExpress.setAutopilot(false); });
-  if (v?.seats) {
-    await conductor(v.seats, v.seats, ['popcorn'], 0.9, 0.9);
-    await look(v.seats.x, v.seats.z, MEDIUM);
+  const v = await busyVenue(6);
+  // The film on, everyone watching from the start (their waiting reel put away).
+  await evaluate(() => {
+    window.__s.film(6);
+    window.nightExpress.simulate(2);
+    const venue = window.nightExpress.venues.byCarriage(6);
+    for (const seat of venue.seats) if (seat.guest) { seat.views = 1; seat.guest.view.showMood(null); }
+  });
+  const mid = busyMid(v);
+  if (mid) {
+    await conductor(mid, mid, ['popcorn', 'popcorn'], 1.2, 0.8);
+    await look(mid.x, mid.z, MEDIUM);
     await shot('h-09-cinema-film');
   }
 }
 {
-  const v = await busyVenue(8, 44);
-  if (v?.seats) {
-    await look(v.seats.x - 0.6, v.seats.z, MEDIUM);
+  const v = await busyVenue(8);
+  const mid = busyMid(v);
+  if (mid) {
+    await conductor(mid, mid, ['blanket'], 1.0, 0.6);
+    await look(mid.x - 0.4, mid.z, MEDIUM);
     await shot('h-10-dome-view');
   }
 }
 
-// ─── A station stop: the crowd, then a room tidied as its guest leaves ────────────────────────────────────────
+// ─── A station stop: the queue at the ticket stand, the conductor selling ─────────────────────────────────────
 await until('stationStop', 0, 1, 400);
-await evaluate(() => { const g = window.nightExpress; g.setAutopilot(true); g.simulate(4); g.setAutopilot(false); window.__s.closeAll(); });
-await look(4.2, await evaluate(() => window.__s.carriageZ(0)) + 3, MEDIUM);
-await shot('h-11-station-crowd');
+await evaluate(() => { window.nightExpress.simulate(2.5); window.__s.closeAll(); });
+{
+  // Platform coordinates (the platform starts 2.75 m out from the train's centre line): the server's spot behind
+  // the stand, the queue along the edge ahead of it.
+  const serve = { x: 6.15, z: -1.9 };
+  await evaluate((s) => { window.__s.carry([]); window.__s.place(s.x, s.z, s.x - 2, s.z); }, serve);
+  await look(5.0, -2.6, CLOSE);
+  await shot('h-11-station-tickets');
+  await look(5.0, -1.0, MEDIUM);
+  await shot('h-11b-station-gameplay', { hud: true });
+}
+// The doors close and the new passengers line up at the desk for their keys.
+await until('departing', 0, 1, 200);
+await evaluate(() => { window.nightExpress.setAutopilot(false); window.nightExpress.simulate(5); window.__s.closeAll(); });
+{
+  const spot = await evaluate(() => window.__s.zoneSpot('desk'));
+  if (spot) {
+    await conductor(spot, { x: spot.x - 1, z: spot.z }, [], 0, 0);
+    await look(spot.x - 0.4, spot.z - 0.6, CLOSE);
+    await shot('h-01b-desk-keys');
+  }
+}
+await until('stationStop', 0, 1, 400);
+await evaluate(() => { window.nightExpress.simulate(6); window.__s.closeAll(); });
 {
   const cab = await evaluate(() => window.__s.dirtyCabin(2) ?? window.__s.dirtyCabin(4) ?? window.__s.dirtyCabin(0));
   if (cab) {

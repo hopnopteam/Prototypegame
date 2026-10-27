@@ -150,6 +150,79 @@ const HELPERS = () => {
         busy: busy.length ? busy : null,
       };
     },
+    /**
+     * A venue full at once: guests from their rooms (or other venues) booked through the game's own outing logic, set
+     * down in their seats and sat down by the venue itself; then most are served (eating, sipping, watching) and a
+     * few still waiting with their order bubble, a couple of them delighted (the heart-eyed face and its hearts).
+     */
+    seatVenue(carriage, max) {
+      const game = g();
+      const venues = game.venues;
+      const venue = venues.byCarriage(carriage);
+      if (!venue) return 0;
+      const pick = game.rng.weighted;
+      game.rng.weighted = () => String(carriage);
+      const seated = [];
+      try {
+        for (const guest of game.guests.list) {
+          if (seated.length >= max || !venue.freeSeat()) break;
+          if (guest.trip === 'night' || !guest.cabin) continue;
+          if (guest.outing) {
+            if (guest.outing.venue === venue) continue;
+            venues.abandon(guest);
+            guest.state = 'resting';
+          } else if (!['resting', 'requesting', 'settling', 'toCabin'].includes(guest.state)) continue;
+          if (!venues.tryOuting(guest, 'evening') && !venues.tryOuting(guest, 'morning')) continue;
+          const at = venue.queue.indexOf(guest);
+          if (at >= 0) venue.queue.splice(at, 1);
+          venue.arrived.delete(guest);
+          guest.mover.stop?.();
+          const seat = guest.outing.seat;
+          guest.pos.x = seat.sit.x;
+          guest.pos.z = seat.sit.z;
+          venues.sitDown(guest);
+          seated.push(guest);
+        }
+      } finally {
+        game.rng.weighted = pick;
+      }
+      window.__love = window.__love ?? new Set();
+      seated.forEach((guest, i) => {
+        const seat = guest.outing.seat;
+        if (venue.kind === 'dining' || venue.kind === 'bar') {
+          // Two in three already served (eating or drinking), the rest waving their order.
+          if (i % 3 !== 2) {
+            seat.order = null;
+            seat.state = 'consuming';
+            seat.timer = 0;
+            game.guests.setOutingState(guest, 'consuming');
+            guest.view.showBubble(null);
+            guest.view.act('sip', 30);
+          }
+        } else if (venue.kind === 'cafe') {
+          seat.timer = 0;
+          guest.view.act('sip', 30);
+        }
+        if (i % 4 === 1) window.__love.add(guest);
+      });
+      if (!window.__loveLoop) {
+        window.__loveLoop = true;
+        let last = performance.now();
+        const tick = (now) => {
+          const dt = Math.min(0.1, (now - last) / 1000);
+          last = now;
+          for (const guest of window.__love) {
+            if (!guest.outing) { window.__love.delete(guest); continue; }
+            if (guest.outing.seat.order) continue;
+            guest.view.showMood('love');
+            if (Math.random() < dt * 1.5) g().particles.emit('heart', guest.pos.x, 2.4, guest.pos.z, 1, 0.15);
+          }
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }
+      return seated.length;
+    },
     /** Happy Hour on the bar (the bulbs lit, the badge up). */
     happyHour() {
       g().venues.happyLeft = 40;
@@ -166,14 +239,21 @@ const HELPERS = () => {
     },
     /** Hides the blue job badges every frame while `on` (the guests' own bubbles stay). */
     hideJobs(on) {
-      window.__hideJobs = on;
-      if (!on || window.__jobsLoop) return;
-      window.__jobsLoop = true;
-      const hide = () => {
-        if (window.__hideJobs) for (const zone of g().zones.zones) if (zone.marker) zone.marker.group.visible = false;
-        requestAnimationFrame(hide);
-      };
-      requestAnimationFrame(hide);
+      // The game shows and hides each badge in its own frame, after any page loop: the badge's update is swapped out.
+      for (const zone of g().zones.zones) {
+        const m = zone.marker;
+        if (!m) continue;
+        if (on && !m.__update) {
+          m.__update = m.update;
+          m.update = function () {
+            if (this.badge) this.badge.visible = false;
+            if (this.fill) this.fill.visible = false;
+          };
+        } else if (!on && m.__update) {
+          m.update = m.__update;
+          delete m.__update;
+        }
+      }
     },
     worldUi(on) {
       g().stage.rig.showWorldUi(on);
