@@ -69,12 +69,8 @@ async function populate(page) {
  * own outing logic.
  */
 async function portraits(page, prefix, cars) {
-  // Nobody serves while the rooms are shot, so the new guests are in their rooms asking for their first thing.
-  await page.evaluate(() => {
-    const g = window.nightExpress;
-    g.setAutopilot(false);
-    for (let i = 0; i < 160 && g.journey.travelShare < 0.17; i++) g.simulate(0.25);
-  });
+  // Early evening: the keys handed and the new guests in their rooms (the autopilot plays the conductor until then).
+  await until(page, 'onTheMove', 0.2, 0.3);
   for (const [i, label] of cars.filter(([c]) => !VENUE.has(c))) {
     await look(page, i);
     await shot(page, `${prefix}-${String(i).padStart(2, '0')}-${label}`);
