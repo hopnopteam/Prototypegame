@@ -165,7 +165,11 @@ export async function openGame(browser, file, query = 'quality=ultra') {
   await page.addInitScript(HELPERS);
   await page.goto(`file://${file}?${query}`);
   await page.waitForFunction(() => window.nightExpress && !window.nightExpress.loading, null, { timeout: 180000 });
-  await page.evaluate(() => window.nightExpress.skipIntro?.());
+  // A store shot shows the train at its best: nobody is kept waiting long enough to get cross (play is unchanged).
+  await page.evaluate(() => {
+    window.nightExpress.skipIntro?.();
+    Object.assign(window.nightExpress.econ.service, { impatientSeconds: 1e6, lateSeconds: 1e6, noTipSeconds: 1e6 });
+  });
   return page;
 }
 
