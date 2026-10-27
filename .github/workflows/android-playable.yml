@@ -1,0 +1,100 @@
+# Wraps the two playable-ad builds (playable/*.html, built by scripts/build-playable.mjs and committed) in Android
+# apps for trying them on a phone: "NX Playable" and "NX Playable (no tutorial)". Each has its own app id, so both
+# install beside the game. Outside an ad network the playable starts at once and Play Now opens the store page.
+name: Android playable builds
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/gracious-clarke-6ckald]
+    paths:
+      - 'playable/*.html'
+      - '.github/workflows/android-playable.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-playable
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: playable
+            html: playable/night-express-playable.html
+            id: com.hopnop.nightexpress.playable
+            name: NX Playable
+          - variant: playable-no-tutorial
+            html: playable/night-express-playable-no-tutorial.html
+            id: com.hopnop.nightexpress.playablenotut
+            name: NX Playable (no tutorial)
+    env:
+      APP_ID: ${{ matrix.id }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # The playable is already one self-contained page: it becomes the app's whole web content.
+      - name: Use the playable as the app's page
+        run: |
+          mkdir -p dist/app
+          cp "${{ matrix.html }}" dist/app/index.html
+
+      # The game hides the launch screen itself; the playable does not know about it, so let it hide on its own.
+      - name: Let the launch screen hide by itself
+        run: sed -i 's/launchAutoHide: false/launchAutoHide: true/' capacitor.config.ts
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Android SDK packages
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools" > /dev/null
+
+      - name: Copy the page into the Android project
+        run: npx cap sync android
+
+      - name: Name the app on the phone
+        run: sed -i 's|<string name="app_name">Night Express</string>|<string name="app_name">${{ matrix.name }}</string>|' android/app/src/main/res/values/strings.xml
+
+      - name: Build the APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk "night-express-${{ matrix.variant }}-${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: night-express-${{ matrix.variant }}-${{ github.run_number }}
+          path: night-express-${{ matrix.variant }}-${{ github.run_number }}.apk
+
+      - name: Publish a pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-playable-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Night Express playable ad builds ${{ github.run_number }}
+          prerelease: true
+          files: night-express-${{ matrix.variant }}-${{ github.run_number }}.apk
+          body: |
+            The two playable-ad builds wrapped as Android apps, for trying them on a phone (not for the store):
+            night-express-playable (with the tutorial) and night-express-playable-no-tutorial.
+            Each installs as its own app beside the game. Built from ${{ github.sha }}.
