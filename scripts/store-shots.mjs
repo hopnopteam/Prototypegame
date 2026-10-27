@@ -42,7 +42,8 @@ const until = (page, phase, from = 0, to = 1, limit = 400) =>
 
 /** Buys everything on show (skipping ids containing any of `skip`) until nothing is left; the autopilot stays off. */
 async function stage(page, skip) {
-  await page.evaluate(() => window.nightExpress.setAutopilot(false));
+  // Every refit on show at once (play shows two): a skipped refit would otherwise hold a slot for good.
+  await page.evaluate(() => { const g = window.nightExpress; g.setAutopilot(false); g.econ.tiles.maxRefits = 20; g.econ.tiles.maxVisible = 40; });
   let quiet = 0;
   // A refit rebuilds its carriage over real frames, and only two refit tiles show at a time: give each round a few frames.
   for (let i = 0; i < 1200 && quiet < 60; i++) {
@@ -68,14 +69,19 @@ async function populate(page) {
  * own outing logic.
  */
 async function portraits(page, prefix, cars) {
+  // Nobody serves while the rooms are shot, so the new guests are in their rooms asking for their first thing.
+  await page.evaluate(() => {
+    const g = window.nightExpress;
+    g.setAutopilot(false);
+    for (let i = 0; i < 160 && g.journey.travelShare < 0.17; i++) g.simulate(0.25);
+  });
   for (const [i, label] of cars.filter(([c]) => !VENUE.has(c))) {
-    await page.evaluate(() => window.nightExpress.setAutopilot(false));
     await look(page, i);
     await shot(page, `${prefix}-${String(i).padStart(2, '0')}-${label}`);
   }
   for (const [i, label] of cars.filter(([c]) => VENUE.has(c))) {
     await until(page, 'onTheMove', 0.14, 0.24);
-    await page.evaluate(([c, wait]) => { window.__s.fillVenue(c, 10); window.nightExpress.simulate(wait); window.nightExpress.setAutopilot(false); }, [i, 14 + 3 * Math.abs(i - 3)]);
+    await page.evaluate(([c, wait]) => { window.__s.fillVenue(c, 10); window.nightExpress.simulate(wait); window.nightExpress.setAutopilot(false); }, [i, 20 + 10 * Math.abs(i - 3)]);
     await look(page, i);
     await shot(page, `${prefix}-${String(i).padStart(2, '0')}-${label}`);
   }
