@@ -66,56 +66,65 @@ const star = (c: CanvasRenderingContext2D, cx: number, cy: number, outer: number
 
 const ICONS: Record<IconName, Draw> = {
   sandwich: (c) => {
-    // Session 38: two triangles of a club sandwich on a white plate: bread, lettuce, tomato and ham showing in the cut.
+    // Session 38c (owner, with a reference logo): a sub roll seen from the side: a scored golden top, ham and a wave
+    // of lettuce, a slice of cheese draping over the edge and a flat bottom half, each with a soft highlight.
+    c.lineJoin = 'round';
+    c.lineCap = 'round';
+    // The bottom half.
+    rr(c, 12, 60, 76, 22, 10);
+    fillStroke(c, '#F0A93A');
+    c.fillStyle = '#FFD27A';
+    rr(c, 24, 66, 40, 5, 2.5);
+    c.fill();
+    // The ham, a little proud of the bread.
+    rr(c, 14, 52, 72, 11, 5);
+    fillStroke(c, '#C8605A', 5);
+    // The lettuce: a frilly band hanging out under the top.
     c.beginPath();
-    c.ellipse(50, 74, 42, 15, 0, 0, Math.PI * 2);
-    fillStroke(c, '#FFFFFF');
-    const half = (x: number, flip: number): void => {
-      c.save();
-      c.translate(x, 0);
-      c.scale(flip, 1);
-      // The bread's crust and face.
-      c.beginPath();
-      c.moveTo(0, 74);
-      c.lineTo(0, 22);
-      c.lineTo(30, 74);
-      c.closePath();
-      fillStroke(c, '#F2D49A');
-      // The filling in the cut, layer by layer.
-      c.lineWidth = 0;
-      const layers: [string, number][] = [['#7CC36A', 34], ['#E5574F', 46], ['#F3A6A0', 58]];
-      for (const [color, y] of layers) {
-        c.beginPath();
-        c.moveTo(2, y);
-        c.lineTo(2 + (y - 22) * 0.57, y);
-        c.lineTo(2 + (y + 6 - 22) * 0.57, y + 6);
-        c.lineTo(2, y + 6);
-        c.closePath();
-        c.fillStyle = color;
-        c.fill();
-      }
-      c.beginPath();
-      c.moveTo(0, 74);
-      c.lineTo(0, 22);
-      c.lineTo(30, 74);
-      c.closePath();
-      c.lineWidth = 5;
-      c.strokeStyle = INK;
-      c.stroke();
-      c.restore();
-    };
-    half(46, -1);
-    half(54, 1);
-    // A cocktail stick with an olive.
-    c.lineWidth = 4;
+    c.moveTo(11, 42);
+    c.lineTo(89, 42);
+    c.lineTo(89, 50);
+    for (let x = 89; x > 11; x -= 9.75) c.quadraticCurveTo(x - 4.9, 60, x - 9.75, 50);
+    c.closePath();
+    fillStroke(c, '#5DBB4C', 4.5);
+    // The top: a golden dome with three scores and a shine.
+    c.beginPath();
+    c.moveTo(10, 42);
+    c.bezierCurveTo(10, 8, 90, 8, 90, 42);
+    c.quadraticCurveTo(90, 48, 84, 48);
+    c.lineTo(16, 48);
+    c.quadraticCurveTo(10, 48, 10, 42);
+    c.closePath();
+    fillStroke(c, '#F2B24A');
     c.strokeStyle = INK;
+    c.lineWidth = 5;
+    for (const x of [30, 46, 62]) {
+      c.beginPath();
+      c.moveTo(x, 32);
+      c.quadraticCurveTo(x + 3, 24, x + 10, 21);
+      c.stroke();
+    }
+    c.fillStyle = '#FFE2A0';
     c.beginPath();
-    c.moveTo(50, 14);
-    c.lineTo(50, 40);
-    c.stroke();
+    c.ellipse(76, 30, 3.4, 2.4, -0.5, 0, Math.PI * 2);
+    c.fill();
     c.beginPath();
-    c.arc(50, 14, 6, 0, Math.PI * 2);
-    fillStroke(c, '#6E8B3D', 4);
+    c.ellipse(81, 37, 2.4, 1.7, -0.5, 0, Math.PI * 2);
+    c.fill();
+    // The cheese: a slice folded down over the edge.
+    c.beginPath();
+    c.moveTo(46, 47);
+    c.lineTo(80, 47);
+    c.lineTo(63, 66);
+    c.closePath();
+    fillStroke(c, '#FFD23A', 4.5);
+    c.fillStyle = '#FFF2A8';
+    c.beginPath();
+    c.moveTo(56, 51);
+    c.lineTo(68, 51);
+    c.lineTo(61, 58);
+    c.closePath();
+    c.fill();
   },
   newspaper: (c) => ICONS.news(c),
   breakfast: (c) => {

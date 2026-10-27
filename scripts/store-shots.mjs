@@ -14,7 +14,7 @@ const browser = await launch();
 
 async function shot(page, name, { hud = false, wait = 3000 } = {}) {
   // Clean shots hide the HUD and the upgrade tiles but keep the people's bubbles; gameplay shots show everything.
-  await page.evaluate((h) => { window.__s.clean(!h); window.__s.worldUi(true); window.__s.hideTiles(!h); if (!h) window.__s.tidyCash(); if (h && window.nightExpress.wallet.get('cash') < 1000) window.__s.showCash(18640); window.__s.closeAll(); }, hud);
+  await page.evaluate((h) => { window.__s.clean(!h); window.__s.calm(true); window.__s.worldUi(true); window.__s.hideTiles(!h); if (!h) window.__s.tidyCash(); if (h && window.nightExpress.wallet.get('cash') < 1000) window.__s.showCash(18640); window.__s.closeAll(); }, hud);
   await settle(page, wait);
   await page.screenshot({ path: `${out}/${name}.png` });
   console.log('shot', name, JSON.stringify(await page.evaluate(() => window.__s.state())));

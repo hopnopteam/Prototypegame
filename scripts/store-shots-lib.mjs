@@ -92,6 +92,17 @@ const HELPERS = () => {
       window.__s.emptyWallet();
       game.wallet.add('cash', amount, 'staging');
     },
+    /** While `on`, a guest's cross face is never shown (a store shot shows the train at its best; play is unchanged). */
+    calm(on) {
+      window.__calm = on;
+      if (!on || window.__calmLoop) return;
+      window.__calmLoop = true;
+      const tick = () => {
+        if (window.__calm) for (const guest of g().guests.list) if (guest.view.bubbleMood === 'angry') guest.view.showMood(null);
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    },
     worldUi(on) {
       g().stage.rig.showWorldUi(on);
     },
