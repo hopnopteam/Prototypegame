@@ -4,7 +4,7 @@
 // refitted, with passengers aboard and the venues busy, between stations (the train calm, nobody mid-walk through a
 // wall); the HUD, upgrade tiles and cross faces are hidden in the clean shots. The early game comes from the normal
 // build; the whole train from the god build, staged through the game's own purchases.
-// Usage: npm run build && GOD_MODE=1 OUT=god.html node scripts/build.mjs && node scripts/store-shots.mjs <outdir> [early|god]
+// Usage: npm run build && GOD_MODE=1 OUT=god.html node scripts/build.mjs && node scripts/store-shots.mjs <outdir> [early|god|retake 5,8]
 // then: python3 scripts/store-pairs.py <outdir>   (before/after side by side)
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
