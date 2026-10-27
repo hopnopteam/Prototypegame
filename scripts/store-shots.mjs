@@ -62,17 +62,20 @@ async function populate(page) {
   }
 }
 
-/** Every carriage in `cars` from the same camera; venues are filled first through the game's own outing logic. */
+/**
+ * Every carriage in `cars` from the same camera. The rooms come first, straight after boarding, while the new guests
+ * settle in (later they are out at the venues); then each venue in a ride's evening, filled first through the game's
+ * own outing logic.
+ */
 async function portraits(page, prefix, cars) {
-  // The bar and the cinema take evening outings only, so a ride's evening comes first for them.
-  const order = [...cars].sort((a, b) => Number(VENUE.has(b[0])) - Number(VENUE.has(a[0])));
-  for (const [i, label] of order) {
-    if (VENUE.has(i)) {
-      await until(page, 'onTheMove', 0.14, 0.24);
-      await page.evaluate(([c, wait]) => { window.__s.fillVenue(c, 10); window.nightExpress.simulate(wait); window.nightExpress.setAutopilot(false); }, [i, 14 + 3 * Math.abs(i - 3)]);
-    } else {
-      await until(page, 'onTheMove', 0.22, 0.34);
-    }
+  for (const [i, label] of cars.filter(([c]) => !VENUE.has(c))) {
+    await page.evaluate(() => window.nightExpress.setAutopilot(false));
+    await look(page, i);
+    await shot(page, `${prefix}-${String(i).padStart(2, '0')}-${label}`);
+  }
+  for (const [i, label] of cars.filter(([c]) => VENUE.has(c))) {
+    await until(page, 'onTheMove', 0.14, 0.24);
+    await page.evaluate(([c, wait]) => { window.__s.fillVenue(c, 10); window.nightExpress.simulate(wait); window.nightExpress.setAutopilot(false); }, [i, 14 + 3 * Math.abs(i - 3)]);
     await look(page, i);
     await shot(page, `${prefix}-${String(i).padStart(2, '0')}-${label}`);
   }
