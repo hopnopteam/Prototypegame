@@ -1,0 +1,92 @@
+# Builds an installable Android APK of the Night Express playable demo (playable/night-express-playable.html) on
+# every push of the demo's code to its branch (and on demand). The demo page is wrapped by the same Capacitor
+# Android project as the game, under its own app id and name ("Night Express Demo"), so it installs next to the
+# game's test builds instead of over them. Signed with the repo's fixed test key: each new demo APK installs over
+# the last one. The APK is attached to the run and to a pre-release you can open on the phone.
+name: Android playable demo build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/amazing-gauss-16vd4i]
+    paths:
+      - 'src/**'
+      - 'scripts/build-playable.mjs'
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - '.github/workflows/android-playable-apk.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-playable-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # The demo is one self-contained page; it becomes the app's only page.
+      - name: Build the playable demo
+        run: |
+          node scripts/build-playable.mjs
+          mkdir -p dist/app
+          cp playable/night-express-playable.html dist/app/index.html
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Android SDK packages
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools" > /dev/null
+
+      - name: Copy the demo into the Android project
+        run: npx cap sync android
+
+      # Its own app id and name, so the demo and the game's test builds can both be on the phone.
+      - name: Name the demo app
+        run: |
+          sed -i 's/applicationId "com.hopnop.nightexpress"/applicationId "com.hopnop.nightexpress.demo"/' android/app/build.gradle
+          sed -i 's#<string name="app_name">Night Express</string>#<string name="app_name">Night Express Demo</string>#; s#<string name="title_activity_main">Night Express</string>#<string name="title_activity_main">Night Express Demo</string>#' android/app/src/main/res/values/strings.xml
+          grep -n 'applicationId' android/app/build.gradle
+
+      - name: Build the APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk "night-express-demo-${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: night-express-demo-apk-${{ github.run_number }}
+          path: night-express-demo-${{ github.run_number }}.apk
+
+      - name: Publish a test pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-demo-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Night Express playable demo (Android) ${{ github.run_number }}
+          prerelease: true
+          files: night-express-demo-${{ github.run_number }}.apk
+          body: |
+            The Night Express playable demo as an Android app ("Night Express Demo"; installs next to the game).
+            On the phone: download the APK, allow installs from this source when asked, and open it.
+            Built from ${{ github.sha }}.
