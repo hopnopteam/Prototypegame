@@ -80,16 +80,16 @@ async function portraits(page, prefix, cars) {
 if (!only || only === 'early') {
   const page = await openGame(browser, resolve('dist/index.html'));
   await settle(page, 2500);
-  // Millbrook at night: the old carriage under its tarp, the first traveller at the ticket stand.
-  await page.evaluate(() => window.__s.look(4.0, window.__s.carriageZ(0) + 6.5, 1.5));
+  // Millbrook at night: the old carriage under its tarp beside the ticket stand, the first traveller waiting.
+  await page.evaluate(() => { const p = window.nightExpress.player.pos; window.__s.look(p.x - 2.0, p.z + 1.0, 1.5); });
   await shot(page, 'a-01-millbrook-platform', { hud: true });
+  // The run-down lobby with its first guests: the "before" of the lobby pair, then the same as the player sees it.
   await play(page, 45);
-  await page.evaluate(() => { window.__s.free(); window.nightExpress.setAutopilot(false); });
-  await shot(page, 'a-02-first-guests-gameplay', { hud: true });
-  // The run-down lobby with its first guests: the "before" of the lobby pair.
   await until(page, 'onTheMove', 0.22, 0.34);
   await look(page, 0);
   await shot(page, 'b-00-lobby');
+  await look(page, 0, 1.2, 7);
+  await shot(page, 'a-02-first-guests-gameplay', { hud: true });
   await page.close();
 }
 
