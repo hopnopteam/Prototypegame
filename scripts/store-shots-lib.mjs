@@ -66,11 +66,11 @@ const HELPERS = () => {
           if (!['resting', 'requesting', 'settling', 'toCabin'].includes(guest.state) || guest.outing || !guest.cabin || guest.trip === 'night') continue;
           if (game.venues.tryOuting(guest, 'evening') || game.venues.tryOuting(guest, 'morning')) sent++;
         }
-        // Still room: guests only on their way to another venue (not yet seated or served) come here instead.
+        // Still room: guests on their way to, queuing at or waiting in another venue (not yet served) come here instead.
         const target = game.venues.byCarriage(carriage);
         for (const guest of game.guests.list) {
           if (sent >= max) break;
-          if (guest.state !== 'toVenue' || !guest.outing || guest.outing.venue === target || guest.trip === 'night') continue;
+          if (!['toVenue', 'venueQueue', 'seated'].includes(guest.state) || !guest.outing || guest.outing.venue === target || guest.trip === 'night') continue;
           game.venues.abandon(guest);
           guest.state = 'resting';
           if (game.venues.tryOuting(guest, 'evening') || game.venues.tryOuting(guest, 'morning')) sent++;

@@ -44,9 +44,11 @@ const until = (page, phase, from = 0, to = 1, limit = 400) =>
 async function stage(page, skip) {
   await page.evaluate(() => window.nightExpress.setAutopilot(false));
   let quiet = 0;
-  for (let i = 0; i < 800 && quiet < 25; i++) {
+  // A refit rebuilds its carriage over real frames, and only two refit tiles show at a time: give each round a few frames.
+  for (let i = 0; i < 1200 && quiet < 60; i++) {
     const n = await page.evaluate((s) => { const n = window.__s.buyShown(9, s); window.nightExpress.simulate(2); window.__s.closeAll(); return n; }, skip);
     quiet = n ? 0 : quiet + 1;
+    await settle(page, 120);
   }
   console.log('staged', JSON.stringify(await page.evaluate(() => window.__s.state())));
 }
