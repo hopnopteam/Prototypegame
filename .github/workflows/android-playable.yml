@@ -55,7 +55,9 @@ jobs:
 
       # The game hides the launch screen itself; the playable does not know about it, so let it hide on its own.
       - name: Let the launch screen hide by itself
-        run: sed -i 's/launchAutoHide: false/launchAutoHide: true/' capacitor.config.ts
+        run: |
+          sed -i 's/launchAutoHide: false/launchAutoHide: true/' capacitor.config.ts
+          grep -q 'launchAutoHide: true' capacitor.config.ts
 
       - uses: actions/setup-java@v5
         with:
