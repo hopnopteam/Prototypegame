@@ -173,6 +173,13 @@ export class Tiles {
       if (occupant && w.unlocks.paid(occupant.def.id) > 0) continue;
       const pos = this.positionFor(refit);
       if (!pos) continue;
+      // Session 39: a cheaper comfort goes first (a dear class refit had held the spot for ever and no comfort was
+      // ever on show by 18 minutes); the refit follows as soon as the comfort is bought, or once it is part-paid.
+      const comfort = occupant?.def ?? eligible.find((d) => d.kind === 'comfort' && d.carriage === refit.carriage);
+      if (comfort && w.unlocks.paid(refit.id) <= 0 && w.unlocks.remaining(comfort.id) < w.unlocks.remaining(refit.id)) {
+        if (!occupant) this.addEntry(comfort, pos);
+        continue;
+      }
       if (occupant) this.removeEntry(occupant.def.id, occupant);
       this.addEntry(refit, pos);
     }

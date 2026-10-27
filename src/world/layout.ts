@@ -240,7 +240,7 @@ export interface VenueLayout {
  * Fix list 5.4–5.5: the café's floors are tiles (cream and sage, then cream and mocha marble) and the dining car's
  * a claret carpet with a tiled kitchen, so the two never look alike.
  */
-export type CarpetStyle = 'jute' | 'runner' | 'persian' | 'theatre' | 'checker' | 'kitchen' | 'wine' | 'claret' | 'oatmeal' | 'camel' | 'moss' | 'tobacco' | 'dove';
+export type CarpetStyle = 'jute' | 'runner' | 'persian' | 'theatre' | 'checker' | 'kitchen' | 'wine' | 'claret' | 'terracotta' | 'forest' | 'moss' | 'tobacco' | 'dove';
 
 export interface VenueCarpet {
   rect: Rect;
@@ -891,9 +891,9 @@ function buildCafe(tier: number): CarriageLayout {
   }
   // Each refit lays a new floor (a jute runner on the boards, then a mat across the room). Session 36 (owner: "mats…
   // good-quality materials rather than patterns… old-money vibes"): the tiles became plain wool mats on the polished
-  // boards, an oatmeal mat in a sage border, then a camel mat in forest green with a gold line.
+  // boards, a terracotta trellis carpet in a sage border, then a forest-green one with a gold trellis (session 39).
   if (tier === 1) v.carpets.push({ rect: rect(-0.55, 8.1, 0.55, 16.3), style: 'jute' });
-  if (tier >= 2) v.carpets.push({ rect: rect(-INNER + 0.3, 0.45, INNER - 0.3, 14.8), style: tier >= 3 ? 'camel' : 'oatmeal' });
+  if (tier >= 2) v.carpets.push({ rect: rect(-INNER + 0.3, 0.45, INNER - 0.3, 14.8), style: tier >= 3 ? 'forest' : 'terracotta' });
   return b.layout;
 }
 

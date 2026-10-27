@@ -682,7 +682,13 @@ export class Guests {
         const moving = guest.mover.speedNow > 0;
         cz.x += (behindX - cz.x) * Math.min(1, dt * 6);
         cz.z += (behindZ - cz.z) * Math.min(1, dt * 6);
-        const visible = guest.state !== 'resting' && guest.state !== 'inBathroom';
+        // Session 39: a family's child walks with them, but stays out of view while the parent is sat down (a venue's
+        // seat, the bed's edge): there is no seat for a second figure there, and a child left standing behind a chair
+        // stood in the aisle or inside the next chair.
+        const seated = (guest.outing?.seated && (guest.state === 'seated' || guest.state === 'consuming'))
+          || (guest.state === 'settling' && !guest.mover.isMoving);
+        const visible = guest.state !== 'resting' && guest.state !== 'inBathroom' && !seated;
+        if (!visible) { cz.x = guest.pos.x; cz.z = guest.pos.z; }
         guest.child.root.visible = visible;
         guest.child.setPosition(cz.x, y, cz.z + (guest.onPlatform ? platformOffset : 0));
         guest.child.setFacing(guest.mover.facing);

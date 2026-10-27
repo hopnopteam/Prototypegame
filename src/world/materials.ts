@@ -34,6 +34,11 @@ export const PATTERN = {
   chevron: 11,
   /** Plaid (session 21, the bar's Luxury carpet): broad crossing bands with fine lines. `scale` is the band width. */
   plaid: 12,
+  /**
+   * Trellis (session 39, the café's carpets): a fine diagonal lattice with a stud at every crossing and a small diamond
+   * in each cell, in three tones of the two colours. `scale` sets the cell size.
+   */
+  trellis: 13,
 } as const;
 
 const PATTERN_VERTEX_HEAD = /* glsl */ `
@@ -93,6 +98,19 @@ float patternMask(vec3 pos, vec3 n, vec2 pat) {
   if (type < 7.5) return sqw(h * 0.5);
   if (type < 8.5) return thin(h, 0.14);
   if (type < 9.5) return thin(p.x, 0.08) + thin(p.y * 0.23 + floor(p.x) * 0.37, 0.03);
+  if (type > 12.5) {
+    // Trellis: the lattice lines, a stud where they cross and a smaller diamond (a lighter tone) in each cell.
+    vec2 q = vec2(p.x + p.y, p.x - p.y) * 0.7071;
+    float lattice = max(thin(q.x, 0.06), thin(q.y, 0.06));
+    vec2 c = abs(fract(q) - 0.5);
+    float dm = max(c.x, c.y);
+    float wd = fwidth(dm) + 1e-5;
+    float motif = 1.0 - smoothstep(0.12 - wd, 0.12 + wd, dm);
+    float dk = length(fract(q + 0.5) - 0.5);
+    float wk = fwidth(dk) + 1e-5;
+    float stud = 1.0 - smoothstep(0.1 - wk, 0.1 + wk, dk);
+    return max(max(lattice * 0.5, stud * 0.9), motif * 0.75);
+  }
   if (type > 11.5) {
     // Plaid: two crossing sets of broad bands (overlaps darkest) with a fine line through each band.
     float a = sqw(p.x * 0.5);

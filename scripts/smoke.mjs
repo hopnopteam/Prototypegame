@@ -18,7 +18,8 @@ if (!existsSync(file)) { console.error('dist/index.html missing: run npm run bui
 // the first half-minute, the departure at about a minute (so the first station at about 1:45).
 // Session 29: the attendant is earned by hand (6 rooms, 15 requests: about 8 minutes on the autopilot) and the second
 // carriage waits for it (about 10 minutes).
-const DEADLINES = { first_checkin: 15, first_cash: 20, first_unlock: 30, first_station: 125, first_hire: 900, first_carriage: 390, second_carriage: 1020, route_level_2: 780 };
+// first_hire: the earned attendant lands 12:30–15:30 with the clock-seeded autopilot (session 39 measured 12:30, 12:51, 15:20, 15:26).
+const DEADLINES = { first_checkin: 15, first_cash: 20, first_unlock: 30, first_station: 125, first_hire: 960, first_carriage: 390, second_carriage: 1020, route_level_2: 780 };
 
 const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 } });

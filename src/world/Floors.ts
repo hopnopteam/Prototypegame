@@ -5,7 +5,7 @@ import { DOOR_Z0, DOOR_Z1, HALF_WIDTH, INNER, PARTITION_X0, PARTITION_X1, QUEUE_
 import { FLOOR_Y } from './CarriageView';
 import { PATTERN } from './materials';
 import { seeded } from './Mess';
-import { PALETTE, shadeHex, type CarriageTheme } from './palette';
+import { CLASS_THEMES, PALETTE, shadeHex, type CarriageTheme } from './palette';
 
 /**
  * Floors tell the rags-to-riches story at a glance, tier by tier:
@@ -325,7 +325,7 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
   for (const cabin of layout.cabins) {
     if (tier >= 4) suedeRoom(f, cabin.room);
     else if (tier >= 3) firstClassRoom(f, cabin.room, theme);
-    else f.slab(cabin.room, FLOOR_Y, FLOOR_Y + ROOM_LIFT, PALETTE.boardsPolished, 0, 0, { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1 });
+    else fittedRoom(f, cabin.room, theme);
   }
   // A suite's lounge and dining table stand on rugs (never near the door, where the cleaning spot and the
   // mess are).
@@ -378,7 +378,7 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
 
 /**
  * A venue's floor coverings (session 21): each refit lays its own (a jute runner, the venue's runner, a Persian rug,
- * the bar's chocolate mat, the picture palace's red carpet, the café's camel mat, the dome's powder-blue mat). Plain
+ * the bar's chocolate mat, the picture palace's red carpet, the café's trellis carpets, the dome's powder-blue mat). Plain
  * layered slabs like every rug, the pattern only on the top one.
  */
 function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageTheme): void {
@@ -429,20 +429,26 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
       // nothing stark).
       // Session 36 (owner: "mats… made of good-quality materials rather than having patterns… old-money vibes"):
       // plain wool and velvet mats on the polished boards, a band and a fine line framing a plain field.
-      case 'oatmeal':
-        // The café's Makeover: oatmeal wool in a sage border.
+      // Session 39 (owner: "the café carpet… not soulless… I liked the movie theatre's carpeting"): the café keeps
+      // the picture palace's quality (a small figure on a rich field inside a framed border) in its own figure, a
+      // trellis, and its own colours.
+      case 'terracotta':
+        // The café's Makeover: a warm terracotta carpet with a tone-on-tone trellis, a cream line and a sage border
+        // (the white tables and the sage bistro chairs stand out on it).
         lay([
-          { color: '#6F8466', inset: 0 },
-          { color: '#EFE6D2', inset: 0.1 },
-          { color: '#E3D6BC', inset: 0.125, pattern: WOOL },
+          { color: '#5F7559', inset: 0, pattern: WOOL },
+          { color: '#EADFC6', inset: 0.11 },
+          { color: '#9A5440', inset: 0.135, pattern: { pattern: PATTERN.trellis, color2: '#C4866A', scale: 0.27, shade: 1, surface: 'velvet' } },
         ]);
         break;
-      case 'camel':
-        // The café's Luxury: camel velvet in forest green with a gold line.
+      case 'forest':
+        // The café's Luxury: deep forest green with an antique-gold trellis, framed by a green band, a gold line and a
+        // cream line (under the green panelling, the marble tables and the cane chairs).
         lay([
-          { color: '#2E4636', inset: 0, pattern: VELVET },
-          { color: PALETTE.gold, inset: 0.12, pattern: BRASS },
-          { color: '#B98F62', inset: 0.14, pattern: VELVET },
+          { color: '#1F3428', inset: 0, pattern: VELVET },
+          { color: PALETTE.gold, inset: 0.1, pattern: BRASS },
+          { color: '#E9DDBF', inset: 0.125 },
+          { color: '#284434', inset: 0.15, pattern: { pattern: PATTERN.trellis, color2: '#A88A4C', scale: 0.3, shade: 1, surface: 'velvet' } },
         ]);
         break;
       case 'moss':
@@ -458,7 +464,8 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
         lay([
           { color: '#8A5632', inset: 0, pattern: VELVET },
           { color: PALETTE.gold, inset: 0.12, pattern: BRASS },
-          { color: '#6B4733', inset: 0.14, pattern: VELVET },
+          // Session 39: a tone-on-tone harlequin in the field, a gentleman's club carpet (the plain field read flat).
+          { color: '#6B4733', inset: 0.14, pattern: { pattern: PATTERN.diamond, color2: '#78523B', scale: 0.34, shade: 1, surface: 'velvet' } },
         ]);
         break;
       case 'dove':
@@ -466,7 +473,8 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
         lay([
           { color: PALETTE.gold, inset: 0, pattern: BRASS },
           { color: '#EEE8DA', inset: 0.04 },
-          { color: '#AEBDCB', inset: 0.13, pattern: WOOL },
+          // Session 39: small ivory dots, stars under the glass (the plain field read flat).
+          { color: '#AEBDCB', inset: 0.13, pattern: { pattern: PATTERN.dots, color2: '#D9E0E6', scale: 0.2, shade: 1, surface: 'velvet' } },
         ]);
         break;
       case 'kitchen':
@@ -510,6 +518,33 @@ function suedeRoom(f: GeoBuilder, r: Rect): void {
   f.slab(rect(inner.x0, inner.z0 + line, inner.x0 + line, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, BRASS);
   f.slab(rect(inner.x1 - line, inner.z0 + line, inner.x1, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, BRASS);
   f.slab(rect(inner.x0 + line, inner.z0 + line, inner.x1 - line, inner.z1 - line), y0, y1, '#B48E66', 0, 0, suede);
+}
+
+/**
+ * Comfort and Business (session 39, owner: "nothing should feel like a placeholder"): the room's polished boards were
+ * bare round the bed. Now a fitted carpet in the class's colours fills the room inside a margin of polished boards and
+ * a cream line: Comfort a soft teal with a small tone-on-tone dot, Business deep navy with a muted gold trellis. Every
+ * band is its own slab at the room floor's height (nothing laid over anything, so nothing can flicker, and whatever
+ * lies on the floor still lies on it).
+ */
+function fittedRoom(f: GeoBuilder, r: Rect, theme: CarriageTheme): void {
+  const y0 = FLOOR_Y;
+  const y1 = FLOOR_Y + ROOM_LIFT;
+  const business = theme.deep === CLASS_THEMES.business.deep;
+  const boards = { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1 };
+  const frame = (outer: Rect, width: number, color: string, style: PartStyle): Rect => {
+    f.slab(rect(outer.x0, outer.z0, outer.x1, outer.z0 + width), y0, y1, color, 0, 0, style);
+    f.slab(rect(outer.x0, outer.z1 - width, outer.x1, outer.z1), y0, y1, color, 0, 0, style);
+    f.slab(rect(outer.x0, outer.z0 + width, outer.x0 + width, outer.z1 - width), y0, y1, color, 0, 0, style);
+    f.slab(rect(outer.x1 - width, outer.z0 + width, outer.x1, outer.z1 - width), y0, y1, color, 0, 0, style);
+    return rect(outer.x0 + width, outer.z0 + width, outer.x1 - width, outer.z1 - width);
+  };
+  let inner = frame(r, 0.2, PALETTE.boardsPolished, boards);
+  inner = frame(inner, 0.025, business ? '#C9A45C' : '#EADFC6', business ? BRASS : WOOL);
+  const field = business
+    ? { pattern: PATTERN.trellis, color2: '#7C6C4C', scale: 0.28, shade: 1, surface: 'velvet' as const }
+    : { pattern: PATTERN.dots, color2: '#6AA197', scale: 0.15, shade: 1, surface: 'velvet' as const };
+  f.slab(inner, y0, y1, business ? '#2C4569' : '#44877F', 0, 0, field);
 }
 
 /**
