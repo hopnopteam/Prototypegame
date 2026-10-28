@@ -1,4 +1,4 @@
-import { QUEST_POOL, STATIONS, STORIES, type StoryDef } from '../config/content';
+import { QUEST_POOL, STATIONS, STORIES, STORIES_ENABLED, type StoryDef } from '../config/content';
 import type { ItemKind } from '../core/types';
 import type { QuestState } from '../save/SaveData';
 import { DailyLogin, dayKey, ensureTodayQuests, progressQuests } from '../sim/meta';
@@ -40,7 +40,7 @@ export class Meta {
   }
 
   postcardCount(): { have: number; total: number } {
-    return { have: this.w.data.meta.postcards.length, total: STATIONS.length + STORIES.length };
+    return { have: this.w.data.meta.postcards.length, total: STATIONS.length + (STORIES_ENABLED ? STORIES.length : 0) };
   }
 
   // ─── Daily quests ───────────────────────────────────────────────────────────
@@ -136,7 +136,7 @@ export class Meta {
   // ─── Stories ────────────────────────────────────────────────────────────────
 
   storiesUnlocked(): boolean {
-    return this.w.progression.isFeatureUnlocked('stories');
+    return STORIES_ENABLED && this.w.progression.isFeatureUnlocked('stories');
   }
 
   private storyState(story: StoryDef): { step: number; done: boolean; aboard: boolean } {

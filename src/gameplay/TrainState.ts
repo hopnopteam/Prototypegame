@@ -481,9 +481,9 @@ export class TrainState {
    * no longer has a single open room of their class (a refit moved the only Basic carriage up to Comfort while they
    * waited), a free one of the nearest class above, on the house. Without this they stood at the desk for good.
    */
-  roomFor(cls: ClassId): Cabin | null {
+  roomFor(cls: ClassId, anyClass = false): Cabin | null {
     const own = this.freeCabin(cls);
-    if (own || this.openCabinCount(cls) > 0) return own;
+    if (own || (this.openCabinCount(cls) > 0 && !anyClass)) return own;
     const from = CLASSES.findIndex((c) => c.id === cls);
     for (let i = from + 1; i < CLASSES.length; i++) {
       const up = this.freeCabin(CLASSES[i].id);

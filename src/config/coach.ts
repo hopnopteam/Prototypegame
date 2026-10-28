@@ -63,7 +63,7 @@ export const COACH_HINTS: CoachLineDef[] = [
   // Session 20: the venue carriages, each taught the first time a guest waits there.
   { id: 'cafe', icon: 'latte', text: 'Brew coffee' },
   { id: 'dining', icon: 'meal', text: 'Serve dinner' },
-  { id: 'clear', icon: 'broom', text: 'Clear table' },
+  { id: 'clear', icon: 'wipe', text: 'Clear table' },
   { id: 'bar', icon: 'cocktail', text: 'Mix drinks' },
   { id: 'dome', icon: 'binoculars', text: 'Show in' },
   { id: 'cinema', icon: 'film', text: 'Start the film' },

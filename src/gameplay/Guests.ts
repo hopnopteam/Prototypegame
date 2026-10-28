@@ -11,6 +11,7 @@ import { BED_TOP, FLOOR_Y } from '../world/CarriageView';
 import { CharacterPool, GUEST_POOL_WARM } from '../world/CharacterPool';
 import { CharacterView, type CharacterLook } from '../world/CharacterView';
 import { BED_MESS } from '../world/Mess';
+import { CARRIAGE_PITCH } from '../world/layout';
 import { PLATFORM, QUEUE_SPOTS, queueSpot, waitingSpot } from '../world/platformLayout';
 import { Mover, type Actor } from './Actor';
 import type { Bathroom, Cabin } from './TrainState';
@@ -26,7 +27,9 @@ export type GuestState =
   | 'platform' | 'boarding' | 'queue' | 'toCabin' | 'settling' | 'resting' | 'requesting'
   | 'toBathroom' | 'waitingBathroom' | 'inBathroom' | 'returning' | 'alighting' | 'leaving' | 'gone'
   // Session 20: an outing to a venue carriage (walking there, in its queue, seated waiting, eating or watching).
-  | 'toVenue' | 'venueQueue' | 'seated' | 'consuming';
+  | 'toVenue' | 'venueQueue' | 'seated' | 'consuming'
+  // Session 40, day riders (no cabin): walking in or to a place to wait, and waiting there for the next outing.
+  | 'strolling' | 'lounging';
 
 /** Where guests set down on the platform as the doors close stand, a step apart (metres from the first). */
 /** Session 38b: hearts a second over a passenger enjoying what was just brought. */
@@ -39,7 +42,7 @@ const OUTING_STATES: ReadonlySet<GuestState> = new Set<GuestState>(['toVenue', '
  * Session 27: where a guest may be when their stop comes and the doors open, and drop it to get off (a venue's queue
  * or table, a washroom or the way to one, walking back to their room). In their room the states below handle it.
  */
-const LEAVES_FOR_STOP: ReadonlySet<GuestState> = new Set<GuestState>([...OUTING_STATES, 'toBathroom', 'waitingBathroom', 'inBathroom', 'returning']);
+const LEAVES_FOR_STOP: ReadonlySet<GuestState> = new Set<GuestState>([...OUTING_STATES, 'toBathroom', 'waitingBathroom', 'inBathroom', 'returning', 'strolling', 'lounging']);
 
 export type GuestRequest = ServiceNeed | 'bathroom';
 
@@ -57,6 +60,16 @@ const TRIP_LOG: Record<TripPhase | 'boarding' | 'arrival', string> = {
 };
 
 let nextId = 1;
+/**
+ * Session 40 (owner: "characters become permanently stuck… add recovery mechanisms so characters can resume"): states
+ * that are a walk somewhere. A guest standing still in one of these for `LOST_WALK_SECONDS` lost their arrival (an
+ * interrupted walk, a path that failed): they are put where they were going and carry on from there.
+ */
+const WALKING_STATES: ReadonlySet<GuestState> = new Set<GuestState>(['boarding', 'toCabin', 'returning', 'toBathroom', 'alighting', 'toVenue', 'strolling']);
+const LOST_WALK_SECONDS = 4;
+/** A routine wash is skipped (a venue instead) once the least busy washroom has this many using or waiting. */
+const ROUTINE_WASH_QUEUE = 2;
+
 /** Longest a missed traveller stomps toward the station house before slipping away (fix list 4.1). */
 const STORM_OFF_SECONDS = 7;
 
@@ -68,6 +81,18 @@ export class Guest {
   readonly mover: Mover;
   state: GuestState = 'platform';
   stateTime = 0;
+  /** Seconds since this guest last walked (session 40: a walk that ended without arriving is picked up again). */
+  stillFor = 0;
+  /** Game time they joined the desk's line (session 40: kept waiting long, they take any free room). */
+  queuedAt = 0;
+  /**
+   * Session 40, a day rider (owner: "the train feels empty… populate cafés and dining areas"): rides one leg for the
+   * venues, with no cabin. Walks in from the station house, goes from venue to venue (and perhaps the washroom),
+   * waits standing between outings and gets off at the next stop. `outside` until through the door.
+   */
+  dayRider = false;
+  outside = false;
+  loungeUntil = 0;
   onPlatform = false;
   /** Missed the train and storming off the platform (fix list 4.1): stomps until the walk is over, then goes. */
   storming = false;
@@ -265,6 +290,101 @@ export class Guests {
     return guest;
   }
 
+  /**
+   * Session 40: a day rider walks out of the station house and aboard by themselves (a pass, no ticket at the stand,
+   * no key at the desk), straight on to a venue.
+   */
+  spawnDayRider(cls: ClassId): Guest {
+    const w = this.w;
+    const start = PLATFORM.houseDoor;
+    const guest = this.create(this.pickArchetype(cls), start.x, start.z, null);
+    guest.cls = cls;
+    guest.dayRider = true;
+    guest.outside = true;
+    guest.onPlatform = true;
+    guest.paid = true;
+    guest.boardStop = w.journey.stopSerial;
+    guest.destinationStop = w.journey.stopSerial + 1;
+    this.setState(guest, 'strolling');
+    const door = w.map.doors()[0];
+    const walkway = [PLATFORM.entrance, ...[...PLATFORM.concourse].reverse()];
+    guest.mover.go([...walkway, door.outside, door.inside], () => this.stepAboard(guest));
+    return guest;
+  }
+
+  /** Day riders aboard now (session 40). */
+  dayRiders(): number {
+    let n = 0;
+    for (const g of this.list) if (g.dayRider && g.aboard) n++;
+    return n;
+  }
+
+  private stepAboard(guest: Guest): void {
+    guest.outside = false;
+    guest.onPlatform = false;
+    this.nextOuting(guest);
+  }
+
+  /**
+   * A day rider between outings: off to a venue with a free seat (or now and then the washroom), else to a quiet spot
+   * in a venue carriage to wait a few seconds and try again.
+   */
+  private nextOuting(guest: Guest): void {
+    const w = this.w;
+    const rules = w.econ.dayRiders;
+    if (this.stopHasCome(guest)) return this.dayRiderOff(guest);
+    guest.view.showBubble(null);
+    const when = this.progressOf(guest) < 0.5 ? 'evening' : 'morning';
+    const bathroomOpen = w.train.bathrooms.some((b) => b.unlocked);
+    if (bathroomOpen && guest.washes < 1 && guest.visited.size > 0 && this.bathLoad() < ROUTINE_WASH_QUEUE && w.rng.chance(rules.washChance)) {
+      this.startWash(guest);
+      return;
+    }
+    if (w.journey.phase !== 'stationStop' && w.venues.tryOuting(guest, when)) return;
+    const spot = this.loungeSpot(guest);
+    this.setState(guest, 'strolling');
+    const from = w.map.nearestNode(guest.pos.x, guest.pos.z);
+    const path = from && spot ? w.map.nav.findPath(from, spot) : null;
+    const end = (): void => {
+      this.setState(guest, 'lounging');
+      guest.loungeUntil = w.time + w.rng.range(rules.loungeSeconds[0], rules.loungeSeconds[1]);
+    };
+    if (path && path.length) guest.mover.go(path, end);
+    else end();
+  }
+
+  /** A nav node to stand at in a venue carriage (the one they are in if it is a venue), a little apart from others. */
+  private loungeSpot(guest: Guest): string | null {
+    const w = this.w;
+    const venues = w.venues.list;
+    if (venues.length === 0) return null;
+    const here = Math.floor(guest.pos.z / CARRIAGE_PITCH);
+    const venue = venues.find((v) => v.carriage === here) ?? w.rng.pick(venues);
+    const prefix = `c${venue.carriage}:`;
+    const nodes: string[] = [];
+    for (const id of w.map.nav.ids()) if (id.startsWith(prefix) && !id.includes('door')) nodes.push(id);
+    return nodes.length ? w.rng.pick(nodes) : null;
+  }
+
+  /** A day rider's stop: off from wherever they are, through the door and away along the walkway. */
+  private dayRiderOff(guest: Guest): void {
+    const w = this.w;
+    this.setState(guest, 'alighting');
+    if (guest.unmet > 0) {
+      this.audit.unhappy++;
+      guest.view.showMood('angry');
+      w.feedback.onUnhappyAlight(guest);
+    } else {
+      guest.view.act('wave', 1.2);
+      guest.view.showBubble(null);
+    }
+    const door = w.map.doors()[0];
+    const from = w.map.nearestNode(guest.pos.x, guest.pos.z);
+    const path = from ? w.map.nav.findPath(from, door.outsideNode) : null;
+    const exit = [...PLATFORM.concourse, PLATFORM.entrance, PLATFORM.houseDoor];
+    guest.mover.go([...(path ?? [door.inside, door.outside]), ...exit], () => this.finishAlighting(guest, false));
+  }
+
   /** Session 29: the station bell rings and everyone waiting on the platform looks up (visual only). */
   lookUp(): void {
     for (const g of this.list) if (g.onPlatform) g.view.act('look', 0.9);
@@ -422,6 +542,7 @@ export class Guests {
     guest.view.showBubble(null);
     guest.state = 'boarding';
     guest.stateTime = 0;
+    guest.queuedAt = w.time;
     guest.queueSlot = this.queue.length;
     guest.arrivedInQueue = false;
     this.queue.push(guest);
@@ -470,7 +591,7 @@ export class Guests {
   /** Someone is at the desk and a clean cabin of their class (or someone else's in the line) is ready. */
   deskReady(): boolean {
     if (!this.hasGuestAtDesk()) return false;
-    return this.queue.some((g) => g.arrivedInQueue && g.state === 'queue' && this.w.train.roomFor(g.cls) !== null);
+    return this.queue.some((g) => g.arrivedInQueue && g.state === 'queue' && this.roomForGuest(g) !== null);
   }
 
   hasGuestAtDesk(): boolean {
@@ -478,12 +599,17 @@ export class Guests {
     return !!first && first.arrivedInQueue && first.state === 'queue';
   }
 
+  /** A room for a guest in the desk's line: their class (or the nearest above), or any free one once they have waited long. */
+  private roomForGuest(guest: Guest): Cabin | null {
+    return this.w.train.roomFor(guest.cls, this.w.time - guest.queuedAt > this.w.econ.desk.anyRoomAfterSeconds);
+  }
+
   /** Desk zone: hand the first guest the key to a clean cabin of their class, if there is one. */
   deskStay(zone: Zone, actor: Actor, dt: number): boolean {
     this.callForward();
     const guest = this.queue[0];
     if (!guest || !this.hasGuestAtDesk()) return false;
-    const cabin = this.w.train.roomFor(guest.cls);
+    const cabin = this.roomForGuest(guest);
     if (!cabin) {
       zone.progress = 0;
       return false;
@@ -503,8 +629,8 @@ export class Guests {
    */
   private callForward(): void {
     const head = this.queue[0];
-    if (!head || !head.arrivedInQueue || head.state !== 'queue' || this.w.train.roomFor(head.cls)) return;
-    const i = this.queue.findIndex((g) => g.arrivedInQueue && g.state === 'queue' && this.w.train.roomFor(g.cls) !== null);
+    if (!head || !head.arrivedInQueue || head.state !== 'queue' || this.roomForGuest(head)) return;
+    const i = this.queue.findIndex((g) => g.arrivedInQueue && g.state === 'queue' && this.roomForGuest(g) !== null);
     if (i <= 0) return;
     const [next] = this.queue.splice(i, 1);
     this.queue.unshift(next);
@@ -568,7 +694,7 @@ export class Guests {
     const door = this.w.map.doors()[0];
     // The audit (session 27): nobody whose stop it was is still aboard, whatever they were doing.
     for (const guest of this.list) {
-      if (guest.cabin && guest.destinationStop <= this.w.journey.stopSerial && guest.state !== 'alighting' && guest.state !== 'leaving' && guest.state !== 'gone') {
+      if ((guest.cabin || guest.dayRider) && guest.destinationStop <= this.w.journey.stopSerial && guest.state !== 'alighting' && guest.state !== 'leaving' && guest.state !== 'gone') {
         this.audit.overstayed++;
         log.warn('Trip', `guest ${guest.id} (${guest.archetype.id}) still aboard past their stop, ${guest.state}`);
       }
@@ -580,12 +706,19 @@ export class Guests {
       guest.pos.z = door.outside.z;
       guest.onPlatform = false;
       guest.state = 'boarding';
+      guest.queuedAt = this.w.time;
       guest.queueSlot = this.queue.length;
       guest.arrivedInQueue = false;
       this.queue.push(guest);
     }
     for (const guest of this.list) {
-      if (guest.state === 'boarding') {
+      if (guest.dayRider && guest.outside && guest.state === 'strolling') {
+        // A day rider still on the walkway steps aboard as the doors close (never left on a moving platform).
+        guest.mover.stop();
+        guest.pos.x = door.inside.x;
+        guest.pos.z = door.inside.z;
+        this.stepAboard(guest);
+      } else if (guest.state === 'boarding') {
         guest.pos.x = door.inside.x;
         guest.pos.z = door.inside.z;
         guest.mover.go([this.slotPosition(guest.queueSlot)], () => this.arriveInQueue(guest));
@@ -641,9 +774,13 @@ export class Guests {
       guest.view.showMood('love', 'ticket');
       this.boardPaid(guest);
     }
+    const pace = this.walkScale();
     for (const guest of [...this.list]) {
       guest.stateTime += dt;
+      guest.mover.speed = this.w.econ.guests.walkSpeed * guest.archetype.speedMultiplier * pace;
       guest.mover.update(dt);
+      guest.stillFor = guest.mover.isMoving ? 0 : guest.stillFor + dt;
+      if (guest.stillFor > LOST_WALK_SECONDS) this.recoverWalk(guest);
       this.think(guest, dt);
       if (guest.state === 'gone') continue;
 
@@ -695,6 +832,60 @@ export class Guests {
         guest.child.update(dt, moving ? guest.mover.speed : 0);
       }
     }
+  }
+
+  /** Session 40: how much faster everyone walks on a long train (config: `guests.walkScalePerCarriage`). */
+  walkScale(): number {
+    const g = this.w.econ.guests;
+    return Math.min(g.walkScaleMax, 1 + Math.max(0, this.w.train.count - 3) * g.walkScalePerCarriage);
+  }
+
+  /**
+   * Session 40: a guest whose walk ended without arriving (see `WALKING_STATES`) is set down where they were headed
+   * and carries on: in line at the desk, in their room, at the washroom, off the train, or at their venue.
+   */
+  private recoverWalk(guest: Guest): void {
+    const w = this.w;
+    const snap = (p: Vec2): void => { guest.pos.x = p.x; guest.pos.z = p.z; };
+    if (guest.state === 'queue' && !guest.arrivedInQueue && guest.queueSlot >= 0) {
+      snap(this.slotPosition(guest.queueSlot));
+      this.arriveInQueue(guest);
+    } else if (!WALKING_STATES.has(guest.state)) {
+      return;
+    } else if (guest.state === 'boarding') {
+      if (!w.journey.doorsOpen && guest.pos.x > w.map.doors()[0].inside.x + 0.5) return;
+      snap(this.slotPosition(Math.max(0, guest.queueSlot)));
+      this.arriveInQueue(guest);
+    } else if (guest.state === 'toCabin' || guest.state === 'returning') {
+      if (!guest.cabin) return this.destroy(guest);
+      snap(guest.cabin.bedSide);
+      if (guest.state === 'toCabin') this.arriveAtRoom(guest);
+      else {
+        this.setState(guest, 'settling');
+        guest.settleFor = RETURN_SETTLE_SECONDS;
+      }
+    } else if (guest.state === 'toBathroom') {
+      const bath = guest.bathroom;
+      if (!bath) return this.returnToCabin(guest);
+      snap(bath.restock);
+      if (bath.occupant && bath.occupant !== guest) this.setState(guest, 'waitingBathroom');
+      else this.enterBathroom(guest, bath);
+    } else if (guest.state === 'alighting') {
+      this.finishAlighting(guest, true);
+    } else if (guest.state === 'toVenue') {
+      w.venues.recoverWalk(guest);
+    } else if (guest.state === 'strolling') {
+      if (guest.outside) {
+        const door = w.map.doors()[0];
+        snap(door.inside);
+        this.stepAboard(guest);
+      } else {
+        this.setState(guest, 'lounging');
+        guest.loungeUntil = w.time + 1;
+      }
+    }
+    guest.stillFor = 0;
+    log.warn('Guests', `guest ${guest.id} walk recovered (${guest.state})`);
   }
 
   /** What someone standing about does: waves at the train coming in, washes at the sink, and otherwise their own idles. */
@@ -766,10 +957,13 @@ export class Guests {
       return;
     }
     switch (guest.state) {
+      case 'lounging':
+        if (w.time >= guest.loungeUntil) this.nextOuting(guest);
+        break;
       case 'queue':
         // Waiting at the desk for a key: the first in line shows it once a room of their class is made up.
         if (guest.queueSlot !== 0 || !guest.arrivedInQueue) guest.view.showBubble(null);
-        else if (w.train.roomFor(guest.cls)) guest.view.showBubble('key', guest.cls);
+        else if (this.roomForGuest(guest)) guest.view.showBubble('key', guest.cls);
         else guest.view.showMood('wait', 'noroom');
         break;
       case 'settling': {
@@ -1003,6 +1197,14 @@ export class Guests {
       return;
     }
     if (guest.story || !w.rng.chance(routine ? rules.routine.chance : rules.outingChance)) return;
+    // The washroom is part of the routine (session 40, owner: "washrooms… currently unused"): a wash first thing in
+    // the morning, a wash before bed in the evening, whatever the venues have free.
+    const bathroomOpen = w.train.bathrooms.some((b) => b.unlocked);
+    const washTime = guest.trip === 'morning' ? guest.phaseOutings === 1 : guest.phaseOutings >= rules.routine.outings.evening;
+    if (routine && bathroomOpen && washTime && guest.washes < rules.washroomsPerTrip && this.bathLoad() < ROUTINE_WASH_QUEUE && w.rng.chance(rules.routine.wash)) {
+      this.startWash(guest);
+      return;
+    }
     if (guest.trip !== 'night' && w.venues.tryOuting(guest, guest.trip)) {
       guest.outingTries = 0;
       return;
@@ -1016,11 +1218,14 @@ export class Guests {
       return;
     }
     guest.outingTries = 0;
-    const bathroomOpen = w.train.bathrooms.some((b) => b.unlocked);
     if (!bathroomOpen || guest.washes >= rules.washroomsPerTrip || !w.rng.chance(rules.washroomChance)) return;
+    this.startWash(guest);
+  }
+
+  private startWash(guest: Guest): void {
     guest.washes++;
     guest.request = 'bathroom';
-    guest.requestAt = w.time;
+    guest.requestAt = this.w.time;
     guest.slow = false;
     this.goToBathroom(guest);
   }
@@ -1185,6 +1390,12 @@ export class Guests {
     });
   }
 
+  /** How many are using or waiting for the least busy washroom. */
+  private bathLoad(): number {
+    const bath = this.pickBathroom();
+    return bath ? bath.waiting.length + (bath.occupant ? 1 : 0) : Infinity;
+  }
+
   private pickBathroom(): Bathroom | null {
     let best: Bathroom | null = null;
     for (const bath of this.w.train.bathrooms) {
@@ -1226,6 +1437,10 @@ export class Guests {
   private returnToCabin(guest: Guest): void {
     const w = this.w;
     guest.view.showBubble(null);
+    if (guest.dayRider) {
+      this.nextOuting(guest);
+      return;
+    }
     if (!guest.cabin) {
       this.destroy(guest);
       return;
@@ -1415,7 +1630,7 @@ export class Guests {
 
   /** Their stop has come and the doors are open. */
   private stopHasCome(guest: Guest): boolean {
-    return guest.cabin !== null && guest.destinationStop <= this.w.journey.stopSerial && this.w.journey.doorsOpen;
+    return (guest.cabin !== null || guest.dayRider) && guest.destinationStop <= this.w.journey.stopSerial && this.w.journey.doorsOpen;
   }
 
   /**
@@ -1434,6 +1649,7 @@ export class Guests {
     }
     if (guest.request === 'bathroom') guest.request = null;
     guest.mover.stop();
+    if (guest.dayRider) return this.dayRiderOff(guest);
     // Off the train from wherever they are (alighting is refused to anyone still on a washroom visit).
     this.setState(guest, 'returning');
     this.startAlighting(guest);
@@ -1614,7 +1830,7 @@ export class Guests {
   stayingPast(stopSerial: number, cls?: ClassId): number {
     let n = 0;
     for (const g of this.list) {
-      if (cls && g.cls !== cls) continue;
+      if ((cls && g.cls !== cls) || g.dayRider) continue;
       // Deck passengers get off at the first stop: they never hold a bed past it. A traveller with a ticket
       // waiting on the platform has a bed spoken for.
       if ((g.paid && g.state === 'platform') || (g.aboard && (g.cabin === null ? g.state !== 'platform' : g.destinationStop > stopSerial))) n++;

@@ -154,13 +154,25 @@ export const ECONOMY = {
 
   guests: {
     walkSpeed: 2.5,
+    /**
+     * Session 40 (owner: "as the train grows, passengers travel increasingly long distances… gradually increase
+     * passenger movement speed"): everyone aboard (guests and staff) walks this much faster for each carriage past
+     * the third, up to `walkScaleMax`, so the far carriages stay busy without anyone looking hurried.
+     */
+    walkScalePerCarriage: 0.06,
+    walkScaleMax: 1.36,
     /** Legs a guest rides: weights for 1, 2 and 3 stations. */
     rideLegsWeights: { 1: 0.7, 2: 0.25, 3: 0.05 } as Record<1 | 2 | 3, number>,
     /** Guests waiting on the platform at a stop: free cabins + this many extra (who wait inside). */
     extraBoarders: [1, 2] as [number, number],
     /** Travellers waiting at the first stops at least (once the flow allows a crowd; before that, one per free bed). */
     minBoarders: 3,
-    maxBoarders: 7,
+    /**
+     * Session 40 (owner: "the train still feels empty… substantially more passengers"): the most travellers waiting on
+     * one platform (a performance cap: every free bed is offered, plus a few hopefuls). It was 7, which left a long
+     * train half empty however many rooms it had.
+     */
+    maxBoarders: 16,
     luggageChance: 0.7,
     /** Session 16: one guest at the desk to start (one room, one guest, one upgrade); more walk in as cabins open. */
     /** Guests already inside at the desk when a new game opens (session 19: none, the opening starts outside). */
@@ -204,6 +216,11 @@ export const ECONOMY = {
   desk: {
     reserveChance: 0.35,
     reserveFee: 5,
+    /**
+     * Session 40 (owner: "passengers stop checking in"): a guest kept this long in the desk's line with no room of
+     * their class to be had takes any free room instead (it never holds the line, or the guest, for ever).
+     */
+    anyRoomAfterSeconds: 40,
   },
 
   /**
@@ -240,6 +257,22 @@ export const ECONOMY = {
     shineTip: 4,
   },
 
+  /**
+   * Session 40, day riders (owner: "the train feels empty… significantly increase the number of passengers… populate
+   * cafés and dining areas… balance population against performance"): once a venue is open, travellers with a pass
+   * walk aboard at each stop (no ticket, no key, no cabin), tour the venues for one leg and get off at the next stop.
+   * `perSeat` of the open venue seats, at most `max` a stop, and never more than `maxAboard` guests on the train in
+   * all (the character pool and the frame rate). They come out of the station house `stagger` seconds apart, wait
+   * `loungeSeconds` standing between outings, and wash once with `washChance`.
+   */
+  dayRiders: {
+    perSeat: 0.55,
+    max: 12,
+    maxAboard: 40,
+    stagger: [1.2, 2.6] as [number, number],
+    loungeSeconds: [4, 8] as [number, number],
+    washChance: 0.25,
+  },
   trip: {
     /** The evening ends this far through the ride (lights out once nothing is pending). */
     eveningEnd: 0.4,
@@ -259,8 +292,8 @@ export const ECONOMY = {
     outingChance: 0.6,
     /** Of those outings, the chance it is the washroom when no venue suits (or there is none). */
     washroomChance: 0.5,
-    /** At most this many washroom visits per trip. */
-    washroomsPerTrip: 1,
+    /** At most this many washroom visits per trip (session 40: 2, one each waking part, was 1). */
+    washroomsPerTrip: 2,
     /**
      * Night owls (session 24, the night shift): this share of guests stays up `later` (a share of the ride) past
      * their bedtime and asks for one more thing before lights out, a nightcap from `pool` they have not had yet.
@@ -276,8 +309,9 @@ export const ECONOMY = {
      * venue carriage is open, every guest (`chance`) takes up to `outings` outings in each waking part of the night,
      * one after each request seen to, preferring venues they have not visited yet this ride (a visited one weighs
      * `revisitWeight`). When no venue has a seat they try again `retrySeconds` later, up to `tries` times.
+     * Session 40: `wash` is the chance the morning's first outing and the evening's last are the washroom.
      */
-    routine: { chance: 1, outings: { evening: 3, morning: 2 }, revisitWeight: 0.2, retrySeconds: 5, tries: 3 },
+    routine: { chance: 1, outings: { evening: 3, morning: 2 }, revisitWeight: 0.2, retrySeconds: 5, tries: 3, wash: 0.6 },
     owl: { chance: 0.25, later: 0.14, pool: { tea: 1, blanket: 1 } as Partial<Record<ServiceNeed, number>> },
   },
 

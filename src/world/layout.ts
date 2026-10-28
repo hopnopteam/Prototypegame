@@ -957,6 +957,7 @@ function buildDining(tier: number): CarriageLayout {
   b.anchor('home_chef', -0.2, 2.9);
   b.anchor('home_waiter', -1.45, 4.6);
   b.anchor('tile_up_chef', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_up_waiter', -1.2, 15.75);
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_menu', -1.45, 1.4);
   b.anchor('tile_station', -1.3, 2.7);

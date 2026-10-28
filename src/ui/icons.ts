@@ -26,7 +26,9 @@ export type IconName =
   // Session 29: the station bell (ring it to call the latecomers aboard).
   | 'bell'
   // Session 38: a plate of sandwiches (food asked for in the rooms).
-  | 'sandwich';
+  | 'sandwich'
+  // Session 40: a dining table to clear and wipe (a spray bottle and a sponge with suds).
+  | 'wipe';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -683,6 +685,38 @@ const ICONS: Record<IconName, Draw> = {
     c.lineTo(16, 78);
     c.closePath();
     fillStroke(c, '#E8B04B');
+  },
+  wipe: (c) => {
+    // The spray bottle: a trigger head over a neck, a round-shouldered body with a label.
+    c.save();
+    c.translate(-4, 0);
+    rr(c, 22, 14, 22, 12, 4);
+    fillStroke(c, '#F2F2F2', 5);
+    c.beginPath();
+    c.moveTo(22, 18);
+    c.lineTo(12, 22);
+    c.lineTo(14, 28);
+    c.lineTo(24, 25);
+    c.closePath();
+    fillStroke(c, '#F2F2F2', 4);
+    rr(c, 28, 26, 10, 10, 2);
+    fillStroke(c, '#5DB6E8', 4);
+    rr(c, 18, 36, 30, 52, 9);
+    fillStroke(c, '#5DB6E8');
+    rr(c, 23, 52, 20, 18, 3);
+    fillStroke(c, '#FFFFFF', 3.5);
+    c.restore();
+    // The sponge: green scrub on yellow.
+    rr(c, 48, 62, 40, 24, 6);
+    fillStroke(c, '#F4C842');
+    rr(c, 48, 56, 40, 10, 4);
+    fillStroke(c, '#5BAA54');
+    // Suds.
+    for (const [x, y, r] of [[60, 44, 7], [74, 38, 5], [82, 48, 6], [10, 40, 4]] as const) {
+      c.beginPath();
+      c.arc(x, y, r, 0, Math.PI * 2);
+      fillStroke(c, '#FFFFFF', 3.5);
+    }
   },
   bed: (c) => {
     rr(c, 10, 46, 80, 26, 6);

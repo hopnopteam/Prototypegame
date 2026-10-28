@@ -81,6 +81,12 @@ export function waitingSpot(i: number): Vec2 {
     { x: b.x0 - 1.05, z: -3.1 },
     { x: b.x0 - 1.0, z: -3.95 },
     { x: b.x0 - 0.4, z: -5.05 },
+    // Session 40: more travellers wait at a big train's stops; more places round the bench.
+    { x: b.x0 - 0.45, z: -2.0 },
+    { x: b.x0 - 1.0, z: -2.3 },
+    { x: b.x0 - 1.0, z: -4.75 },
+    { x: b.x0 - 0.45, z: -5.8 },
+    { x: b.x0 - 1.0, z: -5.55 },
   ];
   return spots[i % spots.length];
 }

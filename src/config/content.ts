@@ -288,9 +288,8 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'rack_2', kind: 'rack', label: 'Grand Rack', price: 480, stars: 3, requires: ['rack_1', '@couple_5'], effect: '+3 bags' },
       // Session 29: earned like the attendant (tickets sold and bags loaded by hand); the bell stays the conductor's.
       { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 280, stars: 4, role: 'porter', requires: ['@couple_2'], work: { tickets: 24, bags: 10 }, effect: 'Check-in & bags' },
-      { key: 'comfort_flowers', kind: 'comfort', label: 'Flowers', price: 150, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_2'], effect: 'Tips +20%' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 240, stars: 2, role: 'attendant', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
-      { key: 'comfort_radio', kind: 'comfort', label: 'Minibars', price: 320, stars: 2, comfort: 'minibar', requires: ['comfort_flowers', '@couple_3'], effect: 'Snack sales' },
+      { key: 'comfort_radio', kind: 'comfort', label: 'Minibars', price: 320, stars: 2, comfort: 'minibar', requires: ['comfort_lamp', '@couple_3'], effect: 'Snack sales' },
       // Session 38 (owner: "a small TV upgrade, placed nicely within the room"): a television set in every room.
       { key: 'comfort_tv', kind: 'comfort', label: 'Small TVs', price: 520, stars: 2, comfort: 'tv', requires: ['comfort_radio', '@couple_4'], effect: 'Tips +20%' },
       { key: 'up_porter', kind: 'staffUpgrade', label: 'Faster Porter', price: 420, stars: 2, role: 'porter', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
@@ -363,7 +362,10 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
     unlocks: [
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 180, stars: 3, tier: 1, requires: ['couple'], effect: 'Prices +25%' },
       { key: 'table_2', kind: 'seat', label: 'Table', price: 160, stars: 2, group: 2, requires: ['couple'], effect: '+1 seat' },
-      { key: 'hire_chef', kind: 'hire', label: 'Chef', price: 260, stars: 3, role: 'chef', requires: ['couple'], work: { dining: 8 }, effect: 'Cooks the orders' },
+      // Session 40 (owner: "the waiter… implemented as soon as possible… works throughout the game"): back, early and
+      // cheap, the dining car's first hire: serves every table and clears it.
+      { key: 'hire_waiter', kind: 'hire', label: 'Waiter', price: 180, stars: 3, role: 'waiter', requires: ['couple'], work: { dining: 5 }, effect: 'Serves & clears' },
+      { key: 'hire_chef', kind: 'hire', label: 'Chef', price: 260, stars: 3, role: 'chef', requires: ['hire_waiter'], work: { dining: 8 }, effect: 'Cooks the orders' },
       { key: 'table_3', kind: 'seat', label: 'Table', price: 200, stars: 2, group: 3, requires: ['table_2'], effect: '+1 seat' },
       { key: 'table_4', kind: 'seat', label: 'Table', price: 260, stars: 2, group: 4, requires: ['table_3', '@couple_4'], effect: '+1 seat' },
       { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 420, stars: 4, tier: 2, requires: ['refurb_1', '@couple_4'], effect: 'Prices +60%' },
@@ -371,6 +373,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'table_5', kind: 'seat', label: 'Table', price: 320, stars: 2, group: 5, requires: ['table_4'], effect: '+1 seat' },
       { key: 'table_6', kind: 'seat', label: 'Table', price: 380, stars: 2, group: 6, requires: ['table_5', '@couple_5'], effect: '+1 seat' },
       { key: 'table_7', kind: 'seat', label: 'Table', price: 440, stars: 2, group: 7, requires: ['table_6'], effect: '+1 seat' },
+      { key: 'up_waiter', kind: 'staffUpgrade', label: 'Faster Waiter', price: 420, stars: 2, role: 'waiter', requires: ['hire_waiter', '@couple_5'], effect: 'Faster, +1 carry' },
       { key: 'up_chef', kind: 'staffUpgrade', label: 'Faster Chef', price: 520, stars: 2, role: 'chef', requires: ['hire_chef', '@couple_5'], effect: 'Faster' },
       { key: 'menu_lobster', kind: 'menu', label: 'Lobster Menu', price: 900, stars: 3, requires: ['table_3'], flags: ['level_5'], effect: 'Dishes ×1.5' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 950, stars: 5, tier: 3, requires: ['refurb_2', '@couple_6'], effect: 'Prices ×2.1' },
@@ -447,9 +450,8 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'cabin_4', kind: 'cabin', label: 'Cabin {n}', price: 180, stars: 2, cabin: 4, requires: ['cabin_3'], effect: '+1 guest' },
       { key: 'cabin_5', kind: 'cabin', label: 'Cabin {n}', price: 220, stars: 2, cabin: 5, requires: ['cabin_4'], effect: '+1 guest' },
       { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 240, stars: 3, role: 'attendant', requires: ['cabin_1', '@couple_2'], effect: 'Tidies, serves' },
-      { key: 'comfort_flowers', kind: 'comfort', label: 'Flowers', price: 240, stars: 2, comfort: 'flowers', requires: ['comfort_lamp', '@couple_3'], effect: 'Tips +20%' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 380, stars: 2, role: 'attendant', requires: ['hire_attendant', '@couple_3'], effect: 'Faster, +1 carry' },
-      { key: 'comfort_radio', kind: 'comfort', label: 'Minibars', price: 420, stars: 2, comfort: 'minibar', requires: ['comfort_flowers', '@couple_3'], effect: 'Snack sales' },
+      { key: 'comfort_radio', kind: 'comfort', label: 'Minibars', price: 420, stars: 2, comfort: 'minibar', requires: ['comfort_lamp', '@couple_3'], effect: 'Snack sales' },
       { key: 'comfort_tv', kind: 'comfort', label: 'Small TVs', price: 620, stars: 2, comfort: 'tv', requires: ['comfort_radio', '@couple_4'], effect: 'Tips +20%' },
       { key: 'refurb_3', kind: 'refurb', label: 'Business', price: 1350, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_4'], effect: '3 cabins · Fares ×5' },
       { key: 'refurb_4', kind: 'refurb', label: 'First Class', price: 2200, stars: 6, tier: 4, requires: ['refurb_3'], flags: ['level_6'], effect: '2 suites · Fares ×14' },
@@ -573,6 +575,12 @@ export interface StoryDef {
   perk: { kind: 'tipBonus' | 'fareBonus'; amount: number; label: string };
   postcard: [string, string, string];
 }
+
+/**
+ * Session 40 (owner: "remove or disable the story features involving Walter and similar characters, not useful at this
+ * stage"): story passengers are switched off by this one constant (nothing deleted; true brings them back).
+ */
+export const STORIES_ENABLED = false;
 
 export const STORIES: StoryDef[] = [
   {

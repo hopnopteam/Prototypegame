@@ -25,6 +25,13 @@ interface Task {
 }
 
 const ARRIVE_EPSILON = 0.05;
+/**
+ * Session 40 (owner: "attendants stop performing their assigned tasks… tasks abandoned, interrupted indefinitely or
+ * left in an invalid state"): a walk that has not arrived after this long is given up (the task releases what it
+ * held and the helper thinks again), and a walk that stopped without arriving carries on to the next step.
+ */
+const GOTO_TIMEOUT = 35;
+const LOST_ARRIVAL_SECONDS = 0.6;
 
 export class StaffMember implements Actor {
   readonly isPlayer = false;
@@ -61,7 +68,7 @@ export class StaffMember implements Actor {
   }
 
   baseSpeed(): number {
-    return this.w.econ.staff[this.role].speed * (1 + (this.level - 1) * this.w.econ.staff.upgradeSpeedPerLevel);
+    return this.w.econ.staff[this.role].speed * (1 + (this.level - 1) * this.w.econ.staff.upgradeSpeedPerLevel) * this.w.guests.walkScale();
   }
 
   baseCapacity(): number {
@@ -96,11 +103,16 @@ export class StaffMember implements Actor {
   }
 
   update(dt: number): void {
+    this.mover.speed = this.baseSpeed();
     this.mover.update(dt);
     if (this.task) {
       const step = this.task.steps[this.stepIndex];
       this.stepTime += dt;
       if (step?.kind === 'stand' && (step.until() || this.stepTime > step.timeout)) this.nextStep();
+      else if (step?.kind === 'goto') {
+        if (this.stepTime > GOTO_TIMEOUT) this.abort();
+        else if (!this.mover.isMoving && this.stepTime > LOST_ARRIVAL_SECONDS) this.nextStep();
+      }
       // The step may have finished the task.
       if (this.task) this.view.showBubble(this.task.icon, 'intent', 1.75);
       this.idleTime = 0;
@@ -280,15 +292,37 @@ export class StaffManager {
     }
   }
 
-  private inScope(m: StaffMember, carriage: number): boolean {
-    return carriage === m.carriage;
+  /**
+   * Session 40 (owner: "attendants stop performing their tasks… as the train expands"): an attendant looks after their
+   * own carriage first, then any passenger carriage that has no attendant of its own, nearest first, so a new sleeper
+   * is never left with dirty rooms and unanswered guests because its own attendant has not been hired yet.
+   */
+  private attendantTask(m: StaffMember): Task | null {
+    for (const carriage of this.attendantScope(m)) {
+      const task = this.attendantTaskIn(m, carriage);
+      if (task) return task;
+    }
+    return this.returnTask(m);
   }
 
-  private attendantTask(m: StaffMember): Task | null {
+  private attendantScope(m: StaffMember): number[] {
     const w = this.w;
+    const covered = new Set(this.members.filter((o) => o.role === 'attendant' && !o.temporary).map((o) => o.carriage));
+    const others: number[] = [];
+    for (let i = 0; i < w.train.count; i++) {
+      const type = w.train.types[i];
+      if (i !== m.carriage && (type === 'lobby' || type === 'sleeper') && !covered.has(i)) others.push(i);
+    }
+    others.sort((a, b) => Math.abs(a - m.carriage) - Math.abs(b - m.carriage));
+    return [m.carriage, ...others];
+  }
+
+  private attendantTaskIn(m: StaffMember, carriage: number): Task | null {
+    const w = this.w;
+    const inScope = (c: number): boolean => c === carriage;
     // 1. Answer a request in this carriage, once trained to serve (session 24: until then requests are the conductor's).
     const serves = m.level >= w.econ.staff.attendantServesFromLevel;
-    const guest = serves ? w.guests.openRequests().find((g) => g.cabin && this.inScope(m, g.cabin.carriage) && !(g as Guest & { reservedBy?: StaffMember }).reservedBy) : undefined;
+    const guest = serves ? w.guests.openRequests().find((g) => g.cabin && inScope(g.cabin.carriage) && !(g as Guest & { reservedBy?: StaffMember }).reservedBy) : undefined;
     if (guest && guest.cabin && isDwellNeed(guest.request)) {
       // Turning a First or Royal bed down: straight to the cabin, a moment at the room.
       const cabin = guest.cabin;
@@ -311,7 +345,7 @@ export class StaffManager {
       reserved.reservedBy = m;
       const steps: Step[] = [];
       if (!m.stack.has(item)) {
-        const source = this.nearestSource(item, m.carriage);
+        const source = this.nearestSource(item, carriage);
         if (!source) {
           reserved.reservedBy = undefined;
           return null;
@@ -326,7 +360,7 @@ export class StaffManager {
       return { label: 'request', icon: item, steps, release: () => { reserved.reservedBy = undefined; m.wantItems = {}; } };
     }
     // 2. Tidy a used room in this carriage: one visit to its pad.
-    const cabin = w.train.cabins.find((c) => this.inScope(m, c.carriage) && c.unlocked && c.isDirty && !c.guest && !c.cleaner);
+    const cabin = w.train.cabins.find((c) => inScope(c.carriage) && c.unlocked && c.isDirty && !c.guest && !c.cleaner);
     if (cabin) {
       cabin.cleaner = m;
       const spot = cabin.spots[0] ?? cabin.center;
@@ -337,7 +371,7 @@ export class StaffManager {
       return { label: 'clean', icon: 'broom', steps, release: () => { if (cabin.cleaner === m) cabin.cleaner = null; } };
     }
     // 3. The night shift: a sleeping guest's shoes by their door, once the attendant is trained for it.
-    const shoes = serves ? w.train.shoesToShine(m.pos, m.carriage) : null;
+    const shoes = serves ? w.train.shoesToShine(m.pos, carriage) : null;
     if (shoes) {
       return {
         label: 'shoes', icon: 'shoe',
@@ -349,12 +383,12 @@ export class StaffManager {
       };
     }
     // 4. Fix list 4.6: a minibar in this carriage short of snacks: a box from the service counter, into the room.
-    const room = w.train.minibarToRestock(m.pos, m.carriage);
+    const room = w.train.minibarToRestock(m.pos, carriage);
     if (room) {
       const steps: Step[] = [];
       if (!m.stack.has('snack')) {
-        const source = this.nearestSource('snack', m.carriage);
-        if (!source) return this.returnTask(m);
+        const source = this.nearestSource('snack', carriage);
+        if (!source) return null;
         steps.push({ kind: 'do', fn: () => (m.wantItems = { snack: 1 }) });
         steps.push({ kind: 'goto', target: source });
         steps.push({ kind: 'stand', until: () => m.stack.has('snack'), timeout: 3 });
@@ -364,7 +398,7 @@ export class StaffManager {
       steps.push({ kind: 'do', fn: () => this.binLeftovers(m) });
       return { label: 'restock', icon: 'snack', steps, release: () => (m.wantItems = {}) };
     }
-    return this.returnTask(m);
+    return null;
   }
 
   private porterTask(m: StaffMember): Task | null {

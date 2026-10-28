@@ -39,6 +39,8 @@ const PROLOGUE_SPAWN = { x: PLATFORM.serve.x + 0.35, z: PLATFORM.serve.z + 1.7 }
 /** Travellers who turn up during a stop (out of the station house), and the window of the stop they come in. */
 const LATECOMERS: [number, number] = [0, 2];
 const LATE_WINDOW: [number, number] = [5, 22];
+/** Session 40: seconds into a stop the first day rider comes out of the station house. */
+const DAY_RIDER_START = 2.5;
 
 /**
  * The journey rhythm made physical (§5): the platform glides in and stops at the doors, guests board and
@@ -350,6 +352,7 @@ export class Station {
     this.updateClock();
     if (this.prologue) this.updatePrologue(_dt);
     this.updateLatecomers();
+    this.updateDayRiders();
     const toStop = j.distanceToStop;
     const sinceDeparture = j.distanceSinceDeparture;
     const length = this.view.length;
@@ -418,6 +421,18 @@ export class Station {
       for (let n = w.rng.int(LATECOMERS[0], LATECOMERS[1]); n > 0; n--) this.latecomers.push(w.rng.range(LATE_WINDOW[0], LATE_WINDOW[1]));
     }
     this.luggageTotal = this.luggagePile;
+    // Session 40: day riders for the venues (a pass, no cabin), out of the station house once the doors open.
+    this.dayRiders.length = 0;
+    if (crowd && w.venues.list.length > 0) {
+      const rules = w.econ.dayRiders;
+      const seats = w.venues.list.reduce((n, v) => n + v.seats.filter((seat) => seat.state !== 'locked').length, 0);
+      const room = rules.maxAboard - w.guests.list.length;
+      let t = DAY_RIDER_START;
+      for (let n = Math.min(rules.max, Math.round(seats * rules.perSeat), room); n > 0; n--) {
+        this.dayRiders.push(t);
+        t += w.rng.range(rules.stagger[0], rules.stagger[1]);
+      }
+    }
     this.vendorCrates = w.train.hasSupplyCar() ? w.econ.facilities.vendorCratesPerStop : 0;
     this.layoutPlatformItems();
   }
@@ -447,8 +462,25 @@ export class Station {
 
   /** Seconds into this stop each latecomer turns up (session 23). */
   private readonly latecomers: number[] = [];
+  /** Session 40: seconds into the stop each day rider comes out of the station house. */
+  private readonly dayRiders: number[] = [];
 
   /** Latecomers come out of the station house while the stop is on (never in its last few seconds). */
+  private updateDayRiders(): void {
+    const w = this.w;
+    const j = w.journey;
+    if (j.phase !== 'stationStop' || !j.doorsOpen || this.prologue || this.dayRiders.length === 0) return;
+    if (j.timeLeft < j.lastCallSeconds + 6) {
+      this.dayRiders.length = 0;
+      return;
+    }
+    while (this.dayRiders.length && j.time >= this.dayRiders[0]) {
+      this.dayRiders.shift();
+      if (w.guests.list.length >= w.econ.dayRiders.maxAboard) continue;
+      w.guests.spawnDayRider(this.travellerClasses(j.stopSerial, 1)[0]);
+    }
+  }
+
   private updateLatecomers(): void {
     const w = this.w;
     const j = w.journey;

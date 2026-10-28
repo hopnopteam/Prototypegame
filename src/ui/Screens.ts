@@ -1,5 +1,5 @@
 import { ANALYTICS } from '../config/analytics';
-import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, type ProductDef } from '../config/content';
+import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, STORIES_ENABLED, type ProductDef } from '../config/content';
 import { CLASSES } from '../config/classes';
 import { AUDIO } from '../config/audio';
 import { ECONOMY, MONETIZATION_ENABLED } from '../config/economy';
@@ -868,9 +868,9 @@ export function levelPerkItems(level: number): { icon: IconName; text: string }[
   const items: { icon: IconName; text: string }[] = [];
   // Session 30: the come-back hooks (calendar, quests, the chest) open at level 2 with the conductor's upgrades.
   const features: Record<number, { icon: IconName; text: string }[]> = {
-    2: [{ icon: 'conductor', text: 'Conductor upgrades' }, { icon: 'chest', text: 'Daily chest' }, { icon: 'calendar', text: 'Daily rewards' }],
-    5: [{ icon: 'album', text: 'Passenger stories' }],
+    2: [{ icon: 'conductor', text: 'Conductor upgrades' }, ...(ECONOMY.chest.enabled ? [{ icon: 'chest' as IconName, text: 'Daily chest' }] : []), { icon: 'calendar', text: 'Daily rewards' }],
   };
+  if (STORIES_ENABLED) features[5] = [{ icon: 'album', text: 'Passenger stories' }];
   if (features[level]) items.push(...features[level]);
   if (!MONETIZATION_ENABLED && level === ECONOMY.perks.holdTrainLevel) items.push({ icon: 'hold', text: 'Hold the train' });
   if (!MONETIZATION_ENABLED && level === ECONOMY.perks.scooterLevel) items.push({ icon: 'scooter', text: `Scooter ${Math.round(ECONOMY.perks.scooterSeconds / 60)} min` });
@@ -887,9 +887,9 @@ export function levelPerkItems(level: number): { icon: IconName; text: string }[
 export function levelPerks(level: number): string[] {
   const perks: string[] = [];
   const features: Record<number, string> = {
-    2: 'Conductor upgrades with Rail Miles, the daily calendar and quests, and the Station Master\'s Chest',
-    5: 'Regular passengers with stories',
+    2: ECONOMY.chest.enabled ? 'Conductor upgrades with Rail Miles, the daily calendar and quests, and the Station Master\'s Chest' : 'Conductor upgrades with Rail Miles, the daily calendar and quests',
   };
+  if (STORIES_ENABLED) features[5] = 'Regular passengers with stories';
   if (features[level]) perks.push(features[level]);
   // Monetization off: what used to be an ad or a purchase is a level's reward (config: perks).
   if (!MONETIZATION_ENABLED && level === ECONOMY.perks.holdTrainLevel) perks.push('Hold the train at last call');

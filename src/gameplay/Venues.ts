@@ -315,7 +315,7 @@ export class Venues {
 
   tryOuting(guest: Guest, when: 'evening' | 'morning'): boolean {
     const w = this.w;
-    if (!guest.cabin || guest.story || this.list.length === 0) return false;
+    if ((!guest.cabin && !guest.dayRider) || guest.story || this.list.length === 0) return false;
     const weights: Record<string, number> = {};
     for (const v of this.list) {
       if (!v.freeSeat() || !VENUES[v.kind].when.includes(when)) continue;
@@ -371,6 +371,24 @@ export class Venues {
     const nodePos = node ? nav.position(node) : null;
     const approach = nodePos ?? outing.seat.sit;
     this.walkTo(guest, approach, () => this.sitDown(guest), node);
+  }
+
+  /** Session 40: a guest's walk to the venue ended short (see Guests.recoverWalk): they take their place anyway. */
+  recoverWalk(guest: Guest): void {
+    const outing = guest.outing;
+    if (!outing) {
+      this.w.guests.returnFromOuting(guest);
+      return;
+    }
+    const qi = outing.venue.queue.indexOf(guest);
+    if (qi >= 0) {
+      const spot = outing.venue.queueSpot(qi);
+      guest.pos.x = spot.x;
+      guest.pos.z = spot.z;
+      this.arriveInQueue(guest);
+    } else {
+      this.sitDown(guest);
+    }
   }
 
   private arriveInQueue(guest: Guest): void {
@@ -1004,7 +1022,7 @@ export class Venues {
       const group = dirty.group;
       venue.clearing[group] = m;
       return {
-        label: 'clear', icon: 'broom',
+        label: 'clear', icon: 'wipe',
         steps: [
           { kind: 'goto', target: dirty.serve },
           { kind: 'stand', until: () => !venue.dirty[group], timeout: 4 },
@@ -1219,7 +1237,10 @@ export class Venues {
         icon: venue.kind === 'dining' ? 'meal' : venue.kind === 'bar' ? 'cocktail' : venue.kind === 'cinema' ? 'popcorn' : 'blanket',
         kind: 'drop',
         active: () => venue.open[group] && (at.some((s) => !!s.order && !!s.guest) || (venue.kind === 'dining' && venue.dirty[group])),
-        highlight: () => at.some((s) => !!s.order && w.player.stack.has(s.order)),
+        // Session 40 (owner: "the table cleaning icon… visible from a reasonable distance whenever a table needs
+        // cleaning… disappear once cleaned"): a table to clear always shows its badge, with the cleaning icon.
+        highlight: () => (venue.kind === 'dining' && venue.dirty[group]) || at.some((s) => !!s.order && w.player.stack.has(s.order)),
+        iconFor: () => (venue.kind === 'dining' && venue.dirty[group] ? 'wipe' : venue.kind === 'dining' ? 'meal' : venue.kind === 'bar' ? 'cocktail' : venue.kind === 'cinema' ? 'popcorn' : 'blanket'),
         stay: (zone, actor, dt) => this.serveAt(venue, p, actor, zone, dt),
       }));
     }

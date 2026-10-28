@@ -17,6 +17,12 @@ const STALL_SECONDS = 0.45;
 /** How close counts as "there" once blocked: intermediate waypoints are just turning points. */
 const STALL_ARRIVE = 0.9;
 const STALL_ARRIVE_FINAL = 0.6;
+/**
+ * Session 40 (owner: "characters become stuck in their current positions"): held off a waypoint this long (a knot of
+ * people in a doorway, someone standing on the spot), a walker gives it up and carries on to the next, or counts as
+ * arrived at the last, so no walk can hang for ever.
+ */
+const STALL_GIVE_UP = 3;
 
 /**
  * Follows a list of waypoints at a given speed and faces the way it walks. Shared by guests and staff so
@@ -74,7 +80,7 @@ export class Mover {
       this.stall += dt;
     }
     const last = this.index === this.path.length - 1;
-    if (this.stall > STALL_SECONDS && gap < (last ? STALL_ARRIVE_FINAL : STALL_ARRIVE)) {
+    if ((this.stall > STALL_SECONDS && gap < (last ? STALL_ARRIVE_FINAL : STALL_ARRIVE)) || this.stall > STALL_GIVE_UP) {
       this.index++;
       this.resetStall();
       if (this.index >= this.path.length) {
