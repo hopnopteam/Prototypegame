@@ -12,7 +12,7 @@ import type { OfferView } from '../gameplay/Monetization';
 import type { FrontPageReward, LeagueRow, WireNews } from '../gameplay/Press';
 import type { FloatKind } from '../gameplay/UiApi';
 import type { NewsItem } from '../save/SaveData';
-import { forgetSize, h, icon, replayClass, setText, setVisible, sizeOf } from './dom';
+import { forgetSize, h, icon, replayClass, setText, setVisible, sizeOf, watchTextFit } from './dom';
 import type { IconName } from './icons';
 import { PressScreens } from './PressScreens';
 import { drawOwnerPortrait, ownerPortrait } from './portraits';
@@ -188,6 +188,7 @@ export class Ui implements GameUi {
 
   constructor(root: HTMLElement) {
     this.root = root;
+    watchTextFit(root);
     this.screens = new Screens(this);
     this.pressScreens = new PressScreens(this.screens, this);
 

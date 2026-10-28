@@ -113,3 +113,37 @@ export function replayClass(el: Element, add: string[], remove: string[] = add):
   requestAnimationFrame(() => el.classList.add(...add));
 }
 
+
+/**
+ * Session 40 (owner: "'Thistledown' extends beyond its bar… a consistent fix so no text overflows its container anywhere
+ * in the game"): titles, names and headlines that cannot wrap (one long word in big spaced capitals) shrink until they
+ * fit their box, measured once after they are laid out (never per frame).
+ */
+const FIT_SELECTOR = '.banner .sign, .celebrate .big, .celebrate .small, .res-head, .np-headline, .np-kick, .sheet header h2, .lvup-title, .lvup-sub, .section-title';
+const FIT_MIN_PX = 11;
+
+export function fitText(el: HTMLElement): void {
+  requestAnimationFrame(() => {
+    if (!el.isConnected || el.clientWidth === 0) return;
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    for (let guard = 0; guard < 40 && el.scrollWidth > el.clientWidth + 1 && size > FIT_MIN_PX; guard++) {
+      size -= 1;
+      el.style.fontSize = `${size}px`;
+      el.style.letterSpacing = '0.04em';
+    }
+  });
+}
+
+/** Fits every title as it is added under `root` (cards, banners, sheet headers, the news strip). */
+export function watchTextFit(root: HTMLElement): void {
+  if (typeof MutationObserver === 'undefined') return;
+  new MutationObserver((records) => {
+    for (const r of records) {
+      for (const n of r.addedNodes) {
+        if (!(n instanceof HTMLElement)) continue;
+        if (n.matches(FIT_SELECTOR)) fitText(n);
+        for (const el of n.querySelectorAll<HTMLElement>(FIT_SELECTOR)) fitText(el);
+      }
+    }
+  }).observe(root, { childList: true, subtree: true });
+}

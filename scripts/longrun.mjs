@@ -76,13 +76,13 @@ await page.evaluate(() => {
     }
     for (const id of [...d.guests.keys()]) if (!seen.has(id)) d.guests.delete(id);
     // The desk: someone could be checked in but nobody is.
-    const q = g.guests.queue;
+    const q = g.guests.desks.flatMap((desk) => desk.queue.slice(0, 1));
     if (q.length && !q[0].arrivedInQueue && q[0].state === 'queue') { d.headNotArrived += dt; if (d.headNotArrived > 20) issue(`head-${q[0].id}`, `desk head ${q[0].id} never arrived (state ${q[0].state}, moving ${q[0].mover.isMoving})`); } else d.headNotArrived = 0;
     for (const v of g.venues.list ?? []) { d.venueSeats += v.seats.filter((s) => s.state !== 'locked').length; d.venueBusy += v.seats.filter((s) => s.guest).length; }
   };
   d.snapshot = () => ({
     t: Math.round(d.t), cars: g.train.count, types: g.train.types.join(','), tiers: g.train.tiers.join(''), lvl: g.progression.level,
-    guests: g.guests.list.length, day: g.guests.dayRiders(), queue: g.guests.queue.length, staff: g.staff.members.map((m) => `${m.role[0]}${m.carriage}:${m.task?.label ?? '-'}`).join(' '),
+    guests: g.guests.list.length, day: g.guests.dayRiders(), queue: g.guests.desks.map((d) => d.carriage + ':' + d.queue.length).join(' '), staff: g.staff.members.map((m) => `${m.role[0]}${m.carriage}:${m.task?.label ?? '-'}`).join(' '),
     states: Object.fromEntries(Object.entries(g.guests.list.reduce((a, x) => (a[x.state] = (a[x.state] ?? 0) + 1, a), {}))),
     dirty: g.train.cabins.filter((c) => c.unlocked && c.isDirty && !c.guest).length,
     rooms: `${g.train.cabins.filter((c) => c.unlocked && c.guest).length}/${g.train.cabins.filter((c) => c.unlocked).length}`,

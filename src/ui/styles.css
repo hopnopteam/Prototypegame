@@ -311,6 +311,7 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 /* ── Title cards: station arrivals and celebrations ────── */
 .banner { position: absolute; z-index: 30; left: 50%; top: max(28%, calc(var(--rail-top) + 160px)); transform: translate(-50%, -50%); text-align: center; animation: cardIn 2.6s ease-in-out forwards; width: max-content; max-width: calc(100% - 2 * var(--middle-left)); }
 .banner .sign {
+  overflow: hidden; white-space: nowrap;
   padding: 12px 22px 11px; background: var(--navy); color: var(--cream); font-weight: 800; font-size: clamp(18px, 6vw, 30px); letter-spacing: 0.14em; line-height: 1.15;
   text-transform: uppercase; border: var(--line); border-radius: 8px; box-shadow: inset 0 0 0 4px var(--navy), inset 0 0 0 6px var(--cream), 0 4px 0 var(--ink); text-wrap: balance;
 }

@@ -773,7 +773,7 @@ export const ECONOMY = {
    * every tile, coupling and station upgrade costs `factor` times its catalogue price (rounded to 5), except the
    * opening's first tiles at `keepUnder` or less, which the first fares buy exactly. Applied before `priceCurve`.
    */
-  priceScale: { factor: 2.4, keepUnder: 30 },
+  priceScale: { factor: 2.0, keepUnder: 30 },
 
   offers: {
     /** First Class Ticket: first shown after the first carriage couples, and never in the first 5 minutes. */

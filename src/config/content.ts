@@ -303,13 +303,13 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
   bathroom: {
     type: 'bathroom', name: 'Washroom Car', pitch: '+3 washrooms', max: 1, cabins: 0, inside: '3 washrooms, a linen closet, the laundry',
     unlocks: [
-      { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 70, stars: 3, tier: 1, requires: ['couple', '@couple_2'], effect: 'Tips +50%' },
-      { key: 'bath_1', kind: 'bathroom', label: 'Washroom 2', price: 90, stars: 2, bathroom: 1, requires: ['couple', '@couple_2'], effect: '+1 washroom' },
-      { key: 'comfort_soap', kind: 'comfort', label: 'Soaps', price: 110, stars: 2, comfort: 'soap', requires: ['refurb_1'], effect: 'Tips +25%' },
-      { key: 'bath_2', kind: 'bathroom', label: 'Bathtub', price: 200, stars: 3, bathroom: 2, requires: ['bath_1', '@couple_3'], effect: '+1 washroom' },
-      { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 260, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Tips +50%' },
-      { key: 'comfort_rail', kind: 'comfort', label: 'Towel Rails', price: 240, stars: 2, comfort: 'rail', requires: ['comfort_soap', '@couple_3'], effect: 'Tips +25%' },
-      { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 520, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Tips +50%' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 35, stars: 3, tier: 1, requires: ['couple', '@couple_2'], effect: 'Tips +50%' },
+      { key: 'bath_1', kind: 'bathroom', label: 'Washroom 2', price: 45, stars: 2, bathroom: 1, requires: ['couple', '@couple_2'], effect: '+1 washroom' },
+      { key: 'comfort_soap', kind: 'comfort', label: 'Soaps', price: 55, stars: 2, comfort: 'soap', requires: ['refurb_1'], effect: 'Tips +25%' },
+      { key: 'bath_2', kind: 'bathroom', label: 'Bathtub', price: 100, stars: 3, bathroom: 2, requires: ['bath_1', '@couple_3'], effect: '+1 washroom' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 130, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Tips +50%' },
+      { key: 'comfort_rail', kind: 'comfort', label: 'Towel Rails', price: 120, stars: 2, comfort: 'rail', requires: ['comfort_soap', '@couple_3'], effect: 'Tips +25%' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 260, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Tips +50%' },
       // Session 40: the second entrance's own porter (its check-in desk, the bags and the stand when the first is busy).
       { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 320, stars: 3, role: 'porter', requires: ['couple', '@c0.hire_porter', '@couple_4'], work: { keys: 12 }, effect: 'Second desk' },
     ],
@@ -500,15 +500,17 @@ export const COUPLE_SLOTS: CoupleSlot[] = [
   // last purchase of the opening (config: flow.openingTiles).
   // Session 29: the first coupling follows the Repair (the attendant is earned later, by hand); the second waits for the
   // attendant, so the help arrives just as there is a new carriage (and its new work) to save for.
-  { price: 140, stars: 6, requires: ['c0.refurb_1'] },
+  // Session 40 (owner: "the Sleeper carriage should unlock cheaper… rebalance relative to earnings"): 100, 62 (about
+  // 200 and 125 in play, after `priceScale` 2.0), 160, 380.
+  { price: 100, stars: 6, requires: ['c0.refurb_1'] },
   // 200 (was 240): the attendant's 160 has just been spent, and the wait for this one is short (136 s at 240 on the autopilot).
   // Session 37: with the Café Car first, this coupling brings the Sleeper (more rooms, which is what earns the
   // attendant), so it no longer waits for the attendant; the third (the Washroom Car, a new chore) does.
   // Session 37: 110 (was 200): with the café first only the lobby's three rooms earn, and the Sleeper is what grows the
   // takings (at 200 the autopilot had not saved for it after 18 minutes).
-  { price: 110, stars: 6, requires: ['couple_1'] },
-  { price: 320, stars: 8, requires: ['couple_2', 'c0.hire_attendant'] },
-  { price: 460, stars: 8, requires: ['couple_3'] },
+  { price: 62, stars: 6, requires: ['couple_1'] },
+  { price: 160, stars: 8, requires: ['couple_2', 'c0.hire_attendant'] },
+  { price: 380, stars: 8, requires: ['couple_3'] },
   // Session 20: three more couplings for the venues (route 1 holds eight carriages).
   { price: 680, stars: 9, requires: ['couple_4'] },
   { price: 940, stars: 10, requires: ['couple_5'] },
