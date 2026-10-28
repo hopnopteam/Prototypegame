@@ -414,9 +414,11 @@ export class Ui implements GameUi {
     const offer = this.offerLayer.getBoundingClientRect();
     const r = this.rect;
     r.top = (top.bottom > 0 ? top.bottom : 90) - rootRect.top + EDGE;
-    r.left = (map.width > 0 ? map.right - rootRect.left : 0) + EDGE;
+    r.left = EDGE;
     r.right = (side.width > 0 && side.height > 0 ? side.left - rootRect.left : rootRect.width) - EDGE;
     r.bottom = (offer.height > 0 ? offer.top - rootRect.top : rootRect.height - 80) - EDGE;
+    // Session 40b: the quick-travel strip runs along the bottom.
+    if (map.height > 0) r.bottom = Math.min(r.bottom, map.top - rootRect.top - EDGE);
     // The station ticket takes the top of the middle column while it is up.
     // Its layout box, not its animated one: measured mid-slide it would read too short for half a second.
     if (this.resultEl) r.top = Math.max(r.top, this.resultEl.offsetTop + this.resultEl.offsetHeight + EDGE);

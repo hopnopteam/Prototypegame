@@ -566,9 +566,10 @@ export const ECONOMY = {
       /**
        * Session 23 (owner: "the starting section… moves way too fast… make it actually very good"): the first
        * traveller waits at the ticket stand's window; the others come out of the station house this many seconds
-       * into play, one after another, so each ticket is its own moment.
+       * into play, one after another, so each ticket is its own moment. Session 40 (owner): both at 0, so the first
+       * two passengers stand in the ticket queue together from the start.
        */
-      arrivals: [0, 3.5] as number[],
+      arrivals: [0, 0] as number[],
       /**
        * The clock is held (no countdown) until the first carriage is opened; then the train leaves this many
        * seconds later, waiting (at most `holdCapSec` more) for anyone with a ticket still on the platform. The

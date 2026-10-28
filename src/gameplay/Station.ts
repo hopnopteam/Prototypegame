@@ -8,7 +8,7 @@ import { createItemMesh } from '../world/ItemMeshes';
 import { PLATFORM_X0 } from '../world/layout';
 import { CLASSES, type ClassId } from '../config/classes';
 import { PlatformView } from '../world/PlatformView';
-import { PLATFORM } from '../world/platformLayout';
+import { PLATFORM, queueSpot } from '../world/platformLayout';
 import { billboardTexture } from '../world/sprites';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
 import { nextStreak, ratingEffect, stopQuality, stopRating, streakBonus } from '../sim/stationResult';
@@ -230,8 +230,13 @@ export class Station {
     this.view.setOffset(0);
     this.view.setHeadline(`${this.currentStation().name} awaits the night train`);
     const rules = w.econ.flow.prologue;
-    w.guests.spawnPlatformGuests([PLATFORM.window], null, ['basic'], rules.archetypes.slice(0, 1));
-    this.prologueArrivals = rules.arrivals.slice(1, rules.travellers).map((at, i) => ({ at, archetype: rules.archetypes[i + 1] }));
+    // Session 40 (owner: "the first two passengers should come together"): everyone due at 0 s is already in the
+    // ticket queue when play begins; any later arrival still comes out of the station house on its time.
+    const arrivals = rules.arrivals.slice(0, rules.travellers);
+    const together = Math.max(1, arrivals.filter((at) => at <= 0).length);
+    const spots = Array.from({ length: together }, (_, i) => (i === 0 ? PLATFORM.window : queueSpot(i)));
+    w.guests.spawnPlatformGuests(spots, null, spots.map(() => 'basic' as const), rules.archetypes.slice(0, together));
+    this.prologueArrivals = arrivals.slice(together).map((at, i) => ({ at, archetype: rules.archetypes[together + i] }));
     w.audio.setStationAmbience(true);
     this.prologueClock = 0;
   }
