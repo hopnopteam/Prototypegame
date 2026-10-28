@@ -27,8 +27,8 @@ export type IconName =
   | 'bell'
   // Session 38: a plate of sandwiches (food asked for in the rooms).
   | 'sandwich'
-  // Session 40: a dining table to clear and wipe (a spray bottle and a sponge with suds).
-  | 'wipe';
+  // Session 40: a dining table to clear and wipe (a spray bottle and a sponge with suds); the conductor's phone (quick travel).
+  | 'wipe' | 'phone';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -686,6 +686,43 @@ const ICONS: Record<IconName, Draw> = {
     c.closePath();
     fillStroke(c, '#E8B04B');
   },
+  phone: (c) => {
+    // The conductor's phone: a navy handset, a lit screen with a little train on its line and a location pin.
+    rr(c, 26, 8, 48, 84, 11);
+    fillStroke(c, '#2C4A6E', 5);
+    rr(c, 32, 18, 36, 60, 4);
+    const screen = c.createLinearGradient(0, 18, 0, 78);
+    screen.addColorStop(0, '#BFE6FF');
+    screen.addColorStop(1, '#7FC3F0');
+    c.fillStyle = screen;
+    c.fill();
+    c.lineWidth = 2.5;
+    c.strokeStyle = INK;
+    c.stroke();
+    // The line and three carriages along it.
+    c.beginPath();
+    c.moveTo(36, 62);
+    c.lineTo(64, 62);
+    c.lineWidth = 3;
+    c.stroke();
+    for (const [x, col] of [[37, '#E9604F'], [46, '#F7D04A'], [55, '#FFFFFF']] as const) {
+      rr(c, x, 52, 8, 8, 2);
+      fillStroke(c, col, 2.5);
+    }
+    // A pin over the middle carriage: you are here.
+    c.beginPath();
+    c.arc(50, 34, 7, Math.PI, 0);
+    c.lineTo(50, 48);
+    c.closePath();
+    fillStroke(c, '#E9604F', 3);
+    c.beginPath();
+    c.arc(50, 34, 2.6, 0, Math.PI * 2);
+    c.fillStyle = '#FFFFFF';
+    c.fill();
+    rr(c, 44, 82, 12, 4, 2);
+    c.fillStyle = '#9DB8D6';
+    c.fill();
+  },
   wipe: (c) => {
     // The spray bottle: a trigger head over a neck, a round-shouldered body with a label.
     c.save();
@@ -1339,25 +1376,101 @@ const ICONS: Record<IconName, Draw> = {
     c.stroke();
   },
   trophy: (c) => {
-    // The Golden Whistle award.
-    c.beginPath();
-    c.moveTo(28, 16);
-    c.lineTo(72, 16);
-    c.quadraticCurveTo(72, 56, 50, 60);
-    c.quadraticCurveTo(28, 56, 28, 16);
-    c.closePath();
-    fillStroke(c, '#FFD35C');
+    // Session 40 (owner: "the Golden Whistle cup graphic needs polishing"): a gold loving cup, shaded like metal, with
+    // scrolled handles, a rolled rim, a whistle on its bowl, a knopped stem and a walnut plinth with a gold plate.
+    const gold = (y0: number, y1: number): CanvasGradient => {
+      const g = c.createLinearGradient(22, y0, 78, y1);
+      g.addColorStop(0, '#FFF3B8');
+      g.addColorStop(0.35, '#FFD24D');
+      g.addColorStop(0.7, '#E2A21E');
+      g.addColorStop(1, '#B9770F');
+      return g;
+    };
+    // Handles behind the bowl.
+    c.lineCap = 'round';
     for (const side of [-1, 1]) {
       c.beginPath();
-      c.arc(50 + side * 26, 30, 10, side < 0 ? 0.5 * Math.PI : -0.5 * Math.PI, side < 0 ? 1.5 * Math.PI : 0.5 * Math.PI, side > 0);
-      c.lineWidth = 6;
+      c.moveTo(50 + side * 20, 18);
+      c.bezierCurveTo(50 + side * 40, 16, 50 + side * 40, 44, 50 + side * 15, 46);
+      c.lineWidth = 10;
       c.strokeStyle = INK;
       c.stroke();
+      c.lineWidth = 5;
+      c.strokeStyle = '#F2B934';
+      c.stroke();
     }
-    rr(c, 44, 58, 12, 14, 2);
-    fillStroke(c, '#E2B653', 5);
-    rr(c, 30, 72, 40, 12, 4);
-    fillStroke(c, '#8E6A4C', 5);
+    // The bowl.
+    c.beginPath();
+    c.moveTo(24, 14);
+    c.lineTo(76, 14);
+    c.bezierCurveTo(76, 40, 66, 54, 50, 56);
+    c.bezierCurveTo(34, 54, 24, 40, 24, 14);
+    c.closePath();
+    c.fillStyle = gold(14, 56);
+    c.fill();
+    c.lineWidth = 5;
+    c.strokeStyle = INK;
+    c.stroke();
+    // A gleam down the left of the bowl.
+    c.beginPath();
+    c.moveTo(31, 19);
+    c.bezierCurveTo(31, 34, 35, 44, 41, 49);
+    c.lineWidth = 3.5;
+    c.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+    c.stroke();
+    // The rolled rim.
+    rr(c, 21, 10, 58, 8, 4);
+    c.fillStyle = gold(10, 18);
+    c.fill();
+    c.lineWidth = 4;
+    c.strokeStyle = INK;
+    c.stroke();
+    // The whistle on the bowl: a little barrel and mouthpiece in polished silver.
+    rr(c, 40, 27, 16, 10, 5);
+    fillStroke(c, '#EEF2F5', 3);
+    rr(c, 55, 29, 9, 6, 2);
+    fillStroke(c, '#EEF2F5', 3);
+    c.beginPath();
+    c.arc(46, 32, 2, 0, Math.PI * 2);
+    c.fillStyle = INK;
+    c.fill();
+    // Stem with a knop.
+    rr(c, 45, 55, 10, 9, 2);
+    c.fillStyle = gold(55, 64);
+    c.fill();
+    c.lineWidth = 4;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.beginPath();
+    c.ellipse(50, 66, 9, 4, 0, 0, Math.PI * 2);
+    c.fillStyle = gold(62, 70);
+    c.fill();
+    c.stroke();
+    // Foot.
+    c.beginPath();
+    c.moveTo(38, 74);
+    c.lineTo(62, 74);
+    c.lineTo(58, 69);
+    c.lineTo(42, 69);
+    c.closePath();
+    c.fillStyle = gold(69, 74);
+    c.fill();
+    c.stroke();
+    // Walnut plinth with a gold plate.
+    rr(c, 27, 74, 46, 16, 3);
+    const wood = c.createLinearGradient(0, 74, 0, 90);
+    wood.addColorStop(0, '#8A5634');
+    wood.addColorStop(1, '#5B3420');
+    c.fillStyle = wood;
+    c.fill();
+    c.lineWidth = 4;
+    c.strokeStyle = INK;
+    c.stroke();
+    rr(c, 37, 78, 26, 8, 2);
+    c.fillStyle = gold(78, 86);
+    c.fill();
+    c.lineWidth = 2.5;
+    c.stroke();
   },
   mic: (c) => {
     // An interviewer's microphone.
