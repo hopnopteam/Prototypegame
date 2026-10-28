@@ -11,7 +11,7 @@ import { BED_TOP, FLOOR_Y } from '../world/CarriageView';
 import { CharacterPool, GUEST_POOL_WARM } from '../world/CharacterPool';
 import { CharacterView, type CharacterLook } from '../world/CharacterView';
 import { BED_MESS } from '../world/Mess';
-import { CARRIAGE_PITCH } from '../world/layout';
+import { CARRIAGE_PITCH, carriageOriginZ } from '../world/layout';
 import { PLATFORM, QUEUE_SPOTS, queueSpot, waitingSpot } from '../world/platformLayout';
 import { Mover, type Actor } from './Actor';
 import type { Bathroom, Cabin } from './TrainState';
@@ -73,6 +73,12 @@ const ROUTINE_WASH_QUEUE = 2;
 /** Longest a missed traveller stomps toward the station house before slipping away (fix list 4.1). */
 const STORM_OFF_SECONDS = 7;
 
+/** Session 40: a check-in desk (the lobby's, and the washroom car's on a longer train) and the line in front of it. */
+export interface Desk {
+  carriage: number;
+  readonly queue: Guest[];
+}
+
 export class Guest {
   readonly id = nextId++;
   readonly view: CharacterView;
@@ -92,6 +98,8 @@ export class Guest {
    */
   dayRider = false;
   outside = false;
+  /** Session 40: the check-in desk whose line they are in (the lobby's, or the second entrance's on a long train). */
+  desk: Desk | null = null;
   loungeUntil = 0;
   onPlatform = false;
   /** Missed the train and storming off the platform (fix list 4.1): stomps until the walk is over, then goes. */
@@ -218,7 +226,8 @@ export class Guests {
   readonly list: Guest[] = [];
   /** Session 32: every guest's character comes from this pool and goes back to it. */
   readonly views = new CharacterPool(GUEST_POOL_WARM);
-  readonly queue: Guest[] = [];
+  /** Session 40: every check-in desk on the train, the lobby's first. */
+  readonly desks: Desk[] = [{ carriage: 0, queue: [] }];
   private readonly tmp = new THREE.Vector3();
   private alightStagger = 0;
   private readonly bedsLeft = new Map<ClassId, number>();
@@ -234,15 +243,63 @@ export class Guests {
 
   constructor(private readonly w: World) {}
 
+  /** The lobby desk's line (the first desk's). */
+  get queue(): Guest[] {
+    return this.desks[0].queue;
+  }
+
+  /** Session 40: a desk for every carriage whose floor plan has one (the second entrance joins with its carriage). */
+  private syncDesks(): void {
+    const map = this.w.map;
+    const count = this.w.train.count;
+    for (let i = 1; i < count; i++) {
+      if (this.desks.some((d) => d.carriage === i)) continue;
+      if (map.layoutOf(i)?.queue.length) this.desks.push({ carriage: i, queue: [] });
+    }
+  }
+
+  /** The desk nearest the room a guest will get (the lobby's when no room is ready yet, or on a tie). */
+  private deskFor(guest: Guest): Desk {
+    if (this.desks.length === 1) return this.desks[0];
+    const room = this.roomForGuest(guest) ?? this.w.train.freeCabin(guest.cls);
+    if (!room) return this.desks[0];
+    let best = this.desks[0];
+    for (const d of this.desks) if (Math.abs(d.carriage - room.carriage) < Math.abs(best.carriage - room.carriage)) best = d;
+    return best;
+  }
+
+  private deskDoor(desk: Desk): { inside: Vec2; outside: Vec2; insideNode: string; outsideNode: string } {
+    const doors = this.w.map.doors();
+    return doors.find((d) => d.carriage === desk.carriage) ?? doors[0];
+  }
+
+  private joinDesk(guest: Guest, desk: Desk): void {
+    guest.desk = desk;
+    guest.queuedAt = this.w.time;
+    guest.queueSlot = desk.queue.length;
+    guest.arrivedInQueue = false;
+    desk.queue.push(guest);
+  }
+
+  /** From the lobby door along the platform to another desk's door (the platform's walkway, never through the train). */
+  private platformTo(desk: Desk): Vec2[] {
+    if (desk.carriage === 0) return [];
+    const map = this.w.map;
+    const from = map.doors()[0];
+    const to = this.deskDoor(desk);
+    return map.nav.findPath(from.outsideNode, to.outsideNode) ?? [];
+  }
+
   /** Guests already aboard when a session starts (boarded at the previous station). */
   spawnStartingQueue(count: number): void {
-    const slots = this.queueSlots();
+    const slots = this.queueSlots(this.desks[0]);
     for (let i = 0; i < count; i++) {
       const guest = this.create(this.pickArchetype('basic', i === 0 ? 'backpacker' : i === 1 ? 'student' : undefined), slots[i].x, slots[i].z, null);
       guest.state = 'queue';
       guest.queueSlot = i;
       guest.arrivedInQueue = true;
-      guest.mover.facing = this.queueFacing(i);
+      guest.desk = this.desks[0];
+      guest.mover.facing = this.queueFacing(i, this.desks[0]);
       this.queue.push(guest);
     }
   }
@@ -306,9 +363,14 @@ export class Guests {
     guest.boardStop = w.journey.stopSerial;
     guest.destinationStop = w.journey.stopSerial + 1;
     this.setState(guest, 'strolling');
-    const door = w.map.doors()[0];
+    // In through the door nearest the venues (the second entrance on a long train), along the platform's walkway.
+    const doors = w.map.doors();
+    const venueZ = w.venues.list.length ? carriageOriginZ(w.rng.pick(w.venues.list).carriage) : 0;
+    let door = doors[0];
+    for (const d of doors) if (Math.abs(d.inside.z - venueZ) < Math.abs(door.inside.z - venueZ)) door = d;
     const walkway = [PLATFORM.entrance, ...[...PLATFORM.concourse].reverse()];
-    guest.mover.go([...walkway, door.outside, door.inside], () => this.stepAboard(guest));
+    const along = door !== doors[0] ? w.map.nav.findPath(doors[0].outsideNode, door.outsideNode) ?? [] : [];
+    guest.mover.go([...walkway, doors[0].outside, ...along, door.outside, door.inside], () => this.stepAboard(guest));
     return guest;
   }
 
@@ -378,11 +440,22 @@ export class Guests {
       guest.view.act('wave', 1.2);
       guest.view.showBubble(null);
     }
-    const door = w.map.doors()[0];
     const from = w.map.nearestNode(guest.pos.x, guest.pos.z);
-    const path = from ? w.map.nav.findPath(from, door.outsideNode) : null;
-    const exit = [...PLATFORM.concourse, PLATFORM.entrance, PLATFORM.houseDoor];
-    guest.mover.go([...(path ?? [door.inside, door.outside]), ...exit], () => this.finishAlighting(guest, false));
+    guest.mover.go(this.exitRoute(guest, from), () => this.finishAlighting(guest, false));
+  }
+
+  /**
+   * Off the train (session 40): out through the nearest door (the second entrance on a long train), then along the
+   * platform's walkway, clear of the ticket queue, to the station house.
+   */
+  private exitRoute(guest: Guest, from: string | null): Vec2[] {
+    const map = this.w.map;
+    const doors = map.doors();
+    let door = doors[0];
+    for (const d of doors) if (Math.abs(d.inside.z - guest.pos.z) < Math.abs(door.inside.z - guest.pos.z)) door = d;
+    const inside = from ? map.nav.findPath(from, door.outsideNode) : null;
+    const along = door !== doors[0] ? map.nav.findPath(door.outsideNode, doors[0].outsideNode) ?? [] : [];
+    return [...(inside ?? [door.inside, door.outside]), ...along, ...PLATFORM.concourse, PLATFORM.entrance, PLATFORM.houseDoor];
   }
 
   /** Session 29: the station bell rings and everyone waiting on the platform looks up (visual only). */
@@ -536,17 +609,19 @@ export class Guests {
       return;
     }
     if (!w.journey.doorsOpen) return;
-    const door = w.map.doors()[0];
+    this.syncDesks();
+    const desk = this.deskFor(guest);
+    const door = this.deskDoor(desk);
+    const lobbyDoor = w.map.doors()[0];
     guest.onPlatform = false;
     guest.spot = null;
     guest.view.showBubble(null);
     guest.state = 'boarding';
     guest.stateTime = 0;
-    guest.queuedAt = w.time;
-    guest.queueSlot = this.queue.length;
-    guest.arrivedInQueue = false;
-    this.queue.push(guest);
-    guest.mover.go([...this.toTheDoor(guest), door.outside, door.inside, this.slotPosition(guest.queueSlot)], () => this.arriveInQueue(guest));
+    this.joinDesk(guest, desk);
+    // Session 40: a guest whose room is toward the back walks along the platform to the second entrance.
+    const along = desk.carriage === 0 ? [] : [lobbyDoor.outside, ...this.platformTo(desk)];
+    guest.mover.go([...this.toTheDoor(guest), ...along, door.outside, door.inside, this.slotPosition(guest.queueSlot, desk)], () => this.arriveInQueue(guest));
   }
 
   /** From the ticket queue's side of the platform, back along the edge toward the door. */
@@ -583,20 +658,34 @@ export class Guests {
     w.feedback.onCheckIn(guest);
   }
 
-  /** The guest waiting at the desk, if one has reached it. */
-  deskGuest(): Guest | null {
-    return this.hasGuestAtDesk() ? this.queue[0] : null;
+  /** The guest waiting at a desk (any desk when none is named), if one has reached it. */
+  deskGuest(desk?: Desk): Guest | null {
+    const d = desk ?? this.desks.find((x) => this.hasGuestAtDesk(x));
+    return d && this.hasGuestAtDesk(d) ? d.queue[0] : null;
   }
 
-  /** Someone is at the desk and a clean cabin of their class (or someone else's in the line) is ready. */
-  deskReady(): boolean {
-    if (!this.hasGuestAtDesk()) return false;
-    return this.queue.some((g) => g.arrivedInQueue && g.state === 'queue' && this.roomForGuest(g) !== null);
+  /** Someone is at the desk (any desk when none is named) and a clean cabin of their class (or someone else's in the line) is ready. */
+  deskReady(desk?: Desk): boolean {
+    if (!desk) return this.desks.some((d) => this.deskReady(d));
+    if (!this.hasGuestAtDesk(desk)) return false;
+    return desk.queue.some((g) => g.arrivedInQueue && g.state === 'queue' && this.roomForGuest(g) !== null);
   }
 
-  hasGuestAtDesk(): boolean {
-    const first = this.queue[0];
+  /** The desks where someone is ready to be checked in. */
+  readyDesks(): Desk[] {
+    return this.desks.filter((d) => this.deskReady(d));
+  }
+
+  hasGuestAtDesk(desk?: Desk): boolean {
+    if (!desk) return this.desks.some((d) => this.hasGuestAtDesk(d));
+    const first = desk.queue[0];
     return !!first && first.arrivedInQueue && first.state === 'queue';
+  }
+
+  /** The desk in this carriage, if it has one (session 40). */
+  deskIn(carriage: number): Desk | null {
+    this.syncDesks();
+    return this.desks.find((d) => d.carriage === carriage) ?? null;
   }
 
   /** A room for a guest in the desk's line: their class (or the nearest above), or any free one once they have waited long. */
@@ -605,10 +694,10 @@ export class Guests {
   }
 
   /** Desk zone: hand the first guest the key to a clean cabin of their class, if there is one. */
-  deskStay(zone: Zone, actor: Actor, dt: number): boolean {
-    this.callForward();
-    const guest = this.queue[0];
-    if (!guest || !this.hasGuestAtDesk()) return false;
+  deskStay(zone: Zone, actor: Actor, dt: number, desk: Desk = this.desks[0]): boolean {
+    this.callForward(desk);
+    const guest = desk.queue[0];
+    if (!guest || !this.hasGuestAtDesk(desk)) return false;
     const cabin = this.roomForGuest(guest);
     if (!cabin) {
       zone.progress = 0;
@@ -627,14 +716,15 @@ export class Guests {
    * If the guest at the front has no clean cabin of their class yet but someone behind them does, that guest
    * is called forward ("Business class, this way!") so one class never holds up another.
    */
-  private callForward(): void {
-    const head = this.queue[0];
+  private callForward(desk: Desk): void {
+    const q = desk.queue;
+    const head = q[0];
     if (!head || !head.arrivedInQueue || head.state !== 'queue' || this.roomForGuest(head)) return;
-    const i = this.queue.findIndex((g) => g.arrivedInQueue && g.state === 'queue' && this.roomForGuest(g) !== null);
+    const i = q.findIndex((g) => g.arrivedInQueue && g.state === 'queue' && this.roomForGuest(g) !== null);
     if (i <= 0) return;
-    const [next] = this.queue.splice(i, 1);
-    this.queue.unshift(next);
-    this.reflowQueue();
+    const [next] = q.splice(i, 1);
+    q.unshift(next);
+    this.reflowQueue(desk);
   }
 
   requestFor(cabin: Cabin): ServiceNeed | null {
@@ -692,6 +782,7 @@ export class Guests {
   /** Doors are closing: nobody is left half-way through a door. */
   onDoorsClosing(): void {
     const door = this.w.map.doors()[0];
+    this.syncDesks();
     // The audit (session 27): nobody whose stop it was is still aboard, whatever they were doing.
     for (const guest of this.list) {
       if ((guest.cabin || guest.dayRider) && guest.destinationStop <= this.w.journey.stopSerial && guest.state !== 'alighting' && guest.state !== 'leaving' && guest.state !== 'gone') {
@@ -702,14 +793,9 @@ export class Guests {
     // Nobody who has paid is left behind: anyone with a ticket still on the platform steps aboard to wait.
     for (const guest of [...this.list]) {
       if (guest.state !== 'platform' || !guest.paid) continue;
-      guest.pos.x = door.outside.x;
-      guest.pos.z = door.outside.z;
       guest.onPlatform = false;
       guest.state = 'boarding';
-      guest.queuedAt = this.w.time;
-      guest.queueSlot = this.queue.length;
-      guest.arrivedInQueue = false;
-      this.queue.push(guest);
+      this.joinDesk(guest, this.deskFor(guest));
     }
     for (const guest of this.list) {
       if (guest.dayRider && guest.outside && guest.state === 'strolling') {
@@ -719,9 +805,11 @@ export class Guests {
         guest.pos.z = door.inside.z;
         this.stepAboard(guest);
       } else if (guest.state === 'boarding') {
-        guest.pos.x = door.inside.x;
-        guest.pos.z = door.inside.z;
-        guest.mover.go([this.slotPosition(guest.queueSlot)], () => this.arriveInQueue(guest));
+        const desk = guest.desk ?? this.desks[0];
+        const inside = this.deskDoor(desk).inside;
+        guest.pos.x = inside.x;
+        guest.pos.z = inside.z;
+        guest.mover.go([this.slotPosition(guest.queueSlot, desk)], () => this.arriveInQueue(guest));
       } else if (guest.state === 'alighting') {
         guest.mover.stop();
         this.finishAlighting(guest, true);
@@ -847,14 +935,15 @@ export class Guests {
   private recoverWalk(guest: Guest): void {
     const w = this.w;
     const snap = (p: Vec2): void => { guest.pos.x = p.x; guest.pos.z = p.z; };
+    const desk = guest.desk ?? this.desks[0];
     if (guest.state === 'queue' && !guest.arrivedInQueue && guest.queueSlot >= 0) {
-      snap(this.slotPosition(guest.queueSlot));
+      snap(this.slotPosition(guest.queueSlot, desk));
       this.arriveInQueue(guest);
     } else if (!WALKING_STATES.has(guest.state)) {
       return;
     } else if (guest.state === 'boarding') {
       if (!w.journey.doorsOpen && guest.pos.x > w.map.doors()[0].inside.x + 0.5) return;
-      snap(this.slotPosition(Math.max(0, guest.queueSlot)));
+      snap(this.slotPosition(Math.max(0, guest.queueSlot), desk));
       this.arriveInQueue(guest);
     } else if (guest.state === 'toCabin' || guest.state === 'returning') {
       if (!guest.cabin) return this.destroy(guest);
@@ -1469,28 +1558,31 @@ export class Guests {
    */
   private checkIn(guest: Guest, cabin: Cabin, actor: Actor): void {
     const w = this.w;
-    const desk = w.econ.desk;
+    const rules = w.econ.desk;
+    const desk = guest.desk ?? this.desks[0];
     w.audio.play('ding', { pitch: 1.15 });
     w.haptics.light();
     w.ui.floatIcon('key', guest.pos.x, FLOOR_Y + 1.9, guest.pos.z, 'info');
     guest.view.bounce(0.7);
     actor.view.bounce(0.4);
     const venue = !guest.story && w.venues.bookable();
-    const booked = !!venue && w.rng.chance(desk.reserveChance);
+    const booked = !!venue && w.rng.chance(rules.reserveChance);
     if (venue && booked) {
-      const fee = Math.max(1, Math.round(desk.reserveFee * CLASS_BY_ID[guest.cls].tip * w.tipMultiplier()));
+      const fee = Math.max(1, Math.round(rules.reserveFee * CLASS_BY_ID[guest.cls].tip * w.tipMultiplier()));
       guest.booked = true;
-      w.cash.add('desk', fee, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
+      w.cash.add(desk.carriage === 0 ? 'desk' : `desk:${desk.carriage}`, fee, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
       w.ui.floatText(`+${fee}`, guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, 'cash');
       guest.view.showMood('wait', venue);
       guest.view.act('wave', 0.8);
     } else {
       guest.view.showBubble(null);
     }
-    this.queue.shift();
-    this.reflowQueue();
+    const at = desk.queue.indexOf(guest);
+    if (at >= 0) desk.queue.splice(at, 1);
+    guest.desk = null;
+    this.reflowQueue(desk);
     this.assignRoom(guest, cabin);
-    const path = w.map.nav.findPath(w.map.nearestNode(guest.pos.x, guest.pos.z) ?? 'c0:desk', cabin.node);
+    const path = w.map.nav.findPath(w.map.nearestNode(guest.pos.x, guest.pos.z) ?? `c${desk.carriage}:desk`, cabin.node);
     guest.mover.go([...(path ?? []), cabin.bedSide], () => this.arriveAtRoom(guest));
     w.events.emit('guest.keyed', { x: guest.pos.x, z: guest.pos.z, byPlayer: actor.isPlayer, booked });
     w.ftue('first_key');
@@ -1617,14 +1709,10 @@ export class Guests {
       guest.view.act('wave', 1.2);
       guest.view.showBubble(null);
     }
-    const door = w.map.doors()[0];
     // From the bed, or from wherever they are (a washroom, the corridor): a path from the cabin's node would
     // have them walk straight through the walls to reach it.
     const from = fromBed ? cabin.node : (w.map.nearestNode(guest.pos.x, guest.pos.z) ?? cabin.node);
-    const path = w.map.nav.findPath(from, door.outsideNode);
-    // Off along the platform's walkway (clear of the ticket queue) to the station house doors.
-    const exit = [...PLATFORM.concourse, PLATFORM.entrance, PLATFORM.houseDoor];
-    guest.mover.go([...(path ?? [door.inside, door.outside]), ...exit], () => this.finishAlighting(guest, false));
+    guest.mover.go(this.exitRoute(guest, from), () => this.finishAlighting(guest, false));
     if (!unhappy) w.feedback.onAlight(guest);
   }
 
@@ -1691,45 +1779,56 @@ export class Guests {
     guest.arrivedInQueue = true;
     guest.state = 'queue';
     guest.stateTime = 0;
-    guest.mover.facing = this.queueFacing(guest.queueSlot);
+    guest.mover.facing = this.queueFacing(guest.queueSlot, guest.desk ?? this.desks[0]);
   }
 
   /** Everyone in line faces the place ahead of them (the first faces the desk): an orderly queue. */
-  private queueFacing(slot: number): number {
-    if (slot <= 0) return -Math.PI / 2;
-    const here = this.slotPosition(slot);
-    const ahead = this.slotPosition(slot - 1);
+  private queueFacing(slot: number, desk: Desk): number {
+    const here = this.slotPosition(Math.max(0, slot), desk);
+    if (slot <= 0) {
+      const r = this.w.map.layoutOf(desk.carriage)?.props.find((p) => p.kind === 'desk')?.rect;
+      if (!r) return -Math.PI / 2;
+      const cz = (r.z0 + r.z1) / 2 + carriageOriginZ(desk.carriage);
+      const cx = (r.x0 + r.x1) / 2;
+      // Square on to the desk (across the carriage), whichever side it stands.
+      return Math.abs(cx - here.x) > Math.abs(cz - here.z) ? (cx < here.x ? -Math.PI / 2 : Math.PI / 2) : Math.atan2(cx - here.x, cz - here.z);
+    }
+    const ahead = this.slotPosition(slot - 1, desk);
     return Math.atan2(ahead.x - here.x, ahead.z - here.z);
   }
 
-  private reflowQueue(): void {
-    this.queue.forEach((guest, i) => {
+  private reflowQueue(desk: Desk): void {
+    desk.queue.forEach((guest, i) => {
       guest.queueSlot = i;
       if (guest.state === 'queue' && guest.arrivedInQueue) {
         guest.arrivedInQueue = false;
-        guest.mover.go([this.slotPosition(i)], () => this.arriveInQueue(guest));
-      } else if (guest.state === 'boarding') {
-        const door = this.w.map.doors()[0];
+        guest.mover.go([this.slotPosition(i, desk)], () => this.arriveInQueue(guest));
+      } else if (guest.state === 'boarding' && !guest.mover.isMoving) {
+        const door = this.deskDoor(desk);
         const inside = guest.pos.x < door.inside.x + 0.5;
-        guest.mover.go(inside ? [this.slotPosition(i)] : [door.outside, door.inside, this.slotPosition(i)], () => this.arriveInQueue(guest));
+        guest.mover.go(inside ? [this.slotPosition(i, desk)] : [door.outside, door.inside, this.slotPosition(i, desk)], () => this.arriveInQueue(guest));
       }
     });
   }
 
-  private queueSlots(): Vec2[] {
-    return this.w.map.layoutOf(0).queue;
+  /** A desk's places in line, in world coordinates. */
+  private queueSlots(desk: Desk): Vec2[] {
+    const local = this.w.map.layoutOf(desk.carriage)?.queue ?? [];
+    if (desk.carriage === 0) return local;
+    const oz = carriageOriginZ(desk.carriage);
+    return local.map((p) => ({ x: p.x, z: p.z + oz }));
   }
 
-  slotPosition(i: number): Vec2 {
-    const slots = this.queueSlots();
+  slotPosition(i: number, desk: Desk = this.desks[0]): Vec2 {
+    const slots = this.queueSlots(desk);
     if (i < slots.length) return slots[i];
     // Overflow waits in a loose group by the door.
-    const door = this.w.map.doors()[0];
+    const door = this.deskDoor(desk);
     return { x: door.inside.x - 0.3 - (i % 2) * 0.5, z: door.inside.z + 0.4 + Math.floor((i - slots.length) / 2) * 0.5 };
   }
 
   get queueCapacity(): number {
-    return this.queueSlots().length + 4;
+    return this.queueSlots(this.desks[0]).length + 4;
   }
 
   private setState(guest: Guest, state: GuestState): void {
@@ -1771,11 +1870,13 @@ export class Guests {
       const i = guest.bathroom.waiting.indexOf(guest);
       if (i >= 0) guest.bathroom.waiting.splice(i, 1);
     }
-    const qi = this.queue.indexOf(guest);
-    if (qi >= 0) {
-      this.queue.splice(qi, 1);
-      this.reflowQueue();
+    const desk = guest.desk;
+    const qi = desk ? desk.queue.indexOf(guest) : -1;
+    if (desk && qi >= 0) {
+      desk.queue.splice(qi, 1);
+      this.reflowQueue(desk);
     }
+    guest.desk = null;
     // Session 32: the characters go back to the pool (no geometry or material is made or freed during play).
     this.views.give(guest.view);
     if (guest.child) this.views.give(guest.child);

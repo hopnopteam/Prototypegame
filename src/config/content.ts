@@ -293,11 +293,11 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       // Session 38 (owner: "a small TV upgrade, placed nicely within the room"): a television set in every room.
       { key: 'comfort_tv', kind: 'comfort', label: 'Small TVs', price: 520, stars: 2, comfort: 'tv', requires: ['comfort_radio', '@couple_4'], effect: 'Tips +20%' },
       { key: 'up_porter', kind: 'staffUpgrade', label: 'Faster Porter', price: 420, stars: 2, role: 'porter', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
-      { key: 'refurb_3', kind: 'refurb', label: 'Business', price: 880, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_4'], effect: 'Fares ×5' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Business', price: 880, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_4'], effect: 'Same rooms · Fares ×2.6' },
       { key: 'refurb_4', kind: 'refurb', label: 'First Class', price: 1700, stars: 6, tier: 4, requires: ['refurb_3'], flags: ['level_6'], effect: 'Fares ×14' },
       { key: 'up2_attendant', kind: 'staffUpgrade', label: 'Expert Attendant', price: 1100, stars: 3, role: 'attendant', requires: ['up_attendant'], flags: ['level_6'], effect: 'Faster, +1 carry' },
       { key: 'up2_porter', kind: 'staffUpgrade', label: 'Expert Porter', price: 1300, stars: 3, role: 'porter', requires: ['up_porter'], flags: ['level_7'], effect: 'Faster, +1 carry' },
-      { key: 'refurb_5', kind: 'refurb', label: 'Royal Suite', price: 3300, stars: 8, tier: 5, requires: ['refurb_4'], flags: ['level_8'], effect: 'One suite · Fares ×40' },
+      { key: 'refurb_5', kind: 'refurb', label: 'Royal Suite', price: 3300, stars: 8, tier: 5, requires: ['refurb_4'], flags: ['level_8'], effect: 'One suite · Fares ×38' },
     ],
   },
   bathroom: {
@@ -310,6 +310,8 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 260, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Tips +50%' },
       { key: 'comfort_rail', kind: 'comfort', label: 'Towel Rails', price: 240, stars: 2, comfort: 'rail', requires: ['comfort_soap', '@couple_3'], effect: 'Tips +25%' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 520, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Tips +50%' },
+      // Session 40: the second entrance's own porter (its check-in desk, the bags and the stand when the first is busy).
+      { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 320, stars: 3, role: 'porter', requires: ['couple', '@c0.hire_porter', '@couple_4'], work: { keys: 12 }, effect: 'Second desk' },
     ],
   },
   supply: {
@@ -453,10 +455,10 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 380, stars: 2, role: 'attendant', requires: ['hire_attendant', '@couple_3'], effect: 'Faster, +1 carry' },
       { key: 'comfort_radio', kind: 'comfort', label: 'Minibars', price: 420, stars: 2, comfort: 'minibar', requires: ['comfort_lamp', '@couple_3'], effect: 'Snack sales' },
       { key: 'comfort_tv', kind: 'comfort', label: 'Small TVs', price: 620, stars: 2, comfort: 'tv', requires: ['comfort_radio', '@couple_4'], effect: 'Tips +20%' },
-      { key: 'refurb_3', kind: 'refurb', label: 'Business', price: 1350, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_4'], effect: '3 cabins · Fares ×5' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Business', price: 1350, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_4'], effect: 'Same rooms · Fares ×2.6' },
       { key: 'refurb_4', kind: 'refurb', label: 'First Class', price: 2200, stars: 6, tier: 4, requires: ['refurb_3'], flags: ['level_6'], effect: '2 suites · Fares ×14' },
       { key: 'up2_attendant', kind: 'staffUpgrade', label: 'Expert Attendant', price: 1250, stars: 3, role: 'attendant', requires: ['up_attendant'], flags: ['level_6'], effect: 'Faster, +1 carry' },
-      { key: 'refurb_5', kind: 'refurb', label: 'Royal Suite', price: 4100, stars: 8, tier: 5, requires: ['refurb_4'], flags: ['level_8'], effect: 'One grand suite · Fares ×40' },
+      { key: 'refurb_5', kind: 'refurb', label: 'Royal Suite', price: 4100, stars: 8, tier: 5, requires: ['refurb_4'], flags: ['level_8'], effect: '2 grand suites · Fares ×38' },
     ],
   },
 };

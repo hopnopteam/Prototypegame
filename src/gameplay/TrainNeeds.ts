@@ -24,8 +24,9 @@ export class TrainNeeds {
 
   forCarriage(index: number): CarriageNeed | null {
     const w = this.w;
-    if (index === 0 && w.guests.deskReady() && w.staff.count('porter') === 0) {
-      return { icon: 'ticket', point: w.map.anchor(0, 'deskService'), label: 'Guest at the desk' };
+    const desk = w.guests.deskIn(index);
+    if (desk && w.guests.deskReady(desk) && w.staff.count('porter') === 0) {
+      return { icon: 'ticket', point: w.map.anchor(index, 'deskService'), label: 'Guest at the desk' };
     }
     for (const guest of w.guests.openRequests()) {
       if (!guest.cabin || guest.cabin.carriage !== index || w.staff.isHandled(guest)) continue;

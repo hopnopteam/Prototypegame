@@ -78,7 +78,7 @@ export const CLASSES: ClassDef[] = [
   {
     id: 'business', name: 'Business', chip: 'BUSINESS', tier: 3, level: 4,
     livery: { body: '#233A5E', trim: '#C9D2DC' }, color: '#2D4C7C', ink: '#FFFFFF',
-    fare: 5, tip: 3.5, stars: 3, evening: { newspaper: 1 }, morning: { coffee: 1 }, extra: { tea: 1, towel: 1, pillow: 1, coffee: 1, sandwich: 1 }, turndown: false, butler: false, adds: 'coffee', icon: 'coffee',
+    fare: 2.6, tip: 2.3, stars: 3, evening: { newspaper: 1 }, morning: { coffee: 1 }, extra: { tea: 1, towel: 1, pillow: 1, coffee: 1, sandwich: 1 }, turndown: false, butler: false, adds: 'coffee', icon: 'coffee',
   },
   {
     id: 'first', name: 'First Class', chip: 'FIRST CLASS', tier: 4, level: 6,
@@ -88,7 +88,7 @@ export const CLASSES: ClassDef[] = [
   {
     id: 'royal', name: 'Royal Suite', chip: 'ROYAL SUITE', tier: 5, level: 8,
     livery: { body: '#6A1E2E', trim: '#E2B653' }, color: '#8A2A3E', ink: '#FFE2A0',
-    fare: 40, tip: 18, stars: 10, evening: { champagne: 1 }, morning: { breakfast: 1, coffee: 1 }, extra: { tea: 1, towel: 1, pillow: 1 }, turndown: true, butler: true, adds: 'butler', icon: 'crown',
+    fare: 38, tip: 16, stars: 9, evening: { champagne: 1 }, morning: { breakfast: 1, coffee: 1 }, extra: { tea: 1, towel: 1, pillow: 1 }, turndown: true, butler: true, adds: 'butler', icon: 'crown',
   },
 ];
 

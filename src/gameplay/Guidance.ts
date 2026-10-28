@@ -268,7 +268,11 @@ export class Guidance {
     const pile = w.cash.nearestWithCash(player.pos);
     if (pile && pile.value >= 1) return this.because('cash', { x: pile.x, z: pile.z });
 
-    if (w.guests.deskReady() && w.staff.count('porter') === 0) return this.because('desk', map.anchor(0, 'deskService'));
+    if (w.staff.count('porter') === 0) {
+      // Session 40: the nearest desk with someone ready (the lobby's, or the second entrance's).
+      const desk = w.guests.readyDesks().map((d) => map.anchor(d.carriage, 'deskService')).sort((a, b) => Math.abs(a.z - player.pos.z) - Math.abs(b.z - player.pos.z))[0];
+      if (desk) return this.because('desk', desk);
+    }
 
     const tile = w.tiles.cheapest();
     if (tile && w.unlocks.remaining(tile.def.id) <= cash) return this.because('tile', tile.pos);

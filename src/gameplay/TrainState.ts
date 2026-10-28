@@ -1637,7 +1637,27 @@ export class TrainState {
     }
 
     // The washroom car keeps its own towels and rolls: it works the day it couples on.
-    if (type === 'bathroom') this.sourceZone(`src:closet:${index}`, at('closet'), ['towel', 'roll']);
+    if (type === 'bathroom') {
+      this.sourceZone(`src:closet:${index}`, at('closet'), ['towel', 'roll']);
+      // Session 40: the second entrance's check-in desk, worked like the lobby's.
+      if (layout.anchors.deskService) {
+        const desk = at('deskService');
+        w.zones.add(new Zone({
+          id: `desk:${index}`,
+          kind: 'work',
+          x: desk.x,
+          z: desk.z,
+          radius: ZONE_RADIUS.desk,
+          icon: 'key',
+          badgeAt: deskBadge(layout, originZ),
+          area: (x, z) => inDeskArea(layout, originZ, x, z),
+          active: () => { const d = w.guests.deskIn(index); return !!d && w.guests.hasGuestAtDesk(d); },
+          stay: (zone, actor, dt) => { const d = w.guests.deskIn(index); return !!d && w.guests.deskStay(zone, actor, dt, d); },
+        }));
+        const cash = at('deskCash');
+        w.cash.create(`desk:${index}`, cash.x, cash.z);
+      }
+    }
 
     if (type === 'luggage') this.luggageDropZone('rack:luggage', at('rack'));
   }

@@ -23,6 +23,9 @@ export interface WalkableOptions {
 const STEP = 0.08;
 /** Sampling step along a reach line (metres): finer than any wall's gap (two character radii and the wall). */
 const LINE_STEP = 0.1;
+/** Session 40: the rescue's search outward from where someone stands (metres between rings, and how far it looks). */
+const RESCUE_STEP = 0.12;
+const RESCUE_RADIUS = 2.4;
 /** A push whose sideways part is under this share of the step counts as head-on (within about 20°). */
 const HEAD_ON = 0.35;
 
@@ -178,9 +181,32 @@ export class Walkable {
     return false;
   }
 
-  /** Closest walkable point, used to rescue anything left standing where a door just closed. */
+  /**
+   * Closest walkable point, used to rescue anything left standing where a door just closed or something bought just
+   * appeared (a table under the conductor's feet). Session 40 (owner: "placing a table… teleports the player to an
+   * already placed upgrade"): it searches outward from where they stand first, never through a wall, so they step
+   * aside next to the new thing; only if nothing is near does it fall back to the nearest floor anywhere.
+   */
   nearestWalkable(x: number, z: number): Vec2 {
     if (this.isWalkable(x, z)) return { x, z };
+    for (let r = RESCUE_STEP; r <= RESCUE_RADIUS; r += RESCUE_STEP) {
+      const n = Math.max(8, Math.ceil((Math.PI * 2 * r) / RESCUE_STEP));
+      let found: Vec2 | null = null;
+      let foundD = Infinity;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        const cx = x + Math.cos(a) * r;
+        const cz = z + Math.sin(a) * r;
+        if (!this.isWalkable(cx, cz) || !this.lineClear(x, z, cx, cz)) continue;
+        // On a ring every point is as near: prefer the one toward the room's open middle (the corridor side, x 0).
+        const d = Math.abs(cx);
+        if (d < foundD) {
+          foundD = d;
+          found = { x: cx, z: cz };
+        }
+      }
+      if (found) return found;
+    }
     let best: Vec2 = { x, z };
     let bestD = Infinity;
     const inset = 0.01;

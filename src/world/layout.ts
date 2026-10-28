@@ -77,6 +77,11 @@ export const INTERIOR_END = CARRIAGE_LENGTH - REAR_VESTIBULE - 0.06;
 export const PLATFORM_X0 = HALF_WIDTH + 0.25;
 export const PLATFORM_WIDTH = 6.5;
 
+/** Session 40: the washroom car's lounge (the second entrance), its check-in desk and the line that faces it. */
+export const BATHROOM_FRONT = 5.3;
+export const SIDE_DESK = { x0: 0.85, z0: 2.4, x1: 1.55, z1: 3.7 };
+export const SIDE_QUEUE_SLOTS: Vec2[] = [{ x: 2.0, z: 3.05 }, { x: 2.0, z: 2.35 }];
+
 /** The lobby queue: slot 0 at the desk, a row across the lobby, then back along a second row. */
 export const QUEUE_SLOTS: Vec2[] = [
   { x: -0.3, z: 3.0 }, { x: 0.42, z: 3.0 }, { x: 1.14, z: 3.0 },
@@ -460,6 +465,10 @@ class LayoutBuilder {
         this.prop('dining', dining.x0, dining.z0, dining.x1, dining.z1);
         // A grand piano in the far corner, its keys (and the stool) toward the room.
         this.prop('grandPiano', PARTITION_X1 + 0.04, cz1 - 2.0, PARTITION_X1 + 1.0, cz1 - 0.1, 'front');
+      } else if (style === 'royal' && len > 6.5) {
+        // Session 40: the two-suite Royal carriage keeps the grand piano, in the far corner by the corridor wall,
+        // clear of the doorway and the lounge.
+        this.prop('grandPiano', PARTITION_X1 + 0.04, cz1 - 1.72, PARTITION_X1 + 0.98, cz1 - 0.1, 'front');
       }
 
       const corridorNode = this.node(`corr_${c}`, (-INNER + PARTITION_X0) / 2, doorZ);
@@ -510,8 +519,11 @@ class LayoutBuilder {
 /** Rooms per passenger carriage and their style, by class (refit tier 0–1 Basic … 5 Royal Suite). */
 // Session 38 (owner: "in Comfort Class, don't upgrade the space. KEEP all the rooms… just upgrade the overall interior"):
 // Comfort keeps the Basic plan (its look comes from the tier's finish and furnishings); Business and up rebuild.
-const LOBBY_ROOMS: [number, RoomStyle][] = [[3, 'berth'], [3, 'berth'], [3, 'berth'], [2, 'business'], [2, 'first'], [1, 'royal']];
-const SLEEPER_ROOMS: [number, RoomStyle][] = [[6, 'berth'], [6, 'berth'], [6, 'berth'], [3, 'business'], [2, 'first'], [1, 'royal']];
+// Session 40 (owner: "Business Class: retain the exact room size… only the bed style may change"; "Royal Suite: limited
+// to two units, not excessively large, with more luxurious interiors"): Business keeps the Basic rooms, refurnished; a
+// sleeper holds two Royal Suites (the lobby car, with its reception, one).
+const LOBBY_ROOMS: [number, RoomStyle][] = [[3, 'berth'], [3, 'berth'], [3, 'berth'], [3, 'berth'], [2, 'first'], [1, 'royal']];
+const SLEEPER_ROOMS: [number, RoomStyle][] = [[6, 'berth'], [6, 'berth'], [6, 'berth'], [6, 'berth'], [2, 'first'], [2, 'royal']];
 
 /** How many rooms a passenger carriage has at a refit tier (the economy and the tiles use this). */
 export function roomsAt(type: CarriageType, tier: number): number {
@@ -632,34 +644,45 @@ function buildSleeper(tier: number): CarriageLayout {
 
 function buildBathroom(): CarriageLayout {
   const b = new LayoutBuilder('bathroom');
-  // Session 30 (owner: "the bathroom carriage is big for no reason… empty spaces"): a short lounge up front (its own
-  // towel and roll closet, the laundry, a bench for whoever is waiting), then three compact washrooms, and a linen
-  // store walled off at the back, full of shelves (the carriage keeps its length; nothing in it is empty floor).
-  const front = 4.4;
-  const washLength = 2.9;
+  // Session 30 (owner: "the bathroom carriage is big for no reason… empty spaces"): a short lounge up front, then three
+  // compact washrooms, and a linen store walled off at the back, full of shelves (the carriage keeps its length).
+  // Session 40 (owner: "additional entry and check-in points… on larger trains"): the lounge is the train's second
+  // entrance, a door onto the platform and a small check-in desk, so guests with a room toward the back board and get
+  // their key here instead of walking the whole train from the lobby.
+  const front = BATHROOM_FRONT;
+  const washLength = 2.7;
   const count = 3;
   const end = front + count * washLength;
-  b.shell({ frontGangway: true, doors: false });
+  b.shell({ frontGangway: true, doors: true });
   b.vestibules(front);
   b.connector(-INNER, front - 0.5, PARTITION_X0, INTERIOR_END + 0.55, 'z');
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, front);
 
   b.prop('closet', -INNER, 1.0, out(-1.8), 2.9, 'right');
-  b.prop('laundry', out(1.8), 0.35, INNER, 2.35, 'left');
-  b.prop('bench', out(2.1), 2.6, INNER, 4.1, 'left');
   b.prop('plant', -INNER, 3.25, out(-2.14), 3.65, 'right', false);
+  // The check-in desk past the door, facing the platform wall: the line waits between it and that wall (in from the
+  // door, clear of everyone walking through the carriage), and whoever serves works it from its camera end.
+  b.prop('desk', SIDE_DESK.x0, SIDE_DESK.z0, SIDE_DESK.x1, SIDE_DESK.z1, 'right');
   b.anchor('closet', out(-1.36), 1.95);
   b.anchor('towel', out(-1.36), 1.95);
   b.anchor('roll', out(-1.36), 1.95);
-  // Where waiting guests stand (in front of the bench) and the lounge's nav points.
-  b.anchor('wait_0', out(1.7), 2.95);
-  b.anchor('wait_1', out(1.7), 3.75);
-  b.node('lounge', 0.1, 2.6);
-  b.node('lounge_rear', 0.3, 3.7);
+  const serve = { x: (SIDE_DESK.x0 + SIDE_DESK.x1) / 2, z: SIDE_DESK.z1 + 0.42 };
+  b.anchor('deskService', serve.x, serve.z);
+  b.anchor('deskCash', SIDE_DESK.x0 - 0.45, serve.z);
+  b.anchor('idle_porter', SIDE_DESK.x0 - 0.45, SIDE_DESK.z0 + 0.6);
+  b.anchor('home_porter', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_up_porter', -REAR_TILE_X, REAR_TILE_Z);
+  b.layout.queue = SIDE_QUEUE_SLOTS.map((p) => ({ ...p }));
+  // The way through runs along the aisle side, clear of the line.
+  b.node('lounge', -1.05, 3.4);
+  b.node('desk', serve.x, serve.z);
+  b.node('desk_aisle', SIDE_DESK.x0 - 0.5, serve.z);
 
   const gaps: [number, number][] = [];
   let previous = 'corr_in';
-  b.chain('vest_front', 'lounge', 'lounge_rear', 'corr_in');
+  b.chain('vest_front', 'lounge', 'corr_in');
+  b.chain('door_in', 'vest_front');
+  b.chain('lounge', 'desk_aisle', 'desk');
   for (let index = 0; index < count; index++) {
     const z0 = front + index * washLength;
     const z1 = z0 + washLength;
@@ -1263,15 +1286,15 @@ export const isVenueType = (type: CarriageType): boolean => VENUE_TYPES.has(type
 const cache = new Map<string, CarriageLayout>();
 
 /** Which floor plan a carriage uses at a refit tier: passenger carriages change plan with their class. */
-/** The highest refit tier that keeps the Basic floor plan (session 38: Comfort). */
-const COMFORT_TIER = 2;
+/** The highest refit tier that keeps the Basic floor plan (session 38: Comfort; session 40: Business too). */
+const SHARED_PLAN_TIER = 3;
 
 export function layoutKey(type: CarriageType, tier = 0): string {
   // Session 21: a venue's furnishings change with every refit (its tables, seats and pads stay where they are).
   if (isVenueType(type)) return `${type}:${Math.min(3, Math.max(0, tier))}`;
   if (type !== 'lobby' && type !== 'sleeper') return type;
   const t = Math.min(5, Math.max(0, tier));
-  return `${type}:${t <= COMFORT_TIER ? 0 : t}`;
+  return `${type}:${t <= SHARED_PLAN_TIER ? 0 : t}`;
 }
 
 /** The floor plan of a carriage type (passenger carriages: at a refit tier, which sets their class). */

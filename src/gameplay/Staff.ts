@@ -437,16 +437,21 @@ export class StaffManager {
       }
     }
     // The desk (session 24: every ticketed guest is handed their key there), whenever nobody waits at the stand.
-    if (!luggageCarPorter && w.guests.deskReady() && !this.someoneAt('desk', m)) {
-      const desk = w.map.anchor(0, 'deskService');
+    // Session 40: any desk with someone ready (the lobby's, or the second entrance's), the nearest first; each desk is
+    // a role of its own, so two porters work two desks.
+    const ready = luggageCarPorter ? [] : w.guests.readyDesks().sort((a, b) => Math.abs(a.carriage - m.carriage) - Math.abs(b.carriage - m.carriage));
+    for (const desk of ready) {
+      const role = desk.carriage === 0 ? 'desk' : `desk:${desk.carriage}`;
+      if (this.someoneAt(role, m)) continue;
+      const spot = w.map.anchor(desk.carriage, 'deskService');
       return {
         label: 'desk', icon: 'key',
         steps: [
-          { kind: 'goto', target: desk, node: 'c0:desk' },
-          { kind: 'stand', until: () => !w.guests.deskReady() || (w.journey.doorsOpen && w.guests.canBoard()), timeout: 20 },
+          { kind: 'goto', target: spot, node: `c${desk.carriage}:desk` },
+          { kind: 'stand', until: () => !w.guests.deskReady(desk) || (w.journey.doorsOpen && w.guests.canBoard() && !this.someoneAt('board', m)), timeout: 20 },
         ],
-        release: () => this.releaseRole('desk', m),
-        ...this.claimRole('desk', m),
+        release: () => this.releaseRole(role, m),
+        ...this.claimRole(role, m),
       };
     }
     // Luggage still in hand after the doors closed: finish the job indoors.

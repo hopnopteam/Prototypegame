@@ -22,10 +22,10 @@ describe('carriage classes', () => {
     expect(classStartingAt(4)?.id).toBe('first');
     expect(classFare(0)).toBe(1);
     expect(classFare(1)).toBe(BASIC_REPAIRED_FARE);
-    expect(classFare(5)).toBe(40);
+    expect(classFare(5)).toBe(38);
   });
 
-  it('earns clearly more per carriage with every class, though the rooms get fewer and bigger', () => {
+  it('earns clearly more per carriage with every class (Business keeps the Basic rooms; a sleeper holds two Royal Suites)', () => {
     for (const type of ['lobby', 'sleeper'] as const) {
       let last = 0;
       for (let tier = 1; tier <= 5; tier++) {
@@ -34,7 +34,7 @@ describe('carriage classes', () => {
         expect(getLayout(type, tier).cabins.length, `${type} tier ${tier}`).toBe(roomsAt(type, tier));
         last = perRide;
       }
-      expect(roomsAt(type, 5)).toBe(1);
+      expect(roomsAt(type, 5)).toBe(type === 'lobby' ? 1 : 2);
     }
   });
 
