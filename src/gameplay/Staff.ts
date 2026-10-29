@@ -32,6 +32,13 @@ const ARRIVE_EPSILON = 0.05;
  */
 const GOTO_TIMEOUT = 35;
 const LOST_ARRIVAL_SECONDS = 0.6;
+/**
+ * Session 42: a walk that gave up in a crowd (the stop's rush through a door) ends where it was blocked. Further than
+ * this from its target, the helper tries the walk again, up to `WALK_RETRIES` times, instead of doing the next step in
+ * the wrong place (a porter used to stand in the lobby "at" the luggage barrow outside, timing out over and over).
+ */
+const FAR_ARRIVAL = 1.0;
+const WALK_RETRIES = 2;
 
 export class StaffMember implements Actor {
   readonly isPlayer = false;
@@ -142,7 +149,8 @@ export class StaffMember implements Actor {
     }
     this.stepTime = 0;
     if (step.kind === 'goto') {
-      this.walkTo(step.target, step.node, () => this.nextStep());
+      this.walkRetries = 0;
+      this.walkStep(step);
     } else if (step.kind === 'do') {
       step.fn();
       this.nextStep();
@@ -152,6 +160,21 @@ export class StaffMember implements Actor {
   private nextStep(): void {
     this.stepIndex++;
     this.startStep();
+  }
+
+  private walkRetries = 0;
+
+  /** Walks a goto step; a walk that ended well short of its target (blocked in a crowd) tries again first. */
+  private walkStep(step: Extract<Step, { kind: 'goto' }>): void {
+    this.walkTo(step.target, step.node, () => {
+      const short = Math.hypot(step.target.x - this.pos.x, step.target.z - this.pos.z) > FAR_ARRIVAL;
+      if (short && this.walkRetries < WALK_RETRIES) {
+        this.walkRetries++;
+        this.walkStep(step);
+        return;
+      }
+      this.nextStep();
+    });
   }
 
   walkTo(target: Vec2, node?: string, onArrive?: () => void): void {
@@ -413,7 +436,9 @@ export class StaffManager {
           label: 'board', icon: 'ticket',
           steps: [
             { kind: 'goto', target: zone, node: w.map.doors()[0].outsideNode },
-            { kind: 'stand', until: () => w.guests.platformGuests().length === 0 || !w.journey.doorsOpen, timeout: 30 },
+            // Session 42: leave once nobody is left to sell to. Travellers with no room never buy, and waiting on them
+            // kept the porter at the stand for the whole stop while ticketed guests queued at the desk.
+            { kind: 'stand', until: () => !w.guests.hasBoarder() || !w.journey.doorsOpen, timeout: 30 },
           ],
           release: () => this.releaseRole('board', m),
           ...this.claimRole('board', m),
@@ -422,7 +447,8 @@ export class StaffManager {
       if (station.luggagePile > 0 && w.train.luggageStored < w.train.luggageCapacity) {
         const pile = station.luggagePoint();
         const rack = this.nearestRack(pile);
-        m.wantItems = { luggage: m.stack.capacity };
+        // Only as many bags as the rack has room for (session 42: a full rack left a porter holding one for the ride).
+        m.wantItems = { luggage: Math.max(1, Math.min(m.stack.capacity, w.train.luggageCapacity - w.train.luggageStored)) };
         return {
           label: 'luggage', icon: 'luggage',
           steps: [
@@ -454,8 +480,9 @@ export class StaffManager {
         ...this.claimRole(role, m),
       };
     }
-    // Luggage still in hand after the doors closed: finish the job indoors.
-    if (m.stack.has('luggage')) {
+    // Luggage still in hand after the doors closed: finish the job indoors (once the rack has room; until then the
+    // porter waits at their spot instead of standing at a full rack, session 42).
+    if (m.stack.has('luggage') && w.train.luggageStored < w.train.luggageCapacity) {
       const rack = this.nearestRack(m.pos);
       return {
         label: 'luggage', icon: 'luggage',

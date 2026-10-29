@@ -178,7 +178,7 @@ export class Monetization {
     if (w.tiles.shortOfCash > r.cashStash.shortWaitSeconds && (m.lastCashStashAt === null || life - m.lastCashStashAt > r.cashStash.cooldownSeconds)) {
       out.push({ id: 'cashStash', icon: 'cash', label: `+${this.cashStashAmount()}`, detail: 'Cash stash', gemCost: r.cashStash.gemCost });
     }
-    if (j.phase === 'stationStop' && !j.holdUsed && j.timeLeft <= w.econ.journey.lastCallSeconds && (w.guests.platformGuests().length > 0 || w.station.luggagePile > 0)) {
+    if (j.phase === 'stationStop' && !j.holdUsed && j.timeLeft <= w.econ.journey.lastCallSeconds && (w.guests.hasBoarder() || w.station.luggagePile > 0)) {
       out.push({ id: 'holdTheTrain', icon: 'hold', label: `+${w.econ.journey.holdTheTrainSeconds}s`, detail: 'Hold the train', gemCost: r.holdTheTrain.gemCost });
     }
     if (life > r.speedBoost.firstOfferMinutes * 60 && Date.now() > m.speedBoostUntil && (m.lastSpeedOfferAt === null || life - m.lastSpeedOfferAt > r.speedBoost.cooldownSeconds) && j.phase === 'onTheMove') {
@@ -205,7 +205,8 @@ export class Monetization {
     const w = this.w;
     const j = w.journey;
     if (!this.holdEarned || j.phase !== 'stationStop' || j.held || j.holdUsed || j.timeLeft > w.econ.journey.lastCallSeconds) return [];
-    if (w.guests.platformGuests().length === 0 && w.station.luggagePile <= 0) return [];
+    // Only travellers who can still board (have a bed) or bags left on the barrow make holding the train worth it (session 42).
+    if (!w.guests.hasBoarder() && w.station.luggagePile <= 0) return [];
     return [{ id: 'holdTheTrain', icon: 'hold', label: `+${w.econ.journey.holdTheTrainSeconds}s`, detail: 'Hold the train', gemCost: 0, free: true }];
   }
 
