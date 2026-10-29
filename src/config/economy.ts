@@ -39,6 +39,11 @@ export const ECONOMY = {
     arrivingSeconds: 6,
     stationSeconds: 40,
     departingSeconds: 6,
+    /**
+     * Session 44: a relaunch comes back on the move this many seconds from the next station. Passengers are not
+     * saved, so the train comes back empty; it pulls in at once to a full platform instead of a minute of nothing.
+     */
+    resumeSeconds: 10,
     holdTheTrainSeconds: 15,
     /** Scenery scroll speed while cruising. */
     cruiseSpeed: 14,

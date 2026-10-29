@@ -276,7 +276,7 @@ export class Game implements World {
         this.station.onLastCall();
         this.events.emit('journey.lastCall', {});
       },
-    }, route.stationIndex, route.legsCompleted, route.stopsCompleted, route.stopsCompleted > 0 ? 70 : undefined,
+    }, route.stationIndex, route.legsCompleted, route.stopsCompleted, route.stopsCompleted > 0 || route.legsCompleted > 0 ? this.econ.journey.resumeSeconds : undefined,
     // A brand-new game opens standing at Millbrook, its first passengers boarding (Station.startPrologue).
     route.stopsCompleted === 0 && route.legsCompleted === 0 ? 'stationStop' : 'onTheMove');
 
