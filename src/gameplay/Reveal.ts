@@ -263,6 +263,22 @@ export class Reveal {
     });
   }
 
+  /** One piece of furniture bought on its own (a venue's table): it drops in, dust puffs as it lands, a sparkle. */
+  furniture(object: THREE.Object3D, at: Vec2): void {
+    const w = this.w;
+    // A fall and a small bounce, no squash: the group's origin is the carriage's, so scaling it would swing it about.
+    const y = object.position.y;
+    w.tweens.run(0.5, (t) => {
+      const fall = Math.min(1, t / 0.48);
+      const bounce = t > 0.48 ? Math.sin(((t - 0.48) / 0.52) * Math.PI) * 0.06 : 0;
+      object.position.y = y + 0.7 * (1 - fall * fall) + bounce;
+    }, { complete: () => { object.position.y = y; } });
+    w.tweens.delay(0.24, () => {
+      w.particles.emit('dust', at.x, FLOOR_Y + 0.3, at.z, 10, 0.45);
+      w.particles.emit('sparkle', at.x, FLOOR_Y + 0.7, at.z, 12, 0.5);
+    });
+  }
+
   /** Drops something in from a little above with a squash on landing (furniture arriving). */
   private dropIn(object: THREE.Object3D): void {
     const y = object.position.y;

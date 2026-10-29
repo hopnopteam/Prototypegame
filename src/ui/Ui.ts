@@ -1,6 +1,6 @@
 import type { ObjectiveDef } from '../config/objectives';
 import * as THREE from 'three';
-import type { ProductDef } from '../config/content';
+import { STATIONS, type ProductDef } from '../config/content';
 import { RIVALS_ENABLED, type InterviewDef, type WhistleDef } from '../config/press';
 import { MONETIZATION_ENABLED } from '../config/economy';
 import { damp, formatClock, formatNumber } from '../core/math';
@@ -15,6 +15,7 @@ import type { NewsItem } from '../save/SaveData';
 import { forgetSize, h, icon, replayClass, setText, setVisible, sizeOf, watchTextFit } from './dom';
 import type { IconName } from './icons';
 import { PressScreens } from './PressScreens';
+import { drawPostcard, postcardFontsReady } from './postcard';
 import { drawOwnerPortrait, ownerPortrait } from './portraits';
 import { Screens } from './Screens';
 import { TrainMapUi } from './TrainMapUi';
@@ -107,6 +108,10 @@ const RESULT_HEADLINES: Record<0 | 1 | 2 | 3, [string, string]> = {
   2: ['Okay stop', 'Okay stop'],
   3: ['Great stop!', 'All aboard!'],
 };
+/** A new postcard's stamp waits for the arrival banner, then shows this long beside the toasts. */
+const POSTCARD_TOAST_DELAY_MS = 2900;
+const POSTCARD_TOAST_SECONDS = 3.6;
+const POSTCARD_TOAST_SCALE = 0.34;
 /** Stars and notes in flight at once, at most (beyond this a reward just counts in). */
 const MAX_FLYERS = 12;
 /** Seconds a queued announcement may wait (behind another one or an open sheet) before it is dropped. */
@@ -1220,15 +1225,45 @@ export class Ui implements GameUi {
       h('span.st', {}, icon('star', 12), formatNumber(row.stars)));
   }
 
-  stationBanner(title: string, extra?: IconName): void {
+  stationBanner(title: string, stationId?: string): void {
+    // Session 43 (owner: "the image logo below looks default and too weird, remove it… more exciting and colorful,
+    // different for each one"): the name alone on a ribbon in the station's own colours and motif.
+    const sign = STATIONS.find((s) => s.id === stationId)?.sign;
     this.announce(BANNER_MAX_DELAY, () => {
-      const el = h('div.banner', { role: 'status' }, h('div.sign', { text: title }), extra ? h('div.sub', {}, icon(extra, 22)) : null);
+      const el = h(`div.banner${sign ? `.station.motif-${sign.motif}` : ''}` as 'div', { role: 'status' }, h('div.sign', { text: title }));
+      if (sign) {
+        el.style.setProperty('--st-from', sign.from);
+        el.style.setProperty('--st-to', sign.to);
+        el.style.setProperty('--st-trim', sign.trim);
+        el.style.setProperty('--st-lip', darken(sign.to, 0.42));
+      }
       this.clearCards();
       this.root.appendChild(el);
       this.holdCard(2700);
       window.setTimeout(() => el.remove(), 2700);
       return 2.2;
     });
+  }
+
+  postcardToast(stationId: string): void {
+    const index = STATIONS.findIndex((s) => s.id === stationId);
+    if (index < 0) return;
+    const station = STATIONS[index];
+    // After the arrival banner has had the screen to itself.
+    // The stamp's serif is loaded while the banner shows (canvas text never waits for a font).
+    const fonts = postcardFontsReady();
+    window.setTimeout(() => void fonts.then(() => {
+      const canvas = h('canvas', {});
+      // A third of the album's size is plenty for a 34 px stamp, and quick to draw in the middle of a stop.
+      drawPostcard(canvas, station.postcard, { name: station.name, kicker: 'Countryside Line', number: index + 1, value: 10 + index * 5 }, POSTCARD_TOAST_SCALE);
+      const el = h('button.toast.stamp-toast', { 'aria-label': 'New postcard', onclick: () => this.screens.album() }, canvas, h('span', { text: 'New postcard' }));
+      this.toastLayer.appendChild(el);
+      this.rectTimer = 0;
+      window.setTimeout(() => {
+        el.classList.add('out');
+        window.setTimeout(() => el.remove(), 320);
+      }, POSTCARD_TOAST_SECONDS * 1000);
+    }), POSTCARD_TOAST_DELAY_MS);
   }
 
   celebrate(title: string, subtitle: string | null, iconName: IconName): void {
@@ -1266,7 +1301,6 @@ export class Ui implements GameUi {
    */
   showResult(result: StationResult): void {
     this.dismissResult();
-    const chip = (name: IconName | null, text: string, cls = ''): HTMLElement => h(`span${cls}` as 'span', {}, name ? icon(name, 16) : null, text);
     // Session 28 (owner: "if we get 1 star or 2 it should say… the negative, middle or average through words"): the
     // words follow the stars: three a good stop, two an average one, one a poor one (its card a little red).
     const rated = Number.isFinite(result.rating) ? Math.max(0, Math.min(3, Math.round(result.rating))) : 3;
@@ -1278,32 +1312,34 @@ export class Ui implements GameUi {
       stars.appendChild(star);
     }
     const due = result.boarded + result.waiting;
-    // One row of numbers: who boarded, the bags, anyone with no bed (demand for cabins, never a miss), the takings, the
-    // bonus and the streak.
-    const numbers = h('div.rows', {},
-      chip('person', `${result.boarded}/${due}`),
-      result.luggageTotal > 0 ? chip('luggage', `${result.luggageLoaded}/${result.luggageTotal}`) : null,
-      result.leftBehind > 0 ? chip('noroom', String(result.leftBehind), '.warn') : null,
-      chip('cash', `+${formatNumber(result.earned)}`),
-      result.clean ? chip('chest', `+${formatNumber(result.bonusCash)}`, '.bonus') : null,
-      result.clean && result.streak >= 2 ? chip('bolt', `×${result.streak}`, '.streak') : null,
-    );
-    const missed = result.showMissed || result.bagsLeft > 0
-      ? h('div.rows', {},
-        result.showMissed ? chip(null, `${result.waiting} missed`, '.bad') : null,
-        result.showMissed ? chip('cash', `−${formatNumber(result.missedFare)}`, '.bad.lost') : null,
-        // Session 30: bags left behind, and the refund paid to their owners (taken, not just shown).
-        result.bagsLeft > 0 ? chip('luggage', `${result.bagsLeft} left`, '.bad') : null,
-        result.bagRefund > 0 ? chip('cash', `−${formatNumber(result.bagRefund)}`, '.bad') : null)
-      : null;
-    const el = h(`div.ticket.result${result.clean ? '.perfect' : ''}${rated <= 1 ? '.poor' : rated === 2 ? '.average' : ''}${result.showMissed || result.bagsLeft > 0 ? '.missed' : ''}` as 'div', {
+    // Session 43 (owner: "stars, how many bags and passengers left… still too confusing… simplify but not ambiguous"):
+    // two labelled tiles, each a count of what was due, green with a tick when it is all done, red with what it cost
+    // when not (the fares of travellers left on the platform, the refund for bags left behind); then what the stop
+    // earned and the bonus. Travellers with no bed are not on the card (demand for cabins, never a miss).
+    const tile = (name: IconName, label: string, done: number, of: number, cost: number): HTMLElement => {
+      const ok = done >= of;
+      return h(`div.res-tile${ok ? '.ok' : '.short'}` as 'div', {},
+        h('div.res-label', {}, icon(name, 14), label),
+        h('div.res-value', {}, h('b', { text: `${done}/${of}` }), ok ? icon('check', 15) : null),
+        !ok && cost > 0 ? h('div.res-cost', {}, icon('cash', 12), `−${formatNumber(cost)}`) : null);
+    };
+    // What the stop earned, with the bonus for a perfect stop under it (the streak is already in the bonus).
+    const earned = h('div.res-tile.earned', {},
+      h('div.res-label', {}, icon('cash', 14), 'Earned'),
+      h('div.res-value', {}, h('b', { text: `+${formatNumber(result.earned)}` })),
+      result.clean && result.bonusCash > 0 ? h('div.res-bonus', {}, icon('chest', 12), `+${formatNumber(result.bonusCash)}`) : null);
+    const tiles = h('div.res-tiles', {},
+      tile('person', 'Boarded', result.boarded, due, result.showMissed ? result.missedFare : 0),
+      result.luggageTotal > 0 ? tile('luggage', 'Bags', result.luggageLoaded, result.luggageTotal, result.bagRefund) : null,
+      earned);
+    const short = result.showMissed || result.bagsLeft > 0;
+    const el = h(`div.ticket.result${result.clean ? '.perfect' : ''}${rated <= 1 ? '.poor' : rated === 2 ? '.average' : ''}${short ? '.missed' : ''}` as 'div', {
       role: 'status',
       'aria-label': `${result.stationName}: ${result.boarded} of ${due} boarded, ${result.earned} earned`,
       onclick: () => this.dismissResult(),
     },
       h('div.res-head', {}, stars, h('h3', { text: headline })),
-      numbers,
-      missed,
+      tiles,
     );
     // The card replaces this stop's arrival banner if it is somehow still up (they share the middle column).
     this.root.querySelectorAll('.banner').forEach((b) => b.remove());
@@ -1384,4 +1420,11 @@ export class Ui implements GameUi {
   confirm(product: ProductDef, priceLabel: string): Promise<boolean> {
     return this.screens.mockStore(product, priceLabel);
   }
+}
+
+/** A colour darker by `amount` (0–1), for a banner's lip and tails. */
+function darken(hex: string, amount: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = (v: number): number => Math.round(v * (1 - amount));
+  return `#${((c(n >> 16) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
 }

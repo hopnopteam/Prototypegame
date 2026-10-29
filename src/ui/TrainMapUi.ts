@@ -20,10 +20,14 @@ interface Slot {
   key: string;
 }
 
+/** A new tile's slide-in takes 600 ms; the strip's ends are checked after it. */
+const EDGE_CHECK_MS = 700;
+
 /**
  * Quick travel along the bottom of the screen (session 40, owner: "fast travel in the bottom… scrolling horizontally…
- * doesn't take much space… easy to navigate… fills as the train goes… scrolled easily"): one slim strip, the
- * locomotive at its left and a tile per carriage after it in train order (emblem, name, a badge when it needs you),
+ * doesn't take much space… easy to navigate… fills as the train goes… scrolled easily"): one slim strip of tiles,
+ * one per carriage in train order (emblem, name, a badge when it needs you); session 43 (owner: "clipping issues…
+ * clean and simple"): no separate locomotive, and the badge and the lit ring drawn inside each tile,
  * a new tile sliding in with each coupling. The tile you are in is lit and kept in view; swipe the strip to see the
  * rest of a long train, tap a tile and the conductor dashes there. The game never pauses for it.
  */
@@ -37,13 +41,26 @@ export class TrainMapUi {
 
   constructor(private readonly game: () => Game | undefined) {
     this.list = h('div.cars', { role: 'list' });
-    this.el = h('nav.trainmap', { 'aria-label': 'Quick travel' }, h('div.loco', { 'aria-hidden': 'true' }), this.list);
+    this.el = h('nav.trainmap', { 'aria-label': 'Quick travel' }, this.list);
     // A swipe of the strip is the player looking along the train: it is not pulled back to the current carriage
     // until they let it be.
     const hold = (): void => { this.handScrollUntil = performance.now() + HAND_SCROLL_HOLD_MS; };
     this.el.addEventListener('pointerdown', hold, { passive: true });
     this.el.addEventListener('wheel', hold, { passive: true });
-    this.el.addEventListener('scroll', () => { if (performance.now() < this.handScrollUntil) hold(); }, { passive: true });
+    // Scroll events do not bubble: they are the list's. The left edge fades only once the strip is scrolled (at rest
+    // the first tile sits clear of it).
+    this.list.classList.add('at-start', 'at-end');
+    this.list.addEventListener('scroll', () => {
+      if (performance.now() < this.handScrollUntil) hold();
+      this.edges();
+    }, { passive: true });
+  }
+
+  /** Each end of the strip fades only while there is more train beyond it. */
+  private edges(): void {
+    const l = this.list;
+    l.classList.toggle('at-start', l.scrollLeft < 4);
+    l.classList.toggle('at-end', l.scrollLeft + l.clientWidth >= l.scrollWidth - 4);
   }
 
   update(dt: number): void {
@@ -90,6 +107,7 @@ export class TrainMapUi {
     const strip = this.list;
     const left = slot.button.offsetLeft - (strip.clientWidth - slot.button.offsetWidth) / 2;
     strip.scrollTo({ left: Math.max(0, left), behavior: smooth ? 'smooth' : 'auto' });
+    this.edges();
   }
 
   private addSlot(index: number): void {
@@ -107,6 +125,8 @@ export class TrainMapUi {
     }, emblem, name, need);
     this.list.appendChild(button);
     this.slots.push({ button, emblem, name, need, key: '' });
+    // The strip may now run past its right end (after the new tile has slid in).
+    window.setTimeout(() => this.edges(), EDGE_CHECK_MS);
     // A carriage just coupled on: its tile slides into view at the end of the strip.
     if (index > 0) {
       button.classList.add('new');

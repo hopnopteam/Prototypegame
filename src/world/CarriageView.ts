@@ -1133,6 +1133,11 @@ export class CarriageView {
     if (!open && this.venueDirt[group]) this.venueDirt[group].visible = false;
   }
 
+  /** A venue group's furniture (a table and its chairs), for its arrival when bought. */
+  venueGroupObject(group: number): THREE.Object3D | undefined {
+    return this.venueGroups[group];
+  }
+
   /** The plates a diner left on their table (until it is cleared). */
   setVenueDirty(group: number, dirty: boolean): void {
     const g = this.venueDirt[group];

@@ -272,7 +272,10 @@ export class Venues {
     if (animate && view) {
       const g = venue.layout.groups[group];
       const p = venue.world(g.tile);
-      this.w.particles.emit('sparkle', p.x, FLOOR_Y + 0.6, p.z, 14, 0.5);
+      // Session 43: the table and its chairs drop into place with a bounce and a puff of dust (they used to blink in).
+      const object = view.venueGroupObject(group);
+      if (object) this.w.reveal.furniture(object, p);
+      else this.w.particles.emit('sparkle', p.x, FLOOR_Y + 0.6, p.z, 14, 0.5);
       this.w.audio.play('pop');
     }
   }
@@ -517,7 +520,7 @@ export class Venues {
     this.leave(guest);
   }
 
-  /** What they had is paid for at the table (dining) or the venue's takings. */
+  /** What they had is paid for, straight into the wallet. */
   private pay(guest: Guest): number {
     const w = this.w;
     const outing = guest.outing;
@@ -525,8 +528,9 @@ export class Venues {
     const { venue } = outing;
     const item = VENUES[venue.kind].products[0]?.item ?? 'latte';
     const amount = venue.priceFor(item, guest);
-    if (venue.kind === 'dining' || venue.kind === 'cafe') w.cash.payDirect(amount, guest.pos.x, guest.pos.z, `venue:${venue.kind}`);
-    else w.cash.add(venue.pileId, amount, tmp.set(guest.pos.x, FLOOR_Y + 1.0, guest.pos.z));
+    // Session 43 (owner: "get paid when customer is sitting on the table and get their order… do it for both
+    // dinner, bar, cafe, lounge"): every venue pays straight into the wallet as the order is handed over.
+    w.cash.payDirect(amount, guest.pos.x, guest.pos.z, `venue:${venue.kind}`);
     outing.paid = true;
     if (venue.kind === 'bar') this.addParty(venue);
     return amount;
@@ -661,7 +665,7 @@ export class Venues {
     } else {
       // The dome's rope: shown in (a small ticket).
       const amount = venue.priceFor('usher', guest);
-      w.cash.add(venue.pileId, amount, tmp.set(guest.pos.x, FLOOR_Y + 1.1, guest.pos.z));
+      w.cash.payDirect(amount, guest.pos.x, guest.pos.z, `venue:${venue.kind}`);
       this.served(venue, guest, 'usher', amount, actor);
     }
     venue.queue.shift();
@@ -688,21 +692,21 @@ export class Venues {
       if (item === 'popcorn') {
         // The cinema: popcorn for the film (paid now; they stay for the rest of it).
         const amount = venue.priceFor('popcorn', guest);
-        w.cash.add(venue.pileId, amount, tmp.set(seat.sit.x, FLOOR_Y + 1.1, seat.sit.z));
+        w.cash.payDirect(amount, seat.sit.x, seat.sit.z, `venue:${venue.kind}`);
         this.served(venue, guest, item, amount, actor);
         guest.view.act('sip', 4);
       } else if (item === 'blanket') {
         // The dome: a blanket for the view (a tip now; they stay for the rest of it).
         const amount = venue.priceFor('blanket', guest);
-        w.cash.add(venue.pileId, amount, tmp.set(seat.sit.x, FLOOR_Y + 1.1, seat.sit.z));
+        w.cash.payDirect(amount, seat.sit.x, seat.sit.z, `venue:${venue.kind}`);
         this.served(venue, guest, item, amount, actor);
         guest.view.act('hug', w.econ.guests.enjoySeconds);
       } else {
         seat.state = 'consuming';
         seat.timer = 0;
         w.guests.setOutingState(guest, 'consuming');
-        // Session 38: dinner is paid as it is served, straight into the wallet (a drink at the bar is still paid at the end).
-        const amount = venue.kind === 'dining' ? this.pay(guest) : 0;
+        // Session 38: dinner is paid as it is served, straight into the wallet; session 43: a drink at the bar too.
+        const amount = venue.kind === 'dining' || venue.kind === 'bar' ? this.pay(guest) : 0;
         this.served(venue, guest, item, amount, actor);
         guest.view.act('sip', VENUES[venue.kind].consumeSeconds);
       }
@@ -768,7 +772,7 @@ export class Venues {
       const guest = seat.guest;
       if (!guest || seat.state !== 'consuming' || !guest.outing?.seated) continue;
       const amount = venue.priceFor('scenic', guest);
-      w.cash.add(venue.pileId, amount, tmp.set(seat.sit.x, FLOOR_Y + 1.2, seat.sit.z));
+      w.cash.payDirect(amount, seat.sit.x, seat.sit.z, `venue:${venue.kind}`);
       w.ui.floatIcon('binoculars', seat.sit.x, FLOOR_Y + 1.9, seat.sit.z, 'star');
       w.particles.emit('sparkle', seat.sit.x, FLOOR_Y + 1.4, seat.sit.z, 6, 0.3);
       total += amount;
@@ -827,7 +831,7 @@ export class Venues {
       const outing = guest?.outing;
       if (!guest || !outing?.seated || seat.views !== 1) continue;
       const amount = venue.priceFor('ticket', guest);
-      w.cash.add(venue.pileId, amount, tmp.set(seat.sit.x, FLOOR_Y + 1.2, seat.sit.z));
+      w.cash.payDirect(amount, seat.sit.x, seat.sit.z, `venue:${venue.kind}`);
       w.ui.floatIcon('film', seat.sit.x, FLOOR_Y + 1.9, seat.sit.z, 'star');
       outing.paid = true;
       total += amount;
@@ -1003,18 +1007,20 @@ export class Venues {
     const seat = venue.waitingFor('meal')[0];
     const chef = venue.staffCount('chef') > 0;
     if (seat && seat.serve && (venue.pass > 0 || m.stack.has('meal') || !chef)) {
-      seat.servedBy = m;
       const steps: VenueStep[] = [];
       if (!m.stack.has('meal')) {
         steps.push({ kind: 'do', fn: () => (m.wantItems = { meal: 1 }) });
         // Plates from the pass (the chef's), or cooked at the range when there is no chef.
         const from = venue.pass > 0 || chef ? (venue.layout.pass ? venue.world(venue.layout.pass) : null) : venue.stationFor('meal');
+        // Session 43: the seat is claimed only once the task will run (it was claimed first, and a waiter with nowhere
+        // to fetch from left it claimed for ever: nobody else, the conductor included, would serve that table).
         if (!from) return null;
         steps.push({ kind: 'goto', target: from });
         steps.push({ kind: 'stand', until: () => m.stack.has('meal') || !seat.guest, timeout: chef ? 6 : venue.makeSeconds('meal') / Math.max(0.3, m.workMultiplier) + 3 });
       }
       steps.push({ kind: 'goto', target: seat.serve });
       steps.push({ kind: 'stand', until: () => seat.order !== 'meal' || !m.stack.has('meal'), timeout: 4 });
+      seat.servedBy = m;
       return { label: 'serve', icon: 'meal', steps, release: () => { if (seat.servedBy === m) seat.servedBy = null; m.wantItems = {}; } };
     }
     const dirty = venue.seats.find((s) => s.state === 'dirty' && s.serve && !venue.clearing[s.group]);

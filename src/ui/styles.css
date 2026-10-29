@@ -500,12 +500,15 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 .upgrade .pip { width: 16px; height: 8px; border-radius: 3px; border: 1.5px solid var(--ink); background: var(--paper-2); }
 .upgrade .pip.on { background: var(--mustard); }
 
-.postcards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.postcard { position: relative; aspect-ratio: 3 / 2; max-width: 100%; border-radius: 10px; border: var(--line); overflow: hidden; background: var(--paper-2); }
+.postcards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; padding: 4px 2px 6px; }
+/* Session 43: stamps, not tiles: the canvas is the whole stamp (perforations cut out), a soft shadow under it. */
+.postcard { display: block; padding: 0; margin: 0; border: 0; background: none; aspect-ratio: 4 / 5; max-width: 100%; cursor: pointer; filter: drop-shadow(0 2px 3px rgba(60, 40, 20, 0.35)); transform: rotate(-1.2deg); }
+.postcard:nth-child(2n) { transform: rotate(1.1deg); }
 .postcard canvas:not(.ico) { width: 100%; height: 100%; display: block; }
-.postcard .label { position: absolute; left: 6px; bottom: 5px; right: 6px; font-weight: 800; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cream); text-shadow: 0 1px 0 var(--ink), 1px 0 0 var(--ink), -1px 0 0 var(--ink), 0 -1px 0 var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.postcard.locked { display: grid; place-items: center; background: repeating-linear-gradient(135deg, var(--paper-2) 0 10px, #E2D0AC 10px 20px); }
-.postcard.locked span { font-weight: 800; opacity: 0.5; font-size: 18px; }
+.postcard.locked { cursor: default; filter: drop-shadow(0 1px 2px rgba(60, 40, 20, 0.2)); opacity: 0.75; }
+.postcard-big { width: min(100%, 300px); margin: 4px auto 8px; filter: drop-shadow(0 3px 5px rgba(60, 40, 20, 0.4)); }
+.postcard-big canvas { width: 100%; display: block; }
+.postcard-blurb { text-align: center; font-style: italic; }
 
 .calendar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .day { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; border-radius: 10px; background: var(--cream); border: 2px solid var(--ink); font-size: 12px; font-weight: 800; letter-spacing: 0.04em; }
@@ -889,12 +892,14 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
   animation: spin 14s linear infinite; pointer-events: none;
 }
 .celebrate .card {
-  padding: 38px 26px 15px; background: linear-gradient(#86D8FF, #45ADF0 50%, #2B80D0); border: 4px solid var(--ink); border-radius: 18px;
-  box-shadow: 0 5px 0 #1C4E86, 0 9px 0 var(--ink), 0 16px 24px rgba(0, 0, 0, 0.35), inset 0 4px 0 rgba(255, 255, 255, 0.55), inset 0 -6px 0 rgba(15, 40, 90, 0.3);
+  padding: 38px 26px 15px; border: 4px solid var(--ink); border-radius: 18px;
+  /* Session 43 (owner: "a shadow is overlapping them"): the sheen was a layer drawn over the card, so it washed across
+     the medallion's lower half; it is now the card's own top background layer, under the name and the medallion. */
+  background: linear-gradient(rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 42%), linear-gradient(#86D8FF, #45ADF0 50%, #2B80D0);
+  box-shadow: 0 5px 0 #1C4E86, 0 9px 0 var(--ink), inset 0 4px 0 rgba(255, 255, 255, 0.55), inset 0 -6px 0 rgba(15, 40, 90, 0.3);
 }
-.celebrate .card::after { content: ''; position: absolute; left: 10px; right: 10px; top: 7px; height: 34%; border-radius: 12px 12px 50% 50% / 12px 12px 14px 14px; background: linear-gradient(rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0)); pointer-events: none; }
 .celebrate .ico {
-  top: -34px; width: 50px; height: 50px; padding: 6px; border-width: 4px;
+  top: -34px; width: 50px; height: 50px; padding: 6px; border-width: 4px; z-index: 2;
   background: radial-gradient(circle at 35% 30%, #FFFFFF, #FFEBB0 45%, #FFC93A 80%, #E79A1C); box-shadow: 0 4px 0 var(--ink), inset 0 -3px 0 rgba(160, 90, 10, 0.35);
 }
 .celebrate .big { color: #FFFFFF; font-size: clamp(20px, 6.6vw, 28px); letter-spacing: 0.06em; padding-left: 0.06em; text-shadow: var(--outline-num); position: relative; z-index: 1; }
@@ -916,10 +921,9 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 .trainmap { position: absolute; z-index: 6; left: var(--gutter); right: var(--gutter); bottom: calc(var(--safe-bottom) + var(--strip-gap)); height: var(--strip-h);
   display: flex; align-items: center; gap: 6px; padding: 0 6px; box-sizing: border-box; border-radius: 16px; pointer-events: auto;
   background: linear-gradient(rgba(30, 48, 80, 0.82), rgba(20, 33, 58, 0.82)); border: 2.5px solid var(--ink); box-shadow: 0 4px 0 var(--ink), inset 0 2px 0 rgba(255, 255, 255, 0.18); }
-.trainmap .loco { flex: none; width: 26px; height: 22px; border-radius: 11px 6px 4px 4px; background: linear-gradient(#5A86BD, #2C4A6E); border: 2px solid var(--ink); box-sizing: border-box; box-shadow: 0 2px 0 var(--ink); }
 .trainmap .cars { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 6px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity;
   scrollbar-width: none; -webkit-overflow-scrolling: touch; touch-action: pan-x; overscroll-behavior-x: contain;
-  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), #0000); mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), #0000); padding-right: 14px; }
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), #0000); mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), #0000); padding: 0 14px 2px 2px; box-sizing: border-box; }
 .trainmap .cars::-webkit-scrollbar { display: none; }
 .trainmap .car { position: relative; flex: none; scroll-snap-align: center; width: 62px; height: 40px; padding: 2px 3px 0; box-sizing: border-box; border-radius: 10px; border: 2px solid var(--ink); cursor: pointer;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; color: var(--ink);
@@ -942,3 +946,74 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 .title-screen .trainmap, .in-intro .trainmap { visibility: hidden; }
 .in-tutorial .trainmap { opacity: 0.35; pointer-events: none; filter: saturate(0.4); }
 .hud-hidden .trainmap { display: none !important; }
+
+/* Session 43: each station's arrival banner in its own colours (`sign` in content.ts): a glossy ribbon with
+   swallowtail ends, a fine inner line in the trim colour, the station's motif printed faintly over the colour, two
+   diamonds either side of the name. Name only (the postcard's icon under it is gone). */
+.banner.station { padding: 0 6px; }
+.banner.station .sign {
+  position: relative; z-index: 1; padding: 13px 40px 12px; border: 4px solid var(--ink); border-radius: 14px; color: #FFFFFF; text-shadow: var(--outline-num);
+  background: linear-gradient(rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0) 46%), var(--st-motif, none), linear-gradient(var(--st-from), var(--st-to));
+  background-size: auto, var(--st-motif-size, auto), auto;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.05), inset 0 0 0 4px var(--st-trim), 0 5px 0 var(--st-lip, #13243A), 0 9px 0 var(--ink);
+}
+.banner.station .sign::before, .banner.station .sign::after {
+  content: ''; position: absolute; top: 50%; width: 9px; height: 9px; margin-top: -6px; background: var(--st-trim); border: 2px solid var(--ink); transform: rotate(45deg); border-radius: 2px;
+}
+.banner.station .sign::before { left: 15px; }
+.banner.station .sign::after { right: 15px; }
+.banner.station::before, .banner.station::after {
+  content: ''; position: absolute; z-index: 0; top: 16px; width: 34px; height: calc(100% - 14px); background: var(--st-lip, #13243A);
+}
+.banner.station::before { left: -16px; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 34% 50%); }
+.banner.station::after { right: -16px; clip-path: polygon(0 0, 100% 0, 66% 50%, 100% 100%, 0 100%); }
+.banner.motif-rays { --st-motif: repeating-conic-gradient(from 0deg at 50% 130%, rgba(255, 255, 255, 0.17) 0 5deg, rgba(255, 255, 255, 0) 5deg 10deg); }
+.banner.motif-stripes { --st-motif: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.15) 0 7px, rgba(255, 255, 255, 0) 7px 14px); }
+.banner.motif-dots { --st-motif: radial-gradient(rgba(255, 255, 255, 0.24) 2px, rgba(255, 255, 255, 0) 2.6px); --st-motif-size: 12px 12px; }
+.banner.motif-chevrons { --st-motif: linear-gradient(135deg, rgba(255, 255, 255, 0.16) 25%, rgba(255, 255, 255, 0) 25%), linear-gradient(225deg, rgba(255, 255, 255, 0.16) 25%, rgba(255, 255, 255, 0) 25%); --st-motif-size: 18px 18px; }
+.banner.motif-chevrons .sign { background: linear-gradient(rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0) 46%), linear-gradient(135deg, rgba(255, 255, 255, 0.16) 25%, rgba(255, 255, 255, 0) 25%) -9px 0 / 18px 18px, linear-gradient(225deg, rgba(255, 255, 255, 0.16) 25%, rgba(255, 255, 255, 0) 25%) -9px 0 / 18px 18px, linear-gradient(var(--st-from), var(--st-to)); }
+
+/* A new postcard: its stamp beside two words, sliding in with the toasts; tap for the album. */
+.toast.stamp-toast { border: 0; padding: 5px 13px 5px 7px; font: inherit; font-weight: 700; font-size: 14px; color: var(--cream); background: var(--ink); cursor: pointer; }
+.toast.stamp-toast canvas { width: 34px; height: 42.5px; transform: rotate(-5deg); filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
+
+/* Session 43: the station result, simplified: the stars and the headline, then three labelled tiles in one row (who
+   boarded, the bags, what the stop earned), each a big number: green with a tick when all was done, red with what
+   it cost when not, the earnings with the perfect stop's bonus under them. It may use the whole width under the top
+   bar (nothing sits on the left there since the train map moved to the bottom) because it stays shorter than the
+   gap above the right rail, and clear of a title card below it on the smallest phone. */
+.ticket.result { box-sizing: border-box; gap: 4px; padding: 5px 8px 6px; width: max-content; max-width: calc(100% - 2 * var(--gutter)); left: var(--gutter); right: var(--gutter); }
+.ticket.result .res-tiles { display: flex; gap: 5px; }
+.ticket.result .res-tile { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 2px 6px 3px; border-radius: 9px; border: 2px solid var(--ink); background: #FFFFFF; box-shadow: 0 2px 0 var(--ink); }
+.ticket.result .res-label { display: flex; align-items: center; gap: 3px; font-size: 10px; line-height: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #5E6475; white-space: nowrap; }
+.ticket.result .res-label .ico { width: 14px; height: 14px; }
+.ticket.result .res-value { display: flex; align-items: center; gap: 3px; font-size: 19px; line-height: 21px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ticket.result .res-value .ico { width: 15px; height: 15px; }
+.ticket.result .res-tile.ok { background: linear-gradient(#F2FFE8, #DDF6CB); }
+.ticket.result .res-tile.ok .res-value b { color: #2E8A1E; }
+.ticket.result .res-tile.short { background: linear-gradient(#FFF3F0, #FADAD3); }
+.ticket.result .res-tile.short .res-value b { color: #C2392F; }
+.ticket.result .res-tile.earned { background: linear-gradient(#FFFDF4, #F6EBC8); }
+.ticket.result .res-cost, .ticket.result .res-bonus { display: flex; align-items: center; gap: 2px; font-size: 11px; line-height: 13px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ticket.result .res-cost { color: #C2392F; }
+.ticket.result .res-cost .ico { filter: grayscale(0.5); }
+.ticket.result .res-bonus { color: #8A5A00; }
+.ticket.result .res-cost .ico, .ticket.result .res-bonus .ico { width: 12px; height: 12px; }
+
+/* Session 43 (owner: "the fast travel bar… clipping issues… make sure it's clean and simple"): the strip scrolls
+   sideways, which clips anything outside it, so nothing reaches outside a tile: the need badge sits in the tile's
+   corner and the lit tile is ringed inside its own border. */
+.trainmap { padding: 0 4px; }
+.trainmap .car.here { border-color: #8A5A00; box-shadow: inset 0 0 0 2px #FFD54A, 0 2px 0 #3B5F86, 0 3px 0 var(--ink); }
+.trainmap .need { top: 2px; right: 2px; width: 16px; height: 16px; border-width: 1.5px; }
+.trainmap .need .ico { width: 11px; height: 11px; }
+/* Both ends fade, so a tile scrolled half out of the strip melts away instead of being cut off at a hard edge; the
+   first tile rests clear of the left fade. */
+.trainmap .cars { --fade-l: 24px; --fade-r: 24px; padding-left: 8px; -webkit-mask-image: linear-gradient(90deg, #0000, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), #0000); mask-image: linear-gradient(90deg, #0000, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), #0000); scroll-padding: 0 22px; }
+.trainmap .cars.at-start { --fade-l: 0px; }
+.trainmap .cars.at-end { --fade-r: 0px; }
+.trainmap { padding: 0 2px; }
+/* The album's stamps lie on kraft paper, so their perforations read (the sheet itself is cream, like the stamps). */
+.postcards { background: linear-gradient(#B98F62, #A57B50); border-radius: 12px; padding: 12px 10px 14px; box-shadow: inset 0 2px 6px rgba(60, 35, 10, 0.35); }
+.postcard-big { padding: 12px; border-radius: 12px; background: linear-gradient(#B98F62, #A57B50); box-shadow: inset 0 2px 6px rgba(60, 35, 10, 0.35); box-sizing: border-box; filter: none; }
+.postcard-big canvas { filter: drop-shadow(0 3px 4px rgba(40, 25, 10, 0.45)); }

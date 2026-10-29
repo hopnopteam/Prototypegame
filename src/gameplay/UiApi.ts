@@ -15,8 +15,10 @@ export interface UiApi {
   /** An objective was just completed: the banner celebrates and its reward flies to the counters. */
   objectiveDone(def: ObjectiveDef): void;
   toast(text: string, icon?: IconName): void;
-  /** The station's name on arrival; an optional icon beside it (a new postcard). */
-  stationBanner(title: string, extra?: IconName): void;
+  /** The station's name on arrival, in that station's own colours (session 43: name only). */
+  stationBanner(title: string, stationId?: string): void;
+  /** A station's postcard was collected: its stamp slides in beside the toasts (tap for the album). */
+  postcardToast(stationId: string): void;
   showResult(result: StationResult): void;
   /** A passenger's reaction, as an icon in a speech bubble; 'bad' ones (grumbles) get a sterner bubble. */
   reaction(icon: IconName, x: number, y: number, z: number, tone?: 'good' | 'bad', crossed?: boolean): void;

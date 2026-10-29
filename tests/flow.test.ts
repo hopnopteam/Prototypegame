@@ -98,3 +98,22 @@ describe('Flow', () => {
     expect(prologue.lastCallSeconds).toBeLessThanOrEqual(ECONOMY.journey.lastCallSeconds);
   });
 });
+
+describe('venue seats', () => {
+  // Session 43 (owner: "table upgrades should happen one by one not randomly pop in"): a venue's tables, stools and
+  // rows are one chain, so only one of them is ever on offer at a time.
+  it('come one at a time in each venue', async () => {
+    const { CARRIAGE_CATALOGUE } = await import('../src/config/content');
+    for (const def of Object.values(CARRIAGE_CATALOGUE)) {
+      const seats = def.unlocks.filter((u) => u.kind === 'seat');
+      if (seats.length < 2) continue;
+      const keys = new Set(seats.map((u) => u.key));
+      const roots = seats.filter((u) => !(u.requires ?? []).some((r) => keys.has(r)));
+      expect(roots.map((u) => u.key), `${def.type} first seat`).toHaveLength(1);
+      for (const u of seats) {
+        const next = seats.filter((o) => (o.requires ?? []).includes(u.key));
+        expect(next.length, `${def.type} after ${u.key}`).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+});

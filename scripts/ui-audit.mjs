@@ -75,7 +75,7 @@ const auditPage = () => {
     }
   }
   // Clipped text: anything whose content is wider than its box.
-  const textSelectors = '.livery .buy, .name-chip, .answer .say, .award .info b, .tile-tag b, .masthead .paper-name, .pill .val, .journey .clock, .chip .val, .chip button, .ticket h3, .objective .obj-text, .objective .obj-reward, .objective .obj-count, .ticket .rows span, .banner .sign, .celebrate .big, .celebrate .small, .toast, .btn, .sheet header h2, .product .info b, .product .buy, .gem-card, .gem-card small, .quest .info, .quest button, .upgrade .info b, .postcard .label, .day, .toggle';
+  const textSelectors = '.livery .buy, .name-chip, .answer .say, .award .info b, .tile-tag b, .masthead .paper-name, .pill .val, .journey .clock, .chip .val, .chip button, .ticket h3, .objective .obj-text, .objective .obj-reward, .objective .obj-count, .ticket .rows span, .res-label, .res-value b, .res-cost, .res-bonus, .stamp-toast span, .banner .sign, .celebrate .big, .celebrate .small, .toast, .btn, .sheet header h2, .product .info b, .product .buy, .gem-card, .gem-card small, .quest .info, .quest button, .upgrade .info b, .postcard-blurb, .day, .toggle';
   document.querySelectorAll(textSelectors).forEach((el) => {
     if (!visible(el)) return;
     if (el.scrollWidth > el.clientWidth + 1) issues.push(`clipped text in ${el.className || el.tagName}: "${el.textContent.trim().slice(0, 40)}" (${el.scrollWidth}>${el.clientWidth})`);
@@ -147,7 +147,7 @@ for (const [width, height] of SIZES) {
     g.monetization.offers = [{ id: 'holdTheTrain', icon: 'hold', label: '+15s', detail: 'Hold the train', gemCost: 5 }];
     g.ui.showResult({ stationName: 'Larkspur Halt', boarded: 7, waiting: 0, alighted: 6, tips: 1234, luggageLoaded: 12, luggageTotal: 12, stars: 99, clean: true, bonusCash: 999 });
     g.ui.toast('Quest done', 'quest');
-    g.ui.stationBanner('Larkspur Halt', 'album');
+    g.ui.stationBanner('Larkspur Halt', 'larkspur-halt');
     // A long train so the train map is up.
     for (const type of ['bathroom', 'supply', 'luggage', 'sleeper']) { g.train.coupleNext(type); g.simulate(3.5); }
   });

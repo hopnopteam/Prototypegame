@@ -8,23 +8,82 @@ import type { ClassId } from './classes';
  * seasonal lines and collaborations can be added without touching systems (§13).
  */
 
+/** The scene a station's postcard paints (session 43: vintage stamps, `ui/postcard.ts`). */
+export type PostcardScene = 'mill' | 'ford' | 'fields' | 'wren' | 'oak' | 'thistle' | 'ridge' | 'halt';
+
+export interface PostcardArt {
+  scene: PostcardScene;
+  /** The stamp's ink: the big serif name, the frame and the small lettering. */
+  ink: string;
+  /** Sky from the top of the picture to the horizon. */
+  sky: [string, string];
+  /** Land from far (hazy) to near. */
+  land: [string, string, string];
+  /** The scene's own colour (the mill's roof, the barley, the thistles, the larkspur…). */
+  accent: string;
+  /** A few words along the stamp's foot. */
+  motto: string;
+}
+
+/** The arrival banner's own colours (session 43, owner: "more exciting and colourful, different for each one"). */
+export interface StationSign {
+  /** Ribbon gradient, top to bottom. */
+  from: string;
+  to: string;
+  /** The inner line and the end flourishes. */
+  trim: string;
+  motif: 'rays' | 'stripes' | 'dots' | 'chevrons';
+}
+
 export interface StationDef {
   id: string;
   name: string;
-  /** Postcard art palette: sky top, sky bottom, hills. */
-  postcard: [string, string, string];
+  postcard: PostcardArt;
+  sign: StationSign;
   blurb: string;
 }
 
 export const STATIONS: StationDef[] = [
-  { id: 'millbrook', name: 'Millbrook', postcard: ['#F7C873', '#FBE7B5', '#7FA54A'], blurb: 'A mill, a brook, and the best scones on the line.' },
-  { id: 'hazelford', name: 'Hazelford', postcard: ['#9CC7E0', '#E4F0E8', '#6E9A45'], blurb: 'Hazel trees and a ford nobody has crossed since 1908.' },
-  { id: 'barley-cross', name: 'Barley Cross', postcard: ['#F2B45E', '#F9DFA6', '#C9A445'], blurb: 'Golden fields as far as the tea gets cold.' },
-  { id: 'wrenfield', name: 'Wrenfield', postcard: ['#E7A07A', '#F7D8B8', '#5F8E4E'], blurb: 'Famous for wrens. The wrens are unaware.' },
-  { id: 'oakhollow', name: 'Oakhollow', postcard: ['#8FB4C9', '#DCE9DA', '#4C7A43'], blurb: 'An oak so old it has its own timetable.' },
-  { id: 'thistledown', name: 'Thistledown', postcard: ['#B79BC9', '#EADDEB', '#6E8F57'], blurb: 'Purple hills and one very proud goat.' },
-  { id: 'pennyridge', name: 'Pennyridge', postcard: ['#F0C27B', '#FBEBCB', '#8A9E4E'], blurb: 'Where the ridge is lovely and the pennies are lucky.' },
-  { id: 'larkspur-halt', name: 'Larkspur Halt', postcard: ['#7F9CC9', '#D7E1F0', '#577E57'], blurb: 'A request stop. Please request it.' },
+  {
+    id: 'millbrook', name: 'Millbrook', blurb: 'A mill, a brook, and the best scones on the line.',
+    postcard: { scene: 'mill', ink: '#24503A', sky: ['#7FB6D8', '#EFE2C4'], land: ['#A9BFA2', '#86A659', '#4F7A3A'], accent: '#8C4A32', motto: 'The best scones going' },
+    sign: { from: '#FFB547', to: '#E2701E', trim: '#FFF0C2', motif: 'rays' },
+  },
+  {
+    id: 'hazelford', name: 'Hazelford', blurb: 'Hazel trees and a ford nobody has crossed since 1908.',
+    postcard: { scene: 'ford', ink: '#1F4F5C', sky: ['#8CC3DE', '#EEE6CF'], land: ['#A7C1B4', '#7DA45A', '#4D7340'], accent: '#B98A4E', motto: 'Uncrossed since 1908' },
+    sign: { from: '#3FD0C0', to: '#14897F', trim: '#E8FFF6', motif: 'stripes' },
+  },
+  {
+    id: 'barley-cross', name: 'Barley Cross', blurb: 'Golden fields as far as the tea gets cold.',
+    postcard: { scene: 'fields', ink: '#6E3A1C', sky: ['#8FBCD6', '#F4E3BC'], land: ['#B9B98E', '#D9AE4E', '#B88A2E'], accent: '#E6C25E', motto: 'Golden fields, cold tea' },
+    sign: { from: '#FFD84A', to: '#D99A12', trim: '#FFF8D6', motif: 'chevrons' },
+  },
+  {
+    id: 'wrenfield', name: 'Wrenfield', blurb: 'Famous for wrens. The wrens are unaware.',
+    postcard: { scene: 'wren', ink: '#7A2E25', sky: ['#9DC2D9', '#F3E0C6'], land: ['#B4C0A0', '#8FAE5E', '#5E8441'], accent: '#9A6A3E', motto: 'Famous for wrens' },
+    sign: { from: '#FF8A6B', to: '#D6453D', trim: '#FFE9DC', motif: 'dots' },
+  },
+  {
+    id: 'oakhollow', name: 'Oakhollow', blurb: 'An oak so old it has its own timetable.',
+    postcard: { scene: 'oak', ink: '#2C4A26', sky: ['#86B7D2', '#EBE3C8'], land: ['#A4B79A', '#759C4F', '#456C34'], accent: '#3E6B2E', motto: 'An oak with a timetable' },
+    sign: { from: '#7CCF54', to: '#2F8A3A', trim: '#F0FFD8', motif: 'rays' },
+  },
+  {
+    id: 'thistledown', name: 'Thistledown', blurb: 'Purple hills and one very proud goat.',
+    postcard: { scene: 'thistle', ink: '#4A2558', sky: ['#9FB6DA', '#F0E1D6'], land: ['#B8A9C9', '#8F7AAE', '#5E7D4A'], accent: '#A44FB0', motto: 'One very proud goat' },
+    sign: { from: '#C27BEB', to: '#7A3BB5', trim: '#F6E6FF', motif: 'stripes' },
+  },
+  {
+    id: 'pennyridge', name: 'Pennyridge', blurb: 'Where the ridge is lovely and the pennies are lucky.',
+    postcard: { scene: 'ridge', ink: '#6B3416', sky: ['#E9A76E', '#F7DDB4'], land: ['#C9927A', '#9C6A55', '#4F5A3A'], accent: '#C9772F', motto: 'The pennies are lucky' },
+    sign: { from: '#FFB07A', to: '#C9562C', trim: '#FFEBD2', motif: 'chevrons' },
+  },
+  {
+    id: 'larkspur-halt', name: 'Larkspur Halt', blurb: 'A request stop. Please request it.',
+    postcard: { scene: 'halt', ink: '#22336B', sky: ['#7FA6DA', '#ECE4D4'], land: ['#AEB9C9', '#7E9F63', '#4E7448'], accent: '#5C6FD6', motto: 'Please request it' },
+    sign: { from: '#6E9BFF', to: '#2F4FC4', trim: '#E6EEFF', motif: 'dots' },
+  },
 ];
 
 export type ArchetypeId = 'student' | 'backpacker' | 'tourist' | 'grandma' | 'family' | 'businessman' | 'newlyweds' | 'vip' | 'celebrity' | 'royal';
@@ -388,9 +447,11 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 260, stars: 3, tier: 1, requires: ['couple'], effect: 'Prices +25%' },
       { key: 'hire_bartender', kind: 'hire', label: 'Bartender', price: 380, stars: 3, role: 'bartender', requires: ['stool_2'], work: { bar: 10 }, effect: 'Mixes & serves' },
       { key: 'stool_3', kind: 'seat', label: 'Stool', price: 260, stars: 2, group: 3, requires: ['stool_2'], effect: '+1 seat' },
-      { key: 'chair_5', kind: 'seat', label: 'Armchair', price: 300, stars: 2, group: 5, requires: ['stool_3'], effect: '+1 seat' },
       { key: 'menu_cocktails', kind: 'menu', label: 'Cocktails', price: 520, stars: 2, requires: ['stool_3', '@couple_5'], effect: 'Drinks ×1.5' },
-      { key: 'stool_4', kind: 'seat', label: 'Stool', price: 340, stars: 2, group: 4, requires: ['stool_3', '@couple_5'], effect: '+1 seat' },
+      // Session 43 (owner: "table upgrades should happen one by one not randomly pop in"): one chain of seats, the
+      // stools along the bar first, then the lounge's armchairs front to back (two chains ran side by side).
+      { key: 'stool_4', kind: 'seat', label: 'Stool', price: 300, stars: 2, group: 4, requires: ['stool_3'], effect: '+1 seat' },
+      { key: 'chair_5', kind: 'seat', label: 'Armchair', price: 340, stars: 2, group: 5, requires: ['stool_4', '@couple_5'], effect: '+1 seat' },
       { key: 'chair_6', kind: 'seat', label: 'Armchair', price: 380, stars: 2, group: 6, requires: ['chair_5'], effect: '+1 seat' },
       { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 560, stars: 4, tier: 2, requires: ['refurb_1', '@couple_5'], effect: 'Prices +60%' },
       { key: 'station_piano', kind: 'station', label: 'Piano', price: 640, stars: 3, requires: ['hire_bartender', 'chair_5'], effect: 'Parties ×1.5' },

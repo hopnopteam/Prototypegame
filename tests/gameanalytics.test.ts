@@ -117,6 +117,8 @@ describe('GameAnalytics mapping', () => {
   it('books café and dining takings as venues and the bell bonus as a station bonus', () => {
     expect(resourceItem('source', 'venue:cafe')).toEqual({ itemType: 'Venues', itemId: 'cafe' });
     expect(resourceItem('source', 'venue:dining')).toEqual({ itemType: 'Venues', itemId: 'dining' });
+    // Session 43: every venue pays straight into the wallet.
+    for (const kind of ['bar', 'dome', 'cinema']) expect(resourceItem('source', `venue:${kind}`)).toEqual({ itemType: 'Venues', itemId: kind });
     expect(resourceItem('source', 'bell')).toEqual({ itemType: 'StationBonus', itemId: 'bell' });
   });
 

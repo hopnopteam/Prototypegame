@@ -308,7 +308,8 @@ export class Station {
       w.guests.onStationStop(w.journey.stopSerial);
       const station = this.currentStation();
       const newPostcard = w.meta.onStationVisited(station.id, station.name);
-      w.ui.stationBanner(station.name, newPostcard ? 'album' : undefined);
+      w.ui.stationBanner(station.name, station.id);
+      if (newPostcard) w.ui.postcardToast(station.id);
       w.audio.play('whistle');
       w.audio.setStationAmbience(true);
       w.ftue('first_station');

@@ -1,5 +1,5 @@
 import { ANALYTICS } from '../config/analytics';
-import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, STORIES_ENABLED, type ProductDef } from '../config/content';
+import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, STORIES_ENABLED, type PostcardArt, type ProductDef } from '../config/content';
 import { CLASSES } from '../config/classes';
 import { AUDIO } from '../config/audio';
 import { ECONOMY, MONETIZATION_ENABLED } from '../config/economy';
@@ -12,6 +12,7 @@ import { OUTFITS, type OutfitDef } from '../config/wardrobe';
 import { QUALITY_TIERS, VISUALS } from '../config/visuals';
 import { h, icon } from './dom';
 import { ownerPortrait } from './portraits';
+import { drawBlankStamp, paintPostcard, type PostcardText } from './postcard';
 import type { IconName } from './icons';
 import type { Ui } from './Ui';
 
@@ -572,20 +573,37 @@ export class Screens {
   album(): void {
     const g = this.game;
     const have = new Set(g.data.meta.postcards);
-    const cards = [
-      ...STATIONS.map((s) => ({ id: s.id, name: s.name, colors: s.postcard })),
-      ...STORIES.map((s) => ({ id: `story:${s.id}`, name: `${s.name}'s story`, colors: s.postcard })),
+    // Session 43: every card is a vintage stamp (`ui/postcard.ts`); a story's card borrows the countryside scene.
+    const storyArt = (colors: [string, string, string], motto: string): PostcardArt => ({
+      scene: 'ford', ink: colors[0], sky: ['#8CC3DE', colors[1]], land: ['#A7C1B4', colors[2], '#4D7340'], accent: colors[1], motto,
+    });
+    const cards: { id: string; art: PostcardArt; text: PostcardText; blurb: string }[] = [
+      ...STATIONS.map((s, i) => ({ id: s.id, art: s.postcard, blurb: s.blurb, text: { name: s.name, kicker: 'Countryside Line', number: i + 1, value: 10 + i * 5 } })),
+      ...(STORIES_ENABLED ? STORIES : []).map((s, i) => ({
+        id: `story:${s.id}`, art: storyArt(s.postcard, s.title), blurb: s.intro,
+        text: { name: s.name, kicker: 'Passenger story', number: STATIONS.length + i + 1, value: 50 },
+      })),
     ];
     const grid = h('div.postcards', {}, ...cards.map((card) => {
-      if (!have.has(card.id)) return h('div.postcard.locked', {}, h('span', { text: '?' }));
-      const canvas = h('canvas', { width: 300, height: 200 });
-      drawPostcard(canvas, card.colors);
-      return h('div.postcard', {}, canvas, h('div.label', { text: card.name }));
+      const canvas = h('canvas', {});
+      if (!have.has(card.id)) {
+        drawBlankStamp(canvas);
+        return h('div.postcard.locked', {}, canvas);
+      }
+      paintPostcard(canvas, card.art, card.text);
+      return h('button.postcard', { 'aria-label': card.text.name, onclick: () => this.postcard(card.art, card.text, card.blurb) }, canvas);
     }));
     this.sheet('Postcards', 'album', [
-      h('p', { text: `${have.size} of ${cards.length} collected. Every station and every story has one.` }),
+      h('p', { text: `${have.size} of ${cards.length} collected. Every station has one.` }),
       grid,
     ]);
+  }
+
+  /** One postcard, large, with its station's line. */
+  private postcard(art: PostcardArt, text: PostcardText, blurb: string): void {
+    const canvas = h('canvas', {});
+    paintPostcard(canvas, art, text);
+    this.sheet(text.name, 'album', [h('div.postcard-big', {}, canvas), h('p.postcard-blurb', { text: blurb })]);
   }
 
   // ─── Daily: calendar, quests, stories ──────────────────────────────────────
@@ -812,54 +830,6 @@ export class Screens {
     }, 'Exit creative');
     this.ui.root.appendChild(btn);
   }
-}
-
-/** Procedural postcard: sky gradient, sun, rolling hills, a little train on a viaduct. */
-function drawPostcard(canvas: HTMLCanvasElement, [skyTop, skyBottom, hills]: [string, string, string]): void {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-  const w = canvas.width;
-  const hgt = canvas.height;
-  const sky = ctx.createLinearGradient(0, 0, 0, hgt);
-  sky.addColorStop(0, skyTop);
-  sky.addColorStop(1, skyBottom);
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, w, hgt);
-  ctx.fillStyle = '#FFF3C4';
-  ctx.beginPath();
-  ctx.arc(w * 0.72, hgt * 0.3, 22, 0, Math.PI * 2);
-  ctx.fill();
-  const layers: [number, string][] = [[0.62, shade(hills, 18)], [0.72, hills], [0.84, shade(hills, -18)]];
-  for (const [y, color] of layers) {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(0, hgt);
-    for (let x = 0; x <= w; x += 10) ctx.lineTo(x, hgt * y + Math.sin(x / 40 + y * 10) * 10);
-    ctx.lineTo(w, hgt);
-    ctx.fill();
-  }
-  // The Night Express crossing a viaduct: powder-blue carriages, a navy engine with a red valance.
-  ctx.fillStyle = '#8CC4D6';
-  for (let i = 0; i < 4; i++) ctx.fillRect(40 + i * 34, hgt * 0.64, 30, 14);
-  ctx.fillStyle = '#2C4A6E';
-  for (let i = 0; i < 4; i++) ctx.fillRect(40 + i * 34, hgt * 0.64 + 10, 30, 4);
-  ctx.fillRect(176, hgt * 0.62, 34, 18);
-  ctx.fillStyle = '#D1495B';
-  ctx.fillRect(174, hgt * 0.62 + 16, 38, 3);
-  ctx.fillStyle = '#FFFFFFAA';
-  ctx.beginPath();
-  ctx.arc(196, hgt * 0.55, 8, 0, Math.PI * 2);
-  ctx.arc(208, hgt * 0.5, 10, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#FFF6E4';
-  ctx.lineWidth = 8;
-  ctx.strokeRect(4, 4, w - 8, hgt - 8);
-}
-
-function shade(hex: string, amount: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const c = (v: number): number => Math.max(0, Math.min(255, v + amount));
-  return `#${((c(n >> 16) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
 }
 
 /** What reaching a route level brings besides the reward: features, a new livery, the press. */
