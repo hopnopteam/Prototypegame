@@ -3,13 +3,14 @@ import { easeInQuad, easeOutQuad } from '../core/math';
 import { GeoBuilder } from './geo';
 import { MATERIALS } from './materials';
 import { PALETTE } from './palette';
+import { ECONOMY } from '../config/economy';
 
-const CAPACITY = 900;
-const BILLS_PER_LAYER = 6;
+/** Session 42: piles hold more bills (MPH-style blocks), so the pool is larger; only used slots are drawn. */
+const CAPACITY = 1600;
+const BILLS = ECONOMY.money.bills;
+const BILLS_PER_LAYER = BILLS.perLayer;
 const LAYER_HEIGHT = 0.052;
-export const MAX_BILLS_PER_PILE = 48;
-/** A drain empties any pile in about this long, however tall it is. */
-const DRAIN_SECONDS = 0.55;
+export const MAX_BILLS_PER_PILE = BILLS.maxPerPile;
 const DRAIN_MAX_INTERVAL = 0.05;
 
 interface Pile {
@@ -163,7 +164,10 @@ export class CashView {
       f.onArrive = arrive;
     }
     if (pile.indices.length > 0) {
-      this.drains.push({ pile, target, timer: 0, interval: Math.min(DRAIN_MAX_INTERVAL, DRAIN_SECONDS / pile.indices.length), arrive });
+      // A bigger pile takes a little longer to drain, so it reads as a gush of money (session 42).
+      const n = pile.indices.length;
+      const seconds = Math.min(BILLS.drainMax, BILLS.drainBase + BILLS.drainPerBill * n);
+      this.drains.push({ pile, target, timer: 0, interval: Math.min(DRAIN_MAX_INTERVAL, seconds / n), arrive });
     }
     return total;
   }

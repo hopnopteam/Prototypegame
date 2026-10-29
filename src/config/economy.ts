@@ -414,6 +414,15 @@ export const ECONOMY = {
     startingFloorCash: 0,
     /** Walk this close to a cash pile and it streams into your pockets. */
     magnetRadius: 1.1,
+    /**
+     * Session 42 (owner: "the money… a lot more, so it feels nice to pick it up… like My Perfect Hotel money"): how cash
+     * looks on the floor. Each bill stands for `value` Fares, so a 15 fare is a stack of 15 bills (was one bill per 2),
+     * piles grow into tall blocks of up to `maxPerPile` bills (`perLayer` to a layer, was 48), up to `flyMax` bills fly
+     * in when a guest pays (was 10), and scooping a pile streams every bill into the conductor over
+     * `drainBase + drainPerBill × bills` seconds (at most `drainMax`), so a big pile is a long, satisfying gush rather
+     * than a blink. Visual only: the wallet always changes at once.
+     */
+    bills: { value: 1, maxPerPile: 72, perLayer: 6, flyMax: 18, drainBase: 0.35, drainPerBill: 0.01, drainMax: 1.15, hapticEvery: 6 },
   },
 
   tiles: {

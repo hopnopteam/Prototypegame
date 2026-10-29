@@ -3,8 +3,6 @@ import type { Vec2 } from '../core/types';
 import { FLOOR_Y } from '../world/CarriageView';
 import type { World } from './World';
 
-/** Each bill in a pile stands for this many Fares (visual only). */
-const BILL_VALUE = 2;
 /** Major pentatonic steps: a stream of bills plays a little rising tune instead of one repeated tick. */
 const SCALE = [1, 1.125, 1.25, 1.5, 1.667, 2, 2.25, 2.5, 3, 3.333];
 const GLINT_MIN_VALUE = 10;
@@ -60,14 +58,15 @@ export class CashPiles {
   add(id: string, amount: number, from?: THREE.Vector3): void {
     const pile = this.piles.get(id);
     if (!pile || amount <= 0) return;
-    const before = billsFor(pile.value);
+    const bills = this.w.econ.money.bills;
+    const before = billsFor(pile.value, bills.value);
     pile.value += amount;
-    const after = billsFor(pile.value);
+    const after = billsFor(pile.value, bills.value);
     const newBills = after - before;
     if (from && newBills > 0) {
-      this.w.cashView.flyToPile(id, from, Math.min(newBills, 10), () => this.w.audio.play('coin', { pitch: 0.9 + Math.random() * 0.2, volume: 0.5 }));
+      this.w.cashView.flyToPile(id, from, Math.min(newBills, bills.flyMax), () => this.w.audio.play('coin', { pitch: 0.9 + Math.random() * 0.2, volume: 0.5 }));
       // Bills beyond the flying ones just appear once the flight lands.
-      if (newBills > 10) this.w.tweens.delay(0.6, () => this.w.cashView.setPileCount(id, billsFor(pile.value)));
+      if (newBills > bills.flyMax) this.w.tweens.delay(0.6 + bills.flyMax * 0.05, () => this.w.cashView.setPileCount(id, billsFor(pile.value, bills.value)));
     } else {
       this.w.cashView.setPileCount(id, after);
     }
@@ -125,7 +124,7 @@ export class CashPiles {
       this.streak++;
       this.streakTimer = 0.5;
       w.audio.play('coin', { pitch: note });
-      if (i % 3 === 0) w.haptics.tick();
+      if (i % w.econ.money.bills.hapticEvery === 0) w.haptics.tick();
       if (i % 2 === 0) player.view.bounce(0.25);
     }, () => {
       // Session 29: the coins are the sound (one soft rising tick); a big scoop adds a sparkle of particles, not a second cue.
@@ -160,4 +159,4 @@ export class CashPiles {
   }
 }
 
-const billsFor = (value: number): number => Math.ceil(value / BILL_VALUE);
+const billsFor = (value: number, billValue: number): number => Math.ceil(value / billValue);
