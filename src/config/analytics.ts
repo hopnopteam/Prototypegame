@@ -11,6 +11,7 @@
  */
 declare const __GA_GAME_KEY__: string;
 declare const __GA_SECRET_KEY__: string;
+declare const __GA_BUILD__: string;
 
 /** Paste your keys here (or leave these empty and set GA_GAME_KEY / GA_SECRET_KEY when building). */
 const GAME_KEY = '';
@@ -23,8 +24,11 @@ export const ANALYTICS = {
   enabled: true,
   gameKey: fromBuild(typeof __GA_GAME_KEY__ === 'undefined' ? '' : __GA_GAME_KEY__) || GAME_KEY,
   secretKey: fromBuild(typeof __GA_SECRET_KEY__ === 'undefined' ? '' : __GA_SECRET_KEY__) || SECRET_KEY,
-  /** The build as GameAnalytics shows it (≤ 32 characters): bump with each release so cohorts can be split by build. */
-  build: '0.31.0',
+  /**
+   * The build as GameAnalytics shows it (≤ 24 characters, after the platform): the app's own version, `1.0.<CI run>`,
+   * the same as the APK's versionName, so cohorts split by release on their own. Local builds report `1.0.local`.
+   */
+  build: fromBuild(typeof __GA_BUILD__ === 'undefined' ? '' : __GA_BUILD__) || '1.0.local',
   /**
    * Automated browsers (the smoke run, the audits, the autopilot) never send: their sessions would pollute retention.
    * `?ga=1` in the address forces sending (to check events arrive), `?ga=0` stops it.

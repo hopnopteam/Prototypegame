@@ -67,6 +67,10 @@ export function resourceItem(flow: 'source' | 'sink', source: string): { itemTyp
     case 'levelUp': return { itemType: 'LevelUp', itemId: 'level' };
     case 'login': case 'quest': case 'chest': return { itemType: 'Daily', itemId: head };
     case 'press': case 'rival': return { itemType: 'Press', itemId: head };
+    // Café and dining pay straight into the wallet as they are handed over (session 38): `venue:cafe`, `venue:dining`.
+    case 'venue': return { itemType: 'Venues', itemId: id('venue') };
+    // The on-time bonus for ringing the bell early (session 33).
+    case 'bell': return { itemType: 'StationBonus', itemId: 'bell' };
     case 'offline': return { itemType: 'Offline', itemId: 'away' };
     case 'rush': return { itemType: 'Rush', itemId: 'streak' };
     case 'refund': return { itemType: 'Refund', itemId: id('refund') };

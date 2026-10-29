@@ -114,6 +114,12 @@ describe('GameAnalytics mapping', () => {
     for (const s of sinks) expect(ANALYTICS.itemTypes, s).toContain(resourceItem('sink', s).itemType);
   });
 
+  it('books café and dining takings as venues and the bell bonus as a station bonus', () => {
+    expect(resourceItem('source', 'venue:cafe')).toEqual({ itemType: 'Venues', itemId: 'cafe' });
+    expect(resourceItem('source', 'venue:dining')).toEqual({ itemType: 'Venues', itemId: 'dining' });
+    expect(resourceItem('source', 'bell')).toEqual({ itemType: 'StationBonus', itemId: 'bell' });
+  });
+
   it('cleans parts the SDK would refuse', () => {
     expect(part('All aboard!')).toMatch(PART);
     expect(part('a/b#c')).toBe('a_b_c');
