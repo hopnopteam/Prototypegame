@@ -146,8 +146,12 @@ export class SaveSystem {
     this.dirty = true;
   }
 
+  /** Called just before every write, for state kept outside the save data (the cash on the floor). */
+  beforeWrite: (() => void) | null = null;
+
   saveNow(): boolean {
     if (!this.data) return false;
+    this.beforeWrite?.();
     this.data.lastActiveAt = this.options.now();
     const ok = this.storage.write(this.options.key, JSON.stringify(this.data));
     if (ok) {

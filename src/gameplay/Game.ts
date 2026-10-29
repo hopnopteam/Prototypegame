@@ -343,6 +343,11 @@ export class Game implements World {
     const door = this.map.doors()[0];
     this.cash.create('bonus', door.inside.x - 0.55, door.inside.z + 0.5);
     this.cash.create('floor', this.map.anchor(0, 'startCash').x, this.map.anchor(0, 'startCash').z);
+    // Session 44: cash left on the floor when the app closed is back in the lobby's pile, to scoop as before.
+    this.cash.add('floor', this.data.route.floorCash);
+    this.save.beforeWrite = () => {
+      this.data.route.floorCash = this.cash.totalOnFloor;
+    };
     this.tiles.refresh();
     this.guests.spawnStartingQueue(this.econ.guests.initialGuests);
     this.station.startPrologue();
@@ -1062,6 +1067,8 @@ export class Game implements World {
   }
 
   resetProgress(): void {
+    // The old game's floor cash must not be written into the fresh save (the reload saves on its way out).
+    this.save.beforeWrite = null;
     this.save.reset();
     location.reload();
   }

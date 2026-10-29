@@ -41,6 +41,20 @@ describe('SaveSystem', () => {
     expect(second.secondsAwayOnLoad).toBeCloseTo(3 * 3600);
   });
 
+  it('runs beforeWrite on every write, so state outside the save (the floor cash) survives a relaunch', () => {
+    const first = create();
+    first.load();
+    let onFloor = 40;
+    first.beforeWrite = () => { first.data.route.floorCash = onFloor; };
+    first.saveNow();
+    onFloor = 75;
+    first.markDirty();
+    first.update(5);
+    const second = create();
+    second.load();
+    expect(second.data.route.floorCash).toBe(75);
+  });
+
   it('never reports negative time away when the clock moved back', () => {
     const first = create();
     first.load();

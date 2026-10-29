@@ -102,6 +102,11 @@ export interface SaveData {
     perfectStreak: number;
     /** Fix list 4.2: the quality (0..1) of the most recent station stops, newest last (the Train Rating). */
     recentStops: number[];
+    /**
+     * Session 44: the cash lying on the floor (tips in rooms, fares at the stand, uncollected piles) as one sum, written
+     * with every save, so a relaunch puts it back in the lobby's pile instead of losing it.
+     */
+    floorCash: number;
   };
   staff: Record<string, { level: number }>;
   conductor: { speed: number; capacity: number; fareBonus: number };
@@ -179,7 +184,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {}, handWork: {} },
     settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {}, qualityPolicy: 0, hapticsPolicy: 0, sfxVolume: 0.8 },
     wallet: { cash: 0, gems: 0, railMiles: 0 },
-    route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0, perfectStreak: 0, recentStops: [] },
+    route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0, perfectStreak: 0, recentStops: [], floorCash: 0 },
     staff: {},
     conductor: { speed: 0, capacity: 0, fareBonus: 0 },
     facilities: { supplyTowel: -1, supplyRoll: -1, bathrooms: [] },
