@@ -39,7 +39,7 @@ async function boot(): Promise<void> {
     game = new Game(canvas, overlay, ui);
   } catch (error) {
     loader.hide(true);
-    overlay.appendChild(h('div.splash', {}, h('div.title', { text: 'Night Express' }), h('div.tag', { text: 'This device could not start 3D graphics. Try another browser.' })));
+    overlay.appendChild(h('div.splash', {}, h('div.title', { text: 'Night Express' }), h('div.tag', { text: 'This phone could not start 3D graphics. Updating Chrome and Android System WebView usually fixes it.' })));
     throw error;
   }
   ui.bind(game);
