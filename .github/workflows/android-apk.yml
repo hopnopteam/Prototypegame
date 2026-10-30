@@ -169,7 +169,7 @@ jobs:
             Built from ${{ github.sha }}.
 
   # The Google Play bundle (session 44): the same game as the test APK with the store's app id
-  # (com.bonestock.nightexpress), built as an unsigned AAB. It is signed with the owner's upload key outside the
+  # (io.heseri.night, the Play Console app's id), built as an unsigned AAB. It is signed with the owner's upload key outside the
   # repository before it goes to the Play Console (NATIVE.md); the test key never signs it.
   store:
     runs-on: ubuntu-latest
@@ -223,6 +223,6 @@ jobs:
           prerelease: true
           files: night-express-store-${{ github.run_number }}-unsigned.aab
           body: |
-            Google Play bundle of Night Express (app id com.bonestock.nightexpress, versionCode ${{ github.run_number }}).
+            Google Play bundle of Night Express (app id io.heseri.night, versionCode ${{ github.run_number }}).
             Unsigned: sign it with the upload key before uploading to the Play Console (NATIVE.md).
             Built from ${{ github.sha }}.

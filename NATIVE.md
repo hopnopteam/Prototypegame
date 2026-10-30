@@ -67,7 +67,7 @@ change to the game, `npm run app:sync` again. The app icon and launch screen are
 - Archive (Product › Archive) and upload from the Organizer.
 
 **Google Play (Android)**
-- App id: `com.bonestock.nightexpress` (the owner's choice, session 44; fixed for good once uploaded). The test
+- App id: `io.heseri.night` (the package name of the app made in the Play Console, session 44; fixed for good). The test
   and god APKs keep `com.hopnop.nightexpress` and `.god`, so they install beside the store version.
 - The bundle: the `store` job in `.github/workflows/android-apk.yml` builds an unsigned
   `night-express-store-<run>-unsigned.aab` (release `android-store-<run>`) on every push. `versionCode` is the
