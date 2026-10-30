@@ -67,12 +67,20 @@ change to the game, `npm run app:sync` again. The app icon and launch screen are
 - Archive (Product › Archive) and upload from the Organizer.
 
 **Google Play (Android)**
-- Signing: create an upload key (Android Studio › Build › Generate Signed App Bundle) and keep it out of the
-  repository; Play App Signing holds the release key.
-- Version: `versionCode` / `versionName` in `android/app/build.gradle`.
+- App id: `com.bonestock.nightexpress` (the owner's choice, session 44; fixed for good once uploaded). The test
+  and god APKs keep `com.hopnop.nightexpress` and `.god`, so they install beside the store version.
+- The bundle: the `store` job in `.github/workflows/android-apk.yml` builds an unsigned
+  `night-express-store-<run>-unsigned.aab` (release `android-store-<run>`) on every push. `versionCode` is the
+  run number, so each new bundle is higher than the last, as Play requires.
+- Signing: the upload key lives outside the repository with the owner (keystore file, alias `upload`, and its
+  password); Play App Signing holds the release key. Sign each bundle with the same upload key:
+  `jarsigner -keystore nightexpress-upload.jks -signedjar night-express-<run>.aab night-express-store-<run>-unsigned.aab upload`
+  (it asks for the password), then `jarsigner -verify night-express-<run>.aab`. A lost upload key can be reset
+  through Play Console support, but only with the account owner's request.
 - Target: API 36 (Capacitor 8), as Play requires for new apps.
-- Build an `.aab` (Generate Signed App Bundle) and upload it in the Play Console. The data-safety form: no
-  data collected, until real SDKs are added.
+- The data-safety form: GameAnalytics is on, so declare app activity (app interactions, in-app actions),
+  app info and performance (crash logs, diagnostics) and device or other IDs (a random install id), collected,
+  not shared, not used for ads, encrypted in transit. No personal data, location, contacts or payments.
 
 ## Purchases and ads
 

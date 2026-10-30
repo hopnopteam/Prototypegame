@@ -5,7 +5,9 @@ android {
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         // The god-mode build for recording videos (GOD_MODE=1) installs beside the normal test build, with its own save.
-        applicationId System.getenv("GOD_MODE") == "1" ? "com.hopnop.nightexpress.god" : "com.hopnop.nightexpress"
+        // The Google Play build (STORE=1, session 44) has the store's own id, chosen by the owner and fixed for good.
+        applicationId System.getenv("STORE") == "1" ? "com.bonestock.nightexpress"
+            : System.getenv("GOD_MODE") == "1" ? "com.hopnop.nightexpress.god" : "com.hopnop.nightexpress"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Test builds from CI count up, so each new APK installs over the last one.
@@ -40,7 +42,9 @@ android {
         // Android compiles the app ahead of time and nothing debug runs), still signed with the test key so it
         // installs over earlier test APKs. Store builds sign with their own upload key (NATIVE.md).
         release {
-            signingConfig signingConfigs.test
+            // The Google Play bundle (STORE=1) comes out unsigned and is signed with the owner's upload key outside
+            // the repository (NATIVE.md); the test key must never sign a store upload.
+            signingConfig System.getenv("STORE") == "1" ? null : signingConfigs.test
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

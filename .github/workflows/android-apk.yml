@@ -167,3 +167,62 @@ jobs:
             so levels and classes come quickly; nothing is sent to GameAnalytics.
             Installs beside the normal test build as "Night Express GOD", with its own save.
             Built from ${{ github.sha }}.
+
+  # The Google Play bundle (session 44): the same game as the test APK with the store's app id
+  # (com.bonestock.nightexpress), built as an unsigned AAB. It is signed with the owner's upload key outside the
+  # repository before it goes to the Play Console (NATIVE.md); the test key never signs it.
+  store:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      STORE: '1'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the game
+        run: npm run build
+        env:
+          GA_GAME_KEY: ${{ secrets.GA_GAME_KEY }}
+          GA_SECRET_KEY: ${{ secrets.GA_SECRET_KEY }}
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Android SDK packages
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools" > /dev/null
+
+      - name: Copy the game into the Android project
+        run: npx cap sync android
+
+      - name: Build the bundle
+        working-directory: android
+        run: ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: Name the bundle
+        run: cp android/app/build/outputs/bundle/release/app-release.aab "night-express-store-${{ github.run_number }}-unsigned.aab"
+
+      - name: Publish a store pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-store-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Night Express Google Play bundle ${{ github.run_number }} (unsigned)
+          prerelease: true
+          files: night-express-store-${{ github.run_number }}-unsigned.aab
+          body: |
+            Google Play bundle of Night Express (app id com.bonestock.nightexpress, versionCode ${{ github.run_number }}).
+            Unsigned: sign it with the upload key before uploading to the Play Console (NATIVE.md).
+            Built from ${{ github.sha }}.
