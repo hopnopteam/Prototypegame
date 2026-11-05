@@ -78,9 +78,20 @@ change to the game, `npm run app:sync` again. The app icon and launch screen are
   (it asks for the password), then `jarsigner -verify night-express-<run>.aab`. A lost upload key can be reset
   through Play Console support, but only with the account owner's request.
 - Target: API 36 (Capacitor 8), as Play requires for new apps.
-- The data-safety form: GameAnalytics is on, so declare app activity (app interactions, in-app actions),
-  app info and performance (crash logs, diagnostics) and device or other IDs (a random install id), collected,
-  not shared, not used for ads, encrypted in transit. No personal data, location, contacts or payments.
+- Adjust (session 45): the native Android SDK 5.8.1 with the Play install referrer and the advertising id
+  client, started in `NightExpressApp` (app token `sgueyly4m60w`); it tracks installs, attribution and sessions
+  on its own. The Google Play bundle reports to production, the test APK to the sandbox (check it in Adjust's
+  Testing Console, logs in logcat under the tag `Adjust`), the god build sends nothing (`ADJUST_ENVIRONMENT` in
+  `android/app/build.gradle`). Its manifest adds the `AD_ID` permission. No in-game events are sent yet (each
+  needs an event token made in the Adjust dashboard).
+- The Play Console's Advertising ID declaration: yes, the app uses an advertising ID, for analytics and
+  attribution (Adjust).
+- The data-safety form: GameAnalytics and Adjust are on, so declare app activity (app interactions, in-app
+  actions), app info and performance (crash logs, diagnostics) and device or other IDs (a random install id,
+  the advertising id and Android id for Adjust), collected, encrypted in transit; Adjust's device ids are shared
+  with Adjust as a service provider for analytics and attribution (Play counts a service provider acting for you
+  as not "shared"), used for analytics and advertising or marketing (attribution of installs to campaigns). No
+  personal data, precise location, contacts or payments.
 
 ## Purchases and ads
 
