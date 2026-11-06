@@ -1,5 +1,5 @@
 import { PRODUCTS, type ProductDef } from '../config/content';
-import { MONETIZATION_ENABLED } from '../config/economy';
+import { FORCED_ADS_ENABLED, MONETIZATION_ENABLED } from '../config/economy';
 import type { IconName } from '../ui/icons';
 import { EVENTS } from '../services/analytics';
 import type { InterstitialVerdict } from '../sim/AdPolicy';
@@ -67,8 +67,13 @@ export class Monetization {
     return MONETIZATION_ENABLED;
   }
 
+  /** Forced interstitials: with monetization on, or on their own (FORCED_ADS_ENABLED) with a real ad network. */
+  get forcedAds(): boolean {
+    return this.enabled || (FORCED_ADS_ENABLED && this.w.ads.real);
+  }
+
   get noForcedAds(): boolean {
-    return !this.enabled || this.w.iap.isOwned('first_class_ticket');
+    return !this.forcedAds || this.w.iap.isOwned('first_class_ticket');
   }
 
   /** The Conductor's Scooter: bought (monetization on, for good) or a route level's reward for a while (off). */
@@ -311,7 +316,7 @@ export class Monetization {
 
   private async onDeparting(): Promise<void> {
     const w = this.w;
-    if (!this.enabled) return;
+    if (!this.forcedAds) return;
     const verdict = w.adPolicy.checkInterstitial({
       phase: w.journey.phase,
       lifetimeSeconds: w.lifetimeSeconds(),

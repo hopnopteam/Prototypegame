@@ -9,6 +9,15 @@ import type { ServiceNeed } from './classes';
 export const MONETIZATION_ENABLED = false;
 
 /**
+ * Session 46 (owner: "Only interstitial"): forced interstitials run on their own while the rest of monetization stays
+ * off (no rewarded ads, offers, store or ×2 prompts). Every §12 rule still applies (AdPolicy: Departing only, never
+ * before minute 10, three minutes apart, never mid-task). Only real ads count: in the Android app that is AppLovin
+ * MAX (`services/maxAds.ts`); the web build has none, so the Artifact never shows a fake ad (`?ads=mock` shows the
+ * mock for testing). False turns forced ads off again.
+ */
+export const FORCED_ADS_ENABLED = true;
+
+/**
  * THE balance sheet. Every number a designer tunes lives here (prices and unlock order live in content.ts).
  * Remote config can override any leaf by its dotted path, e.g. "ads.minIntervalSeconds".
  * Times are seconds, distances metres, money in Fares unless noted.

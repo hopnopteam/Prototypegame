@@ -1,4 +1,5 @@
 import { ANALYTICS } from '../config/analytics';
+import { MockAdService } from '../services/ads';
 import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, STORIES_ENABLED, type PostcardArt, type ProductDef } from '../config/content';
 import { CLASSES } from '../config/classes';
 import { AUDIO } from '../config/audio';
@@ -757,6 +758,7 @@ export class Screens {
 
   devPanel(): void {
     const g = this.game;
+    const mockAds = g.ads instanceof MockAdService ? g.ads : null;
     let close: () => void = () => undefined;
     const stats = h('div.stat');
     const logEl = h('div.log');
@@ -808,7 +810,7 @@ export class Screens {
       ),
       h('div.section-title', { text: 'Mock services' }),
       h('div.grid-3', {},
-        b(g.ads.simulateNoFill ? 'Ads: no fill' : 'Ads: fill', () => (g.ads.simulateNoFill = !g.ads.simulateNoFill)),
+        mockAds ? b(mockAds.simulateNoFill ? 'Ads: no fill' : 'Ads: fill', () => (mockAds.simulateNoFill = !mockAds.simulateNoFill)) : null,
         b(g.iap.simulateFailure ? 'IAP: fail' : 'IAP: ok', () => (g.iap.simulateFailure = !g.iap.simulateFailure)),
         b('Clear purchases', () => g.iap.clearOwned()),
       ),

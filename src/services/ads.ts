@@ -7,6 +7,8 @@ export type AdResult = 'completed' | 'skipped' | 'notAvailable' | 'failed';
  * minute 10, spacing, never mid-task) lives in AdPolicy, and gameplay must go through AdPolicy.
  */
 export interface AdService {
+  /** A real ad network (MAX in the Android app), or the mock with `?ads=mock`; forced ads only ever use a real one. */
+  readonly real: boolean;
   readonly isShowing: boolean;
   isRewardedReady(placement: string): boolean;
   isInterstitialReady(placement: string): boolean;
@@ -21,6 +23,8 @@ export interface MockAdPresenter {
 
 export class MockAdService implements AdService {
   simulateNoFill = false;
+  /** The mock stands in for a real network only when asked to (`?ads=mock`), for testing the forced-ad flow. */
+  readonly real = typeof location !== 'undefined' && new URLSearchParams(location.search).get('ads') === 'mock';
   private showing = false;
 
   constructor(

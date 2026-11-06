@@ -19,7 +19,8 @@ import { ANALYTICS } from '../config/analytics';
 import { GameAnalyticsService, gameAnalyticsWanted } from '../services/gameAnalytics';
 import { GOD, GOD_MODE, GOD_WORK } from '../config/god';
 import { SaveSystem } from '../save/SaveSystem';
-import { MockAdService } from '../services/ads';
+import { MockAdService, type AdService } from '../services/ads';
+import { MaxAdService, maxAvailable } from '../services/maxAds';
 import { EVENTS, MockAnalyticsService } from '../services/analytics';
 import { MockIapService } from '../services/iap';
 import { applyOverrides, LocalRemoteConfig } from '../services/remoteConfig';
@@ -122,7 +123,7 @@ export class Game implements World {
   readonly audio = new AudioEngine();
   readonly haptics = new Haptics();
   readonly analytics: MockAnalyticsService;
-  readonly ads: MockAdService;
+  readonly ads: AdService;
   readonly iap: MockIapService;
   readonly remote: LocalRemoteConfig;
   readonly adPolicy: AdPolicy;
@@ -252,7 +253,9 @@ export class Game implements World {
     this.analytics = new MockAnalyticsService(80);
     this.analytics.setUser(this.data.profile.installId);
     this.connectGameAnalytics();
-    this.ads = new MockAdService(ui, this.econ.ads.mockRewardedSeconds, this.econ.ads.mockInterstitialSeconds);
+    // The Android app shows real interstitials through AppLovin MAX (session 46); elsewhere the mock (shown only when
+    // monetization is on, or with ?ads=mock).
+    this.ads = maxAvailable() ? new MaxAdService() : new MockAdService(ui, this.econ.ads.mockRewardedSeconds, this.econ.ads.mockInterstitialSeconds);
     this.iap = new MockIapService(PRODUCTS, ui);
     this.adPolicy = new AdPolicy(() => this.econ.ads, this.data.monetization);
 
@@ -807,6 +810,12 @@ export class Game implements World {
   /** The app (or tab) went away: save now, end the session, pause and quiet everything. */
   toBackground(): void {
     if (this.inBackground) return;
+    // A full-screen ad (MAX opens its own activity, session 46) hides the game without the player leaving: save, but
+    // keep the session going, so an ad never splits a GameAnalytics session or counts as a return.
+    if (this.adPlaying) {
+      this.save.saveNow();
+      return;
+    }
     this.inBackground = true;
     this.hiddenAt = Date.now();
     this.analytics.log(EVENTS.sessionEnd, { session_number: this.data.profile.sessionCount, session_seconds: Math.round(this.sessionSeconds) });

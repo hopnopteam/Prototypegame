@@ -17,6 +17,8 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // The game's own native plugins are registered before the bridge starts (session 46: MAX interstitials).
+        registerPlugin(MaxAdsPlugin.class);
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         WindowManager.LayoutParams attributes = getWindow().getAttributes();

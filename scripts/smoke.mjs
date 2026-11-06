@@ -33,7 +33,7 @@ page.on('console', (m) => { if (m.type() === 'log' && m.text().startsWith('[Trip
 const failures = [];
 const check = (ok, message) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${message}`); if (!ok) failures.push(message); };
 
-await page.goto(`file://${file}`);
+await page.goto(`file://${file}${process.env.SMOKE_QUERY ?? ""}`);
 await page.waitForFunction(() => !!window.nightExpress?.data, null, { timeout: 15000 }).catch(() => undefined);
 await page.waitForTimeout(300);
 // No title screen (session 12): a new player boots straight into the intro over the train.
