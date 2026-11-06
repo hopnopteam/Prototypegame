@@ -1,8 +1,10 @@
 apply plugin: 'com.android.application'
 
-// AppLovin MAX interstitial ad unit for Android (MAX dashboard > Monetize > Manage > Ad Units, format Interstitial,
-// package io.heseri.night). Paste it here; empty means the app shows no ads. MaxAdsPlugin.java, session 46.
-def maxInterstitialAdUnit = ""
+// AppLovin MAX (MaxAdsPlugin.java, session 46). Both are needed for ads; either empty means the app shows none.
+// The SDK key: MAX dashboard > Account > Keys > "SDK Key" (a long string, about 86 characters; public by nature,
+// every copy of the app carries it). The interstitial ad unit: Monetize > Manage > Ad Units (16 characters).
+def maxSdkKey = ""
+def maxInterstitialAdUnit = "1a85254db169f142"
 
 android {
     namespace = "com.hopnop.nightexpress"
@@ -24,11 +26,10 @@ android {
         buildConfigField "String", "ADJUST_APP_TOKEN", '"sgueyly4m60w"'
         buildConfigField "String", "ADJUST_ENVIRONMENT", System.getenv("STORE") == "1" ? '"production"'
             : System.getenv("GOD_MODE") == "1" ? '"off"' : '"sandbox"'
-        // AppLovin MAX (session 46): interstitials only, ad revenue reported to Adjust (MaxAdsPlugin.java). The SDK key is
-        // public by nature (every copy of the app carries it). MAX_INTERSTITIAL_ID is the Android interstitial ad unit
-        // from the MAX dashboard (Monetize > Manage > Ad Units); empty means no ads in this build. The god build shows none.
+        // AppLovin MAX (session 46): interstitials only, ad revenue reported to Adjust (MaxAdsPlugin.java). The SDK key
+        // and the interstitial ad unit are set at the top of this file; the god build shows no ads.
         buildConfigField "boolean", "MAX_ENABLED", System.getenv("GOD_MODE") == "1" ? "false" : "true"
-        buildConfigField "String", "MAX_SDK_KEY", '"1a85254db169f142"'
+        buildConfigField "String", "MAX_SDK_KEY", '"' + (System.getenv("MAX_SDK_KEY") ?: maxSdkKey) + '"'
         buildConfigField "String", "MAX_INTERSTITIAL_ID", '"' + (System.getenv("MAX_INTERSTITIAL_ID") ?: maxInterstitialAdUnit) + '"'
         buildConfigField "boolean", "MAX_VERBOSE", System.getenv("STORE") == "1" ? "false" : "true"
         aaptOptions {
