@@ -154,9 +154,11 @@ check(picks.total > 10 && picks.unneeded === 0, `every pickup was needed (${pick
 const ads = await page.evaluate(() => window.__interstitials);
 const minLife = 600;
 check(ads.every((a) => a.phase === 'departing'), `every interstitial in the Departing phase (${ads.length} shown)`);
-// Monetization is off by default (config: MONETIZATION_ENABLED): no forced ad may show at all.
-const monetized = await page.evaluate(() => window.nightExpress.monetization.enabled);
-if (!monetized) check(ads.length === 0, 'no forced ads with monetization off');
+// Forced ads come only with monetization on or, on their own (FORCED_ADS_ENABLED, session 46), from a real ad network:
+// MAX in the Android app, the mock with ?ads=mock. The plain web build has none, so it must show no forced ad at all.
+const forced = await page.evaluate(() => window.nightExpress.monetization.forcedAds);
+if (!forced) check(ads.length === 0, 'no forced ads without a real ad network');
+else check(ads.length > 0, `forced interstitials shown through the ad network (${ads.length})`);
 check(ads.every((a) => a.life >= minLife), 'no interstitial before minute 10 of lifetime play');
 check(ads.every((a, i) => i === 0 || a.life - ads[i - 1].life >= 180), 'interstitials at least 3 minutes apart');
 
