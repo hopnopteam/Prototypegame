@@ -93,7 +93,7 @@ change to the game, `npm run app:sync` again. The app icon and launch screen are
   SDK Key, about 86 characters) and **the interstitial ad unit** (`maxInterstitialAdUnit`, 16 characters, format
   Interstitial, platform Android, package `io.heseri.night`) are two lines at the top of `android/app/build.gradle`;
   either empty means no ads. Session 46: the owner first gave `1a85254db169f142` as "the SDK key"; its 16-character
-  form is an ad unit id, so it is the interstitial unit, and the SDK key is still to come. No consent flow yet (owner's choice for now): needed before release in the EU/UK. No mediated
+  form is an ad unit id, so it is the interstitial unit; the real SDK key followed and is set. No consent flow yet (owner's choice for now): needed before release in the EU/UK. No mediated
   networks yet (AppLovin's own exchange only); each one is an adapter dependency.
 - The Play Console's Advertising ID declaration: yes, the app uses an advertising ID, for analytics, attribution
   (Adjust) and advertising (MAX). App content > Ads: yes, the app contains ads.

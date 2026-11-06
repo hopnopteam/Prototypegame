@@ -3,7 +3,7 @@ apply plugin: 'com.android.application'
 // AppLovin MAX (MaxAdsPlugin.java, session 46). Both are needed for ads; either empty means the app shows none.
 // The SDK key: MAX dashboard > Account > Keys > "SDK Key" (a long string, about 86 characters; public by nature,
 // every copy of the app carries it). The interstitial ad unit: Monetize > Manage > Ad Units (16 characters).
-def maxSdkKey = ""
+def maxSdkKey = "a4F3tlzWSICiUE5gGvvJDlJWme0snWGAkxA2cw8lkek3G3EzNZK7N9mK5SLrtnThdStwCmS7vJLOygIfpfK0LE"
 def maxInterstitialAdUnit = "1a85254db169f142"
 
 android {
