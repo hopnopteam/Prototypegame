@@ -84,8 +84,21 @@ change to the game, `npm run app:sync` again. The app icon and launch screen are
   Testing Console, logs in logcat under the tag `Adjust`), the god build sends nothing (`ADJUST_ENVIRONMENT` in
   `android/app/build.gradle`). Its manifest adds the `AD_ID` permission. No in-game events are sent yet (each
   needs an event token made in the Adjust dashboard).
-- The Play Console's Advertising ID declaration: yes, the app uses an advertising ID, for analytics and
-  attribution (Adjust).
+- AppLovin MAX (session 46): interstitials only (`FORCED_ADS_ENABLED` in `src/config/economy.ts`; rewarded ads,
+  offers and the store stay off with `MONETIZATION_ENABLED`). `MaxAdsPlugin.java` starts MAX 13.7.0 (SDK key
+  `1a85254db169f142`), keeps one interstitial loaded (retrying 2, 4 … 64 s after a failed load) and reports every
+  paid impression to Adjust as ad revenue (`AdjustAdRevenue("applovin_max_sdk")`, USD, network, ad unit,
+  placement). The game shows it only where `AdPolicy` allows (Departing, never before minute 10 of play, three
+  minutes apart, never mid-task) through `src/services/maxAds.ts`. **The interstitial ad unit** is one line at the
+  top of `android/app/build.gradle` (`maxInterstitialAdUnit`): create it in the MAX dashboard (Monetize > Manage >
+  Ad Units > Create Ad Unit: platform Android, format Interstitial, package `io.heseri.night`) and paste its id;
+  empty means no ads. No consent flow yet (owner's choice for now): needed before release in the EU/UK. No mediated
+  networks yet (AppLovin's own exchange only); each one is an adapter dependency.
+- The Play Console's Advertising ID declaration: yes, the app uses an advertising ID, for analytics, attribution
+  (Adjust) and advertising (MAX). App content > Ads: yes, the app contains ads.
+- The data-safety form with MAX: add that device or other IDs, approximate location (from the IP address), app
+  interactions and diagnostics are collected and **shared** with AppLovin for advertising, analytics and fraud
+  prevention (AppLovin's own data-safety guidance lists what its SDK sends).
 - The data-safety form: GameAnalytics and Adjust are on, so declare app activity (app interactions, in-app
   actions), app info and performance (crash logs, diagnostics) and device or other IDs (a random install id,
   the advertising id and Android id for Adjust), collected, encrypted in transit; Adjust's device ids are shared
