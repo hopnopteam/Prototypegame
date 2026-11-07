@@ -7,7 +7,7 @@ sounds are the real game's; the game itself is untouched (apart from a smoother 
 ## The flow (5–10 minutes): deliver → get paid → upgrade
 
 **Splash (1.8 s, or a tap):** "UPGRADE YOUR TRAIN" over the live scene, "Drag to move" with a hand on a pad, the app
-icon and Install in the corners (after the reference), then it fades into play.
+icon in the corner (after the reference), then it fades into play.
 
 **The lobby (the playable's own plan, `useCompactLobby` in `src/world/layout.ts`; the game's lobby is unchanged).**
 Reception up front: the desk, the urn's counter (tea, coffee and a breakfast tray), the linen cupboard, the waiting sofa

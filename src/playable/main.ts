@@ -504,7 +504,7 @@ const classBox = ui.querySelector('.ad-class') as HTMLElement;
 const hand = ui.querySelector('.ad-hand') as HTMLElement;
 const muteBtn = ui.querySelector('.ad-mute') as HTMLButtonElement;
 // The start screen (after the reference): the title over the game, "Drag to move" with a hand showing how, the app
-// icon and an Install button that stay for the whole ad. The first touch clears the titles and starts play.
+// icon that stays for the whole ad. The first touch clears the titles and starts play.
 declare const __ICON__: string;
 const startScreen = document.createElement('div');
 startScreen.className = 'ad-start';
@@ -514,14 +514,8 @@ startScreen.innerHTML = `
 document.body.appendChild(startScreen);
 const corner = document.createElement('div');
 corner.className = 'ad-corner';
-corner.innerHTML = `<img class="ad-icon" alt="" src="${__ICON__}"><button class="ad-install" type="button">INSTALL</button>`;
+corner.innerHTML = `<img class="ad-icon" alt="" src="${__ICON__}">`;
 document.body.appendChild(corner);
-const install = corner.querySelector('.ad-install') as HTMLButtonElement;
-install.addEventListener('pointerdown', (e) => e.stopPropagation());
-install.addEventListener('click', (e) => {
-  e.stopPropagation();
-  openStore();
-});
 const splash = document.createElement('div');
 splash.className = 'ad-splash';
 splash.innerHTML = `<img alt="" src="${__ICON__}"><span><i></i><i></i><i></i></span>`;
