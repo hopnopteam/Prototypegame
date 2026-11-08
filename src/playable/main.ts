@@ -504,7 +504,7 @@ const classBox = ui.querySelector('.ad-class') as HTMLElement;
 const hand = ui.querySelector('.ad-hand') as HTMLElement;
 const muteBtn = ui.querySelector('.ad-mute') as HTMLButtonElement;
 // The start screen (after the reference): the title over the game, "Drag to move" with a hand showing how, the app
-// icon that stays for the whole ad. The first touch clears the titles and starts play.
+// icon and an Install button that stay for the whole ad. The first touch clears the titles and starts play.
 declare const __ICON__: string;
 const startScreen = document.createElement('div');
 startScreen.className = 'ad-start';
@@ -514,8 +514,14 @@ startScreen.innerHTML = `
 document.body.appendChild(startScreen);
 const corner = document.createElement('div');
 corner.className = 'ad-corner';
-corner.innerHTML = `<img class="ad-icon" alt="" src="${__ICON__}">`;
+corner.innerHTML = `<img class="ad-icon" alt="" src="${__ICON__}"><button class="ad-install" type="button">INSTALL</button>`;
 document.body.appendChild(corner);
+const install = corner.querySelector('.ad-install') as HTMLButtonElement;
+install.addEventListener('pointerdown', (e) => e.stopPropagation());
+install.addEventListener('click', (e) => {
+  e.stopPropagation();
+  openStore();
+});
 const splash = document.createElement('div');
 splash.className = 'ad-splash';
 splash.innerHTML = `<img alt="" src="${__ICON__}"><span><i></i><i></i><i></i></span>`;
@@ -2819,7 +2825,7 @@ function resize(): void {
   const w = window.visualViewport?.width ?? window.innerWidth;
   const h = window.visualViewport?.height ?? window.innerHeight;
   const aspect = w / Math.max(1, h);
-  baseZoom = aspect > 0.9 ? Math.max(TUNE.zoom, 1.27 * aspect) : TUNE.zoom;
+  baseZoom = aspect > 0.9 ? Math.max(TUNE.zoom, 1.27 * Math.min(aspect, 1.4) + 0.75 * Math.max(0, aspect - 1.4)) : TUNE.zoom;
 }
 window.addEventListener('resize', resize);
 window.visualViewport?.addEventListener('resize', resize);

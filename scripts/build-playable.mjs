@@ -10,7 +10,13 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const network = process.argv[2] ?? 'unity';
 const noTutorial = process.env.NO_TUTORIAL === '1';
-const fileName = noTutorial ? 'night-express-playable-no-tutorial.html' : 'night-express-playable.html';
+// Each network's build gets its own file name (night-express-playable-applovin.html…); unity keeps the plain name.
+const suffix = network === 'unity' ? '' : `-${network}`;
+const fileName = `night-express-playable${noTutorial ? '-no-tutorial' : ''}${suffix}.html`;
+// The store listing Install and Play Now open (no App Store page yet: iPhones get the Play listing too).
+const ANDROID_URL = 'https://play.google.com/store/apps/details?id=io.heseri.night&hl=en_CA';
+const IOS_URL = '';
+const google = network === 'google';
 
 // The game's theme music is switched off (config/audio.ts) but its MP3 is imported by the audio engine: leave it out.
 const noMusic = {
@@ -61,29 +67,29 @@ const page = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
-<!-- Google Ads (HTML5) reads these two; the other networks ignore them. -->
+${google ? `<!-- Google Ads (HTML5) reads these two. -->
 <meta name="ad.size" content="width=320,height=480">
 <meta name="ad.orientation" content="portrait,landscape">
-<title>Night Express</title>
+` : ''}<title>Night Express</title>
 <script>
 /* ============================================================================================
    AD NETWORK SETTINGS: change these lines only.
    network:    'unity' | 'applovin' | 'meta' | 'google'
                  unity, applovin -> mraid.open(storeUrl)   (MRAID is injected by the network)
                  meta            -> FbPlayableAd.onCTAClick()
-                 google          -> ExitApi.exit()          (also uncomment the exitapi.js line below)
-   iosUrl / androidUrl: the store pages the Play Now button opens (Unity / AppLovin; Meta and
-               Google take the link from the campaign and use it automatically).
+                 google          -> ExitApi.exit()          (the google build includes exitapi.js)
+   iosUrl / androidUrl: the store pages Install and Play Now open (Unity / AppLovin; Meta and
+               Google take the link from the campaign). An empty iosUrl uses androidUrl.
    ============================================================================================ */
 window.NX_AD = {
   network: '${network}',
-  iosUrl: 'https://apps.apple.com/app/id0000000000',
-  androidUrl: 'https://play.google.com/store/apps/details?id=com.hopnop.nightexpress'
+  iosUrl: '${IOS_URL}',
+  androidUrl: '${ANDROID_URL}'
 };
 </script>
-<!-- Google Ads only: uncomment the next line (Google requires its exit API; every other network must leave it out). -->
-<!-- <script type="text/javascript" src="https://tpc.googlesyndication.com/pagead/gadgets/html5/api/exitapi.js"></script> -->
-<style>
+${google ? `<!-- Google Ads requires its exit API (the file's only external reference; no other network gets it). -->
+<script type="text/javascript" src="https://tpc.googlesyndication.com/pagead/gadgets/html5/api/exitapi.js"></script>
+` : ''}<style>
 @font-face { font-family: 'Jost'; font-style: normal; font-weight: 100 900; font-display: block; src: url(data:font/woff2;base64,${jost}) format('woff2'); }
 ${css}
 </style>

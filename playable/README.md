@@ -7,7 +7,7 @@ sounds are the real game's; the game itself is untouched (apart from a smoother 
 ## The flow (5–10 minutes): deliver → get paid → upgrade
 
 **Splash (1.8 s, or a tap):** "UPGRADE YOUR TRAIN" over the live scene, "Drag to move" with a hand on a pad, the app
-icon in the corner (after the reference), then it fades into play.
+icon and Install in the corners (after the reference), then it fades into play.
 
 **The lobby (the playable's own plan, `useCompactLobby` in `src/world/layout.ts`; the game's lobby is unchanged).**
 Reception up front: the desk, the urn's counter (tea, coffee and a breakfast tray), the linen cupboard, the waiting sofa
@@ -81,6 +81,25 @@ build with `?notut=1` to try it.
 1.1 s of game time and prints when each upgrade is bought (and any long stall). Rebuild first:
 `node scripts/build-playable.mjs`.
 
+## AppLovin builds
+
+`night-express-playable-applovin.html` and `night-express-playable-no-tutorial-applovin.html` are the files to upload to
+AppLovin (`node scripts/build-playable.mjs applovin`, and with `NO_TUTORIAL=1`). Against AppLovin's playable rules:
+
+| Rule | How the ad meets it |
+|---|---|
+| One HTML file, everything inline, no external requests | code, art, font and sounds inlined (images and the font as base64); a headless run made no network request |
+| Under 5 MB | about 1.2 MB |
+| MRAID 2.0, store link through `mraid.open()` | Install and Play Now call `mraid.open(storeUrl)`; no `mraid.js` tag (AppLovin injects MRAID) |
+| Starts only when ready and on screen | waits for MRAID `ready` and `viewableChange`; pauses (sound too) while hidden |
+| Portrait and landscape | both: the camera frames the train for the screen's shape and the HUD and end card fit either way |
+| No sound or click-through before the first touch | sound starts on the first touch; the store opens only on a tap |
+| A loading indicator | the app icon with three bouncing dots until the ad is ready |
+| An end card | "UPGRADE YOUR TRAIN!" with PLAY NOW, after the Dining Car (or 20 s without a touch) |
+
+The store link is `ANDROID_URL` in `scripts/build-playable.mjs` (the Play listing, `io.heseri.night`); there is no App
+Store page yet, so iPhones get the same link until `IOS_URL` is set.
+
 ## Switching ad networks
 
 Open the file and edit the block at the very top (`window.NX_AD`):
@@ -90,9 +109,9 @@ Open the file and edit the block at the very top (`window.NX_AD`):
 | `'unity'` | `mraid.open(storeUrl)` | MRAID is injected by Unity Ads. |
 | `'applovin'` | `mraid.open(storeUrl)` | MRAID is injected by AppLovin. |
 | `'meta'` | `FbPlayableAd.onCTAClick()` | The store link comes from the campaign. Meta's 2 MB limit is met. |
-| `'google'` | `ExitApi.exit()` | Also uncomment the `exitapi.js` line under the block (Google requires it, and it is the file's only external reference). The `ad.size` / `ad.orientation` meta tags are already there. |
+| `'google'` | `ExitApi.exit()` | The google build includes `exitapi.js` (Google requires it; the file's only external reference) and the `ad.size` / `ad.orientation` meta tags; no other build has them. |
 
-Set `iosUrl` and `androidUrl` to your store pages (used by Unity and AppLovin, and as the fallback when the file is
+Set `iosUrl` and `androidUrl` to your store pages (the builds already carry the Play listing) (used by Unity and AppLovin, and as the fallback when the file is
 opened outside an ad network). The ad waits for MRAID `ready` and for the ad to be on screen, and pauses while it is hidden.
 
 Or rebuild with a network preset: `node scripts/build-playable.mjs meta` (sources in `src/playable/`; the end screen's
