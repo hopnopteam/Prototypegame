@@ -61,3 +61,39 @@ Licence first: CC0 only unless a CC-BY model is clearly worth an attribution lin
   assume our own rig; swapping people is the biggest job of all.
 - **Size:** the single HTML file is ~1.6 MB; glTF packs add megabytes (the owner allows ~300 MB in the
   app; the web Artifact is capped at 16 MB per file).
+
+## Session 48: the showcase (done)
+Published: **Asset Showcase**, https://claude.ai/artifact/XtkRvN957Hq6BNo3tqG4Rh (private until shared). Every candidate
+was downloaded and rendered in the game's own `Stage` (moonlit night, tone map, grade, the 30°/48°/33° camera) at phone
+resolution, beside today's code-built look (shot from `dist/preview.html`). Models shown untouched, with a warm point
+light per room standing in for the baked lamplight.
+
+### Where the packs came from (all licences read in the packs: every one CC0)
+- itch.io free downloads (the page's own $0 download flow; files served from an `itchio-mirror…r2.cloudflarestorage.com`
+  host, which the proxy allowed): Quaternius Universal Base Characters, Universal Animation Library 1 and 2, Stylized
+  Nature MegaKit, Medieval Village MegaKit (Standard = free subsets); KayKit Furniture Bits, Restaurant Bits, City
+  Builder Bits, Forest Nature Pack, Holiday Bits, Adventurers 2.0, Character Animations 1.1 (free editions).
+- OpenGameArt: Kenney Train Kit 1.1, Food Kit 2.0, Holiday Kit 2.0, City Kit Suburban 2.0, Nature Kit 2.1, Furniture
+  Pack 1.0 (the older Furniture Kit); Quaternius Ultimate House Interior (June 2020), Ultimate Food Pack (Oct 2019).
+- Not reachable: kenney.nl (403 from the site itself), Poly Pizza (bot check), Quaternius's Google Drive-only packs
+  (Modular Train, Ultimate Furniture, Textured Buildings: "quota exceeded"), api.sketchfab.com (not allowed here).
+
+### Recommendation (the owner decides)
+- **KayKit as the house style** for furniture, venues, the platform and the lakeside: the only family whose soft,
+  chunky shapes match our figures; one 1024² palette texture per pack, so models bake to vertex colours and merge into
+  the carriage meshes (one draw per material stays). A furnished room ≈ 2,500–4,800 triangles; ~20–60 KB a model.
+- **Kenney Food Kit** for every food and drink item (tea, coffee, sandwich, croissant, cake, cocktail, wine, dinners);
+  **Kenney City Kit Suburban** for village cottages (KayKit's city is urban).
+- **Quaternius House Interior** for what KayKit lacks (bath, toilet, sink, mirror, houseplants, chandelier), recoloured.
+- **Keep ours**: locomotive and carriage shells (cut-away, liveries, classes, light bake), the people, the cinema seats.
+- Shortfalls: the free KayKit editions are small (Furniture Bits 53 models, no plants, no reception desk, espresso
+  machine or bar counter); each has a CC0 EXTRA edition for a few dollars (Furniture Bits $3.95+). No pack has cinema
+  seats. Quaternius Stylized Nature is the prettiest scenery but 24 MB of textures and alpha leaves: too heavy.
+- People: KayKit figures are fantasy outfits at 6–9k triangles each (~300k for 40 guests); Quaternius base characters
+  are realistic bodies in underwear, 14k triangles and 4K textures. Neither fits; both ship the animations we would
+  need (sit, lie down, wave, carry, walk), so Mixamo is not needed.
+
+### Tooling (scratch, not in the repo)
+A stage page built from `src/world/Stage` + `Scenery` with GLTF/OBJ/FBX loaders and a JSON scene spec per shot;
+Quaternius OBJ colours need converting (their MTL Kd is linear); the game camera's near plane (8 m) means close-ups
+need a lower near plane. Rebuild it the same way for the integration step's comparison shots.
