@@ -5,6 +5,7 @@ import { rect, type CarriageType, type Rect, type VenueKind } from '../core/type
 import type { ComfortKey } from '../config/content';
 import { bedMessParts, buildLitter, buildMessPiece, buildMessPillow, LITTER_KINDS, seeded, type BedMess, type MessPiece } from './Mess';
 import { GeoBuilder, PaneBuilder, type PartStyle } from './geo';
+import { modelEntry } from './models/library';
 import {
   CARRIAGE_LENGTH,
   COVER_BASE,
@@ -2123,6 +2124,34 @@ export function buildLobbyRack(b: GeoBuilder, r: Rect, tier: number, level: numb
   b.endObject();
 }
 
+/**
+ * Session 49: the KayKit furniture (CC0) in place of the code-built beds, sofas and armchairs (one switch, so the old
+ * pieces come back if it is turned off).
+ */
+const MODEL_FURNITURE = true;
+
+/**
+ * A KayKit seat (couch or armchair) fitted to a prop's footprint: its back to the wall it faces away from (our props
+ * face 'right' with the back at x0, 'left' with it at x1), `height` tall, the upholstery and the cushions recoloured.
+ */
+function seatModel(b: GeoBuilder, id: 'couch' | 'armchair', r: Rect, facing: PropDef['facing'], height: number, cover: string, cushions: string, wood: string): void {
+  const e = modelEntry(id);
+  // The model's back is at its min z (tall −1): turned a quarter so its back meets x0 (facing right) or x1.
+  const back = e.tall < 0 ? 1 : -1;
+  const rotY = facing === 'left' ? -back * Math.PI / 2 : back * Math.PI / 2;
+  const sx = (r.z1 - r.z0) / (e.max[0] - e.min[0]);
+  const sz = (r.x1 - r.x0) / (e.max[2] - e.min[2]);
+  const sy = height / (e.max[1] - e.min[1]);
+  b.model(id, (r.x0 + r.x1) / 2, FLOOR_Y, (r.z0 + r.z1) / 2, rotY, sx, sy, sz, {
+    recolor: [
+      { hue: [20, 55], sat: [0.4, 1], val: [0.75, 1], ref: '#fbb856', to: cover },
+      { hue: [190, 230], ref: '#68a8d4', to: cushions },
+      { hue: [0, 30], val: [0, 0.7], ref: '#8a4a37', to: wood },
+    ],
+    surface: 'fabric',
+  });
+}
+
 export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme: CarriageTheme = CARRIAGE_THEMES.lobby, tier = 1): void {
   const r = prop.rect;
   const cx = (r.x0 + r.x1) / 2;
@@ -2146,6 +2175,24 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       }
       if (tier >= 4) {
         buildGrandBed(b, r, theme, tier);
+        break;
+      }
+      if (MODEL_FURNITURE) {
+        // Session 49: a KayKit bed (CC0) fitted to the berth, its mattress where people lie (BED_TOP), its headboard at
+        // the room's back wall, the blanket in the class's colour and the frame in our wood.
+        const id = w > 1.25 ? 'bed_double' : 'bed_single';
+        const e = modelEntry(id);
+        const sx = w / (e.max[0] - e.min[0]);
+        const sz = d / (e.max[2] - e.min[2]);
+        const sy = (BED_TOP + 0.031) / e.top;
+        b.model(id, cx, y, cz, e.tall > 0 ? Math.PI : 0, sx, sy, sz, {
+          recolor: [
+            { hue: [190, 240], ref: '#497ebe', to: tier >= 3 ? theme.deep : theme.blanket },
+            { hue: [0, 40], val: [0, 0.75], ref: '#8a4a37', to: wood },
+          ],
+          surface: 'fabric',
+        });
+        if (tier >= 3) b.box(cx, y + BED_TOP + 0.04, r.z1 - 0.1, w - 0.02, 0.012, 0.05, PALETTE.gold, 0, FLAT);
         break;
       }
       b.slab(r, y, y + 0.24, wood, 0, 0, { shade: 0.75 });
@@ -2361,6 +2408,10 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
     }
     case 'sofa': {
       const cushion = tier <= 0 ? '#8E8577' : theme.deep;
+      if (MODEL_FURNITURE) {
+        seatModel(b, 'couch', r, prop.facing, 0.82, cushion, tier >= 2 ? PALETTE.pillow : cushion, wood);
+        break;
+      }
       b.slab(r, y + 0.08, y + 0.3, tier <= 0 ? '#7B6A58' : wood, 0, 0.02, { shade: 0.75 });
       b.rounded(cx + (prop.facing === 'right' ? 0.05 : -0.05), y + 0.36, cz, w - 0.16, 0.12, d - 0.2, 0.05, cushion, { shade: 0.9 });
       const backX = prop.facing === 'right' ? r.x0 + 0.09 : r.x1 - 0.09;
@@ -2372,6 +2423,10 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
     case 'armchair': {
       // A Business Class wingback: buttoned leather in the carriage's colour on turned walnut feet.
       const cover = theme.deep;
+      if (MODEL_FURNITURE) {
+        seatModel(b, 'armchair', r, prop.facing, 0.86, cover, PALETTE.pillow, PALETTE.walnutDark);
+        break;
+      }
       const back = prop.facing === 'right' ? r.x0 + 0.1 : r.x1 - 0.1;
       const seat = prop.facing === 'right' ? 0.05 : -0.05;
       for (const fx of [r.x0 + 0.1, r.x1 - 0.1]) for (const fz of [r.z0 + 0.1, r.z1 - 0.1]) b.cylinder(fx, y + 0.06, fz, 0.025, 0.018, 0.12, PALETTE.walnutDark, 8, 'y', { surface: 'varnish' });

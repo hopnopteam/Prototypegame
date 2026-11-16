@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { Rng } from '../core/Rng';
 import { GeoBuilder, type PartStyle } from './geo';
 import { PATTERN } from './materials';
+import { packPattern } from './detail';
+import { modelEntry } from './models/library';
 import { groundColor, groundHeight, sceneryToWorldX, shoreX, TRACK_HALF, VERGE_Y, WATER_Y } from './terrain';
 
 /**
@@ -629,7 +631,15 @@ function buildTerrain(s0: number, land: LandKind): THREE.BufferGeometry {
   }
   g.setAttribute('color', new THREE.BufferAttribute(linear, 3));
   g.setAttribute('aColor2', new THREE.BufferAttribute(linear.slice(), 3));
-  g.setAttribute('aPattern', new THREE.BufferAttribute(new Float32Array(count * 2), 2));
+  // Session 49 (owner: "find outside grass texture that actually looks better"): the ground carries the grass photo
+  // layer (world/detail.ts) over its painted colours; its 6 m repeat divides the 24 m stretch, so stretches join.
+  const pattern = new Float32Array(count * 2);
+  const grass = packPattern(0, 'grass');
+  for (let i = 0; i < count; i++) {
+    pattern[i * 2] = grass;
+    pattern[i * 2 + 1] = 1;
+  }
+  g.setAttribute('aPattern', new THREE.BufferAttribute(pattern, 2));
   const surface = new Float32Array(count * 4);
   // Smoothness 0.12 and full sheen (written in place: no array per vertex).
   for (let i = 0; i < count; i++) {
@@ -705,14 +715,18 @@ export function fillGeometries(): Record<FillKind, THREE.BufferGeometry> {
   spruce.cylinder(0, 0.35, 0, 0.08, 0.12, 0.7, '#6B5240', 6, 'y', { surface: 'wood' });
   const tiers2: [number, number, number, string][] = [[1.3, 1.9, 0.8, '#355F4D'], [2.35, 1.6, 0.62, '#3E6A56'], [3.25, 1.3, 0.44, '#4B7963']];
   for (const [y, h, r, color] of tiers2) spruce.add(soft(new THREE.ConeGeometry(r, h, 8)), color, 0, y, 0, 0, 0, 0, leaf);
+  // Session 49: the round trees, bushes and rocks are KayKit Forest models (CC0), recoloured toward the lakeside's
+  // greens and bark (the pines stay ours: the free pack has none).
+  const leaves = { hue: [60, 170] as [number, number], ref: '#5aa83c', to: '#5A8C4E' };
+  const bark = { hue: [5, 40] as [number, number], ref: '#c36532', to: '#7A5A44' };
   const broad = new GeoBuilder();
-  broad.cylinder(0, 0.6, 0, 0.1, 0.14, 1.2, '#7A6352', 6, 'y', { surface: 'wood' });
-  broad.add(soft(new THREE.IcosahedronGeometry(0.98, 1)), '#4F7D57', 0, 1.78, 0, 0, 0, 0, { shade: 0.7, surface: 'foliage' });
-  broad.add(soft(new THREE.IcosahedronGeometry(0.62, 1)), '#5E8D62', 0.38, 2.22, 0.22, 0, 0.6, 0, { shade: 0.85, surface: 'foliage' });
-  broad.add(soft(new THREE.IcosahedronGeometry(0.55, 1)), '#578659', -0.42, 2.05, -0.18, 0, 0.6, 0, { shade: 0.85, surface: 'foliage' });
+  const tree = modelEntry('tree_round');
+  const treeScale = 2.9 / (tree.max[1] - tree.min[1]);
+  broad.model('tree_round', 0, 0, 0, 0, treeScale, treeScale, treeScale, { recolor: [leaves, bark], shade: 0.7, surface: 'foliage' });
   const bush = new GeoBuilder();
-  bush.add(soft(new THREE.IcosahedronGeometry(0.45, 1)).scale(1, 0.75, 1), '#4C7A55', 0, 0.3, 0, 0, 0, 0, { shade: 0.72, surface: 'foliage' });
-  bush.add(soft(new THREE.IcosahedronGeometry(0.3, 1)), '#5A8A60', 0.22, 0.42, 0.1, 0, 0, 0, { shade: 0.85, surface: 'foliage' });
+  const shrub = modelEntry('bush_round');
+  const bushScale = 0.78 / (shrub.max[0] - shrub.min[0]);
+  bush.model('bush_round', 0, 0, 0, 0, bushScale, bushScale, bushScale, { recolor: [{ ...leaves, ref: '#368c3a', to: '#4F7D52' }], shade: 0.72, surface: 'foliage' });
   const reed = new GeoBuilder();
   const rr = new Rng(7);
   for (let i = 0; i < 6; i++) {
@@ -723,7 +737,9 @@ export function fillGeometries(): Record<FillKind, THREE.BufferGeometry> {
     if (i % 2 === 0) reed.add(new THREE.CylinderGeometry(0.03, 0.03, 0.14, 5), '#A0845A', dx, h + 0.02, dz, 0, 0, 0, FLAT);
   }
   const rock = new GeoBuilder();
-  rock.add(soft(new THREE.DodecahedronGeometry(0.36, 1)).scale(1, 0.6, 0.85), '#9097A3', 0, 0.1, 0, 0, 0, 0, { shade: 0.75, surface: 'stone' });
+  const stone = modelEntry('rock_round');
+  const rockScale = 0.62 / (stone.max[0] - stone.min[0]);
+  rock.model('rock_round', 0, -0.04, 0, 0, rockScale, rockScale * 0.7, rockScale, { recolor: [{ hue: [0, 360], sat: [0, 1], ref: '#6b7378', to: '#9097A3' }], shade: 0.75, surface: 'stone' });
   const lily = new GeoBuilder();
   lily.add(new THREE.CylinderGeometry(0.2, 0.2, 0.012, 10, 1, false, 0.4, Math.PI * 1.8), '#4E7E58', 0, 0, 0, 0, 0, 0, FLAT);
   lily.add(new THREE.CylinderGeometry(0.13, 0.13, 0.012, 9, 1, false, 1.0, Math.PI * 1.8), '#5A8C62', 0.22, 0, 0.12, 0, 0, 0, FLAT);

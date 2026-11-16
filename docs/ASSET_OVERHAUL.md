@@ -97,3 +97,12 @@ light per room standing in for the baked lamplight.
 A stage page built from `src/world/Stage` + `Scenery` with GLTF/OBJ/FBX loaders and a JSON scene spec per shot;
 Quaternius OBJ colours need converting (their MTL Kd is linear); the game camera's near plane (8 m) means close-ups
 need a lower near plane. Rebuild it the same way for the integration step's comparison shots.
+
+## Session 49: integration, step 1 (done)
+- Pipeline: `scripts/assets/bake_models.py` → `assets/models/models.bin` + `src/world/models/modelIndex.ts`;
+  `GeoBuilder.model(id, x, y, z, rotY, sx, sy, sz, { recolor, tone, shade, surface })`; recolour by hue band.
+- In the game: KayKit beds, sofas, armchairs; KayKit round trees, bushes, rocks. Pines, grand beds, iron cots stay ours.
+- Textures: Poly Haven detail layers (wood grain, herringbone, linen, grass) in one texture array; `PartStyle.detail`.
+- ambientCG's file host (acg-download.struffelproductions.com) is not allowed here; Poly Haven covered every need.
+- Next: venues (KayKit Restaurant Bits tables, chairs, counters), platform props (KayKit City), village (Kenney City Kit
+  Suburban), food items (Kenney Food Kit), then Quaternius washroom pieces.

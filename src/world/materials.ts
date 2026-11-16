@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { VISUALS } from '../config/visuals';
 import { PALETTE } from './palette';
 import { SURFACES, type Surface } from './surfaces';
+import { DETAIL_LAYERS, DETAIL_STRIDE, detailTuning } from './detail';
 
 /**
  * Pattern ids painted by the shared "patterned" material. Patterns are computed in the fragment shader from
@@ -58,6 +59,8 @@ vObjNormal = normal;
 `;
 
 const PATTERN_FRAGMENT_HEAD = /* glsl */ `
+uniform highp sampler2DArray uNxDetail;
+uniform vec2 uNxDetailK[${DETAIL_LAYERS.length}];
 varying vec3 vColor2;
 varying vec2 vPattern;
 varying vec3 vObjPos;
@@ -139,7 +142,18 @@ float patternMask(vec3 pos, vec3 n, vec2 pat) {
 
 const PATTERN_FRAGMENT_BODY = /* glsl */ `
 #include <color_fragment>
-if (vPattern.x > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vColor2, clamp(patternMask(vObjPos, vObjNormal, vPattern), 0.0, 1.0));
+// Session 49: the pattern id and an optional photo detail layer share one float (world/detail.ts).
+float nxLayer = floor(vPattern.x / ${DETAIL_STRIDE.toFixed(1)} + 0.001) - 1.0;
+float nxType = vPattern.x - (nxLayer + 1.0) * ${DETAIL_STRIDE.toFixed(1)};
+if (nxType > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vColor2, clamp(patternMask(vObjPos, vObjNormal, vec2(nxType, vPattern.y)), 0.0, 1.0));
+if (nxLayer > -0.5) {
+  // The photo divided by its own average (stored at half scale): grain and natural variation over our own colour.
+  vec2 nxK = uNxDetailK[int(nxLayer + 0.5)];
+  vec3 nxAn = abs(vObjNormal);
+  vec2 nxP = (nxAn.y >= nxAn.x && nxAn.y >= nxAn.z ? vObjPos.xz : (nxAn.x >= nxAn.z ? vObjPos.zy : vObjPos.xy)) / nxK.x;
+  vec3 nxD = texture(uNxDetail, vec3(nxP, nxLayer)).rgb * 2.0;
+  diffuseColor.rgb *= mix(vec3(1.0), nxD, nxK.y);
+}
 `;
 
 /**
@@ -179,7 +193,23 @@ export const LIGHT_UNIFORMS = {
    * to the parts CharacterBatch marks as highlighted. Written by ConductorGear.
    */
   uNxHighlight: { value: new THREE.Color('#FFC75A') },
+  /**
+   * Session 49: the photo detail layers (world/detail.ts, filled from assets/textures/detail.jpg at start-up by
+   * world/detailTextures.ts) and each layer's (metres per repeat, strength). Until they load, a flat grey layer
+   * that changes nothing.
+   */
+  uNxDetail: { value: flatDetailTexture() as THREE.Texture },
+  uNxDetailK: { value: detailTuning().map((k) => new THREE.Vector2(k.x, k.y)) },
 };
+
+/** A neutral detail array (every texel 0.5, which multiplies by 1) for before the real one has loaded, and for tests. */
+function flatDetailTexture(): THREE.DataArrayTexture {
+  const n = DETAIL_LAYERS.length;
+  const data = new Uint8Array(4 * n).fill(128);
+  const tex = new THREE.DataArrayTexture(data, 1, 1, n);
+  tex.needsUpdate = true;
+  return tex;
+}
 
 /** Heights in the light map are measured from the train's floor. */
 const LIGHT_FLOOR_Y = 0.55;

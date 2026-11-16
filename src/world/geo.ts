@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Rect } from '../core/types';
 import { inferSurface, SURFACES, type Surface, type SurfaceName } from './surfaces';
+import { packPattern, type DetailName } from './detail';
+import { modelEntry, modelGeometry, recolor, type ModelId, type Recolor } from './models/library';
 
 const tmpColor = new THREE.Color();
 const tmpColor2 = new THREE.Color();
@@ -24,6 +26,8 @@ export interface PartStyle {
   shade?: number;
   /** What it is made of (physically based tiers): a preset name or explicit values; inferred when absent. */
   surface?: SurfaceName | Surface;
+  /** Session 49: a photo detail layer (floor grain, wool, grass) multiplied over the part's colour (world/detail.ts). */
+  detail?: DetailName;
 }
 
 const DEFAULT_SHADE = 0.8;
@@ -83,7 +87,7 @@ export class GeoBuilder {
     const colors2 = new Float32Array(count * 3);
     const pattern = new Float32Array(count * 2);
     const surfaceAttr = new Float32Array(count * 4);
-    const type = style.pattern ?? 0;
+    const type = packPattern(style.pattern ?? 0, style.detail);
     const scale = style.scale ?? 0.4;
     const surface = typeof style.surface === 'string' ? SURFACES[style.surface] : style.surface ?? inferSurface(color, type);
     // Stored as (smoothness, metalness, glow, 1 - sheen): a mesh without the attribute reads (0,0,0,1), matte.
@@ -113,6 +117,63 @@ export class GeoBuilder {
     g.setAttribute('aSurface', new THREE.BufferAttribute(surfaceAttr, 4));
     this.parts.push(g);
     this.looks.push(`${color}|${style.color2 ?? ''}|${type}`);
+    return this;
+  }
+
+  /**
+   * Session 49: places a baked CC0 model (world/models) as one part: scaled by (sx, sy, sz) about its own footprint's
+   * centre and floor, turned by `rotY`, its bottom at `y`, its colours its own (optionally recoloured into ours and
+   * multiplied by `tone`), the usual height shading and a surface. Labelled for the clipping audit like any object.
+   */
+  model(id: ModelId, x: number, y: number, z: number, rotY: number, sx: number, sy: number, sz: number, opts: { recolor?: readonly Recolor[]; tone?: number; shade?: number; surface?: SurfaceName | Surface } = {}): this {
+    const e = modelEntry(id);
+    const src = modelGeometry(id);
+    const g = src.toNonIndexed();
+    const cx = (e.min[0] + e.max[0]) / 2;
+    const cz = (e.min[2] + e.max[2]) / 2;
+    g.translate(-cx, -e.min[1], -cz);
+    g.scale(sx, sy, sz); // applyMatrix4 transforms the normals by the inverse transpose, so they stay true
+    tmpEuler.set(0, rotY, 0);
+    tmpQuat.setFromEuler(tmpEuler);
+    tmpPos.set(x, y, z);
+    tmpMatrix.compose(tmpPos, tmpQuat, tmpScale);
+    g.applyMatrix4(tmpMatrix);
+    const colorAttr = g.getAttribute('color') as THREE.BufferAttribute;
+    const colors = colorAttr.array as Float32Array;
+    if (opts.recolor) recolor(colors, opts.recolor);
+    const tone = opts.tone ?? 1;
+    const position = g.getAttribute('position');
+    const count = position.count;
+    const shade = opts.shade ?? 0.85;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < count; i++) {
+      const vy = position.getY(i);
+      if (vy < minY) minY = vy;
+      if (vy > maxY) maxY = vy;
+    }
+    const height = maxY - minY;
+    const surface = typeof opts.surface === 'string' ? SURFACES[opts.surface] : opts.surface ?? SURFACES.matte;
+    const pattern = new Float32Array(count * 2);
+    const surfaceAttr = new Float32Array(count * 4);
+    for (let i = 0; i < count; i++) {
+      const t = height > 1e-6 ? (position.getY(i) - minY) / height : 1;
+      const k = (shade + (1 - shade) * t) * tone;
+      colors[i * 3] *= k;
+      colors[i * 3 + 1] *= k;
+      colors[i * 3 + 2] *= k;
+      pattern[i * 2 + 1] = 1;
+      surfaceAttr[i * 4] = 1 - surface.roughness;
+      surfaceAttr[i * 4 + 1] = surface.metalness;
+      surfaceAttr[i * 4 + 2] = surface.glow ?? 0;
+      surfaceAttr[i * 4 + 3] = 1 - (surface.sheen ?? 0);
+    }
+    colorAttr.needsUpdate = true;
+    g.setAttribute('aColor2', new THREE.BufferAttribute(colors.slice(), 3));
+    g.setAttribute('aPattern', new THREE.BufferAttribute(pattern, 2));
+    g.setAttribute('aSurface', new THREE.BufferAttribute(surfaceAttr, 4));
+    this.parts.push(g);
+    this.looks.push(`model:${id}`);
     return this;
   }
 

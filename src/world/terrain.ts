@@ -120,9 +120,10 @@ const mix = (a: Rgb, b: Rgb, t: number): Rgb => [a[0] + (b[0] - a[0]) * t, a[1] 
 
 /** The night palette of the ground: moonlit meadow greens, a pale pebble bank, darker grass under the hedges. */
 export const GROUND = {
-  grass: hex('#4C7D60'),
-  grassLight: hex('#67967A'),
-  grassDark: hex('#38604E'),
+  // Session 49 (owner: the grass "looks weird"): warmer meadow greens; the blue-green ones read teal under the moon.
+  grass: hex('#5A8A45'),
+  grassLight: hex('#78A453'),
+  grassDark: hex('#41693A'),
   bank: hex('#8C8A86'),
   sand: hex('#B3A893'),
   bed: hex('#5E6A6E'),

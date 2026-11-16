@@ -3,6 +3,7 @@ import { connectNative, restoreSave } from './services/native';
 import { h } from './ui/dom';
 import { Loader, nextPaint } from './ui/Loader';
 import { Ui } from './ui/Ui';
+import { loadDetailTextures } from './world/detailTextures';
 
 /** Longest the loading screen waits for the first frames to settle (seconds), and at least how long it draws them. */
 const SETTLE_MAX_SECONDS = 6;
@@ -52,6 +53,7 @@ async function boot(): Promise<void> {
   loader.progress(0.42);
   await nextPaint();
 
+  await loadDetailTextures();
   await game.stage.warmUp();
   loader.progress(0.66);
   if (!game.skippedEarly) await Promise.race([game.audio.ready(), new Promise((done) => setTimeout(done, AUDIO_WAIT_MS))]);

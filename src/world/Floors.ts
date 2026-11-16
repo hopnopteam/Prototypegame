@@ -3,6 +3,7 @@ import { rect, type Rect } from '../core/types';
 import type { GeoBuilder, PartStyle } from './geo';
 import { DOOR_Z0, DOOR_Z1, HALF_WIDTH, INNER, PARTITION_X0, PARTITION_X1, QUEUE_SLOTS, REAR_VESTIBULE, type CarriageLayout } from './layout';
 import { FLOOR_Y } from './CarriageView';
+import type { DetailName } from './detail';
 import { PATTERN } from './materials';
 import { seeded } from './Mess';
 import { CLASS_THEMES, PALETTE, shadeHex, type CarriageTheme } from './palette';
@@ -39,8 +40,9 @@ const BOARD_LENGTH = 2.1;
 const TILE = 0.25;
 const FLAT: PartStyle = { shade: 1 };
 /** Plain mat materials (session 36): wool, velvet and a brass line, no printed figure. */
-const WOOL: PartStyle = { shade: 1, surface: 'fabric' };
-const VELVET: PartStyle = { shade: 1, surface: 'velvet' };
+// Session 49: every carpet and rug carries the woven linen detail, every board real wood grain (world/detail.ts).
+const WOOL: PartStyle = { shade: 1, surface: 'fabric', detail: 'wool' };
+const VELVET: PartStyle = { shade: 1, surface: 'velvet', detail: 'wool' };
 const BRASS: PartStyle = { shade: 1, surface: 'brass' };
 
 /** Three close shades per tier (a whisper of variety, never a pattern of its own). */
@@ -169,6 +171,7 @@ function pickHoles(r: Rect, strip: number, count: number, rand: () => number, ko
  */
 function boardField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () => number, ko: ReturnType<typeof keepOuts>, room: boolean): void {
   const seam = tier <= 0 ? 0.007 : 0.003;
+  const grain: DetailName = tier <= 0 ? 'woodWorn' : 'wood';
   const strips = Math.max(1, Math.round((r.x1 - r.x0) / BOARD));
   const w = (r.x1 - r.x0) / strips;
   // One hole per room, and one per long run of corridor (a short strip of open floor has none).
@@ -196,28 +199,28 @@ function boardField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () 
       if (b - a < 0.05) continue;
       const hole = holes.find((h) => s >= h.s0 && s <= h.s1 && h.z0 < b && h.z1 > a);
       if (!hole) {
-        plank(f, cx, y, a, b, bw, board);
+        plank(f, cx, y, a, b, bw, board, grain);
         continue;
       }
       if (tier <= 0) {
         // A missing stretch: the board stops short on either side with splintered ends.
         // (A joint can fall inside the hole: each board only breaks at the edge it actually reaches.)
-        if (hole.z0 - a > 0.04) plank(f, cx, y, a, hole.z0, bw, board);
-        if (b - hole.z1 > 0.04) plank(f, cx, y, hole.z1, b, bw, board);
+        if (hole.z0 - a > 0.04) plank(f, cx, y, a, hole.z0, bw, board, grain);
+        if (b - hole.z1 > 0.04) plank(f, cx, y, hole.z1, b, bw, board, grain);
         if (a < hole.z0 && b > hole.z0) splinters(f, cx, bw, y, hole.z0, 1, rand, board);
         if (a < hole.z1 && b > hole.z1) splinters(f, cx, bw, y, hole.z1, -1, rand, board);
       } else {
         // Repaired: the old board up to the patch, a new board across it.
-        if (hole.z0 - a > 0.04) plank(f, cx, y, a, hole.z0 - seam / 2, bw, board);
-        if (b - hole.z1 > 0.04) plank(f, cx, y, hole.z1 + seam / 2, b, bw, board);
-        plank(f, cx, y, Math.max(a, hole.z0 + seam / 2), Math.min(b, hole.z1 - seam / 2), bw, PATCH_TONE);
+        if (hole.z0 - a > 0.04) plank(f, cx, y, a, hole.z0 - seam / 2, bw, board, grain);
+        if (b - hole.z1 > 0.04) plank(f, cx, y, hole.z1 + seam / 2, b, bw, board, grain);
+        plank(f, cx, y, Math.max(a, hole.z0 + seam / 2), Math.min(b, hole.z1 - seam / 2), bw, PATCH_TONE, grain);
       }
     }
   }
 }
 
-function plank(f: GeoBuilder, cx: number, y: number, z0: number, z1: number, width: number, color: string): void {
-  f.box(cx, y, (z0 + z1) / 2, width, PLANK_T, z1 - z0, color, 0, { shade: 0.97 });
+function plank(f: GeoBuilder, cx: number, y: number, z0: number, z1: number, width: number, color: string, grain: DetailName): void {
+  f.box(cx, y, (z0 + z1) / 2, width, PLANK_T, z1 - z0, color, 0, { shade: 0.97, detail: grain });
 }
 
 /** A broken board end: a few ragged fingers of wood reaching into the hole. */
@@ -321,7 +324,11 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
     return { queueBase };
   }
   // Cosy and Luxurious: one sound base of wide boards, rooms laid over it, and rugs.
-  f.box(0, FLOOR_Y - 0.03, L / 2, HALF_WIDTH * 2 - 0.04, 0.06, L - 0.04, PALETTE.boards, 0, { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1 });
+  // Session 49: Luxurious carriages are laid in herringbone parquet (a photo layer), Cosy ones in polished boards.
+  const base: PartStyle = tier >= 3
+    ? { shade: 1, detail: 'herringbone', surface: 'varnish' }
+    : { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1, detail: 'woodPolished' };
+  f.box(0, FLOOR_Y - 0.03, L / 2, HALF_WIDTH * 2 - 0.04, 0.06, L - 0.04, tier >= 3 ? PALETTE.boardsPolished : PALETTE.boards, 0, base);
   for (const cabin of layout.cabins) {
     if (tier >= 4) suedeRoom(f, cabin.room);
     else if (tier >= 3) firstClassRoom(f, cabin.room, theme);
@@ -416,7 +423,7 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
         // A deep wine carpet with a small gold figure (the seats in brighter red stand out on it).
         lay([
           { color: '#C9A45C', inset: 0 },
-          { color: '#4E1420', inset: 0.05, pattern: { pattern: PATTERN.dots, color2: '#A47A3A', scale: 0.22, shade: 1, surface: 'velvet' } },
+          { color: '#4E1420', inset: 0.05, pattern: { pattern: PATTERN.dots, color2: '#A47A3A', scale: 0.22, shade: 1, surface: 'velvet', detail: 'wool' } },
         ]);
         break;
       case 'checker':
@@ -438,7 +445,7 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
         lay([
           { color: '#5F7559', inset: 0, pattern: WOOL },
           { color: '#EADFC6', inset: 0.11 },
-          { color: '#9A5440', inset: 0.135, pattern: { pattern: PATTERN.trellis, color2: '#C4866A', scale: 0.27, shade: 1, surface: 'velvet' } },
+          { color: '#9A5440', inset: 0.135, pattern: { pattern: PATTERN.trellis, color2: '#C4866A', scale: 0.27, shade: 1, surface: 'velvet', detail: 'wool' } },
         ]);
         break;
       case 'forest':
@@ -448,7 +455,7 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
           { color: '#1F3428', inset: 0, pattern: VELVET },
           { color: PALETTE.gold, inset: 0.1, pattern: BRASS },
           { color: '#E9DDBF', inset: 0.125 },
-          { color: '#284434', inset: 0.15, pattern: { pattern: PATTERN.trellis, color2: '#A88A4C', scale: 0.3, shade: 1, surface: 'velvet' } },
+          { color: '#284434', inset: 0.15, pattern: { pattern: PATTERN.trellis, color2: '#A88A4C', scale: 0.3, shade: 1, surface: 'velvet', detail: 'wool' } },
         ]);
         break;
       case 'moss':
@@ -465,7 +472,7 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
           { color: '#8A5632', inset: 0, pattern: VELVET },
           { color: PALETTE.gold, inset: 0.12, pattern: BRASS },
           // Session 39: a tone-on-tone harlequin in the field, a gentleman's club carpet (the plain field read flat).
-          { color: '#6B4733', inset: 0.14, pattern: { pattern: PATTERN.diamond, color2: '#78523B', scale: 0.34, shade: 1, surface: 'velvet' } },
+          { color: '#6B4733', inset: 0.14, pattern: { pattern: PATTERN.diamond, color2: '#78523B', scale: 0.34, shade: 1, surface: 'velvet', detail: 'wool' } },
         ]);
         break;
       case 'dove':
@@ -474,7 +481,7 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
           { color: PALETTE.gold, inset: 0, pattern: BRASS },
           { color: '#EEE8DA', inset: 0.04 },
           // Session 39: small ivory dots, stars under the glass (the plain field read flat).
-          { color: '#AEBDCB', inset: 0.13, pattern: { pattern: PATTERN.dots, color2: '#D9E0E6', scale: 0.2, shade: 1, surface: 'velvet' } },
+          { color: '#AEBDCB', inset: 0.13, pattern: { pattern: PATTERN.dots, color2: '#D9E0E6', scale: 0.2, shade: 1, surface: 'velvet', detail: 'wool' } },
         ]);
         break;
       case 'kitchen':
@@ -489,7 +496,7 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
         // Wall to wall: a deep claret carpet with a small gold figure, quiet under the white tablecloths.
         lay([
           { color: '#4A1820', inset: 0 },
-          { color: '#6A2230', inset: 0.06, pattern: { pattern: PATTERN.dots, color2: '#8C5A3A', scale: 0.24, shade: 1, surface: 'velvet' } },
+          { color: '#6A2230', inset: 0.06, pattern: { pattern: PATTERN.dots, color2: '#8C5A3A', scale: 0.24, shade: 1, surface: 'velvet', detail: 'wool' } },
         ]);
         break;
     }
@@ -531,7 +538,7 @@ function fittedRoom(f: GeoBuilder, r: Rect, theme: CarriageTheme): void {
   const y0 = FLOOR_Y;
   const y1 = FLOOR_Y + ROOM_LIFT;
   const business = theme.deep === CLASS_THEMES.business.deep;
-  const boards = { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1 };
+  const boards: PartStyle = { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1, detail: 'woodPolished' };
   const frame = (outer: Rect, width: number, color: string, style: PartStyle): Rect => {
     f.slab(rect(outer.x0, outer.z0, outer.x1, outer.z0 + width), y0, y1, color, 0, 0, style);
     f.slab(rect(outer.x0, outer.z1 - width, outer.x1, outer.z1), y0, y1, color, 0, 0, style);
@@ -542,8 +549,8 @@ function fittedRoom(f: GeoBuilder, r: Rect, theme: CarriageTheme): void {
   let inner = frame(r, 0.2, PALETTE.boardsPolished, boards);
   inner = frame(inner, 0.025, business ? '#C9A45C' : '#EADFC6', business ? BRASS : WOOL);
   const field = business
-    ? { pattern: PATTERN.trellis, color2: '#7C6C4C', scale: 0.28, shade: 1, surface: 'velvet' as const }
-    : { pattern: PATTERN.dots, color2: '#6AA197', scale: 0.15, shade: 1, surface: 'velvet' as const };
+    ? { pattern: PATTERN.trellis, color2: '#7C6C4C', scale: 0.28, shade: 1, surface: 'velvet' as const, detail: 'wool' as const }
+    : { pattern: PATTERN.dots, color2: '#6AA197', scale: 0.15, shade: 1, surface: 'velvet' as const, detail: 'wool' as const };
   f.slab(inner, y0, y1, business ? '#2C4569' : '#44877F', 0, 0, field);
 }
 
@@ -556,7 +563,7 @@ function firstClassRoom(f: GeoBuilder, r: Rect, theme: CarriageTheme): void {
   const y0 = FLOOR_Y;
   const y1 = FLOOR_Y + ROOM_LIFT;
   const edge = shadeHex(theme.deep, -14);
-  const pile = { shade: 1, surface: 'velvet' as const };
+  const pile = { shade: 1, surface: 'velvet' as const, detail: 'wool' as const };
   f.slab(rect(r.x0, r.z0, r.x1, r.z0 + border), y0, y1, edge, 0, 0, pile);
   f.slab(rect(r.x0, r.z1 - border, r.x1, r.z1), y0, y1, edge, 0, 0, pile);
   f.slab(rect(r.x0, r.z0 + border, r.x0 + border, r.z1 - border), y0, y1, edge, 0, 0, pile);
@@ -568,7 +575,7 @@ function firstClassRoom(f: GeoBuilder, r: Rect, theme: CarriageTheme): void {
   f.slab(rect(inner.x0, inner.z1 - line, inner.x1, inner.z1), y0, y1, PALETTE.gold, 0, 0, gold);
   f.slab(rect(inner.x0, inner.z0 + line, inner.x0 + line, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, gold);
   f.slab(rect(inner.x1 - line, inner.z0 + line, inner.x1, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, gold);
-  f.slab(rect(inner.x0 + line, inner.z0 + line, inner.x1 - line, inner.z1 - line), y0, y1, theme.carpet, 0, 0, { pattern: PATTERN.diamond, color2: shadeHex(theme.carpet, 11), scale: 0.2, shade: 1, surface: 'velvet' });
+  f.slab(rect(inner.x0 + line, inner.z0 + line, inner.x1 - line, inner.z1 - line), y0, y1, theme.carpet, 0, 0, { pattern: PATTERN.diamond, color2: shadeHex(theme.carpet, 11), scale: 0.2, shade: 1, surface: 'velvet', detail: 'wool' });
 }
 
 /** A window opening on a wall that faces the camera: its inner face (x), its span along the wall and its top. */

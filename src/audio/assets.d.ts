@@ -3,3 +3,13 @@ declare module '*.mp3' {
   const data: string;
   export default data;
 }
+
+/** Session 49: images (detail textures, baked models) are inlined the same way. */
+declare module '*.jpg' {
+  const data: string;
+  export default data;
+}
+declare module '*.bin' {
+  const data: string;
+  export default data;
+}

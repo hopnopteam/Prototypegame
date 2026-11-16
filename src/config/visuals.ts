@@ -179,6 +179,21 @@ export const VISUALS = {
    * job (shoes in the corridor, a room without a bed near its middle).
    */
   pads: { icon: 0.74, iconLit: 0.1, iconHeight: 1.1 },
+  /**
+   * Session 49 (owner: "floor textures… consistent with the new graphics… outside grass that actually looks better"):
+   * photo detail layers (CC0, Poly Haven; built by scripts/assets/build_textures.py into assets/textures/detail.jpg)
+   * multiplied over the colours the game already paints. `tile` is the metres one repeat of the photo covers, `strength`
+   * how much of its grain shows (0 none, 1 all of it). The order matches DETAIL_LAYERS in world/detail.ts.
+   */
+  detail: {
+    woodWorn: { tile: 2.0, strength: 0.75 },
+    wood: { tile: 1.9, strength: 0.6 },
+    woodPolished: { tile: 2.4, strength: 0.55 },
+    herringbone: { tile: 1.6, strength: 0.6 },
+    wool: { tile: 0.9, strength: 0.45 },
+    grass: { tile: 6.0, strength: 1.0 },
+    ground: { tile: 3.0, strength: 0.7 },
+  },
 };
 
 export type Visuals = typeof VISUALS;

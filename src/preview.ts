@@ -15,6 +15,7 @@ import { JobMarker, TileView } from './world/ZoneViews';
 import { CashView } from './world/CashView';
 import { setLivery } from './world/materials';
 import { liveryFor } from './world/palette';
+import { loadDetailTextures } from './world/detailTextures';
 
 // The page's loading screen is the game's (session 26); the preview has nothing to load behind it.
 document.getElementById('loader')?.remove();
@@ -27,6 +28,7 @@ const camZ = Number(params.get('z') ?? '4');
 const camX = Number(params.get('x') ?? '0');
 const platform = params.get('platform') === '1';
 stage.lighting.setTime(time);
+void loadDetailTextures();
 const scenery = new Scenery();
 stage.scene.add(scenery.group);
 const loco = new LocomotiveView();
