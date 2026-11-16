@@ -139,3 +139,30 @@ export function recolor(colors: Float32Array, rules: readonly Recolor[]): void {
     }
   }
 }
+
+type Band = Omit<Recolor, 'to'>;
+/**
+ * Session 51: the key colours the baker paints flat-coloured models in (scripts/assets/bake_models.py: WOOD, COVER,
+ * CUSHION, BLANKET, METAL, LINEN), and Tiny Treats' own palette families (cool greys, warm wood, the red accent), each
+ * a hue band to recolour by.
+ */
+export const KEY = {
+  wood: { hue: [5, 25], sat: [0.45, 0.75], val: [0.3, 0.72], ref: '#8A4A37' },
+  cover: { hue: [28, 45], sat: [0.5, 0.8], val: [0.75, 1], ref: '#FBB856' },
+  cushion: { hue: [195, 215], sat: [0.4, 0.6], val: [0.78, 0.9], ref: '#68A8D4' },
+  blanket: { hue: [195, 215], sat: [0.45, 0.7], val: [0.6, 0.77], ref: '#4E8DBA' },
+  metal: { hue: [0, 360], sat: [0, 0.05], val: [0.3, 0.62], ref: '#7A7A7A' },
+  linen: { hue: [0, 360], sat: [0, 0.05], val: [0.8, 1], ref: '#F2F2F2' },
+  ttLight: { hue: [175, 245], sat: [0, 0.25], val: [0.76, 1], ref: '#D7DEE6' },
+  ttMid: { hue: [175, 245], sat: [0, 0.32], val: [0.5, 0.76], ref: '#A3ABB8' },
+  ttDark: { hue: [175, 245], sat: [0, 0.25], val: [0, 0.5], ref: '#454B52' },
+  ttWood: { hue: [10, 32], sat: [0.35, 0.72], val: [0.55, 1], ref: '#B8774F' },
+  ttRed: { hue: [350, 22], sat: [0.74, 1], val: [0.5, 1], ref: '#D2402A' },
+  ttTeal: { hue: [165, 200], sat: [0.35, 0.8], val: [0.4, 1], ref: '#4FA9A8' },
+  ttBlue: { hue: [195, 225], sat: [0.3, 0.75], val: [0.6, 1], ref: '#6FA6D6' },
+} satisfies Record<string, Band>;
+
+/** One recolour rule: a key family painted in our colour. */
+export function key(family: keyof typeof KEY, to: string): Recolor {
+  return { ...(KEY[family] as Band), to };
+}

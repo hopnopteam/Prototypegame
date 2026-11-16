@@ -4,7 +4,7 @@ import type { GeoBuilder, PartStyle } from './geo';
 import type { PropDef } from './layout';
 import { PATTERN } from './materials';
 import { PALETTE, shadeHex, type CarriageTheme } from './palette';
-import { modelEntry, type ModelId, type Recolor } from './models/library';
+import { key, modelEntry, type ModelId, type Recolor } from './models/library';
 import { seatModel } from './models/place';
 
 /**
@@ -78,21 +78,23 @@ function foliage(b: GeoBuilder, cx: number, y: number, cz: number, radius: numbe
 }
 
 /**
- * Session 50: the café and dining car's furniture from KayKit Restaurant Bits (CC0), from the Repair on (the run-down
- * tier stays makeshift: crates, a cable drum, stick chairs). One switch puts the procedural pieces back.
+ * Session 50–51: the venues' furniture from free CC0 models (Quaternius House chairs, tables, stools and seats; Tiny
+ * Treats' counter, range, coffee machine, cake stands and food), from the Repair on (the run-down tier stays
+ * makeshift: crates, a cable drum, stick chairs). One switch puts the procedural pieces back.
  */
 const MODEL_VENUE = true;
+/** Honey-toned wood for the repaired café's chairs and tables (PALETTE.oak is a floorboard tone, too pale on a model). */
+const HONEY = '#A8784C';
 
-/** KayKit's paint families in the restaurant models (sRGB): grey metal, orange wood, brown wood, red enamel, light top. */
-const KK = {
-  grey: { hue: [180, 220] as [number, number], sat: [0, 0.2] as [number, number], val: [0, 0.65] as [number, number], ref: '#6e777c' },
-  greyLight: { hue: [180, 220] as [number, number], sat: [0, 0.2] as [number, number], val: [0.7, 1] as [number, number], ref: '#cad2d6' },
-  orange: { hue: [15, 26] as [number, number], sat: [0.65, 1] as [number, number], ref: '#cc6933' },
-  brown: { hue: [10, 18] as [number, number], sat: [0.45, 0.66] as [number, number], ref: '#94533f' },
-  red: { hue: [355, 6] as [number, number], sat: [0.6, 1] as [number, number], ref: '#ee2b24' },
-};
-function kk(family: keyof typeof KK, to: string): Recolor {
-  return { ...KK[family], to };
+/**
+ * Places one model at its own proportions (uniform scale to `height`), centred at (x, z), its front (+z) turned to face
+ * `out` across x (or unturned when `out` is 0). For the small things: a coffee machine, a cake stand, a cup.
+ */
+export function placeModel(b: GeoBuilder, id: ModelId, x: number, y: number, z: number, out: number, height: number, recolor: Recolor[] = [], surface: PartStyle['surface'] = 'matte'): number {
+  const e = modelEntry(id);
+  const s = height / (e.max[1] - e.min[1]);
+  b.model(id, x, y, z, out === 0 ? 0 : (out > 0 ? 1 : -1) * Math.PI / 2, s, s, s, { recolor, surface, shade: 0.9 });
+  return s;
 }
 
 /**
@@ -103,8 +105,9 @@ function stripModel(b: GeoBuilder, id: ModelId, r: Rect, out: number, segments: 
   const e = modelEntry(id);
   const d = r.z1 - r.z0;
   const seg = d / segments;
-  const sx = seg / (e.max[0] - e.min[0]);
-  const sz = (r.x1 - r.x0) / (e.max[2] - e.min[2]);
+  // A hair inside the rect at every edge, so no face is shared with a wall or a neighbour.
+  const sx = (seg - 0.012) / (e.max[0] - e.min[0]);
+  const sz = (r.x1 - r.x0 - 0.06) / (e.max[2] - e.min[2]);
   const sy = height / (e.max[1] - e.min[1]);
   for (let i = 0; i < segments; i++) {
     b.model(id, (r.x0 + r.x1) / 2, Y, r.z0 + seg * (i + 0.5), (out > 0 ? 1 : -1) * Math.PI / 2, sx, sy, sz, { recolor, surface });
@@ -138,12 +141,12 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
         }
         b.slab(rect(r.x0, r.z0, r.x1, r.z1), Y + h - 0.06, Y + h + 0.03, '#B39A80', 0, 0, { ...FLAT, surface: 'wood' });
       } else if (MODEL_VENUE && !cinema) {
-        // Session 50: KayKit's kitchen counter run along the café, in walnut and oak, then the café's sage under
-        // cream marble, then (Luxury) bottle green under marble with a gold rail along its lip.
-        const body = tier >= 3 ? LUX.barGreen : tier === 2 ? '#7E9C78' : k.wood;
+        // Session 51: Tiny Treats' counter table run along the café (a top on legs over a shelf), in oak on painted
+        // legs, then the café's sage under cream marble, then (Luxury) bottle green under marble with a gold rail.
+        const body = tier >= 3 ? LUX.barGreen : tier === 2 ? '#7E9C78' : '#E4DCCB';
         const top = tier >= 2 ? '#F1ECE4' : PALETTE.oak;
-        const segments = Math.max(1, Math.round(d / 1.2));
-        stripModel(b, 'counter', r, out, segments, h + 0.03, [kk('orange', top), kk('greyLight', body), kk('grey', k.metal)], tier >= 2 ? 'varnish' : 'wood');
+        const segments = Math.max(1, Math.round(d / 1.0));
+        stripModel(b, 'counter', r, out, segments, h + 0.03, [key('ttWood', top), key('ttLight', body), key('ttMid', shadeHex(body, -12))], tier >= 2 ? 'varnish' : 'wood');
         if (tier >= 2) b.box(front + out * 0.006, Y + h - 0.02, cz, 0.012, 0.03, d - 0.04, k.metal, 0, { ...FLAT, surface: k.metalSurface });
       } else {
         const body = tier >= 3 ? (cinema ? LUX.mahogany : LUX.barGreen) : tier === 2 && cinema ? theme.deep : k.wood;
@@ -189,6 +192,16 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
         b.cylinder(front - out * 0.06, top + 0.04, cz + 0.2, 0.035, 0.028, 0.06, PALETTE.porcelain, 10, 'y', { surface: 'ceramic' });
         return true;
       }
+      if (MODEL_VENUE) {
+        // Session 51: Tiny Treats' espresso machine (group heads, dials, a drip tray): red enamel and steel, the café's
+        // colour, then black lacquer and brass. A cup waits under it.
+        const accent = tier >= 3 ? '#2A2826' : tier === 2 ? theme.deep : '#B23A2C';
+        const steel = tier >= 3 ? PALETTE.brass : '#D3D8DD';
+        placeModel(b, 'espresso', cx, top, cz, out, 0.44, [key('ttRed', accent), key('ttWood', shadeHex(accent, 8)), key('ttLight', steel), key('ttMid', shadeHex(steel, -18))], tier >= 3 ? 'brass' : 'paint');
+        placeModel(b, 'mug', front - out * 0.07, top, cz + 0.22, 0, 0.065, [key('ttLight', PALETTE.porcelain)], 'ceramic');
+        lamps.sphere(cx, top + 0.3, cz + (d / 2 - 0.05), 0.014, '#FFB765', 0, 1, FLAT);
+        return true;
+      }
       const body = tier === 1 ? '#E6E1D6' : tier === 2 ? theme.deep : '#F4EEDF';
       const metal = tier >= 2 ? 'brass' : 'steel';
       b.rounded(cx + out * 0.08, top + 0.21, cz, w * 0.62, 0.42, d - 0.06, 0.06, body, { shade: 0.85, surface: 'paint' });
@@ -204,6 +217,13 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
     case 'pastryCase': {
       // A tiered cake stand on the counter: a wooden base, posts and trays.
       const top = Y + 0.95;
+      if (MODEL_VENUE && tier >= 1) {
+        // Session 51: Tiny Treats' glass display cases along the counter (wood and glass, then painted, then brass).
+        const n = Math.max(1, Math.round(d / 0.45));
+        const frame = tier >= 3 ? PALETTE.brass : tier === 2 ? theme.deep : k.wood;
+        for (let i = 0; i < n; i++) placeModel(b, 'display_case', cx, top, r.z0 + (d / n) * (i + 0.5), out, Math.min(0.4, (d / n - 0.04) * 1.15 / 1.0), [key('ttWood', frame), key('ttBlue', '#5B6F86'), key('ttLight', '#E9EEF2')], 'varnish');
+        return true;
+      }
       b.slab(r, top, top + 0.05, k.wood, 0, 0.02, { shade: 0.85 });
       const trays = Math.max(2, Math.floor(d / 0.36));
       for (let i = 0; i < trays; i++) {
@@ -219,6 +239,22 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
     case 'pastries': {
       // Croissants on the lower trays and little cakes on the upper ones.
       const top = Y + 0.95;
+      if (MODEL_VENUE && tier >= 1) {
+        // Session 51: Tiny Treats' cake stands, dressed with cakes, and croissants, cinnamon rolls and muffins on
+        // plates between them.
+        const n = Math.max(2, Math.round(d / 0.4));
+        const span = d / n;
+        const goods: ModelId[] = ['croissant', 'cinnamon_roll', 'muffin'];
+        for (let i = 0; i < n; i++) {
+          const pz = r.z0 + span * (i + 0.5);
+          if (i % 2 === 0) placeModel(b, 'cake_stand', cx, top + 0.035, pz, 0, 0.17, [key('ttWood', tier >= 3 ? PALETTE.gold : '#E9E1D2')], 'ceramic');
+          else {
+            placeModel(b, 'plate', cx, top + 0.035, pz, 0, 0.018, [key('ttBlue', theme.deep)], 'ceramic');
+            for (const [j, dz] of [[0, -0.05], [1, 0.05]] as [number, number][]) placeModel(b, goods[(i + j) % goods.length], cx + (j ? 0.03 : -0.03), top + 0.045, pz + dz, 0, 0.05);
+          }
+        }
+        return true;
+      }
       const trays = Math.max(2, Math.floor(d / 0.36));
       const span = (d + 0.2) / trays;
       for (let i = 0; i < trays; i++) {
@@ -255,14 +291,16 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
         return true;
       }
       if (MODEL_VENUE) {
-        // Session 50: KayKit's round café table, its top at the cups' height: oak on iron, then marble on brass.
+        // Session 51: Quaternius's round pedestal table, its top at the cups' height: oak, then walnut, then (Luxury)
+        // dark walnut under a disc of marble.
         const e = modelEntry('cafe_table');
-        const span = radius * 2;
-        const sy = 0.738 / (e.max[1] - e.min[1]);
+        const span = radius * 1.9;
+        const sy = 0.735 / (e.max[1] - e.min[1]);
         b.model('cafe_table', cx, Y, cz, 0, span / (e.max[0] - e.min[0]), sy, span / (e.max[2] - e.min[2]), {
-          recolor: [kk('orange', tier >= 2 ? '#F1ECE4' : k.top), kk('grey', tier >= 2 ? k.metal : '#3B3A40')],
-          surface: tier >= 2 ? 'marble' : k.topSurface,
+          recolor: [key('wood', tier >= 3 ? PALETTE.walnutDark : tier === 2 ? PALETTE.walnut : HONEY)],
+          surface: 'varnish',
         });
+        if (tier >= 3) b.cylinder(cx, Y + 0.742, cz, span / 2 - 0.01, span / 2 - 0.01, 0.014, '#F1ECE4', 20, 'y', { ...FLAT, surface: 'marble' });
       } else {
       // A round bistro table on a pedestal: wood on iron, then marble on brass.
       b.cylinder(cx, Y + 0.02, cz, 0.18, 0.2, 0.04, tier >= 2 ? k.metal : '#3B3A40', 14, 'y', { surface: tier >= 2 ? 'brass' : 'iron' });
@@ -270,7 +308,8 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
       b.cylinder(cx, Y + 0.72, cz, radius, radius, 0.035, tier >= 2 ? '#F1ECE4' : k.top, 20, 'y', { ...FLAT, surface: tier >= 2 ? 'marble' : k.topSurface });
       if (tier >= 2) b.cylinder(cx, Y + 0.705, cz, radius + 0.005, radius + 0.005, 0.012, k.metal, 20, 'y', { ...FLAT, surface: k.metalSurface });
       }
-      b.cylinder(cx + 0.08, Y + 0.765, cz, 0.03, 0.026, 0.05, PALETTE.porcelain, 10, 'y', { surface: 'ceramic' });
+      if (MODEL_VENUE) placeModel(b, tier >= 2 ? 'mug' : 'takeaway', cx + 0.08, Y + 0.745, cz, 0, tier >= 2 ? 0.07 : 0.09, tier >= 2 ? [key('ttLight', tier >= 3 ? '#FFFFFF' : PALETTE.porcelain)] : [], 'ceramic');
+      else b.cylinder(cx + 0.08, Y + 0.765, cz, 0.03, 0.026, 0.05, PALETTE.porcelain, 10, 'y', { surface: 'ceramic' });
       if (tier >= 2) {
         b.cylinder(cx - 0.08, Y + 0.79, cz, 0.012, 0.018, 0.1, '#DDEBEF', 8, 'y', { surface: 'glass' });
         b.sphere(cx - 0.08, Y + 0.86, cz, 0.025, theme.blanket, 1, 0.9, FLAT);
@@ -293,29 +332,20 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
       const odd = Math.abs(Math.round((r.x0 + r.z0) * 10)) % 3;
       const wood = tier <= 0 ? ['#9C8570', '#8A7864', '#A38B6E'][odd] : tier >= 3 ? '#3E2C24' : tier === 2 ? k.woodDark : '#6E4F3A';
       if (MODEL_VENUE && tier >= 1) {
-        // Session 50: KayKit's chairs, the back where ours was. The café's: the slatted chair on a painted frame (iron
-        // and walnut, sage, then black with a cane-coloured seat); the dining car's: the solid one in dark wood with a
-        // velvet pad on the seat in the car's colour.
+        // Session 51 (owner: "the chairs… look too big and weird"): Quaternius's chairs at a real chair's size (seat
+        // at 46 cm, about 40 cm across), the back where ours was. The café's: the spindle back, oak, then sage, then
+        // black lacquer; the dining car's: slatted with a seat cushion in the car's colour, then velvet on dark wood.
         const cafe = prop.variant === 'cafe';
         const id: ModelId = cafe ? 'chair_slat' : 'chair_solid';
         const e = modelEntry(id);
         // The model's back is at its min z (tall −1): unturned it meets z0, which is where a 'rear' chair's back goes.
         const rotY = rear === (e.tall < 0) ? 0 : Math.PI;
-        const sx = (w - 0.02) / (e.max[0] - e.min[0]);
-        const sz = (d - 0.02) / (e.max[2] - e.min[2]);
-        const seatTop = 0.46;
-        const sy = seatTop / 0.5;
-        const recolor = cafe
-          ? [kk('grey', tier >= 3 ? '#2A2826' : tier === 2 ? '#5E7A5A' : '#3B3A40'), kk('orange', tier >= 3 ? '#C9A46A' : tier === 2 ? '#8FB08A' : '#7A5638')]
-          : [kk('brown', wood)];
-        b.model(id, cx, Y, cz, rotY, sx, sy, sz, { recolor, surface: cafe ? 'paint' : 'varnish' });
-        if (!cafe) {
-          // The pad: over the front of the seat (the model's seat is ±0.36 square, its back from −0.42 to −0.12).
-          const cover = tier >= 3 ? shadeHex(theme.deep, -8) : theme.deep;
-          const padZ = cz + toSeat * 0.14 * sz;
-          b.rounded(cx, Y + seatTop + 0.022, padZ, 0.62 * sx, 0.036, 0.42 * sz, 0.015, cover, { shade: 0.95, surface: 'velvet' });
-          if (tier >= 3) b.box(cx, Y + seatTop + 0.042, padZ, 0.62 * sx - 0.02, 0.006, 0.012, PALETTE.gold, 0, { ...FLAT, surface: 'brass' });
-        }
+        const scale = 0.9 / (e.max[1] - e.min[1]);
+        const frame = cafe ? (tier >= 3 ? '#2A2826' : tier === 2 ? '#6E8C68' : HONEY) : wood;
+        const cover = tier >= 3 ? shadeHex(theme.deep, -8) : theme.deep;
+        // Back towards the back side of its spot, so the seat sits under the table's edge.
+        const pz = cz - toSeat * Math.max(0, (d - (e.max[2] - e.min[2]) * scale) / 2 - 0.02);
+        b.model(id, cx, Y, pz, rotY, scale, scale, scale, { recolor: [key('wood', frame), key('cushion', cover)], surface: cafe && tier >= 2 ? 'paint' : 'varnish' });
         return true;
       }
       if (prop.variant === 'cafe' && tier >= 2) {
@@ -367,10 +397,10 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
       const h = 0.88;
       const body = tier <= 0 ? '#5E6168' : tier === 1 ? '#E9E3D6' : tier === 2 ? theme.deep : '#22242B';
       if (MODEL_VENUE && tier >= 1) {
-        // Session 50: KayKit's range, one per burner pair along the galley: cream enamel and chrome, the car's colour
-        // and brass, then black and brass.
-        const trim = tier >= 2 ? PALETTE.brass : PALETTE.chrome;
-        stripModel(b, 'stove', r, out, Math.max(1, Math.round(d / 1.0)), h + 0.03, [kk('grey', body), { hue: [350, 16], sat: [0.75, 1], ref: '#ee2b24', to: tier >= 2 ? shadeHex(body, -18) : '#B9BFC4' }, kk('greyLight', trim)], 'paint');
+        // Session 51: Tiny Treats' cast-iron range, one per pair of hobs along the galley: cream enamel with black
+        // hobs, the car's colour, then black with brass rails.
+        const trim = tier >= 2 ? PALETTE.brass : '#D9DCDF';
+        stripModel(b, 'stove', r, out, Math.max(1, Math.round(d / 0.9)), h + 0.03, [key('ttTeal', body), key('ttLight', trim), key('ttMid', shadeHex(trim, -16)), key('ttDark', '#2A2B30')], 'paint');
         return true;
       }
       b.box(cx, Y + h / 2, cz, w - 0.04, h, d - 0.04, body, 0, { shade: 0.75, surface: tier >= 1 ? 'paint' : 'iron' });
@@ -492,17 +522,9 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
       }
       const seat = tier >= 3 ? LUX.ochre : tier === 2 ? '#6B3A26' : k.cushion;
       if (MODEL_VENUE) {
-        // Session 50: KayKit's stool, raised to bar height: a leather seat on walnut, oxblood on dark wood, then
-        // ochre velvet on gilt legs.
-        const e = modelEntry('bar_stool');
-        const span = radius * 2;
-        b.model('bar_stool', cx, Y, cz, 0, span / (e.max[0] - e.min[0]), 0.64 / 0.5, span / (e.max[2] - e.min[2]), {
-          recolor: [
-            { hue: [190, 230], ref: '#68a7d4', to: seat },
-            { hue: [8, 22], sat: [0.4, 0.75], ref: '#8a4a37', to: tier >= 3 ? PALETTE.gold : tier === 2 ? PALETTE.walnutDark : PALETTE.walnut },
-          ],
-          surface: tier >= 3 ? 'velvet' : 'leather',
-        });
+        // Session 51: Quaternius's bar stool at its own proportions (seat at 66 cm): a round upholstered seat on an
+        // iron frame with a foot ring; leather on black iron, oxblood on dark bronze, then ochre velvet on brass.
+        placeModel(b, 'bar_stool', cx, Y, cz, 0, 0.68, [key('cushion', seat), key('metal', tier >= 3 ? PALETTE.gold : tier === 2 ? '#4A3A2E' : '#2E2D30')], tier >= 3 ? 'velvet' : 'leather');
         return true;
       }
       b.cylinder(cx, Y + 0.02, cz, radius * 0.8, radius * 0.9, 0.04, k.metal, 12, 'y', { surface: k.metalSurface });
@@ -853,7 +875,7 @@ function buildLoungeChair(b: GeoBuilder, prop: PropDef, theme: CarriageTheme, ti
   const toRoom = prop.facing === 'right' ? 1 : -1;
   const backX = toRoom > 0 ? r.x0 + 0.1 : r.x1 - 0.1;
   if (MODEL_VENUE && tier >= 1) {
-    // Session 50: KayKit's armchair: tan leather, then the lounge's colour in velvet, then ochre velvet with cream
+    // Session 50–51: the armchair (Quaternius's mid-century chair on tapered legs since session 51): tan leather, then the lounge's colour in velvet, then ochre velvet with cream
     // cushions (the owner's Luxury reference colours).
     const cover = tier >= 3 ? LUX.ochre : tier === 2 ? theme.deep : '#6B3A26';
     const cushions = tier >= 3 ? LUX.cream : tier === 2 ? PALETTE.pillow : '#9A6A4C';
@@ -919,11 +941,11 @@ function buildSideTable(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, tier: n
     b.cylinder(cx, topY - 0.015, cz, radius, radius, 0.03, '#EFE9E0', 20, 'y', { ...FLAT, surface: 'marble' });
     b.cylinder(cx, topY - 0.036, cz, radius + 0.004, radius + 0.004, 0.012, PALETTE.gold, 20, 'y', { ...FLAT, surface: 'brass' });
   } else if (MODEL_VENUE) {
-    // Session 50: KayKit's small round table, its top where the glass and lamp stand: oak, then walnut.
-    const e = modelEntry('table_small');
+    // Session 51: Quaternius's round pedestal table, small, its top where the glass and lamp stand: oak, then walnut.
+    const e = modelEntry('cafe_table');
     const span = radius * 2;
-    b.model('table_small', cx, Y, cz, 0, span / (e.max[0] - e.min[0]), height / (e.max[1] - e.min[1]), span / (e.max[2] - e.min[2]), {
-      recolor: [{ hue: [8, 22], sat: [0.4, 0.75], ref: '#94533f', to: tier === 2 ? PALETTE.walnutDark : PALETTE.walnut }],
+    b.model('cafe_table', cx, Y, cz, 0, span / (e.max[0] - e.min[0]), height / (e.max[1] - e.min[1]), span / (e.max[2] - e.min[2]), {
+      recolor: [key('wood', tier === 2 ? PALETTE.walnutDark : PALETTE.walnut)],
       surface: 'varnish',
     });
   } else {
@@ -975,7 +997,7 @@ function buildBanquette(b: GeoBuilder, prop: PropDef, theme: CarriageTheme, tier
   const cover = tier >= 3 ? LUX.orange : tier === 2 ? theme.deep : '#7A5A48';
   const surface = tier >= 3 ? 'velvet' : 'leather';
   if (MODEL_VENUE) {
-    // Session 50: KayKit's couch along the wall: brown leather, the lounge's colour, then the tufted orange velvet of
+    // Session 50–51: the couch along the wall (Quaternius's since session 51): brown leather, the lounge's colour, then the tufted orange velvet of
     // the owner's reference with cream cushions.
     const cushions = tier >= 3 ? LUX.cream : tier === 2 ? PALETTE.pillow : '#B89A74';
     seatModel(b, 'couch', r, prop.facing, Y, 0.95, cover, cushions, PALETTE.walnutDark, surface);

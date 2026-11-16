@@ -11,7 +11,7 @@ all indices (uint16, relative to the model's first vertex). Offsets in the index
 
 Run: python3 -I scripts/assets/bake_models.py
 """
-import json, os, struct, sys
+import io, json, os, struct, sys
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -19,33 +19,93 @@ SRC = os.path.join(ROOT, 'assets', 'models', 'src')
 OUT_BIN = os.path.join(ROOT, 'assets', 'models', 'models.bin')
 OUT_TS = os.path.join(ROOT, 'src', 'world', 'models', 'modelIndex.ts')
 
-# id → glTF path under assets/models/src. Keep ids stable: the game names models by them.
+# id → source under assets/models/src: a path, or {src, paint (material name → sRGB hex), linear (OBJ Kd is linear),
+# flip}. Keep ids stable: the game names models by them. Flat-coloured models are painted in the KEY colours below, so
+# the game recolours each part by its hue band (world/models/library.ts `KEY`, `paint`).
+WOOD, COVER, CUSHION, METAL, LINEN, BLANKET, DARK = '#8A4A37', '#FBB856', '#68A8D4', '#7A7A7A', '#F2F2F2', '#4E8DBA', '#3A2A22'
+QH = 'quaternius-house/'
 MODELS = {
     # KayKit Forest Nature Pack 1.0 (Kay Lousberg, CC0)
     'tree_round': 'kaykit-forest/Tree_1_A_Color1.gltf',
     'tree_cluster': 'kaykit-forest/Tree_2_A_Color1.gltf',
     'bush_round': 'kaykit-forest/Bush_1_A_Color1.gltf',
     'rock_round': 'kaykit-forest/Rock_1_A_Color1.gltf',
-    # KayKit Furniture Bits 1.0 (Kay Lousberg, CC0)
-    'bed_single': 'kaykit-furniture/bed_single_A.gltf',
-    'bed_double': 'kaykit-furniture/bed_double_A.gltf',
-    'couch': 'kaykit-furniture/couch_pillows.gltf',
-    'armchair': 'kaykit-furniture/armchair_pillows.gltf',
-    'table_low': 'kaykit-furniture/table_low.gltf',
-    'table_small': 'kaykit-furniture/table_small.gltf',
-    'lamp_standing': 'kaykit-furniture/lamp_standing.gltf',
-    'cabinet_small': 'kaykit-furniture/cabinet_small.gltf',
-    'bar_stool': 'kaykit-furniture/chair_stool.gltf',
-    # KayKit Restaurant Bits 1.0 (Kay Lousberg, CC0)
-    'chair_slat': 'kaykit-restaurant/chair_A.gltf',
-    'chair_solid': 'kaykit-restaurant/chair_B.gltf',
-    'cafe_table': 'kaykit-restaurant/table_round_A_small.gltf',
-    'stove': 'kaykit-restaurant/stove_multi.gltf',
-    'counter': 'kaykit-restaurant/kitchencounter_straight_B.gltf',
+    # Quaternius Ultimate House Interior (CC0): the furniture, real proportions and thin legs (session 51)
+    'chair_slat': {'src': QH + 'Chair_4.obj', 'paint': {'Wood': WOOD}},
+    'chair_solid': {'src': QH + 'Chair_2.obj', 'paint': {'Wood_Dark': WOOD, 'Cushin': CUSHION}},
+    'cafe_table': {'src': QH + 'Table_RoundSmall.obj', 'paint': {'Wood': WOOD}},
+    'bar_stool': {'src': QH + 'Stool.obj', 'paint': {'Wood': METAL, 'Cushin': CUSHION}},
+    'armchair': {'src': QH + 'Couch_Small1.obj', 'paint': {'Couch_Blue': COVER, 'Black': WOOD}},
+    'couch': {'src': QH + 'Couch_Medium1.obj', 'paint': {'Couch_Blue': COVER, 'Black': WOOD}},
+    'couch_long': {'src': QH + 'Couch_Large1.obj', 'paint': {'Red': COVER, 'DarkRed': '#D99A45'}},
+    'bed_single': {'src': QH + 'Bed_Single.obj', 'paint': {'Wood': WOOD, 'White': LINEN, 'Grey': '#DADADA', 'Red': CUSHION, 'DarkRed': BLANKET}},
+    'bed_double': {'src': QH + 'Bed_King.obj', 'paint': {'Wood': WOOD, 'White': LINEN, 'Grey': '#DADADA', 'Red': CUSHION, 'DarkRed': BLANKET}},
+    'lamp_desk': {'src': QH + 'Light_Desk.obj', 'paint': {'Black': METAL, 'LightMetal': '#9A9A9A', 'White': '#FFF2D0'}},
+    'lamp_floor': {'src': QH + 'Light_Stand1.obj', 'paint': {'LightMetal': METAL, 'White': COVER}},
+    'toilet': {'src': QH + 'Bathroom_Toilet.obj', 'paint': {'White': LINEN}},
+    'nightstand': {'src': QH + 'NightStand_1.obj', 'paint': {'Wood': WOOD, 'Metal': '#C8A050'}},
+    'dresser': {'src': QH + 'Drawer_1.obj', 'paint': {'Wood': WOOD, 'Wood_Dark': '#6E3A2B', 'Wood_Light': '#A35E46'}},
+    # Kenney Furniture Kit (CC0)
+    'lamp_table': {'src': 'kenney-furniture/lampRoundTable.obj', 'paint': {'metal': METAL, 'lamp': COVER}},
+    'tv': {'src': 'kenney-furniture/televisionVintage.obj', 'paint': {'wood': WOOD}},
+    'coat_rack': {'src': 'kenney-furniture/coatRackStanding.obj', 'paint': {'wood': WOOD}},
+    # samusaa Household (CC0)
+    'dining_table': {'src': 'samusaa-household/dine_table_01.glb'},
+    # Tiny Treats (Isa Lousberg, CC0): the café gear, food, washroom and park pieces
+    'counter': 'tinytreats-bakery/counter_table.gltf',
+    'espresso': 'tinytreats-bakery/coffee_machine.gltf',
+    'till': 'tinytreats-bakery/cash_register.gltf',
+    'display_case': 'tinytreats-bakery/display_case_short.gltf',
+    'cake_stand': 'tinytreats-bakery/pastry_stand_A_decorated.gltf',
+    'mug': 'tinytreats-bakery/mug_B.gltf',
+    'takeaway': 'tinytreats-bakery/coffee_cup_takeaway.gltf',
+    'plate': 'tinytreats-bakery/plate.gltf',
+    'tray': 'tinytreats-bakery/serving_tray.gltf',
+    'croissant': 'tinytreats-baked/croissant.gltf',
+    'cinnamon_roll': 'tinytreats-baked/cinnamon_roll.gltf',
+    'muffin': 'tinytreats-baked/muffin.gltf',
+    'cake_slice': 'tinytreats-baked/cake_strawberry_slice.gltf',
+    'stove': 'tinytreats-kitchen/stove.gltf',
+    'kettle': 'tinytreats-kitchen/kettle.gltf',
+    'teapot': 'tinytreats-picnic/teapot.gltf',
+    'wine_glass': 'tinytreats-picnic/wine_glass.gltf',
+    'wine_bottle': 'tinytreats-picnic/wine_bottle.gltf',
+    'sandwich': 'tinytreats-picnic/sandwich.gltf',
+    'plant_monstera': 'tinytreats-plants/monstera_plant_medium_potted.gltf',
+    'plant_pothos': 'tinytreats-plants/pothos_plant_medium_potted.gltf',
+    'plant_snake': 'tinytreats-plants/sansevieria_plant_medium_potted.gltf',
+    'bath': 'tinytreats-bathroom/bath.gltf',
+    'vanity': 'tinytreats-bathroom/cabinet_bathroom.gltf',
+    'towels': 'tinytreats-bathroom/towel_stacked.gltf',
+    'mirror': 'tinytreats-bathroom/mirror.gltf',
+    'bathmat': 'tinytreats-bathroom/mat.gltf',
+    'bench': 'tinytreats-park/bench.gltf',
+    'street_lamp': 'tinytreats-park/street_lantern.gltf',
+    'bin': 'tinytreats-park/trashcan.gltf',
+    'hedge': 'tinytreats-park/hedge_straight.gltf',
+    'postbox': 'tinytreats-house/mailbox.gltf',
+    # KayKit Restaurant Bits (CC0) and Kenney Food Kit (CC0): plated food
+    'dinner': 'kaykit-restaurant/food_dinner.gltf',
+    'stew': 'kaykit-restaurant/food_stew.gltf',
+    'soup': 'kenney-food/bowl-soup.glb',
+    'cocktail': 'kenney-food/cocktail.glb',
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}
 SIZE = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT4': 16}
+
+
+def lin_to_srgb(c):
+    return 255 * (12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055)
+
+
+def srgb_to_lin(c):
+    c /= 255
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def hex_rgb(h):
+    return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
 
 
 def read_accessor(g, bufs, i):
@@ -73,7 +133,7 @@ def quat_matrix(q):
 
 
 def node_transform(node):
-    """(3×3 linear, translation) of a node's own TRS (the models used have no node hierarchy beyond one mesh node)."""
+    """(3×3 linear, translation) of a node's own TRS."""
     if 'matrix' in node:
         m = node['matrix']
         return [[m[0], m[4], m[8]], [m[1], m[5], m[9]], [m[2], m[6], m[10]]], [m[12], m[13], m[14]]
@@ -83,42 +143,213 @@ def node_transform(node):
     return lin, node.get('translation', [0, 0, 0])
 
 
-def bake(path):
-    g = json.load(open(path))
+def compose(a, b):
+    """Parent (lin, t) applied after child (lin, t)."""
+    la, ta = a
+    lb, tb = b
+    lin = [[sum(la[i][k] * lb[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+    t = [sum(la[i][k] * tb[k] for k in range(3)) + ta[i] for i in range(3)]
+    return lin, t
+
+
+def load_gltf(path):
+    """(json, buffers, image loader) for a .gltf or a .glb."""
     d = os.path.dirname(path)
-    bufs = [open(os.path.join(d, b['uri']), 'rb').read() for b in g['buffers']]
-    tex = None
-    if g.get('images'):
-        tex = Image.open(os.path.join(d, g['images'][0]['uri'])).convert('RGB')
-    px = tex.load() if tex else None
+    if path.lower().endswith('.glb'):
+        raw = open(path, 'rb').read()
+        off, chunks = 12, []
+        while off < len(raw):
+            ln, kind = struct.unpack_from('<II', raw, off)
+            chunks.append((kind, raw[off + 8: off + 8 + ln]))
+            off += 8 + ln
+        g = json.loads(chunks[0][1])
+        bufs = [chunks[1][1]] if len(chunks) > 1 else []
+    else:
+        g = json.load(open(path))
+        bufs = [open(os.path.join(d, b['uri']), 'rb').read() for b in g.get('buffers', [])]
+
+    def image(i):
+        im = g['images'][i]
+        if 'uri' in im:
+            return Image.open(os.path.join(d, im['uri'])).convert('RGB')
+        v = g['bufferViews'][im['bufferView']]
+        o = v.get('byteOffset', 0)
+        return Image.open(io.BytesIO(bufs[v['buffer']][o:o + v['byteLength']])).convert('RGB')
+    return g, bufs, image
+
+
+def bake_gltf(path, paint):
+    g, bufs, image = load_gltf(path)
+    textures = {}
     pos, nor, col, idx = [], [], [], []
-    for node in g['nodes']:
-        if 'mesh' not in node:
-            continue
-        lin, tr = node_transform(node)
-        for prim in g['meshes'][node['mesh']]['primitives']:
-            base = len(pos)
-            p = read_accessor(g, bufs, prim['attributes']['POSITION'])
-            n = read_accessor(g, bufs, prim['attributes']['NORMAL'])
-            uv = read_accessor(g, bufs, prim['attributes']['TEXCOORD_0']) if 'TEXCOORD_0' in prim['attributes'] else None
-            mat = g['materials'][prim['material']] if 'material' in prim else {}
-            factor = mat.get('pbrMetallicRoughness', {}).get('baseColorFactor', [1, 1, 1, 1])
-            for k in range(len(p)):
-                x, y, z = p[k]
-                pos.append(tuple(lin[i][0] * x + lin[i][1] * y + lin[i][2] * z + tr[i] for i in range(3)))
-                nx, ny, nz = n[k]
-                v = [lin[i][0] * nx + lin[i][1] * ny + lin[i][2] * nz for i in range(3)]
-                l = max(1e-9, sum(c * c for c in v) ** 0.5)
-                nor.append(tuple(c / l for c in v))
-                if uv and px:
-                    u, w = uv[k]
-                    c = px[int((u % 1) * tex.width) % tex.width, int((w % 1) * tex.height) % tex.height]
-                else:
-                    c = (255, 255, 255)
-                col.append(tuple(min(255, round(c[i] * factor[i])) for i in range(3)))
-            ind = read_accessor(g, bufs, prim['indices']) if 'indices' in prim else [(i,) for i in range(len(p))]
-            idx.extend(base + t[0] for t in ind)
+
+    def material_color(mat_i):
+        mat = g['materials'][mat_i] if mat_i is not None else {}
+        name = mat.get('name', '')
+        if name in paint:
+            return ('srgb', hex_rgb(paint[name])), None
+        pbr = mat.get('pbrMetallicRoughness', {})
+        factor = pbr.get('baseColorFactor', [1, 1, 1, 1])
+        tex = None
+        if 'baseColorTexture' in pbr:
+            src = g['textures'][pbr['baseColorTexture']['index']]['source']
+            if src not in textures:
+                textures[src] = image(src)
+            tex = textures[src]
+        return factor, tex
+
+    def visit(ni, parent):
+        node = g['nodes'][ni]
+        xf = compose(parent, node_transform(node))
+        lin, tr = xf
+        if 'mesh' in node:
+            for prim in g['meshes'][node['mesh']]['primitives']:
+                if prim.get('mode', 4) != 4:
+                    continue
+                base = len(pos)
+                p = read_accessor(g, bufs, prim['attributes']['POSITION'])
+                n = read_accessor(g, bufs, prim['attributes']['NORMAL']) if 'NORMAL' in prim['attributes'] else None
+                uv = read_accessor(g, bufs, prim['attributes']['TEXCOORD_0']) if 'TEXCOORD_0' in prim['attributes'] else None
+                factor, tex = material_color(prim.get('material'))
+                flat = None
+                if tex is None:
+                    # an override is sRGB already; a glTF factor is linear
+                    flat = factor[1] if factor[0] == 'srgb' else tuple(round(lin_to_srgb(float(c))) for c in factor[:3])
+                px = tex.load() if tex else None
+                for k in range(len(p)):
+                    x, y, z = p[k]
+                    pos.append(tuple(lin[i][0] * x + lin[i][1] * y + lin[i][2] * z + tr[i] for i in range(3)))
+                    if n:
+                        nx, ny, nz = n[k]
+                        v = [lin[i][0] * nx + lin[i][1] * ny + lin[i][2] * nz for i in range(3)]
+                        l = max(1e-9, sum(c * c for c in v) ** 0.5)
+                        nor.append(tuple(c / l for c in v))
+                    else:
+                        nor.append(None)
+                    if flat is not None:
+                        col.append(flat)
+                    elif uv:
+                        u, w = uv[k]
+                        c = px[int((u % 1) * tex.width) % tex.width, int((w % 1) * tex.height) % tex.height]
+                        col.append(tuple(min(255, round(lin_to_srgb(srgb_to_lin(c[i]) * factor[i]))) for i in range(3)))
+                    else:
+                        col.append((255, 255, 255))
+                ind = read_accessor(g, bufs, prim['indices']) if 'indices' in prim else [(i,) for i in range(len(p))]
+                idx.extend(base + t[0] for t in ind)
+        for c in node.get('children', []):
+            visit(c, xf)
+
+    ident = ([[1, 0, 0], [0, 1, 0], [0, 0, 1]], [0, 0, 0])
+    scene = g['scenes'][g.get('scene', 0)] if g.get('scenes') else {'nodes': [i for i in range(len(g['nodes']))]}
+    for ni in scene['nodes']:
+        visit(ni, ident)
+    fill_normals(pos, nor, idx)
     return pos, nor, col, idx
+
+
+def fill_normals(pos, nor, idx):
+    """Face normals for vertices that came without one."""
+    if all(n is not None for n in nor):
+        return
+    acc = [[0.0, 0.0, 0.0] for _ in pos]
+    for t in range(0, len(idx), 3):
+        a, b, c = idx[t:t + 3]
+        ux, uy, uz = (pos[b][i] - pos[a][i] for i in range(3))
+        vx, vy, vz = (pos[c][i] - pos[a][i] for i in range(3))
+        fn = (uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx)
+        for v in (a, b, c):
+            for i in range(3):
+                acc[v][i] += fn[i]
+    for i, n in enumerate(nor):
+        if n is None:
+            l = max(1e-9, sum(c * c for c in acc[i]) ** 0.5)
+            nor[i] = tuple(c / l for c in acc[i])
+
+
+def bake_obj(path, paint, linear_kd):
+    """A Wavefront OBJ with its MTL: one flat colour per material (Kd), split per face so normals stay as authored."""
+    d = os.path.dirname(path)
+    kd, cur = {}, None
+    vs, vns = [], []
+    pos, nor, col, idx = [], [], [], []
+    mtl = None
+    for line in open(path, encoding='utf-8', errors='replace'):
+        if line.startswith('mtllib '):
+            mtl = os.path.join(d, line.split(None, 1)[1].strip())
+    if mtl and os.path.exists(mtl):
+        name = None
+        for line in open(mtl, encoding='utf-8', errors='replace'):
+            t = line.split()
+            if not t:
+                continue
+            if t[0] == 'newmtl':
+                name = ' '.join(t[1:])
+            elif t[0] == 'Kd' and name:
+                kd[name] = tuple(float(v) for v in t[1:4])
+    for line in open(path, encoding='utf-8', errors='replace'):
+        t = line.split()
+        if not t:
+            continue
+        if t[0] == 'v':
+            vs.append(tuple(float(v) for v in t[1:4]))
+        elif t[0] == 'vn':
+            vns.append(tuple(float(v) for v in t[1:4]))
+        elif t[0] == 'usemtl':
+            cur = ' '.join(t[1:])
+        elif t[0] == 'f':
+            if cur in paint:
+                c = hex_rgb(paint[cur])
+            else:
+                k = kd.get(cur, (0.8, 0.8, 0.8))
+                c = tuple(round(lin_to_srgb(v)) if linear_kd else round(255 * v) for v in k)
+            corners = []
+            for f in t[1:]:
+                parts = f.split('/')
+                vi = int(parts[0])
+                vi = vi - 1 if vi > 0 else len(vs) + vi
+                ni = None
+                if len(parts) > 2 and parts[2]:
+                    ni = int(parts[2])
+                    ni = ni - 1 if ni > 0 else len(vns) + ni
+                corners.append((vi, ni))
+            base = len(pos)
+            for vi, ni in corners:
+                pos.append(vs[vi])
+                nor.append(vns[ni] if ni is not None else None)
+                col.append(c)
+            for k in range(1, len(corners) - 1):
+                idx.extend((base, base + k, base + k + 1))
+    fill_normals(pos, nor, idx)
+    return pos, nor, col, idx
+
+
+def bake(spec):
+    if isinstance(spec, str):
+        spec = {'src': spec}
+    path = os.path.join(SRC, spec['src'])
+    paint = spec.get('paint', {})
+    if path.lower().endswith('.obj'):
+        out = bake_obj(path, paint, spec.get('linear', False))
+    else:
+        out = bake_gltf(path, paint)
+    if spec.get('flip'):
+        # turn the model half way round about y, for models authored facing the other way
+        p, n, c, i = out
+        out = ([(-x, y, -z) for x, y, z in p], [(-x, y, -z) for x, y, z in n], c, i)
+    return weld(*out)
+
+
+def weld(pos, nor, col, idx):
+    """Merges identical vertices (OBJ faces are split per corner)."""
+    seen, remap, P, N, C = {}, [], [], [], []
+    for i in range(len(pos)):
+        key = (tuple(round(v, 5) for v in pos[i]), tuple(round(v, 3) for v in nor[i]), col[i])
+        j = seen.get(key)
+        if j is None:
+            j = seen[key] = len(P)
+            P.append(pos[i]); N.append(nor[i]); C.append(col[i])
+        remap.append(j)
+    return P, N, C, [remap[i] for i in idx]
 
 
 def measure(pos):
@@ -140,8 +371,8 @@ def measure(pos):
 def main():
     positions, normals, colors, indices = [], [], [], []
     index = {}
-    for mid, rel in MODELS.items():
-        pos, nor, col, idx = bake(os.path.join(SRC, rel))
+    for mid, spec in MODELS.items():
+        pos, nor, col, idx = bake(spec)
         if len(pos) > 65535:
             raise SystemExit(f'{mid}: too many vertices for uint16 indices')
         lo, hi, top, tall = measure(pos)

@@ -1,3 +1,4 @@
+import { drawIconImage } from './iconImages';
 /**
  * Hand-drawn vector icons on canvas, shared by the HUD (as data URLs) and in-world sprites (as textures).
  * Drawn in a 100×100 box. No image assets, no emoji: one consistent look on every device.
@@ -1737,7 +1738,7 @@ export function drawIcon(ctx: CanvasRenderingContext2D, name: IconName, x: numbe
   ctx.scale(size / 100, size / 100);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  ICONS[name](ctx);
+  if (!drawIconImage(ctx, name)) ICONS[name](ctx);
   ctx.restore();
 }
 

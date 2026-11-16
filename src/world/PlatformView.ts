@@ -5,6 +5,7 @@ import { carriageOriginZ, DOOR_Z0, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X
 import { PLATFORM } from './platformLayout';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
+import { key, modelEntry } from './models/library';
 import { CharacterView, type CharacterAction, type CharacterLook } from './CharacterView';
 import { headlineTexture, posterTexture, signTexture } from './sprites';
 import type { Rect } from '../core/types';
@@ -843,6 +844,16 @@ function buildBench(b: GeoBuilder, r: Rect): void {
   const d = r.z1 - r.z0;
   const y = FLOOR_Y;
   b.object('platform:bench');
+  {
+    // Session 51: Tiny Treats' park bench (slatted wood on iron ends), its back to the railing.
+    const e = modelEntry('bench');
+    b.model('bench', cx, y, cz, -Math.PI / 2, d / (e.max[0] - e.min[0]), 0.82 / (e.max[1] - e.min[1]), (r.x1 - r.x0) / (e.max[2] - e.min[2]), {
+      recolor: [key('ttWood', PALETTE.oak), key('ttMid', PALETTE.navy), key('ttLight', PALETTE.navy)],
+      surface: 'wood',
+    });
+    b.endObject();
+    return;
+  }
   for (let i = 0; i < 3; i++) b.box(r.x0 + 0.07 + i * 0.1, y + 0.42, cz, 0.08, 0.035, d - 0.08, PALETTE.oak, 0, { shade: 1 });
   for (let i = 0; i < 2; i++) b.box(r.x1 - 0.06, y + 0.6 + i * 0.13, cz, 0.035, 0.08, d - 0.08, PALETTE.oak, 0, { shade: 1 });
   for (const dz of [-d / 2 + 0.08, d / 2 - 0.08]) {
@@ -871,10 +882,24 @@ function buildBellPost(b: GeoBuilder): void {
   b.endObject();
 }
 
+/** The lamp post's lighter iron (its cap and trims). */
+const shadeNavy = '#3C4A70';
+
 /** A Victorian lamp post: a fluted base, a slim column and two lanterns on a crossbar along the platform. */
 function buildLampPost(b: GeoBuilder, lamps: GeoBuilder, x: number, z: number): void {
   const y = FLOOR_Y;
   b.object('platform:lampPost');
+  {
+    // Session 51: Tiny Treats' street lantern in the station's navy iron, its glass lit.
+    const e = modelEntry('street_lamp');
+    const sc = 2.75 / (e.max[1] - e.min[1]);
+    b.model('street_lamp', x, y, z, 0, sc, sc, sc, { recolor: [key('ttMid', PALETTE.navy), key('ttLight', shadeNavy)], surface: 'iron' });
+    b.endObject();
+    lamps.object('platform:lampPost~glow');
+    lamps.box(x, y + 2.52, z, 0.2, 0.22, 0.2, PALETTE.lampShade, 0);
+    lamps.endObject();
+    return;
+  }
   b.cylinder(x, y + 0.1, z, 0.13, 0.17, 0.2, PALETTE.navy, 12, 'y', { shade: 0.8, surface: 'iron' });
   b.cylinder(x, y + 0.26, z, 0.08, 0.11, 0.14, PALETTE.navy, 12, 'y', { shade: 0.85, surface: 'iron' });
   b.cylinder(x, y + 1.35, z, 0.04, 0.055, 2.05, PALETTE.navy, 10, 'y', { shade: 0.88, surface: 'iron' });
@@ -980,12 +1005,17 @@ function buildForecourt(flat: GeoBuilder, b: GeoBuilder, lamps: GeoBuilder, x1: 
   };
   const flowers = ['#E58A9E', '#F2D16B', '#F4F1EA', '#B78BD6', '#E7814F'];
   const hedgeGreen = '#5E8A55';
+  void hedgeGreen;
 
   // Along the railing: clipped hedges, a flower bed between every two.
   for (let z = z0 + 1; z < z1 - 2; z += 4.2) {
     if (atGate(z, 2.4) || inHouse(z, 1)) continue;
     b.object('forecourt:hedge');
-    b.rounded(x1 + 0.75, top + 0.3, z + 1.2, 0.8, 0.6, 2.4, 0.25, hedgeGreen, { shade: 0.75, surface: 'foliage' });
+    {
+      // Session 51: Tiny Treats' clipped hedge, along the railing.
+      const e = modelEntry('hedge');
+      b.model('hedge', x1 + 0.75, top, z + 1.2, Math.PI / 2, 2.4 / (e.max[0] - e.min[0]), 0.62 / (e.max[1] - e.min[1]), 0.8 / (e.max[2] - e.min[2]), { surface: 'foliage', shade: 0.8 });
+    }
     b.object('forecourt:bed');
     b.rounded(x1 + 0.75, top + 0.07, z + 3.2, 0.9, 0.14, 1.3, 0.1, '#6B4C38', { shade: 0.9 });
     for (let i = 0; i < 6; i++) b.sphere(x1 + 0.5 + (i % 2) * 0.48, top + 0.2, z + 2.75 + Math.floor(i / 2) * 0.45, 0.13, flowers[(i + Math.floor(z)) % flowers.length], 1, 0.8, { shade: 0.9, surface: 'foliage' });
@@ -1075,9 +1105,10 @@ function buildForecourt(flat: GeoBuilder, b: GeoBuilder, lamps: GeoBuilder, x1: 
   const px = x1 + 1.75;
   const pz = gate - GATE_HALF - 0.55;
   if (!inHouse(pz, -0.1) || true) {
-    b.cylinder(px, top + 0.5, gate + GATE_HALF + 0.5, 0.16, 0.16, 1.0, '#C8343A', 16, 'y', { shade: 0.85, surface: 'paint' });
-    b.sphere(px, top + 1.0, gate + GATE_HALF + 0.5, 0.165, '#C8343A', 1, 0.5, { shade: 1, surface: 'paint' });
-    b.box(px - 0.15, top + 0.8, gate + GATE_HALF + 0.5, 0.02, 0.03, 0.16, '#2B2230', 0, { shade: 1 });
+    // Session 51: Tiny Treats' letterbox on its post, painted pillar-box red.
+    const e = modelEntry('postbox');
+    const sc = 1.15 / (e.max[1] - e.min[1]);
+    b.model('postbox', px, top, gate + GATE_HALF + 0.5, -Math.PI / 2, sc, sc, sc, { recolor: [key('cover', '#C8343A'), key('ttWood', '#5A3A2A')], surface: 'paint' });
   }
   void pz;
   b.object('forecourt:flowerBarrow');

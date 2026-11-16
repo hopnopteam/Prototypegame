@@ -3,6 +3,7 @@ import type { ItemKind } from '../core/types';
 import { GeoBuilder } from './geo';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
+import { key, modelEntry, type ModelId, type Recolor } from './models/library';
 
 /** Height each carried item adds to a stack. */
 export const ITEM_HEIGHT: Record<ItemKind, number> = {
@@ -28,38 +29,44 @@ export const ITEM_HEIGHT: Record<ItemKind, number> = {
 
 const cache = new Map<ItemKind, THREE.BufferGeometry>();
 
+/**
+ * Session 51: carried things are the same models the venues show (Tiny Treats' teapot, mugs, tray, croissant,
+ * sandwich; KayKit's dinner; Kenney's cocktail), so the cup on the tray is the cup on the café table.
+ */
+function put(b: GeoBuilder, id: ModelId, x: number, y: number, z: number, height: number, recolor: Recolor[] = [], surface: 'ceramic' | 'matte' | 'glass' | 'brass' = 'ceramic', rotY = 0): void {
+  const e = modelEntry(id);
+  const s = height / (e.max[1] - e.min[1]);
+  b.model(id, x, y, z, rotY, s, s, s, { recolor, surface, shade: 0.92 });
+}
+
+/** A serving tray (Tiny Treats'), its cloth in our colour, about 0.44 × 0.3. */
+function tray(b: GeoBuilder, rim: string, cloth: string): void {
+  const e = modelEntry('tray');
+  const sx = 0.44 / (e.max[0] - e.min[0]);
+  b.model('tray', 0, 0, 0, 0, sx, 0.03 / (e.max[1] - e.min[1]), 0.3 / (e.max[2] - e.min[2]), { recolor: [key('ttWood', rim), key('ttBlue', cloth), key('ttLight', PALETTE.linen)], surface: 'brass', shade: 0.92 });
+}
+
 /** Carried items, each with one clear silhouette and colour so a stack reads at thumb size. */
 function build(kind: ItemKind): THREE.BufferGeometry {
   const b = new GeoBuilder();
   switch (kind) {
     case 'tea':
-      // A brass tray with a blue-banded teapot and a cup.
-      b.rounded(0, 0.015, 0, 0.44, 0.03, 0.3, 0.06, PALETTE.brass, { shade: 0.9 });
-      b.sphere(0.08, 0.1, 0, 0.08, PALETTE.porcelain, 1, 0.85);
-      b.cylinder(0.08, 0.1, 0, 0.082, 0.082, 0.025, PALETTE.navy, 14, 'y', { shade: 1 });
-      b.cylinder(0.08, 0.18, 0, 0.02, 0.03, 0.03, PALETTE.navy, 8);
-      b.cylinder(0.17, 0.11, 0, 0.012, 0.018, 0.08, PALETTE.porcelain, 6, 'x');
-      b.cylinder(-0.11, 0.06, 0.02, 0.05, 0.04, 0.07, PALETTE.porcelain, 12);
-      b.cylinder(-0.11, 0.035, 0.02, 0.07, 0.07, 0.01, PALETTE.porcelain, 12);
+      // A brass tray with a teapot and a china mug.
+      tray(b, PALETTE.brass, PALETTE.navy);
+      put(b, 'teapot', 0.07, 0.03, 0, 0.14, [key('ttTeal', PALETTE.porcelain)]);
+      put(b, 'mug', -0.12, 0.03, 0.03, 0.065, [key('ttLight', PALETTE.porcelain)]);
       break;
     case 'coffee':
-      // A silver tray with a tall dark coffee pot and a cup.
-      b.rounded(0, 0.015, 0, 0.44, 0.03, 0.3, 0.06, PALETTE.chrome, { shade: 0.9, surface: 'steel' });
-      b.cylinder(0.08, 0.12, 0, 0.06, 0.075, 0.18, '#3A2A24', 14, 'y', { shade: 0.8, surface: 'paint' });
-      b.cylinder(0.08, 0.22, 0, 0.03, 0.05, 0.03, PALETTE.chrome, 10, 'y', { surface: 'steel' });
-      b.cylinder(0.16, 0.14, 0, 0.012, 0.02, 0.1, PALETTE.chrome, 6, 'x', { surface: 'steel' });
-      b.cylinder(-0.11, 0.06, 0.02, 0.05, 0.04, 0.07, PALETTE.porcelain, 12);
-      b.cylinder(-0.11, 0.098, 0.02, 0.043, 0.043, 0.004, '#5A3524', 12, 'y', { shade: 1 });
-      b.cylinder(-0.11, 0.035, 0.02, 0.07, 0.07, 0.01, PALETTE.porcelain, 12);
+      // A silver tray with a red coffee mug and a takeaway cup.
+      tray(b, PALETTE.chrome, '#5A3524');
+      put(b, 'mug', 0.06, 0.03, 0, 0.1, [key('ttLight', '#B23A2C')]);
+      put(b, 'takeaway', -0.12, 0.03, 0.02, 0.1);
       break;
     case 'champagne':
-      // A silver ice bucket with a green bottle and a flute beside it.
-      b.rounded(0, 0.015, 0, 0.44, 0.03, 0.3, 0.06, PALETTE.brass, { shade: 0.9, surface: 'brass' });
-      b.cylinder(0.06, 0.1, 0, 0.1, 0.08, 0.16, PALETTE.chrome, 16, 'y', { shade: 0.85, surface: 'steel' });
-      b.cylinder(0.06, 0.2, 0.01, 0.045, 0.045, 0.18, '#1F4A34', 12, 'y', { shade: 0.8, surface: 'glass' });
-      b.cylinder(0.06, 0.3, 0.01, 0.02, 0.03, 0.04, PALETTE.gold, 8, 'y', { surface: 'brass' });
-      b.cylinder(-0.12, 0.05, 0, 0.012, 0.012, 0.07, '#E8EEF2', 6, 'y', { surface: 'glass' });
-      b.cylinder(-0.12, 0.12, 0, 0.03, 0.016, 0.08, '#F3D36E', 10, 'y', { shade: 1, surface: 'glass' });
+      // A brass tray with a bottle (gold foil) and a glass.
+      tray(b, PALETTE.brass, PALETTE.navy);
+      put(b, 'wine_bottle', 0.06, 0.03, 0, 0.3, [key('ttWood', PALETTE.gold)], 'glass');
+      put(b, 'wine_glass', -0.12, 0.03, 0.02, 0.12, [key('ttBlue', '#E9F2F5')], 'glass');
       break;
     case 'blanket':
       b.rounded(0, 0.06, 0, 0.44, 0.12, 0.32, 0.04, PALETTE.mustard, { pattern: PATTERN.stripesX, color2: PALETTE.raspberry, scale: 0.1, shade: 0.85 });
@@ -70,8 +77,8 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       b.box(0, 0.141, 0, 0.06, 0.004, 0.3, PALETTE.powder, 0, { shade: 1 });
       break;
     case 'towel':
-      b.rounded(0, 0.05, 0, 0.36, 0.1, 0.26, 0.04, PALETTE.towel, { shade: 0.85 });
-      b.box(0, 0.101, 0.07, 0.365, 0.004, 0.05, PALETTE.towelStripe, 0, { shade: 1 });
+      // Session 51: Tiny Treats' stacked towels, recoloured to our towel stripes.
+      put(b, 'towels', 0, 0, 0, 0.11, [key('ttBlue', PALETTE.towel), key('cover', PALETTE.towelStripe)], 'matte');
       break;
     case 'roll':
       b.cylinder(-0.09, 0.07, 0, 0.07, 0.07, 0.15, PALETTE.rollPaper, 14, 'x', { shade: 0.85 });
@@ -85,28 +92,22 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       b.box(0.18, 0.22, 0.172, 0.08, 0.06, 0.004, PALETTE.linen, 0, { shade: 1 });
       break;
     case 'latte':
-      // A café glass of milky coffee with its foam, on a saucer.
-      b.cylinder(0, 0.008, 0, 0.09, 0.09, 0.016, PALETTE.porcelain, 14);
-      b.cylinder(0, 0.09, 0, 0.055, 0.045, 0.15, '#C99B6D', 14, 'y', { shade: 0.95, surface: 'glass' });
-      b.cylinder(0, 0.168, 0, 0.056, 0.056, 0.012, '#FBF1DF', 14, 'y', { shade: 1 });
+      // A takeaway latte (Tiny Treats').
+      put(b, 'takeaway', 0, 0, 0, 0.18);
       break;
     case 'pastry':
       // A croissant on a little plate.
-      b.cylinder(0, 0.008, 0, 0.12, 0.12, 0.016, PALETTE.porcelain, 14);
-      b.add(new THREE.TorusGeometry(0.075, 0.035, 6, 12, Math.PI * 1.1).rotateX(Math.PI / 2).rotateY(Math.PI * 0.45), '#E2A04A', 0, 0.045, 0.02, 0, 0, 0, { shade: 0.9 });
+      put(b, 'plate', 0, 0, 0, 0.02, [key('ttBlue', PALETTE.porcelain)]);
+      put(b, 'croissant', 0, 0.015, 0, 0.07, [], 'matte', 0.6);
       break;
     case 'meal':
-      // A plate under a silver cloche.
-      b.cylinder(0, 0.01, 0, 0.17, 0.17, 0.02, PALETTE.porcelain, 16);
-      b.sphere(0, 0.03, 0, 0.13, PALETTE.chrome, 1, 0.75, { shade: 0.95, surface: 'steel' });
-      b.sphere(0, 0.135, 0, 0.022, PALETTE.chrome, 0, 1, { shade: 1, surface: 'steel' });
+      // A plated roast dinner (KayKit's).
+      put(b, 'dinner', 0, 0, 0, 0.2, [], 'matte');
       break;
     case 'cocktail':
-      // A coupe glass, pink, with a cherry, on a small silver tray.
+      // A cocktail glass (Kenney's) on a small silver tray.
       b.rounded(0, 0.01, 0, 0.24, 0.02, 0.18, 0.04, PALETTE.chrome, { shade: 0.9, surface: 'steel' });
-      b.cylinder(0, 0.06, 0, 0.01, 0.02, 0.09, '#E8EEF2', 6, 'y', { surface: 'glass' });
-      b.cylinder(0, 0.13, 0, 0.07, 0.025, 0.06, '#F3A3B3', 12, 'y', { shade: 1, surface: 'glass' });
-      b.sphere(0.03, 0.17, 0, 0.016, '#C0485C', 0);
+      put(b, 'cocktail', 0, 0.02, 0, 0.2, [], 'glass');
       break;
     case 'popcorn':
       // A red-and-white striped carton heaped with popcorn.
@@ -121,13 +122,12 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       b.box(-0.06, 0.0435, 0.03, 0.1, 0.002, 0.08, '#9DB8CF', 0, { shade: 1 });
       break;
     case 'breakfast':
-      // A breakfast tray: a croissant, a cup of coffee, a little pot of jam.
-      b.rounded(0, 0.015, 0, 0.44, 0.03, 0.3, 0.06, PALETTE.brass, { shade: 0.9, surface: 'brass' });
-      b.cylinder(-0.06, 0.04, 0, 0.11, 0.11, 0.016, PALETTE.porcelain, 14);
-      b.add(new THREE.TorusGeometry(0.065, 0.03, 6, 12, Math.PI * 1.1).rotateX(Math.PI / 2).rotateY(Math.PI * 0.45), '#E2A04A', -0.06, 0.07, 0.02, 0, 0, 0, { shade: 0.9 });
-      b.cylinder(0.12, 0.07, 0.04, 0.045, 0.036, 0.07, PALETTE.porcelain, 12);
-      b.cylinder(0.12, 0.106, 0.04, 0.04, 0.04, 0.004, '#5A3524', 12, 'y', { shade: 1 });
-      b.cylinder(0.12, 0.05, -0.08, 0.03, 0.03, 0.04, '#C0485C', 10, 'y', { shade: 1, surface: 'glass' });
+      // A breakfast tray: a croissant on a plate, a muffin and a mug of coffee.
+      tray(b, PALETTE.brass, PALETTE.linen);
+      put(b, 'plate', -0.06, 0.03, 0, 0.018, [key('ttBlue', PALETTE.porcelain)]);
+      put(b, 'croissant', -0.06, 0.045, 0, 0.06, [], 'matte', 0.6);
+      put(b, 'mug', 0.12, 0.03, 0.04, 0.07, [key('ttLight', PALETTE.porcelain)]);
+      put(b, 'muffin', 0.11, 0.03, -0.08, 0.06, [], 'matte');
       break;
     case 'snack':
       // A minibar's refill: a little box with a chocolate bar and a bag of crisps peeking out.
@@ -138,18 +138,9 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       b.rounded(0.07, 0.15, 0, 0.12, 0.1, 0.07, 0.03, '#FFD35C', { shade: 0.95 });
       break;
     case 'sandwich':
-      // Session 38: a club sandwich cut in two triangles on a white plate, the filling showing in the cut, a stick and olive.
-      b.cylinder(0, 0.009, 0, 0.16, 0.16, 0.018, PALETTE.porcelain, 18);
-      for (const side of [-1, 1]) {
-        const tri = new THREE.CylinderGeometry(0.1, 0.1, 0.07, 3, 1).rotateY(side < 0 ? Math.PI / 6 : -Math.PI / 6 + Math.PI);
-        b.add(tri, '#F2D49A', side * 0.035, 0.055, 0, 0, 0, 0, { shade: 0.9 });
-        const fill = new THREE.CylinderGeometry(0.112, 0.112, 0.014, 3, 1).rotateY(side < 0 ? Math.PI / 6 : -Math.PI / 6 + Math.PI);
-        b.add(fill, '#7CC36A', side * 0.035, 0.058, 0, 0, 0, 0, { shade: 1 });
-        const ham = new THREE.CylinderGeometry(0.108, 0.108, 0.012, 3, 1).rotateY(side < 0 ? Math.PI / 6 : -Math.PI / 6 + Math.PI);
-        b.add(ham, '#E5574F', side * 0.035, 0.043, 0, 0, 0, 0, { shade: 1 });
-      }
-      b.cylinder(0, 0.13, 0, 0.004, 0.004, 0.08, '#D8C29A', 4);
-      b.sphere(0, 0.17, 0, 0.016, '#6E8B3D', 0);
+      // Session 38, models since 51: a sandwich (Tiny Treats') on a white plate.
+      put(b, 'plate', 0, 0, 0, 0.02, [key('ttBlue', PALETTE.porcelain)]);
+      put(b, 'sandwich', 0, 0.015, 0, 0.11, [], 'matte');
       break;
     case 'crate':
       b.box(0, 0.17, 0, 0.5, 0.34, 0.42, PALETTE.oak, 0, { pattern: PATTERN.stripesZ, color2: '#A87544', scale: 0.09, shade: 0.8 });

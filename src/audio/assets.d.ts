@@ -13,3 +13,7 @@ declare module '*.bin' {
   const data: string;
   export default data;
 }
+declare module '*.png' {
+  const data: string;
+  export default data;
+}

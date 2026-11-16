@@ -5,7 +5,7 @@ import { rect, type CarriageType, type Rect, type VenueKind } from '../core/type
 import type { ComfortKey } from '../config/content';
 import { bedMessParts, buildLitter, buildMessPiece, buildMessPillow, LITTER_KINDS, seeded, type BedMess, type MessPiece } from './Mess';
 import { GeoBuilder, PaneBuilder, type PartStyle } from './geo';
-import { modelEntry } from './models/library';
+import { key, modelEntry } from './models/library';
 import { seatModel } from './models/place';
 import {
   CARRIAGE_LENGTH,
@@ -47,6 +47,8 @@ import { WORLD_UI_LAYER } from './CameraRig';
 import type { IconName } from '../ui/icons';
 
 /** Metres between ceiling lights along a room or corridor (lamp pools). */
+/** How far boards nailed over a run-down window stand off the wall's inside face (clear of the frame). */
+const BOARD_PROUD = 0.06;
 const LAMP_SPACING = 3.2;
 
 /** Height of every walkable floor (train and platform); the ground is at y = 0. */
@@ -1279,8 +1281,28 @@ export class CarriageView {
     yield* floorSteps(f, this.layout, floorTier, this.theme, this.index * 7 + this.layout.type.length);
     yield;
     if (this.tier <= 0) {
-      const webs = buildCobwebs(this.cameraSideWindows(), this.index + 3);
+      const windows = this.cameraSideWindows();
+      const webs = buildCobwebs(windows, this.index + 3);
       if (webs) this.group.add(webs);
+      // Session 51 (owner: "not shabby enough"): every fourth window on the camera's side boarded over from inside,
+      // two weathered planks nailed across it (the Repair takes them down).
+      const bottom = FLOOR_Y + this.layout.windowBand[0];
+      windows.forEach((win, i) => {
+        if ((i + this.index) % 4 !== 3) return;
+        // Never behind furniture standing against that wall (a bar, a shelf, a banquette).
+        const reach = win.x + win.inward * 0.45;
+        if (this.layout.props.some((p) => p.rect.z0 < win.z1 + 0.1 && p.rect.z1 > win.z0 - 0.1 && p.rect.x0 < Math.max(win.x, reach) && p.rect.x1 > Math.min(win.x, reach))) return;
+        const top = win.top;
+        const zc = (win.z0 + win.z1) / 2;
+        const span = win.z1 - win.z0 + 0.12;
+        const px = win.x + win.inward * BOARD_PROUD;
+        f.object('decor:boardedWindow');
+        for (const [dy, tilt, off] of [[0.3, 0.18, 0], [0.7, -0.14, 0.028]] as [number, number, number][]) {
+          // The second plank lies over the first where they cross, never in the same plane.
+          f.add(new THREE.BoxGeometry(0.022, 0.09, span), dy < 0.5 ? '#8A7F6E' : '#7C7262', px + win.inward * off, bottom + (top - bottom) * dy, zc, tilt, 0, 0, { shade: 0.9, detail: 'woodWorn' });
+        }
+        f.endObject();
+      });
     }
     if (fin.runner && (this.layout.cabins.length > 0 || this.layout.bathrooms.length > 0)) {
       const z0 = this.layout.type === 'lobby' ? 6.1 : this.frontDepth() + 0.05;
@@ -1929,10 +1951,16 @@ function buildCabinComforts(b: GeoBuilder, glow: GeoBuilder, cabin: CabinLayout,
   const nightstand = keys.includes('lamp') || keys.includes('flowers');
   if (nightstand) {
     b.object('comfort:nightstand');
+    if (MODEL_FURNITURE) {
+      // Session 51: Quaternius's nightstand on tapered legs, a drawer with a brass pull, fitted to the spot.
+      const e = modelEntry('nightstand');
+      b.model('nightstand', ncx, y, (nz0 + nz1) / 2, Math.PI, (nx1 - nx0) / (e.max[0] - e.min[0]), 0.45 / (e.max[1] - e.min[1]), (nz1 - nz0) / (e.max[2] - e.min[2]), { recolor: [key('wood', wood), key('cover', PALETTE.brass)], surface: 'varnish' });
+    } else {
     b.slab(rect(nx0, nz0, nx1, nz1), y, y + 0.42, wood, 0, 0, { shade: 0.8 });
     b.slab(rect(nx0, nz0, nx1, nz1), y + 0.42, y + 0.45, PALETTE.walnutDark, 0, -0.012, FLAT);
     b.box(ncx, y + 0.27, nz1 + 0.006, 0.2, 0.1, 0.01, shadeHex(wood, 1.1), 0, FLAT);
     b.sphere(ncx, y + 0.27, nz1 + 0.018, 0.016, PALETTE.brass, 0);
+    }
   }
   if (keys.includes('lamp')) {
     b.object('comfort:lamp');
@@ -1940,9 +1968,17 @@ function buildCabinComforts(b: GeoBuilder, glow: GeoBuilder, cabin: CabinLayout,
     // Back corner, the vase in the front one: they never touch.
     const lx = nx0 + 0.085;
     const lz = nz0 + 0.085;
+    if (MODEL_FURNITURE) {
+      // Session 51: Kenney's table lamp (a brass foot, a pleated shade), a warm bulb glowing in its open top.
+      const e = modelEntry('lamp_table');
+      const sc = 0.26 / (e.max[1] - e.min[1]);
+      b.model('lamp_table', lx, y + 0.45, lz, 0, sc, sc, sc, { recolor: [key('metal', PALETTE.brass), key('cover', PALETTE.lampShade)], surface: 'fabric' });
+      glow.sphere(lx, y + 0.45 + 0.19, lz, 0.03, '#FFD9A0', 1, 1, FLAT);
+    } else {
     b.cylinder(lx, y + 0.465, lz, 0.04, 0.045, 0.03, PALETTE.brass, 10);
     b.cylinder(lx, y + 0.56, lz, 0.011, 0.011, 0.16, PALETTE.brass, 6);
     glow.cylinder(lx, y + 0.68, lz, 0.05, 0.085, 0.1, PALETTE.lampShade, 12, 'y', { shade: 0.9 });
+    }
   }
   if (keys.includes('flowers')) {
     b.object('comfort:flowers');
@@ -1977,11 +2013,19 @@ function buildCabinComforts(b: GeoBuilder, glow: GeoBuilder, cabin: CabinLayout,
       b.slab(rect(tx0, tz0, tx0 + 0.3, tz1), y, y + 0.32, wood, 0, 0, { shade: 0.8 });
       b.slab(rect(tx0, tz0, tx0 + 0.3, tz1), y + 0.32, y + 0.34, PALETTE.walnutDark, 0, -0.01, FLAT);
       const sw = Math.min(0.32, len - 0.06);
+      if (MODEL_FURNITURE) {
+        // Session 51: Kenney's vintage television (a wooden cabinet, the screen and dials on its face), turned to the bed.
+        const e = modelEntry('tv');
+        const sc = Math.min(0.26 / (e.max[1] - e.min[1]), sw / (e.max[0] - e.min[0]), 0.28 / (e.max[2] - e.min[2]));
+        b.model('tv', tx0 + 0.15, y + 0.34, tzc, -Math.PI / 2, sc, sc, sc, { recolor: [key('wood', tier >= 3 ? PALETTE.walnutDark : '#8C5E3C')], surface: 'varnish' });
+        glow.box(tx0 + 0.15 + (e.max[2] - e.min[2]) * sc / 2 + 0.004, y + 0.34 + 0.13, tzc, 0.006, 0.11, sw * 0.5, '#9CC3D9', 0, { shade: 1 });
+      } else {
       b.rounded(tx0 + 0.14, y + 0.47, tzc, 0.22, 0.24, sw, 0.03, tier >= 3 ? PALETTE.walnutDark : '#8C5E3C', { shade: 0.85, surface: 'varnish' });
       glow.box(tx0 + 0.255, y + 0.48, tzc - 0.02, 0.012, 0.16, sw - 0.12, '#9CC3D9', 0, { shade: 1 });
       b.cylinder(tx0 + 0.256, y + 0.4, tzc + sw / 2 - 0.04, 0.012, 0.012, 0.01, PALETTE.brass, 8, 'x', { surface: 'brass' });
       b.cylinder(tx0 + 0.256, y + 0.44, tzc + sw / 2 - 0.04, 0.012, 0.012, 0.01, PALETTE.brass, 8, 'x', { surface: 'brass' });
       for (const lean of [-0.35, 0.35]) b.add(new THREE.CylinderGeometry(0.004, 0.004, 0.2, 4).rotateX(lean), PALETTE.iron, tx0 + 0.12, y + 0.68, tzc + lean * 0.12, 0, 0, 0, { shade: 1 });
+      }
       b.endObject();
       glow.endObject();
     }
@@ -2149,8 +2193,10 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
         // An iron cot: thin frame on legs, a thin mattress, a grey wool blanket, one flat pillow.
         for (const px of [r.x0 + 0.04, r.x1 - 0.04]) for (const pz of [r.z0 + 0.04, r.z1 - 0.04]) b.box(px, y + 0.14, pz, 0.04, 0.28, 0.04, PALETTE.iron, 0, FLAT);
         b.slab(r, y + 0.26, y + 0.3, PALETTE.iron, 0, 0, FLAT);
-        b.slab(r, y + 0.3, y + BED_TOP - 0.02, '#E9E2D5', 0, 0.04, { shade: 0.95 });
-        b.rounded(cx, y + BED_TOP + 0.02, r.z0 + 0.25, w - 0.3, 0.06, 0.26, 0.05, '#F1ECE3', { shade: 0.9 });
+        // Session 51: a stained, sagging ticking mattress and a yellowed pillow (it was clean and white).
+        b.slab(r, y + 0.3, y + BED_TOP - 0.02, '#BFB49C', 0, 0.04, { shade: 0.92, detail: 'wool' });
+        b.cylinder(cx + w * 0.18, y + BED_TOP - 0.018, r.z0 + d * 0.4, Math.min(0.14, w * 0.22), Math.min(0.14, w * 0.22), 0.003, '#9C8B6E', 12, 'y', { shade: 1 });
+        b.rounded(cx, y + BED_TOP + 0.02, r.z0 + 0.25, w - 0.3, 0.06, 0.26, 0.05, '#D3C8B0', { shade: 0.9 });
         b.box(cx, y + BED_TOP, r.z0 + d * 0.64, w - 0.06, 0.05, d * 0.64, PALETTE.greyWool, 0, { shade: 0.95 });
         b.box(cx, y + 0.5, r.z0 + 0.02, w, 0.04, 0.04, PALETTE.iron, 0, FLAT);
         for (const px of [r.x0 + 0.04, r.x1 - 0.04]) b.box(px, y + 0.38, r.z0 + 0.02, 0.04, 0.3, 0.04, PALETTE.iron, 0, FLAT);
@@ -2161,18 +2207,21 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
         break;
       }
       if (MODEL_FURNITURE) {
-        // Session 49: a KayKit bed (CC0) fitted to the berth, its mattress where people lie (BED_TOP), its headboard at
+        // Session 49–51: a bed model (Quaternius House since session 51, CC0) fitted to the berth, its mattress where people lie (BED_TOP), its headboard at
         // the room's back wall, the blanket in the class's colour and the frame in our wood.
         const id = w > 1.25 ? 'bed_double' : 'bed_single';
         const e = modelEntry(id);
-        const sx = w / (e.max[0] - e.min[0]);
-        const sz = d / (e.max[2] - e.min[2]);
+        // A hair inside the berth, so the frame never shares a face with the wall or its trim.
+        const sx = (w - 0.06) / (e.max[0] - e.min[0]);
+        const sz = (d - 0.06) / (e.max[2] - e.min[2]);
         const sy = (BED_TOP + 0.031) / e.top;
         b.model(id, cx, y, cz, e.tall > 0 ? Math.PI : 0, sx, sy, sz, {
           recolor: [
-            // Session 50: a blanket deep enough to read against the floor, and a dark frame round it.
-            { hue: [190, 240], ref: '#497ebe', to: theme.deep },
-            { hue: [0, 40], val: [0, 0.75], ref: '#8a4a37', to: PALETTE.walnutDark },
+            // Session 50–51: a blanket deep enough to read against the floor, the turned-down top in the class's
+            // lighter colour, and a dark frame round it (Quaternius's bed since session 51).
+            key('blanket', theme.deep),
+            key('cushion', theme.blanket),
+            key('wood', tier >= 3 ? PALETTE.walnutDark : tier === 2 ? PALETTE.walnut : '#3E3A38'),
           ],
           surface: 'fabric',
         });
@@ -2269,6 +2318,14 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
     case 'plant': {
       // Pot and leaves stay inside the plant's own footprint, so nothing reaches into a wall.
       const half = Math.min(w, d) / 2;
+      if (MODEL_FURNITURE && tier >= 1) {
+        // Session 51: Tiny Treats' house plants (a snake plant, a trailing pothos, then a monstera), fitted inside.
+        const id = tier >= 3 ? 'plant_monstera' : tier === 2 ? 'plant_pothos' : 'plant_snake';
+        const e = modelEntry(id);
+        const sc = Math.min((half * 2) / Math.max(e.max[0] - e.min[0], e.max[2] - e.min[2]), 0.8 / (e.max[1] - e.min[1]));
+        b.model(id, cx, y, cz, 0, sc, sc, sc, { surface: 'foliage', shade: 0.85 });
+        break;
+      }
       b.cylinder(cx, y + 0.2, cz, half * 0.72, half * 0.55, 0.4, PALETTE.coral, 12, 'y', { shade: 0.78 });
       for (let i = 0; i < 6; i++) {
         const a = (i / 6) * Math.PI * 2;
@@ -2289,20 +2346,52 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       break;
     }
     case 'toilet':
-      b.rounded(cx + 0.14, y + 0.6, cz, 0.16, 0.28, d * 0.72, 0.05, PALETTE.porcelain, { shade: 0.92 });
-      b.cylinder(cx - 0.06, y + 0.2, cz, 0.2, 0.15, 0.4, PALETTE.porcelain, 16, 'y', { shade: 0.78 });
+      if (MODEL_FURNITURE && tier >= 1) {
+        // Session 51: Quaternius's toilet, its cistern against the wall (+x), at a real height.
+        const e = modelEntry('toilet');
+        const sc = Math.min(0.78 / (e.max[1] - e.min[1]), (d * 0.8) / (e.max[0] - e.min[0]), w / (e.max[2] - e.min[2]));
+        b.model('toilet', cx, y, cz, e.tall < 0 ? -Math.PI / 2 : Math.PI / 2, sc, sc, sc, { recolor: [key('linen', PALETTE.porcelain)], surface: 'ceramic' });
+        break;
+      }
+      b.rounded(cx + 0.14, y + 0.6, cz, 0.16, 0.28, d * 0.72, 0.05, '#C9C0AC', { shade: 0.92 });
+      b.cylinder(cx - 0.06, y + 0.2, cz, 0.2, 0.15, 0.4, '#C4BBA8', 16, 'y', { shade: 0.78 });
       b.cylinder(cx - 0.06, y + 0.41, cz, 0.21, 0.21, 0.03, tier <= 0 ? '#B9B4AC' : PALETTE.walnut, 16, 'y', FLAT);
       break;
     case 'sink':
-      b.cylinder(cx, y + 0.34, cz, 0.07, 0.11, 0.68, PALETTE.porcelain, 12, 'y', { shade: 0.78 });
-      b.rounded(cx - 0.02, y + 0.72, cz, w, 0.09, d * 0.85, 0.08, PALETTE.porcelain, { shade: 0.92 });
+      if (MODEL_FURNITURE && tier >= 1) {
+        // Session 51: Tiny Treats' vanity, a basin with taps in a cabinet: white, then the room's colour, then with
+        // brass taps (fixture:tap is the vanity's own).
+        b.object('fixture:tap');
+        const e = modelEntry('vanity');
+        const sc = Math.min(0.86 / (e.max[1] - e.min[1]), d / (e.max[0] - e.min[0]), w / (e.max[2] - e.min[2]));
+        b.model('vanity', cx, y, cz, e.tall < 0 ? -Math.PI / 2 : Math.PI / 2, sc, sc, sc, {
+          recolor: [key('ttBlue', tier >= 2 ? theme.wallLow : '#E7E2D8'), key('cover', tier >= 3 ? PALETTE.brass : PALETTE.chrome), key('ttLight', PALETTE.porcelain)],
+          surface: 'ceramic',
+        });
+        break;
+      }
+      b.cylinder(cx, y + 0.34, cz, 0.07, 0.11, 0.68, '#C4BBA8', 12, 'y', { shade: 0.78 });
+      b.rounded(cx - 0.02, y + 0.72, cz, w, 0.09, d * 0.85, 0.08, '#CFC6B3', { shade: 0.92 });
       b.rounded(cx - 0.02, y + 0.77, cz, w * 0.64, 0.02, d * 0.54, 0.06, '#B4DCEA', FLAT);
       b.object('fixture:tap');
       b.cylinder(r.x1 - 0.1, y + 0.82, cz, 0.016, 0.016, 0.08, tier >= 3 ? PALETTE.brass : PALETTE.chrome, 6);
       break;
     case 'bathtub': {
-      b.rounded(cx, y + 0.28, cz, w, 0.4, d, 0.2, tier >= 1 ? theme.wallLow : PALETTE.porcelain, { shade: 0.8 });
-      b.rounded(cx, y + 0.49, cz, w - 0.02, 0.03, d - 0.02, 0.19, PALETTE.porcelain, FLAT);
+      if (MODEL_FURNITURE && tier >= 1) {
+        // Session 51: Tiny Treats' bath (rolled rim, a tap, water and bubbles), its side in the room's colour.
+        const e = modelEntry('bath');
+        const along = d > w;
+        const sc = Math.min(0.62 / (e.max[1] - e.min[1]), (along ? w : d) / (e.max[0] - e.min[0]), (along ? d : w) / (e.max[2] - e.min[2]));
+        b.model('bath', cx, y, cz, along ? 0 : Math.PI / 2, sc, sc, sc, {
+          recolor: [key('ttLight', tier >= 2 ? shadeHex(theme.wallLow, 10) : PALETTE.porcelain), key('ttTeal', '#9FD3E6')],
+          surface: 'ceramic',
+        });
+        break;
+      }
+      // Run down (the models take over from the Repair): a chipped, stained tub with a rust streak under the tap.
+      b.rounded(cx, y + 0.28, cz, w, 0.4, d, 0.2, '#BDB4A2', { shade: 0.8 });
+      b.rounded(cx, y + 0.49, cz, w - 0.02, 0.03, d - 0.02, 0.19, '#CFC6B3', FLAT);
+      b.box(cx, y + 0.3, r.z0 + 0.004, 0.06, 0.32, 0.008, '#8A5A3A', 0, FLAT);
       b.rounded(cx, y + 0.51, cz, w - 0.14, 0.02, d - 0.14, 0.14, '#A9D6E8', FLAT);
       for (const fx of [r.x0 + 0.15, r.x1 - 0.15]) for (const fz of [r.z0 + 0.15, r.z1 - 0.15]) b.sphere(fx, y + 0.05, fz, 0.05, tier >= 3 ? PALETTE.brass : PALETTE.iron, 0);
       break;
@@ -2333,6 +2422,14 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       b.box(r.x0 + 0.1, y + 0.62, cz, 0.08, 0.44, d - 0.1, wood, 0, { shade: 0.85 });
       break;
     case 'lamp':
+      if (MODEL_FURNITURE && tier >= 1) {
+        // Session 51: Quaternius's standing lamp (a slim stem, a drum shade), a warm bulb under the shade.
+        const e = modelEntry('lamp_floor');
+        const sc = 1.6 / (e.max[1] - e.min[1]);
+        b.model('lamp_floor', cx, y, cz, 0, sc, sc, sc, { recolor: [key('metal', PALETTE.brass), key('cover', PALETTE.lampShade)], surface: 'brass' });
+        lamps.sphere(cx, y + 1.42, cz, 0.05, '#FFD9A0', 1, 1, FLAT);
+        break;
+      }
       b.cylinder(cx, y + 0.8, cz, 0.03, 0.05, 1.6, PALETTE.brass, 6);
       lamps.cylinder(cx, y + 1.6, cz, 0.12, 0.2, 0.22, PALETTE.lampShade, 12);
       break;

@@ -2,6 +2,7 @@ import { Game, SAVE_KEY } from './gameplay/Game';
 import { connectNative, restoreSave } from './services/native';
 import { h } from './ui/dom';
 import { Loader, nextPaint } from './ui/Loader';
+import { loadIconImages } from './ui/iconImages';
 import { Ui } from './ui/Ui';
 import { loadDetailTextures } from './world/detailTextures';
 
@@ -29,6 +30,8 @@ async function boot(): Promise<void> {
 
   // In the app, a save the system cleared from the web view comes back from the app's own storage first.
   await restoreSave(SAVE_KEY);
+  // Session 51: the item icons rendered from the models, decoded before anything draws an icon.
+  await loadIconImages();
   loader.progress(0.14);
   await nextPaint();
 

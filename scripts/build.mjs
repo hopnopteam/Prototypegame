@@ -24,7 +24,7 @@ const options = {
   define: { 'process.env.NODE_ENV': '"production"', __GA_GAME_KEY__: JSON.stringify((process.env.GA_GAME_KEY ?? '').replace(/\s+/g, '')), __GA_SECRET_KEY__: JSON.stringify((process.env.GA_SECRET_KEY ?? '').replace(/\s+/g, '')), __GOD_MODE__: JSON.stringify(process.env.GOD_MODE === '1'), __GA_BUILD__: JSON.stringify(process.env.GITHUB_RUN_NUMBER ? `1.0.${process.env.GITHUB_RUN_NUMBER}` : '') },
   logLevel: 'warning',
   // Sound samples ride inside the one HTML file.
-  loader: { '.mp3': 'base64', '.jpg': 'base64', '.bin': 'base64' },
+  loader: { '.mp3': 'base64', '.jpg': 'base64', '.bin': 'base64', '.png': 'base64' },
 };
 
 function emit(result) {
