@@ -48,8 +48,6 @@ const BRASS: PartStyle = { shade: 1, surface: 'brass' };
 /** Three close shades per tier (a whisper of variety, never a pattern of its own). */
 const OLD_TONES = ['#8D8476', '#918879', '#898072'];
 const REPAIRED_TONES = ['#C6A97E', '#C9AD82', '#C2A57A'];
-/** Session 51: water-stained, rotting boards among the old ones (run down only). */
-const STAINED_TONES = ['#6A6155', '#736A5D', '#5F574C'];
 /** The board laid where a hole was: a shade lighter than its neighbours, so the repair reads without shouting. */
 const PATCH_TONE = '#D0B489';
 /**
@@ -178,10 +176,8 @@ function boardField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () 
   const grain: DetailName = tier <= 0 ? 'woodWorn' : 'wood';
   const strips = Math.max(1, Math.round((r.x1 - r.x0) / BOARD));
   const w = (r.x1 - r.x0) / strips;
-  // Session 51 (owner: "the broken state… not shabby enough"): two holes a room, two along a long run of corridor, one
-  // in a shorter open stretch (the Repair patches every one of them: the same seed at both tiers).
-  const long = r.x1 - r.x0 > 0.9 ? (r.z1 - r.z0 > 6 ? 2 : r.z1 - r.z0 > 3 ? 1 : 0) : 0;
-  const holes = pickHoles(r, w, room ? 2 : long, rand, ko, !room);
+  // One hole per room, and one per long run of corridor (a short strip of open floor has none).
+  const holes = pickHoles(r, w, room ? 1 : r.z1 - r.z0 > 6 && r.x1 - r.x0 > 0.9 ? 1 : 0, rand, ko, !room);
   if ((globalThis as { __floorDebug?: string[] }).__floorDebug) (globalThis as { __floorDebug?: string[] }).__floorDebug!.push(`${room ? 'room' : 'open'} ${r.x0.toFixed(2)},${r.z0.toFixed(2)}-${r.x1.toFixed(2)},${r.z1.toFixed(2)} holes ${holes.map((h) => `${h.x0.toFixed(2)},${h.z0.toFixed(2)}`).join(' ')}`);
   const bottom = top - PLANK_T;
   const y = (top + bottom) / 2;
@@ -201,14 +197,18 @@ function boardField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () 
       const a = Math.max(r.z0, z) + (z > r.z0 ? seam / 2 : 0);
       const b = Math.min(r.z1, z + len) - (z + len < r.z1 ? seam / 2 : 0);
       z += len;
-      // Run down, now and then a board is water-stained dark (a fixed pattern, so the random sequence is untouched).
-      const stained = tier <= 0 && (s * 7 + k * 13 + Math.round(r.z0 * 10)) % 6 === 0;
-      const board = stained ? STAINED_TONES[(s + k) % STAINED_TONES.length] : tones[(s * 2 + k) % tones.length];
+      const board = tones[(s * 2 + k) % tones.length];
+      // Session 51b (owner: "broken… cracks… not placed properly, but not glitched"): run down, now and then a board is
+      // split along its length (a real gap down to the subfloor) or has worked loose (lifted and knocked a little
+      // askew). A fixed pattern, so the random sequence that places the holes is untouched.
+      const wear = tier <= 0 ? (s * 7 + k * 13 + Math.round(r.z0 * 10) + Math.round(r.x0 * 10)) % 9 : -1;
       k++;
       if (b - a < 0.05) continue;
       const hole = holes.find((h) => s >= h.s0 && s <= h.s1 && h.z0 < b && h.z1 > a);
       if (!hole) {
-        plank(f, cx, y, a, b, bw, board, grain);
+        if (wear === 0 && b - a > 0.6) crackedPlank(f, cx, y, a, b, bw, board, grain);
+        else if (wear === 4 && b - a > 0.6 && b - a < BOARD_LENGTH + 0.01) loosePlank(f, cx, y, a, b, bw, board, grain, s % 2 ? 1 : -1);
+        else plank(f, cx, y, a, b, bw, board, grain);
         continue;
       }
       if (tier <= 0) {
@@ -232,6 +232,26 @@ function plank(f: GeoBuilder, cx: number, y: number, z0: number, z1: number, wid
   f.box(cx, y, (z0 + z1) / 2, width, PLANK_T, z1 - z0, color, 0, { shade: 0.97, detail: grain });
 }
 
+/** A board split along its grain: two strips with a ragged gap down to the subfloor, one end of the split closing. */
+function crackedPlank(f: GeoBuilder, cx: number, y: number, z0: number, z1: number, width: number, color: string, grain: DetailName): void {
+  const len = z1 - z0;
+  const split = z0 + len * 0.3;
+  // Sound wood for the first stretch, then the split: each half a little narrower, a dark gap between them.
+  plank(f, cx, y, z0, split, width, color, grain);
+  const half = (width - CRACK_GAP) / 2;
+  for (const side of [-1, 1]) f.box(cx + side * (CRACK_GAP + half) / 2, y - (side > 0 ? 0.004 : 0), (split + z1) / 2, half, PLANK_T, len * 0.7 - 0.004, shadeHex(color, side > 0 ? -6 : 0), 0, { shade: 0.95, detail: grain });
+}
+
+/** A board worked loose: lifted proud of its neighbours and turned a touch, so its end sticks out. */
+function loosePlank(f: GeoBuilder, cx: number, y: number, z0: number, z1: number, width: number, color: string, grain: DetailName, dir: 1 | -1): void {
+  const len = z1 - z0 - 0.06;
+  f.add(new THREE.BoxGeometry(width * 0.94, PLANK_T, len), shadeHex(color, -4), cx, y + LOOSE_LIFT, (z0 + z1) / 2, dir * 0.012, dir * 0.012, 0, { shade: 0.95, detail: grain });
+}
+
+/** The gap down a split board, and how far a loose board stands proud (metres). */
+const CRACK_GAP = 0.012;
+const LOOSE_LIFT = 0.016;
+
 /** A broken board end: a few ragged fingers of wood reaching into the hole. */
 function splinters(f: GeoBuilder, cx: number, bw: number, y: number, edge: number, dir: 1 | -1, rand: () => number, color: string): void {
   let x = cx - bw / 2;
@@ -241,67 +261,6 @@ function splinters(f: GeoBuilder, cx: number, bw: number, y: number, edge: numbe
     const z0 = dir > 0 ? edge : edge - reach;
     f.box(x + piece / 2, y - 0.002, z0 + reach / 2, piece - 0.004, PLANK_T - 0.004, reach, color, 0, { shade: 0.9 });
     x += piece;
-  }
-}
-
-/**
- * Session 51 (owner: "make them more shabby"): what a neglected carriage collects, kept to the edges of each room and
- * corridor and clear of every pad, doorway, guest spot and piece of furniture: a broken board lying askew, a heap of
- * dust and grit, a crumpled newspaper, a rusty bucket under a leak with its puddle, a scatter of bent nails. Run down
- * only: the Repair sweeps it all away.
- */
-function debris(f: GeoBuilder, r: Rect, top: number, room: boolean, rand: () => number, ko: ReturnType<typeof keepOuts>): void {
-  const want = room ? 2 : Math.min(3, Math.floor((r.z1 - r.z0) / 4));
-  const placed: Rect[] = [];
-  for (let attempt = 0; attempt < 60 && placed.length < want; attempt++) {
-    const size = 0.42;
-    const x = r.x0 + 0.12 + rand() * Math.max(0, r.x1 - r.x0 - 0.24 - size);
-    const z = r.z0 + 0.12 + rand() * Math.max(0, r.z1 - r.z0 - 0.24 - size);
-    const spot = rect(x, z, x + size, z + size);
-    if (spot.x1 > r.x1 - 0.1 || spot.z1 > r.z1 - 0.1) continue;
-    if (!clear(rect(spot.x0 - 0.05, spot.z0 - 0.05, spot.x1 + 0.05, spot.z1 + 0.05), ko) || placed.some((o) => spot.x0 < o.x1 + 0.3 && spot.x1 > o.x0 - 0.3 && spot.z0 < o.z1 + 0.3 && spot.z1 > o.z0 - 0.3)) continue;
-    placed.push(spot);
-    const cx = x + size / 2;
-    const cz = z + size / 2;
-    f.object('decor:debris');
-    switch ((placed.length + Math.floor(rand() * 5)) % 5) {
-      case 0: {
-        // A broken board lying across the floor, splintered at one end.
-        const a = (rand() - 0.5) * 1.2;
-        f.add(new THREE.BoxGeometry(0.11, 0.03, 0.38), '#857B6C', cx, top + 0.017, cz, 0, a, 0.04, { shade: 0.85, detail: 'woodWorn' });
-        f.add(new THREE.BoxGeometry(0.05, 0.028, 0.06), '#7A7062', cx + Math.sin(a) * 0.2, top + 0.016, cz + Math.cos(a) * 0.2, 0, a + 0.4, 0, { shade: 0.85 });
-        break;
-      }
-      case 1: {
-        // A heap of dust and grit.
-        // One soft heap and a few lumps of grit round it, apart, so no two surfaces lie in one another.
-        f.sphere(cx, top + 0.005, cz, 0.12, '#837D72', 1, 0.3, { shade: 0.9, surface: 'matte' });
-        for (let i = 0; i < 3; i++) {
-          const a = (i / 3) * Math.PI * 2 + rand();
-          f.sphere(cx + Math.cos(a) * 0.17, top + 0.004, cz + Math.sin(a) * 0.17, 0.025, '#6E685E', 0, 0.6, { shade: 0.9, surface: 'matte' });
-        }
-        break;
-      }
-      case 2: {
-        // An old newspaper, crumpled and trodden flat.
-        f.add(new THREE.BoxGeometry(0.26, 0.006, 0.2), '#CFC6B2', cx, top + 0.004, cz, 0.04, rand() * 3, -0.03, { shade: 0.95 });
-        f.sphere(cx + 0.1, top + 0.03, cz - 0.08, 0.04, '#D8D0BE', 1, 0.8, { shade: 0.9 });
-        break;
-      }
-      case 3: {
-        // A rusty bucket under a leak, the puddle spreading round it.
-        f.cylinder(cx, top + 0.002, cz, 0.19, 0.19, 0.004, '#2E3A44', 18, 'y', { shade: 1, surface: 'glass' });
-        f.cylinder(cx + 0.03, top + 0.09, cz, 0.08, 0.065, 0.18, '#7B5A42', 12, 'y', { shade: 0.8, surface: 'iron' });
-        f.cylinder(cx + 0.03, top + 0.17, cz, 0.06, 0.06, 0.006, '#3A4650', 12, 'y', { shade: 1, surface: 'glass' });
-        break;
-      }
-      default: {
-        // Bent nails and a couple of loose screws.
-        for (let i = 0; i < 6; i++) f.add(new THREE.CylinderGeometry(0.004, 0.004, 0.07, 4), '#5A5450', cx + (rand() - 0.5) * 0.28, top + 0.005, cz + (rand() - 0.5) * 0.28, Math.PI / 2, rand() * 3, 0, { shade: 1, surface: 'iron' });
-        f.sphere(cx, top + 0.004, cz, 0.08, '#6E675C', 1, 0.15, { shade: 0.9 });
-      }
-    }
-    f.endObject();
   }
 }
 
@@ -384,7 +343,6 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
       const local = seeded(seed * 131 + Math.round(region.r.x0 * 100) * 7 + Math.round(region.r.z0 * 100));
       if (region.tiled) tileField(f, region.r, top, tier, local, ko);
       else boardField(f, region.r, top, tier, local, ko, region.room);
-      if (tier <= 0) debris(f, region.r, top, region.room, seeded(seed * 977 + Math.round(region.r.x0 * 100) * 13 + Math.round(region.r.z0 * 100)), ko);
       yield;
     }
     if (layout.type === 'lobby' && tier >= 1) {

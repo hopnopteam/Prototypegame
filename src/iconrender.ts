@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ICON_CELL, ICON_MODELS } from './ui/iconModels';
+import { ICON_BUILDERS } from './iconBuilders';
 
 /** Outline width in pixels at ICON_CELL. */
 const OUTLINE = 7;
@@ -35,6 +36,7 @@ async function main(): Promise<void> {
     rim.position.set(-3, 2, -2);
     scene.add(rim);
     const group = new THREE.Group();
+    if (ICON_MODELS[i].build) group.add(ICON_BUILDERS[ICON_MODELS[i].name]());
     for (const part of ICON_MODELS[i].parts) {
       const g = await loader.loadAsync(`models/${part.src}`);
       const obj = g.scene;
