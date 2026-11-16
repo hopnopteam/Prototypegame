@@ -2115,23 +2115,66 @@ function newspaperStack(b: GeoBuilder, x: number, y: number, z: number): void {
 }
 
 /**
- * A plate of club sandwiches (session 38), cut in triangles with the filling showing, standing on `y`; with `stand`, raised
- * on a little brass cake stand. 0.18 m across.
+ * The reception desk's bell and register (session 51b): a domed bell on a round base with its striker, and a bound
+ * ledger with cream page edges, a ribbon and a pen beside it; tin and a scuffed exercise book at first, then brass and
+ * leather, and from Business a gilt bell and a green morocco register with a fountain pen.
  */
-function sandwichPlate(b: GeoBuilder, x: number, y: number, z: number, stand: boolean): void {
-  let top = y;
-  if (stand) {
-    b.cylinder(x, y + 0.006, z, 0.05, 0.05, 0.012, PALETTE.brass, 12, 'y', { surface: 'brass' });
-    b.cylinder(x, y + 0.04, z, 0.012, 0.012, 0.06, PALETTE.brass, 8, 'y', { surface: 'brass' });
-    top = y + 0.07;
-  }
-  b.cylinder(x, top + 0.008, z, 0.09, 0.09, 0.016, PALETTE.porcelain, 16, 'y', { surface: 'ceramic' });
-  // Two halves, their cut faces toward each other a finger apart.
-  for (const [dx, dz, turn] of [[-0.032, 0, -Math.PI / 2], [0.032, 0, Math.PI / 2]] as const) {
-    const bread = new THREE.CylinderGeometry(0.045, 0.045, 0.04, 3, 1).rotateY(turn);
-    b.add(bread, '#F2D49A', x + dx, top + 0.038, z + dz, 0, 0, 0, { shade: 0.9 });
-    const leaf = new THREE.CylinderGeometry(0.058, 0.058, 0.008, 3, 1).rotateY(turn);
-    b.add(leaf, '#7CC36A', x + dx, top + 0.04, z + dz, 0, 0, 0, { shade: 1 });
+function deskThings(b: GeoBuilder, cx: number, top: number, z0: number, cz: number, tier: number): void {
+  const bell = tier <= 0 ? PALETTE.iron : tier >= 3 ? PALETTE.gold : PALETTE.brass;
+  const bx = cx + 0.11;
+  const bz = z0 + 0.3;
+  b.cylinder(bx, top + 0.012, bz, 0.07, 0.075, 0.024, tier <= 0 ? '#5A5048' : PALETTE.walnutDark, 18, 'y', { surface: 'varnish' });
+  b.add(new THREE.SphereGeometry(0.058, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), bell, bx, top + 0.024, bz, 0, 0, 0, { surface: tier <= 0 ? 'steel' : 'brass', shade: 0.9 });
+  b.cylinder(bx, top + 0.09, bz, 0.008, 0.008, 0.02, bell, 8, 'y', { surface: 'brass' });
+  b.sphere(bx, top + 0.103, bz, 0.013, bell, 1, 0.9);
+  // The ledger: a cover a little bigger than its pages, the page block's cream edges showing, a ribbon out of the end.
+  const lx = cx - 0.05;
+  const lz = cz + 0.21;
+  const cover = tier <= 0 ? '#8C7A5E' : tier >= 3 ? '#2F5A46' : '#7A2E2A';
+  b.box(lx, top + 0.006, lz, 0.27, 0.012, 0.37, cover, 0.08, { surface: 'leather', shade: 0.85 });
+  b.box(lx + 0.004, top + 0.024, lz, 0.25, 0.024, 0.35, '#F1E8D4', 0.08, { shade: 0.95 });
+  b.box(lx, top + 0.042, lz, 0.27, 0.012, 0.37, cover, 0.08, { surface: 'leather', shade: 0.85 });
+  if (tier >= 1) b.box(lx + 0.06, top + 0.0485, lz, 0.03, 0.002, 0.37, PALETTE.gold, 0.08, { surface: 'brass' });
+  b.box(lx - 0.06, top + 0.02, lz + 0.2, 0.02, 0.004, 0.06, '#B8323A', 0.08, FLAT);
+  b.cylinder(lx + 0.17, top + 0.008, lz + 0.02, 0.008, 0.008, 0.15, tier >= 3 ? '#1E2A24' : '#2B2230', 8, 'z', { surface: 'varnish' });
+  b.cylinder(lx + 0.17, top + 0.008, lz + 0.1, 0.0085, 0.0085, 0.02, tier >= 1 ? PALETTE.gold : '#9A9A9A', 8, 'z', { surface: 'brass' });
+}
+
+/** Fits a model to a height, centred on (x, z), standing on y. */
+function fitModel(b: GeoBuilder, id: Parameters<GeoBuilder['model']>[0], x: number, y: number, z: number, height: number, rotY = 0, recolor: ReturnType<typeof key>[] = [], surface: PartStyle['surface'] = 'ceramic'): void {
+  const e = modelEntry(id);
+  const sc = height / (e.max[1] - e.min[1]);
+  b.model(id, x, y, z, rotY, sc, sc, sc, { recolor, surface, shade: 0.92 });
+}
+
+/**
+ * The lobby's tea counter top (session 51b, owner: "the kettle and the sandwiches… on top of these tables… not utilizing
+ * new elements… and the upgrades that come with it"), from the Tiny Treats models, by tier: a kettle, a plate of
+ * sandwiches and the papers on the crate; then a kettle, a stack of mugs and a sandwich; then a teapot with china cups,
+ * a sugar bowl and the milk; from Business a thermos urn, a jar of biscuits and sandwiches on a stand. The papers are
+ * always there, where they are picked up.
+ */
+function counterThings(b: GeoBuilder, cx: number, top: number, cz: number, tier: number): void {
+  newspaperStack(b, cx - 0.32, top, cz);
+  if (tier <= 1) {
+    fitModel(b, 'kettle', cx, top, cz, 0.26, Math.PI / 2, tier <= 0 ? [key('ttLight', '#9AA3A8')] : [], 'ceramic');
+    fitModel(b, 'plate', cx + 0.25, top, cz - 0.13, 0.02);
+    fitModel(b, 'sandwich', cx + 0.25, top + 0.018, cz - 0.13, 0.06, 0.4, [], 'matte');
+    if (tier >= 1) fitModel(b, 'mug_stack', cx + 0.19, top, cz + 0.17, 0.17, Math.PI / 2);
+  } else {
+    const grand = tier >= 3;
+    if (grand) fitModel(b, 'thermos', cx, top, cz, 0.32, Math.PI / 2, [key('ttBlue', PALETTE.brass)], 'varnish');
+    else fitModel(b, 'teapot', cx, top, cz, 0.22, Math.PI / 2);
+    if (grand) {
+      fitModel(b, 'cake_stand', cx + 0.24, top, cz - 0.15, 0.24);
+      fitModel(b, 'cookie_jar', cx - 0.08, top, cz + 0.22, 0.17);
+    } else {
+      fitModel(b, 'plate', cx + 0.25, top, cz - 0.13, 0.02);
+      fitModel(b, 'sandwich', cx + 0.25, top + 0.018, cz - 0.13, 0.06, 0.4, [], 'matte');
+    }
+    for (const dz of [0.09, 0.23]) fitModel(b, 'mug', cx + 0.17, top, cz + dz, 0.08, Math.PI / 2);
+    fitModel(b, 'bowl', cx + 0.31, top, cz + 0.16, 0.05);
+    if (!grand) fitModel(b, 'milk', cx + 0.08, top, cz + 0.26, 0.12, Math.PI / 2);
   }
 }
 
@@ -2247,16 +2290,14 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
         // A plain trestle table with a tin bell and a ledger.
         b.slab(r, y + 0.78, y + 0.84, '#A98D6F', 0, 0, FLAT);
         for (const pz of [r.z0 + 0.1, r.z1 - 0.1]) b.box(cx, y + 0.39, pz, w - 0.12, 0.78, 0.06, '#8E7560', 0, { shade: 0.8 });
-        b.sphere(cx + 0.1, y + 0.87, r.z0 + 0.3, 0.06, PALETTE.iron, 1, 0.7);
-        b.box(cx - 0.05, y + 0.86, cz + 0.2, 0.28, 0.03, 0.36, '#E9E0CF', 0, FLAT);
+        deskThings(b, cx, y + 0.84, r.z0, cz, 0);
         break;
       }
       b.slab(r, y, y + 0.88, wood, 0, 0, { shade: 0.7 });
       b.box(r.x1 + 0.006, y + 0.46, cz, 0.012, 0.56, d - 0.24, tier >= 2 ? theme.wallLow : PALETTE.oakMid, 0, { shade: 0.9 });
       b.slab(r, y + 0.88, y + 0.92, PALETTE.walnutDark, 0, -0.03, FLAT);
       if (tier >= 2) b.slab(r, y + 0.921, y + 0.925, '#5F8A6E', 0, 0.06, FLAT);
-      b.sphere(cx + 0.12, y + 0.95, r.z0 + 0.3, 0.065, PALETTE.brass, 1, 0.7);
-      b.box(cx - 0.05, y + 0.94, cz + 0.22, 0.28, 0.03, 0.38, PALETTE.linen, 0, FLAT);
+      deskThings(b, cx, y + (tier >= 2 ? 0.925 : 0.92), r.z0, cz, tier);
       if (tier >= 3) {
         b.cylinder(cx - 0.1, y + 1.02, r.z1 - 0.25, 0.015, 0.05, 0.14, PALETTE.brass, 8);
         lamps.cylinder(cx - 0.1, y + 1.1, r.z1 - 0.25, 0.06, 0.08, 0.07, '#6E9C80', 12, 'y', { shade: 0.9 });
@@ -2267,27 +2308,13 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       if (tier <= 0) {
         // A dented kettle on a crate.
         b.box(cx, y + 0.3, cz, w * 0.8, 0.6, d * 0.8, '#A98D6F', 0, { pattern: PATTERN.stripesZ, color2: '#9C8264', scale: 0.12, shade: 0.8 });
-        b.sphere(cx, y + 0.72, cz, 0.15, PALETTE.iron, 1, 0.85);
-        b.cylinder(cx + 0.16, y + 0.75, cz, 0.02, 0.03, 0.14, PALETTE.iron, 6, 'x');
-        newspaperStack(b, cx - 0.31, y + 0.6, cz);
-        sandwichPlate(b, cx + 0.25, y + 0.6, cz - 0.12, false);
+        counterThings(b, cx, y + 0.6, cz, 0);
         break;
       }
       b.slab(r, y, y + 0.72, wood, 0, 0, { shade: 0.7 });
       // Session 28 (owner: "the coffee table in the reception should have newspaper visible so it makes sense when
       // passengers request newspaper"): the morning papers wait on the counter beside the urn, where they are picked up.
-      newspaperStack(b, cx - 0.32, y + 0.72, cz);
-      b.cylinder(cx, y + 0.96, cz, 0.14, 0.18, 0.38, tier >= 2 ? PALETTE.brass : PALETTE.chrome, 14, 'y', { shade: 0.82 });
-      b.sphere(cx, y + 1.17, cz, 0.11, tier >= 2 ? PALETTE.brass : PALETTE.chrome, 1, 0.8);
-      // Session 38 (owner: "better-quality items on the coffee table… the food visible on it"): the sandwiches guests ask
-      // for wait under a glass dome beside the urn, and the cups are china on saucers with a gold rim, a sugar bowl by them.
-      sandwichPlate(b, cx + 0.25, y + 0.72, cz - 0.13, true);
-      for (const dz of [0.09, 0.23]) {
-        b.cylinder(cx + 0.17, y + 0.725, cz + dz, 0.055, 0.055, 0.01, PALETTE.porcelain, 14, 'y', { surface: 'ceramic' });
-        b.cylinder(cx + 0.17, y + 0.765, cz + dz, 0.038, 0.03, 0.07, PALETTE.porcelain, 14, 'y', { surface: 'ceramic' });
-        b.cylinder(cx + 0.17, y + 0.801, cz + dz, 0.039, 0.039, 0.004, PALETTE.gold, 14, 'y', { surface: 'brass' });
-      }
-      b.cylinder(cx + 0.3, y + 0.75, cz + 0.17, 0.035, 0.03, 0.06, tier >= 2 ? PALETTE.brass : PALETTE.chrome, 12, 'y', { surface: tier >= 2 ? 'brass' : 'steel' });
+      counterThings(b, cx, y + 0.72, cz, tier);
       break;
     }
     case 'linen': {
