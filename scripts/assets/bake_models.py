@@ -35,6 +35,7 @@ MODELS = {
     'table_small': 'kaykit-furniture/table_small.gltf',
     'lamp_standing': 'kaykit-furniture/lamp_standing.gltf',
     'cabinet_small': 'kaykit-furniture/cabinet_small.gltf',
+    'bar_stool': 'kaykit-furniture/chair_stool.gltf',
     # KayKit Restaurant Bits 1.0 (Kay Lousberg, CC0)
     'chair_slat': 'kaykit-restaurant/chair_A.gltf',
     'chair_solid': 'kaykit-restaurant/chair_B.gltf',

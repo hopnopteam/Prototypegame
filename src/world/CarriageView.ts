@@ -6,6 +6,7 @@ import type { ComfortKey } from '../config/content';
 import { bedMessParts, buildLitter, buildMessPiece, buildMessPillow, LITTER_KINDS, seeded, type BedMess, type MessPiece } from './Mess';
 import { GeoBuilder, PaneBuilder, type PartStyle } from './geo';
 import { modelEntry } from './models/library';
+import { seatModel } from './models/place';
 import {
   CARRIAGE_LENGTH,
   COVER_BASE,
@@ -2134,24 +2135,6 @@ const MODEL_FURNITURE = true;
  * A KayKit seat (couch or armchair) fitted to a prop's footprint: its back to the wall it faces away from (our props
  * face 'right' with the back at x0, 'left' with it at x1), `height` tall, the upholstery and the cushions recoloured.
  */
-function seatModel(b: GeoBuilder, id: 'couch' | 'armchair', r: Rect, facing: PropDef['facing'], height: number, cover: string, cushions: string, wood: string): void {
-  const e = modelEntry(id);
-  // The model's back is at its min z (tall −1): turned a quarter so its back meets x0 (facing right) or x1.
-  const back = e.tall < 0 ? 1 : -1;
-  const rotY = facing === 'left' ? -back * Math.PI / 2 : back * Math.PI / 2;
-  const sx = (r.z1 - r.z0) / (e.max[0] - e.min[0]);
-  const sz = (r.x1 - r.x0) / (e.max[2] - e.min[2]);
-  const sy = height / (e.max[1] - e.min[1]);
-  b.model(id, (r.x0 + r.x1) / 2, FLOOR_Y, (r.z0 + r.z1) / 2, rotY, sx, sy, sz, {
-    recolor: [
-      { hue: [20, 55], sat: [0.4, 1], val: [0.75, 1], ref: '#fbb856', to: cover },
-      { hue: [190, 230], ref: '#68a8d4', to: cushions },
-      { hue: [0, 30], val: [0, 0.7], ref: '#8a4a37', to: wood },
-    ],
-    surface: 'fabric',
-  });
-}
-
 export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme: CarriageTheme = CARRIAGE_THEMES.lobby, tier = 1): void {
   const r = prop.rect;
   const cx = (r.x0 + r.x1) / 2;
@@ -2410,7 +2393,7 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
     case 'sofa': {
       const cushion = tier <= 0 ? '#8E8577' : theme.deep;
       if (MODEL_FURNITURE) {
-        seatModel(b, 'couch', r, prop.facing, 0.82, cushion, tier >= 2 ? PALETTE.pillow : cushion, wood);
+        seatModel(b, 'couch', r, prop.facing, FLOOR_Y, 0.82, cushion, tier >= 2 ? PALETTE.pillow : cushion, wood);
         break;
       }
       b.slab(r, y + 0.08, y + 0.3, tier <= 0 ? '#7B6A58' : wood, 0, 0.02, { shade: 0.75 });
@@ -2425,7 +2408,7 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       // A Business Class wingback: buttoned leather in the carriage's colour on turned walnut feet.
       const cover = theme.deep;
       if (MODEL_FURNITURE) {
-        seatModel(b, 'armchair', r, prop.facing, 0.86, cover, PALETTE.pillow, PALETTE.walnutDark);
+        seatModel(b, 'armchair', r, prop.facing, FLOOR_Y, 0.86, cover, PALETTE.pillow, PALETTE.walnutDark);
         break;
       }
       const back = prop.facing === 'right' ? r.x0 + 0.1 : r.x1 - 0.1;

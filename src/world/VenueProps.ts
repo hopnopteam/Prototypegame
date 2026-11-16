@@ -5,6 +5,7 @@ import type { PropDef } from './layout';
 import { PATTERN } from './materials';
 import { PALETTE, shadeHex, type CarriageTheme } from './palette';
 import { modelEntry, type ModelId, type Recolor } from './models/library';
+import { seatModel } from './models/place';
 
 /**
  * The venue carriages' furniture (session 20), dressed by the refit tier (session 21, owner: "the interiors… should
@@ -490,6 +491,20 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
         return true;
       }
       const seat = tier >= 3 ? LUX.ochre : tier === 2 ? '#6B3A26' : k.cushion;
+      if (MODEL_VENUE) {
+        // Session 50: KayKit's stool, raised to bar height: a leather seat on walnut, oxblood on dark wood, then
+        // ochre velvet on gilt legs.
+        const e = modelEntry('bar_stool');
+        const span = radius * 2;
+        b.model('bar_stool', cx, Y, cz, 0, span / (e.max[0] - e.min[0]), 0.64 / 0.5, span / (e.max[2] - e.min[2]), {
+          recolor: [
+            { hue: [190, 230], ref: '#68a7d4', to: seat },
+            { hue: [8, 22], sat: [0.4, 0.75], ref: '#8a4a37', to: tier >= 3 ? PALETTE.gold : tier === 2 ? PALETTE.walnutDark : PALETTE.walnut },
+          ],
+          surface: tier >= 3 ? 'velvet' : 'leather',
+        });
+        return true;
+      }
       b.cylinder(cx, Y + 0.02, cz, radius * 0.8, radius * 0.9, 0.04, k.metal, 12, 'y', { surface: k.metalSurface });
       b.cylinder(cx, Y + 0.3, cz, 0.025, 0.025, 0.56, k.metal, 8, 'y', { surface: k.metalSurface });
       b.add(new THREE.TorusGeometry(radius * 0.7, 0.012, 6, 14), k.metal, cx, Y + 0.24, cz, Math.PI / 2, 0, 0, { surface: k.metalSurface });
@@ -837,6 +852,14 @@ function buildLoungeChair(b: GeoBuilder, prop: PropDef, theme: CarriageTheme, ti
   const d = r.z1 - r.z0;
   const toRoom = prop.facing === 'right' ? 1 : -1;
   const backX = toRoom > 0 ? r.x0 + 0.1 : r.x1 - 0.1;
+  if (MODEL_VENUE && tier >= 1) {
+    // Session 50: KayKit's armchair: tan leather, then the lounge's colour in velvet, then ochre velvet with cream
+    // cushions (the owner's Luxury reference colours).
+    const cover = tier >= 3 ? LUX.ochre : tier === 2 ? theme.deep : '#6B3A26';
+    const cushions = tier >= 3 ? LUX.cream : tier === 2 ? PALETTE.pillow : '#9A6A4C';
+    seatModel(b, 'armchair', r, prop.facing, Y, 0.92, cover, cushions, PALETTE.walnutDark, tier === 1 ? 'leather' : 'velvet');
+    return;
+  }
   if (tier >= 3) {
     // A tub chair: a barrel back curving round the seat (a ring of panels), a deep cushion, short gilt feet.
     const radius = Math.min(w, d) / 2 - 0.03;
@@ -895,6 +918,14 @@ function buildSideTable(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, tier: n
     b.cylinder(cx, Y + height / 2, cz, 0.05, 0.06, height - 0.04, LUX.cream, 12, 'y', { pattern: PATTERN.stripesX, color2: LUX.stripeDark, scale: 0.08, shade: 0.95, surface: 'varnish' });
     b.cylinder(cx, topY - 0.015, cz, radius, radius, 0.03, '#EFE9E0', 20, 'y', { ...FLAT, surface: 'marble' });
     b.cylinder(cx, topY - 0.036, cz, radius + 0.004, radius + 0.004, 0.012, PALETTE.gold, 20, 'y', { ...FLAT, surface: 'brass' });
+  } else if (MODEL_VENUE) {
+    // Session 50: KayKit's small round table, its top where the glass and lamp stand: oak, then walnut.
+    const e = modelEntry('table_small');
+    const span = radius * 2;
+    b.model('table_small', cx, Y, cz, 0, span / (e.max[0] - e.min[0]), height / (e.max[1] - e.min[1]), span / (e.max[2] - e.min[2]), {
+      recolor: [{ hue: [8, 22], sat: [0.4, 0.75], ref: '#94533f', to: tier === 2 ? PALETTE.walnutDark : PALETTE.walnut }],
+      surface: 'varnish',
+    });
   } else {
     b.cylinder(cx, Y + 0.02, cz, radius * 0.6, radius * 0.65, 0.04, PALETTE.walnutDark, 12, 'y', FLAT);
     b.cylinder(cx, Y + height / 2, cz, 0.03, 0.04, height - 0.04, PALETTE.walnutDark, 8, 'y', { surface: 'varnish' });
@@ -943,6 +974,13 @@ function buildBanquette(b: GeoBuilder, prop: PropDef, theme: CarriageTheme, tier
   }
   const cover = tier >= 3 ? LUX.orange : tier === 2 ? theme.deep : '#7A5A48';
   const surface = tier >= 3 ? 'velvet' : 'leather';
+  if (MODEL_VENUE) {
+    // Session 50: KayKit's couch along the wall: brown leather, the lounge's colour, then the tufted orange velvet of
+    // the owner's reference with cream cushions.
+    const cushions = tier >= 3 ? LUX.cream : tier === 2 ? PALETTE.pillow : '#B89A74';
+    seatModel(b, 'couch', r, prop.facing, Y, 0.95, cover, cushions, PALETTE.walnutDark, surface);
+    return;
+  }
   b.box(cx, Y + 0.12, cz, w - 0.04, 0.24, d - 0.02, tier >= 3 ? PALETTE.walnutDark : PALETTE.walnut, 0, { shade: 0.75, surface: 'varnish' });
   b.rounded(cx + toRoom * 0.04, Y + 0.32, cz, w - 0.12, 0.16, d - 0.04, 0.05, cover, { shade: 0.88, surface });
   b.rounded(backX, Y + 0.66, cz, 0.16, 0.56, d - 0.02, 0.06, cover, { shade: 0.85, surface });
