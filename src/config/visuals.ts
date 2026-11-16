@@ -189,7 +189,7 @@ export const VISUALS = {
     woodWorn: { tile: 2.0, strength: 0.75 },
     wood: { tile: 1.9, strength: 0.6 },
     woodPolished: { tile: 2.4, strength: 0.55 },
-    herringbone: { tile: 1.6, strength: 0.6 },
+    herringbone: { tile: 1.4, strength: 0.95 },
     wool: { tile: 0.9, strength: 0.45 },
     grass: { tile: 6.0, strength: 1.0 },
     ground: { tile: 3.0, strength: 0.7 },

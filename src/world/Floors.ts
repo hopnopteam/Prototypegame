@@ -328,7 +328,7 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
   const base: PartStyle = tier >= 3
     ? { shade: 1, detail: 'herringbone', surface: 'varnish' }
     : { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1, detail: 'woodPolished' };
-  f.box(0, FLOOR_Y - 0.03, L / 2, HALF_WIDTH * 2 - 0.04, 0.06, L - 0.04, tier >= 3 ? PALETTE.boardsPolished : PALETTE.boards, 0, base);
+  f.box(0, FLOOR_Y - 0.03, L / 2, HALF_WIDTH * 2 - 0.04, 0.06, L - 0.04, tier >= 3 ? PALETTE.parquet : PALETTE.boards, 0, base);
   for (const cabin of layout.cabins) {
     if (tier >= 4) suedeRoom(f, cabin.room);
     else if (tier >= 3) firstClassRoom(f, cabin.room, theme);

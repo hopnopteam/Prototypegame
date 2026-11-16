@@ -61,6 +61,8 @@ export const PALETTE = {
   boardsSeam: '#C29A66',
   /** Cosy rooms: the same boards, polished to a deeper glow. */
   boardsPolished: '#DDB57F',
+  /** Session 50: the herringbone parquet of Luxurious and First Class floors, a richer honey so its blocks read. */
+  parquet: '#B07C4C',
   /** Run-down floorboards: the same boards, weathered grey. */
   plankWorn: '#CFC4B2',
   plankWornSeam: '#A2968A',

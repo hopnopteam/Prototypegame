@@ -35,6 +35,12 @@ MODELS = {
     'table_small': 'kaykit-furniture/table_small.gltf',
     'lamp_standing': 'kaykit-furniture/lamp_standing.gltf',
     'cabinet_small': 'kaykit-furniture/cabinet_small.gltf',
+    # KayKit Restaurant Bits 1.0 (Kay Lousberg, CC0)
+    'chair_slat': 'kaykit-restaurant/chair_A.gltf',
+    'chair_solid': 'kaykit-restaurant/chair_B.gltf',
+    'cafe_table': 'kaykit-restaurant/table_round_A_small.gltf',
+    'stove': 'kaykit-restaurant/stove_multi.gltf',
+    'counter': 'kaykit-restaurant/kitchencounter_straight_B.gltf',
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}

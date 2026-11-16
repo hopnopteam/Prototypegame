@@ -2187,8 +2187,9 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
         const sy = (BED_TOP + 0.031) / e.top;
         b.model(id, cx, y, cz, e.tall > 0 ? Math.PI : 0, sx, sy, sz, {
           recolor: [
-            { hue: [190, 240], ref: '#497ebe', to: tier >= 3 ? theme.deep : theme.blanket },
-            { hue: [0, 40], val: [0, 0.75], ref: '#8a4a37', to: wood },
+            // Session 50: a blanket deep enough to read against the floor, and a dark frame round it.
+            { hue: [190, 240], ref: '#497ebe', to: theme.deep },
+            { hue: [0, 40], val: [0, 0.75], ref: '#8a4a37', to: PALETTE.walnutDark },
           ],
           surface: 'fabric',
         });

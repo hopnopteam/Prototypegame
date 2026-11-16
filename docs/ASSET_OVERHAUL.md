@@ -106,3 +106,11 @@ need a lower near plane. Rebuild it the same way for the integration step's comp
 - ambientCG's file host (acg-download.struffelproductions.com) is not allowed here; Poly Haven covered every need.
 - Next: venues (KayKit Restaurant Bits tables, chairs, counters), platform props (KayKit City), village (Kenney City Kit
   Suburban), food items (Kenney Food Kit), then Quaternius washroom pieces.
+
+## Session 50: café and dining car
+
+- KayKit Restaurant Bits (CC0) baked in: `chair_slat`, `chair_solid`, `cafe_table`, `stove`, `counter`.
+- Café: slatted chairs, round tables, the counter (tiers 1–3). Dining car: solid chairs with a velvet pad, the ranges.
+  The run-down tier stays makeshift. Switch: `MODEL_VENUE` in `VenueProps.ts`.
+- Fixed: the herringbone parquet reads (richer colour, stronger layer); beds use the class's deep colour and a dark frame.
+- Next: the bar (stools, tables), platform props (KayKit City), village (Kenney City Kit Suburban), food items.
