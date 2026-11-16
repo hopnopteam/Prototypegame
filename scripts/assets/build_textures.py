@@ -28,6 +28,7 @@ LAYERS = [
     ('wool', 'rough_linen', 0, 2.2, True),
     ('grass', 'leafy_grass', 0, 1.0, False),
     ('ground', 'forrest_ground_01', 0, 1.0, False),
+    ('paving', 'patio_tiles', 0, 1.2, True),
 ]
 
 

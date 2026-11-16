@@ -13,3 +13,4 @@ game's own colours. The 1K sources are fetched into `src/` (git-ignored) when th
 | wool | rough_linen | carpets and rugs |
 | grass | leafy_grass | the countryside ground |
 | ground | forrest_ground_01 | (spare: paths, later) |
+| paving | patio_tiles | the station platform's stone flags (session 51b) |

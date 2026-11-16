@@ -213,7 +213,8 @@ export class PlatformView {
     // Deck: stone base, a tiled top, the yellow safety line and a coping stone along the edge.
     b.box((x0 + x1) / 2, FLOOR_Y / 2 - 0.02, zc, x1 - x0, FLOOR_Y - 0.04, length, '#D9CCB4', 0, { shade: 0.75 });
     // Session 30: stone flags laid in running bond, in close tones (the big diamond tile read as a loud pattern).
-    deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, PALETTE.platformTile, 0, { pattern: PATTERN.boards, color2: PALETTE.platformTile2, scale: 0.62, shade: 1 });
+    // Session 51b (owner: "the surface… find a better realistic [one]"): warm sandstone flags, the photo's own joints.
+    deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, PALETTE.platformTile, 0, { shade: 1, detail: 'paving' });
     deck.box(x0 + 0.2, FLOOR_Y - 0.008, zc, 0.4, 0.024, length, '#D3C9B8', 0, { shade: 1 });
     deck.box(x0 + 0.34, FLOOR_Y + 0.006, zc, 0.12, 0.004, length, PALETTE.platformEdge, 0, { shade: 1 });
 
@@ -263,10 +264,7 @@ export class PlatformView {
       const tubZ = z + LAMP_STEP / 2;
       if (tubZ < z1 - 2 && !blockedZ(tubZ, 0.8)) {
         props.object('platform:tub');
-        props.rounded(lampX + 0.05, FLOOR_Y + 0.2, tubZ, 0.62, 0.4, 0.62, 0.12, PALETTE.canopy, { shade: 0.75 });
-        props.sphere(lampX - 0.07, FLOOR_Y + 0.5, tubZ - 0.1, 0.18, PALETTE.blossom, 1);
-        props.sphere(lampX + 0.17, FLOOR_Y + 0.48, tubZ + 0.12, 0.16, PALETTE.linen, 1);
-        props.sphere(lampX + 0.05, FLOOR_Y + 0.54, tubZ + 0.04, 0.13, PALETTE.hedge, 1);
+        buildPlanter(props, lampX + 0.05, tubZ);
       }
     }
     props.endObject();
@@ -298,7 +296,6 @@ export class PlatformView {
     // The ticket stand and the luggage barrow (session 23).
     buildTicketStand(props, lamps);
     buildBarrow(props);
-    buildScale(props);
     buildBellPost(props);
 
     yield;
@@ -769,18 +766,24 @@ function buildBarrow(b: GeoBuilder): void {
 }
 
 /** A platform weighing machine beside the barrow: a brass plate, a column and a round dial facing the platform. */
-function buildScale(b: GeoBuilder): void {
-  const x = PLATFORM.barrow.x1 + 0.6;
-  const z = PLATFORM.barrow.z1 + 0.55;
+/** A bench's length on the platform (metres); its height and depth follow the model's own proportions. */
+const BENCH_LENGTH = 1.4;
+
+/** Fits a model to a height, standing on y (uniform scale). */
+function fitModel(b: GeoBuilder, id: Parameters<typeof modelEntry>[0], x: number, y: number, z: number, height: number, rotY = 0, recolor: ReturnType<typeof key>[] = [], surface: 'foliage' | 'wood' | 'paint' | 'matte' = 'foliage'): void {
+  const e = modelEntry(id);
+  const sc = height / (e.max[1] - e.min[1]);
+  b.model(id, x, y, z, rotY, sc, sc, sc, { recolor, surface, shade: 0.85 });
+}
+
+/** A wooden planter by the railing (session 51b): a Tiny Treats bush in it, flowers round its edge. */
+function buildPlanter(b: GeoBuilder, x: number, z: number): void {
   const y = FLOOR_Y;
-  b.object('platform:scale');
-  b.box(x, y + 0.05, z, 0.46, 0.1, 0.46, '#4A4F5C', 0, { shade: 0.85, surface: 'iron' });
-  b.box(x, y + 0.104, z, 0.38, 0.008, 0.38, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
-  b.box(x + 0.19, y + 0.6, z - 0.12, 0.08, 1.0, 0.08, '#B23A3A', 0, { shade: 0.85 });
-  b.cylinder(x + 0.19, y + 1.15, z - 0.12 + 0.04, 0.15, 0.15, 0.05, PALETTE.brass, 18, 'z', { shade: 1, surface: 'brass' });
-  b.cylinder(x + 0.19, y + 1.15, z - 0.12 + 0.07, 0.125, 0.125, 0.012, PALETTE.porcelain, 18, 'z', { shade: 1 });
-  b.box(x + 0.19, y + 1.18, z - 0.12 + 0.078, 0.012, 0.08, 0.004, PALETTE.ink, 0, { shade: 1 });
-  b.endObject();
+  b.rounded(x, y + 0.17, z, 0.66, 0.34, 0.66, 0.05, '#7A5236', { shade: 0.85, surface: 'wood' });
+  b.box(x, y + 0.335, z, 0.6, 0.02, 0.6, '#4A3628', 0, { shade: 0.9 });
+  fitModel(b, 'park_bush', x, y + 0.34, z, 0.38);
+  fitModel(b, 'flower_white', x - 0.2, y + 0.34, z + 0.2, 0.08, 0.4);
+  fitModel(b, 'flower_blue', x + 0.2, y + 0.34, z - 0.19, 0.08, 1.1);
 }
 
 /**
@@ -846,8 +849,12 @@ function buildBench(b: GeoBuilder, r: Rect): void {
   b.object('platform:bench');
   {
     // Session 51: Tiny Treats' park bench (slatted wood on iron ends), its back to the railing.
+    // Session 51b (owner: "the benches… don't feel like they belong"): at its own proportions (it was squashed to the
+    // rect, flat and thin), its back to the railing, the seat reaching out onto the platform.
     const e = modelEntry('bench');
-    b.model('bench', cx, y, cz, -Math.PI / 2, d / (e.max[0] - e.min[0]), 0.82 / (e.max[1] - e.min[1]), (r.x1 - r.x0) / (e.max[2] - e.min[2]), {
+    const sc = Math.min(d * 0.8, BENCH_LENGTH) / (e.max[0] - e.min[0]);
+    const deep = (e.max[2] - e.min[2]) * sc;
+    b.model('bench', r.x1 - deep / 2, y, cz, -Math.PI / 2, sc, sc, sc, {
       recolor: [key('ttWood', PALETTE.oak), key('ttMid', PALETTE.navy), key('ttLight', PALETTE.navy)],
       surface: 'wood',
     });
@@ -985,17 +992,17 @@ function buildForecourt(flat: GeoBuilder, b: GeoBuilder, lamps: GeoBuilder, x1: 
 
   // The ground: grass, the lane and its kerbs, the path from the gate, the garden path.
   flat.object('forecourt:grass');
-  flat.box(x1 + width / 2, G - 0.12, zc, width, 0.3, length, '#5F7F55', 0, { shade: 1 });
+  flat.box(x1 + width / 2, G - 0.12, zc, width, 0.3, length, '#6E9A5C', 0, { shade: 1, detail: 'grass' });
   // The paving lies flush on the grass: flat dressing, not an object of its own.
   flat.endObject();
   for (const [a, c] of [[z0, houseZ0 - 0.3], [houseZ1 + 0.1, z1]] as [number, number][]) {
     if (c <= a) continue;
     const mid = (a + c) / 2;
-    flat.box((laneX0 + laneX1) / 2, top + 0.012, mid, laneX1 - laneX0, 0.024, c - a, '#8E8A86', 0, { pattern: PATTERN.checker, color2: '#7C7874', scale: 0.24, shade: 1 });
+    flat.box((laneX0 + laneX1) / 2, top + 0.012, mid, laneX1 - laneX0, 0.024, c - a, '#8E8A86', 0, { shade: 1, detail: 'paving' });
     for (const kx of [laneX0 - 0.08, laneX1 + 0.08]) flat.box(kx, top + 0.04, mid, 0.16, 0.08, c - a, '#C9C1B2', 0, { shade: 1 });
     flat.box(laneX1 + 0.5, top + 0.008, mid, 0.7, 0.016, c - a, '#B9AE97', 0, { shade: 1 });
   }
-  flat.box((x1 + laneX0) / 2, top + 0.01, gate, laneX0 - x1, 0.02, GATE_HALF * 2, '#A49C8F', 0, { pattern: PATTERN.checker, color2: '#958D80', scale: 0.3, shade: 1 });
+  flat.box((x1 + laneX0) / 2, top + 0.01, gate, laneX0 - x1, 0.02, GATE_HALF * 2, '#B4A893', 0, { shade: 1, detail: 'paving' });
   flat.endObject();
 
   let k = 7;
@@ -1014,11 +1021,12 @@ function buildForecourt(flat: GeoBuilder, b: GeoBuilder, lamps: GeoBuilder, x1: 
     {
       // Session 51: Tiny Treats' clipped hedge, along the railing.
       const e = modelEntry('hedge');
-      b.model('hedge', x1 + 0.75, top, z + 1.2, Math.PI / 2, 2.4 / (e.max[0] - e.min[0]), 0.62 / (e.max[1] - e.min[1]), 0.8 / (e.max[2] - e.min[2]), { surface: 'foliage', shade: 0.8 });
+      b.model('hedge', x1 + 0.75, top, z + 1.2, Math.PI / 2, 2.4 / (e.max[0] - e.min[0]), 0.9 / (e.max[1] - e.min[1]), 0.8 / (e.max[2] - e.min[2]), { surface: 'foliage', shade: 0.8 });
     }
     b.object('forecourt:bed');
     b.rounded(x1 + 0.75, top + 0.07, z + 3.2, 0.9, 0.14, 1.3, 0.1, '#6B4C38', { shade: 0.9 });
-    for (let i = 0; i < 6; i++) b.sphere(x1 + 0.5 + (i % 2) * 0.48, top + 0.2, z + 2.75 + Math.floor(i / 2) * 0.45, 0.13, flowers[(i + Math.floor(z)) % flowers.length], 1, 0.8, { shade: 0.9, surface: 'foliage' });
+    for (let i = 0; i < 6; i++) fitModel(b, i % 2 ? 'flower_blue' : 'flower_white', x1 + 0.52 + (i % 2) * 0.44, top + 0.14, z + 2.75 + Math.floor(i / 2) * 0.45, 0.1, i * 0.9);
+    fitModel(b, 'grass_tuft', x1 + 0.75, top + 0.14, z + 3.2, 0.22);
   }
   b.endObject();
 
@@ -1027,11 +1035,11 @@ function buildForecourt(flat: GeoBuilder, b: GeoBuilder, lamps: GeoBuilder, x1: 
     if (inHouse(z, 1)) continue;
     const lx = laneX1 + 0.32;
     b.object('forecourt:lamp');
-    b.cylinder(lx, top + 0.08, z, 0.12, 0.14, 0.16, '#2B3046', 12, 'y', { shade: 0.9 });
-    b.cylinder(lx, top + 1.25, z, 0.035, 0.045, 2.3, '#2B3046', 8, 'y', { shade: 0.9 });
-    b.cone(lx, top + 2.62, z, 0.2, 0.16, '#2B3046', 8, { shade: 1 });
+    const e = modelEntry('street_lamp');
+    const sc = 2.75 / (e.max[1] - e.min[1]);
+    b.model('street_lamp', lx, top, z, 0, sc, sc, sc, { recolor: [key('ttMid', '#2B3046'), key('ttLight', '#3A4060')], surface: 'iron' });
     lamps.object('forecourt:lamp~glow');
-    lamps.box(lx, top + 2.43, z, 0.2, 0.24, 0.2, PALETTE.lampShade, 0);
+    lamps.box(lx, top + 2.52, z, 0.2, 0.22, 0.2, PALETTE.lampShade, 0);
   }
   b.endObject();
   lamps.endObject();
@@ -1051,10 +1059,10 @@ function buildForecourt(flat: GeoBuilder, b: GeoBuilder, lamps: GeoBuilder, x1: 
     b.object('forecourt:garden');
     // Every garden: a path to the cottage, round shrubs and a bed of flowers.
     b.box(gx, top + 0.006, gz + 2.65, 3.0, 0.012, 0.7, '#B9AE97', 0, { shade: 1 });
-    b.sphere(fenceX + 0.6, top + 0.3, z + 0.7, 0.34, '#4F7A4A', 1, 0.85, { shade: 0.8, surface: 'foliage' });
-    b.sphere(fenceX + 2.6, top + 0.38, z + 1.0, 0.42, '#5E8A55', 1, 0.85, { shade: 0.8, surface: 'foliage' });
+    fitModel(b, 'park_bush', fenceX + 0.6, top, z + 0.7, 0.55, garden);
+    fitModel(b, 'park_bush_large', fenceX + 2.6, top, z + 1.0, 0.75, garden * 2);
     b.rounded(gx, top + 0.06, gz + 0.4, 1.8, 0.12, 0.7, 0.08, '#6B4C38', { shade: 0.9 });
-    for (let i = 0; i < 7; i++) b.sphere(gx - 0.75 + i * 0.25, top + 0.19, gz + 0.4 + (i % 2 ? 0.14 : -0.14), 0.1, flowers[(i + garden) % flowers.length], 1, 0.8, { shade: 0.9, surface: 'foliage' });
+    for (let i = 0; i < 7; i++) fitModel(b, (i + garden) % 2 ? 'flower_blue' : 'flower_white', gx - 0.75 + i * 0.25, top + 0.12, gz + 0.4 + (i % 2 ? 0.14 : -0.14), 0.09, i);
     if (kind === 0) {
       // A garden bench and a water butt.
       b.box(gx + 0.5, top + 0.24, gz - 1.4, 0.4, 0.05, 1.2, '#8A6A4E', 0, { shade: 0.9, surface: 'wood' });
@@ -1075,9 +1083,7 @@ function buildForecourt(flat: GeoBuilder, b: GeoBuilder, lamps: GeoBuilder, x1: 
       ['#F4F1EA', '#9DB8CF', '#E8A0A8', '#F4F1EA'].forEach((c, i) => b.box(gx + 0.6, top + 1.22, gz - 1.2 + i * 0.55, 0.02, 0.36, 0.34, c, 0, { shade: 0.95, surface: 'fabric' }));
     } else {
       // A little apple tree and a bird table.
-      b.cylinder(gx + 0.4, top + 0.55, gz - 1.2, 0.07, 0.09, 1.1, '#6E5038', 8, 'y', { shade: 0.85, surface: 'wood' });
-      b.sphere(gx + 0.4, top + 1.3, gz - 1.2, 0.6, '#5E8A55', 1, 0.8, { shade: 0.75, surface: 'foliage' });
-      for (let i = 0; i < 5; i++) b.sphere(gx + 0.4 + Math.cos(i * 1.3) * 0.45, top + 1.2 + (i % 2) * 0.2, gz - 1.2 + Math.sin(i * 1.3) * 0.45, 0.06, '#D5463F', 0, 1, { shade: 1 });
+      fitModel(b, 'park_tree', gx + 0.4, top, gz - 1.2, 2.2, garden);
       b.cylinder(fenceX + 3.2, top + 0.5, gz + 1.4, 0.03, 0.03, 1.0, '#8A6A4E', 6, 'y', { shade: 0.9 });
       b.box(fenceX + 3.2, top + 1.02, gz + 1.4, 0.36, 0.04, 0.36, '#8A6A4E', 0, { shade: 0.9, surface: 'wood' });
     }
