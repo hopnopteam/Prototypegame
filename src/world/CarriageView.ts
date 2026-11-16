@@ -2134,7 +2134,7 @@ function deskThings(b: GeoBuilder, cx: number, top: number, z0: number, cz: numb
   b.box(lx, top + 0.006, lz, 0.27, 0.012, 0.37, cover, 0.08, { surface: 'leather', shade: 0.85 });
   b.box(lx + 0.004, top + 0.024, lz, 0.25, 0.024, 0.35, '#F1E8D4', 0.08, { shade: 0.95 });
   b.box(lx, top + 0.042, lz, 0.27, 0.012, 0.37, cover, 0.08, { surface: 'leather', shade: 0.85 });
-  if (tier >= 1) b.box(lx + 0.06, top + 0.0485, lz, 0.03, 0.002, 0.37, PALETTE.gold, 0.08, { surface: 'brass' });
+  if (tier >= 1) b.box(lx + 0.06, top + 0.0515, lz, 0.03, 0.005, 0.36, PALETTE.gold, 0.08, { surface: 'brass' });
   b.box(lx - 0.06, top + 0.02, lz + 0.2, 0.02, 0.004, 0.06, '#B8323A', 0.08, FLAT);
   b.cylinder(lx + 0.17, top + 0.008, lz + 0.02, 0.008, 0.008, 0.15, tier >= 3 ? '#1E2A24' : '#2B2230', 8, 'z', { surface: 'varnish' });
   b.cylinder(lx + 0.17, top + 0.008, lz + 0.1, 0.0085, 0.0085, 0.02, tier >= 1 ? PALETTE.gold : '#9A9A9A', 8, 'z', { surface: 'brass' });
@@ -2166,7 +2166,7 @@ function counterThings(b: GeoBuilder, cx: number, top: number, cz: number, tier:
     if (grand) fitModel(b, 'thermos', cx, top, cz, 0.32, Math.PI / 2, [key('ttBlue', PALETTE.brass)], 'varnish');
     else fitModel(b, 'teapot', cx, top, cz, 0.22, Math.PI / 2);
     if (grand) {
-      fitModel(b, 'cake_stand', cx + 0.24, top, cz - 0.15, 0.24);
+      fitModel(b, 'cake_stand', cx + 0.26, top, cz - 0.05, 0.2);
       fitModel(b, 'cookie_jar', cx - 0.08, top, cz + 0.22, 0.17);
     } else {
       fitModel(b, 'plate', cx + 0.25, top, cz - 0.13, 0.02);

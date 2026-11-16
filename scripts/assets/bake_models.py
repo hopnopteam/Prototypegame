@@ -106,6 +106,7 @@ MODELS = {
     'foliage': 'tinytreats-house/foliage_A.gltf',
     # Kenney Train Kit (CC0): the locomotive
     'locomotive': 'kenney-train/train-locomotive-c.glb',
+    'tender': 'kenney-train/train-carriage-coal.glb',
     # KayKit Restaurant Bits (CC0) and Kenney Food Kit (CC0): plated food
     'dinner': 'kaykit-restaurant/food_dinner.gltf',
     'stew': 'kaykit-restaurant/food_stew.gltf',

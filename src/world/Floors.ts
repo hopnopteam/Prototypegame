@@ -201,13 +201,15 @@ function boardField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () 
       // Session 51b (owner: "broken… cracks… not placed properly, but not glitched"): run down, now and then a board is
       // split along its length (a real gap down to the subfloor) or has worked loose (lifted and knocked a little
       // askew). A fixed pattern, so the random sequence that places the holes is untouched.
-      const wear = tier <= 0 ? (s * 7 + k * 13 + Math.round(r.z0 * 10) + Math.round(r.x0 * 10)) % 9 : -1;
+      const wear = tier <= 0 && s > 0 && s < strips - 1 ? (s * 7 + k * 13 + Math.round(r.z0 * 10) + Math.round(r.x0 * 10)) % 9 : -1;
       k++;
       if (b - a < 0.05) continue;
       const hole = holes.find((h) => s >= h.s0 && s <= h.s1 && h.z0 < b && h.z1 > a);
+      // Only out in the open, never under or against furniture.
+      const open = wear === 0 || wear === 4 ? clear(rect(x0 - 0.1, a - 0.1, x1 + 0.1, b + 0.1), ko) : false;
       if (!hole) {
-        if (wear === 0 && b - a > 0.6) crackedPlank(f, cx, y, a, b, bw, board, grain);
-        else if (wear === 4 && b - a > 0.6 && b - a < BOARD_LENGTH + 0.01) loosePlank(f, cx, y, a, b, bw, board, grain, s % 2 ? 1 : -1);
+        if (open && wear === 0 && b - a > 0.6) crackedPlank(f, cx, y, a, b, bw, board, grain);
+        else if (open && wear === 4 && b - a > 0.6 && b - a < BOARD_LENGTH + 0.01) loosePlank(f, cx, y, a, b, bw, board, grain, s % 2 ? 1 : -1);
         else plank(f, cx, y, a, b, bw, board, grain);
         continue;
       }
@@ -238,19 +240,21 @@ function crackedPlank(f: GeoBuilder, cx: number, y: number, z0: number, z1: numb
   const split = z0 + len * 0.3;
   // Sound wood for the first stretch, then the split: each half a little narrower, a dark gap between them.
   plank(f, cx, y, z0, split, width, color, grain);
-  const half = (width - CRACK_GAP) / 2;
-  for (const side of [-1, 1]) f.box(cx + side * (CRACK_GAP + half) / 2, y - (side > 0 ? 0.004 : 0), (split + z1) / 2, half, PLANK_T, len * 0.7 - 0.004, shadeHex(color, side > 0 ? -6 : 0), 0, { shade: 0.95, detail: grain });
+  // Each half stands a few millimetres in from the board's own edges, so no face lies on a neighbour's (no flicker).
+  const half = (width - CRACK_GAP) / 2 - EDGE_CLEAR;
+  for (const side of [-1, 1]) f.box(cx + side * (CRACK_GAP / 2 + half / 2), y - (side > 0 ? 0.004 : 0), (split + z1) / 2, half, PLANK_T, len * 0.7 - 0.004, shadeHex(color, side > 0 ? -6 : 0), 0, { shade: 0.95, detail: grain });
 }
 
 /** A board worked loose: lifted proud of its neighbours and turned a touch, so its end sticks out. */
 function loosePlank(f: GeoBuilder, cx: number, y: number, z0: number, z1: number, width: number, color: string, grain: DetailName, dir: 1 | -1): void {
   const len = z1 - z0 - 0.06;
-  f.add(new THREE.BoxGeometry(width * 0.94, PLANK_T, len), shadeHex(color, -4), cx, y + LOOSE_LIFT, (z0 + z1) / 2, dir * 0.012, dir * 0.012, 0, { shade: 0.95, detail: grain });
+  f.add(new THREE.BoxGeometry(width * 0.84, PLANK_T, len), shadeHex(color, -4), cx, y + LOOSE_LIFT, (z0 + z1) / 2, dir * 0.02, 0, 0, { shade: 0.95, detail: grain });
 }
 
 /** The gap down a split board, and how far a loose board stands proud (metres). */
 const CRACK_GAP = 0.012;
 const LOOSE_LIFT = 0.016;
+const EDGE_CLEAR = 0.004;
 
 /** A broken board end: a few ragged fingers of wood reaching into the hole. */
 function splinters(f: GeoBuilder, cx: number, bw: number, y: number, edge: number, dir: 1 | -1, rand: () => number, color: string): void {

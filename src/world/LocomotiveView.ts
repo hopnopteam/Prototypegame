@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { STATIC_CASTER_LAYER } from './Lighting';
-import { CarriageView, FLOOR_Y } from './CarriageView';
+import { CarriageView } from './CarriageView';
 import { RIVALS } from '../config/press';
-import { GeoBuilder, PaneBuilder } from './geo';
+import { GeoBuilder } from './geo';
 import { GANGWAY_LENGTH, LOCOMOTIVE_LENGTH } from './layout';
-import { ADD_GLOW, glowTexture, MATERIALS, PATTERN } from './materials';
+import { ADD_GLOW, glowTexture, MATERIALS } from './materials';
 import { PALETTE } from './palette';
+import { modelEntry } from './models/library';
 import { signTexture } from './sprites';
 import { REFLECT_LAYER } from './Water';
 
@@ -34,7 +35,16 @@ const POOL_TEXTURE = (): THREE.Texture => glowTexture(64, 128, 32, 75, 2, 62, [[
 const POOL_COLOR = new THREE.Color('#FFE2AA');
 
 /** The cab roof's top, the row of flagpoles across it (half its span), their height and the flags' size. */
-const CAB_ROOF_TOP = 2.95;
+/** The locomotive model's uniform scale: its width about a carriage's lower body. */
+const LOCO_SCALE = 2.2;
+/** The model's front faces +z; a half turn points it down the line (-z). */
+const LOCO_TURN = Math.PI;
+/** Gap between the cab and the tender. */
+const TENDER_GAP = 0.25;
+/** Chimney as a fraction of the model's length from its front; the lamp's height on the model. */
+const CHIMNEY_AT = 0.2;
+const LAMP_Y = 0.62;
+const CAB_ROOF_TOP = 1.66 * LOCO_SCALE;
 const PENNANT_ROW = 1.4;
 const PENNANT_POLE = 0.58;
 const PENNANT_WIDTH = 0.3;
@@ -46,12 +56,11 @@ const lifted = (hex: string, by: number): string => '#' + flagTint.set(hex).lerp
 /** One slot for every rival in the league. */
 const PENNANT_SLOTS = RIVALS.length;
 
-/** Steam locomotive at the head of the train (top of the screen). Faces -z. Navy, gold and signal red. */
+/** Steam locomotive at the head of the train (top of the screen). Faces -z. Kenney's blue and gold engine (session 51b). */
 export class LocomotiveView {
   readonly group = new THREE.Group();
   /** World position the smoke puffs come out of. */
   readonly chimneyTop = new THREE.Vector3();
-  private readonly wheels: THREE.Mesh[] = [];
   /** The brass nameplate on the tender, facing the train: the player's name for her. */
   private readonly nameplate: THREE.Mesh;
   private name = '';
@@ -67,100 +76,41 @@ export class LocomotiveView {
     const back = -GANGWAY_LENGTH;
     const front = back - LOCOMOTIVE_LENGTH;
     const b = new GeoBuilder();
-    // Boiler, cab and tender wear the train's livery (white here, tinted by the shared material).
-    const liv = new GeoBuilder();
-    const trim = new GeoBuilder();
-    const body = '#FFFFFF';
-    const mid = (front + back) / 2;
-
-    // Frame and running board: red valance with a gold line, black chassis.
-    b.box(0, 0.42, mid, 2.9, 0.3, LOCOMOTIVE_LENGTH - 0.3, PALETTE.locoBlack);
-    b.box(0, FLOOR_Y + 0.02, mid, 3.1, 0.08, LOCOMOTIVE_LENGTH - 0.5, PALETTE.locoRed, 0, { shade: 1 });
-    b.box(0, FLOOR_Y + 0.065, mid, 3.12, 0.012, LOCOMOTIVE_LENGTH - 0.52, PALETTE.gold, 0, { shade: 1 });
-
-    // Boiler with gold bands and a dark smokebox.
-    const boilerFront = front + 0.8;
-    const boilerBack = back - 3.4;
-    const boilerLength = boilerBack - boilerFront;
-    liv.cylinder(0, 1.55, (boilerFront + boilerBack) / 2, 0.95, 0.95, boilerLength, body, 24, 'z', { shade: 0.75 });
-    b.cylinder(0, 1.55, boilerFront - 0.05, 0.98, 0.98, 0.5, PALETTE.smokebox, 24, 'z', { shade: 0.75 });
-    b.cylinder(0, 1.55, boilerFront - 0.32, 0.5, 0.5, 0.06, PALETTE.locoBlack, 20, 'z', { shade: 1 });
-    for (let i = 1; i <= 3; i++) b.cylinder(0, 1.55, boilerFront + (boilerLength * i) / 4, 0.985, 0.985, 0.07, PALETTE.gold, 24, 'z', { shade: 0.85 });
-
-    // Chimney, dome and whistle.
-    const chimneyZ = boilerFront + 0.7;
-    b.cylinder(0, 2.75, chimneyZ, 0.26, 0.32, 0.9, PALETTE.locoBlack, 14, 'y', { shade: 0.8 });
-    b.cylinder(0, 3.24, chimneyZ, 0.36, 0.28, 0.16, PALETTE.gold, 14, 'y', { shade: 1 });
-    b.sphere(0, 2.45, boilerFront + boilerLength * 0.55, 0.38, PALETTE.gold, 2, 0.9);
-    b.cylinder(0.25, 2.55, boilerBack - 0.4, 0.06, 0.06, 0.35, PALETTE.gold, 8);
-
-    // Cab: navy with a cream window band and a dark roof.
-    const cabFront = boilerBack;
-    const cabBack = back - 0.6;
-    const cabMid = (cabFront + cabBack) / 2;
-    liv.box(0, 1.65, cabMid, 3.0, 2.2, cabBack - cabFront, body, 0, { shade: 0.75 });
-    trim.box(0, 2.0, cabMid, 3.03, 0.7, cabBack - cabFront - 0.2, body, 0, { shade: 1 });
-    b.box(0, 2.88, cabMid, 3.3, 0.14, cabBack - cabFront + 0.4, PALETTE.navyDark, 0, { shade: 1 });
-    b.box(0, 0.95, cabMid, 3.04, 0.12, cabBack - cabFront, PALETTE.gold, 0, { shade: 1 });
-    b.box(1.53, 1.3, cabMid, 0.02, 0.26, 0.7, PALETTE.gold, 0, { shade: 1 });
-    // Tender end facing the train: navy panel with gold lining, a round window, coal heaped on top.
-    liv.box(0, 1.2, back - 0.3, 2.7, 1.3, 0.6, body, 0, { shade: 0.7 });
-    b.box(0, 1.2, back - 0.005, 2.5, 1.1, 0.02, PALETTE.navyDark, 0, { shade: 1 });
-    liv.box(0, 1.2, back + 0.006, 2.4, 1.0, 0.012, body, 0, { shade: 0.95 });
-    b.cylinder(0, 1.35, back + 0.012, 0.22, 0.22, 0.02, PALETTE.gold, 18, 'z', { shade: 1 });
-    b.cylinder(0, 1.35, back + 0.02, 0.18, 0.18, 0.02, PALETTE.windowDay, 18, 'z', { shade: 1 });
-    b.box(0, 1.87, back - 0.3, 2.5, 0.06, 0.55, PALETTE.gold, 0, { shade: 1 });
-    b.box(0, 1.95, back - 0.3, 2.2, 0.14, 0.45, '#3A3840', 0, { pattern: PATTERN.dots, color2: '#26252B', scale: 0.07, shade: 1 });
-
-    // Buffer beam, cowcatcher, buffers.
-    b.box(0, 0.62, front + 0.2, 3.0, 0.3, 0.3, PALETTE.locoRed, 0, { shade: 0.9 });
-    b.prism(0, 0.2, front - 0.1, 2.6, 0.4, 0.5, PALETTE.locoBlack);
-    for (const x of [-1.2, 1.2]) b.cylinder(x, 0.62, front, 0.12, 0.12, 0.3, PALETTE.chrome, 10, 'z');
-
+    // Session 51b (owner: "the engine… very ugly… the tires are all over the place… a model that looks and behaves very
+    // well"): Kenney's Train Kit steam locomotive (CC0), blue with gold lining and proper wheels and rods, scaled up
+    // uniformly, with the kit's own coal wagon as its tender behind the cab, shortened to fit the locomotive's length.
+    const loco = modelEntry('locomotive');
+    const s = LOCO_SCALE;
+    const locoLength = (loco.max[2] - loco.min[2]) * s;
+    const locoMid = front + locoLength / 2;
+    b.object('locomotive');
+    b.model('locomotive', 0, 0, locoMid, LOCO_TURN, s, s, s, { surface: 'varnish', shade: 0.95 });
+    const tender = modelEntry('tender');
+    const tenderLength = back - (front + locoLength) - TENDER_GAP;
+    const tz = tenderLength / (tender.max[2] - tender.min[2]);
+    b.model('tender', 0, 0, back - tenderLength / 2, 0, s * 0.95, s * 0.82, tz, { surface: 'varnish', shade: 0.95 });
+    b.endObject();
+    // Where the parts stand on the model (fractions of its length from the front, of its height): chimney, lamp, cab.
+    const chimneyZ = front + CHIMNEY_AT * locoLength;
+    const cabBack = front + locoLength;
     const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.layers.enable(STATIC_CASTER_LAYER);
     this.group.add(mesh);
-    const livery = new THREE.Mesh(liv.build(), MATERIALS.livery);
-    livery.castShadow = true;
-    livery.receiveShadow = true;
-    livery.layers.enable(STATIC_CASTER_LAYER);
-    this.group.add(livery, new THREE.Mesh(trim.build(), MATERIALS.liveryTrim));
 
-    // Cab windows and the headlamp glow at night.
-    const windows = new PaneBuilder();
-    for (const x of [-1.52, 1.52]) windows.paneX(x + Math.sign(x) * 0.012, 1.75, 2.25, cabMid - 0.4, cabMid + 0.4, Math.sign(x) as 1 | -1, false);
-    windows.paneZ(cabFront - 0.022, 1.875, 2.325, -0.9, 0.9, -1, false);
-    this.group.add(new THREE.Mesh(windows.build(), MATERIALS.windows));
     const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.25, 14).rotateX(Math.PI / 2), this.lampMaterial);
-    lamp.position.set(0, 1.55, front + 0.5);
+    lamp.position.set(0, LAMP_Y * s, front + 0.12);
     this.group.add(lamp);
     // The headlight at night: a soft cone of light down the line and a warm pool where it lands on the track.
-    this.beam.position.set(0, 1.55, front + 0.35);
+    this.beam.position.set(0, LAMP_Y * s, front + 0.05);
     this.beam.rotation.x = HEADLIGHT_TILT;
     this.pool.position.set(0, 0.3, front - 5.2);
     this.group.add(this.beam, this.pool);
 
-    // Driving wheels spin with train speed: red with gold hubs.
-    const wheelGeo = new GeoBuilder()
-      .cylinder(0, 0, 0, 0.55, 0.55, 0.14, PALETTE.locoRed, 20, 'x', { shade: 0.85 })
-      .cylinder(0.02, 0, 0, 0.14, 0.14, 0.16, PALETTE.gold, 12, 'x', { shade: 1 })
-      .box(0.05, 0, 0, 0.04, 0.9, 0.08, PALETTE.gold, 0, { shade: 1 })
-      .build();
-    for (const x of [-1.42, 1.42]) {
-      for (let i = 0; i < 3; i++) {
-        const wheel = new THREE.Mesh(wheelGeo, MATERIALS.solid);
-        wheel.position.set(x, 0.55, boilerFront + 1.4 + i * 1.25);
-        if (x < 0) wheel.rotation.y = Math.PI;
-        this.group.add(wheel);
-        this.wheels.push(wheel);
-      }
-    }
-
-    this.chimneyTop.set(0, 3.4, chimneyZ);
+    this.chimneyTop.set(0, loco.max[1] * s + 0.1, chimneyZ);
     // The flagpoles stand in a row along the cab roof's rear edge (the edge nearest the camera).
-    this.pennantLine = { from: new THREE.Vector3(-PENNANT_ROW, CAB_ROOF_TOP, cabBack + 0.08), to: new THREE.Vector3(PENNANT_ROW - PENNANT_WIDTH, CAB_ROOF_TOP, cabBack + 0.08) };
+    this.pennantLine = { from: new THREE.Vector3(-PENNANT_ROW, CAB_ROOF_TOP, cabBack - 0.3), to: new THREE.Vector3(PENNANT_ROW - PENNANT_WIDTH, CAB_ROOF_TOP, cabBack - 0.3) };
     this.group.traverse((o) => o.layers.enable(REFLECT_LAYER));
 
     this.nameplate = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.3), new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false }));
@@ -238,8 +188,6 @@ export class LocomotiveView {
     (this.pool.material as THREE.MeshBasicMaterial).color.copy(POOL_COLOR).multiplyScalar(0.55 * night);
   }
 
-  update(dt: number, speed: number): void {
-    const spin = (speed / 0.55) * dt;
-    for (const wheel of this.wheels) wheel.rotation.x -= spin;
-  }
+  /** The model's wheels and rods are part of its body (they used to spin on their own, out of step with the rods). */
+  update(_dt: number, _speed: number): void {}
 }
