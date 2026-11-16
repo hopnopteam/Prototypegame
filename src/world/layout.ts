@@ -64,6 +64,8 @@ export const GANGWAY_HALF = 0.7;
 export const DOOR_Z0 = 0.8;
 export const DOOR_Z1 = 2.2;
 export const LOCOMOTIVE_LENGTH = 10;
+/** Where a café table's serve pad stands, across the aisle from the centre line (the tables are at ±1.3). */
+const CAFE_SERVE_X = 0.62;
 export const REAR_DECK_LENGTH = 2.4;
 /**
  * Depth of the rear vestibule; everything else in a carriage ends before it. Deep enough (session 15, was
@@ -880,8 +882,11 @@ function buildCafe(tier: number): CarriageLayout {
       const node = b.node(`table_${group}`, side * 0.5, z);
       b.edge(aisle, node);
       v.groups.push({ index: group, tile: { x, z }, props: [table, c0, c1], cash: null });
-      v.seats.push({ index: v.seats.length, group, sit: { x, z: z - 0.76 }, facing: FACE.rear, serve: null, node, top: 0.4 });
-      v.seats.push({ index: v.seats.length, group, sit: { x, z: z + 0.76 }, facing: FACE.front, serve: null, node, top: 0.4 });
+      // Session 51b (owner: "deliver it to the customer… when they sit… at the table"): one serve pad per table, on its
+      // aisle side, where the coffee is handed over.
+      const serve = { x: side * CAFE_SERVE_X, z };
+      v.seats.push({ index: v.seats.length, group, sit: { x, z: z - 0.76 }, facing: FACE.rear, serve, node, top: 0.4 });
+      v.seats.push({ index: v.seats.length, group, sit: { x, z: z + 0.76 }, facing: FACE.front, serve, node, top: 0.4 });
       group++;
     }
   }

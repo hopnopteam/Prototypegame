@@ -32,8 +32,10 @@ export interface Outing {
   seat: VenueSeat;
   /** On the seat (the view sits them down). */
   seated: boolean;
-  /** Paid already (the café is paid at the counter, the dome at the rope as a small ticket). */
+  /** Paid already (the dome at the rope as a small ticket; everything else as it is handed over). */
   paid: boolean;
+  /** What was handed over (it decides the price: a croissant is not a latte). */
+  item?: ItemKind;
   /** Game time they began waiting in the queue, or for a film (0 until then): a venue's patience counts from it. */
   waitSince: number;
 }
@@ -187,13 +189,6 @@ export class Venue {
     return waiting >= Math.max(1, Math.ceil(open * c.autoShare)) || this.w.time - this.waitingSince >= c.autoWait;
   }
 
-  /** The queue's orders (café): every queued guest has chosen what they want. */
-  queueOrders(item: ItemKind): number {
-    let n = 0;
-    for (const g of this.queue) if (g.outing?.seat.order === item) n++;
-    return n;
-  }
-
   staffCount(role: StaffRole): number {
     return this.w.staff.members.filter((m) => m.role === role && m.carriage === this.carriage && !m.temporary).length;
   }
@@ -322,7 +317,7 @@ export class Venues {
     const weights: Record<string, number> = {};
     for (const v of this.list) {
       if (!v.freeSeat() || !VENUES[v.kind].when.includes(when)) continue;
-      if ((v.kind === 'cafe' || v.kind === 'dome') && v.queue.length >= VENUE_TUNING.cafeQueueMax) continue;
+      if (v.kind === 'dome' && v.queue.length >= VENUE_TUNING.cafeQueueMax) continue;
       // The dome is for the ride: nobody goes up to watch a station platform.
       if (v.kind === 'dome' && w.journey.phase !== 'onTheMove') continue;
       // The routine (session 36): a venue they have already visited this ride weighs less, so they tour the train.
@@ -343,10 +338,9 @@ export class Venues {
     guest.request = null;
     w.guests.setOutingState(guest, 'toVenue');
     guest.view.showMood('wait', this.venueIcon(venue.kind));
-    if (venue.kind === 'cafe' || venue.kind === 'dome') {
+    // Session 51b: the café no longer queues at the counter; its guests sit and order at the table, like the dining car.
+    if (venue.kind === 'dome') {
       venue.queue.push(guest);
-      // Café guests know what they want before they reach the counter (so a coffee can be brewed ahead).
-      if (venue.kind === 'cafe') seat.order = w.rng.pick(venue.products());
       this.walkTo(guest, venue.queueSpot(venue.queue.length - 1), () => this.arriveInQueue(guest));
     } else {
       this.walkToSeat(guest);
@@ -414,8 +408,7 @@ export class Venues {
     const outing = guest.outing;
     if (!outing) return;
     const head = outing.venue.queue[0] === guest;
-    if (outing.venue.kind === 'cafe' && outing.seat.order) guest.view.showMood(head ? this.moodOf(guest) : null, iconFor(outing.seat.order));
-    else if (outing.venue.kind === 'dome') guest.view.showMood(head ? this.moodOf(guest) : null, 'binoculars');
+    if (outing.venue.kind === 'dome') guest.view.showMood(head ? this.moodOf(guest) : null, 'binoculars');
   }
 
   /** The queue moved up one: everyone steps forward to their new place. */
@@ -434,9 +427,9 @@ export class Venues {
     guest.pos.x = seat.sit.x;
     guest.pos.z = seat.sit.z;
     outing.seated = true;
-    w.guests.setOutingState(guest, venue.kind === 'cafe' || venue.kind === 'dome' ? 'consuming' : 'seated');
+    w.guests.setOutingState(guest, venue.kind === 'dome' ? 'consuming' : 'seated');
     seat.timer = 0;
-    if (venue.kind === 'dining' || venue.kind === 'bar') {
+    if (venue.kind === 'dining' || venue.kind === 'bar' || venue.kind === 'cafe') {
       seat.order = w.rng.pick(venue.products());
       seat.orderAt = w.time;
       seat.state = 'waiting';
@@ -453,7 +446,6 @@ export class Venues {
     } else {
       seat.state = 'consuming';
       guest.view.showBubble(null);
-      if (venue.kind === 'cafe') guest.view.act('sip', VENUES.cafe.consumeSeconds);
     }
   }
 
@@ -512,7 +504,7 @@ export class Venues {
     const { venue, seat } = outing;
     if (!outing.paid && venue.kind !== 'dome') this.pay(guest);
     // A popcorn asked for and never brought before the film ended: they go back unhappy (session 27).
-    if (seat.order && venue.kind !== 'cafe') w.guests.unhappy(guest);
+    if (seat.order) w.guests.unhappy(guest);
     else {
       guest.view.showMood('love');
       w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.4, guest.pos.z, 4, 0.2);
@@ -526,7 +518,7 @@ export class Venues {
     const outing = guest.outing;
     if (!outing || outing.paid) return 0;
     const { venue } = outing;
-    const item = VENUES[venue.kind].products[0]?.item ?? 'latte';
+    const item = outing.item ?? VENUES[venue.kind].products[0]?.item ?? 'latte';
     const amount = venue.priceFor(item, guest);
     // Session 43 (owner: "get paid when customer is sitting on the table and get their order… do it for both
     // dinner, bar, cafe, lounge"): every venue pays straight into the wallet as the order is handed over.
@@ -548,8 +540,7 @@ export class Venues {
     if (guest.state === 'venueQueue') return outing.waitSince || null;
     if (!outing.seated) return null;
     if (venue.kind === 'cinema' && seat.views === 0) return outing.waitSince || null;
-    // The café's order is the one taken at the counter (paid before they sit), never one still to bring.
-    if (seat.order && venue.kind !== 'cafe') return seat.orderAt;
+    if (seat.order) return seat.orderAt;
     return null;
   }
 
@@ -566,7 +557,7 @@ export class Venues {
     const since = this.waitingSince(guest);
     const minded = since !== null && w.time - since >= w.econ.guests.unmetAfterSeconds;
     const served = guest.state === 'consuming';
-    if (served && (venue.kind === 'dining' || venue.kind === 'bar')) this.pay(guest);
+    if (served && (venue.kind === 'dining' || venue.kind === 'bar' || venue.kind === 'cafe')) this.pay(guest);
     const qi = venue.queue.indexOf(guest);
     if (qi >= 0) {
       venue.queue.splice(qi, 1);
@@ -648,26 +639,15 @@ export class Venues {
 
   // ── Serving ────────────────────────────────────────────────────────────────────────────
 
-  /** The café: the head of the queue takes their order across the counter and pays; off to a table. */
+  /** The dome's rope: the head of the queue is shown in (a small ticket) and goes to a seat. */
   private serveCounter(venue: Venue, actor: Actor): boolean {
     const w = this.w;
     const guest = venue.queue[0];
     const outing = guest?.outing;
     if (!guest || !outing || !venue.arrived.has(guest)) return false;
-    if (venue.kind === 'cafe') {
-      const item = outing.seat.order;
-      if (!item || !actor.stack.has(item)) return false;
-      actor.stack.remove(item, () => tmp.set(guest.pos.x, FLOOR_Y + 1.1, guest.pos.z));
-      const amount = venue.priceFor(item, guest);
-      w.cash.payDirect(amount, guest.pos.x, guest.pos.z, 'venue:cafe');
-      outing.paid = true;
-      this.served(venue, guest, item, amount, actor);
-    } else {
-      // The dome's rope: shown in (a small ticket).
-      const amount = venue.priceFor('usher', guest);
-      w.cash.payDirect(amount, guest.pos.x, guest.pos.z, `venue:${venue.kind}`);
-      this.served(venue, guest, 'usher', amount, actor);
-    }
+    const amount = venue.priceFor('usher', guest);
+    w.cash.payDirect(amount, guest.pos.x, guest.pos.z, `venue:${venue.kind}`);
+    this.served(venue, guest, 'usher', amount, actor);
     venue.queue.shift();
     venue.arrived.delete(guest);
     if (venue.queueServer && !venue.queueServer.task) venue.queueServer = null;
@@ -689,6 +669,7 @@ export class Venues {
       actor.stack.remove(item, () => tmp.set(seat.sit.x, FLOOR_Y + 0.9, seat.sit.z));
       seat.order = null;
       seat.servedBy = null;
+      if (guest.outing) guest.outing.item = item;
       if (item === 'popcorn') {
         // The cinema: popcorn for the film (paid now; they stay for the rest of it).
         const amount = venue.priceFor('popcorn', guest);
@@ -706,7 +687,7 @@ export class Venues {
         seat.timer = 0;
         w.guests.setOutingState(guest, 'consuming');
         // Session 38: dinner is paid as it is served, straight into the wallet; session 43: a drink at the bar too.
-        const amount = venue.kind === 'dining' || venue.kind === 'bar' ? this.pay(guest) : 0;
+        const amount = venue.kind === 'dining' || venue.kind === 'bar' || venue.kind === 'cafe' ? this.pay(guest) : 0;
         this.served(venue, guest, item, amount, actor);
         guest.view.act('sip', VENUES[venue.kind].consumeSeconds);
       }
@@ -879,10 +860,7 @@ export class Venues {
   need(kind: ItemKind): number {
     let n = 0;
     for (const v of this.list) {
-      if (v.kind === 'cafe' && (kind === 'latte' || kind === 'pastry')) {
-        n += v.queueOrders(kind);
-        if (v.queueServer && v.queue[0]?.outing?.seat.order === kind) n--;
-      } else n += v.waitingFor(kind).length;
+      n += v.waitingFor(kind).length;
     }
     return Math.max(0, n);
   }
@@ -892,12 +870,6 @@ export class Venues {
     let best: Vec2 | null = null;
     let bestD = Infinity;
     for (const v of this.list) {
-      if (v.kind === 'cafe') {
-        const head = v.queue[0];
-        const order = head?.outing?.seat.order;
-        if (order && items.includes(order) && v.layout.counter) return v.world(v.layout.counter.pad);
-        continue;
-      }
       for (const seat of v.seats) {
         if (!seat.order || !seat.serve || !items.includes(seat.order) || !seat.guest) continue;
         const d = Math.abs(seat.serve.z - from.z);
@@ -925,8 +897,7 @@ export class Venues {
     };
     for (const v of this.list) {
       if (v.kind === 'cafe' && v.staffCount('barista') === 0) {
-        const order = v.queue[0]?.outing?.seat.order;
-        if (order && w.demand.playerWants(order) > 0) offer('fetch', v.stationFor(order));
+        for (const item of ['latte', 'pastry'] as const) if (v.waitingFor(item).length > 0 && w.demand.playerWants(item) > 0) offer('fetch', v.stationFor(item));
       }
       if (v.kind === 'dining') {
         if (v.waitingFor('meal').length > 0 && v.staffCount('waiter') === 0 && w.demand.playerWants('meal') > 0) offer('fetch', v.pass > 0 && v.layout.pass ? v.world(v.layout.pass) : v.stationFor('meal'));
@@ -963,23 +934,9 @@ export class Venues {
     }
   }
 
+  /** The barista brews what a table is waiting for and takes it over (session 51b: served at the table). */
   private baristaTask(venue: Venue, m: StaffMember): VenueTask | null {
-    const head = venue.queue[0];
-    const order = head?.outing?.seat.order;
-    if (!head || !order || venue.queueServer) return null;
-    const station = venue.stationFor(order);
-    const counter = venue.layout.counter ? venue.world(venue.layout.counter.pad) : null;
-    if (!station || !counter) return null;
-    venue.queueServer = m;
-    const steps: VenueStep[] = [];
-    if (!m.stack.has(order)) {
-      steps.push({ kind: 'do', fn: () => (m.wantItems = { [order]: 1 }) });
-      steps.push({ kind: 'goto', target: station });
-      steps.push({ kind: 'stand', until: () => m.stack.has(order) || venue.queue[0] !== head, timeout: venue.makeSeconds(order) / Math.max(0.3, m.workMultiplier) + 3 });
-    }
-    steps.push({ kind: 'goto', target: counter });
-    steps.push({ kind: 'stand', until: () => venue.queue[0] !== head || !m.stack.has(order), timeout: 8 });
-    return { label: 'brew', icon: iconFor(order), steps, release: () => { if (venue.queueServer === m) venue.queueServer = null; m.wantItems = {}; } };
+    return this.serveTask(venue, m, 'latte') ?? this.serveTask(venue, m, 'pastry');
   }
 
   private chefTask(venue: Venue): VenueTask | null {
@@ -1095,9 +1052,10 @@ export class Venues {
     switch (id) {
       case 'venue_cafe': {
         const v = this.ofKind('cafe');
-        const order = v?.queue[0]?.outing?.seat.order;
-        if (!v || !order) return null;
-        return this.w.player.stack.has(order) && v.layout.counter ? v.world(v.layout.counter.pad) : v.stationFor(order);
+        const seat = v?.seats.find((st) => st.order && st.guest && st.serve);
+        const order = seat?.order;
+        if (!v || !seat || !order) return null;
+        return this.w.player.stack.has(order) ? seat.serve : v.stationFor(order);
       }
       case 'venue_dining': {
         const v = this.ofKind('dining');
@@ -1184,24 +1142,14 @@ export class Venues {
         stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, spec),
       }));
     }
-    if (layout.counter) {
+    if (layout.counter && venue.kind !== 'cafe') {
       const p = venue.world(layout.counter.pad);
-      const cafe = venue.kind === 'cafe';
       w.zones.add(new Zone({
-        id: `venue:${venue.carriage}:counter`, x: p.x, z: p.z, radius: ZONE_RADIUS.serve, icon: cafe ? 'cash' : 'binoculars',
-        kind: cafe ? 'drop' : 'work',
+        id: `venue:${venue.carriage}:counter`, x: p.x, z: p.z, radius: ZONE_RADIUS.serve, icon: 'binoculars', kind: 'work',
         active: () => !!venue.queue[0] && venue.arrived.has(venue.queue[0]),
         stay: (zone, actor, dt) => {
           const head = venue.queue[0];
           if (!head || !venue.arrived.has(head)) return false;
-          if (cafe) {
-            const order = head.outing?.seat.order;
-            if (!order || !actor.stack.has(order)) return false;
-            zone.timer += dt;
-            if (zone.timer < 0.2) return true;
-            zone.timer = 0;
-            return this.serveCounter(venue, actor);
-          }
           zone.timer += dt * actor.workMultiplier;
           zone.progress = Math.min(1, zone.timer / VENUE_TUNING.usherSeconds);
           if (zone.timer < VENUE_TUNING.usherSeconds) return true;
@@ -1240,13 +1188,13 @@ export class Venues {
       const at = venue.seats.filter((s) => s.serve && Math.abs(s.serve.x - p.x) < 0.05 && Math.abs(s.serve.z - p.z) < 0.05);
       w.zones.add(new Zone({
         id: `venue:${venue.carriage}:serve:${key}`, x: p.x, z: p.z, radius: ZONE_RADIUS.serve,
-        icon: venue.kind === 'dining' ? 'meal' : venue.kind === 'bar' ? 'cocktail' : venue.kind === 'cinema' ? 'popcorn' : 'blanket',
+        icon: venue.kind === 'dining' ? 'meal' : venue.kind === 'bar' ? 'cocktail' : venue.kind === 'cinema' ? 'popcorn' : venue.kind === 'cafe' ? 'latte' : 'blanket',
         kind: 'drop',
         active: () => venue.open[group] && (at.some((s) => !!s.order && !!s.guest) || (venue.kind === 'dining' && venue.dirty[group])),
         // Session 40 (owner: "the table cleaning icon… visible from a reasonable distance whenever a table needs
         // cleaning… disappear once cleaned"): a table to clear always shows its badge, with the cleaning icon.
         highlight: () => (venue.kind === 'dining' && venue.dirty[group]) || at.some((s) => !!s.order && w.player.stack.has(s.order)),
-        iconFor: () => (venue.kind === 'dining' && venue.dirty[group] ? 'wipe' : venue.kind === 'dining' ? 'meal' : venue.kind === 'bar' ? 'cocktail' : venue.kind === 'cinema' ? 'popcorn' : 'blanket'),
+        iconFor: () => (venue.kind === 'dining' && venue.dirty[group] ? 'wipe' : venue.kind === 'dining' ? 'meal' : venue.kind === 'bar' ? 'cocktail' : venue.kind === 'cinema' ? 'popcorn' : venue.kind === 'cafe' ? iconFor(at.find((st) => st.order)?.order ?? 'latte') : 'blanket'),
         stay: (zone, actor, dt) => this.serveAt(venue, p, actor, zone, dt),
       }));
     }
