@@ -352,6 +352,8 @@ const HOLDS: Record<string, string[]> = {
   'platform:stationHouse': ['platform:houseWindow~glow', 'platform:doorLantern~glow'],
   'platform:lampPost': ['platform:lampPost~glow'],
   'forecourt:lamp': ['forecourt:lamp~glow'],
+  // Session 54: First Class's standing lamp, its bulb glowing under the shade high above the stand's middle.
+  'prop:lamp': ['prop:lamp~glow'],
   // The station house stands in the forecourt's grass (its plinth is set into the ground).
   'forecourt:grass': ['platform:stationHouse'],
 };

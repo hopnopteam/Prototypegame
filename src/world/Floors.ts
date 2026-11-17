@@ -22,7 +22,7 @@ import { CLASS_THEMES, PALETTE, shadeHex, type CarriageTheme } from './palette';
  * jointed in a regular stagger, and the damage is one clear hole per room.
  * 2 Cosy: polished oak boards; the lobby gets a waiting-room rug and a doormat.
  * 3 Luxurious: walnut chevron parquet in a border in every room; a grand rug in the lobby.
- * 4 (passenger carriages, Royal Suite): camel suede in a chocolate border with a gold line (session 36).
+ * 4 (passenger carriages, Royal Suite): walnut herringbone parquet in a dark border with a gold line (session 54).
  *
  * Damage never sits on a pad, a doorway, a guest's spot or under furniture (where it would be hidden
  * anyway), so the floor tells the story without getting in the way.
@@ -363,7 +363,7 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
     : { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1, detail: 'woodPolished' };
   f.box(0, FLOOR_Y - 0.03, L / 2, HALF_WIDTH * 2 - 0.04, 0.06, L - 0.04, tier >= 3 ? PALETTE.parquet : PALETTE.boards, 0, base);
   for (const cabin of layout.cabins) {
-    if (tier >= 4) suedeRoom(f, cabin.room);
+    if (tier >= 4) royalRoom(f, cabin.room);
     else if (tier >= 3) firstClassRoom(f, cabin.room, theme);
     else fittedRoom(f, cabin.room, theme);
   }
@@ -386,7 +386,28 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
         ? { color: theme.deep, inset: 0.13, pattern: VELVET }
         : { color: theme.deep, inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: shadeHex(theme.deep, 20), scale: 0.2, shade: 1 } },
     ];
-    if (sofa && table) rug(f, rect(table.rect.x0 - 0.22, sofa.rect.z0 + 0.04, sofa.rect.x1 - 0.02, sofa.rect.z1 - 0.04), base, layers(tier >= 3));
+    const chairs = inRoom.filter((p) => p.kind === 'armchair');
+    const fire = inRoom.find((p) => p.kind === 'fireplace');
+    if (fire && table && chairs.length) {
+      // Session 54: the Royal salon's damask rug, from the hearth to the sofa, between the two bergères: claret in a
+      // walnut border, a gold line, the woven damask field.
+      const zs = chairs.map((c) => c.rect);
+      const area = rect(fire.rect.x1 + 0.08, Math.min(...zs.map((c) => c.z0)) + 0.1, (sofa ? sofa.rect.x0 : table.rect.x1 + 0.6) + 0.12, Math.max(...zs.map((c) => c.z1)) - 0.1);
+      rug(f, area, base, [
+        { color: PALETTE.gold, inset: 0, pattern: BRASS },
+        { color: '#4A1220', inset: 0.035 },
+        { color: PALETTE.gold, inset: 0.13, pattern: BRASS },
+        { color: '#9A3346', inset: 0.15, pattern: { shade: 1, surface: 'velvet', detail: 'damask' } },
+      ]);
+    } else if (sofa && table && chairs.length >= 2) {
+      // Session 54: First Class's lounge rug, sapphire velvet edged in gold, under the table and the club chairs.
+      const xs = chairs.map((c) => c.rect);
+      const area = rect(Math.min(...xs.map((c) => c.x1)) - 0.12, table.rect.z0 - 0.42, Math.max(...xs.map((c) => c.x0)) + 0.12, sofa.rect.z0 - 0.04);
+      rug(f, area, base, [
+        { color: PALETTE.gold, inset: 0, pattern: BRASS },
+        { color: '#1F3A7A', inset: 0.035, pattern: { shade: 1, surface: 'velvet', detail: 'velvet' } },
+      ]);
+    } else if (sofa && table) rug(f, rect(table.rect.x0 - 0.22, sofa.rect.z0 + 0.04, sofa.rect.x1 - 0.02, sofa.rect.z1 - 0.04), base, layers(tier >= 3));
     if (dining) rug(f, rect(dining.rect.x0 - 0.06, dining.rect.z0 - 0.06, dining.rect.x1 + 0.06, dining.rect.z1 + 0.06), base, layers(true));
   }
   for (const bath of layout.bathrooms) {
@@ -539,27 +560,27 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
 }
 
 /**
- * The Royal Suite (session 36, owner: "use suede or some other luxurious mat… old-money aesthetic"; it was a cream
- * and grey marble checker): wall to wall camel suede inside a deep chocolate border with a fine gold line, plain.
+ * The Royal Suite (session 54, owner: "the surface of the floor looks so bad"; it was plain camel suede): polished
+ * walnut herringbone parquet (the Poly Haven herringbone layer under our walnut) inside a dark walnut border with a fine
+ * gold line. The salon's damask rug lies on it (see the rugs in floorSteps).
  */
-function suedeRoom(f: GeoBuilder, r: Rect): void {
-  const border = 0.12;
+function royalRoom(f: GeoBuilder, r: Rect): void {
   const y0 = FLOOR_Y;
   const y1 = FLOOR_Y + ROOM_LIFT;
-  const edge = '#3F2A22';
-  const suede = { shade: 1, surface: 'suede' as const };
-  f.slab(rect(r.x0, r.z0, r.x1, r.z0 + border), y0, y1, edge, 0, 0, suede);
-  f.slab(rect(r.x0, r.z1 - border, r.x1, r.z1), y0, y1, edge, 0, 0, suede);
-  f.slab(rect(r.x0, r.z0 + border, r.x0 + border, r.z1 - border), y0, y1, edge, 0, 0, suede);
-  f.slab(rect(r.x1 - border, r.z0 + border, r.x1, r.z1 - border), y0, y1, edge, 0, 0, suede);
+  const edge = '#3E2418';
+  const border = 0.12;
+  const wood: PartStyle = { shade: 1, surface: 'varnish', detail: 'herringbone' };
+  f.slab(rect(r.x0, r.z0, r.x1, r.z0 + border), y0, y1, edge, 0, 0, { shade: 1, surface: 'varnish' });
+  f.slab(rect(r.x0, r.z1 - border, r.x1, r.z1), y0, y1, edge, 0, 0, { shade: 1, surface: 'varnish' });
+  f.slab(rect(r.x0, r.z0 + border, r.x0 + border, r.z1 - border), y0, y1, edge, 0, 0, { shade: 1, surface: 'varnish' });
+  f.slab(rect(r.x1 - border, r.z0 + border, r.x1, r.z1 - border), y0, y1, edge, 0, 0, { shade: 1, surface: 'varnish' });
   const inner = rect(r.x0 + border, r.z0 + border, r.x1 - border, r.z1 - border);
-  // A gold line just inside the border, then the suede field (each a separate, non-overlapping band).
   const line = 0.02;
   f.slab(rect(inner.x0, inner.z0, inner.x1, inner.z0 + line), y0, y1, PALETTE.gold, 0, 0, BRASS);
   f.slab(rect(inner.x0, inner.z1 - line, inner.x1, inner.z1), y0, y1, PALETTE.gold, 0, 0, BRASS);
   f.slab(rect(inner.x0, inner.z0 + line, inner.x0 + line, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, BRASS);
   f.slab(rect(inner.x1 - line, inner.z0 + line, inner.x1, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, BRASS);
-  f.slab(rect(inner.x0 + line, inner.z0 + line, inner.x1 - line, inner.z1 - line), y0, y1, '#B48E66', 0, 0, suede);
+  f.slab(rect(inner.x0 + line, inner.z0 + line, inner.x1 - line, inner.z1 - line), y0, y1, '#8A5A3A', 0, 0, wood);
 }
 
 /**

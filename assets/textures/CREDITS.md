@@ -14,3 +14,5 @@ game's own colours. The 1K sources are fetched into `src/` (git-ignored) when th
 | grass | leafy_grass | the countryside ground |
 | ground | forrest_ground_01 | (spare: paths, later) |
 | paving | patio_tiles | the station platform's stone flags (session 51b) |
+| damask | floral_jacquard | the Royal Suite's salon rug (session 54) |
+| velvet | velour_velvet | First Class's lounge rug (session 54) |

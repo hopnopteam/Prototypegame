@@ -110,6 +110,8 @@ export type PropKind =
   | 'screen' | 'cinemaSeat' | 'projector' | 'concession' | 'popcornMachine' | 'candyCart' | 'speakers' | 'premiere'
   | 'planter' | 'crates' | 'sideboard' | 'banquette' | 'loungeChair' | 'sideTable' | 'wallBoard' | 'coatStand'
   | 'trolley' | 'reels' | 'cornerSofa'
+  // Session 54: the Royal Suite's salon and its trunk.
+  | 'fireplace' | 'candelabra' | 'trunk'
   // Fix list 4.7: the back room at the end of a venue or the stores car (a pantry, a scullery, a cellar, a store).
   | 'backroom'
   // Fix list 4.8: the bar lounge's jukebox.
@@ -436,48 +438,59 @@ class LayoutBuilder {
       this.room(room.x0, room.z0, room.x1, room.z1);
       this.connector(PARTITION_X0 - 0.45, doorZ0, PARTITION_X1 + 0.45, doorZ1, 'x', false, `cabin:${c}`);
 
-      // The bed against the outer wall: wider and grander with each class.
+      // The bed against the outer wall: wider and grander with each class. Session 54 (owner: "the Royal Suite feels
+      // too empty… a different orientation so the player feels a very different vibe"): the Royal four-poster stands in
+      // the middle of the front wall instead, a nightstand either side and a travel trunk at its foot, facing the room.
+      const royal = style === 'royal';
       const bedWidth = { berth: 0.92, cabin: 1.05, business: 1.35, first: 1.45, royal: 1.62 }[style];
       const bedLength = style === 'berth' ? Math.min(1.72, len - 0.22) : style === 'cabin' ? Math.min(1.85, len - 0.4) : 1.95;
-      const bedStart = style === 'royal' && len > 6 ? cz0 + 0.45 : cz0 + (style === 'berth' ? 0.1 : 0.18);
-      const bed = rect(INNER - bedWidth, bedStart, INNER, bedStart + bedLength);
+      const bedStart = royal ? cz0 + 0.24 : cz0 + (style === 'berth' ? 0.1 : 0.18);
+      const roomMidX = (room.x0 + room.x1) / 2;
+      const bed = royal
+        // A little toward the windows, so the lane by the corridor wall stays a comfortable walk.
+        ? rect(roomMidX + 0.12 - bedWidth / 2, bedStart, roomMidX + 0.12 + bedWidth / 2, bedStart + bedLength)
+        : rect(INNER - bedWidth, bedStart, INNER, bedStart + bedLength);
       this.prop('bed', bed.x0, bed.z0, bed.x1, bed.z1, 'front');
 
       // What each class keeps at the foot of the bed (a bench, a minibar, an ottoman: drawn by the carriage view)
-      // is solid too, so nobody walks through it. Fix list 5.1: the Royal slipper bath stands lengthwise along the
-      // window wall a step past the bed's foot (it used to lie crosswise against the four-poster's posts).
-      const royalBath = style === 'royal' ? royalBathRect(bed) : null;
+      // is solid too, so nobody walks through it. The Royal Suite's is its travel trunk (a prop of its own).
       const footZ0 = bed.z1 + 0.05;
-      const footZ1 = royalBath ? royalBath.z1 : Math.min(cz1 - 0.04, footZ0 + 0.62);
-      if (royalBath) this.layout.blocked.push(royalBath);
+      const footZ1 = Math.min(cz1 - 0.04, footZ0 + 0.62);
+      if (royal) this.prop('trunk', roomMidX + 0.12 - 0.5, footZ0, roomMidX + 0.12 + 0.5, footZ0 + 0.46, 'rear');
       else if (footZ1 - footZ0 >= 0.3) this.layout.blocked.push(rect(bed.x0 + 0.06, footZ0, INNER, footZ1));
 
-      // The bigger rooms get a lounge beyond the bed (kept off the walk from the door to the room's heart).
+      // The bigger rooms get a lounge beyond the door (kept off the walk from the door to the room's heart).
       if (style === 'business' && len > 3.2) this.prop('armchair', INNER - 0.72, cz1 - 0.92, INNER - 0.04, cz1 - 0.2, 'left');
-      if ((style === 'first' || style === 'royal') && len > 5) {
-        // The sofa starts clear of whatever stands at the foot of the bed (the Royal slipper bath).
-        const sofa = rect(INNER - 0.62, Math.max(cz1 - 2.5, footZ1 + (royalBath ? 0.3 : 0.1)), INNER - 0.04, cz1 - 0.95);
-        const table = rect(INNER - 1.38, cz1 - 2.05, INNER - 0.86, cz1 - 1.4);
-        this.prop('sofa', sofa.x0, sofa.z0, sofa.x1, sofa.z1, 'left');
-        this.prop('table', table.x0, table.z0, table.x1, table.z1);
+      if (style === 'first' && len > 5) {
+        // Session 54: First Class's lounge at the far end, like a Pullman's: a sofa against the end wall facing the
+        // room, a club chair either side of a round table (with the champagne), a standing lamp in the corner.
+        const lx = roomMidX + 0.1;
+        const tz = cz1 - 1.34;
+        this.prop('sofa', lx - 0.7, cz1 - 0.68, lx + 0.7, cz1 - 0.12, 'front');
+        this.prop('table', lx - 0.28, tz - 0.28, lx + 0.28, tz + 0.28);
+        this.prop('armchair', INNER - 0.64, tz - 0.32, INNER - 0.04, tz + 0.32, 'left');
+        this.prop('armchair', PARTITION_X1 + 0.1, tz - 0.32, PARTITION_X1 + 0.7, tz + 0.32, 'right');
+        this.prop('lamp', INNER - 0.36, cz1 - 0.48, INNER - 0.06, cz1 - 0.14);
       }
-      if (style === 'royal' && len > 9) {
-        // The grand suite, front to back (fix list 5.1: rebuilt so nothing stands in another's way and nothing
-        // tall rises over the cut-away walls): the four-poster and the slipper bath along the windows, a low
-        // armoire past the bath, the doorway kept clear, the dinner table for two beyond it, and the lounge with
-        // the grand piano in the far corner.
-        const armoireZ0 = (royalBath ? royalBath.z1 : footZ1) + 0.3;
-        if (armoireZ0 + 1.1 < doorZ0 - 0.2) this.prop('wardrobe', INNER - 0.5, armoireZ0, INNER - 0.04, armoireZ0 + 1.1, 'left');
-        const dcx = (PARTITION_X1 + INNER) / 2 + 0.3;
-        const dz = Math.max(doorZ1 + 0.75, cz0 + len * 0.64);
-        const dining = rect(dcx - 0.5, dz - 0.55, dcx + 0.5, dz + 0.55);
-        this.prop('dining', dining.x0, dining.z0, dining.x1, dining.z1);
-        // A grand piano in the far corner, its keys (and the stool) toward the room.
-        this.prop('grandPiano', PARTITION_X1 + 0.04, cz1 - 2.0, PARTITION_X1 + 1.0, cz1 - 0.1, 'front');
-      } else if (style === 'royal' && len > 6.5) {
-        // Session 40: the two-suite Royal carriage keeps the grand piano, in the far corner by the corridor wall,
-        // clear of the doorway and the lounge.
-        this.prop('grandPiano', PARTITION_X1 + 0.04, cz1 - 1.72, PARTITION_X1 + 0.98, cz1 - 0.1, 'front');
+      if (royal && len > 6) {
+        // Session 54: past the door, a salon round a fireplace on the corridor wall, a candelabra either side of it, a
+        // sofa against the windows facing the fire, a bergère either side of a round table (candlelight and goblets),
+        // a palm in the far corner.
+        const s0 = doorZ1 + 0.3;
+        const s1 = cz1 - 0.1;
+        const sm = (s0 + s1) / 2;
+        const fx0 = PARTITION_X1 + 0.08;
+        const fx1 = fx0 + 0.38;
+        this.prop('fireplace', fx0, sm - 0.5, fx1, sm + 0.5, 'right');
+        this.prop('candelabra', fx0 + 0.02, sm - 0.86, fx0 + 0.32, sm - 0.56);
+        this.prop('candelabra', fx0 + 0.02, sm + 0.56, fx0 + 0.32, sm + 0.86);
+        const sofa = rect(INNER - 0.62, sm - 0.66, INNER - 0.04, sm + 0.66);
+        this.prop('sofa', sofa.x0, sofa.z0, sofa.x1, sofa.z1, 'left');
+        const tx = (fx1 + sofa.x0) / 2;
+        this.prop('table', tx - 0.28, sm - 0.28, tx + 0.28, sm + 0.28);
+        this.prop('armchair', tx - 0.32, s0, tx + 0.32, s0 + 0.62, 'rear');
+        this.prop('armchair', tx - 0.32, s1 - 0.62, tx + 0.32, s1, 'front');
+        this.prop('plant', INNER - 0.44, s1 - 0.42, INNER - 0.04, s1);
       }
 
       const corridorNode = this.node(`corr_${c}`, (-INNER + PARTITION_X0) / 2, doorZ);
@@ -499,7 +512,8 @@ class LayoutBuilder {
       // Nearer the room's front wall than its back one: the camera looks over the back wall (the next room's
       // front), and the pad must stay clear of the strip of floor that wall hides (tests/visibility).
       const heartZ = len > 4 ? doorZ : cz0 + len * 0.45;
-      const heart = { x: Math.min((openX0 + openX1) / 2, PARTITION_X1 + 1.1), z: heartZ };
+      // Session 54: never right against the corridor wall (a Royal bed in the middle of the room narrows the lane).
+      const heart = { x: Math.min(Math.max((openX0 + openX1) / 2, len > 4 ? PARTITION_X1 + 0.6 : -Infinity), PARTITION_X1 + 1.1), z: heartZ };
       // Tips: the far corner of a small room; in a suite, by the head of the bed (the heart is at the door).
       const tipZ = style === 'berth' ? cz1 - 0.38 : len > 4 ? bed.z0 + 0.62 : cz1 - 0.42;
       this.layout.cabins.push({

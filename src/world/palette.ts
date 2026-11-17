@@ -175,7 +175,9 @@ export const CLASS_THEMES: Record<'comfort' | 'business' | 'first' | 'royal', Ca
   // experience"): it was electric blue on every surface. Now the old sleeper-train look: warm ivory over mahogany
   // panelling, sapphire velvet only where you sit and sleep, a champagne carpet with a fine gold trellis, gold trim.
   first: { wall: '#EEE2CA', wallLow: '#6A3A2A', carpet: '#BFA272', deep: '#1D2D4C', blanket: '#28426E', curtain: '#E2B653' },
-  royal: { wall: '#E7C3C1', wallLow: '#C99592', carpet: '#EADBD2', deep: '#6A1E2E', blanket: '#7E2436', curtain: '#E2B653' },
+  // Session 54 (owner: "find better colour combinations… a very different vibe immediately"): Crown Claret, claret silk
+  // walls over dark walnut panelling, ivory silk upholstery, a claret velvet bed and gold (it was blush pink).
+  royal: { wall: '#8C3446', wallLow: '#3E2418', carpet: '#E9DCC4', deep: '#6E1B30', blanket: '#7A1E32', curtain: '#D4AF5A' },
 };
 
 /** Tier names, shown on refurbishment tiles and in headlines. */

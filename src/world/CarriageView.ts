@@ -25,7 +25,6 @@ import {
   REAR_VESTIBULE,
   WALL,
   isVenueType,
-  royalBathRect,
   RACK_SHORT_Z1,
   type CabinLayout,
   type CarriageLayout,
@@ -94,6 +93,8 @@ const SHELF_TOP = 0.012;
  * 1.9, when a newspaper was half a metre across and the rooms looked like a toy box).
  */
 const MESS_SCALE = 1.35;
+/** Session 54: the Royal Suite's ivory silk upholstery (sofa and bergères), against its claret and walnut. */
+const ROYAL_SILK = '#D9C29A';
 /** The guest's one floor piece lies this far out from the bed's side (centre), in the lane by the bed. */
 const MESS_BESIDE_BED = 0.27;
 /** …and at least this far from the tip they left (centres), so the two never touch. */
@@ -2103,7 +2104,21 @@ function buildCabinComforts(b: GeoBuilder, glow: GeoBuilder, cabin: CabinLayout,
       glow.endObject();
     }
   }
-  if (keys.includes('minibar')) {
+  if (keys.includes('minibar') && cabin.style === 'royal') {
+    // Session 54: the Royal bed stands in the middle of the front wall (no wall shelf free beside it), so its minibar
+    // is a walnut cabinet with a glass door at the foot of the bed by the windows, a bottle and two glasses on top.
+    const mx0 = cabin.bed.x1 - 0.2;
+    const mx1 = Math.min(cabin.room.x1 - 0.06, mx0 + 0.5);
+    const mz0 = cabin.bed.z1 + 0.08;
+    const mz1 = mz0 + 0.36;
+    const mcx = (mx0 + mx1) / 2;
+    b.object('comfort:minibar');
+    b.slab(rect(mx0, mz0, mx1, mz1), y, y + 0.48, PALETTE.walnutDark, 0, 0.01, { shade: 0.85, surface: 'varnish' });
+    b.slab(rect(mx0, mz0, mx1, mz1), y + 0.48, y + 0.5, PALETTE.gold, 0, -0.008, { shade: 1, surface: 'brass' });
+    b.box(mcx, y + 0.26, mz1 + 0.004, mx1 - mx0 - 0.1, 0.3, 0.008, '#BFD7E2', 0, { shade: 1, surface: 'glass' });
+    b.cylinder(mx0 + 0.12, y + 0.61, (mz0 + mz1) / 2, 0.035, 0.035, 0.22, '#1F4A34', 10, 'y', { surface: 'glass' });
+    for (const dx of [0.26, 0.34]) b.cylinder(mx0 + dx, y + 0.55, (mz0 + mz1) / 2, 0.02, 0.016, 0.1, '#E8EEF2', 8, 'y', { surface: 'glass' });
+  } else if (keys.includes('minibar')) {
     // Fix list 4.6: a minibar on a wall shelf beside the picture (where the wireless stood): a little cabinet with a
     // glass door, a bottle, a chocolate bar and a bag of crisps behind it, a brass handle.
     const rx = (cabin.room.x0 + 0.42 + nx0) / 2 + 0.04;
@@ -2677,7 +2692,22 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       b.cylinder(cx, y + 0.7, cz, Math.min(w, d) / 2, Math.min(w, d) / 2, 0.04, tier <= 0 ? '#A98D6F' : PALETTE.oak, 20, 'y', FLAT);
       b.sphere(cx - 0.06, y + 0.8, cz - 0.08, 0.09, tier >= 2 ? PALETTE.brass : PALETTE.porcelain, 1, 0.85);
       for (const [dx, dz] of [[0.14, 0.12], [-0.12, 0.16]]) b.cylinder(cx + dx, y + 0.76, cz + dz, 0.04, 0.032, 0.07, PALETTE.porcelain, 10);
-      if (tier >= 4) {
+      if (tier >= 5) {
+        // Session 54: the Royal salon's table: a candle in a brass stick and two goblets (Quaternius, CC0).
+        candle(b, lamps, cx - 0.08, y + 0.72, cz - 0.06, 0.1);
+        const g = modelEntry('goblet');
+        const gs = 0.13 / (g.max[1] - g.min[1]);
+        for (const [dx, dz] of [[0.1, 0.08], [0.02, 0.14]]) b.model('goblet', cx + dx, y + 0.72, cz + dz, 0, gs, gs, gs, { recolor: [key('metal', PALETTE.gold)], surface: 'brass' });
+      } else if (tier >= 4) {
+        // Session 54: champagne for two on First Class's lounge table (Tiny Treats' bottle and glass).
+        const bt = modelEntry('wine_bottle');
+        const bs = 0.24 / (bt.max[1] - bt.min[1]);
+        b.model('wine_bottle', cx - 0.1, y + 0.72, cz + 0.08, 0, bs, bs, bs, { surface: 'glass' });
+        const gl = modelEntry('wine_glass');
+        const ws = 0.13 / (gl.max[1] - gl.min[1]);
+        for (const [dx, dz] of [[0.02, 0.15], [-0.12, -0.08]]) b.model('wine_glass', cx + dx, y + 0.72, cz + dz, 0, ws, ws, ws, { surface: 'glass' });
+      }
+      if (tier === 4) {
         // A suite's lounge light: a little brass lamp with a silk shade, on the table.
         const lx = cx + 0.13;
         const lz = cz - 0.12;
@@ -2690,7 +2720,9 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
     case 'sofa': {
       const cushion = tier <= 0 ? '#8E8577' : theme.deep;
       if (MODEL_FURNITURE) {
-        seatModel(b, 'couch', r, prop.facing, FLOOR_Y, 0.82, cushion, tier >= 2 ? PALETTE.pillow : cushion, wood);
+        // Session 54: the Royal Suite's sofa in ivory silk with claret cushions on dark walnut.
+        if (tier >= 5) seatModel(b, 'couch', r, prop.facing, FLOOR_Y, 0.82, ROYAL_SILK, theme.deep, PALETTE.walnutDark, 'velvet');
+        else seatModel(b, 'couch', r, prop.facing, FLOOR_Y, 0.82, cushion, tier >= 2 ? PALETTE.pillow : cushion, wood);
         break;
       }
       b.slab(r, y + 0.08, y + 0.3, tier <= 0 ? '#7B6A58' : wood, 0, 0.02, { shade: 0.75 });
@@ -2705,7 +2737,9 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       // A Business Class wingback: buttoned leather in the carriage's colour on turned walnut feet.
       const cover = theme.deep;
       if (MODEL_FURNITURE) {
-        seatModel(b, 'armchair', r, prop.facing, FLOOR_Y, 0.86, cover, PALETTE.pillow, PALETTE.walnutDark);
+        // Session 54: the Royal bergères are ivory with a claret cushion; First Class's club chairs sapphire velvet.
+        if (tier >= 5) seatModel(b, 'armchair', r, prop.facing, FLOOR_Y, 0.86, ROYAL_SILK, theme.deep, PALETTE.walnutDark, 'velvet');
+        else seatModel(b, 'armchair', r, prop.facing, FLOOR_Y, 0.86, cover, PALETTE.pillow, PALETTE.walnutDark, tier >= 4 ? 'velvet' : 'fabric');
         break;
       }
       const back = prop.facing === 'right' ? r.x0 + 0.1 : r.x1 - 0.1;
@@ -2721,6 +2755,55 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       }
       for (let i = 0; i < 3; i++) b.sphere(back + (prop.facing === 'right' ? 0.092 : -0.092), y + 0.56 + (i % 2) * 0.14, cz - 0.16 + i * 0.16, 0.014, PALETTE.brass, 0, 1, { shade: 1, surface: 'brass' });
       b.rounded(cx + seat, y + 0.47, cz, 0.12, 0.16, 0.26, 0.05, PALETTE.pillow, { shade: 0.9, surface: 'fabric' });
+      break;
+    }
+    case 'fireplace': {
+      // Session 54: Quaternius's fireplace (House Interior, CC0) in cream marble against the corridor wall, its back to
+      // the wall, a fire glowing in the hearth, a gilt clock and two candlesticks on the mantel.
+      const e = modelEntry('fireplace');
+      const along = prop.facing === 'right' || prop.facing === 'left';
+      const out = prop.facing === 'left' ? -1 : 1;
+      const width = along ? d : w;
+      const depth = along ? w : d;
+      const sc = width / (e.max[0] - e.min[0]);
+      const sd = depth / (e.max[2] - e.min[2]);
+      const height = (e.max[1] - e.min[1]) * sc * 0.82;
+      const sy = height / (e.max[1] - e.min[1]);
+      b.model('fireplace', cx, y, cz, along ? out * Math.PI / 2 : 0, sc, sy, sd, { recolor: [key('linen', '#CDBBA0')], surface: 'ceramic' });
+      // The hearth's fire: embers and two flames, set back in the opening.
+      const fx = along ? cx - out * depth * 0.12 : cx;
+      const fz = along ? cz : cz - depth * 0.12;
+      lamps.rounded(fx, y + 0.05, fz, along ? 0.14 : width * 0.32, 0.05, along ? width * 0.32 : 0.14, 0.02, '#FF8A3C', FLAT);
+      lamps.sphere(fx, y + 0.13, fz - (along ? 0.06 : 0), 0.05, '#FFB04A', 1, 1.7, FLAT);
+      lamps.sphere(fx, y + 0.12, fz + (along ? 0.07 : 0), 0.04, '#FFC86A', 1, 1.8, FLAT);
+      // On the mantel: two candlesticks either end.
+      const top = y + height;
+      const mx = along ? cx - out * 0.02 : cx;
+      for (const side of [-1, 1]) {
+        const ox = along ? mx : mx + side * width * 0.36;
+        const oz = along ? cz + side * width * 0.36 : cz;
+        candle(b, lamps, ox, top, oz, 0.09);
+      }
+      break;
+    }
+    case 'candelabra': {
+      // Session 54: a standing candelabra: a turned walnut stand topped with a brass candlestick and its candle (the
+      // stick is Quaternius's, CC0; nothing hangs from the cut-away roof).
+      b.cylinder(cx, y + 0.02, cz, Math.min(w, d) * 0.42, Math.min(w, d) * 0.46, 0.04, PALETTE.walnutDark, 14, 'y', { surface: 'varnish' });
+      b.cylinder(cx, y + 0.42, cz, 0.025, 0.035, 0.76, PALETTE.walnutDark, 10, 'y', { surface: 'varnish' });
+      b.sphere(cx, y + 0.5, cz, 0.05, PALETTE.gold, 1, 0.8, { shade: 1, surface: 'brass' });
+      b.cylinder(cx, y + 0.81, cz, 0.08, 0.05, 0.02, PALETTE.gold, 12, 'y', { surface: 'brass' });
+      candle(b, lamps, cx, y + 0.82, cz, 0.14);
+      break;
+    }
+    case 'trunk': {
+      // Session 54: a steamer trunk at the foot of the Royal bed (Quaternius's iron-banded chest, CC0), its wood dark.
+      const e = modelEntry('trunk');
+      const along = prop.facing === 'front' || prop.facing === 'rear' || !prop.facing;
+      const sx = (along ? w : d) / (e.max[0] - e.min[0]);
+      const sz = (along ? d : w) / (e.max[2] - e.min[2]);
+      const sy = 0.42 / (e.max[1] - e.min[1]);
+      b.model('trunk', cx, y, cz, along ? (prop.facing === 'front' ? 0 : Math.PI) : Math.PI / 2, sx, sy, sz, { recolor: [{ hue: [0, 360], sat: [0, 0.3], val: [0.25, 1], ref: '#8E949C', to: PALETTE.gold }], surface: 'varnish' });
       break;
     }
     case 'grandPiano': {
@@ -3252,7 +3335,7 @@ function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout
 
   // Business and up: a writing desk on the corridor wall, past the door, with a reading lamp (never longer
   // than a desk, however long the suite).
-  if (tier >= 3) {
+  if (tier >= 3 && cabin.style !== 'royal') {
     const z0 = cabin.door[1] + 0.06;
     const z1 = Math.min(room.z1 - 0.05, z0 + 0.95);
     if (z1 - z0 > 0.3) {
@@ -3346,22 +3429,37 @@ function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout
     b.endObject();
     return;
   }
-  // The Royal Suite's private bath (fix list 5.1): a slipper tub on gold claw feet lengthwise along the window wall,
-  // a step past the bed's foot, a gold tap at its end and a folded towel on its rim.
-  const tub = royalBathRect(bed);
-  if (tub.z1 > room.z1 - 0.04) return;
-  b.object('class:bath');
-  const tcx = (tub.x0 + tub.x1) / 2;
-  const tcz = (tub.z0 + tub.z1) / 2;
-  const tw = tub.x1 - tub.x0 - 0.04;
-  const tl = tub.z1 - tub.z0 - 0.04;
-  b.rounded(tcx, y + 0.3, tcz, tw, 0.4, tl, 0.2, '#F7F4EE', { shade: 0.85, surface: 'ceramic' });
-  b.rounded(tcx, y + 0.505, tcz, tw - 0.02, 0.03, tl - 0.02, 0.19, PALETTE.gold, { shade: 1, surface: 'brass' });
-  b.rounded(tcx, y + 0.525, tcz, tw - 0.14, 0.02, tl - 0.14, 0.14, '#BFE0EC', { shade: 1, surface: 'glass' });
-  for (const dx of [-tw / 2 + 0.1, tw / 2 - 0.1]) for (const dz of [-tl / 2 + 0.12, tl / 2 - 0.12]) b.sphere(tcx + dx, y + 0.05, tcz + dz, 0.045, PALETTE.gold, 0, 1, { shade: 1, surface: 'brass' });
-  b.cylinder(tcx, y + 0.62, tub.z1 - 0.1, 0.016, 0.016, 0.2, PALETTE.gold, 6, 'y', { surface: 'brass' });
-  b.box(tcx, y + 0.53, tub.z0 + 0.2, 0.16, 0.05, 0.24, theme.blanket, 0, { shade: 0.95, surface: 'fabric' });
+  // Session 54: the Royal Suite's bed stands in the middle of the front wall. Its own nightstand (the comfort one
+  // stands on the corridor side once Lamps are bought) on the window side, a candle in a brass stick on it.
+  const nx0 = bed.x1 + 0.06;
+  const nx1 = Math.min(room.x1 - 0.04, nx0 + 0.34);
+  if (nx1 - nx0 < 0.24) return;
+  const nz0 = room.z0 + 0.04;
+  const nz1 = nz0 + 0.32;
+  const ncx = (nx0 + nx1) / 2;
+  const ncz = (nz0 + nz1) / 2;
+  b.object('class:nightstand');
+  lamps.object('class:nightstand~glow');
+  const e = modelEntry('nightstand');
+  b.model('nightstand', ncx, y, ncz, Math.PI, (nx1 - nx0) / (e.max[0] - e.min[0]), 0.45 / (e.max[1] - e.min[1]), (nz1 - nz0) / (e.max[2] - e.min[2]), { recolor: [key('wood', PALETTE.walnutDark), key('cover', PALETTE.gold)], surface: 'varnish' });
+  candle(b, lamps, ncx, y + 0.45, ncz, 0.1);
   b.endObject();
+  lamps.endObject();
+}
+
+/**
+ * Session 54: Quaternius's brass candlestick (Fantasy Props MegaKit, CC0) with a candle in it, its flame a glow:
+ * `size` is the candlestick's width.
+ */
+function candle(b: GeoBuilder, lamps: GeoBuilder, x: number, y: number, z: number, size: number): void {
+  const e = modelEntry('candlestick');
+  const sc = size / (e.max[0] - e.min[0]);
+  b.model('candlestick', x, y, z, 0, sc, sc, sc, { recolor: [key('metal', PALETTE.gold)], surface: 'brass' });
+  const top = y + (e.max[1] - e.min[1]) * sc;
+  const c = modelEntry('candle');
+  const cs = (size * 0.32) / (c.max[0] - c.min[0]);
+  b.model('candle', x, top - 0.01, z, 0, cs, cs * 1.6, cs, { surface: 'matte' });
+  lamps.sphere(x, top - 0.01 + (c.max[1] - c.min[1]) * cs * 1.6 + 0.012, z, 0.012, '#FFE2A8', 1, 1.6, FLAT);
 }
 
 /**

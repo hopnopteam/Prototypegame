@@ -11,9 +11,13 @@ export function seatModel(b: GeoBuilder, id: 'couch' | 'armchair', r: Rect, faci
   const e = modelEntry(id);
   // The model's back is at its min z (tall −1): turned a quarter so its back meets x0 (facing right) or x1.
   const back = e.tall < 0 ? 1 : -1;
-  const rotY = facing === 'left' ? -back * Math.PI / 2 : back * Math.PI / 2;
-  const sx = (r.z1 - r.z0) / (e.max[0] - e.min[0]);
-  const sz = (r.x1 - r.x0) / (e.max[2] - e.min[2]);
+  // Session 54: a seat can also face along the room (`rear` toward +z, `front` toward −z), its back to the end walls.
+  const along = facing === 'front' || facing === 'rear';
+  const rotY = along
+    ? ((facing === 'rear') === (back > 0) ? 0 : Math.PI)
+    : facing === 'left' ? -back * Math.PI / 2 : back * Math.PI / 2;
+  const sx = along ? (r.x1 - r.x0) / (e.max[0] - e.min[0]) : (r.z1 - r.z0) / (e.max[0] - e.min[0]);
+  const sz = along ? (r.z1 - r.z0) / (e.max[2] - e.min[2]) : (r.x1 - r.x0) / (e.max[2] - e.min[2]);
   const sy = height / (e.max[1] - e.min[1]);
   b.model(id, (r.x0 + r.x1) / 2, floorY, (r.z0 + r.z1) / 2, rotY, sx, sy, sz, {
     recolor: [

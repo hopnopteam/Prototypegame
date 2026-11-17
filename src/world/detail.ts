@@ -6,7 +6,7 @@ import { VISUALS } from '../config/visuals';
  * pattern attribute (`DETAIL_STRIDE` × (layer + 1) added to the pattern id) and the lit shader multiplies the part's own
  * colour by the layer's texel (see materials.ts).
  */
-export const DETAIL_LAYERS = ['woodWorn', 'wood', 'woodPolished', 'herringbone', 'wool', 'grass', 'ground', 'paving'] as const;
+export const DETAIL_LAYERS = ['woodWorn', 'wood', 'woodPolished', 'herringbone', 'wool', 'grass', 'ground', 'paving', 'damask', 'velvet'] as const;
 export type DetailName = (typeof DETAIL_LAYERS)[number];
 
 /** Pattern ids stay below this; the detail layer rides above it in the same float. */

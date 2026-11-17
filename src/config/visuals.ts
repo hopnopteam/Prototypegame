@@ -210,6 +210,9 @@ export const VISUALS = {
     ground: { tile: 3.0, strength: 0.7 },
     /** Session 51b: the station platform's stone flags (Poly Haven "patio tiles"), about 0.45 m a flag. */
     paving: { tile: 2.7, strength: 0.85 },
+    /** Session 54: the Royal Suite's damask rug (Poly Haven "floral jacquard") and First Class's velvet rug. */
+    damask: { tile: 1.3, strength: 1.0 },
+    velvet: { tile: 1.2, strength: 0.6 },
   },
 };
 

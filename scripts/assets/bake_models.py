@@ -104,6 +104,14 @@ MODELS = {
     'fence_post': 'tinytreats-house/fence_post.gltf',
     'bench_back': 'tinytreats-house/bench_A.gltf',
     'foliage': 'tinytreats-house/foliage_A.gltf',
+    # Session 54 (the Royal Suite and First Class): Quaternius's fireplace (one 'Marble' material, painted LINEN so the
+    # game can recolour it), and Quaternius Fantasy Props MegaKit pieces (CC0, trim textures sampled per vertex): a
+    # candlestick (a floor candelabra when scaled up), a candle, goblets and a travel trunk.
+    'fireplace': {'src': QH + 'Fireplace.obj', 'paint': {'Marble': LINEN}},
+    'candlestick': 'quaternius-props/CandleStick.gltf',
+    'candle': 'quaternius-props/Candle_1.gltf',
+    'goblet': 'quaternius-props/Chalice.gltf',
+    'trunk': 'quaternius-props/Chest_Wood.gltf',
     # Kenney Train Kit (CC0): the locomotive
     'locomotive': 'kenney-train/train-locomotive-c.glb',
     'tender': 'kenney-train/train-carriage-coal.glb',

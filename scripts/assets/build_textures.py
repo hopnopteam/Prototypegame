@@ -29,6 +29,9 @@ LAYERS = [
     ('grass', 'leafy_grass', 0, 1.0, False),
     ('ground', 'forrest_ground_01', 0, 1.0, False),
     ('paving', 'patio_tiles', 0, 1.2, True),
+    # Session 54: a woven floral damask for the Royal Suite's rug, and velvet pile for First Class's.
+    ('damask', 'floral_jacquard', 0, 1.7, True),
+    ('velvet', 'velour_velvet', 0, 2.4, True),
 ]
 
 
