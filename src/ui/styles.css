@@ -715,7 +715,7 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 .dev .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .dev .btn { height: 42px; font-size: 11px; padding: 0 4px; letter-spacing: 0; white-space: normal; line-height: 1.05; text-align: center; }
 .dev .stat { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.dev .log { max-height: 160px; overflow-y: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.35; padding: 6px; border-radius: 8px; background: var(--ink); color: var(--mint); }
+.dev .log { max-height: 160px; overflow-y: auto; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; line-height: 1.35; padding: 6px; border-radius: 8px; background: var(--ink); color: var(--mint); overflow-wrap: anywhere; white-space: pre-wrap; }
 .dev input[type=range] { width: 100%; }
 .hud-hidden .hud-top, .hud-hidden .side, .hud-hidden .offers, .hud-hidden .boost, .hud-hidden .pointer, .hud-hidden .floats, .hud-hidden .ticket, .hud-hidden .toasts, .hud-hidden .trainmap, .hud-hidden .guide, .hud-hidden .gesture, .hud-hidden .tile-tag { display: none !important; }
 .creative-exit { position: absolute; right: 12px; bottom: calc(var(--safe-bottom) + 12px); pointer-events: auto; opacity: 0.35; }
