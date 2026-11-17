@@ -41,7 +41,7 @@ export type CurrencyKind = 'cash' | 'gems' | 'railMiles';
 
 export type StaffRole = 'attendant' | 'porter' | 'runner' | 'barista' | 'chef' | 'waiter' | 'bartender' | 'host' | 'projectionist';
 
-export type CarriageType = 'lobby' | 'bathroom' | 'supply' | 'luggage' | 'sleeper' | VenueKind;
+export type CarriageType = 'lobby' | 'bathroom' | 'supply' | 'luggage' | 'sleeper' | 'familySleeper' | VenueKind;
 
 /** The venue carriages (session 20): each its own little game inside the train. */
 export type VenueKind = 'cafe' | 'dining' | 'bar' | 'dome' | 'cinema';

@@ -6,7 +6,7 @@ import { EVENTS } from '../services/analytics';
 import { FLOOR_Y } from '../world/CarriageView';
 import { createItemMesh } from '../world/ItemMeshes';
 import { PLATFORM_X0 } from '../world/layout';
-import { CLASSES, type ClassId } from '../config/classes';
+import { nextClassOnRoute, type ClassId } from '../config/classes';
 import { PlatformView } from '../world/PlatformView';
 import { PLATFORM, queueSpot } from '../world/platformLayout';
 import { billboardTexture } from '../world/sprites';
@@ -419,7 +419,8 @@ export class Station {
     const count = Math.max(early, Math.min(econ.maxBoarders, filled + extra + drawn + w.stationPerks().passengers));
     const spots = new Array<Vec2>(count).fill(PLATFORM.window);
     const story = w.meta.storyGuestForStop();
-    const guests = w.guests.spawnPlatformGuests(spots, story, this.travellerClasses(stopSerial, count));
+    const classes = this.travellerClasses(stopSerial, count);
+    const guests = w.guests.spawnPlatformGuests(spots, story, classes, this.familiesFor(classes));
     this.luggagePile = Math.min(this.view.barrowCapacity, guests.filter((g) => g.hasLuggage).length);
     // A traveller or two turns up during the stop, out of the station house (once the crowd is part of the ride).
     this.latecomers.length = 0;
@@ -455,7 +456,7 @@ export class Station {
     for (const cls of capacity.keys()) for (let i = w.guests.bedsFree(stopSerial, cls); i > 0; i--) boardable.push(cls);
     const out = shuffled(boardable, w.rng).slice(0, count);
     const best = w.train.bestClass();
-    const above = CLASSES.find((c) => c.tier > best.tier) ?? null;
+    const above = nextClassOnRoute(best);
     const weights: Partial<Record<ClassId, number>> = {};
     for (const [cls, n] of capacity) weights[cls] = n;
     while (out.length < count) {
@@ -464,6 +465,21 @@ export class Station {
       else out.push(capacity.size > 0 ? w.rng.weighted(weights) : 'basic');
     }
     return shuffled(out, w.rng);
+  }
+
+  /**
+   * Phase 1, the Family Sleeper: one family (a parent and a child, boarding together) for each of its free cabins of a
+   * class; everyone else is whoever their class brings. Returns an archetype per traveller ('' for the class's pick).
+   */
+  private familiesFor(classes: ClassId[]): string[] {
+    const quota = new Map<ClassId, number>();
+    return classes.map((cls) => {
+      if (!quota.has(cls)) quota.set(cls, this.w.train.freeFamilyRooms(cls));
+      const left = quota.get(cls) ?? 0;
+      if (left <= 0) return '';
+      quota.set(cls, left - 1);
+      return 'family';
+    });
   }
 
   /** Seconds into this stop each latecomer turns up (session 23). */

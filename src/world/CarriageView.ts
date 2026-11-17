@@ -449,7 +449,8 @@ export class CarriageView {
     const passenger = isPassengerType(layout.type);
     this.cls = passenger ? classOfTier(tier) : null;
     const cls = this.cls;
-    this.theme = cls && cls.id !== 'basic' ? CLASS_THEMES[cls.id] : CARRIAGE_THEMES[layout.type];
+    // Phase 1: the Family Sleeper keeps its own warm colours through its refits (its class shows in the finish).
+    this.theme = cls && cls.id !== 'basic' && layout.type !== 'familySleeper' ? CLASS_THEMES[cls.id] : CARRIAGE_THEMES[layout.type];
     this.finish = finishFor(layout.type, tier, this.theme);
     this.blanketColor = tier <= 0 ? PALETTE.greyWool : tier >= 3 ? (tier >= 4 ? this.theme.blanket : this.theme.deep) : this.theme.blanket;
     this.liveryBody = cls ? litMaterial(`livery:${cls.id}`, { vertexColors: true, color: cls.livery.body }, { surface: SURFACES.paint, light: true }) : MATERIALS.livery;
@@ -2232,6 +2233,11 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
   const wood = tier <= 0 ? '#9C8570' : PALETTE.walnut;
   switch (prop.kind) {
     case 'bed': {
+      if (prop.variant === 'bunk') {
+        buildProp(b, lamps, { ...prop, variant: undefined }, theme, Math.min(tier, 3));
+        buildBunk(b, r, theme, tier);
+        break;
+      }
       if (tier <= 0) {
         // An iron cot: thin frame on legs, a thin mattress, a grey wool blanket, one flat pillow.
         for (const px of [r.x0 + 0.04, r.x1 - 0.04]) for (const pz of [r.z0 + 0.04, r.z1 - 0.04]) b.box(px, y + 0.14, pz, 0.04, 0.28, 0.04, PALETTE.iron, 0, FLAT);
@@ -2739,7 +2745,7 @@ function tarpProfile(): { x: number; y: number }[] {
  * windows and flaps down over both ends. `deformTarp` billows it, snaps the ropes and slides it off for the reveal.
  * Each vertex keeps its rest position and where it lies on the sheet, so the animation is one pass over them.
  */
-function buildCarriageRoof(): THREE.Mesh {
+export function buildCarriageRoof(): THREE.Mesh {
   const profile = tarpProfile();
   // Resample the profile evenly, so the sheet's folds are even across it.
   const lengths = [0];
@@ -3208,4 +3214,40 @@ function grandPianoGeometry(w: number, l: number, h: number): THREE.BufferGeomet
   // Shape (u, v) → floor (x, z); the extrusion runs downward from y 0.
   geometry.rotateX(Math.PI / 2);
   return geometry;
+}
+
+/** The upper bunk's mattress top (Phase 1): low enough that the camera still sees the room's floor past it. */
+export const BUNK_TOP = 0.94;
+/** How far back from the head of the bed the upper bunk starts. */
+export const BUNK_FRONT_GAP = 0.5;
+
+/**
+ * Phase 1, the Family Sleeper: an upper bunk over the bed (the child's), on four posts with a guard rail along the
+ * room side and a ladder at the foot. Iron at tier 0, then the room's wood; the blanket in the carriage's warm colours.
+ */
+function buildBunk(b: GeoBuilder, r: Rect, theme: CarriageTheme, tier: number): void {
+  const y = FLOOR_Y;
+  const frame = tier <= 0 ? PALETTE.iron : tier >= 3 ? PALETTE.walnutDark : PALETTE.walnut;
+  const w = r.x1 - r.x0;
+  const cx = (r.x0 + r.x1) / 2;
+  const inset = 0.05;
+  const top = y + BUNK_TOP;
+  // The child's bunk is shorter than the bed under it and stands over its foot end, so the floor in front of the
+  // room (the nook's pads, the doorway) stays in the camera's view.
+  r = { ...r, z0: r.z0 + BUNK_FRONT_GAP };
+  // Posts at the four corners, from the floor to just above the rail.
+  for (const px of [r.x0 + inset, r.x1 - inset]) for (const pz of [r.z0 + inset, r.z1 - inset]) b.box(px, (y + top + 0.12) / 2, pz, 0.05, top + 0.12 - y, 0.05, frame, 0, FLAT);
+  // The upper frame, its mattress, a blanket and a small pillow at the head.
+  b.slab({ x0: r.x0 + inset, z0: r.z0 + inset, x1: r.x1 - inset, z1: r.z1 - inset }, top - 0.12, top - 0.07, frame, 0, 0, FLAT);
+  b.slab({ x0: r.x0 + 0.08, z0: r.z0 + 0.08, x1: r.x1 - 0.08, z1: r.z1 - 0.08 }, top - 0.07, top - 0.01, tier <= 0 ? '#BFB49C' : PALETTE.mattress, 0, 0.03, { shade: 0.92 });
+  const blanket = tier <= 0 ? PALETTE.greyWool : theme.blanket;
+  b.box(cx, top + 0.005, r.z0 + (r.z1 - r.z0) * 0.62, w - 0.14, 0.03, (r.z1 - r.z0) * 0.62, blanket, 0, { shade: 0.95, detail: 'wool' });
+  b.rounded(cx, top + 0.04, r.z0 + 0.24, w - 0.34, 0.06, 0.22, 0.04, tier <= 0 ? '#D3C8B0' : '#FBF6EC', { shade: 0.95 });
+  // A guard rail on the room side (toward the corridor), leaving the foot open for the ladder.
+  b.box(r.x0 + inset, top + 0.09, r.z0 + (r.z1 - r.z0) * 0.4, 0.035, 0.035, (r.z1 - r.z0) * 0.68, frame, 0, FLAT);
+  // The ladder at the foot: two rails and three rungs.
+  const lz = r.z1 - inset;
+  for (const lx of [r.x0 + 0.12, r.x0 + 0.38]) b.box(lx, (y + top) / 2, lz + 0.02, 0.03, top - y, 0.03, frame, 0, FLAT);
+  for (let i = 1; i <= 3; i++) b.box(r.x0 + 0.25, y + (top - y) * (i / 4), lz + 0.02, 0.28, 0.025, 0.03, frame, 0, FLAT);
+  if (tier >= 2) b.box(cx, top - 0.095, r.z1 - inset, w - 0.1, 0.05, 0.02, theme.deep, 0, FLAT);
 }

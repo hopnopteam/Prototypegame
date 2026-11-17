@@ -64,8 +64,9 @@ export class Demand {
       case 'roll':
         return this.bathroomNeed(kind);
       case 'snack':
-        // Fix list 4.6: minibars short of snack boxes (less what the staff are already carrying).
-        return Math.max(0, w.train.snackShort() - this.staffCarrying('snack'));
+        // Fix list 4.6: minibars short of snack boxes (less what the staff are already carrying); Phase 1: and the
+        // Family Sleeper's children, who ask for one.
+        return Math.max(0, w.train.snackShort() - this.staffCarrying('snack')) + this.requestNeed('snack');
       case 'luggage': {
         const room = w.train.luggageCapacity - w.train.luggageStored - this.staffCarrying('luggage');
         const reachable = w.player.stack.countOf('luggage') + (w.journey.doorsOpen ? w.station.luggagePile : 0);

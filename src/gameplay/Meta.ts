@@ -40,7 +40,9 @@ export class Meta {
   }
 
   postcardCount(): { have: number; total: number } {
-    return { have: this.w.data.meta.postcards.length, total: STATIONS.length + (STORIES_ENABLED ? STORIES.length : 0) };
+    // Phase 1: only the active route's stations count (an older save may hold cards from stations the route left).
+    const ids = new Set([...STATIONS.map((s) => s.id), ...STORIES.map((s) => `story:${s.id}`)]);
+    return { have: this.w.data.meta.postcards.filter((id) => ids.has(id)).length, total: STATIONS.length + (STORIES_ENABLED ? STORIES.length : 0) };
   }
 
   // ─── Daily quests ───────────────────────────────────────────────────────────

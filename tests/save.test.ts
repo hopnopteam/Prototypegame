@@ -104,7 +104,9 @@ describe('SaveSystem', () => {
     expect(save.data.version).toBe(SAVE_VERSION);
     // v3 → v4 then adds the opening's Open carriage (every old save has seen its opening).
     expect(save.data.route.unlocked).toEqual(['c0.open', 'c0.cabin_1', 'c0.refurb_1', 'c0.refurb_2']);
-    expect(save.data.route.partial).toEqual({ 'c4.refurb_1': 30 });
+    // v4 → v5 (Phase 1): a part-payment on a carriage the train does not have comes back as cash.
+    expect(save.data.route.partial).toEqual({});
+    expect(save.data.wallet.cash).toBe(30);
     expect(save.data.route.carriages).toEqual(['lobby']);
   });
 

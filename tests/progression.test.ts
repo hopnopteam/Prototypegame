@@ -134,7 +134,9 @@ describe('UnlockChain', () => {
     for (const def of UNLOCKS.filter((u) => u.kind === 'refurb')) {
       const tier = def.tier ?? 0;
       expect(tier, def.id).toBeGreaterThanOrEqual(1);
-      if (tier > 1) expect(def.requires, def.id).toContain(`c${def.carriage}.refurb_${tier - 1}`);
+      // Each refit needs the one before it on its carriage (Phase 1: a folded tier may be skipped, e.g. Comfort → First).
+      const before = UNLOCKS.filter((u) => u.kind === 'refurb' && u.carriage === def.carriage && (u.tier ?? 0) < tier).sort((a, b) => (b.tier ?? 0) - (a.tier ?? 0))[0];
+      if (before) expect(def.requires, def.id).toContain(before.id);
       expect(def.id).toBe(`c${def.carriage}.refurb_${tier}`);
     }
   });
@@ -153,9 +155,9 @@ describe('carriage choice', () => {
   });
 
   it('gives an older train that chose differently what it still lacks', () => {
-    // A session 26 train took the café second: the washroom car comes next, then the second sleeper.
+    // A session 26 train took the café second: the washroom car comes next, then (Phase 1) the bar.
     expect(nextCarriage(['lobby', 'sleeper', 'cafe'])).toBe('bathroom');
-    expect(nextCarriage(['lobby', 'sleeper', 'cafe', 'bathroom'])).toBe('sleeper');
+    expect(nextCarriage(['lobby', 'sleeper', 'cafe', 'bathroom'])).toBe('bar');
     // A session 29–36 train took the sleeper first: the café comes next.
     expect(nextCarriage(['lobby', 'sleeper'])).toBe('cafe');
     // A train with a retired Luggage Car keeps it; the order fills in round it until the train is full.

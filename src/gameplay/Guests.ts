@@ -1,6 +1,6 @@
 import { iconFor } from '../config/itemIcons';
 import * as THREE from 'three';
-import { ARCHETYPES, COMMON_MESS, type ArchetypeDef, type MessPiece, type StoryDef } from '../config/content';
+import { ARCHETYPES, COMMON_MESS, FAMILY_REQUESTS, type ArchetypeDef, type MessPiece, type StoryDef } from '../config/content';
 import { CLASS_BY_ID, isDwellNeed, type ClassId, type ServiceNeed } from '../config/classes';
 import { CROWD, IDLES, type IdleAction } from '../config/crowd';
 import { PRAISE } from '../config/chatter';
@@ -690,7 +690,7 @@ export class Guests {
 
   /** A room for a guest in the desk's line: their class (or the nearest above), or any free one once they have waited long. */
   private roomForGuest(guest: Guest): Cabin | null {
-    return this.w.train.roomFor(guest.cls, this.w.time - guest.queuedAt > this.w.econ.desk.anyRoomAfterSeconds);
+    return this.w.train.roomFor(guest.cls, this.w.time - guest.queuedAt > this.w.econ.desk.anyRoomAfterSeconds, guest.archetype.id === 'family');
   }
 
   /** Desk zone: hand the first guest the key to a clean cabin of their class, if there is one. */
@@ -1237,7 +1237,9 @@ export class Guests {
     let need: ServiceNeed | null = story;
     if (!need) {
       const cls = CLASS_BY_ID[guest.cls];
-      const pool = guest.owlNow ? w.econ.trip.owl.pool : guest.againNow ? cls.extra : guest.trip === 'morning' ? cls.morning : cls.evening;
+      // Phase 1: a family in the Family Sleeper asks from its own lists (the child wants snacks).
+      const lists = guest.cabin && w.train.isFamilyRoom(guest.cabin) ? FAMILY_REQUESTS : cls;
+      const pool = guest.owlNow ? w.econ.trip.owl.pool : guest.againNow ? lists.extra : guest.trip === 'morning' ? lists.morning : lists.evening;
       guest.owlNow = false;
       guest.againNow = false;
       if (cls.butler && guest.trip === 'morning') {

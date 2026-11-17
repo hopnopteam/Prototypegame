@@ -1,3 +1,4 @@
+import { ACTIVE_ROUTE } from '../config/routes';
 import type { ObjectiveDef } from '../config/objectives';
 import * as THREE from 'three';
 import { STATIONS, type ProductDef } from '../config/content';
@@ -1255,7 +1256,7 @@ export class Ui implements GameUi {
     window.setTimeout(() => void fonts.then(() => {
       const canvas = h('canvas', {});
       // A third of the album's size is plenty for a 34 px stamp, and quick to draw in the middle of a stop.
-      drawPostcard(canvas, station.postcard, { name: station.name, kicker: 'Countryside Line', number: index + 1, value: 10 + index * 5 }, POSTCARD_TOAST_SCALE);
+      drawPostcard(canvas, station.postcard, { name: station.name, kicker: ACTIVE_ROUTE.name, number: index + 1, value: 10 + index * 5 }, POSTCARD_TOAST_SCALE);
       const el = h('button.toast.stamp-toast', { 'aria-label': 'New postcard', onclick: () => this.screens.album() }, canvas, h('span', { text: 'New postcard' }));
       this.toastLayer.appendChild(el);
       this.rectTimer = 0;

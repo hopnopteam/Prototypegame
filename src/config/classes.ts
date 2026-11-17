@@ -1,5 +1,6 @@
 import type { CarriageType, ItemKind } from '../core/types';
 import type { IconName } from '../ui/icons';
+import { ACTIVE_ROUTE } from './routes';
 
 /**
  * Carriage luxury classes: every passenger carriage (the lobby car and the sleepers) climbs from Basic to
@@ -95,7 +96,7 @@ export const CLASSES: ClassDef[] = [
 export const CLASS_BY_ID: Record<ClassId, ClassDef> = Object.fromEntries(CLASSES.map((c) => [c.id, c])) as Record<ClassId, ClassDef>;
 
 /** Carriages that carry passengers (and so have a class). */
-export const PASSENGER_TYPES: readonly CarriageType[] = ['lobby', 'sleeper'];
+export const PASSENGER_TYPES: readonly CarriageType[] = ['lobby', 'sleeper', 'familySleeper'];
 
 export function isPassengerType(type: CarriageType): boolean {
   return PASSENGER_TYPES.includes(type);
@@ -103,6 +104,8 @@ export function isPassengerType(type: CarriageType): boolean {
 
 /** The top refit tier of a carriage type: passenger carriages climb to Royal (5), service cars to 3. */
 export function maxTier(type: CarriageType): number {
+  // Phase 1: the Family Sleeper has three refits (Repair, Cosy, Luxury: up to the Business finish, its rooms kept).
+  if (type === 'familySleeper') return 3;
   return isPassengerType(type) ? 5 : 3;
 }
 
@@ -125,4 +128,13 @@ export const BASIC_REPAIRED_FARE = 1.25;
 export function classFare(tier: number): number {
   const c = classOfTier(tier);
   return c.id === 'basic' && tier >= 1 ? BASIC_REPAIRED_FARE : c.fare;
+}
+
+/**
+ * The class a train selling `best` can sell next on the active route (Phase 1: the route's class ladder; Business is
+ * folded into First Class on the Countryside Express), or null at the top. Aspiring travellers ask for it.
+ */
+export function nextClassOnRoute(best: ClassDef): ClassDef | null {
+  const ladder = ACTIVE_ROUTE.classLadder.map((id) => CLASS_BY_ID[id]).filter(Boolean);
+  return ladder.find((c) => c.tier > best.tier) ?? null;
 }

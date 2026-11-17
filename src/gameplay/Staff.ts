@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { ItemKind, StaffRole, Vec2 } from '../core/types';
-import { isDwellNeed } from '../config/classes';
+import { isDwellNeed, isPassengerType } from '../config/classes';
 import { sourceAnchorFor } from './Demand';
 import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from '../world/CarriageView';
@@ -334,7 +334,7 @@ export class StaffManager {
     const others: number[] = [];
     for (let i = 0; i < w.train.count; i++) {
       const type = w.train.types[i];
-      if (i !== m.carriage && (type === 'lobby' || type === 'sleeper') && !covered.has(i)) others.push(i);
+      if (i !== m.carriage && isPassengerType(type) && !covered.has(i)) others.push(i);
     }
     others.sort((a, b) => Math.abs(a - m.carriage) - Math.abs(b - m.carriage));
     return [m.carriage, ...others];
@@ -605,7 +605,7 @@ export class StaffManager {
     // The urn serves drinks, the paper and breakfast; the linen cupboard blankets, pillows and towels.
     const name = sourceAnchorFor(item);
     const candidates: Vec2[] = [];
-    for (let i = 0; i < map.count; i++) if (map.hasAnchor(i, name) && (map.layoutOf(i).type === 'lobby' || map.layoutOf(i).type === 'sleeper')) candidates.push(map.anchor(i, name));
+    for (let i = 0; i < map.count; i++) if (map.hasAnchor(i, name) && isPassengerType(map.layoutOf(i).type)) candidates.push(map.anchor(i, name));
     if (candidates.length === 0) return null;
     const ref = map.anchor(carriage, `home_attendant`);
     candidates.sort((a, b) => Math.abs(a.z - ref.z) - Math.abs(b.z - ref.z));

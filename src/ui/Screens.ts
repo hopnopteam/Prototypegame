@@ -1,3 +1,4 @@
+import { ACTIVE_ROUTE } from '../config/routes';
 import { ANALYTICS } from '../config/analytics';
 import { MockAdService } from '../services/ads';
 import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, STORIES_ENABLED, type PostcardArt, type ProductDef } from '../config/content';
@@ -579,7 +580,7 @@ export class Screens {
       scene: 'ford', ink: colors[0], sky: ['#8CC3DE', colors[1]], land: ['#A7C1B4', colors[2], '#4D7340'], accent: colors[1], motto,
     });
     const cards: { id: string; art: PostcardArt; text: PostcardText; blurb: string }[] = [
-      ...STATIONS.map((s, i) => ({ id: s.id, art: s.postcard, blurb: s.blurb, text: { name: s.name, kicker: 'Countryside Line', number: i + 1, value: 10 + i * 5 } })),
+      ...STATIONS.map((s, i) => ({ id: s.id, art: s.postcard, blurb: s.blurb, text: { name: s.name, kicker: ACTIVE_ROUTE.name, number: i + 1, value: 10 + i * 5 } })),
       ...(STORIES_ENABLED ? STORIES : []).map((s, i) => ({
         id: `story:${s.id}`, art: storyArt(s.postcard, s.title), blurb: s.intro,
         text: { name: s.name, kicker: 'Passenger story', number: STATIONS.length + i + 1, value: 50 },

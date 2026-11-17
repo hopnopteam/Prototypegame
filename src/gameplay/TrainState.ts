@@ -2,7 +2,8 @@ import { iconFor } from '../config/itemIcons';
 import * as THREE from 'three';
 import { CARRIAGE_CATALOGUE, CARRIAGE_ICON, MAX_CARRIAGES, type BedMess, type ComfortKey, type MessPiece, type UnlockDef } from '../config/content';
 import { buildUnlocks, nextCarriage } from '../sim/unlockPlan';
-import { CLASSES, classFare, classOfTier, classStartingAt, isPassengerType, type ClassDef, type ClassId } from '../config/classes';
+import { TeaserView } from '../world/TeaserView';
+import { CLASSES, classFare, classOfTier, classStartingAt, isPassengerType, maxTier, type ClassDef, type ClassId } from '../config/classes';
 import { ClassChips } from '../world/ClassChips';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Rect, Vec2 } from '../core/types';
@@ -178,6 +179,10 @@ const MAKEOVER_BAND_MATERIAL = new THREE.MeshBasicMaterial({ color: '#FFF1C4', t
  * The train: carriages and their views, cabins, bathrooms, supplies and luggage storage, every fixture's
  * walk-over zone, and the coupling moment when a new carriage rolls in (the signature progress beat, §6).
  */
+/** Phase 1: the gap between the rear deck and the waiting carriage, and how far back a new one rolls in from. */
+const TEASER_GAP = 0.6;
+const TEASER_ROLL = 30;
+
 export class TrainState {
   readonly group = new THREE.Group();
   readonly loco = new LocomotiveView();
@@ -205,6 +210,8 @@ export class TrainState {
   private readonly deck: THREE.Group;
   /** The class chip over every passenger carriage. */
   private readonly chips = new ClassChips();
+  /** Phase 1: the next carriage, hitched behind the deck under its tarp (a sliver in view, never walkable). */
+  private readonly teaser = new TeaserView();
 
   constructor(private readonly w: World) {
     this.group.add(this.loco.group);
@@ -212,6 +219,18 @@ export class TrainState {
     this.group.add(this.chips.group);
     this.deck = buildRearDeck();
     this.group.add(this.deck);
+    this.group.add(this.teaser.group);
+  }
+
+  /** Where the waiting carriage stands: behind the rear deck, a coupling's gap back. */
+  private teaserZ(): number {
+    return this.w.map.rearZ + GANGWAY_LENGTH + REAR_DECK_LENGTH + TEASER_GAP;
+  }
+
+  /** The next carriage waits behind the train while there is one to come (Phase 1). */
+  private placeTeaser(): void {
+    this.teaser.group.visible = MAX_CARRIAGES > this.types.length && !this.coupling;
+    this.teaser.group.position.z = this.teaserZ();
   }
 
   /** Builds the train from the save: one carriage plus every coupling already bought. */
@@ -470,10 +489,31 @@ export class TrainState {
     return this.tiers[carriage] ?? 0;
   }
 
-  /** The best free cabin for a new guest of this class (any class if none given): the lowest carriage first. */
-  freeCabin(cls?: ClassId): Cabin | null {
-    for (const cabin of this.cabins) if (cabin.isFree && (!cls || this.cabinClass(cabin) === cls)) return cabin;
-    return null;
+  /**
+   * The best free cabin for a new guest of this class (any class if none given): the lowest carriage first. Phase 1:
+   * a family takes a Family Sleeper cabin first and everyone else any other first (`family`: whose room it is for;
+   * left out, any room). Either takes the other kind when it is all that is free.
+   */
+  freeCabin(cls?: ClassId, family?: boolean): Cabin | null {
+    let fallback: Cabin | null = null;
+    for (const cabin of this.cabins) {
+      if (!cabin.isFree || (cls && this.cabinClass(cabin) !== cls)) continue;
+      if (family === undefined || this.isFamilyRoom(cabin) === family) return cabin;
+      fallback ??= cabin;
+    }
+    return fallback;
+  }
+
+  /** A Family Sleeper cabin (Phase 1: its bunks are for a parent and a child). */
+  isFamilyRoom(cabin: Cabin): boolean {
+    return this.types[cabin.carriage] === 'familySleeper';
+  }
+
+  /** Free Family Sleeper cabins of a class (for who turns up on the platform: a family for each). */
+  freeFamilyRooms(cls: ClassId): number {
+    let n = 0;
+    for (const cabin of this.cabins) if (cabin.isFree && this.isFamilyRoom(cabin) && this.cabinClass(cabin) === cls) n++;
+    return n;
   }
 
   /**
@@ -481,16 +521,16 @@ export class TrainState {
    * no longer has a single open room of their class (a refit moved the only Basic carriage up to Comfort while they
    * waited), a free one of the nearest class above, on the house. Without this they stood at the desk for good.
    */
-  roomFor(cls: ClassId, anyClass = false): Cabin | null {
-    const own = this.freeCabin(cls);
+  roomFor(cls: ClassId, anyClass = false, family = false): Cabin | null {
+    const own = this.freeCabin(cls, family);
     if (own || (this.openCabinCount(cls) > 0 && !anyClass)) return own;
     const from = CLASSES.findIndex((c) => c.id === cls);
     for (let i = from + 1; i < CLASSES.length; i++) {
-      const up = this.freeCabin(CLASSES[i].id);
+      const up = this.freeCabin(CLASSES[i].id, family);
       if (up) return up;
     }
     for (let i = from - 1; i >= 0; i--) {
-      const down = this.freeCabin(CLASSES[i].id);
+      const down = this.freeCabin(CLASSES[i].id, family);
       if (down) return down;
     }
     return null;
@@ -593,7 +633,11 @@ export class TrainState {
   private rollIn(type: CarriageType, index: number, view: CarriageView, onDone?: () => void): void {
     const plan = { type, name: '' };
     const targetZ = carriageOriginZ(index);
-    const startZ = targetZ + 48;
+    // Phase 1: the carriage that was waiting behind the deck under its tarp is the one that rolls up (from off-screen
+    // if there was none in view).
+    const waiting = this.teaser.group.visible;
+    const startZ = waiting ? this.teaser.group.position.z : targetZ + 48;
+    this.teaser.group.visible = false;
     view.group.position.z = startZ;
     // Session 29: it arrives under a tarp, blinds down: what it is stays a surprise until it is unveiled.
     view.setCarriageCovered(true);
@@ -605,7 +649,9 @@ export class TrainState {
     // stop), and the conductor steps off it into the last carriage so nothing rolls through them.
     const deckStays = MAX_CARRIAGES > index + 1;
     w.particles.emit('dust', 0, FLOOR_Y + 0.3, w.map.rearZ + GANGWAY_LENGTH + 1, 14, 0.8);
-    this.deck.visible = deckStays;
+    // The deck is lifted out of the way while the waiting carriage rolls up through its place, and set down again
+    // behind it once it has coupled.
+    this.deck.visible = deckStays && !waiting;
     this.deck.position.z = startZ + CARRIAGE_LENGTH;
     const p = w.player.pos;
     if (p.z > w.map.rearZ - 0.2) {
@@ -628,6 +674,12 @@ export class TrainState {
         this.group.remove(view.group);
         this.addCarriage(plan.type, true, view);
         this.rebuildMap();
+        // The next carriage stays out of sight until this one has been unveiled.
+        this.teaser.group.visible = false;
+        if (waiting && deckStays) {
+          this.deck.scale.set(1, 0.01, 1);
+          w.tweens.run(0.35, (t) => this.deck.scale.set(1, 0.01 + 0.99 * easeOutCubic(t), 1), { complete: () => this.deck.scale.set(1, 1, 1) });
+        }
         this.rebuildExterior(true);
         w.audio.play('clunk');
         w.haptics.heavy();
@@ -653,6 +705,7 @@ export class TrainState {
                 w.ui.celebrate(this.carriageName(index), null, CARRIAGE_ICON[plan.type]);
                 w.events.emit('carriage.coupled', { index, type: plan.type });
                 this.coupling = false;
+                this.hitchNext();
                 onDone?.();
               },
             });
@@ -660,6 +713,20 @@ export class TrainState {
         });
       },
     });
+  }
+
+  /** Phase 1: the next carriage rolls up behind the deck under its tarp, after a coupling (a soft clunk). */
+  private hitchNext(): void {
+    const w = this.w;
+    if (MAX_CARRIAGES <= this.types.length) return;
+    const z = this.teaserZ();
+    const g = this.teaser.group;
+    g.visible = true;
+    g.position.z = z + TEASER_ROLL;
+    w.tweens.run(2.0, (t) => {
+      g.position.z = z + TEASER_ROLL * (1 - t);
+      CarriageView.shadowEpoch++;
+    }, { ease: easeOutCubic, delay: 1.2, complete: () => (g.position.z = z) });
   }
 
   update(dt: number): void {
@@ -968,7 +1035,11 @@ export class TrainState {
   private savedTier(index: number): number {
     let tier = 0;
     for (const u of this.w.unlocks.defs) if (u.kind === 'refurb' && u.carriage === index && this.w.unlocks.isUnlocked(u.id)) tier = Math.max(tier, u.tier ?? 1);
-    return tier;
+    // Phase 1: a refit this carriage's kind no longer sells (Business, folded into First Class) still counts.
+    const prefix = `c${index}.refurb_`;
+    for (const id of this.w.data.route.unlocked) if (id.startsWith(prefix)) tier = Math.max(tier, Number(id.slice(prefix.length)) || 0);
+    const type = this.types[index] ?? this.w.data.route.carriages[index];
+    return type ? Math.min(tier, maxTier(type)) : tier;
   }
 
   /**
@@ -1260,6 +1331,7 @@ export class TrainState {
     w.map.rebuild(this.types, w.journey.doorsOpen, moreToCome, this.tiers);
     this.deck.visible = moreToCome;
     this.deck.position.z = w.map.rearZ;
+    if (!this.coupling) this.placeTeaser();
     CarriageView.shadowEpoch++;
     w.station?.onTrainChanged();
     // Anyone left where a wall now stands is gently moved onto the floor.
@@ -1631,7 +1703,7 @@ export class TrainState {
       this.binZone('bin:supply', at('bin'));
     }
 
-    if (type === 'sleeper') {
+    if (type === 'sleeper' || type === 'familySleeper') {
       this.sourceZone(`src:tea:${index}`, at('urn'), SERVICE_ITEMS, undefined, undefined, 'tea');
       this.sourceZone(`src:linen:${index}`, at('linen'), ['blanket', 'pillow', 'towel']);
     }

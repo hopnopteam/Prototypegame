@@ -10,7 +10,7 @@ import { COVER_BASE, COVER_INSET, COVER_TOP, footprints, getLayout, layoutKey, t
  * may sit there: every tile and pad must be in full view of the camera, from wherever it looks.
  */
 
-const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper', 'cafe', 'dining', 'bar', 'dome', 'cinema'];
+const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper', 'familySleeper', 'cafe', 'dining', 'bar', 'dome', 'cinema'];
 const VARIANTS: { type: CarriageType; tier: number; name: string }[] = [];
 for (const type of TYPES) {
   const seen = new Set<string>();
@@ -144,8 +144,9 @@ describe('visibility: pads in view over the furniture too', () => {
     const layout = getLayout(type, tier);
     const boxes: WallBox[] = [];
     for (const p of layout.props) {
-      const h = OCCLUDER_HEIGHT[p.kind];
-      if (h) boxes.push({ ...p.rect, height: h, kind: 'interior' });
+      // Phase 1: the Family Sleeper's bunk beds stand taller than a bed (the upper bunk and its rail).
+      const h = p.variant === 'bunk' ? 1.08 : OCCLUDER_HEIGHT[p.kind];
+      if (h) boxes.push({ ...p.rect, ...(p.variant === 'bunk' ? { z0: p.rect.z0 + 0.5 } : {}), height: h, kind: 'interior' });
     }
     it(`${name}: pads clear of tall furniture`, () => {
       for (const f of footprints(layout)) {

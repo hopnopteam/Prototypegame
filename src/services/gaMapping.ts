@@ -112,14 +112,25 @@ export function translate(event: string, p: AnalyticsParams = {}): GaCall[] {
       return [{ kind: 'design', id: `Staff:Earned:${part(p.role ?? p.id)}`, value: minutes(p.time) }];
     case 'carriage_coupled': {
       const count = num(p.count, num(p.index) + 1);
-      return [
+      // Phase 1: a milestone the train had already reached before the save was rebuilt (`first_count`/`first_type`
+      // false) is not sent again.
+      const calls: GaCall[] = p.first_count === false ? [] : [
         { kind: 'progression', status: 'complete', p1: `${ANALYTICS.route}Train`, p2: `Carriage${pad(count)}`, score: Math.round(num(p.time) / 60) },
         { kind: 'progression', status: 'start', p1: `${ANALYTICS.route}Train`, p2: `Carriage${pad(count + 1)}` },
         { kind: 'design', id: `Train:Coupled:${pad(count)}_${part(p.type)}`, value: minutes(p.time) },
       ];
+      // Phase 1: which carriage joined, the value the minutes played.
+      if (p.first_type !== false) calls.push({ kind: 'design', id: `Carriage:Coupled:${part(p.type)}`, value: minutes(p.time) });
+      return calls;
     }
+    case 'carriage_tier':
+      // Phase 1: a carriage reached refit tier 1, 2 or 3 (its lifecycle step), the value the minutes played.
+      return [{ kind: 'design', id: `Carriage:Tier:${part(p.type)}:${num(p.step)}`, value: minutes(p.time) }];
+    case 'route_migrated':
+      return [{ kind: 'design', id: 'Route:Migrated', value: num(p.refund) }];
     case 'route_level_up': {
       const level = num(p.level, 2);
+      if (p.first === false) return [];
       return [
         { kind: 'progression', status: 'complete', p1: ANALYTICS.route, p2: `Level${pad(level - 1)}`, score: Math.round(num(p.time) / 60) },
         { kind: 'progression', status: 'start', p1: ANALYTICS.route, p2: `Level${pad(level)}` },

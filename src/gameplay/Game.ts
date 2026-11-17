@@ -33,6 +33,8 @@ import { ratingEffect, trainRating } from '../sim/stationResult';
 import { TrainMap } from '../sim/TrainMap';
 import { UnlockChain } from '../sim/UnlockChain';
 import { buildUnlocks, stationPerks, type StationPerks } from '../sim/unlockPlan';
+import { refitStep } from '../sim/refitSteps';
+import type { CarriageType } from '../core/types';
 import { Wallet } from '../sim/Wallet';
 import { FLOOR_Y } from '../world/CarriageView';
 import { CharacterView } from '../world/CharacterView';
@@ -773,6 +775,13 @@ export class Game implements World {
       cold_start: coldStart,
     });
     this.save.markDirty();
+    // Phase 1: a train rebuilt for the Countryside Express was paid back for the carriages that left it (save v5).
+    const refund = this.data.route.migrationRefund;
+    if (refund > 0) {
+      this.data.route.migrationRefund = 0;
+      this.analytics.log('route_migrated', { refund });
+      this.tweens.delay(2.5, () => this.ui.toast(`Refund +${refund}`, 'cash'));
+    }
     this.offerOfflineEarnings(secondsAway);
     this.monetization.offerAtSessionStart();
   }
@@ -893,7 +902,7 @@ export class Game implements World {
       this.ui.toast('Scooter!', 'scooter');
     }
     const reward = this.progression.rewardFor(level);
-    this.analytics.log(EVENTS.routeLevelUp, { level, time: Math.round(this.lifetimeSeconds()) });
+    this.analytics.log(EVENTS.routeLevelUp, { level, time: Math.round(this.lifetimeSeconds()), first: this.firstTime(`level:${level}`) });
     this.events.emit('level.up', { level });
     this.audio.play('levelup');
     this.haptics.success();
@@ -919,10 +928,18 @@ export class Game implements World {
     e.on('carriage.coupled', ({ index, type }) => {
       this.ftue('first_carriage');
       if (this.train.count >= 3) this.ftue('second_carriage');
-      this.analytics.log(EVENTS.carriageCoupled, { index, type, count: this.train.count, time: Math.round(this.lifetimeSeconds()) });
+      this.analytics.log(EVENTS.carriageCoupled, {
+        index, type, count: this.train.count, time: Math.round(this.lifetimeSeconds()),
+        first_count: this.firstTime(`train:${this.train.count}`), first_type: this.firstTime(`coupled:${type}`),
+      });
       this.scenerySpanChanged();
       this.tiles.refresh();
       this.save.saveNow();
+    });
+    // Phase 1: each carriage's refit tiers 1–3 (the passenger carriages' Repair is their "Repaired" step, not a tier).
+    e.on('carriage.refurbished', ({ type, tier }) => {
+      const step = refitStep(type as CarriageType, tier);
+      if (step > 0 && this.firstTime(`tier:${type}:${step}`)) this.analytics.log('carriage_tier', { type, step, time: Math.round(this.lifetimeSeconds()) });
     });
     e.on('currency.changed', () => undefined);
     // The flow moves on with the ride (the first fare collected, a stop behind the train): what is on show follows.
@@ -930,6 +947,18 @@ export class Game implements World {
     e.on('journey.phase', () => this.tiles.refresh());
     // Session 33: the Open carriage tile appears once the last Millbrook ticket is sold.
     e.on('guest.boarded', () => this.station.prologue && this.tiles.refresh());
+  }
+
+  /**
+   * Phase 1: true the first time an analytics milestone is reached on this save (and remembers it), false after, so no
+   * milestone is ever sent twice (an older train rebuilt by the v5 migration has the ones it had reached seeded).
+   */
+  private firstTime(key: string): boolean {
+    const sent = this.data.profile.gaSent;
+    if (sent[key]) return false;
+    sent[key] = true;
+    this.save.markDirty();
+    return true;
   }
 
   applySettings(): void {

@@ -5,7 +5,7 @@ import type { CarriageType } from '../core/types';
  * - Adding a field: give it a default in createDefaultSave(); loading deep-merges defaults, no version bump.
  * - Renaming, removing or changing the meaning of a field: bump SAVE_VERSION and add a migration.
  */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export interface QuestState {
   kind: string;
@@ -55,6 +55,11 @@ export interface SaveData {
      * loaded, bells rung, venue orders served), for the help that must be earned first (`UnlockDef.work`).
      */
     handWork: Record<string, number>;
+    /**
+     * Phase 1: analytics milestones already sent (`train:N` carriages, `coupled:<type>`, `tier:<type>:<1-3>`,
+     * `level:N`), so none is sent twice (an older train rebuilt by the v5 migration has them seeded).
+     */
+    gaSent: Record<string, boolean>;
   };
   settings: {
     sound: boolean;
@@ -107,6 +112,8 @@ export interface SaveData {
      * with every save, so a relaunch puts it back in the lobby's pile instead of losing it.
      */
     floorCash: number;
+    /** Phase 1: cash handed back by the v5 migration (carriages that left the route), shown once on the next start. */
+    migrationRefund: number;
   };
   staff: Record<string, { level: number }>;
   conductor: { speed: number; capacity: number; fareBonus: number };
@@ -181,10 +188,10 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     version: SAVE_VERSION,
     createdAt: now,
     lastActiveAt: now,
-    profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {}, handWork: {} },
+    profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {}, handWork: {}, gaSent: {} },
     settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {}, qualityPolicy: 0, hapticsPolicy: 0, sfxVolume: 0.8 },
     wallet: { cash: 0, gems: 0, railMiles: 0 },
-    route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0, perfectStreak: 0, recentStops: [], floorCash: 0 },
+    route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0, perfectStreak: 0, recentStops: [], floorCash: 0, migrationRefund: 0 },
     staff: {},
     conductor: { speed: 0, capacity: 0, fareBonus: 0 },
     facilities: { supplyTowel: -1, supplyRoll: -1, bathrooms: [] },

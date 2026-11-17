@@ -148,6 +148,8 @@ export interface CarriageTheme {
 export const CARRIAGE_THEMES: Record<CarriageType, CarriageTheme> = {
   lobby: { wall: '#EBC9C2', wallLow: '#D7AAA2', carpet: '#E9D8CD', deep: '#B9707A', blanket: '#D98E8F', curtain: '#E2B653' },
   sleeper: { wall: '#C6D9E6', wallLow: '#A6C0D4', carpet: '#DCE3E6', deep: '#5E7FA0', blanket: '#7D9CBB', curtain: '#E5B452' },
+  // Phase 1: the Family Sleeper, warm apricot and terracotta with patchwork-bright blankets.
+  familySleeper: { wall: '#F2D2B4', wallLow: '#E0AE88', carpet: '#F2E1CC', deep: '#B4573A', blanket: '#E39A5B', curtain: '#E2B653' },
   bathroom: { wall: '#CCE5D8', wallLow: '#A9CDBB', carpet: '#EEF2EC', deep: '#5F9C86', blanket: '#EDA3AC', curtain: '#FFFDF8' },
   supply: { wall: '#EFDDAE', wallLow: '#D9C38D', carpet: '#E8DDC4', deep: '#C29A48', blanket: '#8FAE78', curtain: '#8FAE78' },
   luggage: { wall: '#EFD0BA', wallLow: '#DDB397', carpet: '#E9DACD', deep: '#A7705A', blanket: '#5E7FA0', curtain: '#5E7FA0' },

@@ -1,3 +1,4 @@
+import { ACTIVE_ROUTE } from '../config/routes';
 import { gameanalytics } from 'gameanalytics';
 import { ANALYTICS } from '../config/analytics';
 import { log } from '../core/log';
@@ -73,7 +74,7 @@ export class GameAnalyticsService implements AnalyticsSink {
     GA.configureAvailableResourceCurrencies(Object.values(ANALYTICS.currencies));
     GA.configureAvailableResourceItemTypes(ANALYTICS.itemTypes);
     GA.configureAvailableCustomDimensions01(ANALYTICS.dimensions.level);
-    GA.configureAvailableCustomDimensions02(ANALYTICS.dimensions.train);
+    GA.configureAvailableCustomDimensions02(ANALYTICS.dimensions.route);
     GA.configureAvailableCustomDimensions03(ANALYTICS.dimensions.quality);
     GA.initialize(ANALYTICS.gameKey, ANALYTICS.secretKey);
     this.flushTimer = setInterval(() => this.flush(), ANALYTICS.resourceFlushSeconds * 1000);
@@ -84,11 +85,14 @@ export class GameAnalyticsService implements AnalyticsSink {
     for (const call of translate(event, params)) this.send(call);
   }
 
-  /** The player's route level (1–8), the train's carriages (1–9) and the graphics tier, carried by every event. */
-  setDimensions(level: number, carriages: number, quality: string): void {
+  /**
+   * The player's route level (1–8), the route (Phase 1: `countryside`) and the graphics tier, carried by every event.
+   * (`carriages` is kept for the other sinks; GameAnalytics has only three dimensions.)
+   */
+  setDimensions(level: number, _carriages: number, quality: string): void {
     const d = ANALYTICS.dimensions;
     const lv = d.level[Math.max(0, Math.min(d.level.length - 1, level - 1))];
-    const tr = d.train[Math.max(0, Math.min(d.train.length - 1, carriages - 1))];
+    const tr = d.route.includes(ACTIVE_ROUTE.id) ? ACTIVE_ROUTE.id : d.route[0];
     const q = d.quality.includes(quality) ? quality : d.quality[0];
     if (lv !== this.dims.level) GA.setCustomDimension01(lv);
     if (tr !== this.dims.train) GA.setCustomDimension02(tr);

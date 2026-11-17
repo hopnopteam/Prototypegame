@@ -529,6 +529,7 @@ const SLEEPER_ROOMS: [number, RoomStyle][] = [[6, 'berth'], [6, 'berth'], [6, 'b
 
 /** How many rooms a passenger carriage has at a refit tier (the economy and the tiles use this). */
 export function roomsAt(type: CarriageType, tier: number): number {
+  if (type === 'familySleeper') return FAMILY_ROOMS[0];
   const table = type === 'lobby' ? LOBBY_ROOMS : type === 'sleeper' ? SLEEPER_ROOMS : null;
   if (!table) return 0;
   return table[Math.min(table.length - 1, Math.max(0, tier))][0];
@@ -618,8 +619,8 @@ function buildLobby(tier: number): CarriageLayout {
   return b.layout;
 }
 
-function buildSleeper(tier: number): CarriageLayout {
-  const b = new LayoutBuilder('sleeper');
+function buildSleeper(tier: number, type: 'sleeper' | 'familySleeper' = 'sleeper'): CarriageLayout {
+  const b = new LayoutBuilder(type);
   // Deep enough that the linen pad in the nook stands clear of the first room's wall (in full view).
   const front = 2.1;
   b.shell({ frontGangway: true, doors: false });
@@ -639,10 +640,16 @@ function buildSleeper(tier: number): CarriageLayout {
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, front - 0.1);
   b.node('nook', 0, 1.05);
   b.chain('vest_front', 'nook', 'corr_in');
-  const [count, style] = SLEEPER_ROOMS[Math.min(SLEEPER_ROOMS.length - 1, Math.max(0, tier))];
+  const [count, style] = type === 'familySleeper' ? FAMILY_ROOMS : SLEEPER_ROOMS[Math.min(SLEEPER_ROOMS.length - 1, Math.max(0, tier))];
   b.rooms(front, INTERIOR_END, count, 'corr_in', style);
+  // Phase 1: the Family Sleeper's beds are bunks (a parent below, the child above), drawn by the carriage view.
+  if (type === 'familySleeper') for (const prop of b.layout.props) if (prop.kind === 'bed') prop.variant = 'bunk';
   return b.layout;
 }
+
+/** Phase 1, the Family Sleeper: six cabins of bunk beds at every refit (its refits refurnish, they never rebuild). */
+const FAMILY_ROOMS: [number, RoomStyle] = [6, 'berth'];
+const buildFamilySleeper = (tier: number): CarriageLayout => buildSleeper(tier, 'familySleeper');
 
 function buildBathroom(): CarriageLayout {
   const b = new LayoutBuilder('bathroom');
@@ -652,8 +659,9 @@ function buildBathroom(): CarriageLayout {
   // entrance, a door onto the platform and a small check-in desk, so guests with a room toward the back board and get
   // their key here instead of walking the whole train from the lobby.
   const front = BATHROOM_FRONT;
-  const washLength = 2.7;
-  const count = 3;
+  // Phase 1: two washrooms (a loo and basin, then the bathtub), each a little roomier.
+  const washLength = 3.4;
+  const count = 2;
   const end = front + count * washLength;
   b.shell({ frontGangway: true, doors: true });
   b.vestibules(front);
@@ -891,7 +899,8 @@ function buildCafe(tier: number): CarriageLayout {
     }
   }
   b.chain(previous, 'corr_end', 'vest_rear');
-  v.openGroups = 1;
+  // Phase 1 (owner: "Café 6 seats, +1 unlock"): every table is bought, the first one too.
+  v.openGroups = 0;
   b.anchor('home_barista', -1.35, 3.3);
   b.anchor('tile_up_barista', -REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
@@ -981,7 +990,8 @@ function buildDining(tier: number): CarriageLayout {
     }
   }
   b.chain(previous, 'corr_end', 'vest_rear');
-  v.openGroups = 2;
+  // Phase 1 (owner: "Dining 8 seats, +2"): all eight tables are bought.
+  v.openGroups = 0;
   b.anchor('home_chef', -0.2, 2.9);
   b.anchor('home_waiter', -1.45, 4.6);
   b.anchor('tile_up_chef', -REAR_TILE_X, REAR_TILE_Z);
@@ -1184,7 +1194,8 @@ function buildCinema(tier: number): CarriageLayout {
   // Fix list 5.6 (owner: "align the seats and the projector"): the projector stands at the back of the house, on the
   // far side of the aisle, square to the middle of the screen, so its beam runs straight across over the seats.
   const screenMid = 9.8;
-  v.projector = { x: 1.2, z: screenMid + 1.05 };
+  // Phase 1: in the back aisle in the gap between the third and fourth pairs.
+  v.projector = { x: 1.2, z: screenMid + 1.8 };
   b.prop('projector', 1.6, screenMid - 0.5, NEAR, screenMid + 0.5, 'left');
   v.extras.push(
     { key: 'menu_snacks', props: [b.prop('candyCart', LAKE, 2.3, -1.72, 3.4, 'right')] },
@@ -1226,7 +1237,8 @@ function buildCinema(tier: number): CarriageLayout {
     group++;
   };
   // Front row first, then the back row, so each row's nodes chain along its own walkway.
-  const pairs = [screenMid - 2.2, screenMid, screenMid + 2.2];
+  // Phase 1, the finale (owner: "Cinema 8 seats, +4"): four pairs in each row, centred on the screen, every one bought.
+  const pairs = [screenMid - 2.7, screenMid - 0.9, screenMid + 0.9, screenMid + 2.7];
   for (const c of pairs) seat('a', c);
   const backRow: string[] = [];
   for (const c of pairs) {
@@ -1237,16 +1249,16 @@ function buildCinema(tier: number): CarriageLayout {
   b.edge(stripPrev, 'cross_r');
   // The projector's pad sits in the back aisle beside it, between the middle and last pairs.
   b.node('booth', v.projector.x, v.projector.z);
-  b.edge(backRow[1], 'booth');
-  b.edge('booth', backRow[2]);
+  b.edge(backRow[2], 'booth');
+  b.edge('booth', backRow[3]);
   b.chain(walkPrev, 'corr_end', 'vest_rear');
   b.edge('cross_r', 'corr_end');
-  v.openGroups = 2;
+  v.openGroups = 0;
   b.anchor('home_projectionist', 0.05, 15.7);
   b.anchor('tile_up_projectionist', -REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_menu', -1.3, 2.9);
-  b.anchor('tile_station', -1.3, 13.9);
+  b.anchor('tile_station', -1.3, 14.15);
 
   // The furnishings: posters on the front wall, film reels and a bench in the back corner (then the corner sofa of a
   // home cinema, then a velvet chaise), a coat stand by the door; carpets from the Cosy refit.
@@ -1274,6 +1286,7 @@ function buildCinema(tier: number): CarriageLayout {
 const BUILDERS: Record<CarriageType, (tier: number) => CarriageLayout> = {
   lobby: buildLobby,
   sleeper: buildSleeper,
+  familySleeper: buildFamilySleeper,
   bathroom: buildBathroom,
   supply: buildSupply,
   luggage: buildLuggage,
@@ -1297,6 +1310,7 @@ const SHARED_PLAN_TIER = 3;
 export function layoutKey(type: CarriageType, tier = 0): string {
   // Session 21: a venue's furnishings change with every refit (its tables, seats and pads stay where they are).
   if (isVenueType(type)) return `${type}:${Math.min(3, Math.max(0, tier))}`;
+  if (type === 'familySleeper') return `${type}:0`;
   if (type !== 'lobby' && type !== 'sleeper') return type;
   const t = Math.min(5, Math.max(0, tier));
   return `${type}:${t <= SHARED_PLAN_TIER ? 0 : t}`;

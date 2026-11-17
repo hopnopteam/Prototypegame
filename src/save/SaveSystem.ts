@@ -1,5 +1,6 @@
 import { RENAMED_UNLOCKS } from '../config/content';
 import { legacyCarriages, migrateLegacyId } from '../sim/unlockPlan';
+import { migrateRoute } from '../sim/routeMigration';
 import { log } from '../core/log';
 import { createDefaultSave, mergeDefaults, SAVE_VERSION, type SaveData } from './SaveData';
 import type { SaveStorage } from './SaveStorage';
@@ -64,6 +65,31 @@ export const SAVE_MIGRATIONS: SaveMigration[] = [
       }
       const profile = raw.profile as { flags?: Record<string, boolean> } | undefined;
       if (profile) profile.flags = { ...(profile.flags ?? {}), openingSeen: true };
+    },
+  },
+  {
+    // v4 → v5 (Phase 1, the Countryside Express): the train is rebuilt into the route's lineup (sim/routeMigration.ts):
+    // a second Sleeper becomes the Family Sleeper, the Dome, Stores and Luggage cars leave (their cash refunded), the
+    // rest is re-sorted with its tiles, part-payments and helpers. Gems, Rail Miles, level and stars are untouched.
+    from: 4,
+    apply(raw) {
+      const route = raw.route as { carriages?: string[]; unlocked?: string[]; partial?: Record<string, number>; level?: number; migrationRefund?: number } | undefined;
+      if (!route) return;
+      const staff = (raw.staff as Record<string, { level: number }> | undefined) ?? {};
+      const result = migrateRoute(
+        { carriages: Array.isArray(route.carriages) && route.carriages.length ? route.carriages : ['lobby'], unlocked: Array.isArray(route.unlocked) ? route.unlocked : [], partial: route.partial ?? {} },
+        staff,
+        typeof route.level === 'number' ? route.level : 1,
+      );
+      route.carriages = result.carriages;
+      route.unlocked = result.unlocked;
+      route.partial = result.partial;
+      raw.staff = result.staff;
+      const wallet = (raw.wallet ?? (raw.wallet = {})) as { cash?: number };
+      if (result.refund > 0) wallet.cash = (wallet.cash ?? 0) + result.refund;
+      route.migrationRefund = result.refund;
+      const profile = (raw.profile ?? (raw.profile = {})) as { gaSent?: Record<string, boolean> };
+      profile.gaSent = { ...(profile.gaSent ?? {}), ...result.gaSent };
     },
   },
 ];

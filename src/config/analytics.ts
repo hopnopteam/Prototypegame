@@ -1,3 +1,4 @@
+import { ROUTES } from './routes';
 /**
  * GameAnalytics (session 31, owner: "connect GameAnalytics… track all the things in the game, retention and pretty much
  * everything… it's very crucial it's done right"). Everything the integration needs is here; the mapping from the
@@ -58,7 +59,9 @@ export const ANALYTICS = {
    */
   dimensions: {
     level: ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8'],
-    train: ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9'],
+    // Phase 1: the second slot is the route (GameAnalytics has three custom dimensions; the train's size moved out of
+    // them, it is the `Route1Train` funnel and the `Carriage:Coupled` events). Values: every route's id.
+    route: ROUTES.map((r) => r.id),
     quality: ['low', 'medium', 'high', 'ultra'],
   },
   /** The route's name in progression events (Route1 → Level02…, Route1Train → Carriage03…). */

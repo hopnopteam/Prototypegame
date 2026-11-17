@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BASIC_REPAIRED_FARE, CLASSES, classFare, classOfTier, classStartingAt, isPassengerType, maxTier } from '../src/config/classes';
+import { BASIC_REPAIRED_FARE, CLASSES, CLASS_BY_ID, classFare, classOfTier, classStartingAt, isPassengerType, maxTier } from '../src/config/classes';
+import { ACTIVE_ROUTE } from '../src/config/routes';
 import { ARCHETYPES, CARRIAGE_CATALOGUE, DEFAULT_TRAIN } from '../src/config/content';
 import { buildUnlocks, refitMatches } from '../src/sim/unlockPlan';
 import { getLayout, roomsAt } from '../src/world/layout';
@@ -52,13 +53,18 @@ describe('carriage classes', () => {
   });
 
   it('offers each class refit in every passenger carriage, gated by its level, dearer each step', () => {
+    // Phase 1: the Repair, then one refit per class on the route's ladder (Business folded into First Class).
+    const ladder = ACTIVE_ROUTE.classLadder.map((id) => CLASS_BY_ID[id].tier).filter((t) => t > 0);
     for (const type of ['lobby', 'sleeper'] as const) {
       const refits = CARRIAGE_CATALOGUE[type].unlocks.filter((u) => u.kind === 'refurb').sort((a, b) => (a.tier ?? 0) - (b.tier ?? 0));
-      expect(refits.map((r) => r.tier), type).toEqual([1, 2, 3, 4, 5]);
+      expect(refits.map((r) => r.tier), type).toEqual([1, ...ladder]);
       for (let i = 1; i < refits.length; i++) expect(refits[i].price, `${type} tier ${refits[i].tier}`).toBeGreaterThan(refits[i - 1].price);
       for (const r of refits) {
         const cls = classStartingAt(r.tier ?? 0);
-        if (cls && cls.level > 1) expect(r.flags ?? [], `${type} ${cls.id}`).toContain(`level_${cls.level}`);
+        // A refit is offered at its class's level at the latest (a folded class comes at the level of the one it absorbs).
+        const gate = Number((r.flags ?? []).find((f) => f.startsWith('level_'))?.slice(6) ?? 1);
+        if (cls && cls.level > 1) expect(gate, `${type} ${cls.id}`).toBeLessThanOrEqual(cls.level);
+        if (cls && cls.level > 1) expect(gate, `${type} ${cls.id}`).toBeGreaterThan(1);
       }
     }
   });
