@@ -10,7 +10,7 @@ const trisPath = join(out, 'tris.json');
 const tris = existsSync(trisPath) ? JSON.parse(readFileSync(trisPath, 'utf8')) : {};
 const names = only.length ? only : readdirSync(specs).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5));
 const browser = await launch();
-const page = await browser.newPage({ viewport: { width: 360, height: 560 }, deviceScaleFactor: 2 });
+const page = await browser.newPage({ viewport: { width: 360, height: 560 }, deviceScaleFactor: Number(process.env.DSF ?? 2) });
 page.on('pageerror', (e) => console.log('page error:', e.message));
 for (const name of names) {
   await page.goto(`${base}/picks-stage.html?spec=specs/${name}.json`);

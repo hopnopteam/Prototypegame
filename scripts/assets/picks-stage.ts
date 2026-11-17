@@ -18,9 +18,57 @@ import { Stage } from '../../src/world/Stage';
 import { setLivery } from '../../src/world/materials';
 import { liveryFor } from '../../src/world/palette';
 import { loadDetailTextures } from '../../src/world/detailTextures';
+import { KEY, recolor, type Recolor } from '../../src/world/models/library';
 
-interface ModelSpec { on?: boolean; url: string; x: number; z: number; y?: number; rot?: number; fit?: [number, number]; h?: number; scale?: number; tint?: Record<string, string>; all?: string; linear?: boolean }
-interface RugSpec { tex?: string; color?: string; x: number; z: number; w: number; d: number; rot?: number; repeat?: number; tint?: string; border?: string; borderW?: number; y?: number; round?: boolean }
+// Second hunt (stylised picks): every candidate is baked to vertex colours the way scripts/assets/bake_models.py does
+// (the material colour times the atlas texel under each vertex's UV) and recoloured by hue band with the game's own
+// `recolor`, so it reads exactly as it would in the game.
+type RcSpec = { key?: keyof typeof KEY; to: string } & Partial<Recolor>;
+const texCache = new Map<unknown, { w: number; h: number; d: Uint8ClampedArray }>();
+function pixels(img: CanvasImageSource & { width: number; height: number }) {
+  let p = texCache.get(img);
+  if (!p) {
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const x = c.getContext('2d')!; x.drawImage(img, 0, 0);
+    p = { w: c.width, h: c.height, d: x.getImageData(0, 0, c.width, c.height).data };
+    texCache.set(img, p);
+  }
+  return p;
+}
+function bakeVertexColours(mesh: THREE.Mesh, rules: Recolor[]): void {
+  const src = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+  const mats = ([] as THREE.Material[]).concat(mesh.material) as THREE.MeshStandardMaterial[];
+  const n = src.attributes.position.count;
+  const cols = new Float32Array(n * 3);
+  const uv = src.attributes.uv as THREE.BufferAttribute | undefined;
+  const groups = src.groups.length ? src.groups : [{ start: 0, count: n, materialIndex: 0 }];
+  const tc = new THREE.Color();
+  for (const g of groups) {
+    const m = mats[g.materialIndex ?? 0] ?? mats[0];
+    const px = m.map?.image ? pixels(m.map.image as never) : null;
+    for (let i = g.start; i < Math.min(n, g.start + g.count); i++) {
+      tc.copy(m.color ?? new THREE.Color('#fff'));
+      if (px && uv) {
+        let u = uv.getX(i) % 1, v = uv.getY(i) % 1; if (u < 0) u += 1; if (v < 0) v += 1;
+        const fy = m.map!.flipY ? 1 - v : v;
+        const ix = Math.min(px.w - 1, Math.floor(u * px.w)), iy = Math.min(px.h - 1, Math.floor(fy * px.h));
+        const o = (iy * px.w + ix) * 4;
+        const t = new THREE.Color().setRGB(px.d[o] / 255, px.d[o + 1] / 255, px.d[o + 2] / 255, THREE.SRGBColorSpace);
+        tc.multiply(t);
+      }
+      cols[i * 3] = tc.r; cols[i * 3 + 1] = tc.g; cols[i * 3 + 2] = tc.b;
+    }
+  }
+  recolor(cols, rules);
+  src.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  src.clearGroups();
+  src.computeVertexNormals();
+  mesh.geometry = src;
+  mesh.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0, flatShading: false });
+}
+
+interface ModelSpec { rc?: RcSpec[]; raw?: boolean; on?: boolean; url: string; x: number; z: number; y?: number; rot?: number; fit?: [number, number]; h?: number; scale?: number; tint?: Record<string, string>; all?: string; linear?: boolean }
+interface RugSpec { fullimg?: boolean; tex?: string; color?: string; x: number; z: number; w: number; d: number; rot?: number; repeat?: number; tint?: string; border?: string; borderW?: number; y?: number; round?: boolean }
 interface Spec {
   carriage: { type: CarriageType; tier: number; clear?: number[]; comforts?: string[] };
   cam: { x: number; z: number; zoom: number };
@@ -90,7 +138,7 @@ async function main(): Promise<void> {
       t.colorSpace = THREE.SRGBColorSpace;
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       const rep = r.repeat ?? 1;
-      t.repeat.set(rep * (r.w - 2 * bw), rep * (r.d - 2 * bw));
+      if (r.fullimg) t.repeat.set(1, 1); else t.repeat.set(rep * (r.w - 2 * bw), rep * (r.d - 2 * bw));
       t.anisotropy = 8;
       mat.map = t;
     }
@@ -150,6 +198,10 @@ async function main(): Promise<void> {
         mesh.material = Array.isArray(mesh.material) ? mats : mats[0];
       });
       info.tris[m.url] = Math.round(tris);
+      if (!m.raw) {
+        const rules = (m.rc ?? []).map((r) => (r.key ? { ...(KEY[r.key] as Recolor), ...r, to: r.to } : (r as Recolor)));
+        obj.traverse((o) => { const mesh = o as THREE.Mesh; if (mesh.isMesh) bakeVertexColours(mesh, rules); });
+      }
       const holder = new THREE.Group();
       holder.add(obj);
       holder.rotation.y = THREE.MathUtils.degToRad(m.rot ?? 0);
