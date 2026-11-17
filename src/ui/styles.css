@@ -1017,3 +1017,7 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 .postcards { background: linear-gradient(#B98F62, #A57B50); border-radius: 12px; padding: 12px 10px 14px; box-shadow: inset 0 2px 6px rgba(60, 35, 10, 0.35); }
 .postcard-big { padding: 12px; border-radius: 12px; background: linear-gradient(#B98F62, #A57B50); box-shadow: inset 0 2px 6px rgba(60, 35, 10, 0.35); box-sizing: border-box; filter: none; }
 .postcard-big canvas { filter: drop-shadow(0 3px 4px rgba(40, 25, 10, 0.45)); }
+
+/* Phase 1: the Debug sheet's pickers (Settings, five taps on the build line). */
+.debug-pick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.debug-pick .btn { min-width: 0; padding: 8px 4px; }

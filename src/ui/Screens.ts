@@ -1,7 +1,8 @@
+import { DEBUG_JUMP, setDebugJump } from '../config/debugJump';
 import { ACTIVE_ROUTE } from '../config/routes';
 import { ANALYTICS } from '../config/analytics';
 import { MockAdService } from '../services/ads';
-import { GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, STORIES_ENABLED, type PostcardArt, type ProductDef } from '../config/content';
+import { CARRIAGE_CATALOGUE, CARRIAGE_ORDER, GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, STORIES_ENABLED, type PostcardArt, type ProductDef } from '../config/content';
 import { CLASSES } from '../config/classes';
 import { AUDIO } from '../config/audio';
 import { ECONOMY, MONETIZATION_ENABLED } from '../config/economy';
@@ -26,6 +27,9 @@ interface SheetOptions {
 }
 
 /** Every modal sheet. Opening one pauses the simulation; closing the last one resumes it. */
+/** Taps on Settings' build line that open the Debug sheet (Phase 1). */
+const DEBUG_TAPS = 5;
+
 export class Screens {
   private open = 0;
   /** While the title screen or the intro is up, sheets wait here and open once play begins. */
@@ -708,6 +712,7 @@ export class Screens {
       h('button.btn.danger', { onclick: () => g.resetProgress() }, 'Erase progress'),
     );
     const resetButton = h('button.btn', { onclick: () => { resetButton.hidden = true; confirmReset.hidden = false; } }, 'Start over');
+    let buildTaps = 0;
     close = this.sheet('Settings', 'gear', [
       toggle('Sound', s.sound, (v) => (s.sound = v)),
       // Session 29: one SFX volume slider (saved), the Sound switch above being the mute.
@@ -726,7 +731,63 @@ export class Screens {
       resetButton,
       confirmReset,
       h('p', { style: { fontSize: '13px', opacity: '0.7' }, text: `Night Express prototype · Session ${g.data.profile.sessionCount} · ${formatDuration(g.lifetimeSeconds())} played` }),
-      h('p', { style: { fontSize: '12px', opacity: '0.55' }, text: `Build ${ANALYTICS.build} · Analytics ${g.analyticsStatus}` }),
+      h('p', {
+        style: { fontSize: '12px', opacity: '0.55' },
+        text: `Build ${ANALYTICS.build} · Analytics ${g.analyticsStatus}${DEBUG_JUMP ? ' · DEBUG' : ''}`,
+        // Phase 1: five taps on the build line open the Debug sheet (jump to any carriage and tier).
+        onclick: () => {
+          if (++buildTaps < DEBUG_TAPS) return;
+          buildTaps = 0;
+          close();
+          this.debugSheet();
+        },
+      }),
+    ]);
+  }
+
+  /**
+   * Phase 1, the Debug sheet: opens the game with the route's first N carriages at a lifecycle tier (0 Broken, 1–3 its
+   * refit tiers), optionally staffed, on its own save (config/debugJump.ts); "Back to my game" returns to the real save.
+   */
+  private debugSheet(): void {
+    const current = DEBUG_JUMP;
+    let carriages = current?.carriages ?? CARRIAGE_ORDER.length;
+    let tier = current?.tier ?? 0;
+    let staffed = current?.staffed ?? false;
+    const pick = <T,>(values: T[], label: (v: T) => string, get: () => T, set: (v: T) => void): HTMLElement => {
+      const row = h('div.debug-pick');
+      const buttons = values.map((v) => {
+        const b = h('button.btn', { onclick: () => { set(v); paint(); } }, label(v)) as HTMLButtonElement;
+        row.appendChild(b);
+        return { v, b };
+      });
+      const paint = (): void => {
+        for (const { v, b } of buttons) b.classList.toggle('primary', v === get());
+      };
+      paint();
+      return row;
+    };
+    const names = CARRIAGE_ORDER.map((t) => CARRIAGE_CATALOGUE[t].name);
+    const listEl = h('p', { style: { fontSize: '12px', opacity: '0.7' } });
+    const showList = (): void => {
+      listEl.textContent = names.slice(0, carriages).join(' · ');
+    };
+    showList();
+    const staffSwitch = h(`button.switch${staffed ? '.on' : ''}` as 'button', { role: 'switch', 'aria-label': 'Staffed' });
+    staffSwitch.addEventListener('click', () => {
+      staffed = !staffed;
+      staffSwitch.classList.toggle('on', staffed);
+    });
+    this.sheet('Debug', 'wrench', [
+      h('div.section-title', { text: 'Carriages' }),
+      pick(CARRIAGE_ORDER.map((_, i) => i + 1), (v) => String(v), () => carriages, (v) => { carriages = v; showList(); }),
+      listEl,
+      h('div.section-title', { text: 'Tier' }),
+      pick([0, 1, 2, 3], (v) => (v === 0 ? 'Broken' : `Tier ${v}`), () => tier, (v) => (tier = v)),
+      h('div.toggle', {}, 'Staffed (every helper hired)', staffSwitch),
+      h('button.btn.primary', { onclick: () => setDebugJump({ carriages, tier, staffed }) }, 'Open'),
+      current ? h('button.btn', { onclick: () => setDebugJump(null) }, 'Back to my game') : null,
+      h('p', { style: { fontSize: '12px', opacity: '0.6' }, text: 'Plays on its own save; your progress is never touched.' }),
     ]);
   }
 
