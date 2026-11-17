@@ -21,7 +21,7 @@ import type { Zone } from './Zones';
 import type { Outing } from './Venues';
 import type { VenueKind } from '../core/types';
 import { ratingEffect } from '../sim/stationResult';
-import { guestLook } from './guestLook';
+import { guestLook, routeLook } from './guestLook';
 
 export type GuestState =
   | 'platform' | 'boarding' | 'queue' | 'toCabin' | 'settling' | 'resting' | 'requesting'
@@ -200,7 +200,7 @@ export class Guest {
       hat: story?.id === 'walter' ? 'conductor' : story ? 'none' : archetype.hat ?? 'none',
       hatColor: story ? undefined : archetype.hatColor,
     };
-    const look = story ? base : guestLook(base, archetype, variant);
+    const look = story ? base : routeLook(guestLook(base, archetype, variant), archetype, variant);
     const [short, tall] = CROWD.height;
     this.view = views.take(look, story ? 1 : short + (tall - short) * Math.random());
     this.child = !story && archetype.accessory === 'child'

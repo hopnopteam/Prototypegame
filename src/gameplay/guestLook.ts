@@ -1,6 +1,7 @@
 import type { ArchetypeDef } from '../config/content';
 import { ARCHETYPES } from '../config/content';
 import { CROWD } from '../config/crowd';
+import { ACTIVE_ROUTE } from '../config/routes';
 import type { CharacterLook } from '../world/CharacterView';
 
 /**
@@ -31,3 +32,25 @@ function shadeHex(hex: string, amount: number): string {
   return `#${((c((n >> 16) & 255) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
 }
 
+/**
+ * Phase 1: the route's own passengers (config/routes.ts `guestLooks`: farmers with produce baskets, grandparents, a few
+ * ramblers, the village choir). A share of an archetype's looks wear the route's outfit; only how they look changes
+ * (their class, fares, requests and walk are the archetype's). Picked by look number, so the set of bodies stays bounded.
+ */
+export function routeLook(look: CharacterLook, archetype: ArchetypeDef, v: number): CharacterLook {
+  const dress = ACTIVE_ROUTE.guestLooks.find((g) => g.archetype === archetype.id);
+  if (!dress || v >= Math.round(dress.share * CROWD.variants)) return look;
+  return {
+    ...look,
+    body: dress.body ?? look.body,
+    accent: dress.accent ?? look.accent,
+    hair: dress.hair ?? look.hair,
+    outfit: dress.outfit ?? look.outfit,
+    pants: dress.pants ?? look.pants,
+    hairStyle: dress.hairStyle ?? look.hairStyle,
+    hat: dress.hat ?? look.hat,
+    hatColor: dress.hatColor ?? look.hatColor,
+    accessory: dress.accessory ?? look.accessory,
+    glasses: dress.glasses ?? look.glasses,
+  };
+}

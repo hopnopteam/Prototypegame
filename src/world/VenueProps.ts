@@ -733,8 +733,10 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
         const ch = i % 2 ? 0.36 : 0.42;
         b.box(back + out * (cw / 2 + 0.02), Y + ch / 2, pz, cw, ch, d / n - 0.06, i % 2 ? '#A88C6C' : '#9A7F61', 0, CRATE);
         if (i % 2 === 0 && d / n > 0.4) b.box(back + out * (cw / 2 + 0.02), Y + ch + 0.15, pz, cw - 0.08, 0.3, d / n - 0.16, '#9A7F61', 0, CRATE);
+        // Phase 1, the Broken state: the last slot's sack is a chair that gave up, on its side with a snapped leg.
+        if (w > 0.66 && i === n - 1 && n > 1) brokenChair(b, back + out * (cw + 0.17), pz, Math.min(0.26, w - cw - 0.08), Math.min(0.4, d / n - 0.1));
         // A sack slumped beside the crate.
-        if (w > 0.66) b.rounded(back + out * (cw + 0.16), Y + 0.17, pz, Math.min(0.24, w - cw - 0.1), 0.34, Math.min(0.36, d / n - 0.1), 0.1, '#B79C74', { shade: 0.85, surface: 'fabric' });
+        else if (w > 0.66) b.rounded(back + out * (cw + 0.16), Y + 0.17, pz, Math.min(0.24, w - cw - 0.1), 0.34, Math.min(0.36, d / n - 0.1), 0.1, '#B79C74', { shade: 0.85, surface: 'fabric' });
       }
       return true;
     }
@@ -1651,4 +1653,22 @@ export function buildDomeCanopy(b: GeoBuilder, wallX: number, wallTop: number, z
   }
   const [xe, ye] = point(1);
   b.box(xe, ye + 0.02, (z0 + z1) / 2, 0.08, 0.06, z1 - z0, rib, 0, { shade: 1, surface: ribSurface });
+}
+
+/**
+ * Phase 1, the Broken state: a wooden chair lying on its back in a `width` × `depth` patch of floor, its seat cracked,
+ * two legs in the air and one snapped short (it stays in the junk pile until the Repair clears it away).
+ */
+function brokenChair(b: GeoBuilder, cx: number, cz: number, width: number, depth: number): void {
+  const wood = '#8C7258';
+  const dark = '#6E5843';
+  // The back lies flat on the floor, the seat stands up off it like a step.
+  b.box(cx, Y + 0.02, cz - depth * 0.18, width, 0.03, depth * 0.55, wood, 0, { shade: 0.85, detail: 'woodWorn' });
+  b.box(cx, Y + 0.17, cz + depth * 0.12, width, 0.3, 0.03, dark, 0, { shade: 0.8, detail: 'woodWorn' });
+  // The legs point out from under the seat; the last one snapped off short.
+  for (const [dx, len] of [[-0.4, 0.26], [0.4, 0.1]] as [number, number][]) {
+    b.box(cx + dx * width, Y + 0.3, cz + depth * 0.12 + len / 2, 0.025, 0.025, len, wood, 0, { shade: 0.85 });
+  }
+  // The broken-off leg on the floor beside it.
+  b.box(cx, Y + 0.015, cz + depth * 0.4, 0.025, 0.025, Math.min(0.2, depth * 0.5), wood, 0, { shade: 0.8 });
 }

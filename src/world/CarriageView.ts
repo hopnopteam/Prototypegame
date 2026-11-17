@@ -374,6 +374,10 @@ const PROPS_PER_SLICE = 4;
 const RACK_CASES_SHORT = 4;
 const RACK_CASES_LONG = 5;
 
+/** Phase 1, the Broken state: how far a crack stands proud of the pane, and the thickness of a flake of paint. */
+const CRACK_PROUD = 0.012;
+const PEEL_DEPTH = 0.006;
+
 export class CarriageView {
   readonly group = new THREE.Group();
   readonly cabinBeds: THREE.Group[] = [];
@@ -1304,6 +1308,7 @@ export class CarriageView {
         }
         f.endObject();
       });
+      this.buildWear(f, windows, bottom);
     }
     if (fin.runner && (this.layout.cabins.length > 0 || this.layout.bathrooms.length > 0)) {
       const z0 = this.layout.type === 'lobby' ? 6.1 : this.frontDepth() + 0.05;
@@ -1534,6 +1539,51 @@ export class CarriageView {
   }
 
   /** The window openings on the long wall whose inside faces the camera (the lake side), front to back. */
+  /**
+   * Phase 1, the Broken state (owner: "peeling paint, a cracked window"): on the wall the camera looks at, one window in
+   * four has a cracked pane (pale lines running out from where something hit it), and the paint is flaking off below
+   * the windows in patches (the bare plaster under it and a curl of old paint at its edge). The Repair takes it away.
+   */
+  private buildWear(f: GeoBuilder, windows: WindowCorner[], bottom: number): void {
+    const L = CARRIAGE_LENGTH;
+    const blocked = (x: number, inward: number, z0: number, z1: number): boolean => {
+      const reach = x + inward * 0.45;
+      return this.layout.props.some((p) => p.rect.z0 < z1 + 0.1 && p.rect.z1 > z0 - 0.1 && p.rect.x0 < Math.max(x, reach) && p.rect.x1 > Math.min(x, reach));
+    };
+    windows.forEach((win, i) => {
+      if ((i + this.index) % 4 !== 1 || blocked(win.x, win.inward, win.z0, win.z1)) return;
+      // The crack: a star of thin pale lines from a point a third of the way across the pane.
+      const px = win.x + win.inward * CRACK_PROUD;
+      const cy = bottom + (win.top - bottom) * 0.62;
+      const cz = win.z0 + (win.z1 - win.z0) * 0.36;
+      f.object('decor:crackedWindow');
+      for (const [angle, len] of [[0.3, 0.26], [1.4, 0.18], [2.3, 0.22], [3.5, 0.15], [4.6, 0.24], [5.5, 0.12]] as [number, number][]) {
+        const dy = Math.sin(angle) * len;
+        const dz = Math.cos(angle) * len;
+        const y = Math.max(bottom + 0.02, Math.min(win.top - 0.02, cy + dy / 2));
+        const z = Math.max(win.z0 + 0.02, Math.min(win.z1 - 0.02, cz + dz / 2));
+        f.add(new THREE.BoxGeometry(0.004, 0.007, len), '#DCE6EC', px, y, z, -angle, 0, 0, { shade: 1 });
+      }
+      f.endObject();
+    });
+    // Peeling paint between the windows, low on the wall where the camera sees it.
+    windows.forEach((win, i) => {
+      const next = windows[i + 1];
+      const z0 = win.z1 + 0.1;
+      const z1 = (next ? next.z0 : L - 0.6) - 0.1;
+      if (z1 - z0 < 0.3 || (i + this.index) % 2 !== 0 || blocked(win.x, win.inward, z0, z1)) return;
+      const zc = (z0 + z1) / 2;
+      const w = Math.min(0.42, z1 - z0);
+      const y = FLOOR_Y + 0.3 + ((i * 37 + this.index * 11) % 5) * 0.06;
+      if (y + 0.12 > bottom) return;
+      f.object('decor:peelingPaint');
+      f.add(new THREE.BoxGeometry(PEEL_DEPTH, 0.2, w), '#C2B49A', win.x + win.inward * PEEL_DEPTH / 2, y, zc, 0, 0, 0, { shade: 0.95 });
+      f.add(new THREE.BoxGeometry(PEEL_DEPTH, 0.06, w * 0.7), '#E8E0CC', win.x + win.inward * PEEL_DEPTH * 1.5, y + 0.11, zc + w * 0.08, 0.12, 0, 0, { shade: 1 });
+      f.add(new THREE.BoxGeometry(PEEL_DEPTH, 0.09, w * 0.35), '#B3A486', win.x + win.inward * PEEL_DEPTH / 2, y - 0.14, zc - w * 0.2, 0, 0, 0, { shade: 0.9 });
+      f.endObject();
+    });
+  }
+
   private cameraSideWindows(): WindowCorner[] {
     const out: WindowCorner[] = [];
     for (const wall of this.layout.walls) {
@@ -1743,7 +1793,8 @@ export class CarriageView {
       const bed = new GeoBuilder();
       const bedLamps = new GeoBuilder();
       bed.object('bed');
-      buildProp(bed, bedLamps, { kind: 'bed', rect: cabin.bed }, this.theme, this.tier);
+      // Phase 1: the Family Sleeper's beds are bunks.
+      buildProp(bed, bedLamps, { kind: 'bed', rect: cabin.bed, variant: this.layout.type === 'familySleeper' ? 'bunk' : undefined }, this.theme, this.tier);
       const bedGroup = new THREE.Group();
       const centerX = (cabin.bed.x0 + cabin.bed.x1) / 2;
       const centerZ = (cabin.bed.z0 + cabin.bed.z1) / 2;

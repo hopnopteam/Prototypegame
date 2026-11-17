@@ -8,7 +8,8 @@ import { ClassChips } from '../world/ClassChips';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import type { CarriageType, ItemKind, Rect, Vec2 } from '../core/types';
 import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
-import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, GANGWAY_LENGTH, LOCOMOTIVE_LENGTH, REAR_DECK_LENGTH, carriageOriginZ, doorTileSpot, getLayout, HALF_WIDTH, layoutKey, PARTITION_X0, ZONE_RADIUS, SERVICE_PROP_HEIGHT, type BathroomLayout, type CabinLayout, type CarriageLayout } from '../world/layout';
+import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, CARRIAGE_PITCH, GANGWAY_LENGTH, LOCOMOTIVE_LENGTH, REAR_DECK_LENGTH, carriageOriginZ, doorTileSpot, getLayout, HALF_WIDTH, layoutKey, PARTITION_X0, ZONE_RADIUS, SERVICE_PROP_HEIGHT, type BathroomLayout, type CabinLayout, type CarriageLayout } from '../world/layout';
+import { VISUALS } from '../config/visuals';
 import { shoesGeometry } from '../world/Shoes';
 import { ExteriorView } from '../world/ExteriorView';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
@@ -715,6 +716,50 @@ export class TrainState {
     });
   }
 
+  /** Phase 1, the Broken state: when each carriage's lamp flickers next, and the flicker playing (its start time). */
+  private readonly flickerNext: number[] = [];
+  private readonly flickerAt: number[] = [];
+  private moteClock = 0;
+
+  /**
+   * A Broken carriage's (tier 0) lamp flickers now and then, and dust hangs in the air where the conductor stands
+   * (visual only: no game randomness is used).
+   */
+  private updateBroken(dt: number): void {
+    const w = this.w;
+    const cfg = VISUALS.broken;
+    const now = w.time;
+    for (let i = 0; i < this.types.length; i++) {
+      const key = `flicker:${i}`;
+      const broken = (this.tiers[i] ?? 0) <= 0 && !(i === 0 && this.covered) && !w.reveal?.busy;
+      if (!broken) {
+        w.stage?.dimmer.set(key, 0, 0, 0, 0, 1);
+        continue;
+      }
+      if (this.flickerNext[i] === undefined) this.flickerNext[i] = now + cfg.flickerEvery[0] + Math.random() * (cfg.flickerEvery[1] - cfg.flickerEvery[0]);
+      if (now >= this.flickerNext[i]) {
+        this.flickerAt[i] = now;
+        this.flickerNext[i] = now + cfg.flickerEvery[0] + Math.random() * (cfg.flickerEvery[1] - cfg.flickerEvery[0]);
+      }
+      let level = 1;
+      const t = now - (this.flickerAt[i] ?? -99);
+      const [a, b, c] = cfg.flickerPattern;
+      if (t >= 0 && (t < a || (t >= a + b && t < a + b + c))) level = cfg.flickerDip;
+      const oz = carriageOriginZ(i);
+      w.stage?.dimmer.set(key, -HALF_WIDTH, oz, HALF_WIDTH, oz + CARRIAGE_LENGTH, level);
+    }
+    // Dust motes round the conductor while they stand in a Broken carriage.
+    const p = w.player?.pos;
+    if (!p) return;
+    const here = Math.floor(p.z / CARRIAGE_PITCH);
+    if (here < 0 || here >= this.types.length || (this.tiers[here] ?? 0) > 0 || (here === 0 && this.covered)) return;
+    this.moteClock += dt * cfg.motesPerSecond;
+    while (this.moteClock >= 1) {
+      this.moteClock -= 1;
+      w.particles.emit('mote', p.x + (Math.random() - 0.5) * 2.4, FLOOR_Y + 0.6 + Math.random() * 0.9, p.z + (Math.random() - 0.5) * 3, 1, 0.1);
+    }
+  }
+
   /** Phase 1: the next carriage rolls up behind the deck under its tarp, after a coupling (a soft clunk). */
   private hitchNext(): void {
     const w = this.w;
@@ -732,6 +777,7 @@ export class TrainState {
   update(dt: number): void {
     const w = this.w;
     if (this.pendingChoice && dt > 0) this.requestCoupling(() => w.tiles.refresh());
+    this.updateBroken(dt);
     const speed = w.journey.speed;
     this.loco.update(dt, speed);
     this.loco.setNight(w.stage.lighting.night);

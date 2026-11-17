@@ -12,7 +12,7 @@ import { underPopup } from './screenMask';
 import type { CharacterBatch } from './CharacterBatch';
 
 export type HatKind = 'conductor' | 'boater' | 'bowler' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'toque' | 'none';
-export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'sash' | 'none';
+export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'sash' | 'basket' | 'hymnbook' | 'cane' | 'none';
 
 export interface CharacterLook {
   body: string;
@@ -182,6 +182,29 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
     case 'sash':
       b.add(new THREE.BoxGeometry(0.06, 0.48, 0.02), look.accent, 0.01, 0.6, front(0.6) + 0.01, 0.08, 0, 0.62, { shade: 1, surface: 'fabric' });
       b.sphere(0.07, 0.67, front(0.67) + 0.02, 0.028, PALETTE.gold, 1, 1, { shade: 1, surface: 'brass' });
+      break;
+    // Phase 1, the Countryside Express's own passengers.
+    case 'basket': {
+      // A farmer's wicker basket of produce on the hip: apples, a cabbage, carrot tops.
+      const bx = 0.2;
+      const by = 0.46;
+      const bz = front(0.46) - 0.02;
+      b.rounded(bx, by, bz, 0.16, 0.1, 0.13, 0.03, '#B98A4E', { shade: 0.85, surface: 'fabric' });
+      b.add(new THREE.TorusGeometry(0.065, 0.01, 6, 12, Math.PI), '#8C6438', bx, by + 0.05, bz, 0, Math.PI / 2, 0, flat);
+      b.sphere(bx - 0.035, by + 0.06, bz + 0.02, 0.032, '#C0392B', 1);
+      b.sphere(bx + 0.03, by + 0.065, bz - 0.01, 0.038, '#7FA34E', 1);
+      b.sphere(bx + 0.01, by + 0.06, bz + 0.04, 0.028, '#D9542A', 1);
+      break;
+    }
+    case 'hymnbook':
+      // The choir's hymn book held open at the chest, a gold edge to its pages.
+      b.box(0, 0.6, front(0.6) + 0.04, 0.15, 0.11, 0.02, '#2A1E22', 0.15, flat);
+      b.box(0, 0.6, front(0.6) + 0.052, 0.13, 0.095, 0.006, '#F2EAD8', 0.15, flat);
+      break;
+    case 'cane':
+      // A walking cane at the grandfather's side, its crook by the hand.
+      b.cylinder(0.24, 0.25, front(0.3) - 0.04, 0.012, 0.012, 0.5, '#5E4232', 8, 'y', flat);
+      b.add(new THREE.TorusGeometry(0.035, 0.012, 6, 10, Math.PI), '#5E4232', 0.24, 0.5, front(0.3) - 0.04, 0, Math.PI / 2, 0, flat);
       break;
     case 'handbag':
       for (let i = 0; i < 5; i++) b.sphere(-0.08 + i * 0.04, 0.79 - Math.abs(i - 2) * 0.012, front(0.79) + 0.01, 0.018, PALETTE.linen, 0, 1, flat);

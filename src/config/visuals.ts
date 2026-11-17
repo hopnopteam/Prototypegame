@@ -174,6 +174,21 @@ export const VISUALS = {
   time: { mode: 'night' as 'night' | 'cycle', firstSessionNight: true },
 
   /**
+   * Phase 1, the Broken state (a carriage before its Repair): its lamp flickers now and then (a quick double dip of the
+   * room's light, through the room dimmer: one small texture upload), and dust motes hang in the air round the conductor.
+   */
+  broken: {
+    /** Seconds between flickers (a random pick in this range per carriage). */
+    flickerEvery: [3, 8] as [number, number],
+    /** The light's level at the bottom of each dip (1 is full). */
+    flickerDip: 0.45,
+    /** The dips and the gaps between them, in seconds: dip, light, dip. */
+    flickerPattern: [0.07, 0.06, 0.11] as number[],
+    /** Dust motes a second while the conductor is in a Broken carriage. */
+    motesPerSecond: 3,
+  },
+
+  /**
    * Job signs (session 27: nothing on the floor, a badge over the thing the job is about, its ring filling as you work):
    * the badge's size (and how much it grows when the job wants you), and its height where no furniture is beside the
    * job (shoes in the corridor, a room without a bed near its middle).

@@ -1,3 +1,4 @@
+import { ACTIVE_ROUTE } from '../config/routes';
 import * as THREE from 'three';
 import { Rng } from '../core/Rng';
 import { GeoBuilder, type PartStyle } from './geo';
@@ -27,7 +28,7 @@ export const CHUNK = 24;
 export const BOAT_LANE: [number, number] = [-11.0, -14.3];
 
 export type ShoreKind = 'reeds' | 'beach' | 'jetty' | 'boathouse' | 'lilies' | 'promenade' | 'lighthouse' | 'fishing' | 'island';
-export type LandKind = 'forest' | 'meadow' | 'village' | 'farm' | 'orchard' | 'lane' | 'windmill' | 'chapel' | 'camp';
+export type LandKind = 'forest' | 'meadow' | 'village' | 'farm' | 'orchard' | 'lane' | 'windmill' | 'chapel' | 'camp' | 'wheat' | 'bridge';
 export type PieceKind = ShoreKind | LandKind;
 
 export interface DeckEntry<K extends string> {
@@ -59,6 +60,9 @@ export const LAND_DECK: DeckEntry<LandKind>[] = [
   { kind: 'camp', weight: 0.5, gap: 10 },
   { kind: 'chapel', weight: 0.45, gap: 14 },
   { kind: 'windmill', weight: 0.45, gap: 14 },
+  // Phase 1, the Countryside Express (the route's `scenery`): golden wheat and old stone bridges over a brook.
+  ...(ACTIVE_ROUTE.scenery.wheat ? [{ kind: 'wheat' as const, weight: 1.1, gap: 3 }] : []),
+  ...(ACTIVE_ROUTE.scenery.stoneBridges ? [{ kind: 'bridge' as const, weight: 0.6, gap: 9 }] : []),
 ];
 
 /** Instanced fill: what each slot holds (positions in chunk-local z, world x). */
@@ -117,6 +121,12 @@ const C = {
   boat: '#A86048',
   boatBlue: '#4E6A8E',
   hay: '#C2A466',
+  // Phase 1: ripe wheat in three close golds over darker furrows, and a brook.
+  wheat: '#D9B456',
+  wheat2: '#E2C067',
+  wheat3: '#CFA84A',
+  wheatDark: '#A9873A',
+  brook: '#3F5F6E',
   iron: '#353B48',
   canvas: '#D9CCB0',
   canvas2: '#B8C9B0',
@@ -537,6 +547,55 @@ function buildLand(st: Stretch, kind: LandKind): void {
       lampPost(b, glow, st, 4.4, z, true);
       st.scatter('bush', 8, 3.5, 6.0, [0.6, 0.9], true, 0.45);
       woods(st, 13, 6, ['spruce', 'pine']);
+      break;
+    }
+    case 'wheat': {
+      // A field of ripe wheat behind a hedge-and-fence, in strips that follow the ground, with stooks of cut sheaves
+      // along its near edge and a lone oak at its far corner.
+      fence(b, st, 4.3, 1, CHUNK - 1, true);
+      b.object('scenery:wheat');
+      for (let z = 1.6; z < CHUNK - 1.4; z += 1.9) {
+        for (let x = 5.2; x < 12.4; x += 1.8) {
+          const y = st.ground(x + 0.9, z + 0.95);
+          const tone = (Math.round(x * 3 + z * 7) % 3) / 3;
+          b.box(x + 0.9, y + 0.2, z + 0.95, 1.76, 0.4, 1.86, tone < 0.34 ? C.wheat : tone < 0.67 ? C.wheat2 : C.wheat3, 0, { pattern: PATTERN.stripesZ, color2: C.wheatDark, scale: 0.16, shade: 0.9 });
+        }
+      }
+      b.endObject();
+      st.claim(5.0, 1.4, 12.6, CHUNK - 1.2);
+      for (let z = 3; z < CHUNK - 2; z += rng.range(3.5, 5)) {
+        const x = rng.range(4.6, 4.9);
+        b.object('scenery:stook');
+        b.add(new THREE.ConeGeometry(0.28, 0.75, 7), C.hay, x, st.ground(x, z) + 0.37, z, 0, rng.range(0, 3), 0, FLAT);
+        b.endObject();
+      }
+      st.scatter('flower', 10, 3.0, 4.1, [0.8, 1.2], true, 0.14);
+      st.put('broadleaf', 13.6, CHUNK - 3, 0.85, true, undefined, 0.8);
+      break;
+    }
+    case 'bridge': {
+      // A brook runs down from the hills to the lake (passing under the line), crossed by an old stone humpback bridge
+      // carrying a farm track, reeds along its banks.
+      const z = rng.range(9, 15);
+      const brook = 1.6;
+      b.object('scenery:brook');
+      for (let x = 3.6; x < 14; x += 1.2) b.box(x + 0.6, st.ground(x + 0.6, z) + 0.02, z, 1.22, 0.04, brook, C.brook, 0, { shade: 1, surface: 'glass' });
+      b.endObject();
+      const bx = 8.6;
+      const by = st.ground(bx, z);
+      b.object('scenery:stoneBridge');
+      // The arch's deck rises over the brook in three steps, a parapet either side, the arch's dark opening below.
+      for (const [dz, rise, len] of [[-1.7, 0.35, 1.2], [0, 0.62, 2.2], [1.7, 0.35, 1.2]] as [number, number, number][]) {
+        b.box(bx, by + rise / 2 + 0.05, z + dz, 1.9, rise, len, C.stone, 0, { pattern: PATTERN.dots, color2: C.stoneDark, scale: 0.18, shade: 0.85, surface: 'stone' });
+        for (const px of [-0.92, 0.92]) b.box(bx + px, by + rise + 0.22, z + dz, 0.16, 0.34, len, C.stoneDark, 0, { shade: 0.85, surface: 'stone' });
+      }
+      b.box(bx + 0.96, by + 0.2, z, 0.04, 0.32, 1.2, '#2E3A3C', 0, FLAT);
+      b.endObject();
+      st.claim(3.6, z - brook / 2 - 0.2, 14, z + brook / 2 + 0.2);
+      st.claim(bx - 1.1, z - 2.4, bx + 1.1, z + 2.4);
+      st.scatter('reed', 10, 4.0, 13.5, [0.7, 1.0], true, 0.3);
+      st.scatter('bush', 8, 3.5, 6.0, [0.6, 0.9], true, 0.45);
+      woods(st, 11, 8, ['broadleaf', 'pine']);
       break;
     }
     case 'camp': {

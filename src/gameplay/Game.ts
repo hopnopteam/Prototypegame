@@ -1,3 +1,4 @@
+import { ACTIVE_ROUTE } from '../config/routes';
 import { PLATFORM } from '../world/platformLayout';
 import { INTRO_BEATS } from '../config/coach';
 import * as THREE from 'three';
@@ -18,6 +19,8 @@ import { forgetSave, mirrorSave, platform as nativePlatform } from '../services/
 import { ANALYTICS } from '../config/analytics';
 import { GameAnalyticsService, gameAnalyticsWanted } from '../services/gameAnalytics';
 import { GOD, GOD_MODE, GOD_WORK } from '../config/god';
+import { DEBUG_JUMP, type DebugJump } from '../config/debugJump';
+import { CARRIAGE_ORDER } from '../config/content';
 import { SaveSystem } from '../save/SaveSystem';
 import { MockAdService, type AdService } from '../services/ads';
 import { MaxAdService, maxAvailable } from '../services/maxAds';
@@ -94,10 +97,12 @@ const FRAME_WORK_MS = 2.5;
 /** Behind the loading screen nobody sees a slow frame: queued work (bakes, scenery, rebuilds) gets this much a frame. */
 const LOADING_WORK_MS = 40;
 /** Where the save lives (localStorage, mirrored into the app's own storage on iOS and Android). */
-export const SAVE_KEY = 'nightexpress.save' + (GOD_MODE ? GOD.saveSuffix : '');
+export const SAVE_KEY = 'nightexpress.save' + (GOD_MODE ? GOD.saveSuffix : '') + (DEBUG_JUMP ? '.jump' : '');
 const MAX_FRAME = 0.05;
 /** Where in the day cycle the held night sits (the middle of the night key). */
 const NIGHT_TIME = 0.82;
+/** Phase 1: golden hour in the day cycle (Lighting's keys: past the day key, toward dusk), where a Countryside Express session opens. */
+const GOLDEN_TIME = 0.645;
 
 /**
  * Composition root and main loop. Builds every system once, owns time (including the dev time scale and
@@ -197,6 +202,7 @@ export class Game implements World {
       newId: () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)),
     });
     this.save.load();
+    if (DEBUG_JUMP) applyDebugJump(this.data, DEBUG_JUMP);
     // Session 30 (owner: "remove developer tools"): no switch for them in Settings any more; `?dev=1` turns them on
     // for a build being tested (the test scripts set the flag themselves).
     if (typeof location !== 'undefined') this.data.settings.devTools = new URLSearchParams(location.search).get('dev') === '1';
@@ -426,6 +432,7 @@ export class Game implements World {
     if (typeof window === 'undefined') return;
     if (!ANALYTICS.gameKey || !ANALYTICS.secretKey) { this.analyticsStatus = 'no keys'; return; }
     if (GOD_MODE) { this.analyticsStatus = 'off (god mode)'; return; }
+    if (DEBUG_JUMP) { this.analyticsStatus = 'off (debug jump)'; return; }
     if (!gameAnalyticsWanted(location.search, navigator.webdriver === true)) return;
     try {
       const ga = new GameAnalyticsService({ userId: this.data.profile.installId, platform: nativePlatform, verbose: this.data.settings.devTools });
@@ -735,7 +742,13 @@ export class Game implements World {
     // Night is the hero look: held unless the cycle is switched on (and even then, the first session stays night).
     const time = VISUALS.time;
     const holdNight = time.mode === 'night' || (time.firstSessionNight && this.data.profile.sessionCount <= 1);
-    const t = this.dayCycleOverride ?? (holdNight ? NIGHT_TIME : ((j.legsCompleted + fraction) / legs + 0.08) % 1);
+    let t = this.dayCycleOverride ?? (holdNight ? NIGHT_TIME : ((j.legsCompleted + fraction) / legs + 0.08) % 1);
+    // Phase 1, the route's lighting preset: the Countryside Express opens each session at golden hour and fades into the
+    // blue night over its first minutes of play, the lamps on the train coming on as it darkens (`setNightAmount`).
+    if (this.dayCycleOverride === null && holdNight && ACTIVE_ROUTE.lighting === 'goldenHourToNight') {
+      const f = Math.min(1, this.sessionSeconds / Math.max(1, ACTIVE_ROUTE.duskSeconds));
+      t = GOLDEN_TIME + (NIGHT_TIME - GOLDEN_TIME) * f * f * (3 - 2 * f);
+    }
     // In a rock cutting the moon is hidden and the train's lamps take over.
     this.stage.lighting.darkness = this.scenery.darknessAt(this.stage.rig.focusPoint.z);
     this.stage.lighting.setTime(t);
@@ -1114,4 +1127,47 @@ export class Game implements World {
   get catalogue(): typeof CARRIAGE_CATALOGUE {
     return CARRIAGE_CATALOGUE;
   }
+}
+
+/**
+ * Phase 1, the debug jump (`?jump=N:T[:s]`, config/debugJump.ts): the save rebuilt as the route's first N carriages,
+ * every room, washroom and seat open, each carriage at lifecycle tier T (0 Broken, 1–3 its refit tiers; a passenger
+ * carriage's Repair comes with tier 1), optionally every helper hired; the opening and the tutorial behind it.
+ */
+function applyDebugJump(data: SaveData, jump: DebugJump): void {
+  const carriages = CARRIAGE_ORDER.slice(0, Math.min(jump.carriages, CARRIAGE_ORDER.length));
+  const defs = buildUnlocks(carriages);
+  const unlocked = ['c0.open'];
+  const staff: Record<string, { level: number }> = {};
+  for (const d of defs) {
+    if (d.kind === 'couple') {
+      if (d.carriage < carriages.length) unlocked.push(d.id);
+      continue;
+    }
+    if (d.carriage < 0) continue;
+    const type = carriages[d.carriage];
+    if (d.kind === 'cabin' || d.kind === 'bathroom' || d.kind === 'seat') unlocked.push(d.id);
+    if (d.kind === 'refurb') {
+      const step = refitStep(type, d.tier ?? 1);
+      if (jump.tier > 0 && step <= jump.tier) unlocked.push(d.id);
+    }
+    if (jump.staffed && d.kind === 'hire' && d.role) {
+      unlocked.push(d.id);
+      staff[`${d.role}_${d.carriage}`] = { level: 1 };
+    }
+  }
+  const route = data.route;
+  route.carriages = carriages;
+  route.unlocked = unlocked;
+  route.partial = {};
+  route.level = Math.max(route.level, 8);
+  route.stars = Math.max(route.stars, 4000);
+  route.stopsCompleted = Math.max(route.stopsCompleted, 3);
+  route.legsCompleted = Math.max(route.legsCompleted, 3);
+  data.staff = staff;
+  data.wallet.cash = Math.max(data.wallet.cash, 5000);
+  data.press.trainName ??= 'The Night Owl';
+  data.profile.lifetimePlaySeconds = Math.max(data.profile.lifetimePlaySeconds, 900);
+  data.profile.flags.openingSeen = true;
+  data.profile.gaSent = {};
 }

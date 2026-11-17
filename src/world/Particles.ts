@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Rng } from '../core/Rng';
 
-export type ParticleKind = 'dust' | 'sparkle' | 'confetti' | 'smoke' | 'steam' | 'star' | 'cash' | 'heart' | 'chimney';
+export type ParticleKind = 'dust' | 'sparkle' | 'confetti' | 'smoke' | 'steam' | 'star' | 'cash' | 'heart' | 'chimney' | 'mote';
 
 interface KindSpec {
   colors: string[];
@@ -28,6 +28,8 @@ const SPECS: Record<ParticleKind, KindSpec> = {
   star: { colors: ['#FFD35C', '#FFE9A8'], size: [0.35, 0.6], life: [0.8, 1.2], speed: [2, 4], up: [2, 4], gravity: 4, drag: 1.4, grow: -0.1, shape: 1, alpha: 1 },
   cash: { colors: ['#7CC47F', '#A6DDB0'], size: [0.12, 0.18], life: [0.6, 0.9], speed: [1.5, 3], up: [2, 3.5], gravity: 8, drag: 0.8, grow: 0, shape: 2, alpha: 1 },
   heart: { colors: ['#E8577A', '#F28CA5'], size: [0.3, 0.45], life: [0.9, 1.3], speed: [0.2, 0.6], up: [1.0, 1.6], gravity: -0.4, drag: 1, grow: 0.1, shape: 0, alpha: 1 },
+  // Phase 1, the Broken state: dust motes hanging in the air of a carriage no one has looked after (slow, faint, long).
+  mote: { colors: ['#F2E6C9', '#E3D3B0', '#FFF4DC'], size: [0.05, 0.09], life: [3.0, 5.0], speed: [0.02, 0.07], up: [0.02, 0.08], gravity: -0.015, drag: 0.4, grow: 0, shape: 3, alpha: 0.55 },
   chimney: { colors: ['#D9D6CF', '#C9C6C0', '#E6E3DC'], size: [0.35, 0.55], life: [2.6, 3.6], speed: [0.04, 0.12], up: [0.45, 0.7], gravity: -0.04, drag: 0.4, grow: 1.8, shape: 3, alpha: 0.3, rides: true },
 };
 
