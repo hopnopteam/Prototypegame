@@ -376,19 +376,17 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
     const table = inRoom.find((p) => p.kind === 'table');
     const dining = inRoom.find((p) => p.kind === 'dining');
     const base = FLOOR_Y + ROOM_LIFT;
-    // First Class (floor tier 3) lays its rugs on a navy carpet, so their field is cream (fix list 5.2).
-    const cream = tier === 3;
+    // First Class (floor tier 3) and the Royal Suite lay velvet rugs edged in gold (session 53: First's were cream on
+    // navy); a Business lounge a figured rug in its own colour.
     const layers = (gold: boolean): { color: string; inset: number; pattern?: PartStyle }[] => [
       { color: gold ? PALETTE.gold : theme.deep, inset: 0 },
       { color: theme.deep, inset: 0.035 },
-      { color: cream ? PALETTE.gold : '#F1E7D4', inset: 0.1 },
-      cream
-        ? { color: '#EFE5CF', inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: '#D9CBAA', scale: 0.2, shade: 1 } }
-        : tier >= 4
-          ? { color: theme.deep, inset: 0.13, pattern: VELVET }
-          : { color: theme.deep, inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: shadeHex(theme.deep, 20), scale: 0.2, shade: 1 } },
+      { color: tier >= 3 ? PALETTE.gold : '#F1E7D4', inset: 0.1 },
+      tier >= 3
+        ? { color: theme.deep, inset: 0.13, pattern: VELVET }
+        : { color: theme.deep, inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: shadeHex(theme.deep, 20), scale: 0.2, shade: 1 } },
     ];
-    if (sofa && table) rug(f, rect(table.rect.x0 - 0.22, sofa.rect.z0 + 0.04, sofa.rect.x1 - 0.02, sofa.rect.z1 - 0.04), base, layers(tier >= 4 || cream));
+    if (sofa && table) rug(f, rect(table.rect.x0 - 0.22, sofa.rect.z0 + 0.04, sofa.rect.x1 - 0.02, sofa.rect.z1 - 0.04), base, layers(tier >= 3));
     if (dining) rug(f, rect(dining.rect.x0 - 0.06, dining.rect.z0 - 0.06, dining.rect.x1 + 0.06, dining.rect.z1 + 0.06), base, layers(true));
   }
   for (const bath of layout.bathrooms) {
@@ -612,7 +610,8 @@ function firstClassRoom(f: GeoBuilder, r: Rect, theme: CarriageTheme): void {
   f.slab(rect(inner.x0, inner.z1 - line, inner.x1, inner.z1), y0, y1, PALETTE.gold, 0, 0, gold);
   f.slab(rect(inner.x0, inner.z0 + line, inner.x0 + line, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, gold);
   f.slab(rect(inner.x1 - line, inner.z0 + line, inner.x1, inner.z1 - line), y0, y1, PALETTE.gold, 0, 0, gold);
-  f.slab(rect(inner.x0 + line, inner.z0 + line, inner.x1 - line, inner.z1 - line), y0, y1, theme.carpet, 0, 0, { pattern: PATTERN.diamond, color2: shadeHex(theme.carpet, 11), scale: 0.2, shade: 1, surface: 'velvet', detail: 'wool' });
+  // Session 53: a champagne field with a fine gold trellis (it was a navy diamond).
+  f.slab(rect(inner.x0 + line, inner.z0 + line, inner.x1 - line, inner.z1 - line), y0, y1, theme.carpet, 0, 0, { pattern: PATTERN.trellis, color2: shadeHex(theme.carpet, 16), scale: 0.26, shade: 1, surface: 'velvet', detail: 'wool' });
 }
 
 /** A window opening on a wall that faces the camera: its inner face (x), its span along the wall and its top. */

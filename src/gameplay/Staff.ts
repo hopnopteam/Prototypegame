@@ -207,7 +207,9 @@ export class StaffManager {
   init(): void {
     for (const [key, value] of Object.entries(this.w.data.staff)) {
       const [role, carriage] = key.split('_');
-      if (Number(carriage) < this.w.train.count) this.spawn(role as StaffRole, Number(carriage), value.level, false);
+      // A helper whose carriage no longer has a place for them (session 53: the Washroom Car's porter moved to the
+      // Family Sleeper with its desk) stays on the books but is not spawned.
+      if (Number(carriage) < this.w.train.count && this.w.map.hasAnchor(Number(carriage), `home_${role}`)) this.spawn(role as StaffRole, Number(carriage), value.level, false);
     }
   }
 

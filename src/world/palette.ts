@@ -171,7 +171,10 @@ export const CLASS_THEMES: Record<'comfort' | 'business' | 'first' | 'royal', Ca
   comfort: { wall: '#B4DBD1', wallLow: '#86BFB2', carpet: '#DCE7E2', deep: '#2F7F7A', blanket: '#5FA39B', curtain: '#E5B452' },
   business: { wall: '#BFCADB', wallLow: '#93A5BE', carpet: '#D6DCE4', deep: '#2A4468', blanket: '#3F5E8C', curtain: '#C9D2DC' },
   // Fix list 5.2: one scheme, deep blue and gold (the red velvet bed and ottoman beside blue walls read as a mix).
-  first: { wall: '#4A64A8', wallLow: '#2E4683', carpet: '#22397A', deep: '#1F3672', blanket: '#2C4C99', curtain: '#E2B653' },
+  // Session 53 (owner: "the look of First Class isn't good at all… better colours, more suited for a better First Class
+  // experience"): it was electric blue on every surface. Now the old sleeper-train look: warm ivory over mahogany
+  // panelling, sapphire velvet only where you sit and sleep, a champagne carpet with a fine gold trellis, gold trim.
+  first: { wall: '#EEE2CA', wallLow: '#6A3A2A', carpet: '#BFA272', deep: '#1D2D4C', blanket: '#28426E', curtain: '#E2B653' },
   royal: { wall: '#E7C3C1', wallLow: '#C99592', carpet: '#EADBD2', deep: '#6A1E2E', blanket: '#7E2436', curtain: '#E2B653' },
 };
 

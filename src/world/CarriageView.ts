@@ -248,13 +248,15 @@ function finishFor(type: CarriageType, tier: number, t: CarriageTheme): Finish {
   if (isPassengerType(type) && tier >= 3) {
     // Business, First Class and the Royal Suite: panelled, a runner edged in silver or gold, brass sconces.
     const edge = tier === 3 ? '#C9D2DC' : PALETTE.gold;
-    // Fix list 5.2: First Class panels in deep navy under a gold cap (Business keeps walnut, the Royal Suite burgundy).
-    const panel = tier >= 5 ? '#5A1A28' : tier === 4 ? '#1B2C5A' : PALETTE.walnut;
+    // First Class panels in polished mahogany under a gold cap (session 53; they were deep navy), Business keeps walnut,
+    // the Royal Suite burgundy.
+    const panel = tier >= 5 ? '#5A1A28' : tier === 4 ? '#5C2E21' : PALETTE.walnut;
     return {
       wall: t.wall, wallLow: t.wallLow, panelled: true, panel, cap: tier >= 4 ? PALETTE.gold : PALETTE.walnut,
       floor: PALETTE.boards, floorSeam: PALETTE.boardsSeam, floorPattern: PATTERN.boards, floorScale: 0.3,
       room: PALETTE.boards, roomSeam: PALETTE.boardsSeam, roomPattern: PATTERN.boards, roomScale: 0.3,
-      runner: { body: t.deep, edge }, curtains: true, lamps: 3, decor: true,
+      // First Class's corridor runner is its champagne carpet (session 53: a sapphire runner made the corridor a dark band).
+      runner: { body: tier === 4 ? t.carpet : t.deep, edge }, curtains: true, lamps: 3, decor: true,
     };
   }
   if (tier <= 0) {
@@ -1322,7 +1324,11 @@ export class CarriageView {
       const x0 = -INNER + 0.12;
       const x1 = PARTITION_X0 - 0.12;
       f.slab(rect(x0, z0, x1, z1), FLOOR_Y, FLOOR_Y + LIFT, fin.runner.edge, 0, 0, FLAT);
-      f.slab(rect(x0 + 0.05, z0 + 0.05, x1 - 0.05, z1 - 0.05), FLOOR_Y + LIFT, FLOOR_Y + LIFT * 2, fin.runner.body, 0, 0, FLAT);
+      // First Class's runner is woven like its cabins' carpet (session 53), so the corridor never reads as a flat band.
+      const woven: PartStyle = this.tier === 4 && isPassengerType(this.layout.type)
+        ? { pattern: PATTERN.trellis, color2: shadeHex(fin.runner.body, 16), scale: 0.26, shade: 1, surface: 'velvet', detail: 'wool' }
+        : FLAT;
+      f.slab(rect(x0 + 0.05, z0 + 0.05, x1 - 0.05, z1 - 0.05), FLOOR_Y + LIFT, FLOOR_Y + LIFT * 2, fin.runner.body, 0, 0, woven);
     }
 
     // Service cars get a runner down the aisle once they are cosy.
