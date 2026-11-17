@@ -1579,7 +1579,7 @@ export class CarriageView {
       f.object('decor:peelingPaint');
       f.add(new THREE.BoxGeometry(PEEL_DEPTH, 0.2, w), '#C2B49A', win.x + win.inward * PEEL_DEPTH / 2, y, zc, 0, 0, 0, { shade: 0.95 });
       f.add(new THREE.BoxGeometry(PEEL_DEPTH, 0.06, w * 0.7), '#E8E0CC', win.x + win.inward * PEEL_DEPTH * 1.5, y + 0.11, zc + w * 0.08, 0.12, 0, 0, { shade: 1 });
-      f.add(new THREE.BoxGeometry(PEEL_DEPTH, 0.09, w * 0.35), '#B3A486', win.x + win.inward * PEEL_DEPTH / 2, y - 0.14, zc - w * 0.2, 0, 0, 0, { shade: 0.9 });
+      f.add(new THREE.BoxGeometry(PEEL_DEPTH, 0.09, w * 0.35), '#B3A486', win.x + win.inward * PEEL_DEPTH / 2, y - 0.16, zc - w * 0.2, 0, 0, 0, { shade: 0.9 });
       f.endObject();
     });
   }
