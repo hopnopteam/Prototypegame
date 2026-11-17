@@ -949,6 +949,9 @@ function buildDining(tier: number): CarriageLayout {
   // floor; now it is the counter that closes the galley, running from the end of the range across the car, the way
   // into the kitchen left open on the lake side.
   b.prop('pass', 0.55, 3.3, INNER, 3.78, 'rear');
+  // Session 53 (owner: "separate the kitchen from the dining area"): a knee-high wall runs on from the pass across
+  // the lake side, so the galley is its own room; the way through is the doorway between them.
+  b.wallAlongX(3.54 - BACK_ROOM_WALL / 2, 3.54 + BACK_ROOM_WALL / 2, -INNER, -0.62, [], 'interior');
   // Session 24: a step out from the range, where the camera sees the whole pad over it.
   v.stations.push({ item: 'meal', pad: { x: 0.48, z: 1.85 } });
   v.pass = { x: 1.25, z: 4.42 };
@@ -998,7 +1001,7 @@ function buildDining(tier: number): CarriageLayout {
   b.anchor('tile_up_waiter', -1.2, 15.75);
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_menu', -1.45, 1.4);
-  b.anchor('tile_station', -1.3, 2.7);
+  b.anchor('tile_station', -1.3, 2.45);
 
   // The furnishings: the dresser of plates and glasses at the back where the waiter lays up, plants in the gaps
   // between the tables, coats at the back by the gangway, and a runner down the aisle once it is cosy.
@@ -1015,7 +1018,7 @@ function buildDining(tier: number): CarriageLayout {
   if (tier >= 2) for (const z of gaps) b.prop('planter', 1.94, z - 0.2, NEAR, z + 0.2, 'left', true, 'low');
   // Fix list 5.4: an evening restaurant. The galley is tiled; the dining room has a wine runner, then a claret carpet
   // wall to wall, with a Persian runner down the aisle at Luxury.
-  if (tier >= 1) v.carpets.push({ rect: rect(-INNER + 0.05, 0.05, INNER - 0.05, 3.25), style: 'kitchen' });
+  if (tier >= 1) v.carpets.push({ rect: rect(-INNER + 0.05, 0.05, INNER - 0.05, 3.5), style: 'kitchen' });
   if (tier === 1) v.carpets.push({ rect: rect(-0.6, 4.2, 0.6, 16.3), style: 'wine' });
   if (tier >= 2) v.carpets.push({ rect: rect(-INNER + 0.05, 3.85, INNER - 0.05, 15.35), style: 'claret' });
   if (tier >= 3) v.carpets.push({ rect: rect(-0.7, 4.3, 0.7, 15.2), style: 'persian' });

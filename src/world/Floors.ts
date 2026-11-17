@@ -518,8 +518,12 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
         ]);
         break;
       case 'kitchen':
-        // The dining car's galley: small cream and slate tiles.
-        lay([{ color: '#ECE8E0', inset: 0, pattern: { pattern: PATTERN.checker, color2: '#8A8780', scale: 0.16, shade: 1, surface: 'ceramic' } }]);
+        // The dining car's galley (session 53, owner: "change the dining car kitchen floor"; the small cream and slate
+        // checker read as a busy chequerboard): warm terracotta quarry tiles with their grout, in a slate border.
+        lay([
+          { color: '#4C4A48', inset: 0, pattern: { pattern: PATTERN.none, shade: 1, surface: 'ceramic', detail: 'paving' } },
+          { color: '#C27A52', inset: 0.07, pattern: { pattern: PATTERN.none, shade: 1, surface: 'ceramic', detail: 'paving' } },
+        ]);
         break;
       case 'wine':
         // The dining car's first runner: plain wine red edged in old gold.
