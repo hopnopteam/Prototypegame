@@ -142,11 +142,15 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
         b.slab(rect(r.x0, r.z0, r.x1, r.z1), Y + h - 0.06, Y + h + 0.03, '#B39A80', 0, 0, { ...FLAT, surface: 'wood' });
       } else if (MODEL_VENUE && !cinema) {
         // Session 51: Tiny Treats' counter table run along the café (a top on legs over a shelf), in oak on painted
-        // legs, then the café's sage under cream marble, then (Luxury) bottle green under marble with a gold rail.
+        // legs, then the café's sage under oak, then (Luxury) bottle green under verde marble with a gold rail.
         const body = tier >= 3 ? LUX.barGreen : tier === 2 ? '#7E9C78' : '#E4DCCB';
-        const top = tier >= 2 ? '#F1ECE4' : PALETTE.oak;
+        // Session 53b (owner: "still getting flashbanged on the café countertop"): the top was near-white (#F1ECE4)
+        // varnish, the brightest thing in the carriage under the café's daylight, a glaring slab against the dark carpet.
+        // Now an oiled oak worktop on the sage (Makeover) and dark verde marble under the gold rail (Luxury), matte, so it
+        // reads as a counter and never glares.
+        const top = tier >= 3 ? '#56604F' : PALETTE.oak;
         const segments = Math.max(1, Math.round(d / 1.0));
-        stripModel(b, 'counter', r, out, segments, h + 0.03, [key('ttWood', top), key('ttLight', body), key('ttMid', shadeHex(body, -12))], tier >= 2 ? 'varnish' : 'wood');
+        stripModel(b, 'counter', r, out, segments, h + 0.03, [key('ttWood', top), key('ttLight', body), key('ttMid', shadeHex(body, -12))], tier >= 3 ? 'matte' : 'wood');
         if (tier >= 2) b.box(front + out * 0.006, Y + h - 0.02, cz, 0.012, 0.03, d - 0.04, k.metal, 0, { ...FLAT, surface: k.metalSurface });
       } else {
         const body = tier >= 3 ? (cinema ? LUX.mahogany : LUX.barGreen) : tier === 2 && cinema ? theme.deep : k.wood;

@@ -407,6 +407,9 @@ vec3 nxSkyV(vec3 r, float rough) {
 }
 `;
 
+/** The tightest moon glint the per-vertex (Low, Medium) lighting draws: broad enough to interpolate across a big face. */
+const LITE_SHINE_MAX = 14;
+
 const LITE_VERTEX_BODY = /* glsl */ `
 {
   #ifdef NX_VERTEX_SURFACE
@@ -426,9 +429,12 @@ const LITE_VERTEX_BODY = /* glsl */ `
     float d = max(dot(nxNv, l), 0.0);
     if (i == 0) {
       // The moon (the shadow-casting light comes first): its share is shadowed per pixel; a Blinn glint whose
-      // tightness follows the surface's smoothness.
+      // tightness follows the surface's smoothness. Session 53b (owner: "still getting flashbanged on the café
+      // countertop"): worked out per vertex, a tight glint (exponent up to 240, peak ~10× the moon) lit a whole large
+      // face whenever one corner caught it, then dropped, so a varnished counter top flashed as the camera moved. Per
+      // vertex only a broad lobe interpolates smoothly; crisp glints are the per-pixel (High, Ultra) path's.
       nxMoon = directionalLights[i].color * d;
-      float shine = mix(240.0, 6.0, nxRough);
+      float shine = mix(${LITE_SHINE_MAX.toFixed(1)}, 4.0, nxRough);
       vec3 h = normalize(l + nxViewV);
       nxSpec = pow(max(dot(nxNv, h), 0.0), shine) * (shine + 8.0) * 0.04 * d;
     } else {
