@@ -79,8 +79,15 @@ export const INTERIOR_END = CARRIAGE_LENGTH - REAR_VESTIBULE - 0.06;
 export const PLATFORM_X0 = HALF_WIDTH + 0.25;
 export const PLATFORM_WIDTH = 6.5;
 
-/** Session 40: the washroom car's lounge (the second entrance), its check-in desk and the line that faces it. */
+/** Session 53: the Family Sleeper's lounge (the second entrance, with its own check-in desk), its desk and line. */
 export const BATHROOM_FRONT = 5.3;
+/** Session 53: the washroom car's short lounge, its two toilet rooms, the shower room, the cubicle and the tray. */
+export const WASHROOM_FRONT = 3.6;
+export const TOILET_LENGTH = 2.3;
+export const SHOWER_LENGTH = 2.8;
+export const CUBICLE_X0 = 0.95;
+export const CUBICLE_DEPTH = 1.1;
+export const SHOWER_X0 = 1.35;
 export const SIDE_DESK = { x0: 0.85, z0: 2.4, x1: 1.55, z1: 3.7 };
 export const SIDE_QUEUE_SLOTS: Vec2[] = [{ x: 2.0, z: 3.05 }, { x: 2.0, z: 2.35 }];
 
@@ -91,7 +98,7 @@ export const QUEUE_SLOTS: Vec2[] = [
 ];
 
 export type PropKind =
-  | 'bed' | 'desk' | 'urn' | 'linen' | 'rack' | 'bin' | 'toilet' | 'sink' | 'bathtub'
+  | 'bed' | 'desk' | 'urn' | 'linen' | 'rack' | 'bin' | 'toilet' | 'sink' | 'bathtub' | 'cubicle' | 'shower'
   | 'shelfTowel' | 'shelfRoll' | 'crateBay' | 'bench' | 'luggageRack' | 'plant' | 'lamp' | 'washShelf'
   | 'closet' | 'laundry' | 'table' | 'sofa' | 'bureau' | 'armchair' | 'wardrobe' | 'grandPiano' | 'dining'
   // Session 20: the venue carriages' furniture.
@@ -622,8 +629,11 @@ function buildLobby(tier: number): CarriageLayout {
 function buildSleeper(tier: number, type: 'sleeper' | 'familySleeper' = 'sleeper'): CarriageLayout {
   const b = new LayoutBuilder(type);
   // Deep enough that the linen pad in the nook stands clear of the first room's wall (in full view).
-  const front = 2.1;
-  b.shell({ frontGangway: true, doors: false });
+  const family = type === 'familySleeper';
+  // Session 53 (owner: "remove the second check-in desk and place it in the second sleeper instead, remove a room"):
+  // the Family Sleeper opens with a lounge, a door onto the platform and a small check-in desk past it.
+  const front = family ? BATHROOM_FRONT : 2.1;
+  b.shell({ frontGangway: true, doors: family });
   b.vestibules(front);
   // A small service nook in the front vestibule: supplies sit next to the cabins that need them.
   // The service nook either side of the gangway: tea on the left, linen on the right.
@@ -640,77 +650,93 @@ function buildSleeper(tier: number, type: 'sleeper' | 'familySleeper' = 'sleeper
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, front - 0.1);
   b.node('nook', 0, 1.05);
   b.chain('vest_front', 'nook', 'corr_in');
-  const [count, style] = type === 'familySleeper' ? FAMILY_ROOMS : SLEEPER_ROOMS[Math.min(SLEEPER_ROOMS.length - 1, Math.max(0, tier))];
+  const [count, style] = family ? FAMILY_ROOMS : SLEEPER_ROOMS[Math.min(SLEEPER_ROOMS.length - 1, Math.max(0, tier))];
+  if (family) {
+    // The desk faces the platform wall: the line waits between it and that wall (in from the door, clear of everyone
+    // walking through the carriage), and whoever serves works it from its camera end.
+    b.prop('desk', SIDE_DESK.x0, SIDE_DESK.z0, SIDE_DESK.x1, SIDE_DESK.z1, 'right');
+    b.prop('plant', -INNER, 3.6, out(-2.14), 4.0, 'right', false);
+    const serve = { x: (SIDE_DESK.x0 + SIDE_DESK.x1) / 2, z: SIDE_DESK.z1 + 0.42 };
+    b.anchor('deskService', serve.x, serve.z);
+    b.anchor('deskCash', SIDE_DESK.x0 - 0.45, serve.z);
+    b.anchor('idle_porter', SIDE_DESK.x0 - 0.45, SIDE_DESK.z0 + 0.6);
+    b.anchor('home_porter', -1.6, 2.7);
+    b.anchor('tile_up_porter', -1.6, 2.7);
+    b.layout.queue = SIDE_QUEUE_SLOTS.map((p) => ({ ...p }));
+    b.node('lounge', -1.05, 3.4);
+    b.node('desk', serve.x, serve.z);
+    b.node('desk_aisle', SIDE_DESK.x0 - 0.5, serve.z);
+    b.chain('door_in', 'vest_front');
+    b.chain('nook', 'lounge', 'corr_in');
+    b.chain('lounge', 'desk_aisle', 'desk');
+  }
   b.rooms(front, INTERIOR_END, count, 'corr_in', style);
   // Phase 1: the Family Sleeper's beds are bunks (a parent below, the child above), drawn by the carriage view.
   if (type === 'familySleeper') for (const prop of b.layout.props) if (prop.kind === 'bed') prop.variant = 'bunk';
   return b.layout;
 }
 
-/** Phase 1, the Family Sleeper: six cabins of bunk beds at every refit (its refits refurnish, they never rebuild). */
-const FAMILY_ROOMS: [number, RoomStyle] = [6, 'berth'];
+/** Phase 1, the Family Sleeper: cabins of bunk beds at every refit (its refits refurnish, they never rebuild); five since
+ * session 53, when its lounge took the second check-in desk. */
+const FAMILY_ROOMS: [number, RoomStyle] = [5, 'berth'];
 const buildFamilySleeper = (tier: number): CarriageLayout => buildSleeper(tier, 'familySleeper');
 
 function buildBathroom(): CarriageLayout {
   const b = new LayoutBuilder('bathroom');
-  // Session 30 (owner: "the bathroom carriage is big for no reason… empty spaces"): a short lounge up front, then three
-  // compact washrooms, and a linen store walled off at the back, full of shelves (the carriage keeps its length).
-  // Session 40 (owner: "additional entry and check-in points… on larger trains"): the lounge is the train's second
-  // entrance, a door onto the platform and a small check-in desk, so guests with a room toward the back board and get
-  // their key here instead of walking the whole train from the lobby.
-  const front = BATHROOM_FRONT;
-  // Phase 1: two washrooms (a loo and basin, then the bathtub), each a little roomier.
-  const washLength = 3.4;
-  const count = 2;
-  const end = front + count * washLength;
-  b.shell({ frontGangway: true, doors: true });
+  // Session 30 (owner: "the bathroom carriage is big for no reason… empty spaces"): a short lounge up front, then the
+  // washrooms, and a linen store walled off at the back, full of shelves (the carriage keeps its length).
+  // Session 53 (owner: "the washroom car needs 3 bathrooms, better planned… the last room is useless, replace it with a
+  // shower… toilets and showers are different, toilets much smaller and covered"): two small toilet rooms, each a
+  // cubicle round the loo with a basin outside it, then a shower room. The check-in desk moved to the Family Sleeper.
+  const front = WASHROOM_FRONT;
+  const lengths = [TOILET_LENGTH, TOILET_LENGTH, SHOWER_LENGTH];
+  const end = front + lengths.reduce((sum, l) => sum + l, 0);
+  b.shell({ frontGangway: true, doors: false });
   b.vestibules(front);
   b.connector(-INNER, front - 0.5, PARTITION_X0, INTERIOR_END + 0.55, 'z');
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, front);
 
   b.prop('closet', -INNER, 1.0, out(-1.8), 2.9, 'right');
   b.prop('plant', -INNER, 3.25, out(-2.14), 3.65, 'right', false);
-  // The check-in desk past the door, facing the platform wall: the line waits between it and that wall (in from the
-  // door, clear of everyone walking through the carriage), and whoever serves works it from its camera end.
-  b.prop('desk', SIDE_DESK.x0, SIDE_DESK.z0, SIDE_DESK.x1, SIDE_DESK.z1, 'right');
+  // The lounge's other side: a bench to wait on, under the windows.
+  b.prop('bench', out(1.95), 1.1, INNER, 2.5, 'left');
   b.anchor('closet', out(-1.36), 1.95);
   b.anchor('towel', out(-1.36), 1.95);
   b.anchor('roll', out(-1.36), 1.95);
-  const serve = { x: (SIDE_DESK.x0 + SIDE_DESK.x1) / 2, z: SIDE_DESK.z1 + 0.42 };
-  b.anchor('deskService', serve.x, serve.z);
-  b.anchor('deskCash', SIDE_DESK.x0 - 0.45, serve.z);
-  b.anchor('idle_porter', SIDE_DESK.x0 - 0.45, SIDE_DESK.z0 + 0.6);
-  b.anchor('home_porter', -REAR_TILE_X, REAR_TILE_Z);
-  b.anchor('tile_up_porter', -REAR_TILE_X, REAR_TILE_Z);
-  b.layout.queue = SIDE_QUEUE_SLOTS.map((p) => ({ ...p }));
-  // The way through runs along the aisle side, clear of the line.
-  b.node('lounge', -1.05, 3.4);
-  b.node('desk', serve.x, serve.z);
-  b.node('desk_aisle', SIDE_DESK.x0 - 0.5, serve.z);
+  b.node('lounge', -0.4, 2.0);
+  b.chain('vest_front', 'lounge', 'corr_in');
 
   const gaps: [number, number][] = [];
   let previous = 'corr_in';
-  b.chain('vest_front', 'lounge', 'corr_in');
-  b.chain('door_in', 'vest_front');
-  b.chain('lounge', 'desk_aisle', 'desk');
-  for (let index = 0; index < count; index++) {
-    const z0 = front + index * washLength;
-    const z1 = z0 + washLength;
+  let z0 = front;
+  lengths.forEach((length, index) => {
+    const z1 = z0 + length;
+    const shower = index === lengths.length - 1;
     b.wall(PARTITION_X1, z0 - 0.06, INNER, z0 + 0.06);
-    if (index === count - 1) b.wall(PARTITION_X1, z1 - 0.06, INNER, z1 + 0.06);
+    if (shower) b.wall(PARTITION_X1, z1 - 0.06, INNER, z1 + 0.06);
     const [doorZ0, doorZ1] = centredDoor(z0, z1);
     const doorZ = (doorZ0 + doorZ1) / 2;
     gaps.push([doorZ0, doorZ1]);
     b.room(PARTITION_X1, z0 + 0.06, INNER, z1 - 0.06);
     b.connector(PARTITION_X0 - 0.45, doorZ0, PARTITION_X1 + 0.45, doorZ1, 'x', false, `bath:${index}`);
-    b.prop('toilet', INNER - 0.62, z0 + 0.22, INNER, z0 + 0.87, 'left');
-    // The washroom's own towels and rolls, on an open stand against the front wall.
-    b.prop('washShelf', PARTITION_X1 + 0.08, z0 + 0.08, PARTITION_X1 + 0.68, z0 + 0.38, 'rear');
-    if (index < count - 1) b.prop('sink', INNER - 0.5, z1 - 0.82, INNER, z1 - 0.22, 'left');
-    else b.prop('bathtub', INNER - 1.5, z1 - 1.12, INNER, z1 - 0.14, 'left');
+    // The room's own towels and rolls, on an open stand against the front wall (clear of the door's swing).
+    b.prop('washShelf', PARTITION_X1 + 0.08, z0 + 0.08, PARTITION_X1 + 0.68, z0 + 0.3, 'rear');
+    let use: Vec2;
+    if (!shower) {
+      // The cubicle in the corner by the outer wall, its door open onto the room; the loo inside, the basin outside.
+      b.prop('cubicle', CUBICLE_X0, z0 + 0.06, INNER, z0 + CUBICLE_DEPTH, 'left', false);
+      b.prop('toilet', INNER - 0.62, z0 + 0.3, INNER, z0 + 0.95, 'left');
+      b.prop('sink', INNER - 0.5, z1 - 0.76, INNER, z1 - 0.16, 'left');
+      use = { x: CUBICLE_X0 + 0.4, z: z0 + 0.62 };
+    } else {
+      // The shower: a tiled tray in the corner by the outer wall with its curtain drawn back, a bench to change on.
+      b.prop('shower', SHOWER_X0, z0 + 0.08, INNER, z0 + 1.12, 'left', false);
+      b.prop('sink', INNER - 0.5, z1 - 0.82, INNER, z1 - 0.22, 'left');
+      use = { x: (SHOWER_X0 + INNER) / 2, z: z0 + 0.6 };
+    }
     const corridorNode = b.node(`corr_${index}`, (-INNER + PARTITION_X0) / 2, doorZ);
     const node = b.node(`bath_${index}`, PARTITION_X1 + 0.92, doorZ + 0.1);
-    const useNode = b.node(`bath_use_${index}`, INNER - 1.05, z0 + 0.62);
+    const useNode = b.node(`bath_use_${index}`, use.x, use.z);
     b.chain(previous, corridorNode, node, useNode);
     previous = corridorNode;
     b.layout.bathrooms.push({
@@ -718,13 +744,14 @@ function buildBathroom(): CarriageLayout {
       room: rect(PARTITION_X1, z0 + 0.06, INNER, z1 - 0.06),
       doorZ,
       door: [doorZ0, doorZ1],
-      // The restock pad stands in the middle of the little room, clear of the loo and the basin.
-      restock: { x: PARTITION_X1 + 1.05, z: z0 + 1.25 },
-      useSpot: { x: INNER - 1.05, z: z0 + 0.62 },
+      // The restock pad stands in the room, clear of the cubicle, the shower and the basin.
+      restock: { x: PARTITION_X1 + 0.75, z: z0 + 1.25 },
+      useSpot: use,
       node,
       useNode,
     });
-  }
+    z0 = z1;
+  });
   b.wallAlongZ(PARTITION_X0, PARTITION_X1, front, end, gaps, 'interior');
   // The linen store: clean towels and rolls on shelves, laundry baskets, a folding table.
   backRoom(b, 'linen', 'right', PARTITION_X1, end + 0.06);

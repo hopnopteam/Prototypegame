@@ -329,6 +329,9 @@ const HOLDS: Record<string, string[]> = {
   'prop:shelfTowel': ['stock:shelfTowel'],
   'prop:shelfRoll': ['stock:shelfRoll'],
   'prop:washShelf': ['stock:towel', 'stock:roll'],
+  // Session 53: a toilet cubicle stands round its loo; the shower's corner shelf holds the soaps.
+  'fixture:cubicle': ['fixture:toilet'],
+  'fixture:shower': ['comfort:soap@shower'],
   // The lobby cat curls up on the reception desk.
   'prop:desk': ['cat'],
   // An unmade bed is built on top of the made one, in pieces that lie on one another (session 23).

@@ -136,7 +136,7 @@ const OCCLUDER_HEIGHT: Partial<Record<string, number>> = {
   counter: 0.95, concession: 0.95, espresso: 1.4, pastryCase: 1.3, pastries: 1.1, beans: 1.2, range: 0.95, pass: 1.0,
   bar: 1.05, desk: 0.9, urn: 1.2, linen: 1.7, closet: 1.8, shelfTowel: 0.65, shelfRoll: 0.65, crateBay: 0.95, laundry: 1.0,
   popcornMachine: 1.5, projector: 1.05, wineRack: 1.6, aquarium: 1.2, candyCart: 1.1, sideboard: 1.0, bureau: 1.3,
-  wardrobe: 1.9, luggageRack: 0.95, rack: 0.95,
+  wardrobe: 1.9, luggageRack: 0.95, rack: 0.95, cubicle: 0.9, shower: 1.0,
 };
 
 describe('visibility: pads in view over the furniture too', () => {

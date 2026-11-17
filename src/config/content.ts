@@ -375,16 +375,16 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
     ],
   },
   bathroom: {
-    type: 'bathroom', name: 'Washroom Car', pitch: '+2 washrooms', max: 1, cabins: 0, inside: '2 washrooms, a linen closet, a second check-in desk',
+    type: 'bathroom', name: 'Washroom Car', pitch: '+2 toilets, a shower', max: 1, cabins: 0, inside: '2 toilets, a shower room, a linen closet',
     unlocks: [
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 35, stars: 3, tier: 1, requires: ['couple', '@couple_2'], effect: 'Tips +50%' },
-      { key: 'bath_1', kind: 'bathroom', label: 'Washroom 2', price: 45, stars: 2, bathroom: 1, requires: ['couple', '@couple_2'], effect: '+1 washroom' },
+      { key: 'bath_1', kind: 'bathroom', label: 'Toilet 2', price: 45, stars: 2, bathroom: 1, requires: ['couple', '@couple_2'], effect: '+1 washroom' },
+      // Session 53: the third room is the shower.
+      { key: 'bath_2', kind: 'bathroom', label: 'Shower', price: 70, stars: 2, bathroom: 2, requires: ['bath_1'], effect: '+1 washroom' },
       { key: 'comfort_soap', kind: 'comfort', label: 'Soaps', price: 55, stars: 2, comfort: 'soap', requires: ['refurb_1'], effect: 'Tips +25%' },
       { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 130, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Tips +50%' },
       { key: 'comfort_rail', kind: 'comfort', label: 'Towel Rails', price: 120, stars: 2, comfort: 'rail', requires: ['comfort_soap', '@couple_3'], effect: 'Tips +25%' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 260, stars: 5, tier: 3, requires: ['refurb_2', '@couple_4'], effect: 'Tips +50%' },
-      // Session 40: the second entrance's own porter (its check-in desk, the bags and the stand when the first is busy).
-      { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 320, stars: 3, role: 'porter', requires: ['couple', '@c0.hire_porter', '@couple_4'], work: { keys: 12 }, effect: 'Second desk' },
     ],
   },
   supply: {
@@ -550,7 +550,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
   // family archetype); the children ask for snacks. A warmer look than the Sleeper; costs like it. Three refits
   // (Repair, Cosy, Luxury: the Basic, Comfort and Business finishes, its rooms kept), one hire, two comforts.
   familySleeper: {
-    type: 'familySleeper', name: 'Family Sleeper', pitch: '+6 family cabins', max: 1, cabins: 6, inside: '6 cabins of bunk beds, snacks for the children',
+    type: 'familySleeper', name: 'Family Sleeper', pitch: '+5 family cabins', max: 1, cabins: 5, inside: '5 cabins of bunk beds, a second check-in desk',
     unlocks: [
       { key: 'cabin_0', kind: 'cabin', label: 'Cabin {n}', price: 60, stars: 2, cabin: 0, requires: ['couple'], effect: '+1 family' },
       { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 90, stars: 2, cabin: 1, requires: ['cabin_0'], effect: '+1 family' },
@@ -560,8 +560,9 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'cabin_3', kind: 'cabin', label: 'Cabin {n}', price: 150, stars: 2, cabin: 3, requires: ['cabin_2'], effect: '+1 family' },
       { key: 'refurb_2', kind: 'refurb', label: 'Cosy', price: 300, stars: 4, tier: 2, requires: ['cabin_1', 'refurb_1'], effect: 'Fares ×1.8' },
       { key: 'cabin_4', kind: 'cabin', label: 'Cabin {n}', price: 180, stars: 2, cabin: 4, requires: ['cabin_3'], effect: '+1 family' },
-      { key: 'cabin_5', kind: 'cabin', label: 'Cabin {n}', price: 220, stars: 2, cabin: 5, requires: ['cabin_4'], effect: '+1 family' },
       { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 240, stars: 3, role: 'attendant', requires: ['cabin_1'], work: { rooms: 6 }, effect: 'Tidies, serves' },
+      // Session 53: the second entrance's own porter moved here with its desk (the bags and the stand when the first is busy).
+      { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 320, stars: 3, role: 'porter', requires: ['couple', '@c0.hire_porter'], work: { keys: 12 }, effect: 'Second desk' },
       { key: 'comfort_radio', kind: 'comfort', label: 'Minibars', price: 420, stars: 2, comfort: 'minibar', requires: ['comfort_lamp'], effect: 'Snack sales' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 1350, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_5'], effect: 'Fares ×2.6' },
     ],

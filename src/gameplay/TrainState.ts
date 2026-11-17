@@ -1757,7 +1757,10 @@ export class TrainState {
     // The washroom car keeps its own towels and rolls: it works the day it couples on.
     if (type === 'bathroom') {
       this.sourceZone(`src:closet:${index}`, at('closet'), ['towel', 'roll']);
-      // Session 40: the second entrance's check-in desk, worked like the lobby's.
+    }
+
+    // Session 40: a second entrance's check-in desk, worked like the lobby's (the Family Sleeper's since session 53).
+    if (type !== 'lobby') {
       if (layout.anchors.deskService) {
         const desk = at('deskService');
         w.zones.add(new Zone({

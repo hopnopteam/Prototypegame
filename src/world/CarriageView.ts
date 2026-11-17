@@ -145,6 +145,11 @@ const LITTER_SCALE = 1.35;
 
 
 /** The washroom stock stand: panel width, board tops and overall height (metres above the floor). */
+/** Session 53: a toilet cubicle's panels (thickness, the gap at the floor, height), the stub by the front wall, the post
+ * by the front panel, and how far its door stands open (radians from shut). */
+const CUBICLE = { thick: 0.035, gap: 0.1, height: 0.86, stub: 0.24, post: 0.16, open: 1.35 };
+/** Session 53: the shower's curtain rail and corner shelf heights. */
+const SHOWER = { rail: 1.0, shelf: 0.74 };
 const WASH_SHELF = { side: 0.03, middle: 0.33, top: 0.6, height: 0.64 };
 /**
  * Room doors (session 16, owner: "the doors are half animated… make them feel like part of the train"): two
@@ -486,7 +491,8 @@ export class CarriageView {
   cat: TrainCat | null = null;
 
   private buildCat(): void {
-    const desk = this.layout.props.find((p) => p.kind === 'desk');
+    // The lobby's own cat: a second entrance's desk has none (there was one on each).
+    const desk = this.layout.type === 'lobby' ? this.layout.props.find((p) => p.kind === 'desk') : undefined;
     if (!desk) return;
     this.cat = new TrainCat();
     // The desk's top: a trestle table when run down, a felt-topped counter once repaired (see buildProp).
@@ -970,7 +976,7 @@ export class CarriageView {
       out.push(group);
     }
     for (const bath of this.layout.bathrooms) {
-      const fixtures = this.layout.props.filter((p) => (p.kind === 'sink' || p.kind === 'bathtub') && rectInside(p.rect, bath.room));
+      const fixtures = this.layout.props.filter((p) => (p.kind === 'sink' || p.kind === 'bathtub' || p.kind === 'shower') && rectInside(p.rect, bath.room));
       const pivot = { x: 0, z: bath.room.z0 + 0.3 };
       const group = make((b) => buildBathComforts(b, bath.room, fixtures, keys, this.theme, this.tier), pivot, this.bathroomFixtures[bath.index]?.visible ?? true);
       if (!group) continue;
@@ -1348,7 +1354,7 @@ export class CarriageView {
     }
     for (const prop of this.layout.props) {
       if (owned.has(prop)) continue;
-      if (prop.kind === 'bed' || prop.kind === 'toilet' || prop.kind === 'sink' || prop.kind === 'bathtub' || prop.kind === 'washShelf') continue;
+      if (prop.kind === 'bed' || prop.kind === 'toilet' || prop.kind === 'sink' || prop.kind === 'bathtub' || prop.kind === 'washShelf' || prop.kind === 'cubicle' || prop.kind === 'shower') continue;
       if (prop.kind === 'plant' && this.tier < 2) continue;
       // The lobby rack is built on its own (it grows with its upgrades: buildRack).
       if (prop.kind === 'rack') continue;
@@ -1686,9 +1692,12 @@ export class CarriageView {
           const curtain = fin.curtain ?? this.theme.curtain;
           for (const side of [-1, 1]) {
             const edge = zc + side * (width / 2);
-            s.box(innerFace + inward * 0.018, FLOOR_Y + (WY0 + WY1) / 2 - 0.01, edge + side * 0.03, 0.012, WY1 - WY0 + 0.06, 0.13, curtain, 0, { shade: 0.82 });
+            // The hem clears the knee-high walls between rooms (a drape by a window near one met the wall's face).
+            const hem = Math.max(WY0 + 0.02, INTERIOR_WALL_HEIGHT + 0.06);
+            const head = WY1 + 0.03;
+            s.box(innerFace + inward * 0.018, FLOOR_Y + (hem + head) / 2, edge + side * 0.0283, 0.012, head - hem, 0.1267, curtain, 0, { shade: 0.82 });
           }
-          s.box(innerFace + inward * 0.024, FLOOR_Y + WY1 + 0.035, zc, 0.02, 0.05, width + 0.2, curtain, 0, { shade: 0.9 });
+          s.box(innerFace + inward * 0.024, FLOOR_Y + WY1 + 0.035, zc, 0.02, 0.05, width + 0.1873, curtain, 0, { shade: 0.9 });
         }
         // Lamps between windows: a bare bulb in the old carriage, proper sconces once refurbished.
         const lampEvery = fin.lamps >= 2 ? 2 : 3;
@@ -1824,7 +1833,7 @@ export class CarriageView {
       const builder = new GeoBuilder();
       const bathLamps = new GeoBuilder();
       for (const prop of this.layout.props) {
-        if ((prop.kind === 'toilet' || prop.kind === 'sink' || prop.kind === 'bathtub' || prop.kind === 'washShelf') && rectInside(prop.rect, bath.room)) {
+        if ((prop.kind === 'toilet' || prop.kind === 'sink' || prop.kind === 'bathtub' || prop.kind === 'washShelf' || prop.kind === 'cubicle' || prop.kind === 'shower') && rectInside(prop.rect, bath.room)) {
           builder.object(prop.kind === 'washShelf' ? 'prop:washShelf' : `fixture:${prop.kind}`);
           buildProp(builder, bathLamps, prop, this.theme, this.tier);
         }
@@ -2125,9 +2134,11 @@ function buildBathComforts(b: GeoBuilder, room: Rect, fixtures: PropDef[], keys:
       b.rounded((mx0 + mx1) / 2, y + 0.012, (mz0 + mz1) / 2, mx1 - mx0, 0.016, mz1 - mz0, 0.08, '#FBF6EE', FLAT);
       b.rounded((mx0 + mx1) / 2, y + 0.024, (mz0 + mz1) / 2, mx1 - mx0 - 0.07, 0.01, mz1 - mz0 - 0.07, 0.06, theme.blanket, { shade: 1, surface: 'fabric' });
       b.object(`comfort:soap@${f.kind}`);
-      const top = tub ? y + 0.5 : y + 0.79;
-      const sx = tub ? r.x1 - 0.06 : r.x1 - 0.1;
-      const sz = tub ? r.z0 + 0.2 : r.z0 + 0.12;
+      // In the shower the soaps go on its corner shelf (session 53).
+      const shower = f.kind === 'shower';
+      const top = shower ? y + SHOWER.shelf : tub ? y + 0.5 : y + 0.79;
+      const sx = shower ? r.x1 - 0.08 : tub ? r.x1 - 0.06 : r.x1 - 0.1;
+      const sz = shower ? r.z0 + 0.42 : tub ? r.z0 + 0.2 : r.z0 + 0.12;
       // A wooden tray of three coloured bars and a tall pump bottle.
       b.rounded(sx, top + 0.008, sz + 0.07, 0.09, 0.016, 0.2, 0.02, '#B5835A', { shade: 0.9, surface: 'wood' });
       ['#F2A7B5', '#AFCBA7', '#F4D58A'].forEach((c, i) => b.rounded(sx, top + 0.03, sz + 0.01 + i * 0.06, 0.07, 0.028, 0.05, 0.012, c, FLAT));
@@ -2466,6 +2477,99 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       b.object('fixture:tap');
       b.cylinder(r.x1 - 0.1, y + 0.82, cz, 0.016, 0.016, 0.08, tier >= 3 ? PALETTE.brass : PALETTE.chrome, 6);
       break;
+    case 'cubicle': {
+      // Session 53 (owner: "toilets much smaller and covered, so it actually looks like that"): a toilet cubicle in
+      // the corner by the outer wall. Panels on chrome feet (a gap at the floor, a rail along the top), the door open
+      // into the cubicle with its vacant sign, a roll holder on the outer wall. Plywood in the run-down carriage, then
+      // white laminate, the room's colour, and walnut with brass.
+      const panel = tier <= 0 ? '#A99A86' : tier === 1 ? '#ECE7DD' : tier === 2 ? shadeHex(theme.wallLow, 18) : PALETTE.walnut;
+      const metal = tier <= 0 ? PALETTE.iron : tier >= 3 ? PALETTE.brass : PALETTE.chrome;
+      const metalStyle: PartStyle = { shade: 1, surface: tier >= 3 ? 'brass' : 'steel' };
+      const t = CUBICLE.thick;
+      const y0 = y + CUBICLE.gap;
+      const y1 = y + CUBICLE.height;
+      const doorZ0 = r.z0 + CUBICLE.stub;
+      const doorZ1 = r.z1 - CUBICLE.post;
+      const sideX = r.x0 + t / 2;
+      const frontZ = r.z1 - t / 2;
+      const style: PartStyle = { shade: 0.9, surface: tier >= 3 ? 'varnish' : 'matte' };
+      // The side panel by the front wall, the post by the door, and the front panel to the outer wall.
+      b.box(sideX, (y0 + y1) / 2, (r.z0 + doorZ0) / 2, t, y1 - y0, doorZ0 - r.z0, panel, 0, style);
+      b.box(sideX, (y0 + y1) / 2, (doorZ1 + r.z1 - t) / 2, t, y1 - y0, r.z1 - t - doorZ1, panel, 0, style);
+      b.box((r.x0 + r.x1 - 0.004) / 2, (y0 + y1) / 2, frontZ, r.x1 - 0.004 - r.x0, y1 - y0, t, panel, 0, style);
+      // The top rail and the feet.
+      b.box(sideX, y1 + 0.012, (r.z0 + doorZ0) / 2, t + 0.012, 0.024, doorZ0 - r.z0, metal, 0, metalStyle);
+      b.box((r.x0 + r.x1 - 0.004) / 2, y1 + 0.012, frontZ, r.x1 - 0.004 - r.x0, 0.024, t + 0.012, metal, 0, metalStyle);
+      for (const [fx, fz] of [[sideX, r.z0 + 0.12], [sideX, doorZ1 + 0.02], [r.x0 + 0.1, frontZ], [r.x1 - 0.12, frontZ]] as const) {
+        b.cylinder(fx, y + CUBICLE.gap / 2, fz, 0.016, 0.022, CUBICLE.gap, metal, 8, 'y', metalStyle);
+      }
+      // The door, open into the cubicle (hinged on the stub), with its handle and the green vacant sign.
+      const leaf = doorZ1 - doorZ0 - 0.02;
+      const open = CUBICLE.open;
+      const hx = r.x0 + t;
+      b.box(hx + Math.sin(open) * leaf / 2, (y0 + y1) / 2, doorZ0 + Math.cos(open) * leaf / 2, leaf, y1 - y0 - 0.01, t * 0.8, panel, open - Math.PI / 2, style);
+      const tipX = hx + Math.sin(open) * (leaf - 0.06);
+      const tipZ = doorZ0 + Math.cos(open) * (leaf - 0.06);
+      b.cylinder(tipX, y + 0.5, tipZ + 0.03, 0.022, 0.022, 0.03, '#5DBB63', 10, 'z', FLAT);
+      b.box(tipX, y + 0.43, tipZ + 0.025, 0.07, 0.016, 0.02, metal, 0, metalStyle);
+      // The roll holder by the loo, on the outer wall.
+      b.box(r.x1 - 0.03, y + 0.42, r.z0 + 0.95, 0.04, 0.02, 0.16, metal, 0, metalStyle);
+      b.cylinder(r.x1 - 0.08, y + 0.38, r.z0 + 0.95, 0.055, 0.055, 0.1, '#FBF8F2', 12, 'z', FLAT);
+      break;
+    }
+    case 'shower': {
+      // Session 53 (owner: "replace the last room with a shower area"): a tiled tray in the corner by the outer wall,
+      // a tiled panel behind it, the riser and its rain head, a mixer, a corner shelf of bottles, and the curtain on a
+      // rail between two posts, drawn back into the corners so the shower stays in view.
+      const tile = tier <= 0 ? '#C9C2B4' : tier === 1 ? '#F1F0EC' : tier === 2 ? shadeHex(theme.wallLow, 22) : '#EDE6DA';
+      const tile2 = tier <= 0 ? '#B3AB9B' : tier === 1 ? '#D8DEE2' : tier === 2 ? shadeHex(theme.wallLow, 8) : PALETTE.porcelain;
+      const metal = tier <= 0 ? PALETTE.iron : tier >= 3 ? PALETTE.brass : PALETTE.chrome;
+      const metalStyle: PartStyle = { shade: 1, surface: tier >= 3 ? 'brass' : 'steel' };
+      const curtain = tier <= 0 ? '#B9C3C0' : tier === 1 ? '#FBF8F2' : tier === 2 ? theme.blanket : theme.deep;
+      const top = y + SHOWER.rail;
+      // The tray and its drain.
+      b.rounded(cx, y + 0.03, cz, w - 0.02, 0.06, d - 0.02, 0.05, tile2, { shade: 0.95, surface: 'ceramic' });
+      b.rounded(cx, y + 0.062, cz, w - 0.12, 0.006, d - 0.12, 0.04, tile, { shade: 1, surface: 'ceramic' });
+      b.cylinder(cx + 0.1, y + 0.067, cz, 0.05, 0.05, 0.004, metal, 12, 'y', metalStyle);
+      // The tiled panel on the outer wall (small square tiles in two tones).
+      b.box(r.x1 - 0.008, y + 0.06 + (SHOWER.rail - 0.06) / 2, cz, 0.012, SHOWER.rail - 0.06, d - 0.02, tile, 0, { shade: 0.95, surface: 'ceramic', pattern: PATTERN.checker, color2: tile2, scale: 0.09 });
+      // The riser, the rain head on its arm, and the mixer.
+      const rz = cz + 0.05;
+      b.cylinder(r.x1 - 0.04, y + 0.06 + (SHOWER.rail - 0.1) / 2, rz, 0.014, 0.014, SHOWER.rail - 0.1, metal, 8, 'y', metalStyle);
+      b.cylinder(r.x1 - 0.04 - 0.11, top - 0.04, rz, 0.012, 0.012, 0.22, metal, 8, 'x', metalStyle);
+      b.cylinder(r.x1 - 0.3, top - 0.06, rz, 0.1, 0.1, 0.025, metal, 16, 'y', metalStyle);
+      b.cylinder(r.x1 - 0.3, top - 0.075, rz, 0.085, 0.085, 0.006, '#9FB4C2', 16, 'y', FLAT);
+      b.cylinder(r.x1 - 0.03, y + 0.52, rz, 0.05, 0.05, 0.03, metal, 12, 'x', metalStyle);
+      b.box(r.x1 - 0.06, y + 0.52, rz, 0.05, 0.016, 0.016, metal, 0, metalStyle);
+      // The corner shelf with a bottle of shampoo and one of gel.
+      b.box(r.x1 - 0.08, y + SHOWER.shelf - 0.01, r.z0 + 0.14, 0.14, 0.02, 0.26, tile2, 0, { shade: 0.9, surface: 'ceramic' });
+      b.cylinder(r.x1 - 0.08, y + SHOWER.shelf + 0.07, r.z0 + 0.07, 0.025, 0.025, 0.14, '#7FB7A4', 10, 'y', { shade: 0.95, surface: 'ceramic' });
+      b.cylinder(r.x1 - 0.08, y + SHOWER.shelf + 0.055, r.z0 + 0.13, 0.022, 0.022, 0.11, '#F2B6A0', 10, 'y', { shade: 0.95, surface: 'ceramic' });
+      // The rail between two posts (the open corner and the front wall's), and on to the outer wall.
+      const px = r.x0 + 0.02;
+      const pzFront = r.z0 + 0.03;
+      const pzOpen = r.z1 - 0.02;
+      for (const pz of [pzFront, pzOpen]) b.cylinder(px, y + SHOWER.rail / 2 + 0.03, pz, 0.014, 0.014, SHOWER.rail - 0.06, metal, 8, 'y', metalStyle);
+      b.cylinder(px, top, (pzFront + pzOpen) / 2, 0.012, 0.012, pzOpen - pzFront, metal, 8, 'z', metalStyle);
+      b.cylinder((px + r.x1) / 2, top, pzOpen, 0.012, 0.012, r.x1 - px - 0.004, metal, 8, 'x', metalStyle);
+      // The curtain, gathered in soft folds at the outer wall and by the front post.
+      const folds = (x0: number, x1: number, z0: number, z1: number, along: 'x' | 'z'): void => {
+        const n = 4;
+        for (let i = 0; i < n; i++) {
+          const f = (i + 0.5) / n;
+          const fx = along === 'x' ? x0 + (x1 - x0) * f : x0;
+          const fz = along === 'z' ? z0 + (z1 - z0) * f : z0;
+          b.cylinder(fx, y + 0.2 + (SHOWER.rail - 0.24) / 2, fz, 0.032, 0.04, SHOWER.rail - 0.24, i % 2 ? curtain : shadeHex(curtain, -10), 8, 'y', { shade: 0.92, surface: 'fabric' });
+        }
+        for (let i = 0; i < n; i++) {
+          const f = (i + 0.5) / n;
+          b.cylinder(along === 'x' ? x0 + (x1 - x0) * f : x0, top - 0.015, along === 'z' ? z0 + (z1 - z0) * f : z0, 0.02, 0.02, 0.012, metal, 8, 'y', metalStyle);
+        }
+      };
+      folds(r.x1 - 0.3, r.x1 - 0.06, pzOpen, pzOpen, 'x');
+      folds(px, px, pzFront + 0.05, pzFront + 0.25, 'z');
+      break;
+    }
     case 'bathtub': {
       if (MODEL_FURNITURE && tier >= 1) {
         // Session 51: Tiny Treats' bath (rolled rim, a tap, water and bubbles), its side in the room's colour.
