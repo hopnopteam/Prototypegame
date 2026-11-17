@@ -298,7 +298,8 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
         const sy = 0.735 / (e.max[1] - e.min[1]);
         b.model('cafe_table', cx, Y, cz, 0, span / (e.max[0] - e.min[0]), sy, span / (e.max[2] - e.min[2]), {
           recolor: [key('wood', tier >= 3 ? PALETTE.walnutDark : tier === 2 ? PALETTE.walnut : HONEY)],
-          surface: 'varnish',
+          // Session 53: a waxed (matte) top: varnish caught the low sun across the whole disc at once.
+          surface: 'wood',
         });
         if (tier >= 3) b.cylinder(cx, Y + 0.742, cz, span / 2 - 0.01, span / 2 - 0.01, 0.014, '#F1ECE4', 20, 'y', { ...FLAT, surface: 'marble' });
       } else {
@@ -647,7 +648,10 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
       for (const fx of [r.x0 + 0.07, r.x1 - 0.07]) for (const fz of [r.z0 + 0.08, r.z1 - 0.08]) b.box(fx, top + 0.33, fz, 0.025, 0.42, 0.025, frame, 0, { ...FLAT, surface: 'paint' });
       b.box(cx, top + 0.57, cz, w - 0.1, 0.06, d - 0.12, frame, 0, { ...FLAT, surface: 'paint' });
       b.prism(cx, top + 0.65, cz, w - 0.14, 0.1, d - 0.16, frame, { shade: 1, surface: 'paint' });
-      lamps.box(cx, top + 0.18, cz, w - 0.2, 0.1, d - 0.24, '#FFE7A8', 0, { shade: 0.9 });
+      // Session 53 (owner: "the light of the popcorn box is way too much"): one small warm bulb under the roof, not a
+      // glowing slab filling the case; the popcorn heap is lit by it, not a light of its own.
+      lamps.box(cx, top + 0.52, cz, 0.07, 0.04, 0.07, '#C99A55', 0, { shade: 0.9 });
+      b.box(cx, top + 0.17, cz, w - 0.2, 0.08, d - 0.24, '#E8D49A', 0, FLAT);
       for (const [dx, dz] of [[0.05, 0.1], [-0.06, -0.08], [0.02, -0.2], [-0.04, 0.18], [0.06, -0.02]]) b.sphere(cx + dx, top + 0.28, cz + dz, 0.035, '#FFF1C9', 1, 0.8, FLAT);
       b.cylinder(cx, top + 0.47, cz, 0.06, 0.05, 0.05, '#9AA0A6', 10, 'y', { surface: 'steel' });
       return true;

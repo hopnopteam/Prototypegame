@@ -72,7 +72,10 @@ export const VENUES: Record<VenueKind, VenueDef> = {
     tierPrice: [1, 1.25, 1.6, 2.1],
   },
   bar: {
-    kind: 'bar', name: 'Bar Lounge', visitWeight: 0.9, when: ['evening'],
+    // Session 53 (owner: "I don't see anybody using the bar lounge at all"): measured on a full train, it drew 18 visits
+    // in ten minutes against the café's 46 (evening only, the lowest pull). It now opens mornings too (a morning drink in
+    // the lounge) and pulls like the café.
+    kind: 'bar', name: 'Bar Lounge', visitWeight: 1.3, when: ['evening', 'morning'],
     products: [{ item: 'cocktail', price: 11, makeSeconds: 1.8 }],
     consumeSeconds: 14,
     roles: ['bartender'],

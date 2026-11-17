@@ -1671,18 +1671,24 @@ export class CarriageView {
         const out = left ? -1 : 1;
         const y0 = FLOOR_Y + WY0;
         const y1 = FLOOR_Y + WY1;
-        glass.paneX(outerFace - out * 0.035, y0, y1, w0, w1, out as 1 | -1, false, fin.curtains ? fin.curtain ?? this.theme.curtain : '#FFFFFF');
+        // Session 53 (owner: "fix the train windows wherever you see them weirdly glitched"): the frame stood 7 cm
+        // proud with the glass 3.5 cm back, so from the gameplay camera's height the near side read as loose sticks
+        // with a sliver of light. Now the glass sits just inside the face under a slim frame (never sharing a face
+        // with the panels round it), and curtains hang as flat drapes over the wall either side under a pelmet.
+        glass.paneX(outerFace - out * 0.012, y0, y1, w0, w1, out as 1 | -1, false, fin.curtains ? fin.curtain ?? this.theme.curtain : '#FFFFFF');
         glass.paneX(innerFace - inward * 0.022, y0, y1, w0, w1, inward as 1 | -1, true);
-        // The frame stands proud of the outer face (never sharing a face with the panels round it).
-        trim.box(outerFace + out * 0.035, y0 - 0.016, zc, 0.07, 0.032, width + 0.1, white, 0, FLAT);
-        trim.box(outerFace + out * 0.03, y1 + 0.014, zc, 0.06, 0.028, width + 0.1, white, 0, FLAT);
-        for (const pz of [w0 - 0.016, w1 + 0.016]) trim.box(outerFace + out * 0.025, (y0 + y1) / 2, pz, 0.05, y1 - y0 - 0.004, 0.032, white, 0, FLAT);
-        trim.box(outerFace - out * 0.026, y0 + (y1 - y0) * 0.64, zc, 0.012, 0.022, width - 0.004, white, 0, FLAT);
+        trim.box(outerFace + out * 0.012, y0 - 0.015, zc, 0.02, 0.03, width + 0.07, white, 0, FLAT);
+        trim.box(outerFace + out * 0.011, y1 + 0.013, zc, 0.018, 0.026, width + 0.07, white, 0, FLAT);
+        for (const pz of [w0 - 0.012, w1 + 0.012]) trim.box(outerFace + out * 0.01, (y0 + y1) / 2, pz, 0.016, y1 - y0 - 0.002, 0.024, white, 0, FLAT);
+        trim.box(outerFace + out * 0.004, y0 + (y1 - y0) * 0.64, zc, 0.006, 0.018, width - 0.004, white, 0, FLAT);
         s.box(innerFace + inward * 0.025, FLOOR_Y + WY0 + 0.012, zc, 0.05, 0.024, width + 0.06, fin.cap, 0, FLAT);
         if (fin.curtains) {
+          const curtain = fin.curtain ?? this.theme.curtain;
           for (const side of [-1, 1]) {
-            s.box(innerFace + inward * 0.03, FLOOR_Y + (WY0 + WY1) / 2 + 0.03, zc + side * (width / 2 - 0.02), 0.03, WY1 - WY0 + 0.06, 0.08, fin.curtain ?? this.theme.curtain, 0, { shade: 0.82 });
+            const edge = zc + side * (width / 2);
+            s.box(innerFace + inward * 0.018, FLOOR_Y + (WY0 + WY1) / 2 - 0.01, edge + side * 0.03, 0.012, WY1 - WY0 + 0.06, 0.13, curtain, 0, { shade: 0.82 });
           }
+          s.box(innerFace + inward * 0.024, FLOOR_Y + WY1 + 0.035, zc, 0.02, 0.05, width + 0.2, curtain, 0, { shade: 0.9 });
         }
         // Lamps between windows: a bare bulb in the old carriage, proper sconces once refurbished.
         const lampEvery = fin.lamps >= 2 ? 2 : 3;

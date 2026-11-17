@@ -37,6 +37,10 @@ const KEYS: Key[] = [
   { t: 1.0, ...DAY_KEY },
 ];
 
+/** The glint's strength by day (golden hour) and at night, times the sun's or the moon's colour. */
+const GLINT_DAY = 0.45;
+const GLINT_NIGHT = 1.2;
+
 const a = new THREE.Color();
 const b = new THREE.Color();
 
@@ -287,7 +291,10 @@ export class Lighting {
     u.uNxSkyHorizon.value.set(sky.horizon).lerp(a, 1 - this.night);
     a.set('#8A9278');
     u.uNxSkyGround.value.set(sky.ground).lerp(a, 1 - this.night);
-    u.uNxMoonColor.value.copy(this.sun.color).multiplyScalar(this.night > 0.5 ? 1.2 : 1.6);
+    // The glint polished surfaces catch (session 53, owner: "the café tabletop… flashbangs"): the low golden-hour sun is
+    // far brighter than the moon, and on the phone tiers the glint is lit per vertex, so a whole table top flared at
+    // once. It is scaled down by day and only reaches its full moonlit strength at night.
+    u.uNxMoonColor.value.copy(this.sun.color).multiplyScalar(lerp(GLINT_DAY, GLINT_NIGHT, this.night));
     u.uNxSkyAmount.value = lerp(k0.env, k1.env, f);
     setNightAmount(this.night);
   }
