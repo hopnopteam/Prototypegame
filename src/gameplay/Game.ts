@@ -102,7 +102,7 @@ const MAX_FRAME = 0.05;
 /** Where in the day cycle the held night sits (the middle of the night key). */
 const NIGHT_TIME = 0.82;
 /** Phase 1: golden hour in the day cycle (Lighting's keys: past the day key, toward dusk), where a Countryside Express session opens. */
-const GOLDEN_TIME = 0.645;
+const GOLDEN_TIME = 0.655;
 
 /**
  * Composition root and main loop. Builds every system once, owns time (including the dev time scale and
