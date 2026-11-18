@@ -76,7 +76,7 @@ const TOWNSFOLK: { look: CharacterLook; seated: boolean; idles: CharacterAction[
   { look: { body: '#6B8F5E', accent: '#F2C94C', skin: '#A86E4E', hair: '#3A2418', pants: '#33402E', hat: 'cap', hatColor: '#3F5A3A' }, seated: true, idles: ['look', 'phone', 'yawn'] },
 ];
 /** Where the two seeing someone off stand: by the back railing between the kiosk and the way in. */
-const SEEING_OFF = [{ x: PLATFORM_X0 + 5.75, z: -9.35, facing: -Math.PI / 2 - 0.5 }, { x: PLATFORM_X0 + 5.3, z: -9.95, facing: -Math.PI / 2 + 0.35 }];
+const SEEING_OFF = [{ x: PLATFORM_X0 + 8.25, z: -9.35, facing: -Math.PI / 2 - 0.5 }, { x: PLATFORM_X0 + 7.8, z: -9.95, facing: -Math.PI / 2 + 0.35 }];
 /** Phase 2: half the footprint a lamp post, a planter tub and a standing person take on the deck. */
 const LAMP_FOOT = 0.16;
 const PLANTER_FOOT = 0.36;
@@ -281,7 +281,7 @@ export class PlatformView {
     this.keeperView.root.visible = keeper;
     if (keeper) {
       const p = at('kiosk');
-      this.keeperView.setPosition(p.x + 0.66, FLOOR_Y, p.z);
+      this.keeperView.setPosition(p.x + 0.58, FLOOR_Y, p.z);
       this.keeperView.setFacing(-Math.PI / 2);
     }
   }

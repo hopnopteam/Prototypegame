@@ -79,7 +79,12 @@ export const REAR_TILE_Z = CARRIAGE_LENGTH - 0.95;
 export const REAR_TILE_X = 1.35;
 export const INTERIOR_END = CARRIAGE_LENGTH - REAR_VESTIBULE - 0.06;
 export const PLATFORM_X0 = HALF_WIDTH + 0.25;
-export const PLATFORM_WIDTH = 6.5;
+/**
+ * The station platform's width (owner: "the station has to be bigger… organised"): four lanes out from the train,
+ * the edge (queues, barrow, restock cart, 1.6 m), the service lane (the conductor's work, 2.2 m), a walkway kept
+ * clear (2.6 m) and the back lane against the railing (benches, lamps, planters, stalls, 2.6 m). Was 6.5.
+ */
+export const PLATFORM_WIDTH = 9.0;
 
 /** Session 53: the Family Sleeper's lounge (the second entrance, with its own check-in desk), its desk and line. */
 export const BATHROOM_FRONT = 5.3;

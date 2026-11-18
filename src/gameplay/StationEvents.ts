@@ -24,7 +24,7 @@ const SHOO_RADIUS = 1.4;
 const SHEEP_RUN = 3.6;
 /** Where the Lost & Found item lies, the Station Market's stall and the sheep's pen (platform-local, out from the edge). */
 const LOST_SPOT = { dx: 3.6, z: 5.9 };
-const MARKET_SPOT = { dx: 4.6, z: 11.2 };
+const MARKET_SPOT = { dx: 7.0, z: 11.4 };
 /** The critic is looked at this often while aboard (seconds). */
 const CRITIC_SAMPLE_SECONDS = 3;
 /** The critic rides this many legs. */
@@ -380,7 +380,7 @@ export class StationEvents {
         }
         if (Math.hypot(p.x - s.x, p.z - w.station.platformOffset - s.z) < SHOO_RADIUS && w.journey.doorsOpen) {
           s.fled = 0.001;
-          s.heading = Math.atan2(PLATFORM_X0 + 8 - s.x, (s.z > p.z ? 6 : -6));
+          s.heading = Math.atan2(PLATFORM_X0 + 10.5 - s.x, (s.z > p.z ? 6 : -6));
           w.audio.play('bloop', { pitch: 0.55, volume: 0.8 });
           w.particles.emit('dust', s.x, FLOOR_Y + 0.2, s.z + w.station.platformOffset, 6, 0.25);
           w.haptics.light();
@@ -389,7 +389,7 @@ export class StationEvents {
             w.events.emit('station.sheepShooed', {});
           }
         } else {
-          s.x = Math.max(PLATFORM_X0 + 1.9, Math.min(PLATFORM_X0 + 5.6, s.x + Math.sin(s.heading) * 0.18 * dt));
+          s.x = Math.max(PLATFORM_X0 + 1.9, Math.min(PLATFORM_X0 + 8.0, s.x + Math.sin(s.heading) * 0.18 * dt));
           s.z += Math.cos(s.heading) * 0.18 * dt;
         }
       } else {
@@ -587,16 +587,16 @@ export class StationEvents {
       // Bunting strung along the platform between tall poles, triangles in turn.
       const colors = def.kind === 'festival' ? ['#E2506B', '#F2B53A', '#4FA3D9', '#7CC36E'] : ['#C8352B', '#F2B53A', '#7C8F4E', '#E9D9A8'];
       b.object('event:bunting');
-      for (const z of [-8, 0, 8, 16]) b.cylinder(X + 6.05, y + 1.4, z, 0.03, 0.03, 2.8, PALETTE.oak, 6, 'y', { shade: 0.9 });
+      for (const z of [-8, 0, 8, 16]) b.cylinder(X + 6.4, y + 1.4, z, 0.03, 0.03, 2.8, PALETTE.oak, 6, 'y', { shade: 0.9 });
       for (let z = -8; z < 16; z += 0.5) {
         const c = colors[Math.round((z + 8) / 0.5) % colors.length];
-        b.add(new THREE.ConeGeometry(0.13, 0.26, 3), c, X + 6.05, y + 2.55 - 0.08 * Math.sin(((z + 8) % 8) / 8 * Math.PI), z, Math.PI, 0, 0, { shade: 1 });
+        b.add(new THREE.ConeGeometry(0.13, 0.26, 3), c, X + 6.4, y + 2.55 - 0.08 * Math.sin(((z + 8) % 8) / 8 * Math.PI), z, Math.PI, 0, 0, { shade: 1 });
       }
       b.endObject();
     }
     if (def.kind === 'harvest') {
       b.object('event:harvest');
-      for (const [dx, z] of [[5.3, -3.2], [5.4, 2.6], [5.2, 8.8]]) {
+      for (const [dx, z] of [[6.75, -5.4], [6.8, 14.6], [6.75, 17.4]]) {
         b.box(X + dx, y + 0.28, z, 0.55, 0.56, 1.0, '#D9B45A', 0, { shade: 0.85, detail: 'wood' });
         b.sphere(X + dx - 0.4, y + 0.16, z + 0.3, 0.16, '#E8742A', 1, 0.85, { shade: 1 });
         b.sphere(X + dx - 0.42, y + 0.14, z - 0.15, 0.13, '#E8742A', 1, 0.85, { shade: 1 });

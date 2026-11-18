@@ -19,7 +19,7 @@ export interface PlacedCarriage extends PlacedLayout {
 }
 
 /** The platform's walkway (session 23: outside the ticket stand's lane, so staff never cut through the queue). */
-const PLATFORM_SPINE_X = PLATFORM_X0 + 4.5;
+const PLATFORM_SPINE_X = PLATFORM_X0 + 5.1;
 /** How far from its pad a piece of furniture still counts as what the pad serves (metres), and how far in from its edge the icon hangs. */
 const SERVICE_REACH = 0.9;
 const SERVICE_INSET = 0.2;

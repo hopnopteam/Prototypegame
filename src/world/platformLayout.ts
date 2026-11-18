@@ -35,19 +35,19 @@ export const PLATFORM = {
   /** Where bags are taken from the barrow (its outer side). */
   luggagePad: { x: X + 2.05, z: 3.95 } as Vec2,
   /** The walkway between the door area and the station entrance, outside the server's lane. */
-  concourse: [{ x: X + 2.6, z: 0.95 }, { x: X + 4.45, z: -0.4 }, { x: X + 4.55, z: -9.5 }] as Vec2[],
+  concourse: [{ x: X + 2.6, z: 0.95 }, { x: X + 5.1, z: -0.4 }, { x: X + 5.1, z: -9.5 }] as Vec2[],
   /** The way onto the platform from the station: an opening in the back railing. */
-  entrance: { x: X + 6.2, z: -12.4 } as Vec2,
+  entrance: { x: X + 8.7, z: -12.4 } as Vec2,
   /** The station house's doors, just beyond it: latecomers come out of them and those getting off go in. */
-  houseDoor: { x: X + 7.95, z: -13.2 } as Vec2,
+  houseDoor: { x: X + 10.45, z: -13.2 } as Vec2,
   /** A bench by the back railing where travellers with no bed this time sit and wait. */
-  bench: rect(X + 6.0, -4.6, X + 6.4, -2.4),
+  bench: rect(X + 8.5, -4.6, X + 8.9, -2.4),
   /** The newsstand, against the back railing ahead of the bench. */
-  kiosk: { x: X + 5.85, z: -7.2 } as Vec2,
+  kiosk: { x: X + 8.35, z: -7.2 } as Vec2,
   /** The station master by the front of the train, flag in hand. */
   master: { x: X + 0.95, z: -8.6 } as Vec2,
   /** The station's name board, over the way in from the station. */
-  sign: { x: X + 4.6, z: -11.0 } as Vec2,
+  sign: { x: X + 5.1, z: -11.0 } as Vec2,
   /** The opening's Open carriage tile: on the platform just behind the covered carriage's door, clear of everyone (session 38: out of the bell post's line of sight to the camera, which hid part of it). */
   openTile: { x: X + 2.2, z: 2.95 } as Vec2,
   /**
