@@ -9,7 +9,7 @@ done = set()
 def copy(p):
     if p in done or not os.path.exists(p): return
     done.add(p)
-    rel = os.path.relpath(p, X)
+    rel = os.path.relpath(os.path.realpath(p), os.path.realpath(X))
     d = os.path.join(OUT, rel)
     os.makedirs(os.path.dirname(d), exist_ok=True)
     shutil.copy2(p, d)
