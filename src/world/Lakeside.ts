@@ -813,12 +813,13 @@ export function fillGeometries(): Record<FillKind, THREE.BufferGeometry> {
     flower.add(new THREE.CylinderGeometry(0.006, 0.006, h, 3), '#5E8A5A', dx, h / 2, dz, 0, 0, 0, FLAT);
     flower.add(new THREE.OctahedronGeometry(0.032, 0), petals[i % petals.length], dx, h, dz, 0, 0, 0, { shade: 1, surface: { roughness: 0.7, metalness: 0, glow: 0.05 } });
   }
-  // A sheep: a woolly cream body, a dark face looking down to graze, four dark legs (about 0.75 m tall).
+  // A sheep (Station Picks S86): Quaternius' low-poly sheep, cream wool and a dark face, about 0.8 m tall, facing +x.
   const sheep = new GeoBuilder();
-  sheep.add(soft(new THREE.IcosahedronGeometry(0.34, 1)).scale(1.3, 0.92, 0.9), '#EEE8DA', 0, 0.5, 0, 0, 0, 0, { shade: 0.8, surface: 'fabric' });
-  sheep.add(soft(new THREE.IcosahedronGeometry(0.2, 1)), '#F3EEE2', 0.16, 0.66, 0.05, 0, 0, 0, { shade: 0.9, surface: 'fabric' });
-  sheep.add(soft(new THREE.IcosahedronGeometry(0.13, 1)).scale(1.25, 0.9, 0.85), '#3A3436', 0.5, 0.38, 0, 0, 0, -0.5, { shade: 0.85 });
-  for (const [lx, lz] of [[0.24, 0.14], [0.24, -0.14], [-0.24, 0.14], [-0.24, -0.14]]) sheep.cylinder(lx, 0.14, lz, 0.035, 0.035, 0.28, '#3A3436', 5);
+  {
+    const e = modelEntry('sheep');
+    const sc = 0.8 / (e.max[1] - e.min[1]);
+    sheep.model('sheep', 0, 0, 0, Math.PI / 2, sc, sc, sc, { surface: 'fabric', shade: 0.85 });
+  }
   return {
     sheep: sheep.build(),
     pine: pine.build(),

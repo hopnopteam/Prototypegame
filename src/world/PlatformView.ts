@@ -6,7 +6,7 @@ import { STATION_UPGRADES } from '../config/content';
 import { PLATFORM } from './platformLayout';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
-import { key, modelEntry } from './models/library';
+import { key, modelEntry, type Recolor } from './models/library';
 import { CharacterView, type CharacterAction, type CharacterLook } from './CharacterView';
 import { headlineTexture, posterTexture, signTexture } from './sprites';
 import type { Rect } from '../core/types';
@@ -43,6 +43,11 @@ const MASTER_LOOK: CharacterLook = { body: '#2F3E5C', accent: '#E2B04A', skin: '
 const PIGEON_SPOTS = [-9.6, -9.0, 9.4, 10.1, 11.2, 12.0];
 /** Half the width of the way in from the station (an opening in the back railing). */
 const GATE_HALF = 0.9;
+/** The back railing (Station Picks S29): a panel's length and height (metres). */
+const RAIL_PANEL = 1.6;
+const RAIL_HEIGHT = 0.95;
+/** The gap left between the railing and each gate pillar (metres). */
+const RAIL_PILLAR_GAP = 0.2;
 /** Lamp posts along the back railing, this far apart. */
 const LAMP_STEP = 6;
 /** The name board's posts stand this far either side of the way in. */
@@ -81,15 +86,18 @@ const BENCH_SIT_Y = 0.285;
 
 /** A pigeon about 0.3 m long, facing -z: grey body, a darker head with a green-violet neck, a tail. */
 function pigeonGeometry(): THREE.BufferGeometry {
+  // Station Picks S92: Tiny Treats' little bird, painted pigeon grey with a dark head and a pale beak.
   const b = new GeoBuilder();
-  b.add(new THREE.SphereGeometry(0.08, 8, 6).scale(0.85, 0.8, 1.35), '#8E96A6', 0, 0.075, 0, 0, 0, 0, { shade: 0.85 });
-  b.add(new THREE.SphereGeometry(0.06, 7, 5).scale(0.8, 0.6, 1.1), '#A9B0BC', 0, 0.09, 0.02, 0, 0, 0, { shade: 0.95 });
-  b.add(new THREE.SphereGeometry(0.045, 7, 5), '#5E6678', 0, 0.15, -0.09, 0, 0, 0, { shade: 0.9 });
-  b.add(new THREE.SphereGeometry(0.04, 6, 4).scale(1, 0.7, 0.9), '#5E8A7E', 0, 0.115, -0.07, 0, 0, 0, { shade: 1 });
-  b.add(new THREE.ConeGeometry(0.012, 0.035, 4).rotateX(-Math.PI / 2), '#D9B88A', 0, 0.145, -0.14, 0, 0, 0, { shade: 1 });
-  b.add(new THREE.BoxGeometry(0.07, 0.015, 0.09), '#6E7686', 0, 0.08, 0.12, 0.25, 0, 0, { shade: 0.9 });
+  const e = modelEntry('bird');
+  const sc = 0.2 / (e.max[1] - e.min[1]);
+  b.model('bird', 0, 0, 0, Math.PI, sc, sc, sc, { recolor: [ANY_DARK('#5E6678'), ANY_LIGHT('#9AA2B2'), WARM('#D9B88A')], surface: 'fabric', shade: 0.9 });
   return b.build();
 }
+
+/** Recolour rules that catch a model's parts by brightness alone (for packs painted in their own colours). */
+function ANY_DARK(to: string): Recolor { return { hue: [0, 360], sat: [0, 1], val: [0, 0.45], ref: '#3A3A3A', to }; }
+function ANY_LIGHT(to: string): Recolor { return { hue: [0, 360], sat: [0, 1], val: [0.45, 1], ref: '#B0B0B0', to }; }
+function WARM(to: string): Recolor { return { hue: [15, 60], sat: [0.35, 1], val: [0.5, 1], ref: '#F0A040', to }; }
 
 /** The newsstand, against the back railing ahead of the waiting bench: today's Rail Gazette headline on a board. */
 const KIOSK_POS = PLATFORM.kiosk;
@@ -339,17 +347,31 @@ export class PlatformView {
     let posts = 0;
     for (const [ra, rb] of railRuns) {
       if (rb <= ra) continue;
-      b.box(x1 - 0.05, FLOOR_Y + 0.55, (ra + rb) / 2, 0.05, 0.05, rb - ra, PALETTE.navy, 0, { shade: 1 });
-      for (let z = ra; z <= rb; z += 1.2) {
-        b.box(x1 - 0.05, FLOOR_Y + 0.28, z, 0.04, 0.56, 0.04, PALETTE.navy, 0, { shade: 0.85 });
-        if (++posts % 40 === 0) yield;
+      // Station Picks S29: Quaternius' ornamental iron railing with finials, in the station's navy, panel after panel.
+      const e = modelEntry('iron_fence');
+      const len = e.max[0] - e.min[0];
+      // Stop short of the gate pillars so the last panel never runs into one.
+      const a = ra > z0 ? ra + RAIL_PILLAR_GAP : ra;
+      const c = rb < z1 ? rb - RAIL_PILLAR_GAP : rb;
+      const n = Math.max(1, Math.round((c - a) / RAIL_PANEL));
+      const step = (c - a) / n;
+      const sx = step / len;
+      const sy = RAIL_HEIGHT / (e.max[1] - e.min[1]);
+      for (let i = 0; i < n; i++) {
+        b.object('platform:railing');
+        b.model('iron_fence', x1 - 0.05, FLOOR_Y, a + (i + 0.5) * step, Math.PI / 2, sx, sy, Math.min(sx, sy), { recolor: [ANY_DARK(PALETTE.navy), ANY_LIGHT('#4A5C86')], surface: 'iron', shade: 0.9 });
+        if (++posts % 12 === 0) yield;
       }
+      b.endObject();
     }
     // Gate pillars either side of the way in, brass-capped.
     for (const dz of [-GATE_HALF, GATE_HALF]) {
       b.object('platform:gatePost');
-      b.box(x1 - 0.05, FLOOR_Y + 0.5, gate + dz, 0.22, 1.0, 0.22, PALETTE.stationTrim, 0, { shade: 0.8 });
-      b.sphere(x1 - 0.05, FLOOR_Y + 1.06, gate + dz, 0.09, PALETTE.brass, 1, 1, { shade: 1, surface: 'brass' });
+      // Station Picks S34: Kenney's stone pillars either side of the way in, a brass ball on each.
+      const e = modelEntry('stone_pillar');
+      const ps = 1.25 / (e.max[1] - e.min[1]);
+      b.model('stone_pillar', x1 - 0.05, FLOOR_Y, gate + dz, 0, ps, ps, ps, { surface: 'stone', shade: 0.9 });
+      b.sphere(x1 - 0.05, FLOOR_Y + 1.25 + 0.08, gate + dz, 0.09, PALETTE.brass, 1, 1, { shade: 1, surface: 'brass' });
     }
     b.endObject();
 
@@ -752,21 +774,30 @@ function buildKiosk(headline: THREE.Material): THREE.Group {
   const group = new THREE.Group();
   const b = new GeoBuilder();
   const { x, z } = KIOSK_POS;
-  b.rounded(x, FLOOR_Y + 0.55, z, 1.1, 1.1, 0.9, 0.06, '#3F7A5E', { shade: 0.8 });
-  b.box(x, FLOOR_Y + 1.12, z + 0.2, 1.14, 0.05, 0.6, PALETTE.oak, 0, { shade: 1 });
-  for (let i = 0; i < 4; i++) b.box(x - 0.36 + i * 0.24, FLOOR_Y + 1.17, z + 0.2, 0.16, 0.03, 0.22, i % 2 ? '#F4EEE2' : '#E8DCC4', 0, { shade: 1 });
-  for (const dx of [-0.5, 0.5]) b.cylinder(x + dx, FLOOR_Y + 1.5, z + 0.42, 0.025, 0.025, 0.8, PALETTE.navy, 6);
-  b.box(x, FLOOR_Y + 1.92, z + 0.2, 1.3, 0.05, 0.9, '#3F7A5E', 0, { pattern: PATTERN.stripesX, color2: '#F4EEE2', scale: 0.22, shade: 1 });
+  // Station Picks S62: Kenney's market stall under a green awning, its counter toward the platform; papers on it.
+  b.object('platform:newsstandStall');
+  const e = modelEntry('stall_green');
+  const sc = 1.1 / (e.max[0] - e.min[0]);
+  b.model('stall_green', x - 0.1, FLOOR_Y, z + 0.1, 0, sc, sc, sc, { recolor: [{ hue: [90, 200], sat: [0.25, 1], val: [0.2, 1], ref: '#3FA07A', to: '#3F7A5E' }], surface: 'wood', shade: 0.9 });
+  b.endObject();
+  b.object('platform:newspapers');
+  const top = FLOOR_Y + (e.max[1] - e.min[1]) * sc * STALL_COUNTER;
+  for (let i = 0; i < 4; i++) b.box(x - 0.33 + i * 0.22, top + 0.02, z + 0.35, 0.16, 0.03, 0.22, i % 2 ? '#F4EEE2' : '#E8DCC4', 0, { shade: 1 });
+  b.endObject();
   const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   group.add(mesh);
   const board = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.62), headline);
-  board.position.set(x, FLOOR_Y + 2.35, z + 0.45);
+  // The headline board stands on the stall's roof, leaning back to face the camera.
+  board.position.set(x, FLOOR_Y + (e.max[1] - e.min[1]) * sc + 0.28, z + 0.15);
   board.rotation.x = -0.35;
   group.add(board);
   return group;
 }
+
+/** Kenney's stalls: the counter's height as a share of the whole stall's (awning included). */
+const STALL_COUNTER = 0.36;
 
 /** The barrow's slatted bed is this high off the deck. */
 const BARROW_TOP = 0.445;
@@ -966,26 +997,27 @@ function buildTrolley(b: GeoBuilder, p: { x: number; z: number }): void {
 /** Phase 2, the Platform Kiosk: a fruit and bread stall, crates of apples and oranges, loaves, a striped awning. */
 function buildFruitStall(b: GeoBuilder, p: { x: number; z: number }): void {
   const y = FLOOR_Y;
-  const w = 0.8;
-  const d = 1.3;
+  // Station Picks S64: Kenney's stall under a red awning, turned so its counter faces the platform.
   b.object('platform:fruitStall');
-  b.box(p.x, y + 0.45, p.z, w, 0.9, d, '#7A5236', 0, { shade: 0.85, detail: 'wood' });
-  b.box(p.x, y + 0.92, p.z, w + 0.08, 0.05, d + 0.08, PALETTE.oak, 0, { shade: 1, detail: 'wood' });
-  for (const dz of [-d / 2 + 0.05, d / 2 - 0.05]) b.cylinder(p.x + w / 2 - 0.05, y + 1.35, p.z + dz, 0.025, 0.025, 0.9, PALETTE.oak, 6, 'y', { shade: 0.9 });
-  const stripes = 7;
-  for (let i = 0; i < stripes; i++) {
-    const z = p.z - d / 2 - 0.05 + (i + 0.5) * ((d + 0.1) / stripes);
-    b.add(new THREE.BoxGeometry(w + 0.35, 0.03, (d + 0.1) / stripes), i % 2 ? '#F4EEE2' : '#C0485C', p.x - 0.05, y + 1.82, z, 0, 0, 0.22, { shade: 1 });
-  }
+  const e = modelEntry('stall_red');
+  const sc = 1.35 / (e.max[0] - e.min[0]);
+  b.model('stall_red', p.x, y, p.z, Math.PI / 2, sc, sc, sc, { recolor: [{ hue: [330, 20], sat: [0.4, 1], val: [0.3, 1], ref: '#C8443A', to: '#A63A32' }], surface: 'wood', shade: 0.9 });
   b.endObject();
+  // S57: KayKit's produce crates on the counter and stacked in front of it, a couple of loaves beside them.
   b.object('platform:fruitStallGoods');
-  // Two shallow crates on the counter, tilted toward the platform: apples and oranges; loaves at the back.
-  const top = y + 0.95;
-  for (const [dz, c] of [[-0.3, '#C8352B'], [0.1, '#F08A24']] as const) {
-    b.box(p.x - 0.1, top + 0.05, p.z + dz, 0.42, 0.1, 0.34, '#B8874E', 0, { shade: 0.9 });
-    for (let i = 0; i < 6; i++) b.sphere(p.x - 0.22 + (i % 3) * 0.12, top + 0.13, p.z + dz - 0.08 + Math.floor(i / 3) * 0.15, 0.055, c, 1, 1, { shade: 1 });
-  }
-  for (const dz of [-0.35, 0.0, 0.35]) b.rounded(p.x + 0.22, top + 0.06, p.z + dz + 0.05, 0.16, 0.11, 0.3, 0.05, '#C98B45', { shade: 0.95 });
+  const top = y + (e.max[1] - e.min[1]) * sc * STALL_COUNTER;
+  const crate = (id: 'crate_carrots' | 'crate_tomatoes' | 'crate_lettuce' | 'crate_potatoes', cx: number, cy: number, cz: number, rot: number): void => {
+    const c = modelEntry(id);
+    const cs = 0.42 / (c.max[0] - c.min[0]);
+    b.model(id, cx, cy, cz, rot, cs, cs, cs, { surface: 'wood', shade: 0.9 });
+  };
+  crate('crate_tomatoes', p.x - 0.05, top, p.z - 0.3, Math.PI / 2);
+  crate('crate_lettuce', p.x - 0.05, top, p.z + 0.15, Math.PI / 2);
+  const bread = modelEntry('bread');
+  const bs = 0.2 / (bread.max[0] - bread.min[0]);
+  b.model('bread', p.x - 0.02, top, p.z + 0.48, 0.4, bs, bs, bs, { surface: 'matte', shade: 0.95 });
+  crate('crate_carrots', p.x - 0.62, y, p.z - 0.25, Math.PI / 2 + 0.1);
+  crate('crate_potatoes', p.x - 0.62, y, p.z + 0.22, Math.PI / 2 - 0.08);
   b.endObject();
 }
 
@@ -1108,8 +1140,13 @@ function buildTicketStand(b: GeoBuilder, lamps: GeoBuilder, dz = 0): void {
   const colors = ['#F4EBD6', '#F2B8B0', '#BFD8B5', '#F4EBD6', '#C9D6EA', '#F2D58C'];
   colors.forEach((c, i) => b.box(cx + 0.06 - 0.06 + (i % 2) * 0.12, top + 0.2, r.z0 + 0.12 + Math.floor(i / 2) * 0.1, 0.1, 0.04, 0.07, c, 0, { shade: 1 }));
   b.object('platform:cashTin');
-  b.box(cx + 0.02, top + 0.05, cz + 0.12, 0.2, 0.1, 0.26, '#3F7A5E', 0, { shade: 0.9 });
-  b.box(cx + 0.02, top + 0.102, cz + 0.12, 0.17, 0.006, 0.22, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
+  {
+    // Station Picks S8: Tiny Treats' cash register on our counter (the counter itself stays: it reads as a booking
+    // office), its keys toward the conductor on the outer side.
+    const t = modelEntry('till');
+    const ts = 0.26 / (t.max[0] - t.min[0]);
+    b.model('till', cx + 0.02, top, cz + 0.12, Math.PI / 2, ts, ts, ts, { recolor: [key('ttMid', '#3F7A5E'), key('ttLight', PALETTE.brass)], surface: 'paint', shade: 0.95 });
+  }
   b.object('platform:bell');
   b.cylinder(cx - 0.12, top + 0.008, cz - 0.2, 0.06, 0.06, 0.016, PALETTE.walnut, 12, 'y', { shade: 1 });
   b.sphere(cx - 0.12, top + 0.02, cz - 0.2, 0.05, PALETTE.brass, 1, 0.8, { shade: 1, surface: 'brass' });
@@ -1138,11 +1175,12 @@ function buildBench(b: GeoBuilder, r: Rect): void {
     // Session 51: Tiny Treats' park bench (slatted wood on iron ends), its back to the railing.
     // Session 51b (owner: "the benches… don't feel like they belong"): at its own proportions (it was squashed to the
     // rect, flat and thin), its back to the railing, the seat reaching out onto the platform.
-    const e = modelEntry('bench');
+    // Station Picks S14 (the owner's pick): Kenney's slatted wooden bench, its legs in the station's navy.
+    const e = modelEntry('bench_log');
     const sc = Math.min(d * 0.8, BENCH_LENGTH) / (e.max[0] - e.min[0]);
     const deep = (e.max[2] - e.min[2]) * sc;
-    b.model('bench', r.x1 - deep / 2, y, cz, -Math.PI / 2, sc, sc, sc, {
-      recolor: [key('ttWood', PALETTE.oak), key('ttMid', PALETTE.navy), key('ttLight', PALETTE.navy)],
+    b.model('bench_log', r.x1 - deep / 2, y, cz, -Math.PI / 2, sc, sc, sc, {
+      recolor: [{ hue: [180, 260], sat: [0.15, 1], val: [0.2, 1], ref: '#6080C0', to: PALETTE.navy }, WARM(PALETTE.oak)],
       surface: 'wood',
     });
     b.endObject();
@@ -1164,15 +1202,14 @@ function buildBench(b: GeoBuilder, r: Rect): void {
 function buildBellPost(b: GeoBuilder): void {
   const y = FLOOR_Y;
   const { x, z } = PLATFORM.bell;
+  // Station Picks S75: KayKit's post in the station's navy, KayKit's brass hand bell on its top.
   b.object('platform:bellPost');
-  b.cylinder(x, y + 0.08, z, 0.12, 0.15, 0.16, PALETTE.navy, 12, 'y', { shade: 0.8, surface: 'iron' });
-  b.cylinder(x, y + 0.75, z, 0.035, 0.045, 1.35, PALETTE.navy, 10, 'y', { shade: 0.88, surface: 'iron' });
-  // The bracket reaches toward the platform's edge, the bell under its tip.
-  b.box(x - 0.17, y + 1.38, z, 0.36, 0.04, 0.04, PALETTE.navy, 0, { shade: 1, surface: 'iron' });
-  b.sphere(x, y + 1.46, z, 0.04, PALETTE.brass, 0, 1, { shade: 1, surface: 'brass' });
-  b.cylinder(x - 0.32, y + 1.32, z, 0.012, 0.012, 0.08, PALETTE.iron, 6, 'y', { shade: 1 });
-  b.cone(x - 0.32, y + 1.16, z, 0.11, 0.2, PALETTE.brass, 12, { shade: 1, surface: 'brass' });
-  b.sphere(x - 0.32, y + 1.04, z, 0.03, PALETTE.brass, 0, 0.9, { shade: 1, surface: 'brass' });
+  const post = modelEntry('iron_post');
+  const ps = 1.35 / (post.max[1] - post.min[1]);
+  b.model('iron_post', x, y, z, Math.PI / 2, ps, ps, ps, { recolor: [ANY_DARK(PALETTE.navy), ANY_LIGHT('#4A5C86')], surface: 'iron', shade: 0.9 });
+  const bell = modelEntry('hand_bell');
+  const bs = 0.24 / (bell.max[1] - bell.min[1]);
+  b.model('hand_bell', x, y + (post.max[1] - post.min[1]) * ps, z, 0, bs, bs, bs, { recolor: [WARM(PALETTE.brass)], surface: 'brass', shade: 1 });
   b.endObject();
 }
 
@@ -1253,6 +1290,14 @@ function buildStationHouse(b: GeoBuilder, lamps: GeoBuilder, x1: number, gate: n
   b.cylinder(cx, 4.35, face + 0.075, 0.39, 0.39, 0.02, PALETTE.linen, 24, 'z', { shade: 1 });
   b.box(cx, 4.47, face + 0.09, 0.03, 0.24, 0.01, PALETTE.ink, 0, { shade: 1 });
   b.box(cx + 0.08, 4.35, face + 0.09, 0.18, 0.03, 0.01, PALETTE.ink, 0, { shade: 1 });
+  b.endObject();
+  // Station Picks S73: Tiny Treats' framed board between the door and the windows, the timetable pinned on it.
+  b.object('platform:noticeBoard');
+  {
+    const e = modelEntry('notice_board');
+    const sc = 0.95 / (e.max[0] - e.min[0]);
+    b.model('notice_board', x1 + 2.75, 1.25, face + 0.07 - e.min[2] * sc, 0, sc, sc, sc, { surface: 'wood', shade: 0.95 });
+  }
   b.endObject();
 }
 
@@ -1404,6 +1449,21 @@ function buildForecourt(flat: GeoBuilder, b: GeoBuilder, lamps: GeoBuilder, x1: 
     b.model('postbox', px, top, gate + GATE_HALF + 0.5, -Math.PI / 2, sc, sc, sc, { recolor: [key('cover', '#C8343A'), key('ttWood', '#5A3A2A')], surface: 'paint' });
   }
   void pz;
+  // Station Picks S70: a wooden fingerpost by the way in, pointing travellers to the village.
+  b.object('forecourt:signpost');
+  {
+    const e = modelEntry('signpost');
+    const sc = 1.7 / (e.max[1] - e.min[1]);
+    b.model('signpost', x1 + 1.0, top, gate + GATE_HALF + 1.5, -Math.PI / 2 + 0.3, sc, sc, sc, { surface: 'wood', shade: 0.9 });
+  }
+  // Station Picks S87: the water tower the engines fill from, a timber tank on legs beside the station house.
+  b.object('forecourt:waterTower');
+  {
+    const e = modelEntry('water_tower');
+    const sc = 4.6 / (e.max[1] - e.min[1]);
+    b.model('water_tower', x1 + 7.7, top, houseZ0 + 3.0, 0.2, sc, sc, sc, { surface: 'wood', shade: 0.9 });
+  }
+  b.endObject();
   b.object('forecourt:flowerBarrow');
   const fz = gate + GATE_HALF + 6.8;
   const fx = laneX0 + 0.85;

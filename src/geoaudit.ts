@@ -325,6 +325,8 @@ const DRAPED = new Set(['roof']);
 /** Containers and what they are built to hold (their stock sits inside their box on purpose). */
 const HOLDS: Record<string, string[]> = {
   // Phase 2: the restock cart's load lies in it; the booth's canopy stands on the ticket counter; the fruit stall holds its goods.
+  // Station Picks: the newsstand stall holds its papers (the station house holds the notice board, below).
+  'platform:newsstandStall': ['platform:newspapers'],
   'platform:restockCart': ['platform:restockGoods', 'platform:cartLoad'],
   'platform:restockGoods': ['platform:cartLoad'],
   'platform:cartAwning': ['platform:restockCart', 'platform:restockGoods', 'platform:cartLoad'],
@@ -358,7 +360,7 @@ const HOLDS: Record<string, string[]> = {
   // Session 23, the platform: what stands on the ticket stand, the station house's lit windows and lanterns on its
   // face, a lamp post's lanterns.
   'platform:ticketStand': ['platform:ticketRack', 'platform:cashTin', 'platform:bell', 'platform:standLamp', 'platform:standLamp~glow'],
-  'platform:stationHouse': ['platform:houseWindow~glow', 'platform:doorLantern~glow'],
+  'platform:stationHouse': ['platform:houseWindow~glow', 'platform:doorLantern~glow', 'platform:noticeBoard'],
   'platform:lampPost': ['platform:lampPost~glow'],
   'forecourt:lamp': ['forecourt:lamp~glow'],
   // The station house stands in the forecourt's grass (its plinth is set into the ground).

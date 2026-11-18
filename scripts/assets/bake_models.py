@@ -112,6 +112,24 @@ MODELS = {
     'stew': 'kaykit-restaurant/food_stew.gltf',
     'soup': 'kenney-food/bowl-soup.glb',
     'cocktail': 'kenney-food/cocktail.glb',
+    # Station Picks (the owner's choices): the platform's furniture, goods and country life
+    'bench_log': 'kenney-holiday/bench.glb',                       # Kenney Holiday Kit (CC0), S14
+    'crate_carrots': 'kaykit-restaurant/crate_carrots.gltf',      # KayKit Restaurant Bits (CC0), S57
+    'crate_tomatoes': 'kaykit-restaurant/crate_tomatoes.gltf',
+    'crate_lettuce': 'kaykit-restaurant/crate_lettuce.gltf',
+    'crate_potatoes': 'kaykit-restaurant/crate_potatoes.gltf',
+    'bread': 'tinytreats-baked/bread.gltf',                       # Tiny Treats Baked Goods (CC0)
+    'iron_fence': 'quaternius-village/Prop_MetalFence_Ornament.gltf',  # Quaternius Medieval Village (CC0), S29
+    'stone_pillar': 'kenney-fantasy-town/pillar-stone.glb',        # Kenney Fantasy Town Kit (CC0), S34
+    'stall_green': 'kenney-fantasy-town/stall-green.glb',          # S62
+    'stall_red': 'kenney-fantasy-town/stall-red.glb',              # S64
+    'hand_bell': 'kaykit-holiday/bell.gltf',                      # KayKit Holiday Bits (CC0), S75
+    'iron_post': 'kaykit-halloween/post.gltf',                    # KayKit Halloween Bits (CC0), S75
+    'signpost': 'kenney-survival/signpost.glb',                    # Kenney Survival Kit (CC0), S70
+    'notice_board': 'tinytreats-bakery/wall_sign_large.gltf',     # Tiny Treats Bakery Interior (CC0), S73
+    'bird': 'tinytreats-park/bird.gltf',                          # Tiny Treats Pretty Park (CC0), S92
+    'sheep': {'src': 'quaternius-animals/Sheep.obj', 'linear': True, 'paint': {'White': '#EFE8D8', 'Black': '#3A3230'}},  # S86
+    'water_tower': {'src': 'quaternius-farm/WaterTower.obj', 'linear': True, 'paint': {'Brown': WOOD, 'DarkGrey': '#3F4452', 'Grey': '#5A5F6B'}},  # S87
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}
