@@ -253,9 +253,11 @@ export class Guidance {
         if (room) return this.because('clean', room.spots[0] ?? room.center);
       }
       // Session 55: the supply cart, then the lobby's supply cupboard (one trip a stop, done).
-      if (!stack.isFull && w.station.cartWanted() > 0 && !stack.items.some((k) => w.demand.surplus(player, k) > 0)) return this.because('restock', PLATFORM.restockPad);
-      if (stack.has('crate') && w.station.cupboardNeed() > 0) return this.because('restock', w.station.cupboardPoint());
+      // Session 56: the box is carried in the hand, apart from the tray, so whatever the conductor holds never blocks it.
+      if (w.station.cartWanted()) return this.because('restock', PLATFORM.restockPad);
     }
+    // The box in hand goes to the cupboard, at a stop or after it.
+    if (w.station.supplyInHand) return this.because('restock', w.station.cupboardPoint());
 
     if (!stack.isEmpty) {
       const need = this.whereNeeded(stack.items);

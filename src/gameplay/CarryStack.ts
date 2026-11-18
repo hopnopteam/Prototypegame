@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { easeInOutCubic } from '../core/math';
 import type { Tweens } from '../core/Tween';
 import type { ItemKind } from '../core/types';
-import { createItemMesh, ITEM_HEIGHT } from '../world/ItemMeshes';
+import { createItemMesh, createTrayMesh, ITEM_HEIGHT, ON_TRAY, TRAY_TOP } from '../world/ItemMeshes';
 
 const tmp = new THREE.Vector3();
 
@@ -14,6 +14,9 @@ export class CarryStack {
   readonly items: ItemKind[] = [];
   private readonly meshes: THREE.Mesh[] = [];
   private wobble = 0;
+  /** Session 56: the serving tray under the stack whenever food or drink is on it. */
+  private tray: THREE.Mesh | null = null;
+  private trayBase = 0;
 
   constructor(
     private readonly anchor: THREE.Object3D,
@@ -48,6 +51,9 @@ export class CarryStack {
   add(kind: ItemKind, from?: THREE.Vector3): boolean {
     if (this.isFull) return false;
     this.items.push(kind);
+    const base = this.trayBase;
+    this.updateTray();
+    if (base !== this.trayBase) this.relayout();
     const mesh = createItemMesh(kind);
     this.meshes.push(mesh);
     this.anchor.add(mesh);
@@ -83,6 +89,7 @@ export class CarryStack {
     if (index < 0) return false;
     this.items.splice(index, 1);
     const [mesh] = this.meshes.splice(index, 1);
+    this.updateTray();
     this.tweens.kill(mesh);
     this.relayout();
     if (to) {
@@ -129,8 +136,22 @@ export class CarryStack {
     }
   }
 
+  /** Shows the tray while anything on the stack is food or drink, and lifts the stack onto it. */
+  private updateTray(): void {
+    const wanted = this.items.some((k) => ON_TRAY.has(k));
+    if (wanted && !this.tray) {
+      this.tray = createTrayMesh();
+      this.anchor.add(this.tray);
+    }
+    if (this.tray) {
+      this.tray.visible = wanted;
+      this.tray.position.set(0, -0.01, 0);
+    }
+    this.trayBase = wanted ? TRAY_TOP - 0.01 : 0;
+  }
+
   private slotHeight(index: number): number {
-    let y = 0;
+    let y = this.trayBase;
     for (let i = 0; i < index; i++) y += ITEM_HEIGHT[this.items[i]] ?? 0.2;
     return y;
   }

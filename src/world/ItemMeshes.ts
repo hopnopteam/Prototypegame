@@ -39,11 +39,25 @@ function put(b: GeoBuilder, id: ModelId, x: number, y: number, z: number, height
   b.model(id, x, y, z, rotY, s, s, s, { recolor, surface, shade: 0.92 });
 }
 
-/** A serving tray (Tiny Treats'), its cloth in our colour, about 0.44 × 0.3. */
-function tray(b: GeoBuilder, rim: string, cloth: string): void {
-  const e = modelEntry('tray');
-  const sx = 0.44 / (e.max[0] - e.min[0]);
-  b.model('tray', 0, 0, 0, 0, sx, 0.03 / (e.max[1] - e.min[1]), 0.3 / (e.max[2] - e.min[2]), { recolor: [key('ttWood', rim), key('ttBlue', cloth), key('ttLight', PALETTE.linen)], surface: 'brass', shade: 0.92 });
+/**
+ * Session 56 (owner: "the game is missing the tray… where burger and all the food is on"): food and drink ride on one
+ * serving tray under the carrier's stack (`CarryStack`), Tiny Treats' tray in walnut with a cream cloth, 0.5 × 0.36.
+ */
+export const TRAY_TOP = 0.035;
+/** What goes on the tray (food and drink); bags, linen and boxes are carried as they are. */
+export const ON_TRAY: ReadonlySet<ItemKind> = new Set<ItemKind>(['tea', 'coffee', 'champagne', 'latte', 'pastry', 'meal', 'cocktail', 'popcorn', 'newspaper', 'breakfast', 'snack', 'sandwich']);
+let trayGeometry: THREE.BufferGeometry | null = null;
+export function createTrayMesh(): THREE.Mesh {
+  if (!trayGeometry) {
+    const b = new GeoBuilder();
+    const e = modelEntry('tray');
+    b.model('tray', 0, 0, 0, 0, 0.5 / (e.max[0] - e.min[0]), TRAY_TOP / (e.max[1] - e.min[1]), 0.36 / (e.max[2] - e.min[2]), { recolor: [key('ttWood', '#6E4630'), key('ttBlue', PALETTE.creamBand), key('ttLight', PALETTE.linen)], surface: 'varnish', shade: 0.92 });
+    trayGeometry = b.build();
+  }
+  const mesh = new THREE.Mesh(trayGeometry, MATERIALS.solid);
+  mesh.castShadow = true;
+  mesh.userData.kind = 'tray';
+  return mesh;
 }
 
 /** Carried items, each with one clear silhouette and colour so a stack reads at thumb size. */
@@ -51,22 +65,19 @@ function build(kind: ItemKind): THREE.BufferGeometry {
   const b = new GeoBuilder();
   switch (kind) {
     case 'tea':
-      // A brass tray with a teapot and a china mug.
-      tray(b, PALETTE.brass, PALETTE.navy);
-      put(b, 'teapot', 0.07, 0.03, 0, 0.14, [key('ttTeal', PALETTE.porcelain)]);
-      put(b, 'mug', -0.12, 0.03, 0.03, 0.065, [key('ttLight', PALETTE.porcelain)]);
+      // A teapot and a china mug (session 56: on the carrier's tray, `CarryStack`).
+      put(b, 'teapot', 0.07, 0, 0, 0.14, [key('ttTeal', PALETTE.porcelain)]);
+      put(b, 'mug', -0.12, 0, 0.03, 0.065, [key('ttLight', PALETTE.porcelain)]);
       break;
     case 'coffee':
-      // A silver tray with a red coffee mug and a takeaway cup.
-      tray(b, PALETTE.chrome, '#5A3524');
-      put(b, 'mug', 0.06, 0.03, 0, 0.1, [key('ttLight', '#B23A2C')]);
-      put(b, 'takeaway', -0.12, 0.03, 0.02, 0.1);
+      // A red coffee mug and a takeaway cup.
+      put(b, 'mug', 0.06, 0, 0, 0.1, [key('ttLight', '#B23A2C')]);
+      put(b, 'takeaway', -0.12, 0, 0.02, 0.1);
       break;
     case 'champagne':
-      // A brass tray with a bottle (gold foil) and a glass.
-      tray(b, PALETTE.brass, PALETTE.navy);
-      put(b, 'wine_bottle', 0.06, 0.03, 0, 0.3, [key('ttWood', PALETTE.gold)], 'glass');
-      put(b, 'wine_glass', -0.12, 0.03, 0.02, 0.12, [key('ttBlue', '#E9F2F5')], 'glass');
+      // A bottle (gold foil) and a glass.
+      put(b, 'wine_bottle', 0.06, 0, 0, 0.3, [key('ttWood', PALETTE.gold)], 'glass');
+      put(b, 'wine_glass', -0.12, 0, 0.02, 0.12, [key('ttBlue', '#E9F2F5')], 'glass');
       break;
     case 'blanket':
       b.rounded(0, 0.06, 0, 0.44, 0.12, 0.32, 0.04, PALETTE.mustard, { pattern: PATTERN.stripesX, color2: PALETTE.raspberry, scale: 0.1, shade: 0.85 });
@@ -105,9 +116,8 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       put(b, 'dinner', 0, 0, 0, 0.2, [], 'matte');
       break;
     case 'cocktail':
-      // A cocktail glass (Kenney's) on a small silver tray.
-      b.rounded(0, 0.01, 0, 0.24, 0.02, 0.18, 0.04, PALETTE.chrome, { shade: 0.9, surface: 'steel' });
-      put(b, 'cocktail', 0, 0.02, 0, 0.2, [], 'glass');
+      // A cocktail glass (Kenney's).
+      put(b, 'cocktail', 0, 0, 0, 0.2, [], 'glass');
       break;
     case 'popcorn':
       // A red-and-white striped carton heaped with popcorn.
@@ -115,19 +125,17 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       for (const [x, z, y] of [[0, 0, 0.23], [0.04, 0.03, 0.215], [-0.04, 0.02, 0.215], [0.02, -0.04, 0.22], [-0.03, -0.03, 0.21]]) b.sphere(x, y, z, 0.035, '#FFF1C9', 1, 0.85, { shade: 1 });
       break;
     case 'newspaper':
-      // The morning paper, folded, on a small silver tray.
-      b.rounded(0, 0.008, 0, 0.36, 0.016, 0.26, 0.04, PALETTE.chrome, { shade: 0.9, surface: 'steel' });
-      b.box(0, 0.03, 0, 0.28, 0.026, 0.2, '#F3EEE2', 0, { shade: 0.95 });
-      b.box(0, 0.0435, -0.06, 0.24, 0.002, 0.03, '#2B2230', 0, { shade: 1 });
-      b.box(-0.06, 0.0435, 0.03, 0.1, 0.002, 0.08, '#9DB8CF', 0, { shade: 1 });
+      // The morning paper, folded.
+      b.box(0, 0.013, 0, 0.28, 0.026, 0.2, '#F3EEE2', 0, { shade: 0.95 });
+      b.box(0, 0.0275, -0.06, 0.24, 0.002, 0.03, '#2B2230', 0, { shade: 1 });
+      b.box(-0.06, 0.0275, 0.03, 0.1, 0.002, 0.08, '#9DB8CF', 0, { shade: 1 });
       break;
     case 'breakfast':
-      // A breakfast tray: a croissant on a plate, a muffin and a mug of coffee.
-      tray(b, PALETTE.brass, PALETTE.linen);
-      put(b, 'plate', -0.06, 0.03, 0, 0.018, [key('ttBlue', PALETTE.porcelain)]);
-      put(b, 'croissant', -0.06, 0.045, 0, 0.06, [], 'matte', 0.6);
-      put(b, 'mug', 0.12, 0.03, 0.04, 0.07, [key('ttLight', PALETTE.porcelain)]);
-      put(b, 'muffin', 0.11, 0.03, -0.08, 0.06, [], 'matte');
+      // Breakfast: a croissant on a plate, a muffin and a mug of coffee.
+      put(b, 'plate', -0.06, 0, 0, 0.018, [key('ttBlue', PALETTE.porcelain)]);
+      put(b, 'croissant', -0.06, 0.015, 0, 0.06, [], 'matte', 0.6);
+      put(b, 'mug', 0.12, 0, 0.04, 0.07, [key('ttLight', PALETTE.porcelain)]);
+      put(b, 'muffin', 0.11, 0, -0.08, 0.06, [], 'matte');
       break;
     case 'snack':
       // A minibar's refill: a little box with a chocolate bar and a bag of crisps peeking out.

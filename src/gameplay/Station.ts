@@ -54,6 +54,10 @@ const DAY_RIDER_START = 2.5;
  * alight, luggage and vendor crates wait on the platform, and each stop ends with a result card and a bonus
  * for a clean stop. Nothing here can fail: guests who miss the train simply wait for the next one.
  */
+/** Session 56: the supplies box on the conductor's shoulder (body space) and its size. */
+const SUPPLY_BOX_AT = { x: 0.2, y: 0.93, z: -0.04 };
+const SUPPLY_BOX_SCALE = 0.75;
+
 export class Station {
   readonly view = new PlatformView();
   platformOffset = 1e6;
@@ -453,7 +457,7 @@ export class Station {
     }
     this.view.group.visible = visible;
     this.view.setOffset(this.platformOffset);
-    if (visible) this.view.animate(_dt);
+    if (visible) this.view.animate(_dt, w.player.pos.x, w.player.pos.z);
     // The platform's lamps light the deck, the waiting guests and the train's side as it slides in.
     const light = w.stage.lightMap;
     if (visible !== this.lampsShown) {
@@ -777,6 +781,7 @@ export class Station {
 
   private clearPlatform(): void {
     this.w.guests.removePlatformGuests();
+    this.view.resetLife();
     this.luggagePile = 0;
     this.vendorCrates = 0;
     this.layoutPlatformItems();
@@ -853,10 +858,10 @@ export class Station {
     // Phase 2: the platform kiosk's till (its takings pile up while the train is in).
     w.cash.create('kiosk', PLATFORM_X0 + KIOSK_TILL.dx, KIOSK_TILL.z);
 
-    // Session 55: the supply cart. Stand by it a moment and the conductor takes the boxes of supplies the lobby's
-    // cupboard is short of (as many as they can carry); then they put them in the cupboard (`createCupboard`).
+    // Session 56 (owner: "even if we have other things in our hands, the restock should still work"): the supply cart.
+    // Stand by it a moment and the conductor takes the day's supplies as one box in their hand, whatever is on their
+    // tray; then they put it in the lobby's cupboard (`createCupboard`).
     const cart = PLATFORM.restockPad;
-    const cartPoint = new THREE.Vector3();
     w.zones.add(new Zone({
       id: 'restock',
       kind: 'pickup',
@@ -864,27 +869,22 @@ export class Station {
       z: cart.z,
       radius: 0.62,
       icon: 'crate',
-      active: () => this.cartWanted() > 0 && !w.player.stack.isFull,
-      highlight: () => this.cartWanted() > 0,
+      staff: false,
+      active: () => this.cartWanted(),
+      highlight: () => this.cartWanted(),
       stay: (zone, actor, dt) => {
-        if (!actor.isPlayer || actor.stack.isFull || this.cartWanted() === 0) {
+        if (!actor.isPlayer || !this.cartWanted()) {
           zone.progress = 0;
           return false;
         }
         zone.progress += dt / w.econ.station.restockSeconds;
         if (zone.progress < 1) return true;
         zone.progress = 0;
-        let n = 0;
-        for (let k = this.cartWanted(); k > 0 && !actor.stack.isFull; k--) {
-          actor.stack.add('crate', cartPoint.set(PLATFORM.restock.x1, FLOOR_Y + 0.9, (PLATFORM.restock.z0 + PLATFORM.restock.z1) / 2));
-          n++;
-        }
-        if (n > 0) {
-          actor.view.bounce(0.4);
-          w.audio.play('pickup', { pitch: 1.1 });
-          w.haptics.light();
-          w.particles.emit('sparkle', cart.x, FLOOR_Y + 1, cart.z, 6, 0.25);
-        }
+        this.takeSupplies();
+        actor.view.bounce(0.4);
+        w.audio.play('pickup', { pitch: 1.1 });
+        w.haptics.light();
+        w.particles.emit('sparkle', cart.x, FLOOR_Y + 1, cart.z, 6, 0.25);
         return true;
       },
     }));
@@ -972,11 +972,45 @@ export class Station {
    */
   supply = 3;
 
-  /** Boxes the conductor should still take from the supply cart (what the cupboard lacks, less what they carry). */
-  cartWanted(): number {
+  /** Session 56: the conductor has the supplies box in hand (carried apart from the tray, so nothing else blocks it). */
+  supplyInHand = false;
+  private supplyBox: THREE.Mesh | null = null;
+
+  /** The supply cart wants the conductor: the cupboard is short and they have no box yet. */
+  cartWanted(): boolean {
     const w = this.w;
-    if (!w.journey.doorsOpen || this.prologue || w.coach?.tutorial) return 0;
-    return Math.max(0, w.econ.station.supply.capacity - this.supply - w.player.stack.countOf('crate'));
+    if (!w.journey.doorsOpen || this.prologue || w.coach?.tutorial || this.supplyInHand) return false;
+    return this.cupboardNeed() > 0;
+  }
+
+  /** The box of supplies in the conductor's right hand (Tiny Treats' parcel), until it goes in the cupboard. */
+  private takeSupplies(): void {
+    this.supplyInHand = true;
+    if (!this.supplyBox) {
+      this.supplyBox = createItemMesh('crate');
+      this.supplyBox.scale.setScalar(SUPPLY_BOX_SCALE);
+    }
+    // On the shoulder, so the tray in front stays free (and both read at a glance).
+    this.supplyBox.position.set(SUPPLY_BOX_AT.x, SUPPLY_BOX_AT.y, SUPPLY_BOX_AT.z);
+    this.supplyBox.rotation.set(0, 0, -0.18);
+    this.w.player.view.body.add(this.supplyBox);
+  }
+
+  /** The box goes in the cupboard: flown there from the hand. */
+  private stowSupplies(to: THREE.Vector3): void {
+    const box = this.supplyBox;
+    this.supplyInHand = false;
+    if (!box) return;
+    const from = box.getWorldPosition(new THREE.Vector3());
+    box.parent?.remove(box);
+    const fly = createItemMesh('crate');
+    fly.scale.setScalar(SUPPLY_BOX_SCALE);
+    fly.position.copy(from);
+    this.w.stage.scene.add(fly);
+    this.w.tweens.run(0.3, (t) => {
+      fly.position.lerpVectors(from, to, t);
+      fly.position.y += Math.sin(t * Math.PI) * 0.5;
+    }, { complete: () => this.w.stage.scene.remove(fly) });
   }
 
   /** Session 55: boxes the cupboard still lacks (what a carried box is wanted for). */
@@ -1009,7 +1043,7 @@ export class Station {
   private createCupboard(): void {
     const w = this.w;
     const p = this.cupboardPoint();
-    const to = new THREE.Vector3();
+    const to = new THREE.Vector3(p.x, FLOOR_Y + 1.2, p.z - 0.6);
     w.zones.add(new Zone({
       id: 'supplyCupboard',
       kind: 'drop',
@@ -1018,27 +1052,28 @@ export class Station {
       radius: 0.62,
       icon: 'crate',
       staff: false,
-      active: () => this.cupboardNeed() > 0 && w.player.stack.has('crate'),
+      active: () => this.supplyInHand,
       stay: (zone, actor, dt) => {
-        if (!actor.isPlayer || this.cupboardNeed() === 0 || !actor.stack.has('crate')) return false;
-        zone.timer += dt;
-        if (zone.timer < w.econ.zones.dropIntervalSeconds) return true;
-        zone.timer = 0;
-        actor.stack.remove('crate', () => to.set(p.x, FLOOR_Y + 1.2, p.z - 0.6));
-        this.supply++;
-        w.audio.play('drop');
-        if (this.supply >= w.econ.station.supply.capacity) {
-          w.particles.emit('sparkle', p.x, FLOOR_Y + 1.4, p.z - 0.5, 10, 0.4);
-          w.ui.floatIcon('crate', p.x, FLOOR_Y + 2.2, p.z - 0.4, 'info', true);
-          w.audio.play('done');
-          w.haptics.light();
+        if (!actor.isPlayer || !this.supplyInHand) return false;
+        zone.progress += dt / 0.5;
+        if (zone.progress < 1) return true;
+        zone.progress = 0;
+        const filled = this.cupboardNeed();
+        this.stowSupplies(to);
+        this.supply = w.econ.station.supply.capacity;
+        w.audio.play('done');
+        w.haptics.light();
+        w.particles.emit('sparkle', p.x, FLOOR_Y + 1.4, p.z - 0.5, 10, 0.4);
+        w.ui.floatIcon('crate', p.x, FLOOR_Y + 2.2, p.z - 0.4, 'info', true);
+        if (filled > 0) {
           this.restocksThisStop++;
-          w.events.emit('station.restocked', { items: w.econ.station.supply.capacity });
+          w.events.emit('station.restocked', { items: filled });
         }
         return true;
       },
     }));
   }
+
 
   /** Phase 2: the kiosk trades while the train is in, into its till on the platform. */
   private kioskCarry = 0;

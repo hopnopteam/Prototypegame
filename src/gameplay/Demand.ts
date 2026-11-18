@@ -73,8 +73,8 @@ export class Demand {
         return Math.max(0, Math.min(room, reachable));
       }
       case 'crate': {
-        // Session 55: without a stores car, boxes of supplies go to the lobby's cupboard.
-        if (w.train.indexOfType('supply') === null) return Math.min(w.station.cupboardNeed(), w.player.stack.countOf('crate') + w.station.cartWanted());
+        // Session 55: without a stores car, the supplies go to the lobby's cupboard (`Station`).
+        if (w.train.indexOfType('supply') === null) return 0; // Session 56: the supplies box is in the hand, not on the tray
         const f = w.data.facilities;
         const max = w.econ.facilities.supplyShelfMax;
         const missing = Math.max(max - f.supplyTowel, max - f.supplyRoll);

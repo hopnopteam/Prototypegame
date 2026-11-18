@@ -640,6 +640,42 @@ export class CharacterView {
     }
   }
 
+  /**
+   * Session 56 (owner: "the band guys are just standing there and bouncing"): a player in the station's brass band,
+   * posed after `update` on the beat `t` (in beats). Everyone sways with the tune and taps a foot; the trumpet is
+   * held to the lips and its bell lifts on the phrase, the tuba rocks side to side, the drummer strikes on every beat
+   * with the hands in turn.
+   */
+  playInstrument(kind: 'trumpet' | 'tuba' | 'drum', t: number): void {
+    const beat = t * Math.PI;
+    const sway = Math.sin(beat * 0.5);
+    const lift = Math.abs(Math.sin(beat));
+    this.body.position.y += lift * 0.035;
+    this.body.rotation.z = sway * (kind === 'tuba' ? 0.11 : 0.06);
+    this.body.rotation.y = sway * 0.1;
+    // A foot taps on the beat (the other one stays planted).
+    this.legs[0].rotation.x = -Math.max(0, Math.sin(beat)) * 0.28;
+    this.legs[1].rotation.x = 0;
+    const [left, right] = this.arms;
+    if (kind === 'trumpet') {
+      // Four-beat phrases: the bell rises through the phrase, then a breath.
+      const phrase = (t % 4) / 4;
+      this.body.rotation.x = -0.05 - Math.sin(phrase * Math.PI) * 0.16;
+      left.rotation.set(-1.45 - Math.sin(beat * 2) * 0.04, 0, -0.25);
+      right.rotation.set(-1.4 + Math.sin(beat * 2) * 0.06, 0, 0.3);
+    } else if (kind === 'tuba') {
+      this.body.rotation.x = 0.04 + lift * 0.04;
+      left.rotation.set(-0.95, 0, -0.15);
+      right.rotation.set(-1.1, 0, 0.35);
+    } else {
+      this.body.rotation.x = 0.1;
+      const hitL = Math.max(0, Math.sin(beat));
+      const hitR = Math.max(0, -Math.sin(beat));
+      left.rotation.set(-0.7 - hitL * 0.7, 0, -0.2);
+      right.rotation.set(-0.7 - hitR * 0.7, 0, 0.2);
+    }
+  }
+
   /** A little squash-and-stretch hop (pickups, payments). */
   bounce(amount = 1): void {
     this.squash = Math.max(this.squash, amount);

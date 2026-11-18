@@ -146,7 +146,8 @@ export class ConductorGear {
       this.view.rideLift = state.scooter ? SCOOTER_LIFT : 0;
       this.view.body.position.y = 0;
     }
-    this.tray.visible = state.carrying && state.capacityLevel >= 1;
+    // Session 56: the stack has its own serving tray (CarryStack); this plate stays hidden.
+    this.tray.visible = false;
     if (state.scooter) for (const w of this.wheels) w.rotation.x += (state.speed * dt) / WHEEL_RADIUS;
     // The rim breathes gently; it turns cyan on skates and a brighter, quicker gold with double fares.
     const boosted = state.skating || state.doubled;

@@ -9,6 +9,7 @@ import { PALETTE } from './palette';
 import { key, modelEntry, type Recolor } from './models/library';
 import { CharacterView, type CharacterAction, type CharacterLook } from './CharacterView';
 import { headlineTexture, posterTexture, signTexture } from './sprites';
+import { Strollers } from './Strollers';
 import type { Rect } from '../core/types';
 import type { LampAnchor } from './Lighting';
 
@@ -25,15 +26,19 @@ const POSTER_H = 1.25;
 /** Session 55: the posters stand in the advertising bay against the back railing (`BAYS.adverts`). */
 const POSTER_X = PLATFORM_X0 + 6.85;
 const POSTER_ZS = [BAYS.adverts[0] + 0.7, BAYS.adverts[0] + 2.0];
-/** Session 55: the Billboards upgrade's board in the same bay, and the band beyond it. */
-const BILLBOARD = { x: PLATFORM_X0 + 6.65, z: BAYS.adverts[0] + 4.0, w: 1.7, h: 1.05 };
+/**
+ * Session 55: the Billboards upgrade's board in the same bay, and the band beyond it. Session 56 (owner: "when you
+ * stand on the upgrade with the band, it is hidden behind a board"): posters, board and band from the far end of the
+ * bay toward the camera, and the bay's tile last, nearest the camera, so nothing stands in front of it.
+ */
+const BILLBOARD = { x: PLATFORM_X0 + 6.65, z: BAYS.adverts[0] + 3.3, w: 1.7, h: 1.05 };
 const BAND_LOOK: CharacterLook = { body: '#C0485C', accent: '#E2B04A', skin: '#F1C7A6', hair: '#4A3428', pants: '#F4EEE2', hat: 'pillbox', hatColor: '#C0485C', bandColor: '#E2B04A', arms: true };
 const BAND_SKIN = ['#F1C7A6', '#C98E66', '#8D5A3C'];
 /** Where the band stands (by the way in from the station, clear of the queue and the walkway) and what each one plays. */
 const BAND: { x: number; z: number; instrument: 'tuba' | 'drum' | 'trumpet' }[] = [
-  { x: PLATFORM_X0 + 5.95, z: BAYS.adverts[1] - 1.6, instrument: 'trumpet' },
-  { x: PLATFORM_X0 + 6.85, z: BAYS.adverts[1] - 0.9, instrument: 'tuba' },
-  { x: PLATFORM_X0 + 6.9, z: BAYS.adverts[1] - 2.3, instrument: 'drum' },
+  { x: PLATFORM_X0 + 5.75, z: BAYS.adverts[1] - 2.3, instrument: 'trumpet' },
+  { x: PLATFORM_X0 + 6.85, z: BAYS.adverts[1] - 2.9, instrument: 'tuba' },
+  { x: PLATFORM_X0 + 6.85, z: BAYS.adverts[1] - 1.8, instrument: 'drum' },
 ];
 const BEAT_SECONDS = 0.5;
 /** The station master stands by the front of the train and waves the green flag at departure. */
@@ -79,6 +84,13 @@ const SEEING_OFF = [{ x: PLATFORM_X0 + 5.7, z: -10.4, facing: -Math.PI / 2 - 0.5
 const LAMP_FOOT = 0.16;
 const PLANTER_FOOT = 0.36;
 const PERSON_FOOT = 0.22;
+/**
+ * Session 56 (owner: "a shop, you stand on it, and it gives you train upgrades… it shows up on the train"): the Train
+ * Works, a coachbuilder's workbench against the railing in the Smarten the Train bay, its tile in front of it.
+ */
+const WORKS = { x: PLATFORM_X0 + 7.0, z: (BAYS.smarten[0] + BAYS.smarten[1]) / 2, len: 1.9, depth: 0.55, top: 0.82 };
+const PAINTER_LOOK: CharacterLook = { body: '#EDE6D6', accent: '#3F6E5A', skin: '#D9A07A', hair: '#5A3A24', pants: '#EDE6D6', hat: 'cap', hatColor: '#3F6E5A', arms: true };
+const PAINTER_POS = { x: PLATFORM_X0 + 6.3, z: BAYS.smarten[1] + 0.2 };
 /** A seated townsperson's root above the floor (resting on a bench seat). */
 const BENCH_SIT_Y = 0.285;
 
@@ -139,6 +151,10 @@ export class PlatformView {
   private readonly helperView = new CharacterView(HELPER_LOOK);
   private readonly clerkView = new CharacterView(CLERK_LOOK);
   private readonly keeperView = new CharacterView(KEEPER_LOOK);
+  private readonly painter = new CharacterView(PAINTER_LOOK);
+  /** Session 56: townsfolk strolling the platform and browsing its shops. */
+  private readonly strollers: Strollers;
+  private kioskOwned = false;
   private headline = '';
   length = 0;
   z0 = 0;
@@ -166,6 +182,20 @@ export class PlatformView {
     tickets.rotation.x = -0.55;
     tickets.name = 'ticketSign';
     this.group.add(tickets);
+
+    // Session 56: the Train Works' board over its bench, and its painter.
+    const works = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.4), new THREE.MeshLambertMaterial({ color: '#ffffff', map: signTexture('Train Works', '#3F6E5A', PALETTE.creamBand) }));
+    works.position.set(WORKS.x + 0.1, FLOOR_Y + 2.0, WORKS.z);
+    works.rotation.set(-0.6, 0.35, 0, 'YXZ');
+    works.name = 'worksSign';
+    this.group.add(works);
+    this.painter.leans = false;
+    this.painter.root.userData.object = 'character:painter';
+    this.painter.setPosition(PAINTER_POS.x, FLOOR_Y, PAINTER_POS.z);
+    this.painter.setFacing(Math.PI * 0.75);
+    this.group.add(this.painter.root);
+
+    this.strollers = new Strollers(this.group, PLATFORM_X0, () => this.kioskOwned);
 
     this.master = new CharacterView(MASTER_LOOK);
     this.master.leans = false;
@@ -239,7 +269,8 @@ export class PlatformView {
         solids.push({ x0: bench.x0 + 0.1, z0: bench.z0 + 0.2, x1: bench.x1, z1: bench.z1 - 0.2 });
       }
     }
-    if (owned.has('kiosk')) buildFruitStall(b, at('kiosk'));
+    this.kioskOwned = owned.has('kiosk');
+    if (this.kioskOwned) buildFruitStall(b, at('kiosk'));
     const dz = gateZ !== null ? gateZ - LOBBY_DOOR_Z : 0;
     if (owned.has('gate2') && gateZ !== null) buildTicketStand(b, lamps, dz, true);
     for (const mesh of [this.upgradeMesh, this.upgradeLamps]) {
@@ -428,13 +459,11 @@ export class PlatformView {
 
     yield;
 
-    // Session 55: two planters mark the Smarten the Train bay (its tile stands between them).
-    for (const dz of [-0.95, 0.95]) {
-      const z = (BAYS.smarten[0] + BAYS.smarten[1]) / 2 + dz;
-      props.object('platform:bayPlanter');
-      buildPlanter(props, lampX + 0.05, z);
-      block(lampX + 0.05, z, PLANTER_FOOT);
-    }
+    // Session 56: the Train Works' bench fills the Smarten the Train bay, its painter at the near end.
+    props.object('platform:trainWorks');
+    buildTrainWorks(props);
+    block(WORKS.x, WORKS.z, WORKS.depth / 2, WORKS.len / 2);
+    block(PAINTER_POS.x, PAINTER_POS.z, PERSON_FOOT);
     props.endObject();
     // The luggage barrow (session 23; the ticket stand is built with the upgrades, `setUpgrades`).
     buildBarrow(props);
@@ -604,18 +633,19 @@ export class PlatformView {
   }
 
   /** The band plays while the platform is on screen: a little hop on every beat. */
-  animate(dt: number): void {
+  animate(dt: number, playerX = 1e6, playerZ = 1e6): void {
     this.master.update(dt, 0);
+    this.strollers.update(dt, playerX, playerZ - this.group.position.z, this.master.waving);
     for (const view of [this.helperView, this.clerkView, this.keeperView]) if (view.root.visible) view.update(dt, 0);
+    this.painter.update(dt, 0);
     this.animatePigeons(dt);
     this.animateTownsfolk(dt);
     if (!this.marketing.band || this.band.length === 0) return;
-    this.beat += dt;
-    const onBeat = this.beat >= BEAT_SECONDS;
-    if (onBeat) this.beat -= BEAT_SECONDS;
+    // Session 56: they play, not just hop (`CharacterView.playInstrument`), each a fraction of a beat apart.
+    this.beat = (this.beat + dt / BEAT_SECONDS) % 64;
     this.band.forEach((view, i) => {
-      if (onBeat && (i !== 1 || Math.random() < 0.5)) view.bounce(0.35);
       view.update(dt, 0);
+      view.playInstrument(BAND[i].instrument, this.beat + i * 0.12);
     });
   }
 
@@ -720,6 +750,11 @@ export class PlatformView {
 
   static vendorPosition(supplyCarIndex: number): { x: number; z: number } {
     return { x: PLATFORM_X0 + 2.2, z: carriageOriginZ(supplyCarIndex) + DOOR_Z0 - 1.2 };
+  }
+
+  /** Session 56: the strollers go home (the platform leaves; the next station's townsfolk come out afresh). */
+  resetLife(): void {
+    this.strollers.reset();
   }
 
   setOffset(z: number): void {
@@ -999,6 +1034,43 @@ function fitModel(b: GeoBuilder, id: Parameters<typeof modelEntry>[0], x: number
   const e = modelEntry(id);
   const sc = height / (e.max[1] - e.min[1]);
   b.model(id, x, y, z, rotY, sc, sc, sc, { recolor, surface, shade: 0.85 });
+}
+
+/**
+ * Session 56: the Train Works' bench: a coachbuilder's oak workbench on trestles against the railing, tins of the
+ * livery paints with a brush across one, a roll of gold lining, a sample flower box and a brass carriage lamp: what the
+ * shop fits to the train.
+ */
+function buildTrainWorks(b: GeoBuilder): void {
+  const { x, z, len, depth, top } = WORKS;
+  const y = FLOOR_Y;
+  for (const dz of [-len / 2 + 0.18, len / 2 - 0.18]) {
+    b.box(x, y + top / 2 - 0.02, z + dz, depth - 0.08, top - 0.04, 0.07, '#5E3F2A', 0, { shade: 0.85, surface: 'wood' });
+  }
+  b.box(x, y + 0.2, z, depth - 0.12, 0.04, len - 0.4, '#5E3F2A', 0, { shade: 0.8, surface: 'wood' });
+  b.box(x, y + top - 0.025, z, depth, 0.05, len, '#B98A5E', 0, { shade: 1, surface: 'wood' });
+  // A shelf of tins under the top.
+  for (let i = 0; i < 4; i++) b.cylinder(x - 0.05, y + 0.22, z - 0.5 + i * 0.33, 0.07, 0.07, 0.14, ['#3F6E5A', '#2F3E5C', '#8A2E3A', '#E2B04A'][i]!, 10, 'y', { shade: 0.9 });
+  const ty = y + top;
+  // Paint tins on the bench, the colours of the liveries, one open with a brush across it.
+  ['#3F6E5A', '#2F3E5C', '#8A2E3A'].forEach((c, i) => {
+    const tz = z - 0.75 + i * 0.2;
+    b.cylinder(x - 0.08, ty + 0.06, tz, 0.065, 0.065, 0.12, '#B9BCC2', 10, 'y', { shade: 1, surface: 'brass' });
+    b.cylinder(x - 0.08, ty + 0.121, tz, 0.058, 0.058, 0.004, c, 10, 'y', { shade: 1 });
+  });
+  b.box(x - 0.08, ty + 0.135, z - 0.55, 0.03, 0.02, 0.2, '#7A5236', 0, { shade: 1, surface: 'wood' });
+  // A roll of gold lining.
+  b.cylinder(x + 0.05, ty + 0.05, z - 0.15, 0.06, 0.06, 0.1, PALETTE.gold, 12, 'x', { shade: 1, surface: 'brass' });
+  // A sample flower box for the windows.
+  b.box(x - 0.02, ty + 0.06, z + 0.25, 0.18, 0.12, 0.42, '#7A5236', 0, { shade: 0.9, surface: 'wood' });
+  fitModel(b, 'flower_white', x - 0.02, ty + 0.12, z + 0.13, 0.12, 0.3);
+  fitModel(b, 'flower_blue', x - 0.02, ty + 0.12, z + 0.37, 0.12, 1.4);
+  // A brass carriage lamp on its bracket.
+  b.cylinder(x + 0.05, ty + 0.03, z + 0.72, 0.07, 0.08, 0.06, PALETTE.brass, 10, 'y', { shade: 1, surface: 'brass' });
+  b.cylinder(x + 0.05, ty + 0.17, z + 0.72, 0.06, 0.06, 0.2, '#F6E4B0', 10, 'y', { shade: 1.1 });
+  b.cylinder(x + 0.05, ty + 0.3, z + 0.72, 0.035, 0.08, 0.06, PALETTE.brass, 10, 'y', { shade: 1, surface: 'brass' });
+  // The board's two posts behind the bench.
+  for (const dz of [-0.62, 0.62]) b.box(x + 0.22, y + 1.0, z + dz, 0.06, 2.0, 0.06, '#3F6E5A', 0, { shade: 0.9 });
 }
 
 /** A wooden planter by the railing (session 51b): a Tiny Treats bush in it, flowers round its edge. */

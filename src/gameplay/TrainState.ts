@@ -184,6 +184,11 @@ const MAKEOVER_BAND_MATERIAL = new THREE.MeshBasicMaterial({ color: '#FFF1C4', t
 const TEASER_GAP = 0.6;
 const TEASER_ROLL = 30;
 
+/** Session 56: the train-upgrade moment's camera glide (seconds on the train, zoom out, when it arrives). */
+const DRESS_UP_SECONDS = 2.6;
+const DRESS_UP_ZOOM = 1.35;
+const DRESS_UP_ARRIVE = 0.7;
+
 export class TrainState {
   readonly group = new THREE.Group();
   readonly loco = new LocomotiveView();
@@ -550,20 +555,39 @@ export class TrainState {
   }
 
   /** Something new on the outside: a ripple of sparkle along the platform side of every carriage. */
+  /**
+   * Session 56 (owner: "whenever you purchase a train upgrade, it shows up on the train. The camera moves and it
+   * shows up on the train"): the camera glides from the Train Works to the side of the carriage nearest the
+   * conductor, and a wave of sparkles runs along the new dressing from there to both ends.
+   */
   private dressUpMoment(): void {
     const w = this.w;
     w.audio.play('sparkle');
-    w.stage.rig.shake(0.18, 0.3);
-    this.views.forEach((_, i) => {
+    const n = this.views.length;
+    let near = 0;
+    for (let i = 0; i < n; i++) {
+      const cz = carriageOriginZ(i) + CARRIAGE_LENGTH / 2;
+      if (Math.abs(cz - w.player.pos.z) < Math.abs(carriageOriginZ(near) + CARRIAGE_LENGTH / 2 - w.player.pos.z)) near = i;
+    }
+    const focusZ = carriageOriginZ(near) + CARRIAGE_LENGTH / 2;
+    w.stage.rig.focusOn(new THREE.Vector3(HALF_WIDTH + 0.4, 0, focusZ), DRESS_UP_SECONDS, DRESS_UP_ZOOM);
+    w.tweens.run(0.01, () => undefined, {
+      delay: DRESS_UP_ARRIVE,
+      complete: () => {
+        w.audio.play('chime');
+        w.stage.rig.shake(0.1, 0.25);
+        w.particles.emit('star', HALF_WIDTH + 0.3, FLOOR_Y + 1.6, focusZ, 14, 0.9);
+      },
+    });
+    for (let i = 0; i < n; i++) {
       const cz = carriageOriginZ(i) + CARRIAGE_LENGTH / 2;
       w.tweens.run(0.01, () => undefined, {
-        delay: i * 0.12,
+        delay: DRESS_UP_ARRIVE + Math.abs(i - near) * 0.15,
         complete: () => {
-          w.particles.emit('sparkle', HALF_WIDTH + 0.2, FLOOR_Y + 1.0, cz - 3, 10, 0.8);
-          w.particles.emit('sparkle', HALF_WIDTH + 0.2, FLOOR_Y + 1.0, cz + 3, 10, 0.8);
+          for (const dz of [-6, -2, 2, 6]) w.particles.emit('sparkle', HALF_WIDTH + 0.2, FLOOR_Y + 1.0, cz + dz, 6, 0.8);
         },
       });
-    });
+    }
   }
 
   /** Applies a completed unlock tile to the train. */
