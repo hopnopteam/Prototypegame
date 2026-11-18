@@ -1,3 +1,4 @@
+import { ACTIVE_ROUTE } from '../src/config/routes';
 import { describe, expect, it } from 'vitest';
 import { ECONOMY } from '../src/config/economy';
 import { DEFAULT_TRAIN, MAX_CARRIAGES, STATION_UPGRADES } from '../src/config/content';
@@ -174,11 +175,12 @@ describe('carriage choice', () => {
     expect(legacyCarriages(['couple_1', 'couple_2'])).toEqual(['lobby', 'bathroom', 'supply']);
   });
 
-  it('offers station upgrades in order, each reachable once the train has grown', () => {
+  it('offers the route\'s station upgrades in its order, each reachable once the train has grown', () => {
     const defs = buildUnlocks([...DEFAULT_TRAIN]);
     const ids = new Set(defs.map((d) => d.id));
-    const station = defs.filter((d) => d.kind === 'exterior' || d.kind === 'marketing');
-    expect(station.map((d) => d.id)).toEqual(STATION_UPGRADES.map((u) => `st.${u.key}`));
+    const station = defs.filter((d) => d.kind === 'exterior' || d.kind === 'marketing' || d.kind === 'platform');
+    expect(station.map((d) => d.id)).toEqual(ACTIVE_ROUTE.station.upgrades.map((key) => `st.${key}`));
+    for (const key of ACTIVE_ROUTE.station.upgrades) expect(STATION_UPGRADES.some((u) => u.key === key)).toBe(true);
     for (const d of station) {
       expect(d.carriage).toBe(-1);
       for (const r of d.requires) expect(ids.has(r)).toBe(true);
@@ -186,7 +188,7 @@ describe('carriage choice', () => {
   });
 
   it('adds up the bonuses of the station upgrades bought', () => {
-    expect(stationPerks(() => false)).toEqual({ tips: 0, fares: 0, passengers: 0, vip: 0, stationBonus: 0 });
+    expect(stationPerks(() => false)).toEqual({ tips: 0, fares: 0, passengers: 0, vip: 0, stationBonus: 0, restockFast: false, carry: 0, helper: false, trolley: false, kiosk: false, secondDoor: false });
     const all = stationPerks(() => true);
     expect(all.passengers).toBe(STATION_UPGRADES.reduce((sum, u) => sum + (u.bonus.passengers ?? 0), 0));
     expect(all.tips).toBeCloseTo(0.1);

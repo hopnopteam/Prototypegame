@@ -25,6 +25,31 @@ const SERVICE_REACH = 0.9;
 const SERVICE_INSET = 0.2;
 /** The ticket stand, the luggage barrow, the bench and the newsstand (session 23). */
 const PLATFORM_BLOCKED = platformObstacles();
+/** Phase 2: the platform's walking grid: spacing, clearance round what stands there, and the stretch it covers (z). */
+const PLATFORM_GRID_STEP = 0.9;
+const PLATFORM_GRID_MARGIN = 0.3;
+const PLATFORM_GRID_Z: [number, number] = [-14, 14];
+
+/** Whether the segment a→b crosses the rectangle (Liang–Barsky clipping). */
+function segmentHitsRect(ax: number, az: number, bx: number, bz: number, x0: number, z0: number, x1: number, z1: number): boolean {
+  let t0 = 0;
+  let t1 = 1;
+  const dx = bx - ax;
+  const dz = bz - az;
+  const p = [-dx, dx, -dz, dz];
+  const q = [ax - x0, x1 - ax, az - z0, z1 - az];
+  for (let i = 0; i < 4; i++) {
+    if (p[i] === 0) {
+      if (q[i] < 0) return false;
+    } else {
+      const t = q[i] / p[i];
+      if (p[i] < 0) t0 = Math.max(t0, t);
+      else t1 = Math.min(t1, t);
+      if (t0 > t1) return false;
+    }
+  }
+  return true;
+}
 const PLATFORM_SPINE_STEP = 4;
 
 /**
@@ -189,6 +214,7 @@ export class TrainMap {
       if (spine.length > 0) nav.addEdge(spine[spine.length - 1], id, true);
       spine.push(id);
     }
+    this.buildPlatformGrid(spine);
     for (const door of this.doors()) {
       let best = spine[0];
       let bestD = Infinity;
@@ -218,6 +244,58 @@ export class TrainMap {
   setPlatformExtras(rects: readonly Rect[]): void {
     this.platformExtras = rects;
     this.buildWalkable();
+    this.buildNav();
+  }
+
+  /**
+   * Phase 2 (owner: "the elements you can walk through… don't do that anymore"): a walking grid over the busy part of
+   * the platform, round everything standing on it, so whoever walks there by the nav (staff, quick travel, the
+   * autopilot) goes round the benches, the kiosk and the stand instead of into them. Joined to the spine.
+   */
+  private buildPlatformGrid(spine: string[]): void {
+    const nav = this.nav;
+    const blocked = [...PLATFORM_BLOCKED, ...this.platformExtras];
+    const margin = PLATFORM_GRID_MARGIN;
+    const inside = (x: number, z: number): boolean => blocked.some((b) => x > b.x0 - margin && x < b.x1 + margin && z > b.z0 - margin && z < b.z1 + margin);
+    const clear = (ax: number, az: number, bx: number, bz: number): boolean => blocked.every((b) => !segmentHitsRect(ax, az, bx, bz, b.x0 - margin, b.z0 - margin, b.x1 + margin, b.z1 + margin));
+    const room = this.platformRoom();
+    const ids = new Map<string, { id: string; x: number; z: number }>();
+    const step = PLATFORM_GRID_STEP;
+    const cols = Math.floor((room.x1 - room.x0 - 0.8) / step);
+    const z0 = Math.max(room.z0 + 1, PLATFORM_GRID_Z[0]);
+    const z1 = Math.min(room.z1 - 1, PLATFORM_GRID_Z[1]);
+    for (let i = 0; i <= cols; i++) {
+      for (let k = 0; z0 + k * step <= z1; k++) {
+        const x = room.x0 + 0.5 + i * step;
+        const z = z0 + k * step;
+        if (inside(x, z)) continue;
+        const id = `p:g_${i}_${k}`;
+        nav.addNode(id, x, z);
+        ids.set(`${i},${k}`, { id, x, z });
+      }
+    }
+    for (const [key, n] of ids) {
+      const [i, k] = key.split(',').map(Number);
+      for (const [di, dk] of [[1, 0], [0, 1], [1, 1], [1, -1]]) {
+        const m = ids.get(`${i + di},${k + dk}`);
+        if (m && clear(n.x, n.z, m.x, m.z)) nav.addEdge(n.id, m.id, true);
+      }
+    }
+    // Each spine node in the grid's stretch joins the nearest grid node it can reach in a straight line.
+    for (const sid of spine) {
+      const p = nav.position(sid);
+      if (p.z < z0 - step || p.z > z1 + step) continue;
+      let best: string | null = null;
+      let bestD = Infinity;
+      for (const n of ids.values()) {
+        const d = Math.hypot(n.x - p.x, n.z - p.z);
+        if (d < bestD && clear(p.x, p.z, n.x, n.z)) {
+          bestD = d;
+          best = n.id;
+        }
+      }
+      if (best && bestD < step * 1.6) nav.addEdge(sid, best, true);
+    }
   }
 
   /** Something bought appeared (or the walls moved): the walkable floor is worked out again. */

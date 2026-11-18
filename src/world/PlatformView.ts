@@ -72,6 +72,10 @@ const TOWNSFOLK: { look: CharacterLook; seated: boolean; idles: CharacterAction[
 ];
 /** Where the two seeing someone off stand: by the back railing between the kiosk and the way in. */
 const SEEING_OFF = [{ x: PLATFORM_X0 + 5.75, z: -9.35, facing: -Math.PI / 2 - 0.5 }, { x: PLATFORM_X0 + 5.3, z: -9.95, facing: -Math.PI / 2 + 0.35 }];
+/** Phase 2: half the footprint a lamp post, a planter tub and a standing person take on the deck. */
+const LAMP_FOOT = 0.16;
+const PLANTER_FOOT = 0.36;
+const PERSON_FOOT = 0.22;
 /** A seated townsperson's root above the floor (resting on a bench seat). */
 const BENCH_SIT_Y = 0.285;
 
@@ -138,6 +142,13 @@ export class PlatformView {
   z1 = 0;
   /** The platform's lamps for the lamp pools (local coordinates; the game slides them with the platform). */
   readonly lampAnchors: LampAnchor[] = [];
+  /**
+   * Phase 2 (owner: "the elements you can walk through… don't do that anymore"): the footprint of everything standing
+   * on the deck (lamp posts, tubs, benches, sign posts, the station master and the townsfolk), platform-local, so the
+   * walkable floor goes round them. Filled by each rebuild.
+   */
+  readonly solids: Rect[] = [];
+  solidsVersion = 0;
 
   constructor() {
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(SIGN_POST_HALF * 2 + 0.5, 0.72), this.signMaterial);
@@ -295,6 +306,10 @@ export class PlatformView {
    */
   *buildSteps(trainRearZ: number, supplyCarIndex: number | null, _luggageCarIndex: number | null): Generator<void, void> {
     const anchors: LampAnchor[] = [];
+    const solids: Rect[] = [];
+    const block = (x: number, z: number, hw: number, hd = hw): void => {
+      solids.push({ x0: x - hw, z0: z - hd, x1: x + hw, z1: z + hd });
+    };
     const z0 = -LOCOMOTIVE_LENGTH - 4;
     const z1 = trainRearZ + 8;
     const length = z1 - z0;
@@ -358,20 +373,24 @@ export class PlatformView {
       if (blockedZ(z, 0.6)) continue;
       lampZs.push(z);
       buildLampPost(props, lamps, lampX, z);
+      block(lampX, z, LAMP_FOOT);
       anchors.push({ x: lampX - 0.7, y: FLOOR_Y + 2.1, z, strength: 1 });
       const tubZ = z + LAMP_STEP / 2;
       if (tubZ < z1 - 2 && !blockedZ(tubZ, 0.8)) {
         props.object('platform:tub');
         buildPlanter(props, lampX + 0.05, tubZ);
+        block(lampX + 0.05, tubZ, PLANTER_FOOT);
       }
     }
     props.endObject();
     // The ticket stand's own lamp, and one over the luggage barrow, so both read at night.
     const standLamp = { x: PLATFORM.counter.x1 + 0.35, z: PLATFORM.counter.z0 - 0.35 };
     buildLampPost(props, lamps, standLamp.x, standLamp.z);
+    block(standLamp.x, standLamp.z, LAMP_FOOT);
     anchors.push({ x: standLamp.x - 0.6, y: FLOOR_Y + 2.1, z: standLamp.z + 0.6, strength: 1 });
     const barrowLamp = { x: PLATFORM.barrow.x1 + 1.35, z: PLATFORM.barrow.z1 + 0.95 };
     buildLampPost(props, lamps, barrowLamp.x, barrowLamp.z);
+    block(barrowLamp.x, barrowLamp.z, LAMP_FOOT);
     anchors.push({ x: barrowLamp.x - 0.8, y: FLOOR_Y + 2.1, z: barrowLamp.z - 0.8, strength: 1 });
     props.endObject();
 
@@ -382,10 +401,15 @@ export class PlatformView {
       if (i % 2 !== 0) return;
       const bench = { x0: x1 - 0.85, z0: z + 0.4, x1: x1 - 0.45, z1: z + 2.6 };
       buildBench(props, bench);
+      solids.push({ x0: bench.x0 - 0.25, z0: bench.z0, x1: bench.x1 + 0.1, z1: bench.z1 });
       if (!showBench) showBench = bench;
     });
 
     // Sign posts under the name board, either side of the way in.
+    for (const dx of [-SIGN_POST_HALF, SIGN_POST_HALF]) block(PLATFORM.sign.x + dx, PLATFORM.sign.z, 0.1);
+    // The station master by the front of the train, and the townsfolk seeing someone off.
+    block(MASTER_POS.x, MASTER_POS.z, PERSON_FOOT);
+    for (const t of SEEING_OFF) block(t.x, t.z, PERSON_FOOT);
     for (const dx of [-SIGN_POST_HALF, SIGN_POST_HALF]) props.object('platform:signPost').box(PLATFORM.sign.x + dx, FLOOR_Y + 1.15, PLATFORM.sign.z, 0.08, 2.3, 0.08, PALETTE.navy, 0, { shade: 0.9 });
     props.endObject();
 
@@ -421,6 +445,9 @@ export class PlatformView {
     this.length = length;
     this.lampAnchors.length = 0;
     this.lampAnchors.push(...anchors);
+    this.solids.length = 0;
+    this.solids.push(...solids);
+    this.solidsVersion++;
     const solid = (geometry: THREE.BufferGeometry, cast: boolean): THREE.Mesh => {
       const mesh = new THREE.Mesh(geometry, MATERIALS.solid);
       mesh.castShadow = cast;

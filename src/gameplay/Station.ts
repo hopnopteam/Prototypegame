@@ -39,6 +39,8 @@ function shuffled<T>(items: readonly T[], rng: { next(): number }): T[] {
 const BILLBOARD_COUNT = 3;
 /** Phase 2: what the platform's restock cart carries, most needed first. */
 const RESTOCK_KINDS: readonly ItemKind[] = ['towel', 'roll', 'snack'];
+/** Phase 2 (≥30 fps on a low-end phone): on Low quality a platform holds at most this many travellers. */
+const LOW_TIER_BOARDERS = 10;
 /** Phase 2: the kiosk's till, on the platform side of its counter. */
 const KIOSK_TILL = { dx: 3.85, z: 7.2 };
 /** Where a new game's conductor stands on the platform: a few steps from the ticket stand's serving side. */
@@ -224,6 +226,7 @@ export class Station {
   }
 
   private upgradeObstacleKey = '';
+  private solidsSeen = -1;
 
   /**
    * Phase 2: the station upgrades owned stand on the platform (at every station of the route), and what they stand on
@@ -242,7 +245,9 @@ export class Station {
       rects.push(rect(x - u.size.w / 2, u.at.z - u.size.d / 2, x + u.size.w / 2, u.at.z + u.size.d / 2));
     }
     if (owned.has('gate2') && gateZ !== null) rects.push(gateCounter(gateZ));
-    const key = rects.map((r) => `${r.x0.toFixed(2)},${r.z0.toFixed(2)}`).join('|');
+    // Everything else standing on the deck (lamp posts, tubs, benches, the station master) is solid too.
+    rects.push(...this.view.solids);
+    const key = rects.map((r) => `${r.x0.toFixed(2)},${r.z0.toFixed(2)},${r.x1.toFixed(2)}`).join('|');
     if (key !== this.upgradeObstacleKey) {
       this.upgradeObstacleKey = key;
       w.map.setPlatformExtras(rects);
@@ -360,6 +365,7 @@ export class Station {
       this.starsAtArrival = w.progression.stars;
       this.bellAt = null;
       this.grumpyThisStop = 0;
+      this.restocksThisStop = 0;
       this.unhappyAtArrival = w.guests.audit.unhappy;
       if (w.stationPerks().helper) w.tweens.delay(2.2, () => this.helperRestock());
       w.guests.onStationStop(w.journey.stopSerial);
@@ -442,6 +448,10 @@ export class Station {
       this.platformOffset = 1e6;
     }
     this.stepPlatformBuild(visible);
+    if (this.view.solidsVersion !== this.solidsSeen) {
+      this.solidsSeen = this.view.solidsVersion;
+      this.refreshUpgrades();
+    }
     this.view.group.visible = visible;
     this.view.setOffset(this.platformOffset);
     if (visible) this.view.animate(_dt);
@@ -480,11 +490,15 @@ export class Station {
     const r = w.econ.rating;
     const filled = crowd ? Math.round(free * Math.min(1, ratingEffect(rating, r.fill.low, r.fill.high))) : free;
     const drawn = crowd && rating > 3 ? Math.round(((rating - 3) / 2) * r.extraTravellers.high) : 0;
-    const count = Math.max(early, Math.min(econ.maxBoarders, filled + extra + drawn + w.stationPerks().passengers));
+    // Phase 2: a special stop (Rush Hour doubles the crowd; a poor review thins it), and fewer people on Low quality.
+    const crowdScale = w.stationEvents.prepare(stopSerial);
+    const cap = w.stage.tier === 'low' ? Math.min(econ.maxBoarders, LOW_TIER_BOARDERS) : econ.maxBoarders;
+    const count = Math.max(early, Math.min(cap, Math.round((filled + extra + drawn + w.stationPerks().passengers) * crowdScale)));
     const spots = new Array<Vec2>(count).fill(PLATFORM.window);
     const story = w.meta.storyGuestForStop();
     const classes = this.travellerClasses(stopSerial, count);
     const guests = w.guests.spawnPlatformGuests(spots, story, classes, this.familiesFor(classes));
+    w.stationEvents.dress(guests);
     this.luggagePile = Math.min(this.view.barrowCapacity, guests.filter((g) => g.hasLuggage).length);
     // A traveller or two turns up during the stop, out of the station house (once the crowd is part of the ride).
     this.latecomers.length = 0;
@@ -513,6 +527,14 @@ export class Station {
    * across those classes, and now and then someone with a ticket for the next class up (once it can be bought),
    * who waits with a "no room" sign: the clearest nudge toward the next upgrade.
    */
+  /** Phase 2, Delayed Connection: a second wave of travellers comes out of the station house mid-stop. */
+  spawnWave(n: number): void {
+    const w = this.w;
+    for (let i = 0; i < n; i++) w.tweens.delay(i * 0.9, () => {
+      if (w.journey.phase === 'stationStop' && w.journey.held) w.guests.spawnLatecomer(this.travellerClasses(w.journey.stopSerial, 1)[0]);
+    });
+  }
+
   private travellerClasses(stopSerial: number, count: number): ClassId[] {
     const w = this.w;
     const capacity = w.train.classCapacity();
@@ -865,6 +887,7 @@ export class Station {
           w.audio.play('pickup', { pitch: 1.1 });
           w.haptics.light();
           w.particles.emit('sparkle', cart.x, FLOOR_Y + 1, cart.z, 6, 0.25);
+          this.restocksThisStop++;
           w.events.emit('station.restocked', { items: n });
         }
         return true;
@@ -1000,6 +1023,8 @@ export class Station {
   bellAt: number | null = null;
   /** Travellers who turned grumpy waiting on the platform this stop. */
   grumpyThisStop = 0;
+  /** Trips to the restock cart this stop. */
+  restocksThisStop = 0;
   /** Guests who had got off unhappy before this stop (the audit's count at arrival). */
   private unhappyAtArrival = 0;
 

@@ -466,7 +466,7 @@ export class Tiles {
     if (this.w.journey.phase !== 'stationStop') return null;
     let best: TileEntry | null = null;
     for (const entry of this.entries.values()) {
-      if (!isStation(entry.def)) continue;
+      if (!isStation(entry.def) || !this.w.unlocks.isAvailable(entry.def.id)) continue;
       const price = this.w.unlocks.remaining(entry.def.id);
       if (price > cash) continue;
       if (!best || price < this.w.unlocks.remaining(best.def.id)) best = entry;

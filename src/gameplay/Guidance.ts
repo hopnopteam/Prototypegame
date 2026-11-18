@@ -9,7 +9,7 @@ import { ADD_GLOW, glowTexture } from '../world/materials';
 import type { World } from './World';
 import { PLATFORM } from '../world/platformLayout';
 
-export type GuidanceReason = 'none' | 'board' | 'luggage' | 'deliver' | 'return' | 'cash' | 'desk' | 'tile' | 'fetch' | 'clean' | 'shine' | 'bell' | 'save';
+export type GuidanceReason = 'none' | 'board' | 'luggage' | 'deliver' | 'return' | 'cash' | 'desk' | 'tile' | 'fetch' | 'clean' | 'shine' | 'bell' | 'save' | 'shoo';
 
 export interface PointerState {
   x: number;
@@ -244,13 +244,17 @@ export class Guidance {
       const boarding = w.guests.canBoard() && w.staff.count('porter') === 0;
       if (boarding && stack.isEmpty) return this.because('board', w.station.boardingPoint());
       if (!stack.isFull && w.demand.playerWants('luggage') > 0 && !stack.has('luggage')) return this.because('luggage', w.station.luggagePoint());
+      // Phase 2's special stops: sheep on the platform to shoo before the bell.
+      const sheep = w.stationEvents.nearestSheep(player.pos);
+      if (sheep && stack.isEmpty && w.guests.waitingCount() === 0) return this.because('shoo', sheep);
       // Phase 2: travellers waiting for a tidy room (a broom over them): make one up first.
       if (stack.isEmpty && w.guests.waitingForRoom()) {
         const room = w.train.cabins.find((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
         if (room) return this.because('clean', room.spots[0] ?? room.center);
       }
       // The restock cart: the washrooms and minibars topped up while the train is in.
-      if (!stack.isFull && w.station.restockKinds().length > 0 && !stack.items.some((k) => w.demand.surplus(player, k) > 0)) return this.because('fetch', PLATFORM.restockPad);
+      // Once a stop: shelves keep emptying as guests wash, so after one trip the bell comes first.
+      if (!stack.isFull && w.station.restocksThisStop === 0 && w.station.restockKinds().length > 0 && !stack.items.some((k) => w.demand.surplus(player, k) > 0)) return this.because('fetch', PLATFORM.restockPad);
     }
 
     if (!stack.isEmpty) {
@@ -271,6 +275,10 @@ export class Guidance {
     if (now) return this.because('tile', now.pos);
     // Session 33: once the platform is done, "All aboard!" (Phase 2: the only way a stop ends).
     if (w.journey.doorsOpen && w.station.bellReady() && (stack.isEmpty || !this.whereNeeded(stack.items))) return this.because('bell', PLATFORM.bellPad);
+
+    // Phase 2, Lost & Found: the hatbox on the platform, then its owner's room.
+    const lost = w.stationEvents.lostTarget();
+    if (lost) return this.because('deliver', lost);
 
     const pile = w.cash.nearestWithCash(player.pos);
     if (pile && pile.value >= 1) return this.because('cash', { x: pile.x, z: pile.z });

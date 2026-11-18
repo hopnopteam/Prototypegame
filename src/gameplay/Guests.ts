@@ -197,6 +197,11 @@ export class Guest {
   lateServed = 0;
   /** Phase 2: buys their ticket at the second gate (decided once they can buy; null until then). */
   gate: boolean | null = null;
+  /** Phase 2's special stops: tips × this for their ride (Festival Day, the Harvest Fair), the VIP, the critic. */
+  tipBoost = 1;
+  vip = false;
+  critic = false;
+  criticTrip = false;
   /** Session 23: what they do while standing about, for how much longer, and when the next one comes. */
   idleAct: IdleAction = 'watch';
   idleLeft = 0;
@@ -1518,7 +1523,7 @@ export class Guests {
     // Royal: the butler's list pays out with a flourish once everything on it has been brought.
     const listDone = CLASS_BY_ID[guest.cls].butler && guest.pending.length === 0 && item !== 'turndown';
     const butler = listDone ? w.econ.classes.butlerBonus : 1;
-    const tip = noTip ? 0 : Math.max(1, Math.round(base * guest.archetype.tipMultiplier * w.tipMultiplier() * comfort * speed * butler));
+    const tip = noTip ? 0 : Math.max(1, Math.round(base * guest.archetype.tipMultiplier * w.tipMultiplier() * comfort * speed * butler * guest.tipBoost));
     if (tip > 0) w.cash.add(guest.cabin.pileId, tip, this.tmp.set(guest.pos.x, FLOOR_Y + 1.1, guest.pos.z));
     // What they say about it (session 33): a word or two over them, so the player sees why the tip was what it was.
     const say = (text: string, kind: FloatKind): void => w.ui.floatText(text, guest.pos.x, FLOOR_Y + 2.6, guest.pos.z, kind);
@@ -1829,7 +1834,7 @@ export class Guests {
     }
     // They leave a tip and a lived-in cabin behind: the bed slept in and something of theirs on the floor. Each
     // service they never got takes a share off the tip, down to nothing (session 27).
-    let tip = w.econ.money.alightTip * guest.archetype.tipMultiplier * w.tipMultiplier() * w.train.cabinTipMultiplier(cabin);
+    let tip = w.econ.money.alightTip * guest.archetype.tipMultiplier * w.tipMultiplier() * w.train.cabinTipMultiplier(cabin) * guest.tipBoost;
     if (w.train.luggageStored > 0) {
       w.train.luggageStored--;
       tip += w.econ.money.luggageTip;

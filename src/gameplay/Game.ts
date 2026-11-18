@@ -354,6 +354,7 @@ export class Game implements World {
     this.crowd = new Crowd(this);
     this.staff.init();
     this.station.init();
+    this.stationEvents.init();
     this.rush.init();
     this.handWork.init();
     this.objectives.init();
@@ -479,13 +480,13 @@ export class Game implements World {
   }
 
   fareMultiplier(): number {
-    return (1 + this.data.conductor.fareBonus * this.econ.conductor.fareBonus.perLevel) * (1 + this.data.meta.perks.fareBonus + this.stationPerks().fares) * this.venues.boost();
+    return (1 + this.data.conductor.fareBonus * this.econ.conductor.fareBonus.perLevel) * (1 + this.data.meta.perks.fareBonus + this.stationPerks().fares) * this.venues.boost() * this.stationEvents.fareBoost();
   }
 
   /** Every tip on the train: perks, smart service cars, station upgrades, and the bar's Happy Hour. */
   tipMultiplier(): number {
     const r = this.econ.rating.tips;
-    return (1 + this.data.meta.perks.tipBonus + this.train.trainTipBonus() + this.stationPerks().tips) * this.venues.boost() * ratingEffect(this.trainRating(), r.low, r.high);
+    return (1 + this.data.meta.perks.tipBonus + this.train.trainTipBonus() + this.stationPerks().tips) * this.venues.boost() * ratingEffect(this.trainRating(), r.low, r.high) * this.stationEvents.tipBoost();
   }
 
   /** The Train Rating, 1..5 stars, from the recent station stops (fix list 4.2; config: rating). */

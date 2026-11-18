@@ -19,6 +19,8 @@ export class HandWork {
     e.on('luggage.loaded', ({ byPlayer }) => byPlayer && this.add('bags'));
     e.on('station.bell', ({ byPlayer }) => byPlayer && this.add('bells'));
     e.on('venue.served', ({ kind, byPlayer }) => byPlayer && this.add(kind));
+    // Phase 2: trips to the platform's restock cart (the station boy's own restocks never count).
+    e.on('station.restocked', ({ helper }) => !helper && this.add('restock'));
   }
 
   get(metric: WorkMetric): number {

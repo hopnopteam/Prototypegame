@@ -328,7 +328,7 @@ export class Press {
     };
     p.items.unshift(item);
     if (p.items.length > PRESS_ARCHIVE) p.items.length = PRESS_ARCHIVE;
-    if (trigger === 'named') {
+    if (trigger === 'named' || trigger.startsWith('critic')) {
       // The debut is the one front page that still comes as a card (it opens the story).
       this.queue(`front:${item.id}`);
       this.foldFrontPages();
