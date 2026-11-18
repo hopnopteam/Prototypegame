@@ -92,6 +92,22 @@ export const SAVE_MIGRATIONS: SaveMigration[] = [
       profile.gaSent = { ...(profile.gaSent ?? {}), ...result.gaSent };
     },
   },
+  {
+    // v5 → v6 (Phase 2, stations become gameplay): the station upgrades already bought are kept as this route's platform
+    // upgrades (they stand on every platform of the route now), and the Train Rating carries over from the recent stops
+    // (each stop's quality becomes a review of 1 + 4 × quality stars) until real guest reviews replace it.
+    from: 5,
+    apply(raw) {
+      const route = raw.route as { id?: string; unlocked?: string[]; recentStops?: number[]; reviews?: number[] } | undefined;
+      const routeId = route?.id ?? 'countryside';
+      const owned = (route?.unlocked ?? []).filter((id) => id.startsWith('st.')).map((id) => id.slice(3));
+      const station = (raw.station ?? (raw.station = {})) as { owned?: Record<string, string[]> };
+      station.owned = { ...(station.owned ?? {}), [routeId]: owned };
+      if (route && !Array.isArray(route.reviews)) {
+        route.reviews = (route.recentStops ?? []).map((q) => Math.round((1 + 4 * Math.max(0, Math.min(1, q))) * 2) / 2);
+      }
+    },
+  },
 ];
 
 /** The opening's Open carriage tile (session 22): bought for every save from before the station start. */

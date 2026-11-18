@@ -74,6 +74,26 @@ export function queueSpot(i: number): Vec2 {
   return { x: w.x + 0.72, z: w.z - 4 * 0.78 + k * 0.62 };
 }
 
+/**
+ * Phase 2, the second ticket gate: a copy of the ticket stand beside the train's second entrance (`doorZ`, its door's
+ * z), laid out exactly as the first is beside the lobby door. Its clerk sells to travellers whose rooms are toward the
+ * back; they queue at its window along the platform edge.
+ */
+export function gateCounter(doorZ: number): Rect {
+  const c = PLATFORM.counter;
+  const dz = doorZ - DOOR_Z;
+  return rect(c.x0, c.z0 + dz, c.x1, c.z1 + dz);
+}
+
+export function gateQueueSpot(i: number, doorZ: number): Vec2 {
+  const q = queueSpot(Math.min(i, 4));
+  return { x: q.x, z: q.z + doorZ - DOOR_Z - Math.max(0, i - 4) * 0.78 };
+}
+
+export function gateServe(doorZ: number): Vec2 {
+  return { x: PLATFORM.serve.x, z: PLATFORM.serve.z + doorZ - DOOR_Z };
+}
+
 /** How many travellers the queue holds; any more wait by the bench. */
 export const QUEUE_SPOTS = 8;
 

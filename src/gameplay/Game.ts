@@ -819,7 +819,8 @@ export class Game implements World {
 
   private offerOfflineEarnings(secondsAway: number): void {
     const staff = this.staff.countsByRole();
-    const earned = offlineEarnings(secondsAway, { openCabins: this.train.openCabinCount(), staff }, this.econ.offline);
+    const kioskPerMinute = this.stationPerks().kiosk ? this.econ.station.kiosk.offlinePerMinute : 0;
+    const earned = offlineEarnings(secondsAway, { openCabins: this.train.openCabinCount(), staff, kioskPerMinute }, this.econ.offline);
     if (earned.amount <= 0) return;
     const gemCost = this.econ.rewarded.offlineDouble.gemCost;
     this.analytics.log('offline_earnings', { amount: earned.amount, minutes: Math.round(earned.seconds / 60) });

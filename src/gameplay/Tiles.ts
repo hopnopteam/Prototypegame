@@ -4,7 +4,9 @@ import type { Vec2 } from '../core/types';
 import { EVENTS } from '../services/analytics';
 import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from '../world/CarriageView';
-import { carriageOriginZ, COUPLE_TILE_SIZE, doorTileSpot, STATION_TILE_POS, TILE_SIZE, ZONE_RADIUS } from '../world/layout';
+import { carriageOriginZ, COUPLE_TILE_SIZE, doorTileSpot, PLATFORM_X0, TILE_SIZE, ZONE_RADIUS } from '../world/layout';
+import { STATION_UPGRADES } from '../config/content';
+import { ACTIVE_ROUTE } from '../config/routes';
 import { PLATFORM } from '../world/platformLayout';
 import { markWorldUi, TileView } from '../world/ZoneViews';
 import type { World } from './World';
@@ -18,7 +20,11 @@ const NEXT_TILE_DELAY = 0.45;
 /** The plate's fill is redrawn in steps of this fraction (each redraw is a texture upload). */
 const FILL_STEP = 1 / 24;
 /** Station upgrades live on the platform and only while the train is in. */
-const isStation = (def: UnlockDef): boolean => def.kind === 'exterior' || def.kind === 'marketing';
+const isStation = (def: UnlockDef): boolean => def.kind === 'exterior' || def.kind === 'marketing' || def.kind === 'platform';
+/** Phase 2: each station upgrade's own icon on its tile. */
+const STATION_ICON: Record<string, IconName> = {
+  benches: 'person', cart: 'box', booth: 'ticket', trolley: 'luggage', kiosk: 'cash', helper: 'person', clock: 'clock', gate2: 'ticket',
+};
 const BILL_INTERVAL = 0.07;
 
 interface TileEntry {
@@ -64,6 +70,7 @@ const ICON_BY_KIND: Record<UnlockDef['kind'], IconName> = {
   open: 'carriage',
   rack: 'luggage',
   shoes: 'skate',
+  platform: 'gear',
 };
 
 /** A tile's icon: its kind's, or for a venue's seats and menus the venue's own (a cup, a cloche, a glass). */
@@ -75,6 +82,10 @@ function iconOf(def: UnlockDef, type: string | undefined): IconName {
     if (type === 'bar') return 'cocktail';
     if (type === 'dome') return 'binoculars';
     if (type === 'cinema') return def.id.endsWith('menu_snacks') ? 'popcorn' : 'film';
+  }
+  if (def.id.startsWith('st.')) {
+    const icon = STATION_ICON[def.id.slice(3)];
+    if (icon) return icon;
   }
   return ICON_BY_KIND[def.kind];
 }
@@ -121,11 +132,21 @@ export class Tiles {
     }
     // Station upgrades: the next of each kind waits on the platform (shown only while the train is in), once
     // the flow has reached the station workshop.
+    // Phase 2: the route's station upgrades, in its order, at most `tilesAtOnce` at a stop, each where its piece will
+    // stand (never two on one spot).
     const workshop = w.flow.allows('workshop');
-    for (const kind of ['exterior', 'marketing'] as const) {
-      if (!workshop || [...this.entries.values()].some((e) => e.def.kind === kind)) continue;
-      const next = available.find((d) => d.kind === kind);
-      if (next) this.addEntry(next, { ...STATION_TILE_POS[kind] });
+    if (workshop) {
+      const rules = ACTIVE_ROUTE.station;
+      const shown = [...this.entries.values()].filter((e) => isStation(e.def));
+      for (const def of available) {
+        if (shown.length >= rules.tilesAtOnce) break;
+        if (!isStation(def) || this.entries.has(def.id)) continue;
+        const pos = this.positionFor(def);
+        if (!pos || shown.some((e) => Math.hypot(e.pos.x - pos.x, e.pos.z - pos.z) < 0.9)) continue;
+        this.addEntry(def, pos);
+        const entry = this.entries.get(def.id);
+        if (entry) shown.push(entry);
+      }
     }
     const eligible = available.filter((def) => {
       if (isStation(def)) return false;
@@ -606,7 +627,8 @@ export class Tiles {
         return map.rearDeck().tile;
       case 'exterior':
       case 'marketing':
-        return { ...STATION_TILE_POS[def.kind] };
+      case 'platform':
+        return stationTileSpot(w, def.id.slice(3));
       case 'seat': {
         const venue = w.venues.byCarriage(def.carriage);
         const group = venue?.layout.groups.find((g) => g.index === def.group);
@@ -628,4 +650,20 @@ export class Tiles {
       }
     }
   }
+}
+
+/**
+ * Phase 2: where a station upgrade's tile waits (and its piece will stand) on the platform, or null while it cannot be
+ * placed (the train too short for it, or no second entrance yet for the second gate).
+ */
+export function stationTileSpot(w: World, key: string): Vec2 | null {
+  const u = STATION_UPGRADES.find((d) => d.key === key);
+  if (!u) return null;
+  if (u.minCarriages && w.train.count < u.minCarriages) return null;
+  if (u.at.door) {
+    const door = w.map.doors()[1];
+    if (!door) return null;
+    return { x: PLATFORM_X0 + u.at.dx, z: door.outside.z + u.at.z };
+  }
+  return { x: PLATFORM_X0 + u.at.dx, z: u.at.z };
 }

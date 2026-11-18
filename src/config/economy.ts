@@ -276,6 +276,11 @@ export const ECONOMY = {
     restockSeconds: 2,
     /** With the Restock Cart upgrade: next to instant. */
     cartRestockSeconds: 0.35,
+    /**
+     * The platform kiosk (a fruit and bread stall): `perSecond` (× 1 + `perCarriage` for each carriage after the first)
+     * into its till while the train is in, and `offlinePerMinute` while the player is away (inside the offline cap).
+     */
+    kiosk: { perSecond: 0.5, perCarriage: 0.15, offlinePerMinute: 1.5 },
   },
 
   /**

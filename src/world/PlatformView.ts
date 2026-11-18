@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { FLOOR_Y } from './CarriageView';
 import { GeoBuilder, mergePlanes } from './geo';
-import { carriageOriginZ, DOOR_Z0, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0 } from './layout';
+import { carriageOriginZ, DOOR_Z0, DOOR_Z1, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0 } from './layout';
+import { STATION_UPGRADES } from '../config/content';
 import { PLATFORM } from './platformLayout';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
@@ -48,6 +49,12 @@ const LAMP_STEP = 6;
 const SIGN_POST_HALF = 1.25;
 /** The kiosk's vendor, behind the counter. */
 const VENDOR_LOOK: CharacterLook = { body: '#3F7A5E', accent: '#F4EEE2', skin: '#E8B894', hair: '#5B3A29', pants: '#2F3A33', hat: 'cap', hatColor: '#3F7A5E', arms: true };
+/** Phase 2: the station boy who restocks the train (a cap and a russet waistcoat), the second gate's clerk, the kiosk's keeper. */
+const HELPER_LOOK: CharacterLook = { body: '#B5562F', accent: '#F4EEE2', skin: '#F0C7A0', hair: '#7A4A2A', pants: '#4A3A30', hat: 'cap', hatColor: '#2F3E5C', arms: true };
+const CLERK_LOOK: CharacterLook = { body: '#2F3E5C', accent: '#F4EEE2', skin: '#C98E6A', hair: '#2A2420', pants: '#2A3248', hat: 'cap', hatColor: '#2F3E5C', bandColor: '#E2B04A', arms: true };
+const KEEPER_LOOK: CharacterLook = { body: '#F4EEE2', accent: '#C0485C', skin: '#E8B894', hair: '#A0522D', pants: '#5B4A3A', hat: 'none', arms: true };
+/** Lobby door's centre (the first ticket stand is laid out against it; the second gate copies it at its own door). */
+const LOBBY_DOOR_Z = (DOOR_Z0 + DOOR_Z1) / 2;
 const PIGEON_FLY_SECONDS = 3.2;
 
 /**
@@ -118,6 +125,13 @@ export class PlatformView {
   /** The first bench behind the train (for show), where two townsfolk sit; null when the platform has none. */
   private showBench: Rect | null = null;
   private readonly headlineMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
+  /** Phase 2: the station upgrades standing on the platform, rebuilt when one is bought; their people. */
+  private upgradeMesh: THREE.Mesh | null = null;
+  private upgradeLamps: THREE.Mesh | null = null;
+  private upgradeKey = '';
+  private readonly helperView = new CharacterView(HELPER_LOOK);
+  private readonly clerkView = new CharacterView(CLERK_LOOK);
+  private readonly keeperView = new CharacterView(KEEPER_LOOK);
   private headline = '';
   length = 0;
   z0 = 0;
@@ -165,6 +179,12 @@ export class PlatformView {
       this.townsfolk.push({ view, idles: t.idles, act: t.idles[0], left: 0, next: 1 + Math.random() * 3, seated: t.seated });
     }
     this.placeTownsfolk();
+    for (const [view, name] of [[this.helperView, 'helper'], [this.clerkView, 'clerk'], [this.keeperView, 'keeper']] as const) {
+      view.leans = false;
+      view.root.userData.object = `character:${name}`;
+      view.root.visible = false;
+      this.group.add(view.root);
+    }
     // The luggage on the barrow: every bag slot built once, the first `count` drawn (session 23).
     const bags = buildBarrowBags();
     this.bags = new THREE.Mesh(bags.geometry, MATERIALS.solid);
@@ -175,6 +195,84 @@ export class PlatformView {
     this.group.add(this.bags);
     this.setBarrowBags(0);
     this.group.visible = false;
+  }
+
+  /**
+   * Phase 2: the station upgrades owned, each standing where its tile was (a bench and planters, the booth's canopy,
+   * the cart's awning, the station boy, a luggage trolley, the fruit and bread stall, the station clock, the second
+   * ticket gate at the second entrance `gateZ`). Rebuilt only when what is owned (or the gate's place) changes.
+   */
+  setUpgrades(owned: ReadonlySet<string>, gateZ: number | null): void {
+    const key = `${[...owned].sort().join(',')}|${gateZ ?? ''}`;
+    if (key === this.upgradeKey) return;
+    this.upgradeKey = key;
+    const b = new GeoBuilder();
+    const lamps = new GeoBuilder();
+    const at = (k: string): { x: number; z: number } => {
+      const u = STATION_UPGRADES.find((d) => d.key === k);
+      return { x: PLATFORM_X0 + (u?.at.dx ?? 0), z: u?.at.z ?? 0 };
+    };
+    if (owned.has('benches')) {
+      const p = at('benches');
+      buildBench(b, { x0: p.x - 0.2, z0: p.z - 1.1, x1: p.x + 0.2, z1: p.z + 1.1 });
+      b.object('platform:waitingPlanter');
+      for (const dz of [-1.5, 1.5]) buildPlanter(b, p.x, p.z + dz);
+      b.endObject();
+    }
+    if (owned.has('booth')) buildBoothCanopy(b, lamps, PLATFORM.counter);
+    if (owned.has('cart')) buildCartAwning(b);
+    if (owned.has('trolley')) buildTrolley(b, at('trolley'));
+    if (owned.has('kiosk')) buildFruitStall(b, at('kiosk'));
+    if (owned.has('clock')) buildStationClock(b, lamps, at('clock'));
+    const dz = gateZ !== null ? gateZ - LOBBY_DOOR_Z : 0;
+    if (owned.has('gate2') && gateZ !== null) {
+      const c = PLATFORM.counter;
+      const counter = { x0: c.x0, z0: c.z0 + dz, x1: c.x1, z1: c.z1 + dz };
+      buildTicketStand(b, lamps, dz);
+      buildBoothCanopy(b, lamps, counter);
+    }
+    for (const mesh of [this.upgradeMesh, this.upgradeLamps]) {
+      if (!mesh) continue;
+      this.group.remove(mesh);
+      mesh.geometry.dispose();
+    }
+    this.upgradeMesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+    this.upgradeMesh.castShadow = true;
+    this.upgradeMesh.receiveShadow = true;
+    this.group.add(this.upgradeMesh);
+    this.upgradeLamps = new THREE.Mesh(lamps.build(), MATERIALS.lamps);
+    this.group.add(this.upgradeLamps);
+    // The people: the station boy by the cart, the clerk behind the second gate's counter, the stall's keeper.
+    const helper = owned.has('helper');
+    this.helperView.root.visible = helper;
+    if (helper) {
+      const r = PLATFORM.restock;
+      this.helperView.setPosition(r.x1 + 0.55, FLOOR_Y, r.z1 + 0.25);
+      this.helperView.setFacing(-Math.PI / 2 - 0.5);
+    }
+    const clerk = owned.has('gate2') && gateZ !== null;
+    this.clerkView.root.visible = clerk;
+    if (clerk) {
+      this.clerkView.setPosition(PLATFORM.serve.x, FLOOR_Y, PLATFORM.serve.z + dz);
+      this.clerkView.setFacing(-Math.PI / 2);
+    }
+    const keeper = owned.has('kiosk');
+    this.keeperView.root.visible = keeper;
+    if (keeper) {
+      const p = at('kiosk');
+      this.keeperView.setPosition(p.x + 0.75, FLOOR_Y, p.z);
+      this.keeperView.setFacing(-Math.PI / 2);
+    }
+  }
+
+  /** Phase 2: the second gate's clerk stamps a ticket. */
+  clerkStamp(): void {
+    if (this.clerkView.root.visible) this.clerkView.act('stamp', 0.8);
+  }
+
+  /** Phase 2: the station boy waves as he tops the train up. */
+  helperWave(): void {
+    if (this.helperView.root.visible) this.helperView.act('wave', 1.4);
   }
 
   setStationName(name: string): void {
@@ -461,6 +559,7 @@ export class PlatformView {
   /** The band plays while the platform is on screen: a little hop on every beat. */
   animate(dt: number): void {
     this.master.update(dt, 0);
+    for (const view of [this.helperView, this.clerkView, this.keeperView]) if (view.root.visible) view.update(dt, 0);
     this.animatePigeons(dt);
     this.animateTownsfolk(dt);
     if (!this.marketing.band || this.band.length === 0) return;
@@ -767,6 +866,119 @@ function buildBarrow(b: GeoBuilder): void {
 }
 
 /**
+ * Phase 2, the Ticket Booth: a slim canopy on two iron posts over the ticket counter, a scalloped navy and cream
+ * valance and a lamp under it. Only as wide as the counter and high enough that the queue at the window stays in view.
+ */
+function buildBoothCanopy(b: GeoBuilder, lamps: GeoBuilder, r: Rect): void {
+  const y = FLOOR_Y;
+  const cz = (r.z0 + r.z1) / 2;
+  const d = r.z1 - r.z0 + 0.3;
+  const x0 = r.x0 - 0.05;
+  const x1 = r.x1 + 0.12;
+  const cx = (x0 + x1) / 2;
+  const top = y + 2.15;
+  b.object('platform:boothCanopy');
+  for (const pz of [r.z0 + 0.06, r.z1 - 0.06]) b.cylinder(r.x1 - 0.06, y + 1.6, pz, 0.028, 0.034, 1.1, PALETTE.iron, 8, 'y', { shade: 0.85, surface: 'iron' });
+  b.box(cx, top, cz, x1 - x0, 0.05, d, PALETTE.navy, 0, { shade: 0.9 });
+  b.box(cx, top + 0.06, cz, x1 - x0 - 0.06, 0.07, d - 0.06, '#5B6E8C', 0, { shade: 0.85 });
+  // The scalloped valance round its edge, navy and cream in turn.
+  const n = Math.max(3, Math.round(d / 0.22));
+  for (let i = 0; i < n; i++) {
+    const z = r.z0 - 0.15 + (i + 0.5) * (d / n);
+    b.box(x1, top - 0.08, z, 0.015, 0.12, d / n - 0.01, i % 2 ? PALETTE.creamBand : PALETTE.navy, 0, { shade: 1 });
+    b.box(x0, top - 0.08, z, 0.015, 0.12, d / n - 0.01, i % 2 ? PALETTE.creamBand : PALETTE.navy, 0, { shade: 1 });
+  }
+  b.box(cx, top + 0.14, cz, 0.06, 0.12, 0.5, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
+  b.endObject();
+  lamps.object('platform:boothLamp~glow');
+  lamps.sphere(cx, top - 0.22, cz, 0.08, '#FFE2A0', 1, 1);
+  lamps.endObject();
+}
+
+/** Phase 2, the Restock Cart upgrade: a striped grocer's awning over the cart on four posts, and a fuller load. */
+function buildCartAwning(b: GeoBuilder): void {
+  const r = PLATFORM.restock;
+  const y = FLOOR_Y;
+  const cz = (r.z0 + r.z1) / 2;
+  const d = r.z1 - r.z0 - 0.2;
+  b.object('platform:cartAwning');
+  for (const px of [r.x0 + 0.05, r.x1 - 0.05]) for (const pz of [cz - d / 2 + 0.05, cz + d / 2 - 0.05]) b.cylinder(px, y + 1.0, pz, 0.02, 0.02, 0.98, PALETTE.oak, 6, 'y', { shade: 0.9 });
+  const stripes = 6;
+  for (let i = 0; i < stripes; i++) {
+    const z = cz - d / 2 + (i + 0.5) * (d / stripes);
+    b.add(new THREE.BoxGeometry(r.x1 - r.x0 + 0.24, 0.03, d / stripes), i % 2 ? '#F4EEE2' : '#3F6B4F', (r.x0 + r.x1) / 2, y + 1.5, z, 0, 0, -0.18, { shade: 1 });
+  }
+  b.endObject();
+  b.object('platform:cartLoad');
+  for (const [dx, dz, c] of [[-0.18, 0.62, '#D9483B'], [0.0, 0.64, '#F2B53A'], [0.18, 0.62, '#4C8DC9']] as const) b.box((r.x0 + r.x1) / 2 + dx, y + 0.82, cz + dz - 0.62 + 0.62, 0.13, 0.11, 0.14, c, 0, { shade: 1 });
+  b.endObject();
+}
+
+/** Phase 2, the Luggage Trolley: a two-wheeled sack truck standing up, two cases strapped to it. */
+function buildTrolley(b: GeoBuilder, p: { x: number; z: number }): void {
+  const y = FLOOR_Y;
+  b.object('platform:trolley');
+  for (const dz of [-0.2, 0.2]) b.add(new THREE.BoxGeometry(0.035, 1.25, 0.035), PALETTE.iron, p.x + 0.08, y + 0.64, p.z + dz, 0, 0, 0.16, { shade: 0.85, surface: 'iron' });
+  for (const h of [0.35, 0.75, 1.1]) b.box(p.x + 0.08 - h * 0.16, y + h, p.z, 0.03, 0.03, 0.42, PALETTE.iron, 0, { shade: 0.85, surface: 'iron' });
+  b.box(p.x + 0.2, y + 0.03, p.z, 0.22, 0.03, 0.42, PALETTE.iron, 0, { shade: 0.8, surface: 'iron' });
+  for (const dz of [-0.25, 0.25]) {
+    b.cylinder(p.x + 0.12, y + 0.13, p.z + dz, 0.13, 0.13, 0.05, '#2E2A30', 14, 'z', { shade: 0.9 });
+    b.cylinder(p.x + 0.12, y + 0.13, p.z + dz, 0.045, 0.045, 0.06, PALETTE.brass, 8, 'z', { shade: 1, surface: 'brass' });
+  }
+  b.endObject();
+  b.object('platform:trolleyCases');
+  b.rounded(p.x + 0.17, y + 0.26, p.z, 0.18, 0.4, 0.4, 0.03, '#8C3B2E', { shade: 0.85, surface: 'leather' });
+  b.rounded(p.x + 0.12, y + 0.63, p.z, 0.16, 0.32, 0.34, 0.03, '#3F6B4F', { shade: 0.85, surface: 'leather' });
+  b.box(p.x + 0.26, y + 0.26, p.z, 0.01, 0.4, 0.04, '#E2B04A', 0, { shade: 1 });
+  b.endObject();
+}
+
+/** Phase 2, the Platform Kiosk: a fruit and bread stall, crates of apples and oranges, loaves, a striped awning. */
+function buildFruitStall(b: GeoBuilder, p: { x: number; z: number }): void {
+  const y = FLOOR_Y;
+  const w = 0.8;
+  const d = 1.3;
+  b.object('platform:fruitStall');
+  b.box(p.x, y + 0.45, p.z, w, 0.9, d, '#7A5236', 0, { shade: 0.85, detail: 'wood' });
+  b.box(p.x, y + 0.92, p.z, w + 0.08, 0.05, d + 0.08, PALETTE.oak, 0, { shade: 1, detail: 'wood' });
+  for (const dz of [-d / 2 + 0.05, d / 2 - 0.05]) b.cylinder(p.x + w / 2 - 0.05, y + 1.35, p.z + dz, 0.025, 0.025, 0.9, PALETTE.oak, 6, 'y', { shade: 0.9 });
+  const stripes = 7;
+  for (let i = 0; i < stripes; i++) {
+    const z = p.z - d / 2 - 0.05 + (i + 0.5) * ((d + 0.1) / stripes);
+    b.add(new THREE.BoxGeometry(w + 0.35, 0.03, (d + 0.1) / stripes), i % 2 ? '#F4EEE2' : '#C0485C', p.x - 0.05, y + 1.82, z, 0, 0, 0.22, { shade: 1 });
+  }
+  b.endObject();
+  b.object('platform:fruitStallGoods');
+  // Two shallow crates on the counter, tilted toward the platform: apples and oranges; loaves at the back.
+  const top = y + 0.95;
+  for (const [dz, c] of [[-0.3, '#C8352B'], [0.1, '#F08A24']] as const) {
+    b.box(p.x - 0.1, top + 0.05, p.z + dz, 0.42, 0.1, 0.34, '#B8874E', 0, { shade: 0.9 });
+    for (let i = 0; i < 6; i++) b.sphere(p.x - 0.22 + (i % 3) * 0.12, top + 0.13, p.z + dz - 0.08 + Math.floor(i / 3) * 0.15, 0.055, c, 1, 1, { shade: 1 });
+  }
+  for (const dz of [-0.35, 0.0, 0.35]) b.rounded(p.x + 0.22, top + 0.06, p.z + dz + 0.05, 0.16, 0.11, 0.3, 0.05, '#C98B45', { shade: 0.95 });
+  b.endObject();
+}
+
+/** Phase 2, the Station Clock: a cast-iron post with a two-faced clock on top, lit at night. */
+function buildStationClock(b: GeoBuilder, lamps: GeoBuilder, p: { x: number; z: number }): void {
+  const y = FLOOR_Y;
+  b.object('platform:stationClock');
+  b.cylinder(p.x, y + 0.08, p.z, 0.18, 0.2, 0.16, PALETTE.iron, 12, 'y', { shade: 0.85, surface: 'iron' });
+  b.cylinder(p.x, y + 1.25, p.z, 0.05, 0.07, 2.3, PALETTE.navy, 10, 'y', { shade: 0.9 });
+  b.cylinder(p.x, y + 2.62, p.z, 0.32, 0.32, 0.14, PALETTE.navy, 24, 'x', { shade: 0.95 });
+  b.sphere(p.x, y + 2.98, p.z, 0.06, PALETTE.brass, 1, 1, { shade: 1, surface: 'brass' });
+  // The hands on both faces (ten past ten, the clockmaker's smile).
+  for (const sx of [-1, 1]) {
+    b.add(new THREE.BoxGeometry(0.012, 0.2, 0.025), '#1F2433', p.x + sx * 0.09, y + 2.68, p.z - 0.04, 0.9, 0, 0, { shade: 1 });
+    b.add(new THREE.BoxGeometry(0.012, 0.15, 0.025), '#1F2433', p.x + sx * 0.09, y + 2.66, p.z + 0.04, -1.0, 0, 0, { shade: 1 });
+  }
+  b.endObject();
+  lamps.object('platform:clockFace~glow');
+  lamps.cylinder(p.x, y + 2.62, p.z, 0.27, 0.27, 0.16, '#FFF4D6', 24, 'x');
+  lamps.endObject();
+}
+
+/**
  * Phase 2, the restock cart: a wooden handcart along the platform edge loaded with what the train runs on: folded
  * towels in stacks, toilet rolls in a wicker basket and snack boxes, its handle toward the rear.
  */
@@ -835,8 +1047,9 @@ function buildPlanter(b: GeoBuilder, x: number, z: number): void {
  * side, a ticket rack, a cash tin, a brass bell and a green-shaded lamp, and a "Tickets" board on a post at its
  * front end. Low, so the traveller at the window is never hidden from the camera.
  */
-function buildTicketStand(b: GeoBuilder, lamps: GeoBuilder): void {
-  const r = PLATFORM.counter;
+function buildTicketStand(b: GeoBuilder, lamps: GeoBuilder, dz = 0): void {
+  const c = PLATFORM.counter;
+  const r = { x0: c.x0, z0: c.z0 + dz, x1: c.x1, z1: c.z1 + dz };
   const cx = (r.x0 + r.x1) / 2;
   const cz = (r.z0 + r.z1) / 2;
   const w = r.x1 - r.x0;

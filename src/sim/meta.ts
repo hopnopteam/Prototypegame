@@ -21,6 +21,8 @@ export interface OfflineConfig {
 export interface Automation {
   openCabins: number;
   staff: Record<string, number>;
+  /** Phase 2: the platform kiosk's takings per minute away (0 without one). */
+  kioskPerMinute?: number;
 }
 
 /**
@@ -30,11 +32,13 @@ export interface Automation {
 export function offlineEarnings(awaySeconds: number, automation: Automation, config: OfflineConfig): { seconds: number; amount: number } {
   if (awaySeconds < config.minAwaySeconds) return { seconds: 0, amount: 0 };
   const staffCount = Object.values(automation.staff).reduce((a, b) => a + b, 0);
-  if (staffCount === 0) return { seconds: 0, amount: 0 };
+  const kiosk = automation.kioskPerMinute ?? 0;
+  if (staffCount === 0 && kiosk <= 0) return { seconds: 0, amount: 0 };
   const seconds = Math.min(awaySeconds, config.capSeconds);
-  let perMinute = automation.openCabins * config.perCabinPerMinute;
+  let perMinute = staffCount > 0 ? automation.openCabins * config.perCabinPerMinute : 0;
   for (const [role, count] of Object.entries(automation.staff)) perMinute += (config.perStaffPerMinute[role] ?? 0) * count;
-  const amount = Math.floor((perMinute * seconds * config.efficiency) / 60);
+  // Phase 2: the platform kiosk keeps trading while you are away, at its own rate.
+  const amount = Math.floor((perMinute * seconds * config.efficiency) / 60 + (kiosk * seconds) / 60);
   return { seconds, amount };
 }
 

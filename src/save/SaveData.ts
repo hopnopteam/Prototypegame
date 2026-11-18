@@ -5,7 +5,7 @@ import type { CarriageType } from '../core/types';
  * - Adding a field: give it a default in createDefaultSave(); loading deep-merges defaults, no version bump.
  * - Renaming, removing or changing the meaning of a field: bump SAVE_VERSION and add a migration.
  */
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 export interface QuestState {
   kind: string;
@@ -183,6 +183,40 @@ export interface SaveData {
     dare: { id: string; rival: number; target: number; progress: number; endsAtStop: number; station: string } | null;
     dares: { won: number; lost: number; issued: number };
   };
+  /** Phase 2, stations become gameplay. */
+  station: StationSave;
+}
+
+/** Phase 2: the critic of a route (once per route): where they are, what they have seen, and the verdict. */
+export interface CriticSave {
+  /** 'aboard' riding and judging, 'reviewing' got off with the review still to print, 'done' printed. */
+  status: 'aboard' | 'reviewing' | 'done';
+  /** The stop they boarded at and the stop their review prints at (`route.stopsCompleted`). */
+  boardStop: number;
+  reviewStop: number;
+  /** What they saw while aboard, as sums and counts (sampled every few seconds): tidy rooms, request speed, mood. */
+  clean: [number, number];
+  speed: [number, number];
+  mood: [number, number];
+  score: number;
+  result: 'great' | 'mixed' | 'poor' | null;
+}
+
+export interface StationSave {
+  /** Station upgrades owned, by route id (their keys); the unlock list carries them too ('st.<key>'). */
+  owned: Record<string, string[]>;
+  /** Ordinary stops since the last special one, the next one's gap, the last event's id, how many there have been. */
+  sinceEvent: number;
+  eventGap: number;
+  lastEvent: string | null;
+  eventsSeen: number;
+  /**
+   * Timed boosts still running: tips or fares × `mult`, or crowds × `mult`, until the stop `untilStop` (the count of
+   * stops completed; -1 for the rest of the route). The Station Market's tips, the critic's verdict.
+   */
+  boosts: { id: string; kind: 'tips' | 'fares' | 'crowd'; mult: number; untilStop: number }[];
+  /** The critic, by route id. */
+  critic: Record<string, CriticSave>;
 }
 
 export function createDefaultSave(now: number, installId: string): SaveData {
@@ -193,6 +227,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {}, handWork: {}, gaSent: {} },
     settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {}, qualityPolicy: 0, hapticsPolicy: 0, sfxVolume: 0.8 },
     wallet: { cash: 0, gems: 0, railMiles: 0 },
+    station: { owned: {}, sinceEvent: 0, eventGap: 0, lastEvent: null, eventsSeen: 0, boosts: [], critic: {} },
     route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0, perfectStreak: 0, recentStops: [], reviews: [], floorCash: 0, migrationRefund: 0 },
     staff: {},
     conductor: { speed: 0, capacity: 0, fareBonus: 0 },

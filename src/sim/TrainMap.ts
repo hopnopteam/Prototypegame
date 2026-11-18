@@ -212,6 +212,14 @@ export class TrainMap {
     this.buildWalkable();
   }
 
+  /** Phase 2: the station upgrades standing on the platform (benches, a kiosk, a trolley) block the way there. */
+  private platformExtras: readonly Rect[] = [];
+
+  setPlatformExtras(rects: readonly Rect[]): void {
+    this.platformExtras = rects;
+    this.buildWalkable();
+  }
+
   /** Something bought appeared (or the walls moved): the walkable floor is worked out again. */
   refreshWalkable(): void {
     this.buildWalkable();
@@ -226,7 +234,7 @@ export class TrainMap {
       doorsOpen: this.doorsOpen,
       doorsSealed: this.sealed,
       platform: this.doorsOpen ? this.platformRoom() : null,
-      platformBlocked: PLATFORM_BLOCKED,
+      platformBlocked: this.platformExtras.length ? [...PLATFORM_BLOCKED, ...this.platformExtras] : PLATFORM_BLOCKED,
       rearDeck: this.rearDeckEnabled ? this.rearDeck().room : null,
     });
   }

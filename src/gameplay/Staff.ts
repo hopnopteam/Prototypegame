@@ -450,6 +450,8 @@ export class StaffManager {
         const pile = station.luggagePoint();
         const rack = this.nearestRack(pile);
         // Only as many bags as the rack has room for (session 42: a full rack left a porter holding one for the ride).
+        // Phase 2: the station's Luggage Trolley lets a porter take twice the bags at a time.
+        m.stack.capacity = m.baseCapacity() * (w.stationPerks().trolley ? 2 : 1);
         m.wantItems = { luggage: Math.max(1, Math.min(m.stack.capacity, w.train.luggageCapacity - w.train.luggageStored)) };
         return {
           label: 'luggage', icon: 'luggage',
@@ -460,7 +462,10 @@ export class StaffManager {
             { kind: 'stand', until: () => !m.stack.has('luggage') || w.train.luggageStored >= w.train.luggageCapacity, timeout: 6 },
             { kind: 'do', fn: () => this.binLeftovers(m) },
           ],
-          release: () => (m.wantItems = {}),
+          release: () => {
+            m.wantItems = {};
+            m.stack.capacity = m.baseCapacity();
+          },
         };
       }
     }

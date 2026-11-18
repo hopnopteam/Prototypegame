@@ -358,7 +358,7 @@ export class Coach {
         return world(guest?.cabin?.center);
       }
       case 'workshop':
-        return world(w.tiles.list.find((t) => (t.def.kind === 'exterior' || t.def.kind === 'marketing') && t.view.group.visible)?.pos);
+        return world(w.tiles.list.find((t) => (t.def.kind === 'exterior' || t.def.kind === 'marketing' || t.def.kind === 'platform') && t.view.group.visible)?.pos);
       case 'washroom':
         return world(w.train.supplySource('towel', w.player.pos));
       case 'map':
@@ -411,7 +411,7 @@ export class Coach {
       case 'turndown':
         return w.guests.openRequests().some((g) => g.request === 'turndown' && !w.staff.isHandled(g));
       case 'workshop':
-        return w.journey.phase === 'stationStop' && !w.guests.canBoard() && w.tiles.list.some((t) => (t.def.kind === 'exterior' || t.def.kind === 'marketing') && t.view.group.visible);
+        return w.journey.phase === 'stationStop' && !w.guests.canBoard() && w.tiles.list.some((t) => (t.def.kind === 'exterior' || t.def.kind === 'marketing' || t.def.kind === 'platform') && t.view.group.visible);
       case 'washroom':
         return w.train.hasSupply('towel') && w.train.bathrooms.some((b) => b.unlocked && !b.stocked);
       case 'map':

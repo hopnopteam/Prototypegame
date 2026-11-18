@@ -70,6 +70,75 @@ export interface RouteDef {
   scenery: { wheat: boolean; stoneBridges: boolean };
   /** The music track (the music is switched off for now, `MUSIC_ENABLED`; the id names the track it would play). */
   music: string;
+  /** Phase 2: what this route's platforms offer, its special stops and its critic. */
+  station: RouteStationRules;
+}
+
+/** Phase 2: a route's station upgrades (one set for all its platforms), special stops and critic. */
+export interface RouteStationRules {
+  /** The station upgrades on offer, in the order they come (keys from STATION_UPGRADES in config/content.ts). */
+  upgrades: string[];
+  /** Station upgrade tiles on show at once (never more than two at a stop). */
+  tilesAtOnce: number;
+  /** Stops between special events (a new one comes after `[min, max]` ordinary stops, never two in a row). */
+  eventEvery: [number, number];
+  /** The first stop an event may come at. */
+  eventsFrom: number;
+  /** The special stops this route can have. */
+  events: StationEventDef[];
+  /** The critic: once per route, boarding while the train has between `minCarriages` and `maxCarriages`. */
+  critic: CriticDef;
+}
+
+export type StationEventKind = 'rushHour' | 'festival' | 'lostFound' | 'vip' | 'delayed' | 'market' | 'harvest' | 'sheep';
+
+/** Phase 2: a special stop (config: the route's `station.events`). */
+export interface StationEventDef {
+  id: string;
+  kind: StationEventKind;
+  /** Its banner (under the station's name). */
+  title: string;
+  /** How often it is picked among the route's events (relative). */
+  weight: number;
+  /** Only at this station (by its index on the route), or anywhere when left out. */
+  station?: number;
+  /** The train must have at least this many carriages. */
+  minCarriages?: number;
+  /** Rush Hour: the crowd ×`crowd`; the stop bonus ×`bonus` when everyone is aboard. */
+  crowd?: number;
+  bonus?: number;
+  /** Festival Day and the Harvest Fair: tips × this for the guests boarding here (the fair's farmers, its own). */
+  tips?: number;
+  /** VIP Arrival: their fare × this. Lost & Found: the owner's tip in fares. */
+  fare?: number;
+  reward?: number;
+  /** Delayed Connection: travellers in the second wave and the stop seconds it arrives at. */
+  wave?: number;
+  waveAt?: number;
+  /** Station Market: what the stall sells (tips × `boost` for `stops` stops) and its price per carriage. */
+  boost?: number;
+  stops?: number;
+  pricePerCarriage?: number;
+  /** Sheep on the Tracks: how many to shoo. */
+  sheep?: number;
+}
+
+/** Phase 2: the Village Gazette's critic. */
+export interface CriticDef {
+  minCarriages: number;
+  maxCarriages: number;
+  /** Chance each eligible stop is the one (the critic always comes before the train outgrows `maxCarriages`). */
+  chance: number;
+  /** The review prints this many stops after they board. */
+  reviewAfter: number;
+  /** Score bands (0–1): great from `great`, mixed from `mixed`, poor below. */
+  great: number;
+  mixed: number;
+  /** Great: fares × `fareBoost` for the rest of the route. Mixed: `mixedCash` per carriage. Poor: crowds × `poorCrowd` for `poorStops` stops. */
+  fareBoost: number;
+  mixedCash: number;
+  poorCrowd: number;
+  poorStops: number;
 }
 
 /**
@@ -105,6 +174,24 @@ export const COUNTRYSIDE_EXPRESS: RouteDef = {
   duskSeconds: 150,
   scenery: { wheat: true, stoneBridges: true },
   music: 'countryside_theme',
+  station: {
+    upgrades: ['posters', 'benches', 'windowboxes', 'cart', 'booth', 'lamps', 'billboard', 'trolley', 'kiosk', 'helper', 'lining', 'clock', 'band', 'nameboards', 'gate2', 'redcarpet'],
+    tilesAtOnce: 2,
+    eventEvery: [3, 4],
+    eventsFrom: 3,
+    events: [
+      { id: 'rush_hour', kind: 'rushHour', title: 'Rush Hour!', weight: 3, minCarriages: 2, crowd: 2, bonus: 2.5 },
+      { id: 'festival', kind: 'festival', title: 'Festival Day', weight: 2, tips: 2 },
+      { id: 'lost_found', kind: 'lostFound', title: 'Lost & Found', weight: 2, minCarriages: 2, reward: 30 },
+      { id: 'vip', kind: 'vip', title: 'VIP Arrival', weight: 2, minCarriages: 2, fare: 5 },
+      { id: 'delayed', kind: 'delayed', title: 'Delayed Connection', weight: 2, wave: 3, waveAt: 14 },
+      { id: 'market', kind: 'market', title: 'Station Market', weight: 2, minCarriages: 3, boost: 2, stops: 3, pricePerCarriage: 40 },
+      // Route 1's own: market day at Ashford Market, and sheep wandering onto the line.
+      { id: 'harvest_fair', kind: 'harvest', title: 'Harvest Fair', weight: 4, station: 2, tips: 1.5 },
+      { id: 'sheep', kind: 'sheep', title: 'Sheep on the Tracks', weight: 2, sheep: 4 },
+    ],
+    critic: { minCarriages: 3, maxCarriages: 6, chance: 0.35, reviewAfter: 3, great: 0.8, mixed: 0.55, fareBoost: 0.2, mixedCash: 40, poorCrowd: 0.7, poorStops: 3 },
+  },
 };
 
 /** Every route there is (one for now). */

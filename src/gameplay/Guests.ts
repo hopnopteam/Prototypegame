@@ -12,7 +12,7 @@ import { CharacterPool, GUEST_POOL_WARM } from '../world/CharacterPool';
 import { CharacterView, type CharacterLook } from '../world/CharacterView';
 import { BED_MESS } from '../world/Mess';
 import { CARRIAGE_PITCH, carriageOriginZ, HALF_WIDTH } from '../world/layout';
-import { PLATFORM, QUEUE_SPOTS, queueSpot, waitingSpot } from '../world/platformLayout';
+import { gateQueueSpot, PLATFORM, QUEUE_SPOTS, queueSpot, waitingSpot } from '../world/platformLayout';
 import { Mover, type Actor } from './Actor';
 import type { Bathroom, Cabin } from './TrainState';
 import type { World } from './World';
@@ -72,6 +72,8 @@ const ROUTINE_WASH_QUEUE = 2;
 
 /** Longest a missed traveller stomps toward the station house before slipping away (fix list 4.1). */
 const STORM_OFF_SECONDS = 7;
+/** Phase 2: the second gate's clerk sells a little slower than the conductor at the stand. */
+const GATE_SALE_SLOWER = 1.3;
 
 /** Session 40: a check-in desk (the lobby's, and the washroom car's on a longer train) and the line in front of it. */
 export interface Desk {
@@ -193,6 +195,8 @@ export class Guest {
   grumpy = false;
   /** Phase 2: requests brought late this trip (each takes half a star off their review). */
   lateServed = 0;
+  /** Phase 2: buys their ticket at the second gate (decided once they can buy; null until then). */
+  gate: boolean | null = null;
   /** Session 23: what they do while standing about, for how much longer, and when the next one comes. */
   idleAct: IdleAction = 'watch';
   idleLeft = 0;
@@ -516,7 +520,21 @@ export class Guests {
     const order = [...waiting.filter((g) => g.ready), ...waiting.filter((g) => g.eligible && !g.ready), ...waiting.filter((g) => !g.eligible)];
     let q = 0;
     let k = 0;
+    // Phase 2, the second gate: travellers whose room is toward the back buy their ticket at its window instead (its
+    // clerk sells them), and board through the second entrance.
+    const gate = w.station.gateOpen();
+    let g = 0;
+    if (gate) this.syncDesks();
     for (const guest of order) {
+      // Decided once, the moment they can buy (so nobody walks back and forth as rooms come free).
+      if (gate && guest.ready && guest.gate === null) guest.gate = this.deskFor(guest) !== this.desks[0];
+      if (gate && guest.ready && guest.gate) {
+        if (guest.grumpy) guest.view.showMood('angry', 'ticket');
+        else guest.view.showBubble('ticket', guest.cls, 1.85);
+        const key = `g${g++}`;
+        if (key !== guest.spot) this.sendToSpot(guest, key, snap);
+        continue;
+      }
       // A ticket in their class's colour, a broom (a room is being made up), or a "no room" sign: not this time.
       if (guest.grumpy && guest.eligible) guest.view.showMood('angry', guest.ready ? 'ticket' : 'broom');
       else if (guest.ready) guest.view.showBubble('ticket', guest.cls, 1.85);
@@ -547,6 +565,29 @@ export class Guests {
       else if (g.state === 'boarding' && g.pos.x > HALF_WIDTH - 0.2) n++;
     }
     return n;
+  }
+
+  /** Phase 2, the second gate's clerk: sells the ticket of whoever is at its window, one every so often. */
+  private gateTimer = 0;
+  private gateSales(dt: number): void {
+    const w = this.w;
+    if (!w.station.gateOpen()) return;
+    const guest = this.list.find((g) => g.state === 'platform' && !g.paid && g.ready && g.spot === 'g0' && g.atSpot);
+    if (!guest) {
+      this.gateTimer = 0;
+      return;
+    }
+    this.gateTimer += dt;
+    if (this.gateTimer < w.econ.zones.boardIntervalSeconds * GATE_SALE_SLOWER) return;
+    this.gateTimer = 0;
+    const room = w.train.freeCabin(guest.cls) ?? w.train.cabins.find((c) => w.train.cabinClass(c) === guest.cls) ?? w.train.cabins[0];
+    if (!room) return;
+    this.sellTicket(guest, room, false, true);
+    w.station.view.clerkStamp();
+    guest.paid = true;
+    guest.spot = null;
+    this.boardPaid(guest);
+    this.arrangePlatform(false);
   }
 
   /** Phase 2: a traveller with a bed is waiting on the platform for a room to be made up. */
@@ -584,12 +625,14 @@ export class Guests {
 
   private spotPosition(key: string): Vec2 {
     const i = Number(key.slice(1));
+    if (key[0] === 'g') return gateQueueSpot(i, this.w.station.gateZ() ?? 0);
     return key[0] === 'q' ? queueSpot(i) : waitingSpot(i);
   }
 
   /** Each place in the queue faces the one ahead of it (the window faces the counter); the bench faces the train. */
   private spotFacing(key: string): number {
     if (key[0] === 'w') return -Math.PI / 2 + (Number(key.slice(1)) % 3 - 1) * 0.35;
+    if (key[0] === 'g') return Number(key.slice(1)) === 0 ? Math.PI / 2 : 0;
     const i = Number(key.slice(1));
     if (i === 0) return Math.PI / 2;
     const here = queueSpot(i);
@@ -707,9 +750,11 @@ export class Guests {
     guest.state = 'boarding';
     guest.stateTime = 0;
     this.joinDesk(guest, desk);
-    // Session 40: a guest whose room is toward the back walks along the platform to the second entrance.
-    const along = desk.carriage === 0 ? [] : [lobbyDoor.outside, ...this.platformTo(desk)];
-    guest.mover.go([...this.toTheDoor(guest), ...along, door.outside, door.inside, this.slotPosition(guest.queueSlot, desk)], () => this.arriveInQueue(guest));
+    // Session 40: a guest whose room is toward the back walks along the platform to the second entrance (Phase 2: from
+    // the second gate it is right there).
+    const atGate = desk.carriage !== 0 && Math.abs(guest.pos.z - door.outside.z) < 8;
+    const along = desk.carriage === 0 || atGate ? [] : [lobbyDoor.outside, ...this.platformTo(desk)];
+    guest.mover.go([...(atGate ? [] : this.toTheDoor(guest)), ...along, door.outside, door.inside, this.slotPosition(guest.queueSlot, desk)], () => this.arriveInQueue(guest));
   }
 
   /** From the ticket queue's side of the platform, back along the edge toward the door. */
@@ -729,15 +774,20 @@ export class Guests {
   }
 
   /** The fare, paid at the booth: cash on the booth's pile, the bell, a little bounce. */
-  private sellTicket(guest: Guest, cabin: Cabin, byPlayer: boolean): void {
+  private sellTicket(guest: Guest, cabin: Cabin, byPlayer: boolean, direct = false): void {
     const w = this.w;
     const money = w.econ.money;
     const doubled = w.data.monetization.doubleFaresStop !== null && w.data.monetization.doubleFaresStop >= w.journey.stopSerial;
-    const fare = Math.round(money.baseFare * w.train.fareMultiplier(cabin) * guest.archetype.fareMultiplier * w.fareMultiplier() * (doubled ? 2 : 1));
-    w.cash.add('booth', fare, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z + w.station.platformOffset));
-    w.audio.play('clink');
+    const special = w.stationEvents.fareScale(guest);
+    const fare = Math.round(money.baseFare * w.train.fareMultiplier(cabin) * guest.archetype.fareMultiplier * w.fareMultiplier() * (doubled ? 2 : 1) * special);
+    // The second gate's clerk banks the fare straight away (Phase 2); the stand's pile up beside it.
+    if (direct) w.cash.payDirect(fare, guest.pos.x, guest.pos.z + w.station.platformOffset, 'pile:booth');
+    else {
+      w.cash.add('booth', fare, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z + w.station.platformOffset));
+      w.audio.play('clink');
+      w.ui.floatText(`+${fare}`, guest.pos.x, FLOOR_Y + 1.9, guest.pos.z + w.station.platformOffset, 'cash');
+    }
     w.haptics.light();
-    w.ui.floatText(`+${fare}`, guest.pos.x, FLOOR_Y + 1.9, guest.pos.z + w.station.platformOffset, 'cash');
     guest.view.bounce(0.7);
     guest.view.act('wave', 0.8);
     w.events.emit('guest.boarded', { byPlayer });
@@ -948,6 +998,7 @@ export class Guests {
     if (this.list.some((g) => g.state === 'platform')) {
       this.arrangePlatform(false);
       this.platformPatience();
+      this.gateSales(dt);
     }
     for (const guest of this.list) {
       if (guest.state !== 'platform' || !guest.paid) continue;

@@ -1,6 +1,6 @@
 import { CLASS_BY_ID } from '../config/classes';
 import * as THREE from 'three';
-import { STATIONS } from '../config/content';
+import { STATION_UPGRADES, STATIONS } from '../config/content';
 import type { ItemKind, JourneyPhase, Vec2 } from '../core/types';
 import { EVENTS } from '../services/analytics';
 import { FLOOR_Y } from '../world/CarriageView';
@@ -8,7 +8,9 @@ import { createItemMesh } from '../world/ItemMeshes';
 import { HALF_WIDTH, PLATFORM_X0 } from '../world/layout';
 import { nextClassOnRoute, type ClassId } from '../config/classes';
 import { PlatformView } from '../world/PlatformView';
-import { PLATFORM, queueSpot } from '../world/platformLayout';
+import { gateCounter, PLATFORM, queueSpot } from '../world/platformLayout';
+import { ACTIVE_ROUTE } from '../config/routes';
+import { rect, type Rect } from '../core/types';
 import { billboardTexture } from '../world/sprites';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
 import { nextStreak, ratingEffect, starBonus, stopStars, streakBonus } from '../sim/stationResult';
@@ -37,6 +39,8 @@ function shuffled<T>(items: readonly T[], rng: { next(): number }): T[] {
 const BILLBOARD_COUNT = 3;
 /** Phase 2: what the platform's restock cart carries, most needed first. */
 const RESTOCK_KINDS: readonly ItemKind[] = ['towel', 'roll', 'snack'];
+/** Phase 2: the kiosk's till, on the platform side of its counter. */
+const KIOSK_TILL = { dx: 3.85, z: 7.2 };
 /** Where a new game's conductor stands on the platform: a few steps from the ticket stand's serving side. */
 const PROLOGUE_SPAWN = { x: PLATFORM.serve.x + 0.35, z: PLATFORM.serve.z + 1.7 };
 /** Travellers who turn up during a stop (out of the station house), and the window of the stop they come in. */
@@ -109,7 +113,13 @@ export class Station {
     const w = this.w;
     w.events.on('unlock.completed', ({ id }) => {
       if (w.unlocks.get(id)?.kind === 'marketing') this.refreshMarketing(true);
+      if (id.startsWith('st.')) {
+        this.refreshUpgrades();
+        w.data.station.owned[ACTIVE_ROUTE.id] = [...new Set([...(w.data.station.owned[ACTIVE_ROUTE.id] ?? []), id.slice(3)])];
+        w.analytics.log(EVENTS.stationUpgrade, { id: id.slice(3), time: Math.round(w.lifetimeSeconds()) });
+      }
     });
+    this.refreshUpgrades();
     w.events.on('train.named', () => this.refreshMarketing());
     w.events.on('livery.changed', () => this.refreshMarketing());
     document.fonts?.ready.then(() => this.refreshMarketing()).catch(() => undefined);
@@ -209,7 +219,45 @@ export class Station {
       this.vendorZone.moveTo(vendor.x, vendor.z);
     }
     this.layoutPlatformItems();
+    this.refreshUpgrades();
     this.w.scenerySpanChanged?.();
+  }
+
+  private upgradeObstacleKey = '';
+
+  /**
+   * Phase 2: the station upgrades owned stand on the platform (at every station of the route), and what they stand on
+   * is no longer walkable. The second gate stands at the train's second entrance (none until it has one).
+   */
+  refreshUpgrades(): void {
+    const w = this.w;
+    const owned = new Set<string>();
+    for (const u of STATION_UPGRADES) if (w.unlocks.isUnlocked(`st.${u.key}`)) owned.add(u.key);
+    const gateZ = this.gateZ();
+    this.view.setUpgrades(owned, gateZ);
+    const rects: Rect[] = [];
+    for (const u of STATION_UPGRADES) {
+      if (!owned.has(u.key) || !u.size || u.at.door) continue;
+      const x = PLATFORM_X0 + u.at.dx;
+      rects.push(rect(x - u.size.w / 2, u.at.z - u.size.d / 2, x + u.size.w / 2, u.at.z + u.size.d / 2));
+    }
+    if (owned.has('gate2') && gateZ !== null) rects.push(gateCounter(gateZ));
+    const key = rects.map((r) => `${r.x0.toFixed(2)},${r.z0.toFixed(2)}`).join('|');
+    if (key !== this.upgradeObstacleKey) {
+      this.upgradeObstacleKey = key;
+      w.map.setPlatformExtras(rects);
+    }
+  }
+
+  /** Phase 2: where the second ticket gate stands (the second entrance's door), or null on a train with one door. */
+  gateZ(): number | null {
+    return this.w.map.doors()[1]?.outside.z ?? null;
+  }
+
+  /** Phase 2: the second gate is open at this stop (bought, and the train has a second entrance). */
+  gateOpen(): boolean {
+    const w = this.w;
+    return w.journey.phase === 'stationStop' && !this.prologue && w.stationPerks().secondDoor && this.gateZ() !== null;
   }
 
   /**
@@ -313,7 +361,7 @@ export class Station {
       this.bellAt = null;
       this.grumpyThisStop = 0;
       this.unhappyAtArrival = w.guests.audit.unhappy;
-      if (w.unlocks.isUnlocked('st.helper')) w.tweens.delay(2.2, () => this.helperRestock());
+      if (w.stationPerks().helper) w.tweens.delay(2.2, () => this.helperRestock());
       w.guests.onStationStop(w.journey.stopSerial);
       const station = this.currentStation();
       const newPostcard = w.meta.onStationVisited(station.id, station.name);
@@ -369,6 +417,7 @@ export class Station {
     const w = this.w;
     const j = w.journey;
     if (!j.heldStops) this.updateClock();
+    this.updateKiosk(_dt);
     if (this.prologue) this.updatePrologue(_dt);
     // Phase 2, no teleport: once the bell has rung, the doors wait for the conductor (and anyone still walking in).
     if (j.phase === 'stationStop' && !j.held && j.heldStops && j.timeLeft < 0.6 && (this.outsideTrain(w.player.pos) || w.guests.walkingIn())) j.extend(_dt);
@@ -561,6 +610,7 @@ export class Station {
     w.train.setDoors(false);
     // Fares left at the booth come aboard with the conductor (the platform is about to slide away).
     w.cash.collect('booth');
+    w.cash.collect('kiosk');
     w.audio.setStationAmbience(false);
     w.audio.play('depart');
   }
@@ -777,6 +827,9 @@ export class Station {
       stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, luggageSpec),
     }));
 
+    // Phase 2: the platform kiosk's till (its takings pile up while the train is in).
+    w.cash.create('kiosk', PLATFORM_X0 + KIOSK_TILL.dx, KIOSK_TILL.z);
+
     // Phase 2: the restock cart. Stand by it a moment and the tray fills with everything the train is short of
     // (towels and rolls for the washrooms, snack boxes for the minibars), as much as the conductor can carry.
     const cart = PLATFORM.restockPad;
@@ -796,7 +849,7 @@ export class Station {
           zone.progress = 0;
           return false;
         }
-        const seconds = w.unlocks.isUnlocked('st.cart') ? w.econ.station.cartRestockSeconds : w.econ.station.restockSeconds;
+        const seconds = w.stationPerks().restockFast ? w.econ.station.cartRestockSeconds : w.econ.station.restockSeconds;
         zone.progress += dt / seconds;
         if (zone.progress < 1) return true;
         zone.progress = 0;
@@ -909,6 +962,19 @@ export class Station {
     return w.train.snackShort() === 0;
   }
 
+  /** Phase 2: the kiosk trades while the train is in, into its till on the platform. */
+  private kioskCarry = 0;
+  private updateKiosk(dt: number): void {
+    const w = this.w;
+    if (!w.journey.doorsOpen || this.prologue || !w.stationPerks().kiosk) return;
+    const k = w.econ.station.kiosk;
+    this.kioskCarry += dt * k.perSecond * (1 + k.perCarriage * (w.train.count - 1));
+    if (this.kioskCarry < 1) return;
+    const n = Math.floor(this.kioskCarry);
+    this.kioskCarry -= n;
+    w.cash.add('kiosk', n, this.tmp.set(PLATFORM_X0 + KIOSK_TILL.dx + 0.6, FLOOR_Y + 1, KIOSK_TILL.z));
+  }
+
   /** Phase 2, the Restock Helper: the station boy tops the whole train up as it pulls in. */
   private helperRestock(): void {
     const w = this.w;
@@ -919,7 +985,8 @@ export class Station {
       n += f.bathroomTowelMax - b.towels + f.bathroomRollMax - b.rolls;
       b.towels = f.bathroomTowelMax;
       b.rolls = f.bathroomRollMax;
-      w.particles.emit('sparkle', b.restock.x, FLOOR_Y + 1, b.restock.z, 5, 0.25);
+      this.view.helperWave();
+    w.particles.emit('sparkle', b.restock.x, FLOOR_Y + 1, b.restock.z, 5, 0.25);
     }
     n += w.train.fillMinibars();
     if (n === 0) return;

@@ -71,7 +71,8 @@ export class Player implements Actor {
   }
 
   capacity(): number {
-    return this.w.econ.player.baseCarryCapacity + this.w.data.conductor.capacity * this.w.econ.conductor.capacity.perLevel;
+    // Phase 2: the station's Restock Cart lets the conductor carry a couple more.
+    return this.w.econ.player.baseCarryCapacity + this.w.data.conductor.capacity * this.w.econ.conductor.capacity.perLevel + this.w.stationPerks().carry;
   }
 
   speed(): number {

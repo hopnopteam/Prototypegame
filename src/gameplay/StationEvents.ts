@@ -14,6 +14,11 @@ export class StationEvents {
     // Filled in with the events.
   }
 
+  /** A ticket's fare multiplier for this traveller (the VIP pays many times over). */
+  fareScale(_guest: unknown): number {
+    return 1;
+  }
+
   /** The stop bonus's multiplier from the stop's event (Rush Hour pays big). */
   bonusScale(): number {
     void this.w;

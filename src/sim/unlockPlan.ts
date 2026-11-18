@@ -1,3 +1,4 @@
+import { ACTIVE_ROUTE } from '../config/routes';
 import { CARRIAGE_CATALOGUE, CARRIAGE_ORDER, COUPLE_SLOTS, LEGACY_TRAIN, MAX_CARRIAGES, SLOT_PRICE_STEP, STATION_UPGRADES, type UnlockDef } from '../config/content';
 import { CLASS_BY_ID, isPassengerType, type ClassId } from '../config/classes';
 import type { CarriageType } from '../core/types';
@@ -54,8 +55,10 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
     }
     cabinsBefore += entry.cabins;
   });
-  for (const u of STATION_UPGRADES) {
-    defs.push({ id: `st.${u.key}`, kind: u.kind, label: u.label, price: curvedPrice(u.price), stars: u.stars, carriage: -1, requires: u.requires, effect: u.effect });
+  // Phase 2: the route's own station upgrades, in its order (config/routes.ts `station.upgrades`).
+  for (const key of ACTIVE_ROUTE.station.upgrades) {
+    const u = STATION_UPGRADES.find((d) => d.key === key);
+    if (u) defs.push({ id: `st.${u.key}`, kind: u.kind, label: u.label, price: curvedPrice(u.price), stars: u.stars, carriage: -1, requires: u.requires, effect: u.effect, work: u.work });
   }
   COUPLE_SLOTS.forEach((slot, i) => {
     const n = i + 1;
@@ -116,11 +119,18 @@ export interface StationPerks {
   passengers: number;
   vip: number;
   stationBonus: number;
+  /** Phase 2's platform pieces. */
+  restockFast: boolean;
+  carry: number;
+  helper: boolean;
+  trolley: boolean;
+  kiosk: boolean;
+  secondDoor: boolean;
 }
 
 /** What the station upgrades bought so far add up to (each bonus is additive). */
 export function stationPerks(isUnlocked: (id: string) => boolean): StationPerks {
-  const perks: StationPerks = { tips: 0, fares: 0, passengers: 0, vip: 0, stationBonus: 0 };
+  const perks: StationPerks = { tips: 0, fares: 0, passengers: 0, vip: 0, stationBonus: 0, restockFast: false, carry: 0, helper: false, trolley: false, kiosk: false, secondDoor: false };
   for (const u of STATION_UPGRADES) {
     if (!isUnlocked(`st.${u.key}`)) continue;
     perks.tips += u.bonus.tips ?? 0;
@@ -128,6 +138,12 @@ export function stationPerks(isUnlocked: (id: string) => boolean): StationPerks 
     perks.passengers += u.bonus.passengers ?? 0;
     perks.vip += u.bonus.vip ?? 0;
     perks.stationBonus += u.bonus.stationBonus ?? 0;
+    perks.carry += u.bonus.carry ?? 0;
+    perks.restockFast ||= u.bonus.restockFast ?? false;
+    perks.helper ||= u.bonus.helper ?? false;
+    perks.trolley ||= u.bonus.trolley ?? false;
+    perks.kiosk ||= u.bonus.kiosk ?? false;
+    perks.secondDoor ||= u.bonus.secondDoor ?? false;
   }
   return perks;
 }
