@@ -43,11 +43,13 @@ export const ROOM_DOOR_WIDTH = 1.4;
 const centredDoor = (z0: number, z1: number): [number, number] => [(z0 + z1) / 2 - ROOM_DOOR_WIDTH / 2, (z0 + z1) / 2 + ROOM_DOOR_WIDTH / 2];
 export const EXTERIOR_WALL_HEIGHT = 1.1;
 /**
- * Walls between rooms stop at knee height (session 15, was 0.85 m): from the camera's angle a taller wall hid
- * the floor just behind it, and with it the pads, tiles, mess and guests there. The floor plan still reads at
- * a glance, like a dolls' house with the front walls cut down.
+ * Walls between rooms (owner: "the walls of the rooms higher… objects in the room are exceeding the wall… like My
+ * Perfect Hotel, walls correctly proportioned"): as tall as the outer walls, so beds, wardrobes and the four-poster
+ * stand inside their room instead of over a fence. Session 15 had cut them to knee height so the floor behind each
+ * stayed in view; the jobs and prices now float over the furniture as badges and markers drawn over the walls, so a
+ * strip of floor behind a wall can go out of sight. Only the rear end wall, which faces the camera, stays a sill.
  */
-export const INTERIOR_WALL_HEIGHT = 0.52;
+export const INTERIOR_WALL_HEIGHT = EXTERIOR_WALL_HEIGHT;
 /**
  * Room doors (session 16): two hinged leaves per doorway that swing into the room (the partition beside a
  * doorway is too short for sliding leaves to clear it). A hinge sits `hingeInset` inside its door post, the
@@ -1403,19 +1405,21 @@ export const ZONE_RADIUS = {
 export const TILE_SIZE = 1.0;
 export const COUPLE_TILE_SIZE = 1.6;
 /**
- * A covered (locked) room's lid (session 22): its edges just above the knee-high walls, rising to a flat top inset
- * from them; gentler than the camera's look-down, so it never hides the corridor (tests/visibility.test.ts).
+ * A covered (locked) room's lid (session 22): its edges just above the room's walls, rising a little to a flat top
+ * inset from them (with full-height walls, a low dome is enough to read as a lid over the room).
  */
 export const COVER_BASE = INTERIOR_WALL_HEIGHT + 0.015;
-export const COVER_TOP = 0.84;
+export const COVER_TOP = INTERIOR_WALL_HEIGHT + 0.09;
 export const COVER_INSET = 0.38;
 
 /**
  * A locked room's price tile (session 22): in the corridor at its door, hugging the partition (the room itself is
  * shut and covered until it is bought). Walking past never spends: tiles wait for a short dwell.
  */
+const DOOR_TILE_OUT = 0.32;
 export function doorTileSpot(door: [number, number]): Vec2 {
-  return { x: PARTITION_X0 - TILE_SIZE / 2 - 0.12, z: (door[0] + door[1]) / 2 };
+  // Out in the corridor a little (the room's wall, as tall as the outer walls, hides the strip of floor along it).
+  return { x: PARTITION_X0 - TILE_SIZE / 2 - DOOR_TILE_OUT, z: (door[0] + door[1]) / 2 };
 }
 
 /** A washroom's tip pile sits this far from its restock point. */

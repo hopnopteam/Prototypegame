@@ -1698,8 +1698,9 @@ export class CarriageView {
           const curtain = fin.curtain ?? this.theme.curtain;
           for (const side of [-1, 1]) {
             const edge = zc + side * (width / 2);
-            // The hem clears the knee-high walls between rooms (a drape by a window near one met the wall's face).
-            const hem = Math.max(WY0 + 0.02, INTERIOR_WALL_HEIGHT + 0.06);
+            // Full drapes from the window's head to below its sill (the walls between rooms are as tall as the
+            // outer walls now, so a drape no longer has to clear a knee-high wall).
+            const hem = INTERIOR_WALL_HEIGHT >= WY1 ? Math.max(0.06, WY0 - 0.12) : Math.max(WY0 + 0.02, INTERIOR_WALL_HEIGHT + 0.06);
             const head = WY1 + 0.03;
             s.box(innerFace + inward * 0.018, FLOOR_Y + (hem + head) / 2, edge + side * 0.0283, 0.012, head - hem, 0.1267, curtain, 0, { shade: 0.82 });
           }
