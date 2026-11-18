@@ -226,8 +226,10 @@ export class PlatformView {
     if (owned.has('benches')) {
       const p = at('benches');
       buildBench(b, { x0: p.x - 0.2, z0: p.z - 1.1, x1: p.x + 0.2, z1: p.z + 1.1 });
-      b.object('platform:waitingPlanter');
-      for (const dz of [-1.5, 1.5]) buildPlanter(b, p.x, p.z + dz);
+      for (const dz of [-2.05, 2.05]) {
+        b.object('platform:waitingPlanter');
+        buildPlanter(b, p.x, p.z + dz);
+      }
       b.endObject();
     }
     if (owned.has('booth')) buildBoothCanopy(b, lamps, PLATFORM.counter);
@@ -271,7 +273,7 @@ export class PlatformView {
     this.keeperView.root.visible = keeper;
     if (keeper) {
       const p = at('kiosk');
-      this.keeperView.setPosition(p.x + 0.75, FLOOR_Y, p.z);
+      this.keeperView.setPosition(p.x + 0.66, FLOOR_Y, p.z);
       this.keeperView.setFacing(-Math.PI / 2);
     }
   }
@@ -899,27 +901,28 @@ function buildBarrow(b: GeoBuilder): void {
 function buildBoothCanopy(b: GeoBuilder, lamps: GeoBuilder, r: Rect): void {
   const y = FLOOR_Y;
   const cz = (r.z0 + r.z1) / 2;
-  const d = r.z1 - r.z0 + 0.3;
+  const d = r.z1 - r.z0;
   const x0 = r.x0 - 0.05;
-  const x1 = r.x1 + 0.12;
+  const x1 = r.x1 + 0.04;
   const cx = (x0 + x1) / 2;
   const top = y + 2.15;
+  for (const pz of [r.z0 + 0.06, r.z1 - 0.06]) {
+    b.object('platform:boothPost');
+    b.cylinder(r.x1 - 0.06, y + 1.58, pz, 0.028, 0.034, 1.04, PALETTE.iron, 8, 'y', { shade: 0.85, surface: 'iron' });
+  }
   b.object('platform:boothCanopy');
-  for (const pz of [r.z0 + 0.06, r.z1 - 0.06]) b.cylinder(r.x1 - 0.06, y + 1.6, pz, 0.028, 0.034, 1.1, PALETTE.iron, 8, 'y', { shade: 0.85, surface: 'iron' });
   b.box(cx, top, cz, x1 - x0, 0.05, d, PALETTE.navy, 0, { shade: 0.9 });
   b.box(cx, top + 0.06, cz, x1 - x0 - 0.06, 0.07, d - 0.06, '#5B6E8C', 0, { shade: 0.85 });
   // The scalloped valance round its edge, navy and cream in turn.
   const n = Math.max(3, Math.round(d / 0.22));
   for (let i = 0; i < n; i++) {
-    const z = r.z0 - 0.15 + (i + 0.5) * (d / n);
+    const z = r.z0 + (i + 0.5) * (d / n);
     b.box(x1, top - 0.08, z, 0.015, 0.12, d / n - 0.01, i % 2 ? PALETTE.creamBand : PALETTE.navy, 0, { shade: 1 });
     b.box(x0, top - 0.08, z, 0.015, 0.12, d / n - 0.01, i % 2 ? PALETTE.creamBand : PALETTE.navy, 0, { shade: 1 });
   }
   b.box(cx, top + 0.14, cz, 0.06, 0.12, 0.5, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
   b.endObject();
-  lamps.object('platform:boothLamp~glow');
-  lamps.sphere(cx, top - 0.22, cz, 0.08, '#FFE2A0', 1, 1);
-  lamps.endObject();
+  void lamps;
 }
 
 /** Phase 2, the Restock Cart upgrade: a striped grocer's awning over the cart on four posts, and a fuller load. */

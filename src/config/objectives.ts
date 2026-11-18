@@ -12,7 +12,7 @@ import type { IconName } from '../ui/icons';
  * added), `station` (station upgrades) and `conductor` (upgrade levels bought). `level` goals track the route level.
  */
 export type ObjectiveEvent =
-  | 'checkIn' | 'collect' | 'unlock' | 'clean' | 'request' | 'board' | 'luggage' | 'perfectStop'
+  | 'checkIn' | 'collect' | 'unlock' | 'clean' | 'request' | 'board' | 'luggage' | 'perfectStop' | 'goodStop'
   | 'restock' | 'coupling' | 'refurb' | 'level' | 'conductor' | 'rush' | 'station' | 'speedy'
   // Session 20: a guest served in a venue carriage (a coffee, a dinner, a cocktail, a seat in the dome).
   | 'venue';
@@ -41,7 +41,8 @@ export const OBJECTIVES: ObjectiveDef[] = [
   { id: 'first_luggage', text: 'Load 2 bags', icon: 'luggage', event: 'luggage', target: 2, reward: { cash: 15 } },
   { id: 'checkins_6', text: 'Check in 6', icon: 'ticket', event: 'checkIn', target: 6, reward: { cash: 25 } },
   { id: 'repair_lobby', text: 'Repair a carriage', icon: 'paint', event: 'refurb', target: 1, reward: { cash: 25 }, stars: 2 },
-  { id: 'perfect_1', text: 'A perfect stop', icon: 'star', event: 'perfectStop', target: 1, reward: { cash: 20, gems: 2 } },
+  // Phase 2: a perfect stop needs every guest happy, so the first goal of the kind asks for two stars.
+  { id: 'perfect_1', text: 'A 2-star stop', icon: 'star', event: 'goodStop', target: 1, reward: { cash: 20, gems: 2 } },
   { id: 'couple_1', text: 'Add a carriage', icon: 'carriage', event: 'coupling', target: 1, reward: { cash: 30 }, stars: 3 },
   { id: 'sleeper_cabin', text: 'Open 2 cabins', icon: 'bed', event: 'unlock', filter: 'cabin', target: 2, reward: { cash: 20 } },
   { id: 'requests_8', text: 'Serve 8 requests', icon: 'tea', event: 'request', target: 8, reward: { cash: 30 } },

@@ -61,7 +61,7 @@ export class Objectives {
         ? this.w.progression.level >= def.target
         : isTotal(def)
           ? this.owned(def).owned >= def.target
-          : !def.filter && def.event !== 'rush' && def.event !== 'perfectStop' && (this.recent[def.event] ?? 0) >= def.target;
+          : !def.filter && def.event !== 'rush' && def.event !== 'perfectStop' && def.event !== 'goodStop' && (this.recent[def.event] ?? 0) >= def.target;
       if (!met) break;
       owed.cash += def.reward.cash ?? 0;
       owed.gems += def.reward.gems ?? 0;
@@ -124,6 +124,7 @@ export class Objectives {
     e.on('guest.boarded', () => this.count('board'));
     e.on('luggage.loaded', () => this.count('luggage'));
     e.on('station.result', (r) => r.clean && this.count('perfectStop'));
+    e.on('station.result', (r) => r.rating >= 2 && this.count('goodStop'));
     e.on('bathroom.restocked', () => this.count('restock'));
     e.on('venue.served', () => this.count('venue'));
     e.on('carriage.refurbished', () => this.syncTotal());
@@ -177,7 +178,7 @@ export class Objectives {
     this.recent = {};
     if (def.event === 'level') this.syncLevel();
     else if (isTotal(def)) this.syncTotal();
-    else if (earlier > 0 && !def.filter && def.event !== 'rush' && def.event !== 'perfectStop') {
+    else if (earlier > 0 && !def.filter && def.event !== 'rush' && def.event !== 'perfectStop' && def.event !== 'goodStop') {
       // Already done while the last goal was up: counts now.
       this.state.progress = Math.min(def.target, this.state.progress + earlier);
       if (this.state.progress >= def.target) this.complete(def);

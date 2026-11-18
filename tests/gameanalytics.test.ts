@@ -129,3 +129,25 @@ describe('GameAnalytics mapping', () => {
     expect(part('x'.repeat(100)).length).toBe(64);
   });
 });
+
+describe('Phase 2 station events', () => {
+  it('sends each station event under its own id, within the SDK rules', () => {
+    const cases: [string, Record<string, string | number | boolean>, string][] = [
+      ['station_stop', { stars: 3, seconds: 52 }, 'Station:Stop:3'],
+      ['station_restock', { items: 4 }, 'Station:Restock'],
+      ['station_bell', { seconds: 48 }, 'Station:Bell'],
+      ['station_upgrade', { id: 'kiosk', time: 600 }, 'Station:Upgrade:kiosk'],
+      ['station_event_start', { event: 'rush_hour' }, 'Station:Event:Start:rush_hour'],
+      ['station_event_complete', { event: 'sheep', reward: 0 }, 'Station:Event:Complete:sheep'],
+      ['critic_board', { carriages: 4 }, 'Critic:Board'],
+      ['critic_review', { result: 'great', score: 0.9 }, 'Critic:Review:great'],
+      ['station_grumpy', { count: 2 }, 'Station:GrumpyGuests'],
+    ];
+    for (const [event, params, id] of cases) {
+      const calls = translate(event, params);
+      expect(calls[0]).toMatchObject({ kind: 'design', id });
+      for (const c of calls) valid(c);
+    }
+    expect(translate('break_point', { kind: 'departure' })).toEqual([]);
+  });
+});

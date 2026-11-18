@@ -42,7 +42,7 @@ const RESTOCK_KINDS: readonly ItemKind[] = ['towel', 'roll', 'snack'];
 /** Phase 2 (≥30 fps on a low-end phone): on Low quality a platform holds at most this many travellers. */
 const LOW_TIER_BOARDERS = 10;
 /** Phase 2: the kiosk's till, on the platform side of its counter. */
-const KIOSK_TILL = { dx: 3.85, z: 7.2 };
+const KIOSK_TILL = { dx: 4.1, z: 8.75 };
 /** Where a new game's conductor stands on the platform: a few steps from the ticket stand's serving side. */
 const PROLOGUE_SPAWN = { x: PLATFORM.serve.x + 0.35, z: PLATFORM.serve.z + 1.7 };
 /** Travellers who turn up during a stop (out of the station house), and the window of the stop they come in. */
