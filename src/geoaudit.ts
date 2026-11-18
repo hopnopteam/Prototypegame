@@ -332,6 +332,8 @@ const HOLDS: Record<string, string[]> = {
   'platform:boothCanopy': ['platform:boothPost'],
   'platform:stationClock': ['platform:clockFace~glow'],
   'platform:fruitStall': ['platform:fruitStallGoods', 'character:keeper'],
+  // Session 55: the news vendor stands under the stall's awning, behind its counter.
+  'platform:newsstand': ['character:newsvendor'],
   'platform:trolley': ['platform:trolleyCases'],
   'prop:rack': ['stock:luggage'],
   'prop:luggageRack': ['stock:luggage'],
@@ -357,7 +359,7 @@ const HOLDS: Record<string, string[]> = {
   'prop:concession': ['prop:popcornMachine'],
   // Session 23, the platform: what stands on the ticket stand, the station house's lit windows and lanterns on its
   // face, a lamp post's lanterns.
-  'platform:ticketStand': ['platform:ticketRack', 'platform:cashTin', 'platform:bell', 'platform:standLamp', 'platform:standLamp~glow'],
+  'platform:ticketStand': ['platform:ticketRack', 'platform:till', 'platform:ticketSignPost'],
   'platform:stationHouse': ['platform:houseWindow~glow', 'platform:doorLantern~glow'],
   'platform:lampPost': ['platform:lampPost~glow'],
   'forecourt:lamp': ['forecourt:lamp~glow'],

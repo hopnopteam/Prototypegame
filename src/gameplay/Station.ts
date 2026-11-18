@@ -1,7 +1,7 @@
 import { CLASS_BY_ID } from '../config/classes';
 import * as THREE from 'three';
 import { STATION_UPGRADES, STATIONS } from '../config/content';
-import type { ItemKind, JourneyPhase, Vec2 } from '../core/types';
+import type { JourneyPhase, Vec2 } from '../core/types';
 import { EVENTS } from '../services/analytics';
 import { FLOOR_Y } from '../world/CarriageView';
 import { createItemMesh } from '../world/ItemMeshes';
@@ -37,12 +37,10 @@ function shuffled<T>(items: readonly T[], rng: { next(): number }): T[] {
 }
 
 const BILLBOARD_COUNT = 3;
-/** Phase 2: what the platform's restock cart carries, most needed first. */
-const RESTOCK_KINDS: readonly ItemKind[] = ['towel', 'roll', 'snack'];
 /** Phase 2 (≥30 fps on a low-end phone): on Low quality a platform holds at most this many travellers. */
 const LOW_TIER_BOARDERS = 10;
-/** Phase 2: the kiosk's till, on the platform side of its counter. */
-const KIOSK_TILL = { dx: 4.1, z: 8.75 };
+/** Session 55: the fruit kiosk's till, at the walkway's edge in front of its stall (the kiosk bay). */
+const KIOSK_TILL = { dx: 5.15, z: 6.0 };
 /** Where a new game's conductor stands on the platform: a few steps from the ticket stand's serving side. */
 const PROLOGUE_SPAWN = { x: PLATFORM.serve.x + 0.35, z: PLATFORM.serve.z + 1.7 };
 /** Travellers who turn up during a stop (out of the station house), and the window of the stop they come in. */
@@ -169,7 +167,7 @@ export class Station {
     const marketingKey = `${has('posters')}|${has('band')}|${has('billboard')}|${name}|${livery.body}`;
     if (marketingKey === this.marketingKey && !fresh) return;
     this.marketingKey = marketingKey;
-    this.view.setMarketing({ posters: has('posters'), band: has('band') }, name, livery.body, livery.trim);
+    this.view.setMarketing({ posters: has('posters'), band: has('band'), billboard: has('billboard') }, name, livery.body, livery.trim);
     const boards = has('billboard');
     const key = `${boards}|${name}|${livery.body}`;
     if (key !== this.billboardKey) {
@@ -246,7 +244,7 @@ export class Station {
     }
     if (owned.has('gate2') && gateZ !== null) rects.push(gateCounter(gateZ));
     // Everything else standing on the deck (lamp posts, tubs, benches, the station master) is solid too.
-    rects.push(...this.view.solids);
+    rects.push(...this.view.solids, ...this.view.upgradeSolids);
     const key = rects.map((r) => `${r.x0.toFixed(2)},${r.z0.toFixed(2)},${r.x1.toFixed(2)}`).join('|');
     if (key !== this.upgradeObstacleKey) {
       this.upgradeObstacleKey = key;
@@ -367,7 +365,7 @@ export class Station {
       this.grumpyThisStop = 0;
       this.restocksThisStop = 0;
       this.unhappyAtArrival = w.guests.audit.unhappy;
-      if (w.stationPerks().helper) w.tweens.delay(2.2, () => this.helperRestock());
+      if (w.stationPerks().helper) w.tweens.delay(w.econ.station.supply.porterSeconds, () => this.helperRestock());
       w.guests.onStationStop(w.journey.stopSerial);
       const station = this.currentStation();
       const newPostcard = w.meta.onStationVisited(station.id, station.name);
@@ -424,6 +422,7 @@ export class Station {
     const j = w.journey;
     if (!j.heldStops) this.updateClock();
     this.updateKiosk(_dt);
+    this.updateSupply();
     if (this.prologue) this.updatePrologue(_dt);
     // Phase 2, no teleport: once the bell has rung, the doors wait for the conductor (and anyone still walking in).
     if (j.phase === 'stationStop' && !j.held && j.heldStops && j.timeLeft < 0.6 && (this.outsideTrain(w.player.pos) || w.guests.walkingIn())) j.extend(_dt);
@@ -463,7 +462,7 @@ export class Station {
     }
     if (visible) light.setPlatformOffset(this.platformOffset);
     const zOffset = this.platformOffset;
-    w.scenery.setHiddenRegion(visible ? { x0: PLATFORM_X0 - 0.2, x1: PLATFORM_X0 + 16, z0: this.view.z0 + zOffset - 2, z1: this.view.z1 + zOffset + 2 } : null);
+    w.scenery.setHiddenRegion(visible ? { x0: PLATFORM_X0 - 0.2, x1: PLATFORM_X0 + 19, z0: this.view.z0 + zOffset - 2, z1: this.view.z1 + zOffset + 2 } : null);
   }
 
   private lampsShown = false;
@@ -806,7 +805,9 @@ export class Station {
         }
         // Facing the window over the counter, stamping the ticket.
         actor.view.act('stamp');
-        zone.progress += (dt / w.econ.zones.boardIntervalSeconds) * actor.workMultiplier;
+        // Session 55: the Ticket Office sells each ticket in half the time.
+        const ticketSeconds = w.econ.zones.boardIntervalSeconds * (w.stationPerks().fastTickets ? 0.5 : 1);
+        zone.progress += (dt / ticketSeconds) * actor.workMultiplier;
         if (zone.progress < 1) return true;
         zone.progress = 0;
         const guest = w.guests.boardNext(actor.isPlayer);
@@ -852,8 +853,8 @@ export class Station {
     // Phase 2: the platform kiosk's till (its takings pile up while the train is in).
     w.cash.create('kiosk', PLATFORM_X0 + KIOSK_TILL.dx, KIOSK_TILL.z);
 
-    // Phase 2: the restock cart. Stand by it a moment and the tray fills with everything the train is short of
-    // (towels and rolls for the washrooms, snack boxes for the minibars), as much as the conductor can carry.
+    // Session 55: the supply cart. Stand by it a moment and the conductor takes the boxes of supplies the lobby's
+    // cupboard is short of (as many as they can carry); then they put them in the cupboard (`createCupboard`).
     const cart = PLATFORM.restockPad;
     const cartPoint = new THREE.Vector3();
     w.zones.add(new Zone({
@@ -862,37 +863,32 @@ export class Station {
       x: cart.x,
       z: cart.z,
       radius: 0.62,
-      icon: 'box',
-      iconFor: () => this.restockKinds()[0] ?? 'box',
-      active: () => w.journey.doorsOpen && !this.prologue && this.restockKinds().length > 0 && !w.player.stack.isFull,
-      highlight: () => this.restockKinds().length > 0,
+      icon: 'crate',
+      active: () => this.cartWanted() > 0 && !w.player.stack.isFull,
+      highlight: () => this.cartWanted() > 0,
       stay: (zone, actor, dt) => {
-        if (!actor.isPlayer || actor.stack.isFull || this.restockKinds().length === 0) {
+        if (!actor.isPlayer || actor.stack.isFull || this.cartWanted() === 0) {
           zone.progress = 0;
           return false;
         }
-        const seconds = w.stationPerks().restockFast ? w.econ.station.cartRestockSeconds : w.econ.station.restockSeconds;
-        zone.progress += dt / seconds;
+        zone.progress += dt / w.econ.station.restockSeconds;
         if (zone.progress < 1) return true;
         zone.progress = 0;
         let n = 0;
-        for (const kind of RESTOCK_KINDS) {
-          for (let k = w.demand.playerWants(kind); k > 0 && !actor.stack.isFull; k--) {
-            actor.stack.add(kind, cartPoint.set(PLATFORM.restock.x1, FLOOR_Y + 0.9, (PLATFORM.restock.z0 + PLATFORM.restock.z1) / 2));
-            n++;
-          }
+        for (let k = this.cartWanted(); k > 0 && !actor.stack.isFull; k--) {
+          actor.stack.add('crate', cartPoint.set(PLATFORM.restock.x1, FLOOR_Y + 0.9, (PLATFORM.restock.z0 + PLATFORM.restock.z1) / 2));
+          n++;
         }
         if (n > 0) {
           actor.view.bounce(0.4);
           w.audio.play('pickup', { pitch: 1.1 });
           w.haptics.light();
           w.particles.emit('sparkle', cart.x, FLOOR_Y + 1, cart.z, 6, 0.25);
-          this.restocksThisStop++;
-          w.events.emit('station.restocked', { items: n });
         }
         return true;
       },
     }));
+    this.createCupboard();
 
     // Session 29: the station bell. Ring it and latecomers hurry out of the station house (the conductor's job: staff
     // never ring it, so a hired porter leaves the conductor this beat of the stop).
@@ -970,19 +966,78 @@ export class Station {
     return waiting === 0 && (this.luggagePile === 0 || storageFull);
   }
 
-  /** Phase 2: what the restock cart would hand the conductor now (what the train is short of, most needed first). */
-  restockKinds(): ItemKind[] {
+  /**
+   * Session 55: the lobby's supply cupboard, in boxes (0 to `station.supply.capacity`). It is used up over each ride
+   * (`updateSupply`) and filled at a stop from the platform's supply cart. Not saved: a relaunch finds it full.
+   */
+  supply = 3;
+
+  /** Boxes the conductor should still take from the supply cart (what the cupboard lacks, less what they carry). */
+  cartWanted(): number {
     const w = this.w;
-    if (!w.journey.doorsOpen) return [];
-    return RESTOCK_KINDS.filter((kind) => w.demand.playerWants(kind) > 0);
+    if (!w.journey.doorsOpen || this.prologue || w.coach?.tutorial) return 0;
+    return Math.max(0, w.econ.station.supply.capacity - this.supply - w.player.stack.countOf('crate'));
   }
 
-  /** Phase 2, the second star: every washroom's shelf full and every minibar stocked. */
-  trainStocked(): boolean {
+  /** Session 55: boxes the cupboard still lacks (what a carried box is wanted for). */
+  cupboardNeed(): number {
+    return Math.max(0, this.w.econ.station.supply.capacity - this.supply);
+  }
+
+  /** Where the lobby's supply cupboard is (its pad, in front of the linen cupboard on the lobby's front wall). */
+  cupboardPoint(): Vec2 {
     const w = this.w;
-    const f = w.econ.facilities;
-    for (const b of w.train.bathrooms) if (b.unlocked && (b.towels < f.bathroomTowelMax || b.rolls < f.bathroomRollMax)) return false;
-    return w.train.snackShort() === 0;
+    return w.map.anchor(w.train.indexOfType('lobby') ?? 0, 'linen');
+  }
+
+  /** The second star (session 55): the lobby's supply cupboard full as the doors close. */
+  trainStocked(): boolean {
+    return this.supply >= this.w.econ.station.supply.capacity;
+  }
+
+  /** Session 55: the cupboard empties box by box over each ride (full as the train leaves, empty as it pulls in). */
+  private updateSupply(): void {
+    const w = this.w;
+    const j = w.journey;
+    if (j.phase !== 'onTheMove' && j.phase !== 'arriving') return;
+    const cap = w.econ.station.supply.capacity;
+    const left = j.phase === 'arriving' ? 0 : Math.ceil(cap * (1 - j.travelShare) - 1e-6);
+    if (left < this.supply) this.supply = Math.max(0, left);
+  }
+
+  /** The cupboard's drop zone: walk in with the boxes and they go onto its shelves. */
+  private createCupboard(): void {
+    const w = this.w;
+    const p = this.cupboardPoint();
+    const to = new THREE.Vector3();
+    w.zones.add(new Zone({
+      id: 'supplyCupboard',
+      kind: 'drop',
+      x: p.x,
+      z: p.z,
+      radius: 0.62,
+      icon: 'crate',
+      staff: false,
+      active: () => this.cupboardNeed() > 0 && w.player.stack.has('crate'),
+      stay: (zone, actor, dt) => {
+        if (!actor.isPlayer || this.cupboardNeed() === 0 || !actor.stack.has('crate')) return false;
+        zone.timer += dt;
+        if (zone.timer < w.econ.zones.dropIntervalSeconds) return true;
+        zone.timer = 0;
+        actor.stack.remove('crate', () => to.set(p.x, FLOOR_Y + 1.2, p.z - 0.6));
+        this.supply++;
+        w.audio.play('drop');
+        if (this.supply >= w.econ.station.supply.capacity) {
+          w.particles.emit('sparkle', p.x, FLOOR_Y + 1.4, p.z - 0.5, 10, 0.4);
+          w.ui.floatIcon('crate', p.x, FLOOR_Y + 2.2, p.z - 0.4, 'info', true);
+          w.audio.play('done');
+          w.haptics.light();
+          this.restocksThisStop++;
+          w.events.emit('station.restocked', { items: w.econ.station.supply.capacity });
+        }
+        return true;
+      },
+    }));
   }
 
   /** Phase 2: the kiosk trades while the train is in, into its till on the platform. */
@@ -995,25 +1050,18 @@ export class Station {
     if (this.kioskCarry < 1) return;
     const n = Math.floor(this.kioskCarry);
     this.kioskCarry -= n;
-    w.cash.add('kiosk', n, this.tmp.set(PLATFORM_X0 + KIOSK_TILL.dx + 0.6, FLOOR_Y + 1, KIOSK_TILL.z));
+    w.cash.add('kiosk', n, this.tmp.set(PLATFORM_X0 + KIOSK_TILL.dx + 1.1, FLOOR_Y + 1, KIOSK_TILL.z));
   }
 
-  /** Phase 2, the Restock Helper: the station boy tops the whole train up as it pulls in. */
+  /** Session 55, the Supply Porter: a few seconds after the doors open the cupboard is full again. */
   private helperRestock(): void {
     const w = this.w;
-    const f = w.econ.facilities;
-    let n = 0;
-    for (const b of w.train.bathrooms) {
-      if (!b.unlocked) continue;
-      n += f.bathroomTowelMax - b.towels + f.bathroomRollMax - b.rolls;
-      b.towels = f.bathroomTowelMax;
-      b.rolls = f.bathroomRollMax;
-      this.view.helperWave();
-    w.particles.emit('sparkle', b.restock.x, FLOOR_Y + 1, b.restock.z, 5, 0.25);
-    }
-    n += w.train.fillMinibars();
-    if (n === 0) return;
-    w.train.persistBathrooms();
+    if (!w.journey.doorsOpen || this.trainStocked()) return;
+    const n = this.cupboardNeed();
+    this.supply = w.econ.station.supply.capacity;
+    this.view.helperWave();
+    const p = this.cupboardPoint();
+    w.particles.emit('sparkle', p.x, FLOOR_Y + 1.4, p.z - 0.5, 8, 0.35);
     w.events.emit('station.restocked', { items: n, helper: true });
   }
 

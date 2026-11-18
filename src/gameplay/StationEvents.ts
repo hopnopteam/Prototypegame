@@ -8,6 +8,7 @@ import { criticScore, criticVerdict, nextGap, pickEvent } from '../sim/stationEv
 import type { CriticSave } from '../save/SaveData';
 import { FLOOR_Y } from '../world/CarriageView';
 import { GeoBuilder } from '../world/geo';
+import { modelEntry } from '../world/models/library';
 import { fillGeometries } from '../world/Lakeside';
 import { PLATFORM_X0 } from '../world/layout';
 import { MATERIALS } from '../world/materials';
@@ -24,7 +25,8 @@ const SHOO_RADIUS = 1.4;
 const SHEEP_RUN = 3.6;
 /** Where the Lost & Found item lies, the Station Market's stall and the sheep's pen (platform-local, out from the edge). */
 const LOST_SPOT = { dx: 3.6, z: 5.9 };
-const MARKET_SPOT = { dx: 4.6, z: 11.2 };
+/** Session 55: the market stall stands in its own bay of the back lane (platformLayout.ts `BAYS.market`). */
+const MARKET_SPOT = { dx: 6.4, z: 25.5 };
 /** The critic is looked at this often while aboard (seconds). */
 const CRITIC_SAMPLE_SECONDS = 3;
 /** The critic rides this many legs. */
@@ -380,7 +382,7 @@ export class StationEvents {
         }
         if (Math.hypot(p.x - s.x, p.z - w.station.platformOffset - s.z) < SHOO_RADIUS && w.journey.doorsOpen) {
           s.fled = 0.001;
-          s.heading = Math.atan2(PLATFORM_X0 + 8 - s.x, (s.z > p.z ? 6 : -6));
+          s.heading = Math.atan2(PLATFORM_X0 + 7 - s.x, (s.z > p.z ? 6 : -6));
           w.audio.play('bloop', { pitch: 0.55, volume: 0.8 });
           w.particles.emit('dust', s.x, FLOOR_Y + 0.2, s.z + w.station.platformOffset, 6, 0.25);
           w.haptics.light();
@@ -587,31 +589,34 @@ export class StationEvents {
       // Bunting strung along the platform between tall poles, triangles in turn.
       const colors = def.kind === 'festival' ? ['#E2506B', '#F2B53A', '#4FA3D9', '#7CC36E'] : ['#C8352B', '#F2B53A', '#7C8F4E', '#E9D9A8'];
       b.object('event:bunting');
-      for (const z of [-8, 0, 8, 16]) b.cylinder(X + 6.05, y + 1.4, z, 0.03, 0.03, 2.8, PALETTE.oak, 6, 'y', { shade: 0.9 });
-      for (let z = -8; z < 16; z += 0.5) {
-        const c = colors[Math.round((z + 8) / 0.5) % colors.length];
-        b.add(new THREE.ConeGeometry(0.13, 0.26, 3), c, X + 6.05, y + 2.55 - 0.08 * Math.sin(((z + 8) % 8) / 8 * Math.PI), z, Math.PI, 0, 0, { shade: 1 });
+      // Session 55: along the back railing, the poles clear of the bays.
+      const poles = [-7.9, 0.4, 8.4, 12.9];
+      for (const z of poles) b.cylinder(X + 7.35, y + 1.4, z, 0.03, 0.03, 2.8, PALETTE.oak, 6, 'y', { shade: 0.9 });
+      for (let z = poles[0]; z < poles[poles.length - 1]; z += 0.5) {
+        const c = colors[Math.round((z - poles[0]) / 0.5) % colors.length];
+        b.add(new THREE.ConeGeometry(0.13, 0.26, 3), c, X + 7.35, y + 2.55 - 0.08 * Math.sin(((z - poles[0]) % 8) / 8 * Math.PI), z, Math.PI, 0, 0, { shade: 1 });
       }
       b.endObject();
     }
     if (def.kind === 'harvest') {
       b.object('event:harvest');
-      for (const [dx, z] of [[5.3, -3.2], [5.4, 2.6], [5.2, 8.8]]) {
-        b.box(X + dx, y + 0.28, z, 0.55, 0.56, 1.0, '#D9B45A', 0, { shade: 0.85, detail: 'wood' });
-        b.sphere(X + dx - 0.4, y + 0.16, z + 0.3, 0.16, '#E8742A', 1, 0.85, { shade: 1 });
-        b.sphere(X + dx - 0.42, y + 0.14, z - 0.15, 0.13, '#E8742A', 1, 0.85, { shade: 1 });
+      // Session 55: the fair's produce in the market bay: straw bales and KayKit's pumpkins.
+      for (const [dx, z] of [[6.85, 24.4], [6.85, 26.4]]) {
+        b.box(X + dx, y + 0.28, z, 0.6, 0.56, 1.1, '#D9B45A', 0, { shade: 0.85, detail: 'wood' });
+        for (const [id, px, pz, h] of [['pumpkin', -0.6, 0.25, 0.34], ['pumpkin_small', -0.62, -0.2, 0.24], ['pumpkin_yellow', -0.1, 0.0, 0.22]] as const) {
+          const e = modelEntry(id);
+          const sc = h / (e.max[1] - e.min[1]);
+          b.model(id, X + dx + px, y + (px > -0.3 ? 0.56 : 0), z + pz, z, sc, sc, sc, { surface: 'matte', shade: 1 });
+        }
       }
       b.endObject();
     }
     if (def.kind === 'vip') {
       // The red carpet from the station house's way in, along the walkway to the ticket window.
       b.object('event:redCarpet');
-      b.box(X + 4.5, y + 0.012, -6.4, 0.9, 0.012, 11.0, '#B0243A', 0, { shade: 1 });
-      b.box(X + 3.0, y + 0.012, -1.4, 3.1, 0.012, 0.9, '#B0243A', 0, { shade: 1 });
-      for (const z of [-11, -8, -5, -2]) for (const dx of [-0.6, 0.6]) {
-        b.cylinder(X + 4.5 + dx, y + 0.45, z, 0.03, 0.03, 0.9, PALETTE.brass, 8, 'y', { shade: 1, surface: 'brass' });
-        b.sphere(X + 4.5 + dx, y + 0.92, z, 0.05, PALETTE.brass, 1, 1, { shade: 1, surface: 'brass' });
-      }
+      // Session 55: flat on the walkway (no rope posts to walk through), then across to the door.
+      b.box(X + 4.6, y + 0.012, -6.3, 0.9, 0.012, 11.2, '#B0243A', 0, { shade: 1 });
+      b.box(X + 3.0, y + 0.012, -0.45, 4.1, 0.012, 0.9, '#B0243A', 0, { shade: 1 });
       b.endObject();
     }
     if (def.kind === 'market') {

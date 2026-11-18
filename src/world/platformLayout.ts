@@ -34,20 +34,23 @@ export const PLATFORM = {
   barrow: rect(X + 0.6, 3.05, X + 1.38, 4.85),
   /** Where bags are taken from the barrow (its outer side). */
   luggagePad: { x: X + 2.05, z: 3.95 } as Vec2,
-  /** The walkway between the door area and the station entrance, outside the server's lane. */
-  concourse: [{ x: X + 2.6, z: 0.95 }, { x: X + 4.45, z: -0.4 }, { x: X + 4.55, z: -9.5 }] as Vec2[],
+  /**
+   * The walkway (session 55: its own lane, 3.9 to 5.3 m out, kept clear) between the door area and the way in from the
+   * station.
+   */
+  concourse: [{ x: X + 2.6, z: 0.95 }, { x: X + 4.6, z: -0.4 }, { x: X + 4.6, z: -9.5 }, { x: X + 5.6, z: -12.2 }] as Vec2[],
   /** The way onto the platform from the station: an opening in the back railing. */
-  entrance: { x: X + 6.2, z: -12.4 } as Vec2,
+  entrance: { x: X + 7.3, z: -12.4 } as Vec2,
   /** The station house's doors, just beyond it: latecomers come out of them and those getting off go in. */
-  houseDoor: { x: X + 7.95, z: -13.2 } as Vec2,
-  /** A bench by the back railing where travellers with no bed this time sit and wait. */
-  bench: rect(X + 6.0, -4.6, X + 6.4, -2.4),
-  /** The newsstand, against the back railing ahead of the bench. */
-  kiosk: { x: X + 5.85, z: -7.2 } as Vec2,
+  houseDoor: { x: X + 9.2, z: -13.4 } as Vec2,
+  /** A bench by the back railing where travellers with no bed this time sit and wait (the waiting bay). */
+  bench: rect(X + 6.55, -4.6, X + 7.45, -2.4),
+  /** The newsstand, against the back railing ahead of the waiting bay. */
+  kiosk: { x: X + 6.65, z: -9.3 } as Vec2,
   /** The station master by the front of the train, flag in hand. */
   master: { x: X + 0.95, z: -8.6 } as Vec2,
-  /** The station's name board, over the way in from the station. */
-  sign: { x: X + 4.6, z: -11.0 } as Vec2,
+  /** The station's name board, by the way in from the station, just ahead of it (facing down the platform). */
+  sign: { x: X + 6.0, z: -14.7 } as Vec2,
   /** The opening's Open carriage tile: on the platform just behind the covered carriage's door, clear of everyone (session 38: out of the bell post's line of sight to the camera, which hid part of it). */
   openTile: { x: X + 2.2, z: 2.95 } as Vec2,
   /**
@@ -93,6 +96,20 @@ export function gateQueueSpot(i: number, doorZ: number): Vec2 {
 export function gateServe(doorZ: number): Vec2 {
   return { x: PLATFORM.serve.x, z: PLATFORM.serve.z + doorZ - DOOR_Z };
 }
+
+/**
+ * Session 55 (owner: "things are placed randomly and have no place of their own"): the back lane's bays, each piece's
+ * own stretch of the railing (z ranges, platform-local). The lamp posts, tubs and benches that run along the railing
+ * leave them clear; everything else on the platform is in the edge and work lanes by the lobby door.
+ */
+export const BAYS = {
+  newsstand: [-10.4, -8.2],
+  waiting: [-7.7, 0.2],
+  kiosk: [4.8, 7.3],
+  smarten: [9.4, 11.8],
+  adverts: [13.4, 21.4],
+  market: [23.6, 27.4],
+} as const satisfies Record<string, readonly [number, number]>;
 
 /** How many travellers the queue holds; any more wait by the bench. */
 export const QUEUE_SPOTS = 8;

@@ -583,7 +583,7 @@ export class Guests {
       return;
     }
     this.gateTimer += dt;
-    if (this.gateTimer < w.econ.zones.boardIntervalSeconds * GATE_SALE_SLOWER) return;
+    if (this.gateTimer < w.econ.zones.boardIntervalSeconds * GATE_SALE_SLOWER * (w.stationPerks().fastTickets ? 0.5 : 1)) return;
     this.gateTimer = 0;
     const room = w.train.freeCabin(guest.cls) ?? w.train.cabins.find((c) => w.train.cabinClass(c) === guest.cls) ?? w.train.cabins[0];
     if (!room) return;
@@ -616,7 +616,8 @@ export class Guests {
     const w = this.w;
     const j = w.journey;
     if (!j.heldStops || j.phase !== 'stationStop' || w.station.prologue || w.coach?.tutorial) return;
-    const limit = w.econ.station.patienceSeconds;
+    // Session 55: the Waiting Benches let travellers wait longer before they turn grumpy.
+    const limit = w.econ.station.patienceSeconds * w.stationPerks().patience;
     for (const g of this.list) {
       if (g.state !== 'platform' || g.paid || !g.eligible || g.grumpy) continue;
       if (w.time - g.platformSince < limit) continue;

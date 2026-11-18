@@ -175,7 +175,7 @@ export const COUNTRYSIDE_EXPRESS: RouteDef = {
   scenery: { wheat: true, stoneBridges: true },
   music: 'countryside_theme',
   station: {
-    upgrades: ['posters', 'benches', 'windowboxes', 'cart', 'booth', 'lamps', 'billboard', 'trolley', 'kiosk', 'helper', 'lining', 'clock', 'band', 'nameboards', 'gate2', 'redcarpet'],
+    upgrades: ['posters', 'booth', 'benches', 'windowboxes', 'kiosk', 'billboard', 'helper', 'lamps', 'lining', 'band', 'nameboards', 'gate2', 'redcarpet'],
     tilesAtOnce: 2,
     eventEvery: [3, 4],
     eventsFrom: 3,

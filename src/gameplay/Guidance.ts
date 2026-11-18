@@ -9,7 +9,7 @@ import { ADD_GLOW, glowTexture } from '../world/materials';
 import type { World } from './World';
 import { PLATFORM } from '../world/platformLayout';
 
-export type GuidanceReason = 'none' | 'board' | 'luggage' | 'deliver' | 'return' | 'cash' | 'desk' | 'tile' | 'fetch' | 'clean' | 'shine' | 'bell' | 'save' | 'shoo';
+export type GuidanceReason = 'none' | 'board' | 'luggage' | 'deliver' | 'return' | 'cash' | 'desk' | 'tile' | 'fetch' | 'clean' | 'shine' | 'bell' | 'save' | 'shoo' | 'restock';
 
 export interface PointerState {
   x: number;
@@ -252,9 +252,9 @@ export class Guidance {
         const room = w.train.cabins.find((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
         if (room) return this.because('clean', room.spots[0] ?? room.center);
       }
-      // The restock cart: the washrooms and minibars topped up while the train is in.
-      // Once a stop: shelves keep emptying as guests wash, so after one trip the bell comes first.
-      if (!stack.isFull && w.station.restocksThisStop === 0 && w.station.restockKinds().length > 0 && !stack.items.some((k) => w.demand.surplus(player, k) > 0)) return this.because('fetch', PLATFORM.restockPad);
+      // Session 55: the supply cart, then the lobby's supply cupboard (one trip a stop, done).
+      if (!stack.isFull && w.station.cartWanted() > 0 && !stack.items.some((k) => w.demand.surplus(player, k) > 0)) return this.because('restock', PLATFORM.restockPad);
+      if (stack.has('crate') && w.station.cupboardNeed() > 0) return this.because('restock', w.station.cupboardPoint());
     }
 
     if (!stack.isEmpty) {
@@ -351,6 +351,8 @@ export class Guidance {
     if (items.includes('crate')) {
       const supply = w.train.indexOfType('supply');
       if (supply !== null) return w.map.anchor(supply, 'crateDrop');
+      // Session 55: boxes of supplies go in the lobby's cupboard.
+      if (w.station.cupboardNeed() > 0) return w.station.cupboardPoint();
     }
     if (items.includes('towel') || items.includes('roll')) {
       const max = w.econ.facilities;

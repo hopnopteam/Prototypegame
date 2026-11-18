@@ -112,6 +112,25 @@ MODELS = {
     'stew': 'kaykit-restaurant/food_stew.gltf',
     'soup': 'kenney-food/bowl-soup.glb',
     'cocktail': 'kenney-food/cocktail.glb',
+    # Session 55: the station, the owner's picks from the Station Picks page (all CC0)
+    'stall_red': 'kenney-town/stall-red.glb',            # Kenney Fantasy Town Kit 2.0
+    'stall_green': 'kenney-town/stall-green.glb',
+    'signpost': 'kenney-survival/signpost.glb',          # Kenney Survival Kit
+    'planter_box': 'kenney-suburban/planter.glb',        # Kenney City Kit Suburban 2.0
+    'station_house': 'tinytreats-house/house.gltf',      # Tiny Treats Homely House 1.0
+    'parcel': 'tinytreats-house/package.gltf',
+    'notice_board': 'tinytreats-bakery/wall_sign_large.gltf',
+    'bread': 'tinytreats-baked/bread.gltf',
+    'bird': 'tinytreats-park/bird.gltf',
+    'hedge_long': 'tinytreats-park/hedge_straight_long.gltf',
+    'picnic_table': 'tinytreats-playground/picnic_table.gltf',  # Tiny Treats Fun Playground 1.0
+    'pumpkin': 'kaykit-halloween/pumpkin_orange.gltf',
+    'pumpkin_small': 'kaykit-halloween/pumpkin_orange_small.gltf',
+    'pumpkin_yellow': 'kaykit-halloween/pumpkin_yellow_small.gltf',
+    'hand_bell': 'kaykit-holiday/bell.gltf',             # KayKit Holiday Bits 1.0
+    'carpet_rug': {'src': QH + 'Carpet_1.obj', 'linear': True},
+    'sheep': {'src': 'quaternius-animals/Sheep.obj', 'linear': True},   # Quaternius Farm Animals
+    'water_tower': {'src': 'quaternius-farm/WaterTower.obj', 'linear': True},  # Quaternius Farm Buildings
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}

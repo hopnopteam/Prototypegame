@@ -83,6 +83,8 @@ export const COACH_GUIDANCE_LINES: Record<string, CoachLineDef> = {
   board: { id: 'g_board', icon: 'ticket', text: 'All aboard' },
   luggage: { id: 'g_luggage', icon: 'luggage', text: 'Load bags' },
   shoo: { id: 'g_shoo', icon: 'hand', text: 'Shoo!' },
+  // Session 55: the supply cart, then the lobby's cupboard.
+  restock: { id: 'g_restock', icon: 'crate', text: 'Restock' },
 };
 
 /**

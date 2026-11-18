@@ -79,7 +79,12 @@ export const REAR_TILE_Z = CARRIAGE_LENGTH - 0.95;
 export const REAR_TILE_X = 1.35;
 export const INTERIOR_END = CARRIAGE_LENGTH - REAR_VESTIBULE - 0.06;
 export const PLATFORM_X0 = HALF_WIDTH + 0.25;
-export const PLATFORM_WIDTH = 6.5;
+/**
+ * Session 55 (owner: "the station has to be bigger… organised"): 7.6 m across (was 6.5; any wider and the back lane
+ * leaves the portrait camera's view), in four lanes from the train out (the edge
+ * with the queues, the work lane, a clear walkway, the back lane against the railing): world/platformLayout.ts.
+ */
+export const PLATFORM_WIDTH = 7.6;
 
 /** Session 53: the Family Sleeper's lounge (the second entrance, with its own check-in desk), its desk and line. */
 export const BATHROOM_FRONT = 5.3;

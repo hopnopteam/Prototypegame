@@ -23,7 +23,7 @@ const FILL_STEP = 1 / 24;
 const isStation = (def: UnlockDef): boolean => def.kind === 'exterior' || def.kind === 'marketing' || def.kind === 'platform';
 /** Phase 2: each station upgrade's own icon on its tile. */
 const STATION_ICON: Record<string, IconName> = {
-  benches: 'person', cart: 'box', booth: 'ticket', trolley: 'luggage', kiosk: 'cash', helper: 'person', clock: 'clock', gate2: 'ticket',
+  benches: 'person', booth: 'ticket', kiosk: 'cash', helper: 'crate', gate2: 'ticket',
 };
 const BILL_INTERVAL = 0.07;
 

@@ -272,10 +272,15 @@ export const ECONOMY = {
   station: {
     /** A traveller with a bed kept waiting on the platform this long turns grumpy: they board, but leave no tip. */
     patienceSeconds: 60,
-    /** Seconds standing at the platform's restock cart to fill the tray with what the train is short of. */
-    restockSeconds: 2,
-    /** With the Restock Cart upgrade: next to instant. */
-    cartRestockSeconds: 0.35,
+    /**
+     * Session 55 (owner: "we are not supposed to deliver it to the different places, just one cupboard in the initial
+     * area and be done with it"): the lobby's supply cupboard holds `capacity` boxes of supplies, used up over each
+     * ride. At a stop the conductor stands at the platform's supply cart `restockSeconds` and takes what is missing,
+     * then puts it in the cupboard; full cupboard, the stop's Restocked star. The Supply Porter does it `porterSeconds`
+     * after the doors open.
+     */
+    restockSeconds: 1.2,
+    supply: { capacity: 3, porterSeconds: 6 },
     /**
      * The platform kiosk (a fruit and bread stall): `perSecond` (× 1 + `perCarriage` for each carriage after the first)
      * into its till while the train is in, and `offlinePerMinute` while the player is away (inside the offline cap).

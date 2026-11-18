@@ -3,10 +3,10 @@ import { FLOOR_Y } from './CarriageView';
 import { GeoBuilder, mergePlanes } from './geo';
 import { carriageOriginZ, DOOR_Z0, DOOR_Z1, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0 } from './layout';
 import { STATION_UPGRADES } from '../config/content';
-import { PLATFORM } from './platformLayout';
+import { BAYS, PLATFORM } from './platformLayout';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
-import { key, modelEntry } from './models/library';
+import { key, modelEntry, type Recolor } from './models/library';
 import { CharacterView, type CharacterAction, type CharacterLook } from './CharacterView';
 import { headlineTexture, posterTexture, signTexture } from './sprites';
 import type { Rect } from '../core/types';
@@ -16,21 +16,24 @@ import type { LampAnchor } from './Lighting';
 export interface MarketingState {
   posters: boolean;
   band: boolean;
+  /** Session 55: the Billboards upgrade's board in the advertising bay. */
+  billboard?: boolean;
 }
 
 const POSTER_W = 1.0;
 const POSTER_H = 1.25;
-/** Posters stand where the camera sees them, past each carriage's own platform business (door, barrow, vendor). */
-const POSTER_X = PLATFORM_X0 + 3.15;
-const POSTER_Z_IN_CARRIAGE = 11.5;
-const POSTER_AHEAD_Z = -6.4;
+/** Session 55: the posters stand in the advertising bay against the back railing (`BAYS.adverts`). */
+const POSTER_X = PLATFORM_X0 + 6.85;
+const POSTER_ZS = [BAYS.adverts[0] + 0.7, BAYS.adverts[0] + 2.0];
+/** Session 55: the Billboards upgrade's board in the same bay, and the band beyond it. */
+const BILLBOARD = { x: PLATFORM_X0 + 6.65, z: BAYS.adverts[0] + 4.0, w: 1.7, h: 1.05 };
 const BAND_LOOK: CharacterLook = { body: '#C0485C', accent: '#E2B04A', skin: '#F1C7A6', hair: '#4A3428', pants: '#F4EEE2', hat: 'pillbox', hatColor: '#C0485C', bandColor: '#E2B04A', arms: true };
 const BAND_SKIN = ['#F1C7A6', '#C98E66', '#8D5A3C'];
 /** Where the band stands (by the way in from the station, clear of the queue and the walkway) and what each one plays. */
 const BAND: { x: number; z: number; instrument: 'tuba' | 'drum' | 'trumpet' }[] = [
-  { x: PLATFORM_X0 + 2.0, z: -8.0, instrument: 'trumpet' },
-  { x: PLATFORM_X0 + 3.05, z: -8.9, instrument: 'tuba' },
-  { x: PLATFORM_X0 + 4.1, z: -8.0, instrument: 'drum' },
+  { x: PLATFORM_X0 + 5.95, z: BAYS.adverts[1] - 1.6, instrument: 'trumpet' },
+  { x: PLATFORM_X0 + 6.85, z: BAYS.adverts[1] - 0.9, instrument: 'tuba' },
+  { x: PLATFORM_X0 + 6.9, z: BAYS.adverts[1] - 2.3, instrument: 'drum' },
 ];
 const BEAT_SECONDS = 0.5;
 /** The station master stands by the front of the train and waves the green flag at departure. */
@@ -71,7 +74,7 @@ const TOWNSFOLK: { look: CharacterLook; seated: boolean; idles: CharacterAction[
   { look: { body: '#6B8F5E', accent: '#F2C94C', skin: '#A86E4E', hair: '#3A2418', pants: '#33402E', hat: 'cap', hatColor: '#3F5A3A' }, seated: true, idles: ['look', 'phone', 'yawn'] },
 ];
 /** Where the two seeing someone off stand: by the back railing between the kiosk and the way in. */
-const SEEING_OFF = [{ x: PLATFORM_X0 + 5.75, z: -9.35, facing: -Math.PI / 2 - 0.5 }, { x: PLATFORM_X0 + 5.3, z: -9.95, facing: -Math.PI / 2 + 0.35 }];
+const SEEING_OFF = [{ x: PLATFORM_X0 + 5.7, z: -10.4, facing: -Math.PI / 2 - 0.5 }, { x: PLATFORM_X0 + 5.25, z: -10.95, facing: -Math.PI / 2 + 0.35 }];
 /** Phase 2: half the footprint a lamp post, a planter tub and a standing person take on the deck. */
 const LAMP_FOOT = 0.16;
 const PLANTER_FOOT = 0.36;
@@ -79,15 +82,15 @@ const PERSON_FOOT = 0.22;
 /** A seated townsperson's root above the floor (resting on a bench seat). */
 const BENCH_SIT_Y = 0.285;
 
-/** A pigeon about 0.3 m long, facing -z: grey body, a darker head with a green-violet neck, a tail. */
+/** A pigeon about 0.3 m long, facing -z (session 55: Tiny Treats' park bird in pigeon greys). */
 function pigeonGeometry(): THREE.BufferGeometry {
   const b = new GeoBuilder();
-  b.add(new THREE.SphereGeometry(0.08, 8, 6).scale(0.85, 0.8, 1.35), '#8E96A6', 0, 0.075, 0, 0, 0, 0, { shade: 0.85 });
-  b.add(new THREE.SphereGeometry(0.06, 7, 5).scale(0.8, 0.6, 1.1), '#A9B0BC', 0, 0.09, 0.02, 0, 0, 0, { shade: 0.95 });
-  b.add(new THREE.SphereGeometry(0.045, 7, 5), '#5E6678', 0, 0.15, -0.09, 0, 0, 0, { shade: 0.9 });
-  b.add(new THREE.SphereGeometry(0.04, 6, 4).scale(1, 0.7, 0.9), '#5E8A7E', 0, 0.115, -0.07, 0, 0, 0, { shade: 1 });
-  b.add(new THREE.ConeGeometry(0.012, 0.035, 4).rotateX(-Math.PI / 2), '#D9B88A', 0, 0.145, -0.14, 0, 0, 0, { shade: 1 });
-  b.add(new THREE.BoxGeometry(0.07, 0.015, 0.09), '#6E7686', 0, 0.08, 0.12, 0.25, 0, 0, { shade: 0.9 });
+  const e = modelEntry('bird');
+  const sc = 0.2 / (e.max[1] - e.min[1]);
+  b.model('bird', 0, 0, 0, Math.PI, sc, sc, sc, {
+    recolor: [{ hue: [35, 60], sat: [0.4, 1], ref: '#FEC143', to: '#A9B0BC' }, { hue: [0, 30], sat: [0.5, 1], ref: '#D54E22', to: '#5E8A7E' }],
+    shade: 0.95,
+  });
   return b.build();
 }
 
@@ -179,8 +182,8 @@ export class PlatformView {
     this.vendorView.leans = false;
     this.vendorView.root.userData.object = 'character:newsvendor';
     // Behind the counter (the kiosk faces the platform's rear, where the camera is).
-    this.vendorView.setPosition(KIOSK_POS.x + 0.1, FLOOR_Y, KIOSK_POS.z - 0.9);
-    this.vendorView.setFacing(0.25);
+    this.vendorView.setPosition(KIOSK_POS.x + 0.78, FLOOR_Y, KIOSK_POS.z);
+    this.vendorView.setFacing(-Math.PI / 2);
     this.group.add(this.vendorView.root);
     for (const t of TOWNSFOLK) {
       const view = new CharacterView(t.look);
@@ -219,31 +222,26 @@ export class PlatformView {
     this.upgradeKey = key;
     const b = new GeoBuilder();
     const lamps = new GeoBuilder();
+    const solids: Rect[] = [];
     const at = (k: string): { x: number; z: number } => {
       const u = STATION_UPGRADES.find((d) => d.key === k);
       return { x: PLATFORM_X0 + (u?.at.dx ?? 0), z: u?.at.z ?? 0 };
     };
+    // Session 55: the ticket stand is built here, so the Ticket Office can turn it into a booth (Kenney's stall in
+    // navy, its table the counter, the till on it).
+    buildTicketStand(b, lamps, 0, owned.has('booth'));
+    // The Waiting Benches: two more benches in the waiting bay, either side of the one travellers already use.
     if (owned.has('benches')) {
-      const p = at('benches');
-      buildBench(b, { x0: p.x - 0.2, z0: p.z - 1.1, x1: p.x + 0.2, z1: p.z + 1.1 });
-      for (const dz of [-2.05, 2.05]) {
-        b.object('platform:waitingPlanter');
-        buildPlanter(b, p.x, p.z + dz);
+      const r = PLATFORM.bench;
+      for (const [z0, z1] of [[BAYS.waiting[0] + 0.2, BAYS.waiting[0] + 2.4], [r.z1 + 0.55, BAYS.waiting[1] - 0.15]] as const) {
+        const bench = { x0: r.x0, z0, x1: r.x1, z1 };
+        buildBench(b, bench);
+        solids.push({ x0: bench.x0 + 0.1, z0: bench.z0 + 0.2, x1: bench.x1, z1: bench.z1 - 0.2 });
       }
-      b.endObject();
     }
-    if (owned.has('booth')) buildBoothCanopy(b, lamps, PLATFORM.counter);
-    if (owned.has('cart')) buildCartAwning(b);
-    if (owned.has('trolley')) buildTrolley(b, at('trolley'));
     if (owned.has('kiosk')) buildFruitStall(b, at('kiosk'));
-    if (owned.has('clock')) buildStationClock(b, lamps, at('clock'));
     const dz = gateZ !== null ? gateZ - LOBBY_DOOR_Z : 0;
-    if (owned.has('gate2') && gateZ !== null) {
-      const c = PLATFORM.counter;
-      const counter = { x0: c.x0, z0: c.z0 + dz, x1: c.x1, z1: c.z1 + dz };
-      buildTicketStand(b, lamps, dz);
-      buildBoothCanopy(b, lamps, counter);
-    }
+    if (owned.has('gate2') && gateZ !== null) buildTicketStand(b, lamps, dz, true);
     for (const mesh of [this.upgradeMesh, this.upgradeLamps]) {
       if (!mesh) continue;
       this.group.remove(mesh);
@@ -255,13 +253,14 @@ export class PlatformView {
     this.group.add(this.upgradeMesh);
     this.upgradeLamps = new THREE.Mesh(lamps.build(), MATERIALS.lamps);
     this.group.add(this.upgradeLamps);
-    // The people: the station boy by the cart, the clerk behind the second gate's counter, the stall's keeper.
+    this.upgradeSolids = solids;
+    // The people: the Supply Porter by the supply cart, the clerk behind the second gate's counter, the stall's keeper.
     const helper = owned.has('helper');
     this.helperView.root.visible = helper;
     if (helper) {
       const r = PLATFORM.restock;
-      this.helperView.setPosition(r.x1 + 0.55, FLOOR_Y, r.z1 + 0.25);
-      this.helperView.setFacing(-Math.PI / 2 - 0.5);
+      this.helperView.setPosition(r.x1 + 0.9, FLOOR_Y, r.z1 + 0.85);
+      this.helperView.setFacing(-Math.PI / 2 - 0.6);
     }
     const clerk = owned.has('gate2') && gateZ !== null;
     this.clerkView.root.visible = clerk;
@@ -273,10 +272,13 @@ export class PlatformView {
     this.keeperView.root.visible = keeper;
     if (keeper) {
       const p = at('kiosk');
-      this.keeperView.setPosition(p.x + 0.66, FLOOR_Y, p.z);
+      this.keeperView.setPosition(p.x + 0.85, FLOOR_Y, p.z);
       this.keeperView.setFacing(-Math.PI / 2);
     }
   }
+
+  /** Session 55: what the station upgrades owned add to the platform's solid floor plan (the extra benches). */
+  upgradeSolids: Rect[] = [];
 
   /** Phase 2: the second gate's clerk stamps a ticket. */
   clerkStamp(): void {
@@ -357,6 +359,14 @@ export class PlatformView {
     // lobby, where the camera looks over it: its roof covered the platform on a phone). Cream walls, a terracotta
     // roof, lamplit windows and a clock gable over the doors travellers come out of.
     buildStationHouse(house, lamps, x1, gate);
+    // Session 55: the railway's water tower beyond the station house (Quaternius' farm tower), out of the play view.
+    {
+      const e = modelEntry('water_tower');
+      const sc = 5.2 / (e.max[1] - e.min[1]);
+      house.object('forecourt:waterTower');
+      house.model('water_tower', x1 + 7.6, 0.1, gate - GATE_HALF - 6.5, 0.4, sc, sc, sc, { surface: 'wood', shade: 0.85 });
+      house.endObject();
+    }
     // Session 30 (owner: "the background in station is quite unpolished… more lived in, not just random textures").
     buildForecourt(deck, house, lamps, x1, z0, z1, gate);
 
@@ -364,10 +374,13 @@ export class PlatformView {
 
     // Session 23: no canopy (its roof hid half the platform from the camera). Victorian lamp posts along the back
     // railing light the deck instead, with flower tubs between them; benches further back for the crowd.
+    // Session 55: the lamps, tubs and benches along the railing leave the back lane's bays clear (`BAYS`), and the
+    // station's name board ahead of the way in.
+    const bays = Object.values(BAYS) as readonly (readonly [number, number])[];
     const blockedZ = (z: number, margin: number): boolean =>
       Math.abs(z - gate) < GATE_HALF + margin
-      || (z > PLATFORM.bench.z0 - margin && z < PLATFORM.bench.z1 + margin)
-      || Math.abs(z - PLATFORM.kiosk.z) < 0.8 + margin;
+      || Math.abs(z - PLATFORM.sign.z) < SIGN_POST_HALF + 0.3 + margin
+      || bays.some(([a, c]) => z > a - margin && z < c + margin);
     const lampX = x1 - 0.55;
     const lampZs: number[] = [];
     let showBench: Rect | null = null as Rect | null;
@@ -390,16 +403,14 @@ export class PlatformView {
     buildLampPost(props, lamps, standLamp.x, standLamp.z);
     block(standLamp.x, standLamp.z, LAMP_FOOT);
     anchors.push({ x: standLamp.x - 0.6, y: FLOOR_Y + 2.1, z: standLamp.z + 0.6, strength: 1 });
-    const barrowLamp = { x: PLATFORM.barrow.x1 + 1.35, z: PLATFORM.barrow.z1 + 0.95 };
-    buildLampPost(props, lamps, barrowLamp.x, barrowLamp.z);
-    block(barrowLamp.x, barrowLamp.z, LAMP_FOOT);
-    anchors.push({ x: barrowLamp.x - 0.8, y: FLOOR_Y + 2.1, z: barrowLamp.z - 0.8, strength: 1 });
+    // Session 55: no lamp by the barrow any more (it stood between the camera and the bags, then in the walkway);
+    // the railing's lamps and the ticket stand's light the work lane.
     props.endObject();
 
     // Benches along the back railing behind the train (for show), and the one where travellers with no bed wait.
     buildBench(props, PLATFORM.bench);
     // Behind the train, between a lamp post and the flower tub after it, every other post.
-    lampZs.filter((z) => z > PLATFORM.barrow.z1 + 2 && z + LAMP_STEP / 2 < z1 - 2).forEach((z, i) => {
+    lampZs.filter((z) => z > PLATFORM.barrow.z1 + 2 && z + LAMP_STEP / 2 < z1 - 2 && !blockedZ(z + 1.5, 1.2)).forEach((z, i) => {
       if (i % 2 !== 0) return;
       const bench = { x0: x1 - 0.85, z0: z + 0.4, x1: x1 - 0.45, z1: z + 2.6 };
       buildBench(props, bench);
@@ -417,8 +428,15 @@ export class PlatformView {
 
     yield;
 
-    // The ticket stand and the luggage barrow (session 23).
-    buildTicketStand(props, lamps);
+    // Session 55: two planters mark the Smarten the Train bay (its tile stands between them).
+    for (const dz of [-0.95, 0.95]) {
+      const z = (BAYS.smarten[0] + BAYS.smarten[1]) / 2 + dz;
+      props.object('platform:bayPlanter');
+      buildPlanter(props, lampX + 0.05, z);
+      block(lampX + 0.05, z, PLANTER_FOOT);
+    }
+    props.endObject();
+    // The luggage barrow (session 23; the ticket stand is built with the upgrades, `setUpgrades`).
     buildBarrow(props);
     buildBellPost(props);
     buildRestockCart(props);
@@ -544,7 +562,7 @@ export class PlatformView {
   /** Posters of your train on every platform, and a brass band at the door (marketing upgrades). */
   setMarketing(state: MarketingState, trainName: string, body: string, trim: string): void {
     const key = `${trainName}|${body}|${trim}`;
-    if (state.posters && key !== this.posterKey) {
+    if ((state.posters || state.billboard) && key !== this.posterKey) {
       this.posterMaterial.map?.dispose();
       this.posterMaterial.map = posterTexture(trainName, body, trim);
       this.posterMaterial.needsUpdate = true;
@@ -635,13 +653,11 @@ export class PlatformView {
       this.posters.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
       this.posters = null;
     }
-    if (!this.marketing.posters || this.length === 0) return;
+    if ((!this.marketing.posters && !this.marketing.billboard) || this.length === 0) return;
     const rowX = POSTER_X;
     const frame = new GeoBuilder();
     const planes: THREE.BufferGeometry[] = [];
-    const spots = [POSTER_AHEAD_Z];
-    for (let z = POSTER_Z_IN_CARRIAGE; z < this.z1 - 6; z += carriageOriginZ(1)) spots.push(z);
-    for (const z of spots) {
+    for (const z of this.marketing.posters ? POSTER_ZS : []) {
       const y0 = FLOOR_Y + 0.5;
       // A navy A-board with brass caps; the poster leans back a little so it reads from above.
       frame.object('platform:poster');
@@ -655,6 +671,20 @@ export class PlatformView {
       plane.translate(rowX, y0 + POSTER_H / 2, z);
       planes.push(plane);
     }
+    if (this.marketing.billboard) {
+      // Session 55: the billboard, a big poster on two tall posts with a brass cornice, in the advertising bay.
+      const bb = BILLBOARD;
+      const y0 = FLOOR_Y + 1.1;
+      frame.object('platform:billboard');
+      for (const dx of [-bb.w / 2 + 0.12, bb.w / 2 - 0.12]) frame.box(bb.x + dx, FLOOR_Y + (y0 - FLOOR_Y + bb.h) / 2, bb.z, 0.09, y0 - FLOOR_Y + bb.h, 0.09, PALETTE.navy, 0, { shade: 0.9 });
+      frame.box(bb.x, y0 + bb.h / 2, bb.z - 0.04, bb.w + 0.14, bb.h + 0.14, 0.05, PALETTE.navy, 0, { shade: 0.85 });
+      frame.box(bb.x, y0 + bb.h + 0.1, bb.z, bb.w + 0.24, 0.06, 0.14, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
+      const plane = new THREE.PlaneGeometry(bb.w, bb.h);
+      plane.rotateX(-0.12);
+      plane.translate(bb.x, y0 + bb.h / 2, bb.z);
+      planes.push(plane);
+    }
+    frame.endObject();
     if (planes.length === 0) return;
     const group = new THREE.Group();
     const frameMesh = new THREE.Mesh(frame.build(), MATERIALS.solid);
@@ -747,22 +777,24 @@ function buildFlag(): THREE.Mesh {
   return mesh;
 }
 
-/** A little green newsstand with a striped awning and the day's headline on a board facing the train. */
+/**
+ * The newsstand (session 55, the owner's picks): Kenney's green-awning stall against the back railing, today's papers
+ * laid on its counter and the Rail Gazette's headline on a board over it.
+ */
 function buildKiosk(headline: THREE.Material): THREE.Group {
   const group = new THREE.Group();
   const b = new GeoBuilder();
   const { x, z } = KIOSK_POS;
-  b.rounded(x, FLOOR_Y + 0.55, z, 1.1, 1.1, 0.9, 0.06, '#3F7A5E', { shade: 0.8 });
-  b.box(x, FLOOR_Y + 1.12, z + 0.2, 1.14, 0.05, 0.6, PALETTE.oak, 0, { shade: 1 });
-  for (let i = 0; i < 4; i++) b.box(x - 0.36 + i * 0.24, FLOOR_Y + 1.17, z + 0.2, 0.16, 0.03, 0.22, i % 2 ? '#F4EEE2' : '#E8DCC4', 0, { shade: 1 });
-  for (const dx of [-0.5, 0.5]) b.cylinder(x + dx, FLOOR_Y + 1.5, z + 0.42, 0.025, 0.025, 0.8, PALETTE.navy, 6);
-  b.box(x, FLOOR_Y + 1.92, z + 0.2, 1.3, 0.05, 0.9, '#3F7A5E', 0, { pattern: PATTERN.stripesX, color2: '#F4EEE2', scale: 0.22, shade: 1 });
+  const table = 0.8;
+  buildStall(b, x, z, 1.3, 0.95, table, stallRecolor('#3F7A5E', '#B98A5E'), -Math.PI / 2);
+  for (let i = 0; i < 4; i++) b.box(x - 0.15, FLOOR_Y + table + 0.02 + (i % 2) * 0.012, z - 0.42 + i * 0.28, 0.32, 0.02, 0.22, i % 2 ? '#F4EEE2' : '#E8DCC4', 0, { shade: 1 });
   const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  mesh.userData.object = 'platform:newsstand';
   group.add(mesh);
   const board = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.62), headline);
-  board.position.set(x, FLOOR_Y + 2.35, z + 0.45);
+  board.position.set(x, FLOOR_Y + 2.75, z + 0.1);
   board.rotation.x = -0.35;
   group.add(board);
   return group;
@@ -894,119 +926,31 @@ function buildBarrow(b: GeoBuilder): void {
   b.endObject();
 }
 
+
+
+
 /**
- * Phase 2, the Ticket Booth: a slim canopy on two iron posts over the ticket counter, a scalloped navy and cream
- * valance and a lamp under it. Only as wide as the counter and high enough that the queue at the window stays in view.
+ * The Fruit Kiosk (Phase 2; session 55, the owner's picks): Kenney's red-awning stall in the kiosk bay, its counter
+ * toward the walkway, apples and oranges in two crates and Tiny Treats' loaves on it, the keeper behind.
  */
-function buildBoothCanopy(b: GeoBuilder, lamps: GeoBuilder, r: Rect): void {
-  const y = FLOOR_Y;
-  const cz = (r.z0 + r.z1) / 2;
-  const d = r.z1 - r.z0;
-  const x0 = r.x0 - 0.05;
-  const x1 = r.x1 + 0.04;
-  const cx = (x0 + x1) / 2;
-  const top = y + 2.15;
-  for (const pz of [r.z0 + 0.06, r.z1 - 0.06]) {
-    b.object('platform:boothPost');
-    b.cylinder(r.x1 - 0.06, y + 1.58, pz, 0.028, 0.034, 1.04, PALETTE.iron, 8, 'y', { shade: 0.85, surface: 'iron' });
-  }
-  b.object('platform:boothCanopy');
-  b.box(cx, top, cz, x1 - x0, 0.05, d, PALETTE.navy, 0, { shade: 0.9 });
-  b.box(cx, top + 0.06, cz, x1 - x0 - 0.06, 0.07, d - 0.06, '#5B6E8C', 0, { shade: 0.85 });
-  // The scalloped valance round its edge, navy and cream in turn.
-  const n = Math.max(3, Math.round(d / 0.22));
-  for (let i = 0; i < n; i++) {
-    const z = r.z0 + (i + 0.5) * (d / n);
-    b.box(x1, top - 0.08, z, 0.015, 0.12, d / n - 0.01, i % 2 ? PALETTE.creamBand : PALETTE.navy, 0, { shade: 1 });
-    b.box(x0, top - 0.08, z, 0.015, 0.12, d / n - 0.01, i % 2 ? PALETTE.creamBand : PALETTE.navy, 0, { shade: 1 });
-  }
-  b.box(cx, top + 0.14, cz, 0.06, 0.12, 0.5, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
-  b.endObject();
-  void lamps;
-}
-
-/** Phase 2, the Restock Cart upgrade: a striped grocer's awning over the cart on four posts, and a fuller load. */
-function buildCartAwning(b: GeoBuilder): void {
-  const r = PLATFORM.restock;
-  const y = FLOOR_Y;
-  const cz = (r.z0 + r.z1) / 2;
-  const d = r.z1 - r.z0 - 0.2;
-  b.object('platform:cartAwning');
-  for (const px of [r.x0 + 0.05, r.x1 - 0.05]) for (const pz of [cz - d / 2 + 0.05, cz + d / 2 - 0.05]) b.cylinder(px, y + 1.0, pz, 0.02, 0.02, 0.98, PALETTE.oak, 6, 'y', { shade: 0.9 });
-  const stripes = 6;
-  for (let i = 0; i < stripes; i++) {
-    const z = cz - d / 2 + (i + 0.5) * (d / stripes);
-    b.add(new THREE.BoxGeometry(r.x1 - r.x0 + 0.24, 0.03, d / stripes), i % 2 ? '#F4EEE2' : '#3F6B4F', (r.x0 + r.x1) / 2, y + 1.5, z, 0, 0, -0.18, { shade: 1 });
-  }
-  b.endObject();
-  b.object('platform:cartLoad');
-  for (const [dx, dz, c] of [[-0.18, 0.62, '#D9483B'], [0.0, 0.64, '#F2B53A'], [0.18, 0.62, '#4C8DC9']] as const) b.box((r.x0 + r.x1) / 2 + dx, y + 0.82, cz + dz - 0.62 + 0.62, 0.13, 0.11, 0.14, c, 0, { shade: 1 });
-  b.endObject();
-}
-
-/** Phase 2, the Luggage Trolley: a two-wheeled sack truck standing up, two cases strapped to it. */
-function buildTrolley(b: GeoBuilder, p: { x: number; z: number }): void {
-  const y = FLOOR_Y;
-  b.object('platform:trolley');
-  for (const dz of [-0.2, 0.2]) b.add(new THREE.BoxGeometry(0.035, 1.25, 0.035), PALETTE.iron, p.x + 0.08, y + 0.64, p.z + dz, 0, 0, 0.16, { shade: 0.85, surface: 'iron' });
-  for (const h of [0.35, 0.75, 1.1]) b.box(p.x + 0.08 - h * 0.16, y + h, p.z, 0.03, 0.03, 0.42, PALETTE.iron, 0, { shade: 0.85, surface: 'iron' });
-  b.box(p.x + 0.2, y + 0.03, p.z, 0.22, 0.03, 0.42, PALETTE.iron, 0, { shade: 0.8, surface: 'iron' });
-  for (const dz of [-0.25, 0.25]) {
-    b.cylinder(p.x + 0.12, y + 0.13, p.z + dz, 0.13, 0.13, 0.05, '#2E2A30', 14, 'z', { shade: 0.9 });
-    b.cylinder(p.x + 0.12, y + 0.13, p.z + dz, 0.045, 0.045, 0.06, PALETTE.brass, 8, 'z', { shade: 1, surface: 'brass' });
-  }
-  b.endObject();
-  b.object('platform:trolleyCases');
-  b.rounded(p.x + 0.17, y + 0.26, p.z, 0.18, 0.4, 0.4, 0.03, '#8C3B2E', { shade: 0.85, surface: 'leather' });
-  b.rounded(p.x + 0.12, y + 0.63, p.z, 0.16, 0.32, 0.34, 0.03, '#3F6B4F', { shade: 0.85, surface: 'leather' });
-  b.box(p.x + 0.26, y + 0.26, p.z, 0.01, 0.4, 0.04, '#E2B04A', 0, { shade: 1 });
-  b.endObject();
-}
-
-/** Phase 2, the Platform Kiosk: a fruit and bread stall, crates of apples and oranges, loaves, a striped awning. */
 function buildFruitStall(b: GeoBuilder, p: { x: number; z: number }): void {
   const y = FLOOR_Y;
-  const w = 0.8;
-  const d = 1.3;
+  const table = 0.82;
   b.object('platform:fruitStall');
-  b.box(p.x, y + 0.45, p.z, w, 0.9, d, '#7A5236', 0, { shade: 0.85, detail: 'wood' });
-  b.box(p.x, y + 0.92, p.z, w + 0.08, 0.05, d + 0.08, PALETTE.oak, 0, { shade: 1, detail: 'wood' });
-  for (const dz of [-d / 2 + 0.05, d / 2 - 0.05]) b.cylinder(p.x + w / 2 - 0.05, y + 1.35, p.z + dz, 0.025, 0.025, 0.9, PALETTE.oak, 6, 'y', { shade: 0.9 });
-  const stripes = 7;
-  for (let i = 0; i < stripes; i++) {
-    const z = p.z - d / 2 - 0.05 + (i + 0.5) * ((d + 0.1) / stripes);
-    b.add(new THREE.BoxGeometry(w + 0.35, 0.03, (d + 0.1) / stripes), i % 2 ? '#F4EEE2' : '#C0485C', p.x - 0.05, y + 1.82, z, 0, 0, 0.22, { shade: 1 });
-  }
+  buildStall(b, p.x, p.z, 1.6, 1.25, table, stallRecolor('#C0485C', '#B98A5E'), -Math.PI / 2);
   b.endObject();
   b.object('platform:fruitStallGoods');
-  // Two shallow crates on the counter, tilted toward the platform: apples and oranges; loaves at the back.
-  const top = y + 0.95;
-  for (const [dz, c] of [[-0.3, '#C8352B'], [0.1, '#F08A24']] as const) {
-    b.box(p.x - 0.1, top + 0.05, p.z + dz, 0.42, 0.1, 0.34, '#B8874E', 0, { shade: 0.9 });
-    for (let i = 0; i < 6; i++) b.sphere(p.x - 0.22 + (i % 3) * 0.12, top + 0.13, p.z + dz - 0.08 + Math.floor(i / 3) * 0.15, 0.055, c, 1, 1, { shade: 1 });
+  const top = y + table;
+  for (const [dz, c] of [[-0.42, '#C8352B'], [0.0, '#F08A24']] as const) {
+    b.box(p.x - 0.18, top + 0.05, p.z + dz, 0.4, 0.1, 0.34, '#B8874E', 0, { shade: 0.9, detail: 'wood' });
+    for (let i = 0; i < 6; i++) b.sphere(p.x - 0.3 + (i % 3) * 0.12, top + 0.13, p.z + dz - 0.08 + Math.floor(i / 3) * 0.15, 0.055, c, 1, 1, { shade: 1 });
   }
-  for (const dz of [-0.35, 0.0, 0.35]) b.rounded(p.x + 0.22, top + 0.06, p.z + dz + 0.05, 0.16, 0.11, 0.3, 0.05, '#C98B45', { shade: 0.95 });
+  const e = modelEntry('bread');
+  const sc = 0.13 / (e.max[1] - e.min[1]);
+  for (const dz of [0.38, 0.6]) b.model('bread', p.x - 0.12, top, p.z + dz, 0.3, sc, sc, sc, { surface: 'matte', shade: 0.95 });
   b.endObject();
 }
 
-/** Phase 2, the Station Clock: a cast-iron post with a two-faced clock on top, lit at night. */
-function buildStationClock(b: GeoBuilder, lamps: GeoBuilder, p: { x: number; z: number }): void {
-  const y = FLOOR_Y;
-  b.object('platform:stationClock');
-  b.cylinder(p.x, y + 0.08, p.z, 0.18, 0.2, 0.16, PALETTE.iron, 12, 'y', { shade: 0.85, surface: 'iron' });
-  b.cylinder(p.x, y + 1.25, p.z, 0.05, 0.07, 2.3, PALETTE.navy, 10, 'y', { shade: 0.9 });
-  b.cylinder(p.x, y + 2.62, p.z, 0.32, 0.32, 0.14, PALETTE.navy, 24, 'x', { shade: 0.95 });
-  b.sphere(p.x, y + 2.98, p.z, 0.06, PALETTE.brass, 1, 1, { shade: 1, surface: 'brass' });
-  // The hands on both faces (ten past ten, the clockmaker's smile).
-  for (const sx of [-1, 1]) {
-    b.add(new THREE.BoxGeometry(0.012, 0.2, 0.025), '#1F2433', p.x + sx * 0.09, y + 2.68, p.z - 0.04, 0.9, 0, 0, { shade: 1 });
-    b.add(new THREE.BoxGeometry(0.012, 0.15, 0.025), '#1F2433', p.x + sx * 0.09, y + 2.66, p.z + 0.04, -1.0, 0, 0, { shade: 1 });
-  }
-  b.endObject();
-  lamps.object('platform:clockFace~glow');
-  lamps.cylinder(p.x, y + 2.62, p.z, 0.27, 0.27, 0.16, '#FFF4D6', 24, 'x');
-  lamps.endObject();
-}
 
 /**
  * Phase 2, the restock cart: a wooden handcart along the platform edge loaded with what the train runs on: folded
@@ -1038,16 +982,11 @@ function buildRestockCart(b: GeoBuilder): void {
   for (const dx of [-0.22, 0.22]) b.add(new THREE.BoxGeometry(0.04, 0.04, 0.6), PALETTE.iron, cx + dx, y + 0.66, cz + d / 2 + 0.24, -0.5, 0, 0, { shade: 0.9, surface: 'iron' });
   b.cylinder(cx, y + 0.8, cz + d / 2 + 0.5, 0.026, 0.026, 0.52, PALETTE.walnut, 8, 'x', { shade: 1 });
   b.endObject();
-  // The load: two stacks of folded towels (white and striped), a basket of rolls, a crate of snack boxes.
+  // Session 55: the load, boxes of supplies for the lobby's cupboard (Tiny Treats' parcels), two on one.
   b.object('platform:restockGoods');
-  const top = bed;
-  for (const [i, dz] of [-0.45, -0.15].entries()) {
-    for (let k = 0; k < 4; k++) b.rounded(cx - 0.12, top + 0.045 + k * 0.075, cz + dz, 0.3, 0.07, 0.24, 0.025, i === 0 ? '#FBF7EF' : k % 2 ? '#6FB3B0' : '#FBF7EF', { shade: 0.95, detail: 'wool' });
-  }
-  b.cylinder(cx + 0.14, top + 0.12, cz - 0.3, 0.14, 0.12, 0.22, '#B8874E', 14, 'y', { shade: 0.9, detail: 'wood' });
-  for (const [dx, dz] of [[0.09, -0.36], [0.19, -0.33], [0.13, -0.24], [0.18, -0.2]] as const) b.cylinder(cx + dx, top + 0.27, cz + dz, 0.05, 0.05, 0.1, '#FFFFFF', 12, 'y', { shade: 1 });
-  b.box(cx, top + 0.1, cz + 0.35, w - 0.16, 0.2, 0.42, '#C79A5E', 0, { shade: 0.88, detail: 'wood' });
-  for (const [dx, dz, c] of [[-0.15, 0.25, '#D9483B'], [0.0, 0.27, '#F2B53A'], [0.15, 0.25, '#D9483B'], [-0.08, 0.45, '#F2B53A'], [0.09, 0.45, '#4C8DC9']] as const) b.box(cx + dx, top + 0.25, cz + dz, 0.12, 0.1, 0.13, c, 0, { shade: 1 });
+  const pe = modelEntry('parcel');
+  const ps = 0.36 / (pe.max[0] - pe.min[0]);
+  for (const [dx, dz, dy, rot] of [[0, -0.4, 0, 0.1], [0, 0.05, 0, -0.08], [0, -0.18, 0.25, 0.3]] as const) b.model('parcel', cx + dx, bed + dy, cz + dz, rot, ps, ps, ps, { surface: 'matte', shade: 0.9 });
   b.endObject();
 }
 
@@ -1072,12 +1011,28 @@ function buildPlanter(b: GeoBuilder, x: number, z: number): void {
   fitModel(b, 'flower_blue', x + 0.2, y + 0.34, z - 0.19, 0.08, 1.1);
 }
 
+/** Session 55: Kenney's market stall in our colours: its awning (red in the model) in `awning`, its wood in oak. */
+function stallRecolor(awning: string, wood = '#C99A68'): Recolor[] {
+  return [
+    { hue: [340, 360], sat: [0.4, 1], ref: '#CB4B5C', to: awning },
+    { hue: [150, 175], sat: [0.4, 1], ref: '#47A289', to: awning },
+    { hue: [10, 30], sat: [0.35, 0.7], val: [0.6, 0.9], ref: '#CC8665', to: wood },
+  ];
+}
+
+/** Session 55: a Kenney stall fitted to a footprint (`w` across the platform, `d` along it), its table `table` m up. */
+function buildStall(b: GeoBuilder, x: number, z: number, w: number, d: number, table: number, recolor: Recolor[], rotY = 0): void {
+  // The model's table top is at 0.37 of its 1.24 height (scripts: modely.cjs).
+  const sy = table / 0.37;
+  b.model('stall_red', x, FLOOR_Y, z, rotY, w, sy, d, { recolor, surface: 'wood', shade: 0.85 });
+}
+
 /**
- * The ticket stand (session 23): a low panelled counter with an oak top and a brass rail on the travellers'
- * side, a ticket rack, a cash tin, a brass bell and a green-shaded lamp, and a "Tickets" board on a post at its
- * front end. Low, so the traveller at the window is never hidden from the camera.
+ * The ticket stand (session 23; session 55, the owner's picks): Tiny Treats' panelled counter with its till, and a
+ * "Tickets" board on a post at its front end. The Ticket Office upgrade (`office`) makes it a booth: Kenney's stall in
+ * navy, its table the counter, the till on it. Low, so the traveller at the window is never hidden from the camera.
  */
-function buildTicketStand(b: GeoBuilder, lamps: GeoBuilder, dz = 0): void {
+function buildTicketStand(b: GeoBuilder, lamps: GeoBuilder, dz = 0, office = false): void {
   const c = PLATFORM.counter;
   const r = { x0: c.x0, z0: c.z0 + dz, x1: c.x1, z1: c.z1 + dz };
   const cx = (r.x0 + r.x1) / 2;
@@ -1085,41 +1040,31 @@ function buildTicketStand(b: GeoBuilder, lamps: GeoBuilder, dz = 0): void {
   const w = r.x1 - r.x0;
   const d = r.z1 - r.z0;
   const y = FLOOR_Y;
+  let top: number;
   b.object('platform:ticketStand');
-  b.box(cx, y + 0.04, cz, w - 0.02, 0.08, d - 0.02, '#2A3248', 0, { shade: 0.8 });
-  b.box(cx, y + 0.53, cz, w - 0.06, 0.9, d - 0.06, PALETTE.navy, 0, { shade: 0.82, surface: 'varnish' });
-  // Raised panels on both long faces, in oak frames.
-  for (const side of [-1, 1]) {
-    const fx = cx + side * (w / 2 - 0.025);
-    for (const pz of [-d / 3, 0, d / 3]) {
-      b.box(fx, y + 0.55, cz + pz, 0.012, 0.62, d / 3 - 0.1, PALETTE.oak, 0, { shade: 0.95 });
-      b.box(fx + side * 0.005, y + 0.55, cz + pz, 0.012, 0.52, d / 3 - 0.2, '#2C4366', 0, { shade: 0.9 });
-    }
+  if (office) {
+    top = y + 0.86;
+    // The stall along the platform, its awning sloping gently down the counter's length.
+    buildStall(b, cx + 0.1, cz, w + 0.35, d, 0.86, stallRecolor(PALETTE.navy, '#B98A5E'), 0);
+  } else {
+    top = y + 0.98;
+    // Tiny Treats' counter (2 × 1.5 × 1 m) turned along the platform.
+    b.model('counter', cx, y, cz, Math.PI / 2, d / 2, 0.98, w / 1.5, { recolor: [key('ttWood', '#B98A5E'), key('ttLight', PALETTE.navy), key('ttMid', PALETTE.navyDark)], surface: 'varnish', shade: 0.85 });
   }
-  // The oak top, overhanging a little, and the brass rail on the travellers' side.
-  b.box(cx, y + 1.01, cz, w + 0.06, 0.05, d + 0.06, PALETTE.oak, 0, { pattern: PATTERN.stripesZ, color2: '#D9BC8E', scale: 0.08, shade: 1, surface: 'varnish' });
-  b.cylinder(r.x0 - 0.01, y + 1.1, cz, 0.016, 0.016, d - 0.1, PALETTE.brass, 8, 'z', { shade: 1, surface: 'brass' });
-  for (const dz of [-d / 2 + 0.08, 0, d / 2 - 0.08]) b.box(r.x0 - 0.01, y + 1.06, cz + dz, 0.02, 0.08, 0.02, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
   b.endObject();
-  // On the counter: the ticket rack at the front end, the cash tin and bell in the middle, the lamp at the back.
-  const top = y + 1.035;
+  // On the counter: the till in the middle, a small rack of tickets at the front end.
+  b.object('platform:till');
+  {
+    const e = modelEntry('till');
+    const sc = 0.34 / (e.max[1] - e.min[1]);
+    b.model('till', cx + 0.05, top, cz + 0.15, -Math.PI / 2, sc, sc, sc, { surface: 'paint' });
+  }
   b.object('platform:ticketRack');
-  b.box(cx + 0.06, top + 0.09, r.z0 + 0.22, 0.26, 0.18, 0.3, PALETTE.walnut, 0, { shade: 0.85 });
+  b.box(cx + 0.06, top + 0.07, r.z0 + 0.25, 0.22, 0.14, 0.26, PALETTE.walnut, 0, { shade: 0.85 });
   const colors = ['#F4EBD6', '#F2B8B0', '#BFD8B5', '#F4EBD6', '#C9D6EA', '#F2D58C'];
-  colors.forEach((c, i) => b.box(cx + 0.06 - 0.06 + (i % 2) * 0.12, top + 0.2, r.z0 + 0.12 + Math.floor(i / 2) * 0.1, 0.1, 0.04, 0.07, c, 0, { shade: 1 }));
-  b.object('platform:cashTin');
-  b.box(cx + 0.02, top + 0.05, cz + 0.12, 0.2, 0.1, 0.26, '#3F7A5E', 0, { shade: 0.9 });
-  b.box(cx + 0.02, top + 0.102, cz + 0.12, 0.17, 0.006, 0.22, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
-  b.object('platform:bell');
-  b.cylinder(cx - 0.12, top + 0.008, cz - 0.2, 0.06, 0.06, 0.016, PALETTE.walnut, 12, 'y', { shade: 1 });
-  b.sphere(cx - 0.12, top + 0.02, cz - 0.2, 0.05, PALETTE.brass, 1, 0.8, { shade: 1, surface: 'brass' });
-  b.object('platform:standLamp');
-  b.cylinder(cx + 0.05, top + 0.012, r.z1 - 0.2, 0.07, 0.08, 0.024, PALETTE.brass, 12, 'y', { shade: 1, surface: 'brass' });
-  b.cylinder(cx + 0.05, top + 0.2, r.z1 - 0.2, 0.012, 0.012, 0.36, PALETTE.brass, 6, 'y', { shade: 1, surface: 'brass' });
+  colors.forEach((col, i) => b.box(cx + (i % 2) * 0.1, top + 0.16, r.z0 + 0.17 + Math.floor(i / 2) * 0.08, 0.08, 0.04, 0.06, col, 0, { shade: 1 }));
   b.endObject();
-  lamps.object('platform:standLamp~glow');
-  lamps.cylinder(cx + 0.05, top + 0.42, r.z1 - 0.2, 0.06, 0.12, 0.1, '#5E9C74', 12, 'y');
-  lamps.endObject();
+  void lamps;
   // The "Tickets" board's post (the board itself is a painted plane, see PlatformView).
   b.object('platform:ticketSignPost');
   b.cylinder(cx, y + 1.0, r.z0 - 0.16, 0.026, 0.03, 2.0, PALETTE.navy, 8, 'y', { shade: 0.9 });
@@ -1171,8 +1116,10 @@ function buildBellPost(b: GeoBuilder): void {
   b.box(x - 0.17, y + 1.38, z, 0.36, 0.04, 0.04, PALETTE.navy, 0, { shade: 1, surface: 'iron' });
   b.sphere(x, y + 1.46, z, 0.04, PALETTE.brass, 0, 1, { shade: 1, surface: 'brass' });
   b.cylinder(x - 0.32, y + 1.32, z, 0.012, 0.012, 0.08, PALETTE.iron, 6, 'y', { shade: 1 });
-  b.cone(x - 0.32, y + 1.16, z, 0.11, 0.2, PALETTE.brass, 12, { shade: 1, surface: 'brass' });
-  b.sphere(x - 0.32, y + 1.04, z, 0.03, PALETTE.brass, 0, 0.9, { shade: 1, surface: 'brass' });
+  // Session 55: KayKit's brass hand bell under the bracket's tip.
+  const e = modelEntry('hand_bell');
+  const sc = 0.28 / (e.max[1] - e.min[1]);
+  b.model('hand_bell', x - 0.32, y + 1.02, z, 0, sc, sc, sc, { surface: 'brass', shade: 1 });
   b.endObject();
 }
 
@@ -1217,43 +1164,26 @@ function buildLampPost(b: GeoBuilder, lamps: GeoBuilder, x: number, z: number): 
  * come out of, beside the way onto the platform.
  */
 function buildStationHouse(b: GeoBuilder, lamps: GeoBuilder, x1: number, gate: number): void {
-  const x0 = x1 + 0.45;
-  const xe = x1 + 6.05;
+  // Session 55 (the owner's picks): Tiny Treats' cottage, its porch toward the train's rear, in the station's cream
+  // with its own red roof; door lanterns either side of the porch.
+  const e = modelEntry('station_house');
+  const sc = 0.82;
   const zf = gate - GATE_HALF - 0.15;
-  const zb = zf - 8.6;
-  const cx = (x0 + xe) / 2;
-  const cz = (zb + zf) / 2;
-  const w = xe - x0;
-  const d = zf - zb;
+  const cx = x1 + 0.45 + ((e.max[0] - e.min[0]) * sc) / 2;
+  const cz = zf - ((e.max[2] - e.min[2]) * sc) / 2;
   b.object('platform:stationHouse');
-  b.box(cx, 0.32, cz, w + 0.1, 0.64, d + 0.1, '#C9B79A', 0, { shade: 0.85 });
-  b.box(cx, 1.9, cz, w, 3.2, d, PALETTE.stationPink, 0, { shade: 0.8 });
-  b.box(cx, 3.56, cz, w + 0.3, 0.16, d + 0.3, PALETTE.stationTrim, 0, { shade: 1 });
-  b.prism(cx, 3.64, cz, w + 0.6, 1.9, d + 0.5, PALETTE.roofTerracotta, { pattern: PATTERN.stripesZ, color2: '#B85A4D', scale: 0.25, shade: 1 });
-  b.box(cx + 1.3, 4.9, zb + 2.4, 0.5, 1.1, 0.5, '#B9A48A', 0, { shade: 0.85 });
-  // The front (facing the train's rear): an arched doorway by the platform, lamplit windows, a clock in the gable.
-  const face = zf + 0.005;
-  const doorX = x0 + 1.0;
-  b.box(doorX, 1.3, face + 0.02, 1.3, 2.4, 0.06, PALETTE.stationTrim, 0, { shade: 1 });
-  b.box(doorX, 1.22, face + 0.05, 1.04, 2.1, 0.02, '#3B2F2A', 0, { shade: 1 });
-  b.cylinder(doorX, 2.32, face + 0.05, 0.52, 0.52, 0.02, '#3B2F2A', 16, 'z', { shade: 1 });
-  for (const wx of [cx + 0.55, cx + 1.85]) {
-    b.box(wx, 2.0, face + 0.02, 0.86, 1.5, 0.06, PALETTE.stationTrim, 0, { shade: 1 });
-    lamps.object('platform:houseWindow~glow');
-    lamps.box(wx, 2.0, face + 0.055, 0.66, 1.28, 0.012, '#F3CF8E', 0);
-  }
-  lamps.endObject();
-  for (const dx of [-0.82, 0.82]) {
-    b.box(doorX + dx, 2.1, face + 0.1, 0.06, 0.06, 0.14, PALETTE.navy, 0, { shade: 1 });
-    lamps.object('platform:doorLantern~glow');
-    lamps.box(doorX + dx, 2.0, face + 0.2, 0.14, 0.22, 0.14, PALETTE.lampShade, 0);
-  }
-  lamps.endObject();
-  b.cylinder(cx, 4.35, face + 0.04, 0.46, 0.46, 0.06, PALETTE.gold, 24, 'z', { shade: 1, surface: 'brass' });
-  b.cylinder(cx, 4.35, face + 0.075, 0.39, 0.39, 0.02, PALETTE.linen, 24, 'z', { shade: 1 });
-  b.box(cx, 4.47, face + 0.09, 0.03, 0.24, 0.01, PALETTE.ink, 0, { shade: 1 });
-  b.box(cx + 0.08, 4.35, face + 0.09, 0.18, 0.03, 0.01, PALETTE.ink, 0, { shade: 1 });
+  b.model('station_house', cx, 0.1, cz, 0, sc, sc, sc, {
+    recolor: [key('ttLight', PALETTE.stationPink), key('ttMid', '#D9C7A8'), key('ttDark', '#5B4A3A')],
+    surface: 'paint',
+    shade: 0.85,
+  });
   b.endObject();
+  const doorX = PLATFORM.houseDoor.x;
+  for (const dx of [-0.75, 0.75]) {
+    lamps.object('platform:doorLantern~glow');
+    lamps.box(doorX + dx, 2.1, zf + 0.12, 0.14, 0.22, 0.14, PALETTE.lampShade, 0);
+  }
+  lamps.endObject();
 }
 
 /**

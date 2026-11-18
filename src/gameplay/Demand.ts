@@ -73,6 +73,8 @@ export class Demand {
         return Math.max(0, Math.min(room, reachable));
       }
       case 'crate': {
+        // Session 55: without a stores car, boxes of supplies go to the lobby's cupboard.
+        if (w.train.indexOfType('supply') === null) return Math.min(w.station.cupboardNeed(), w.player.stack.countOf('crate') + w.station.cartWanted());
         const f = w.data.facilities;
         const max = w.econ.facilities.supplyShelfMax;
         const missing = Math.max(max - f.supplyTowel, max - f.supplyRoll);
@@ -127,9 +129,8 @@ export class Demand {
     for (const bath of w.train.bathrooms) {
       if (!bath.unlocked || bath.restocker) continue;
       const stock = kind === 'towel' ? bath.towels : bath.rolls;
-      // Top up only once a bathroom runs low, so the shelves are not calling for attention all the time; at a station
-      // (Phase 2) every shelf is topped up from the platform's restock cart.
-      if (stock <= threshold || w.journey.doorsOpen) n += max - stock;
+      // Top up only once a bathroom runs low, so the shelves are not calling for attention all the time.
+      if (stock <= threshold) n += max - stock;
     }
     return n;
   }

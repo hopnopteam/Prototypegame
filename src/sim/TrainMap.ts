@@ -28,7 +28,7 @@ const PLATFORM_BLOCKED = platformObstacles();
 /** Phase 2: the platform's walking grid: spacing, clearance round what stands there, and the stretch it covers (z). */
 const PLATFORM_GRID_STEP = 0.9;
 const PLATFORM_GRID_MARGIN = 0.3;
-const PLATFORM_GRID_Z: [number, number] = [-14, 14];
+const PLATFORM_GRID_Z: [number, number] = [-16, 30];
 
 /** Whether the segment a→b crosses the rectangle (Liang–Barsky clipping). */
 function segmentHitsRect(ax: number, az: number, bx: number, bz: number, x0: number, z0: number, x1: number, z1: number): boolean {

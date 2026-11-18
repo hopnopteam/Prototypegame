@@ -120,17 +120,18 @@ export interface StationPerks {
   vip: number;
   stationBonus: number;
   /** Phase 2's platform pieces. */
-  restockFast: boolean;
-  carry: number;
+  /** Session 55: tickets sold in half the time (the Ticket Office). */
+  fastTickets: boolean;
+  /** Session 55: how many times longer travellers wait before turning grumpy (1 without the Waiting Benches). */
+  patience: number;
   helper: boolean;
-  trolley: boolean;
   kiosk: boolean;
   secondDoor: boolean;
 }
 
 /** What the station upgrades bought so far add up to (each bonus is additive). */
 export function stationPerks(isUnlocked: (id: string) => boolean): StationPerks {
-  const perks: StationPerks = { tips: 0, fares: 0, passengers: 0, vip: 0, stationBonus: 0, restockFast: false, carry: 0, helper: false, trolley: false, kiosk: false, secondDoor: false };
+  const perks: StationPerks = { tips: 0, fares: 0, passengers: 0, vip: 0, stationBonus: 0, fastTickets: false, patience: 1, helper: false, kiosk: false, secondDoor: false };
   for (const u of STATION_UPGRADES) {
     if (!isUnlocked(`st.${u.key}`)) continue;
     perks.tips += u.bonus.tips ?? 0;
@@ -138,10 +139,9 @@ export function stationPerks(isUnlocked: (id: string) => boolean): StationPerks 
     perks.passengers += u.bonus.passengers ?? 0;
     perks.vip += u.bonus.vip ?? 0;
     perks.stationBonus += u.bonus.stationBonus ?? 0;
-    perks.carry += u.bonus.carry ?? 0;
-    perks.restockFast ||= u.bonus.restockFast ?? false;
+    perks.fastTickets ||= u.bonus.fastTickets ?? false;
+    perks.patience = Math.max(perks.patience, u.bonus.patience ?? 1);
     perks.helper ||= u.bonus.helper ?? false;
-    perks.trolley ||= u.bonus.trolley ?? false;
     perks.kiosk ||= u.bonus.kiosk ?? false;
     perks.secondDoor ||= u.bonus.secondDoor ?? false;
   }

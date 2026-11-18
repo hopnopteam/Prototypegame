@@ -664,12 +664,12 @@ export interface StationUpgradeDef {
   effect: string;
   bonus: {
     tips?: number; fares?: number; passengers?: number; vip?: number; stationBonus?: number;
-    /** Phase 2: the restock cart works next to instantly, and the conductor carries this many more. */
-    restockFast?: boolean; carry?: number;
-    /** Phase 2: the station boy tops the train up at every stop. */
+    /** Session 55, the Ticket Office: a ticket is sold in half the time. */
+    fastTickets?: boolean;
+    /** Session 55, the Waiting Benches: travellers wait this many times longer before they turn grumpy. */
+    patience?: number;
+    /** Phase 2: the Supply Porter fills the lobby's supply cupboard at every stop. */
     helper?: boolean;
-    /** Phase 2: porters carry twice the bags. */
-    trolley?: boolean;
     /** Phase 2: the platform kiosk earns while the train is in (and a little while you are away). */
     kiosk?: boolean;
     /** Phase 2: a second ticket gate at the second entrance, its clerk selling to travellers for the back half. */
@@ -694,22 +694,23 @@ export interface StationUpgradeDef {
  * ones the existing upgrades already had (Phase 2 changed none); the new ones are first guesses (Phase 3 notes).
  */
 export const STATION_UPGRADES: StationUpgradeDef[] = [
-  { key: 'posters', kind: 'marketing', label: 'Posters', price: 80, stars: 3, requires: ['couple_1'], effect: '+1 traveller', bonus: { passengers: 1 }, at: { dx: 4.3, z: 9.6 } },
-  { key: 'benches', kind: 'platform', label: 'Benches', price: 90, stars: 3, requires: ['couple_1'], effect: '+2 travellers', bonus: { passengers: 2 }, at: { dx: 4.8, z: 4.3 }, size: { w: 0.8, d: 4.8 } },
-  { key: 'windowboxes', kind: 'exterior', label: 'Flower Boxes', price: 110, stars: 3, requires: ['couple_1'], effect: 'Tips +5%', bonus: { tips: 0.05 }, at: { dx: 2.9, z: 9.6 } },
-  { key: 'cart', kind: 'platform', label: 'Restock Cart', price: 130, stars: 3, requires: ['couple_1'], effect: 'Instant restock, +2 carry', bonus: { restockFast: true, carry: 2 }, at: { dx: 2.25, z: 8.45 } },
-  { key: 'booth', kind: 'platform', label: 'Ticket Booth', price: 150, stars: 3, requires: ['couple_1'], effect: 'Fares +10%', bonus: { fares: 0.1 }, at: { dx: 3.95, z: -3.55 } },
-  { key: 'lamps', kind: 'exterior', label: 'Lamps', price: 160, stars: 3, requires: ['st.windowboxes', 'couple_2'], effect: 'Tips +5%', bonus: { tips: 0.05 }, at: { dx: 2.9, z: 9.6 } },
-  { key: 'billboard', kind: 'marketing', label: 'Billboards', price: 190, stars: 3, requires: ['st.posters', 'couple_2'], effect: '+1 traveller, VIPs', bonus: { passengers: 1, vip: 0.6 }, at: { dx: 4.3, z: 9.6 } },
-  { key: 'trolley', kind: 'platform', label: 'Luggage Trolley', price: 200, stars: 3, requires: ['couple_2'], effect: 'Porters carry 2× bags', bonus: { trolley: true }, at: { dx: 3.15, z: 4.6 }, size: { w: 0.6, d: 0.7 } },
-  { key: 'kiosk', kind: 'platform', label: 'Kiosk', price: 260, stars: 4, requires: ['couple_2'], effect: 'Earns while stopped', bonus: { kiosk: true }, at: { dx: 4.1, z: 7.6 }, size: { w: 1.6, d: 1.5 } },
-  { key: 'helper', kind: 'platform', label: 'Restock Helper', price: 300, stars: 4, requires: ['st.cart', 'couple_3'], effect: 'Restocks every stop', bonus: { helper: true }, at: { dx: 3.15, z: 9.0 }, work: { restock: 8 } },
-  { key: 'lining', kind: 'exterior', label: 'Gold Trim', price: 340, stars: 4, requires: ['st.lamps', 'couple_3'], effect: 'Fares +5%', bonus: { fares: 0.05 }, at: { dx: 2.9, z: 9.6 } },
-  { key: 'clock', kind: 'platform', label: 'Station Clock', price: 380, stars: 4, requires: ['couple_3'], effect: 'Bigger crowds, VIPs', bonus: { passengers: 1, vip: 0.6 }, at: { dx: 4.9, z: 0.9 }, size: { w: 0.4, d: 0.4 } },
-  { key: 'band', kind: 'marketing', label: 'Band', price: 460, stars: 4, requires: ['st.billboard', 'couple_3'], effect: '+1 traveller', bonus: { passengers: 1, stationBonus: 0.5 }, at: { dx: 4.3, z: 9.6 } },
-  { key: 'nameboards', kind: 'exterior', label: 'Name Signs', price: 520, stars: 4, requires: ['st.lining', 'couple_4'], effect: 'Fares +5%', bonus: { fares: 0.05 }, at: { dx: 2.9, z: 9.6 } },
-  { key: 'gate2', kind: 'platform', label: 'Second Door', price: 600, stars: 5, requires: ['couple_4'], effect: 'A second ticket gate', bonus: { secondDoor: true }, at: { dx: 3.3, z: 2.4, door: true }, minCarriages: 5 },
-  { key: 'redcarpet', kind: 'exterior', label: 'Red Carpet', price: 700, stars: 5, requires: ['st.nameboards'], effect: 'Stop bonus +50%', bonus: { stationBonus: 0.5 }, at: { dx: 2.9, z: 9.6 } },
+  // Session 55 (owner: "I have no idea what each upgrade does… things are placed randomly and have no place of their
+  // own"): seven upgrades, each something you can see working, each in its own bay of the platform (platformLayout.ts
+  // `BAYS`). Advertising (posters → billboards → band) and Smarten the Train (flower boxes → … → red carpet) are one
+  // tile at a time in their own bay; the Restock Cart, the Luggage Trolley and the Station Clock are gone.
+  { key: 'posters', kind: 'marketing', label: 'Posters', price: 80, stars: 3, requires: ['couple_1'], effect: 'Bigger crowds', bonus: { passengers: 1 }, at: { dx: 5.65, z: 16.0 } },
+  { key: 'booth', kind: 'platform', label: 'Ticket Office', price: 150, stars: 3, requires: ['couple_1'], effect: 'Tickets 2× faster', bonus: { fastTickets: true }, at: { dx: 3.85, z: -4.05 } },
+  { key: 'benches', kind: 'platform', label: 'Waiting Benches', price: 90, stars: 3, requires: ['couple_1'], effect: 'Travellers wait 2× longer', bonus: { patience: 2 }, at: { dx: 6.3, z: -6.45 } },
+  { key: 'windowboxes', kind: 'exterior', label: 'Flower Boxes', price: 110, stars: 3, requires: ['couple_1'], effect: 'Tips +5%', bonus: { tips: 0.05 }, at: { dx: 5.65, z: 10.6 } },
+  { key: 'kiosk', kind: 'platform', label: 'Fruit Kiosk', price: 260, stars: 4, requires: ['couple_2'], effect: 'Earns while stopped', bonus: { kiosk: true }, at: { dx: 6.45, z: 6.0 }, size: { w: 1.5, d: 1.7 } },
+  { key: 'billboard', kind: 'marketing', label: 'Billboards', price: 190, stars: 3, requires: ['st.posters', 'couple_2'], effect: 'Bigger crowds, VIPs', bonus: { passengers: 1, vip: 0.6 }, at: { dx: 5.65, z: 16.0 } },
+  { key: 'helper', kind: 'platform', label: 'Supply Porter', price: 300, stars: 4, requires: ['couple_2'], effect: 'Restocks for you', bonus: { helper: true }, at: { dx: 2.3, z: 8.75 }, work: { restock: 6 } },
+  { key: 'lamps', kind: 'exterior', label: 'Lamps', price: 160, stars: 3, requires: ['st.windowboxes', 'couple_2'], effect: 'Tips +5%', bonus: { tips: 0.05 }, at: { dx: 5.65, z: 10.6 } },
+  { key: 'lining', kind: 'exterior', label: 'Gold Trim', price: 340, stars: 4, requires: ['st.lamps', 'couple_3'], effect: 'Fares +5%', bonus: { fares: 0.05 }, at: { dx: 5.65, z: 10.6 } },
+  { key: 'band', kind: 'marketing', label: 'Band', price: 460, stars: 4, requires: ['st.billboard', 'couple_3'], effect: 'Bigger crowds, bonus', bonus: { passengers: 1, stationBonus: 0.5 }, at: { dx: 5.65, z: 16.0 } },
+  { key: 'nameboards', kind: 'exterior', label: 'Name Signs', price: 520, stars: 4, requires: ['st.lining', 'couple_4'], effect: 'Fares +5%', bonus: { fares: 0.05 }, at: { dx: 5.65, z: 10.6 } },
+  { key: 'gate2', kind: 'platform', label: 'Second Door', price: 600, stars: 5, requires: ['couple_4'], effect: 'A second ticket office', bonus: { secondDoor: true }, at: { dx: 3.3, z: 2.4, door: true }, minCarriages: 5 },
+  { key: 'redcarpet', kind: 'exterior', label: 'Red Carpet', price: 700, stars: 5, requires: ['st.nameboards'], effect: 'Stop bonus +50%', bonus: { stationBonus: 0.5 }, at: { dx: 5.65, z: 10.6 } },
 ];
 
 /** Pre-v3 saves grew in this fixed order; the migration maps their ids onto carriage slots. */
