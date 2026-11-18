@@ -57,6 +57,12 @@ export const PLATFORM = {
   bell: { x: X + 3.35, z: 2.45 } as Vec2,
   /** Where the conductor stands to ring it (the job counts anywhere near the bell too). */
   bellPad: { x: X + 2.75, z: 2.3 } as Vec2,
+  /**
+   * Phase 2, the restock cart: a supply barrow along the platform edge behind the luggage barrow, stacked with
+   * towels, rolls and snack boxes. Stand at its outer side to fill the tray with what the train is short of.
+   */
+  restock: rect(X + 0.62, 6.2, X + 1.42, 7.7),
+  restockPad: { x: X + 2.1, z: 6.95 } as Vec2,
 } as const;
 
 /** Spots in the ticket queue: the window first, then forward along the platform edge, then back beside it. */
@@ -98,6 +104,7 @@ export function platformObstacles(): Rect[] {
   return [
     PLATFORM.counter,
     PLATFORM.barrow,
+    PLATFORM.restock,
     PLATFORM.bench,
     rect(bell.x - 0.16, bell.z - 0.16, bell.x + 0.16, bell.z + 0.16),
     rect(k.x - 0.55, k.z - 0.6, k.x + 0.55, k.z + 0.6),

@@ -11,7 +11,7 @@ import { BED_TOP, FLOOR_Y } from '../world/CarriageView';
 import { CharacterPool, GUEST_POOL_WARM } from '../world/CharacterPool';
 import { CharacterView, type CharacterLook } from '../world/CharacterView';
 import { BED_MESS } from '../world/Mess';
-import { CARRIAGE_PITCH, carriageOriginZ } from '../world/layout';
+import { CARRIAGE_PITCH, carriageOriginZ, HALF_WIDTH } from '../world/layout';
 import { PLATFORM, QUEUE_SPOTS, queueSpot, waitingSpot } from '../world/platformLayout';
 import { Mover, type Actor } from './Actor';
 import type { Bathroom, Cabin } from './TrainState';
@@ -20,7 +20,7 @@ import type { FloatKind } from './UiApi';
 import type { Zone } from './Zones';
 import type { Outing } from './Venues';
 import type { VenueKind } from '../core/types';
-import { ratingEffect } from '../sim/stationResult';
+import { guestReview, ratingEffect } from '../sim/stationResult';
 import { guestLook, routeLook } from './guestLook';
 
 export type GuestState =
@@ -182,6 +182,17 @@ export class Guest {
   order = 0;
   /** Just came out of the station house: walks in along the walkway first. */
   late = false;
+  /**
+   * Phase 2, on the platform: a bed of their class waits for them this stop (`eligible`, they must be aboard before
+   * the bell), and a tidy room is free for them now (`ready`, else a broom over them while a room is made up). Game
+   * time they began waiting, and `grumpy` once kept waiting past the station's patience: they board, but leave no tip.
+   */
+  eligible = false;
+  ready = false;
+  platformSince = 0;
+  grumpy = false;
+  /** Phase 2: requests brought late this trip (each takes half a star off their review). */
+  lateServed = 0;
   /** Session 23: what they do while standing about, for how much longer, and when the next one comes. */
   idleAct: IdleAction = 'watch';
   idleLeft = 0;
@@ -342,6 +353,7 @@ export class Guests {
     guest.onPlatform = true;
     guest.order = this.arrivals++;
     guest.late = true;
+    guest.platformSince = this.w.time;
     guest.mover.facing = -Math.PI / 2;
     this.arrangePlatform(false);
     return guest;
@@ -432,6 +444,7 @@ export class Guests {
   private dayRiderOff(guest: Guest): void {
     const w = this.w;
     this.setState(guest, 'alighting');
+    this.review(guest);
     if (guest.unmet > 0) {
       this.audit.unhappy++;
       guest.view.showMood('angry');
@@ -476,8 +489,10 @@ export class Guests {
     const waiting = this.list.filter((g) => g.state === 'platform' && !g.paid);
     waiting.sort((a, b) => a.order - b.order);
     this.bedsLeft.clear();
-    let q = 0;
-    let k = 0;
+    this.readyLeft.clear();
+    // Phase 2: a traveller buys their ticket only once a tidy room of their class is free (rooms the guests getting
+    // off here leave behind are made up first); until then a broom over them says what they are waiting for.
+    const tidyFirst = j.heldStops && !prologue && j.phase === 'stationStop';
     for (const guest of waiting) {
       let eligible = prologue;
       if (!prologue) {
@@ -486,11 +501,84 @@ export class Guests {
         eligible = beds > 0;
         if (eligible) this.bedsLeft.set(guest.cls, beds - 1);
       }
-      // A ticket in their class's colour, or a "no room" sign: they cannot board this time.
-      if (eligible) guest.view.showBubble('ticket', guest.cls, 1.85);
+      let ready = eligible;
+      if (eligible && tidyFirst) {
+        if (!this.readyLeft.has(guest.cls)) this.readyLeft.set(guest.cls, this.readyRooms(guest.cls));
+        const rooms = this.readyLeft.get(guest.cls) ?? 0;
+        ready = rooms > 0;
+        if (ready) this.readyLeft.set(guest.cls, rooms - 1);
+      }
+      guest.eligible = eligible;
+      guest.ready = ready;
+    }
+    // The queue: those who can buy now first (in the order they came), then those waiting for a tidy room; anyone
+    // with no bed this time waits by the bench.
+    const order = [...waiting.filter((g) => g.ready), ...waiting.filter((g) => g.eligible && !g.ready), ...waiting.filter((g) => !g.eligible)];
+    let q = 0;
+    let k = 0;
+    for (const guest of order) {
+      // A ticket in their class's colour, a broom (a room is being made up), or a "no room" sign: not this time.
+      if (guest.grumpy && guest.eligible) guest.view.showMood('angry', guest.ready ? 'ticket' : 'broom');
+      else if (guest.ready) guest.view.showBubble('ticket', guest.cls, 1.85);
+      else if (guest.eligible) guest.view.showMood('wait', 'broom');
       else guest.view.showMood('wait', 'noroom');
-      const key = eligible && q < QUEUE_SPOTS ? `q${q++}` : `w${k++}`;
+      const key = guest.eligible && q < QUEUE_SPOTS ? `q${q++}` : `w${k++}`;
       if (key !== guest.spot) this.sendToSpot(guest, key, snap);
+    }
+  }
+
+  /** Phase 2: tidy, empty rooms of a class not yet promised to a guest who has bought a ticket and has no key yet. */
+  private readyRooms(cls: ClassId): number {
+    let rooms = 0;
+    for (const c of this.w.train.cabins) if (c.isFree && this.w.train.cabinClass(c) === cls) rooms++;
+    for (const g of this.list) if (g.paid && !g.dayRider && !g.cabin && g.cls === cls && g.state !== 'leaving' && g.state !== 'gone') rooms--;
+    return Math.max(0, rooms);
+  }
+  private readonly readyLeft = new Map<ClassId, number>();
+
+  /**
+   * Phase 2: travellers the train is waiting for before the bell: anyone with a bed this stop not yet sold a
+   * ticket, and anyone with a ticket still outside on the platform.
+   */
+  waitingCount(): number {
+    let n = 0;
+    for (const g of this.list) {
+      if (g.state === 'platform' && (g.paid || g.eligible)) n++;
+      else if (g.state === 'boarding' && g.pos.x > HALF_WIDTH - 0.2) n++;
+    }
+    return n;
+  }
+
+  /** Phase 2: a traveller with a bed is waiting on the platform for a room to be made up. */
+  waitingForRoom(): boolean {
+    return this.list.some((g) => g.state === 'platform' && !g.paid && g.eligible && !g.ready);
+  }
+
+  /** Someone with a ticket or a pass still walking in along the platform (the doors wait for them). */
+  walkingIn(): boolean {
+    for (const g of this.list) {
+      if ((g.state === 'boarding' || (g.dayRider && g.outside)) && g.pos.x > HALF_WIDTH - 0.2) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Phase 2, patience: a traveller with a bed kept waiting on the platform past the station's patience turns grumpy
+   * (a cross face, a grumble). They still board, but leave no tip at their stop.
+   */
+  private platformPatience(): void {
+    const w = this.w;
+    const j = w.journey;
+    if (!j.heldStops || j.phase !== 'stationStop' || w.station.prologue || w.coach?.tutorial) return;
+    const limit = w.econ.station.patienceSeconds;
+    for (const g of this.list) {
+      if (g.state !== 'platform' || g.paid || !g.eligible || g.grumpy) continue;
+      if (w.time - g.platformSince < limit) continue;
+      g.grumpy = true;
+      w.station.grumpyThisStop++;
+      g.view.act('stomp', 0.6);
+      w.audio.play('grumble', { volume: 0.5 });
+      w.ui.floatIcon('angry', g.pos.x, FLOOR_Y + 2.3, g.pos.z + w.station.platformOffset, 'miss');
     }
   }
 
@@ -546,7 +634,7 @@ export class Guests {
   /** The traveller at the ticket stand's window, if they have reached it (and the platform is alongside). */
   private atWindow(): Guest | null {
     if (this.w.journey.phase !== 'stationStop') return null;
-    return this.list.find((g) => g.state === 'platform' && !g.paid && g.spot === 'q0' && g.atSpot) ?? null;
+    return this.list.find((g) => g.state === 'platform' && !g.paid && g.ready && g.spot === 'q0' && g.atSpot) ?? null;
   }
 
   /**
@@ -560,12 +648,12 @@ export class Guests {
   /** Someone is queueing for a ticket (the window's pad lights up as they step up to it). */
   canBoard(): boolean {
     if (this.w.journey.phase !== 'stationStop') return false;
-    return this.list.some((g) => g.state === 'platform' && !g.paid && g.spot === 'q0');
+    return this.list.some((g) => g.state === 'platform' && !g.paid && g.ready && g.spot === 'q0');
   }
 
   /** Someone on the platform has a bed of their class this stop (they are in the ticket queue). */
   hasBoarder(): boolean {
-    return this.list.some((g) => g.state === 'platform' && !g.paid && g.spot !== null && g.spot[0] === 'q');
+    return this.list.some((g) => g.state === 'platform' && !g.paid && g.ready && g.spot !== null && g.spot[0] === 'q');
   }
 
   /**
@@ -771,6 +859,7 @@ export class Guests {
   /** Every guest whose stop this is gets up and heads for the door (staggered so they don't overlap). */
   onStationStop(stopSerial: number): void {
     this.alightStagger = 0;
+    for (const g of this.list) if (g.state === 'platform') g.platformSince = this.w.time;
     for (const guest of this.list) {
       if (guest.destinationStop <= stopSerial && guest.cabin && (guest.inCabin || guest.state === 'toCabin')) {
         this.w.tweens.delay(this.alightStagger, () => this.startAlighting(guest));
@@ -856,7 +945,10 @@ export class Guests {
     const platformOffset = w.station.platformOffset;
     // Everyone on the platform is in their place: the ticket queue (a ticket in their class's colour) or the
     // bench (a "no room" sign: no bed for them this time). Paid travellers board once the train is open.
-    if (this.list.some((g) => g.state === 'platform')) this.arrangePlatform(false);
+    if (this.list.some((g) => g.state === 'platform')) {
+      this.arrangePlatform(false);
+      this.platformPatience();
+    }
     for (const guest of this.list) {
       if (guest.state !== 'platform' || !guest.paid) continue;
       guest.view.showMood('love', 'ticket');
@@ -1380,12 +1472,14 @@ export class Guests {
     // What they say about it (session 33): a word or two over them, so the player sees why the tip was what it was.
     const say = (text: string, kind: FloatKind): void => w.ui.floatText(text, guest.pos.x, FLOOR_Y + 2.6, guest.pos.z, kind);
     if (noTip) {
+      guest.lateServed++;
       say('Too slow!', 'miss');
       w.ui.floatIcon('angry', guest.pos.x, FLOOR_Y + 2.2, guest.pos.z, 'miss');
       w.audio.play('grumble', { volume: 0.7 });
       guest.view.act('stomp', 0.8);
       w.feedback.onSlowDelivery(guest, true);
     } else if (late) {
+      guest.lateServed++;
       say('Finally…', 'miss');
       w.ui.floatIcon('frown', guest.pos.x, FLOOR_Y + 2.2, guest.pos.z, 'miss');
       w.feedback.onSlowDelivery(guest, false);
@@ -1691,13 +1785,15 @@ export class Guests {
     }
     // Session 32: nothing counts against the player during the first-passengers tutorial.
     if (w.coach?.tutorial) guest.unmet = 0;
-    const unhappy = guest.unmet > 0;
-    tip *= Math.max(0, 1 - g.unmetTipCut * guest.unmet);
+    // Phase 2: kept waiting too long on the platform, they leave nothing at all.
+    const unhappy = guest.unmet > 0 || guest.grumpy;
+    tip *= guest.grumpy ? 0 : Math.max(0, 1 - g.unmetTipCut * guest.unmet);
     const tipAmount = unhappy ? Math.round(tip) : Math.max(1, Math.round(tip));
     if (tipAmount > 0) w.cash.add(cabin.pileId, tipAmount, this.tmp.set(guest.pos.x, FLOOR_Y + 1, guest.pos.z));
     cabin.messPlan = this.messFor(guest);
     cabin.dirty.fill(true);
     w.station.recordTip(tipAmount);
+    this.review(guest);
     guest.request = null;
     guest.pending = [];
     this.setState(guest, 'alighting');
@@ -1716,6 +1812,18 @@ export class Guests {
     const from = fromBed ? cabin.node : (w.map.nearestNode(guest.pos.x, guest.pos.z) ?? cabin.node);
     guest.mover.go(this.exitRoute(guest, from), () => this.finishAlighting(guest, false));
     if (!unhappy) w.feedback.onAlight(guest);
+  }
+
+  /**
+   * Phase 2, the Train Rating: a guest getting off leaves a review, 1–5 stars, from how they were treated (things
+   * asked for and never got, kept waiting on the platform, late deliveries). Never during the tutorial.
+   */
+  private review(guest: Guest): void {
+    const w = this.w;
+    if (w.coach?.tutorial) return;
+    const stars = guestReview(guest.unmet, guest.grumpy, guest.lateServed, w.econ.rating.review);
+    w.addReview(stars);
+    w.events.emit('guest.reviewed', { stars, guest: guest.id });
   }
 
   /** Their stop has come and the doors are open. */
@@ -1771,7 +1879,7 @@ export class Guests {
       guest.pos.z = door.outside.z - 0.6 + TELEPORT_SPREAD[k][1];
     }
     // Happy, a heart; short of something they asked for, the frown stays up as they go (session 27).
-    if (guest.unmet > 0) guest.view.showMood('angry');
+    if (guest.unmet > 0 || guest.grumpy) guest.view.showMood('angry');
     else guest.view.showMood('love');
     w.events.emit('guest.alighted', { tip: 0 });
     if (guest.story) w.meta?.onStoryGuestAlighted(guest.story);

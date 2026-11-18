@@ -127,8 +127,9 @@ export class Demand {
     for (const bath of w.train.bathrooms) {
       if (!bath.unlocked || bath.restocker) continue;
       const stock = kind === 'towel' ? bath.towels : bath.rolls;
-      // Top up only once a bathroom runs low, so the shelves are not calling for attention all the time.
-      if (stock <= threshold) n += max - stock;
+      // Top up only once a bathroom runs low, so the shelves are not calling for attention all the time; at a station
+      // (Phase 2) every shelf is topped up from the platform's restock cart.
+      if (stock <= threshold || w.journey.doorsOpen) n += max - stock;
     }
     return n;
   }

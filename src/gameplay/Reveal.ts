@@ -235,6 +235,8 @@ export class Reveal {
     w.tweens.delay(rules.seconds, () => {
       this.busy = false;
       spec.done();
+      // Phase 2: a natural break once the reveal has played (for the ad layer; nothing shows here).
+      w.breaks?.request('revealEnded');
       w.audio.play('reveal');
       w.haptics.success();
       w.stage.rig.shake(0.12, 0.3);

@@ -11,6 +11,8 @@ export interface JourneyConfig {
   holdTheTrainSeconds: number;
   cruiseSpeed: number;
   lastCallSeconds: number;
+  /** Phase 2: every stop waits for the bell (no clock); false keeps the timed stop. */
+  heldStops?: boolean;
 }
 
 export interface JourneyListener {
@@ -27,6 +29,8 @@ export class Journey {
   phase: JourneyPhase = 'onTheMove';
   /** Seconds elapsed in the current phase. */
   time = 0;
+  /** Seconds the current stop has lasted, held or not (Phase 2: stop durations are logged). */
+  stopTime = 0;
   /** Index into the station list of the next station (or the current one while stopped). */
   stationIndex: number;
   legsCompleted: number;
@@ -142,7 +146,8 @@ export class Journey {
 
   /** Rewarded "Hold the train": adds time to the current stop, once per stop. */
   holdTrain(): boolean {
-    if (this.phase !== 'stationStop' || this.holdUsed || this.held) return false;
+    // Phase 2: a held stop has no clock to add to (the offer sleeps).
+    if (this.phase !== 'stationStop' || this.holdUsed || this.held || this.heldStops) return false;
     this.holdUsed = true;
     this.stationDuration += this.config.holdTheTrainSeconds;
     this.lastCallSent = false;
@@ -165,16 +170,25 @@ export class Journey {
     this.stationDuration = this.time + seconds;
   }
 
-  /** A held stop gets going: the doors close in `seconds` (the last call sounds at once if that is short). */
-  release(seconds: number): void {
+  /** Phase 2: every stop waits for the bell. */
+  get heldStops(): boolean {
+    return this.config.heldStops ?? false;
+  }
+
+  /**
+   * A held stop gets going: the doors close in `seconds` (the last call sounds at once if that is short). `quiet`
+   * skips the last call (Phase 2: the bell the conductor just rang is the call).
+   */
+  release(seconds: number, quiet = false): void {
     if (!this.held) return;
     this.held = false;
     this.time = 0;
     this.stationDuration = seconds;
-    this.lastCallSent = false;
+    this.lastCallSent = quiet;
   }
 
   update(dt: number): void {
+    if (this.phase === 'stationStop') this.stopTime += dt;
     if (this.held) return;
     this.time += dt;
     if (this.phase === 'stationStop' && !this.lastCallSent && this.timeLeft <= this.config.lastCallSeconds) {
@@ -206,6 +220,10 @@ export class Journey {
         this.stationDuration = this.config.stationSeconds;
         this.holdUsed = false;
         this.lastCallSent = false;
+        // Phase 2 (owner: "no timer and no teleport… the train never leaves on its own"): every stop opens held, no
+        // clock running; the station's bell releases it (`release`) once everyone waiting is aboard.
+        this.held = this.config.heldStops ?? false;
+        this.stopTime = 0;
         break;
       case 'stationStop':
         this.phase = 'departing';

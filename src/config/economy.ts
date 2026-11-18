@@ -47,6 +47,12 @@ export const ECONOMY = {
     moveSeconds: 120,
     arrivingSeconds: 6,
     stationSeconds: 40,
+    /**
+     * Phase 2 (owner: "remove the 40 s timer and the teleport… the train never leaves on its own"): every stop waits
+     * at the platform with no clock until the conductor rings the bell, which is ready once everyone waiting is
+     * aboard. `stationSeconds` is only the old timed stop (false here brings it back).
+     */
+    heldStops: true,
     departingSeconds: 6,
     /**
      * Session 44: a relaunch comes back on the move this many seconds from the next station. Passengers are not
@@ -257,6 +263,20 @@ export const ECONOMY = {
    * its fares) comes sooner. It no longer calls latecomers.
    */
   bell: { seconds: 0.8, before: 8, leaveIn: 3, bonusPerSecond: 0.5 },
+
+  /**
+   * Phase 2, stations become gameplay. A stop lasts until the bell: travellers with a bed queue at the ticket stand
+   * once a tidy room of their class is free (a broom over them until then), and the bell is ready once everyone
+   * waiting is aboard; it closes the doors `bell.leaveIn` seconds later, once the conductor is aboard too.
+   */
+  station: {
+    /** A traveller with a bed kept waiting on the platform this long turns grumpy: they board, but leave no tip. */
+    patienceSeconds: 60,
+    /** Seconds standing at the platform's restock cart to fill the tray with what the train is short of. */
+    restockSeconds: 2,
+    /** With the Restock Cart upgrade: next to instant. */
+    cartRestockSeconds: 0.35,
+  },
 
   /**
    * Session 30 (owner: "leaving the baggage of the customer should have some penalty or reduced fares… communicated so
@@ -511,6 +531,16 @@ export const ECONOMY = {
      * one from `one`, none below.
      */
     stars: { three: 0.92, two: 0.8, one: 0.55 },
+    /**
+     * Phase 2: the rating is the average of the last `reviews` guest reviews (1–5 stars each, left as they get off),
+     * eased toward `start` until there are `priorWeight` of them. A review loses `perUnmet` for each thing the guest
+     * never got (at most three), `grumpy` if kept waiting on the platform, `perLate` for each late delivery.
+     */
+    reviews: 20,
+    priorWeight: 5,
+    review: { perUnmet: 1, grumpy: 2, perLate: 0.5 },
+    /** Phase 2: the stop bonus by stars (a share of the full bonus; three stars the whole and the perfect streak). */
+    stopBonusShare: [0, 0.35, 0.65, 1] as number[],
   },
 
   /** What a departing guest leaves behind: pieces from their archetype's pool, sometimes a common one. */

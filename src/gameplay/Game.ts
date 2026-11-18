@@ -32,7 +32,9 @@ import { Autopilot } from './Autopilot';
 import { Journey } from '../sim/Journey';
 import { offlineEarnings, conductorCost } from '../sim/meta';
 import { Progression } from '../sim/Progression';
-import { ratingEffect, trainRating } from '../sim/stationResult';
+import { ratingEffect, reviewRating } from '../sim/stationResult';
+import { StationEvents } from './StationEvents';
+import { Breaks } from './Breaks';
 import { TrainMap } from '../sim/TrainMap';
 import { UnlockChain } from '../sim/UnlockChain';
 import { buildUnlocks, stationPerks, type StationPerks } from '../sim/unlockPlan';
@@ -153,6 +155,9 @@ export class Game implements World {
   /** The venue carriages (session 20): café, dining car, bar lounge, observation dome. */
   readonly venues: Venues;
   readonly station: Station;
+  readonly stationEvents: StationEvents;
+  /** Phase 2: natural breaks the ad layer can use (no ads change). */
+  readonly breaks: Breaks;
   readonly player: Player;
   readonly guidance: Guidance;
   readonly meta: Meta;
@@ -313,6 +318,8 @@ export class Game implements World {
     this.map.closedProps = (index) => this.venues.closedProps(index);
     this.map.lockedRooms = (index) => this.train.lockedRooms(index);
     this.station = new Station(this);
+    this.stationEvents = new StationEvents(this);
+    this.breaks = new Breaks(this);
     this.tiles = new Tiles(this);
     this.reveal = new Reveal(this);
     this.meta = new Meta(this);
@@ -483,7 +490,16 @@ export class Game implements World {
 
   /** The Train Rating, 1..5 stars, from the recent station stops (fix list 4.2; config: rating). */
   trainRating(): number {
-    return trainRating(this.data.route.recentStops ?? [], this.econ.rating.start);
+    const r = this.econ.rating;
+    return reviewRating(this.data.route.reviews ?? [], r.start, r.priorWeight);
+  }
+
+  /** Phase 2: a guest getting off leaves a review (1–5 stars); the Train Rating is the average of the recent ones. */
+  addReview(stars: number): void {
+    const reviews = (this.data.route.reviews ??= []);
+    reviews.push(stars);
+    while (reviews.length > this.econ.rating.reviews) reviews.shift();
+    this.save.markDirty();
   }
 
   /** Station upgrades bought so far (exterior and marketing); cached until the next unlock. */
@@ -570,6 +586,8 @@ export class Game implements World {
     this.autopilot.update(dt);
     this.journey.update(dt);
     this.station.update(dt);
+    this.stationEvents.update(dt);
+    this.breaks.update();
     this.scenery.update(dt, this.journey.speed);
     this.updateLean(dt);
     this.ambient.update(dt, this.journey.speed, this.stage.rig.target, this.stage.lighting.night, this.scenery.isHiddenAt);
@@ -922,10 +940,13 @@ export class Game implements World {
     this.particles.emit('confetti', this.player.pos.x, FLOOR_Y + 2.5, this.player.pos.z, 70, 1.2);
     if (level === 2) this.ftue('route_level_2');
     const gemCost = this.econ.rewarded.levelUpDouble.gemCost;
-    this.ui.showLevelUp(level, reward, gemCost, (choice) => this.collectWithDouble('levelUpDouble', choice, gemCost, (k) => {
-      this.wallet.add('railMiles', reward.railMiles * k, 'levelUp');
-      this.wallet.add('cash', reward.cash * k, 'levelUp');
-    }));
+    this.ui.showLevelUp(level, reward, gemCost, (choice) => {
+      this.collectWithDouble('levelUpDouble', choice, gemCost, (k) => {
+        this.wallet.add('railMiles', reward.railMiles * k, 'levelUp');
+        this.wallet.add('cash', reward.cash * k, 'levelUp');
+      });
+      this.breaks.request('levelUpClosed');
+    });
   }
 
   private wireEvents(): void {

@@ -149,6 +149,27 @@ export function translate(event: string, p: AnalyticsParams = {}): GaCall[] {
       if (p.bonus === true) calls.push({ kind: 'design', id: 'Station:Perfect', value: num(p.streak, 1) });
       return calls;
     }
+    // Phase 2, stations become gameplay.
+    case 'station_stop':
+      return [{ kind: 'design', id: `Station:Stop:${Math.max(0, Math.min(3, Math.round(num(p.stars))))}`, value: num(p.seconds) }];
+    case 'station_restock':
+      return [{ kind: 'design', id: 'Station:Restock', value: num(p.items) }];
+    case 'station_bell':
+      return [{ kind: 'design', id: 'Station:Bell', value: num(p.seconds) }];
+    case 'station_upgrade':
+      return [{ kind: 'design', id: `Station:Upgrade:${part(p.id)}`, value: minutes(p.time) }];
+    case 'station_event_start':
+      return [{ kind: 'design', id: `Station:Event:Start:${part(p.event)}` }];
+    case 'station_event_complete':
+      return [{ kind: 'design', id: `Station:Event:Complete:${part(p.event)}`, value: num(p.reward) }];
+    case 'station_grumpy':
+      return [{ kind: 'design', id: 'Station:GrumpyGuests', value: num(p.count) }];
+    case 'critic_board':
+      return [{ kind: 'design', id: 'Critic:Board', value: num(p.carriages) }];
+    case 'critic_review':
+      return [{ kind: 'design', id: `Critic:Review:${part(p.result)}`, value: num(p.score) }];
+    case 'break_point':
+      return [];
     case 'objective_completed':
       return [{ kind: 'design', id: `Objective:${pad(num(p.index) + 1)}_${part(p.id)}`, value: minutes(p.time) }];
     case 'currency_earned':

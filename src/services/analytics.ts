@@ -14,6 +14,18 @@ export const EVENTS = {
   staffHired: 'staff_hired',
   carriageCoupled: 'carriage_coupled',
   stationResult: 'station_result',
+  /** Phase 2: each stop's stars and length, the restock cart, the bell, station upgrades, events and the critic. */
+  stationStop: 'station_stop',
+  stationRestock: 'station_restock',
+  stationBell: 'station_bell',
+  stationUpgrade: 'station_upgrade',
+  stationEventStart: 'station_event_start',
+  stationEventComplete: 'station_event_complete',
+  stationGrumpy: 'station_grumpy',
+  criticBoard: 'critic_board',
+  criticReview: 'critic_review',
+  /** Phase 2: a natural break the ad layer may use later (no ads change here). */
+  breakPoint: 'break_point',
   routeLevelUp: 'route_level_up',
   rewardedOfferShown: 'rewarded_offer_shown',
   rewardedOfferAccepted: 'rewarded_offer_accepted',

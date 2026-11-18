@@ -1,17 +1,18 @@
 import { CLASS_BY_ID } from '../config/classes';
 import * as THREE from 'three';
 import { STATIONS } from '../config/content';
-import type { JourneyPhase, Vec2 } from '../core/types';
+import type { ItemKind, JourneyPhase, Vec2 } from '../core/types';
 import { EVENTS } from '../services/analytics';
 import { FLOOR_Y } from '../world/CarriageView';
 import { createItemMesh } from '../world/ItemMeshes';
-import { PLATFORM_X0 } from '../world/layout';
+import { HALF_WIDTH, PLATFORM_X0 } from '../world/layout';
 import { nextClassOnRoute, type ClassId } from '../config/classes';
 import { PlatformView } from '../world/PlatformView';
 import { PLATFORM, queueSpot } from '../world/platformLayout';
 import { billboardTexture } from '../world/sprites';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
-import { nextStreak, ratingEffect, stopQuality, stopRating, streakBonus } from '../sim/stationResult';
+import { nextStreak, ratingEffect, starBonus, stopStars, streakBonus } from '../sim/stationResult';
+import { log } from '../core/log';
 import type { StationResult } from './events';
 import { sourceActive, sourceStay, type SourceSpec } from './Pickup';
 import { platformLightInput } from '../world/trainLight';
@@ -34,6 +35,8 @@ function shuffled<T>(items: readonly T[], rng: { next(): number }): T[] {
 }
 
 const BILLBOARD_COUNT = 3;
+/** Phase 2: what the platform's restock cart carries, most needed first. */
+const RESTOCK_KINDS: readonly ItemKind[] = ['towel', 'roll', 'snack'];
 /** Where a new game's conductor stands on the platform: a few steps from the ticket stand's serving side. */
 const PROLOGUE_SPAWN = { x: PLATFORM.serve.x + 0.35, z: PLATFORM.serve.z + 1.7 };
 /** Travellers who turn up during a stop (out of the station house), and the window of the stop they come in. */
@@ -81,6 +84,7 @@ export class Station {
 
   constructor(private readonly w: World) {
     w.scene.add(this.view.group);
+    w.events.on('station.restocked', ({ items, helper }) => w.analytics.log(EVENTS.stationRestock, { items, helper: helper ?? false }));
     w.events.on('luggage.loaded', () => this.luggageLoadedThisStop++);
     w.events.on('guest.alighted', () => this.alightedThisStop++);
     w.events.on('guest.checkedIn', ({ fare }) => { this.faresThisStop += fare; });
@@ -273,16 +277,17 @@ export class Station {
       const next = this.prologueArrivals.shift();
       w.guests.spawnLatecomer('basic', next?.archetype);
     }
-    if (j.held) {
-      if (w.train.covered) return;
-      this.prologueOpenedAt = this.prologueClock;
-      j.release(rules.afterOpenSec);
+    if (!j.held) return;
+    if (w.train.covered) return;
+    if (this.prologueOpenedAt === null) this.prologueOpenedAt = this.prologueClock;
+    if (w.journey.heldStops) {
+      // Phase 2: no clock at Millbrook either. The train leaves once both travellers have their tickets and are
+      // through the door, and the conductor is aboard (the bell is taught at the first real stop).
+      if (this.prologueTicketsLeft || w.guests.waitingCount() > 0 || this.outsideTrain(w.player.pos)) return;
+      j.release(rules.lastCallSeconds);
       return;
     }
-    // Everyone with a ticket aboard (or the cap reached): the clock runs out and the train leaves.
-    const outside = w.guests.list.some((g) => g.paid && (g.state === 'platform' || g.state === 'boarding'));
-    const late = this.prologueClock - (this.prologueOpenedAt ?? 0) > rules.afterOpenSec + rules.holdCapSec;
-    if (outside && !late && j.timeLeft < j.lastCallSeconds + 1) j.extend(dt);
+    j.release(rules.afterOpenSec);
   }
 
   onPhase(phase: JourneyPhase, previous: JourneyPhase): void {
@@ -305,6 +310,10 @@ export class Station {
       this.faresThisStop = 0;
       this.luggageLoadedThisStop = 0;
       this.starsAtArrival = w.progression.stars;
+      this.bellAt = null;
+      this.grumpyThisStop = 0;
+      this.unhappyAtArrival = w.guests.audit.unhappy;
+      if (w.unlocks.isUnlocked('st.helper')) w.tweens.delay(2.2, () => this.helperRestock());
       w.guests.onStationStop(w.journey.stopSerial);
       const station = this.currentStation();
       const newPostcard = w.meta.onStationVisited(station.id, station.name);
@@ -313,10 +322,14 @@ export class Station {
       w.audio.play('whistle');
       w.audio.setStationAmbience(true);
       w.ftue('first_station');
+      w.breaks.request('arrival');
+      w.stationEvents.onArrival();
     } else if (phase === 'departing' && previous === 'stationStop') {
       this.view.setFlag(true);
       this.closeDoors();
       this.finishStop();
+      w.stationEvents.onDeparture();
+      w.breaks.request('departure');
     } else if (phase === 'onTheMove' && previous === 'departing') {
       this.view.setFlag(false);
       w.journey.stationIndex = (w.journey.stationIndex + 1) % STATIONS.length;
@@ -355,8 +368,10 @@ export class Station {
   update(_dt: number): void {
     const w = this.w;
     const j = w.journey;
-    this.updateClock();
+    if (!j.heldStops) this.updateClock();
     if (this.prologue) this.updatePrologue(_dt);
+    // Phase 2, no teleport: once the bell has rung, the doors wait for the conductor (and anyone still walking in).
+    if (j.phase === 'stationStop' && !j.held && j.heldStops && j.timeLeft < 0.6 && (this.outsideTrain(w.player.pos) || w.guests.walkingIn())) j.extend(_dt);
     this.updateLatecomers();
     this.updateDayRiders();
     const toStop = j.distanceToStop;
@@ -424,7 +439,7 @@ export class Station {
     this.luggagePile = Math.min(this.view.barrowCapacity, guests.filter((g) => g.hasLuggage).length);
     // A traveller or two turns up during the stop, out of the station house (once the crowd is part of the ride).
     this.latecomers.length = 0;
-    if (crowd) {
+    if (crowd && !w.journey.heldStops) {
       for (let n = w.rng.int(LATECOMERS[0], LATECOMERS[1]); n > 0; n--) this.latecomers.push(w.rng.range(LATE_WINDOW[0], LATE_WINDOW[1]));
     }
     this.luggageTotal = this.luggagePile;
@@ -492,11 +507,11 @@ export class Station {
     const w = this.w;
     const j = w.journey;
     if (j.phase !== 'stationStop' || !j.doorsOpen || this.prologue || this.dayRiders.length === 0) return;
-    if (j.timeLeft < j.lastCallSeconds + 6) {
+    if (j.heldStops ? !j.held : j.timeLeft < j.lastCallSeconds + 6) {
       this.dayRiders.length = 0;
       return;
     }
-    while (this.dayRiders.length && j.time >= this.dayRiders[0]) {
+    while (this.dayRiders.length && j.stopTime >= this.dayRiders[0]) {
       this.dayRiders.shift();
       if (w.guests.list.length >= w.econ.dayRiders.maxAboard) continue;
       w.guests.spawnDayRider(this.travellerClasses(j.stopSerial, 1)[0]);
@@ -507,12 +522,12 @@ export class Station {
     const w = this.w;
     const j = w.journey;
     if (j.phase !== 'stationStop' || this.prologue || this.latecomers.length === 0) return;
-    if (j.timeLeft < j.lastCallSeconds + 4) {
+    if (j.heldStops ? !j.held : j.timeLeft < j.lastCallSeconds + 4) {
       this.latecomers.length = 0;
       return;
     }
     for (let i = this.latecomers.length - 1; i >= 0; i--) {
-      if (j.time < this.latecomers[i]) continue;
+      if (j.stopTime < this.latecomers[i]) continue;
       this.latecomers.splice(i, 1);
       w.guests.spawnLatecomer(this.travellerClasses(j.stopSerial, 1)[0]);
     }
@@ -553,32 +568,39 @@ export class Station {
   private finishStop(): void {
     const w = this.w;
     const platform = w.guests.platformGuests();
-    const onPlatform = platform.length;
-    // Only guests who had a bed count against a perfect stop; the rest are demand, not a miss.
-    const waiting = Math.min(onPlatform, w.guests.bedsFree());
-    const leftBehind = onPlatform - waiting;
-    // The first in line had the beds (they carry no "no room" sign), so they are the ones who missed it.
-    const missed = platform.slice(0, waiting);
-    w.feedback.onDeparture(missed, platform.slice(waiting));
+    // Only travellers who had a bed count (Phase 2: on a held stop nobody with one is left; the rest are demand for
+    // more cabins, never a miss).
+    const missed = platform.filter((g) => g.eligible);
+    const waiting = missed.length;
+    const leftBehind = platform.length - waiting;
+    w.feedback.onDeparture(missed, platform.filter((g) => !g.eligible));
     const storageFull = w.train.luggageStored >= w.train.luggageCapacity;
-    const bagsDone = this.luggagePile === 0 || storageFull;
     const { bags: bagsLeft, refund: bagRefund } = this.chargeLeftBags(storageFull);
-    const quality = stopQuality(this.boardedThisStop, waiting, this.luggageLoadedThisStop, this.luggageTotal, bagsDone, w.feedback.mood, w.econ.rating.weights);
-    // Session 38: a perfect stop is a three-star one (nobody missed, the bags loaded and the service good).
-    const clean = waiting === 0 && bagsDone && quality >= w.econ.rating.stars.three;
+    // Phase 2 (owner: "rewards only… no grades, no negative wording"): a star for everyone aboard, one for the train
+    // restocked, one for every guest happy (nobody grumpy from waiting, no bag left, nobody off unhappy here).
+    const restocked = this.trainStocked();
+    const unhappy = w.guests.audit.unhappy - this.unhappyAtArrival;
+    const happy = this.grumpyThisStop === 0 && bagsLeft === 0 && unhappy === 0;
+    const stars = stopStars(waiting === 0, restocked, happy);
+    const clean = stars === 3;
     const money = w.econ.money;
     const route = w.data.route;
+    const tutorial = w.coach?.tutorial ?? false;
     // The perfect streak (session 24): each perfect stop in a row grows the bonus; any other stop starts again.
     route.perfectStreak = nextStreak(route.perfectStreak ?? 0, clean);
     let bonusCash = 0;
     let streakExtra = 0;
+    const door = w.map.doors()[0];
+    if (stars > 0) {
+      const full = money.stationBonusCash * (1 + money.stationBonusPerCarriage * (w.train.count - 1)) * (1 + w.stationPerks().stationBonus) * (w.stationEvents?.bonusScale() ?? 1);
+      if (clean) {
+        const bonus = streakBonus(full, route.perfectStreak, money.perfectStreakStep, money.perfectStreakMax);
+        bonusCash = bonus.total;
+        streakExtra = bonus.extra;
+      } else bonusCash = starBonus(full, stars, w.econ.rating.stopBonusShare);
+      if (bonusCash > 0) w.cash.add('bonus', bonusCash, this.tmp.set(door.inside.x + 0.5, FLOOR_Y + 1.5, door.inside.z));
+    }
     if (clean) {
-      const base = money.stationBonusCash * (1 + money.stationBonusPerCarriage * (w.train.count - 1)) * (1 + w.stationPerks().stationBonus);
-      const bonus = streakBonus(base, route.perfectStreak, money.perfectStreakStep, money.perfectStreakMax);
-      bonusCash = bonus.total;
-      streakExtra = bonus.extra;
-      const door = w.map.doors()[0];
-      w.cash.add('bonus', bonusCash, this.tmp.set(door.inside.x + 0.5, FLOOR_Y + 1.5, door.inside.z));
       w.addStars(w.econ.stars.cleanStationStop, 'cleanStop', door.inside);
       w.particles.emit('star', door.inside.x, FLOOR_Y + 1.2, door.inside.z, 16, 0.5);
       w.particles.emit('confetti', door.inside.x, FLOOR_Y + 2.2, door.inside.z, 40, 0.8);
@@ -588,24 +610,15 @@ export class Station {
       w.audio.play('chest', { volume: 0.7 });
       w.haptics.success();
       w.meta.onCleanStop();
+    } else if (stars > 0) {
+      w.particles.emit('star', door.inside.x, FLOOR_Y + 1.2, door.inside.z, 6 * stars, 0.4);
+      w.audio.play('chest', { volume: 0.55 });
     }
-    // Fix list 4.1: those who missed it go red in the face and stomp off to the station house, their fares lost
-    // for good; the camera glances back at them once the soft cues are on, and the card shows the fares lost.
-    const tutorial = w.coach?.tutorial ?? false;
+    // Timed stops only (Phase 2 holds every stop for its travellers): those who missed it storm off, fares lost.
     const showMissed = missed.length > 0 && w.feedback.cuesOn && !tutorial;
     let missedFare = 0;
     for (const guest of missed) missedFare += w.guests.estimatedFare(guest);
-    let x = 0;
-    let z = 0;
-    missed.forEach((guest, i) => {
-      x += guest.pos.x;
-      z += guest.pos.z;
-      w.guests.stormOff(guest, 0.25 + i * 0.3);
-    });
-    if (showMissed) {
-      const glide = w.econ.feedback.missedGlide;
-      if (!w.stage.rig.focusing) w.stage.rig.focusOn(this.tmp.set(x / missed.length, 0, z / missed.length + this.platformOffset), glide.seconds, glide.zoom);
-    }
+    missed.forEach((guest, i) => w.guests.stormOff(guest, 0.25 + i * 0.3));
     const result: StationResult = {
       stationName: this.currentStation().name,
       boarded: this.boardedThisStop,
@@ -618,7 +631,7 @@ export class Station {
       stars: w.progression.stars - this.starsAtArrival,
       clean,
       bonusCash,
-      rating: stopRating(quality, waiting, bagsDone, w.econ.rating.stars),
+      rating: stars,
       earned: this.faresThisStop + this.tipsThisStop,
       streak: route.perfectStreak,
       streakBonus: streakExtra,
@@ -626,19 +639,17 @@ export class Station {
       showMissed,
       bagsLeft,
       bagRefund,
-      rating5: 0,
+      rating5: w.trainRating(),
       ratingDelta: 0,
+      restocked,
+      happy,
+      seconds: Math.round(w.journey.stopTime),
+      grumpy: this.grumpyThisStop,
     };
-    // The Train Rating (fix list 4.2): this stop's quality joins the recent ones.
-    const before = w.trainRating();
-    const recent = (route.recentStops ??= []);
-    // (Session 32: a stop during the first-passengers tutorial never counts against the rating.)
-    if (!tutorial) recent.push(Math.round(quality * 1000) / 1000);
-    while (recent.length > w.econ.rating.window) recent.shift();
-    result.rating5 = w.trainRating();
-    result.ratingDelta = result.rating5 - before;
     w.data.route.stopsCompleted++;
     w.save.markDirty();
+    const stopSeconds = Math.round(this.bellAt ?? w.journey.stopTime);
+    log.info('Stop', `stop ${w.journey.stopSerial} at ${result.stationName}: ${stars}★, ${stopSeconds}s to the bell, ${Math.round(w.journey.stopTime)}s in all, boarded ${result.boarded}, restocked ${restocked}, happy ${happy}, grumpy ${this.grumpyThisStop}`);
     w.analytics.log(EVENTS.stationResult, {
       station: result.stationName,
       boarded: result.boarded,
@@ -648,11 +659,16 @@ export class Station {
       bags_left: result.bagsLeft,
       no_room: result.leftBehind,
       earned: result.earned,
-      stars: Math.round(result.rating),
+      stars,
       streak: result.streak,
       stop_number: w.data.route.stopsCompleted,
       train_rating: Math.round(result.rating5 * 10) / 10,
+      seconds: Math.round(w.journey.stopTime),
+      restocked,
+      happy,
     });
+    w.analytics.log(EVENTS.stationStop, { stars, seconds: Math.round(w.journey.stopTime) });
+    if (this.grumpyThisStop > 0) w.analytics.log(EVENTS.stationGrumpy, { count: this.grumpyThisStop });
     w.events.emit('station.result', result);
     w.ui.showResult(result);
     w.setFlag('firstStationDone');
@@ -761,6 +777,47 @@ export class Station {
       stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, luggageSpec),
     }));
 
+    // Phase 2: the restock cart. Stand by it a moment and the tray fills with everything the train is short of
+    // (towels and rolls for the washrooms, snack boxes for the minibars), as much as the conductor can carry.
+    const cart = PLATFORM.restockPad;
+    const cartPoint = new THREE.Vector3();
+    w.zones.add(new Zone({
+      id: 'restock',
+      kind: 'pickup',
+      x: cart.x,
+      z: cart.z,
+      radius: 0.62,
+      icon: 'box',
+      iconFor: () => this.restockKinds()[0] ?? 'box',
+      active: () => w.journey.doorsOpen && !this.prologue && this.restockKinds().length > 0 && !w.player.stack.isFull,
+      highlight: () => this.restockKinds().length > 0,
+      stay: (zone, actor, dt) => {
+        if (!actor.isPlayer || actor.stack.isFull || this.restockKinds().length === 0) {
+          zone.progress = 0;
+          return false;
+        }
+        const seconds = w.unlocks.isUnlocked('st.cart') ? w.econ.station.cartRestockSeconds : w.econ.station.restockSeconds;
+        zone.progress += dt / seconds;
+        if (zone.progress < 1) return true;
+        zone.progress = 0;
+        let n = 0;
+        for (const kind of RESTOCK_KINDS) {
+          for (let k = w.demand.playerWants(kind); k > 0 && !actor.stack.isFull; k--) {
+            actor.stack.add(kind, cartPoint.set(PLATFORM.restock.x1, FLOOR_Y + 0.9, (PLATFORM.restock.z0 + PLATFORM.restock.z1) / 2));
+            n++;
+          }
+        }
+        if (n > 0) {
+          actor.view.bounce(0.4);
+          w.audio.play('pickup', { pitch: 1.1 });
+          w.haptics.light();
+          w.particles.emit('sparkle', cart.x, FLOOR_Y + 1, cart.z, 6, 0.25);
+          w.events.emit('station.restocked', { items: n });
+        }
+        return true;
+      },
+    }));
+
     // Session 29: the station bell. Ring it and latecomers hurry out of the station house (the conductor's job: staff
     // never ring it, so a hired porter leaves the conductor this beat of the stop).
     w.zones.add(new Zone({
@@ -817,16 +874,71 @@ export class Station {
   bellReady(): boolean {
     const w = this.w;
     const j = w.journey;
-    return j.phase === 'stationStop' && !this.prologue && this.bellRungFor !== j.stopSerial && w.flow.allows('bell') && j.timeLeft > w.econ.bell.before && this.platformDone();
+    if (j.phase !== 'stationStop' || this.prologue || this.bellRungFor === j.stopSerial) return false;
+    // Phase 2: the bell is how every stop ends, ready once everyone waiting is aboard (and nothing the stop's event
+    // asks for is left undone).
+    if (j.heldStops) return j.held && this.platformDone();
+    return w.flow.allows('bell') && j.timeLeft > w.econ.bell.before && this.platformDone();
   }
 
-  /** Everyone the train has a bed for is aboard and no bag is left on the barrow (or the rack is full). */
+  /**
+   * Everyone waiting is aboard. Phase 2: travellers with a bed (sold a ticket and through the door); bags left on
+   * the barrow no longer hold the train (they are a service missed, as before). Timed stops also wait for the bags.
+   */
   platformDone(): boolean {
     const w = this.w;
     if (!w.journey.doorsOpen) return false;
+    if (w.journey.heldStops) return w.guests.waitingCount() === 0 && (this.blocker?.() ?? true);
     const waiting = Math.min(w.guests.platformGuests().length, w.guests.bedsFree());
     const storageFull = w.train.luggageStored >= w.train.luggageCapacity;
     return waiting === 0 && (this.luggagePile === 0 || storageFull);
+  }
+
+  /** Phase 2: what the restock cart would hand the conductor now (what the train is short of, most needed first). */
+  restockKinds(): ItemKind[] {
+    const w = this.w;
+    if (!w.journey.doorsOpen) return [];
+    return RESTOCK_KINDS.filter((kind) => w.demand.playerWants(kind) > 0);
+  }
+
+  /** Phase 2, the second star: every washroom's shelf full and every minibar stocked. */
+  trainStocked(): boolean {
+    const w = this.w;
+    const f = w.econ.facilities;
+    for (const b of w.train.bathrooms) if (b.unlocked && (b.towels < f.bathroomTowelMax || b.rolls < f.bathroomRollMax)) return false;
+    return w.train.snackShort() === 0;
+  }
+
+  /** Phase 2, the Restock Helper: the station boy tops the whole train up as it pulls in. */
+  private helperRestock(): void {
+    const w = this.w;
+    const f = w.econ.facilities;
+    let n = 0;
+    for (const b of w.train.bathrooms) {
+      if (!b.unlocked) continue;
+      n += f.bathroomTowelMax - b.towels + f.bathroomRollMax - b.rolls;
+      b.towels = f.bathroomTowelMax;
+      b.rolls = f.bathroomRollMax;
+      w.particles.emit('sparkle', b.restock.x, FLOOR_Y + 1, b.restock.z, 5, 0.25);
+    }
+    n += w.train.fillMinibars();
+    if (n === 0) return;
+    w.train.persistBathrooms();
+    w.events.emit('station.restocked', { items: n, helper: true });
+  }
+
+  /** Phase 2: something the stop's event asks for before the bell (the sheep on the line), or null. */
+  blocker: (() => boolean) | null = null;
+  /** Stop time the bell was rung at this stop (Phase 2: the stop's length is logged), or null. */
+  bellAt: number | null = null;
+  /** Travellers who turned grumpy waiting on the platform this stop. */
+  grumpyThisStop = 0;
+  /** Guests who had got off unhappy before this stop (the audit's count at arrival). */
+  private unhappyAtArrival = 0;
+
+  /** The conductor (or anyone) is out on the platform, not aboard. */
+  outsideTrain(pos: Vec2): boolean {
+    return pos.x > HALF_WIDTH - 0.2;
   }
 
   /**
@@ -839,7 +951,9 @@ export class Station {
     const bell = PLATFORM.bell;
     const rules = w.econ.bell;
     this.bellRungFor = j.stopSerial;
-    const saved = Math.max(0, j.timeLeft - rules.leaveIn);
+    this.bellAt = j.stopTime;
+    // Phase 2: no clock, so no seconds saved (the stop bonus is the reward); a timed stop pays for every one.
+    const saved = j.heldStops ? 0 : Math.max(0, j.timeLeft - rules.leaveIn);
     const bonus = Math.round(saved * rules.bonusPerSecond * w.train.count);
     w.audio.play('bell');
     w.haptics.light();
@@ -850,7 +964,9 @@ export class Station {
       w.ui.floatText(`+${bonus}`, bell.x, FLOOR_Y + 2.2, bell.z, 'cash');
       w.ui.floatIcon('clock', bell.x, FLOOR_Y + 2.7, bell.z, 'info');
     }
-    j.departIn(rules.leaveIn);
+    if (j.heldStops) j.release(rules.leaveIn, true);
+    else j.departIn(rules.leaveIn);
+    w.analytics.log(EVENTS.stationBell, { seconds: Math.round(j.stopTime) });
     w.events.emit('station.bell', { byPlayer: true, x: bell.x, z: bell.z });
   }
 

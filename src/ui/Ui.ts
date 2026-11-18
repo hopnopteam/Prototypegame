@@ -101,13 +101,15 @@ const MAX_WIRES_WAITING = 3;
 /** At most one guest reaction on screen, and a breather between them: personality, not chatter. */
 const SPEECH_GAP_SECONDS = 4;
 /** Session 26: a shorter stay (the card is smaller and reads at a glance). */
-const RESULT_SECONDS = 4;
+/** Phase 2 (owner: "a celebratory screen, skippable or auto-closing in ~1.5 s"): the stars land, then 1.5 s more. */
+const RESULT_SECONDS = 2.6;
 /** The station card's headline by its stars (and, for three, whether the stop was perfect: everyone and every bag). */
-const RESULT_HEADLINES: Record<0 | 1 | 2 | 3, [string, string]> = {
-  0: ['Terrible stop', 'Terrible stop'],
-  1: ['Poor stop', 'Poor stop'],
-  2: ['Okay stop', 'Okay stop'],
-  3: ['Great stop!', 'All aboard!'],
+/** Phase 2: rewards only, never a grade: every stop with everyone aboard is a good one, more stars a better one. */
+const RESULT_HEADLINES: Record<0 | 1 | 2 | 3, string> = {
+  0: 'Off we go!',
+  1: 'All aboard!',
+  2: 'Great stop!',
+  3: 'Perfect stop!',
 };
 /** A new postcard's stamp waits for the arrival banner, then shows this long beside the toasts. */
 const POSTCARD_TOAST_DELAY_MS = 2900;
@@ -153,7 +155,7 @@ export class Ui implements GameUi {
   private readonly hud: {
     top: HTMLElement; cash: HTMLElement; cashVal: HTMLElement; gems: HTMLElement; gemsVal: HTMLElement;
     level: HTMLButtonElement; levelBadge: HTMLElement; levelCount: HTMLElement;
-    journey: HTMLElement; journeyTrain: HTMLElement; journeyFill: HTMLElement; journeyClock: HTMLElement;
+    journey: HTMLElement; journeyTrain: HTMLElement; journeyFill: HTMLElement; journeyClock: HTMLElement; journeyWait: HTMLElement; journeyWaitCount: HTMLElement; journeyBell: HTMLElement;
     rating: HTMLElement; ratingFill: HTMLElement;
     side: HTMLElement; menu: HTMLButtonElement; menuDot: HTMLElement; shop: HTMLButtonElement; conductor: HTMLButtonElement; conductorDot: HTMLElement;
     dare: HTMLButtonElement; dareFace: HTMLCanvasElement; dareIcon: HTMLElement; dareCount: HTMLElement;
@@ -212,11 +214,15 @@ export class Ui implements GameUi {
     const journeyTrain = h('div.train', {}, icon('carriage', 18));
     const journeyFill = h('i.fill');
     const journeyClock = h('span.clock');
+    // Phase 2: a held stop shows who the train is still waiting for, then the bell once everyone is aboard.
+    const journeyWaitCount = h('b');
+    const journeyWait = h('span.wait', { hidden: true }, icon('ticket', 14), journeyWaitCount);
+    const journeyBell = h('span.bellcue', { hidden: true }, icon('bell', 18));
     // The Train Rating (fix list 4.2), session 26: one star and the number at the head of the route line (five little
     // stars were one more busy strip).
     const ratingFill = h('span.val', { text: '3.0' });
     const rating = h('div.rating', { role: 'img', 'aria-label': 'Train rating' }, icon('star', 15), ratingFill);
-    const journey = h('div.journey', { 'aria-label': 'Journey' }, rating, h('div.track', {}, journeyFill, journeyTrain), journeyClock);
+    const journey = h('div.journey', { 'aria-label': 'Journey' }, rating, h('div.track', {}, journeyFill, journeyTrain), journeyClock, journeyWait, journeyBell);
 
     const button = (name: IconName, label: string, onclick: () => void): HTMLButtonElement =>
       h('button', { 'aria-label': label, title: label, onclick: () => this.tap(onclick) }, icon(name, 26));
@@ -299,7 +305,7 @@ export class Ui implements GameUi {
     // Rival Watch is switched off (config: RIVALS_ENABLED); its bar only joins the page when it is on.
     if (RIVALS_ENABLED) root.insertBefore(this.rivalBar.el, this.offerLayer);
 
-    this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyTrain, journeyFill, journeyClock, rating, ratingFill, side, menu, menuDot, shop, conductor, conductorDot, dare, dareFace, dareIcon, dareCount };
+    this.hud = { top, cash, cashVal, gems, gemsVal, level, levelBadge, levelCount, journey, journeyTrain, journeyFill, journeyClock, journeyWait, journeyWaitCount, journeyBell, rating, ratingFill, side, menu, menuDot, shop, conductor, conductorDot, dare, dareFace, dareIcon, dareCount };
     window.addEventListener('resize', () => {
       this.rectTimer = 0;
       this.snapTimer = 0;
@@ -486,8 +492,17 @@ export class Ui implements GameUi {
     const pct = `${Math.round(progress * 1000) / 10}%`;
     if (hud.journeyTrain.style.left !== pct) hud.journeyTrain.style.left = pct;
     if (hud.journeyFill.style.width !== pct) hud.journeyFill.style.width = pct;
-    setText(hud.journeyClock, stopped ? formatClock(j.timeLeft) : '');
-    const journeyLabel = stopped ? `${g.station.currentStation().name}: departs in ${formatClock(j.timeLeft)}` : `Next: ${g.station.currentStation().name}`;
+    // Phase 2: no clock at all on a held stop (the bell's three seconds included).
+    const clocked = stopped && !j.heldStops;
+    setText(hud.journeyClock, clocked ? formatClock(j.timeLeft) : '');
+    const held = j.phase === 'stationStop' && j.heldStops && !g.station.prologue;
+    const waitingFor = held && j.held ? g.guests.waitingCount() : 0;
+    const bell = held && g.station.bellReady();
+    setVisible(hud.journeyWait, waitingFor > 0);
+    setText(hud.journeyWaitCount, String(waitingFor));
+    setVisible(hud.journeyBell, bell);
+    hud.journey.classList.toggle('held', held);
+    const journeyLabel = clocked ? `${g.station.currentStation().name}: departs in ${formatClock(j.timeLeft)}` : held ? (bell ? 'Ring the bell to depart' : `${waitingFor} still to board`) : `Next: ${g.station.currentStation().name}`;
     if (hud.journey.getAttribute('aria-label') !== journeyLabel) hud.journey.setAttribute('aria-label', journeyLabel);
 
 
@@ -1302,45 +1317,34 @@ export class Ui implements GameUi {
    */
   showResult(result: StationResult): void {
     this.dismissResult();
-    // Session 28 (owner: "if we get 1 star or 2 it should say… the negative, middle or average through words"): the
-    // words follow the stars: three a good stop, two an average one, one a poor one (its card a little red).
+    // Phase 2 (owner: "★ everyone boarded; ★★ + restocked; ★★★ + every guest happy… no grades, no negative wording…
+    // a celebratory screen"): the stars pop in, three chips say what each one was for (lit when earned, a quiet
+    // outline when not, never red), and the bonus. It closes by itself a moment after the stars land; tap to skip.
     const rated = Number.isFinite(result.rating) ? Math.max(0, Math.min(3, Math.round(result.rating))) : 3;
-    const headline = RESULT_HEADLINES[rated as 0 | 1 | 2 | 3][result.clean ? 1 : 0];
+    const headline = result.clean && result.streak > 1 ? `Perfect ×${result.streak}!` : RESULT_HEADLINES[rated as 0 | 1 | 2 | 3];
     const stars = h('div.stars', {});
     for (let i = 0; i < 3; i++) {
-      const star = h(`i${i < result.rating ? '.on' : '.off'}` as 'i', {}, icon('star', 20));
-      star.style.animationDelay = `${0.25 + i * 0.16}s`;
+      const star = h(`i${i < rated ? '.on' : '.off'}` as 'i', {}, icon('star', 22));
+      star.style.animationDelay = `${0.15 + i * 0.16}s`;
       stars.appendChild(star);
     }
-    const due = result.boarded + result.waiting;
-    // Session 43 (owner: "stars, how many bags and passengers left… still too confusing… simplify but not ambiguous"):
-    // two labelled tiles, each a count of what was due, green with a tick when it is all done, red with what it cost
-    // when not (the fares of travellers left on the platform, the refund for bags left behind); then what the stop
-    // earned and the bonus. Travellers with no bed are not on the card (demand for cabins, never a miss).
-    const tile = (name: IconName, label: string, done: number, of: number, cost: number): HTMLElement => {
-      const ok = done >= of;
-      return h(`div.res-tile${ok ? '.ok' : '.short'}` as 'div', {},
-        h('div.res-label', {}, icon(name, 14), label),
-        h('div.res-value', {}, h('b', { text: `${done}/${of}` }), ok ? icon('check', 15) : null),
-        !ok && cost > 0 ? h('div.res-cost', {}, icon('cash', 12), `−${formatNumber(cost)}`) : null);
+    const chip = (name: IconName, label: string, on: boolean, delay: number): HTMLElement => {
+      const el = h(`div.res-chip${on ? '.on' : ''}` as 'div', {}, icon(name, 16), h('span', { text: label }), on ? icon('check', 13) : null);
+      el.style.animationDelay = `${delay}s`;
+      return el;
     };
-    // What the stop earned, with the bonus for a perfect stop under it (the streak is already in the bonus).
-    const earned = h('div.res-tile.earned', {},
-      h('div.res-label', {}, icon('cash', 14), 'Earned'),
-      h('div.res-value', {}, h('b', { text: `+${formatNumber(result.earned)}` })),
-      result.clean && result.bonusCash > 0 ? h('div.res-bonus', {}, icon('chest', 12), `+${formatNumber(result.bonusCash)}`) : null);
-    const tiles = h('div.res-tiles', {},
-      tile('person', 'Boarded', result.boarded, due, result.showMissed ? result.missedFare : 0),
-      result.luggageTotal > 0 ? tile('luggage', 'Bags', result.luggageLoaded, result.luggageTotal, result.bagRefund) : null,
-      earned);
-    const short = result.showMissed || result.bagsLeft > 0;
-    const el = h(`div.ticket.result${result.clean ? '.perfect' : ''}${rated <= 1 ? '.poor' : rated === 2 ? '.average' : ''}${short ? '.missed' : ''}` as 'div', {
+    const chips = h('div.res-chips', {},
+      chip('person', `Boarded ${result.boarded}`, result.waiting === 0, 0.15),
+      chip('box', 'Restocked', result.restocked, 0.31),
+      chip('heart', 'Happy', result.happy, 0.47));
+    const bonus = result.bonusCash > 0 ? h('div.res-bonuschip', {}, icon('chest', 18), h('b', { text: `+${formatNumber(result.bonusCash)}` })) : null;
+    const el = h(`div.ticket.result.celebrate-stop${result.clean ? '.perfect' : ''}` as 'div', {
       role: 'status',
-      'aria-label': `${result.stationName}: ${result.boarded} of ${due} boarded, ${result.earned} earned`,
+      'aria-label': `${result.stationName}: ${rated} stars, ${result.boarded} boarded${result.bonusCash > 0 ? `, bonus ${result.bonusCash}` : ''}`,
       onclick: () => this.dismissResult(),
     },
-      h('div.res-head', {}, stars, h('h3', { text: headline })),
-      tiles,
+      h('div.res-head', {}, stars, h('h3', { text: headline }), bonus),
+      chips,
     );
     // The card replaces this stop's arrival banner if it is somehow still up (they share the middle column).
     this.root.querySelectorAll('.banner').forEach((b) => b.remove());
@@ -1356,6 +1360,8 @@ export class Ui implements GameUi {
     const el = this.resultEl;
     if (!el) return;
     this.resultEl = null;
+    // Phase 2: a natural break for the ad layer (the stop's card has closed).
+    this.game?.breaks?.request('bonusClosed');
     this.rectTimer = 0;
     this.root.classList.remove('has-ticket');
     el.classList.add('out');

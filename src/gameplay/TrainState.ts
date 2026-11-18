@@ -933,6 +933,18 @@ export class TrainState {
     return this.hasMinibar(cabin) ? Math.max(0, this.w.econ.minibar.stock - cabin.snacks) : 0;
   }
 
+  /** Phase 2, the Restock Helper: every minibar filled at once; returns the boxes put in. */
+  fillMinibars(): number {
+    let n = 0;
+    for (const c of this.cabins) {
+      const short = this.minibarShort(c);
+      if (short <= 0) continue;
+      c.snacks += short;
+      n += short;
+    }
+    return n;
+  }
+
   /** Snack boxes the minibars are short of, train-wide (what the player and the attendant restock). */
   snackShort(): number {
     let n = 0;

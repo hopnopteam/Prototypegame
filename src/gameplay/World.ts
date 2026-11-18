@@ -1,3 +1,5 @@
+import type { Breaks } from './Breaks';
+import type { StationEvents } from './StationEvents';
 import type * as THREE from 'three';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { Haptics } from '../audio/Haptics';
@@ -110,8 +112,12 @@ export interface World {
   /** Multiplier on fares from conductor upgrades, perks and boosts. */
   fareMultiplier(): number;
   tipMultiplier(): number;
-  /** The Train Rating, 1..5 stars (fix list 4.2). */
+  /** The Train Rating, 1..5 stars (fix list 4.2; Phase 2: from guest reviews). */
   trainRating(): number;
+  /** Phase 2: special stops and the critic. */
+  readonly stationEvents: StationEvents;
+  addReview(stars: number): void;
+  readonly breaks: Breaks;
   /** What the station upgrades (exterior and marketing) add: tips, fares, passengers, VIPs, stop bonus. */
   stationPerks(): StationPerks;
   /** Grants a reward once, doubled if the player watched an ad or paid gems for it. */

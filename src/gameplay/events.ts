@@ -25,6 +25,10 @@ export interface GameEvents {
   'luggage.loaded': { byPlayer: boolean };
   /** Session 29: the station bell rung to call the latecomers aboard. */
   'station.bell': { byPlayer: boolean; x: number; z: number };
+  'station.restocked': { items: number; helper?: boolean };
+  'guest.reviewed': { stars: number; guest: number };
+  /** Phase 2: a natural break for the ad layer (`break:departure`, `break:arrival`, …); see gameplay/Breaks.ts. */
+  break: { kind: 'departure' | 'arrival' | 'bonusClosed' | 'levelUpClosed' | 'revealEnded' };
   /** Session 29: the hand work behind a tile is done; it can be bought now. */
   'work.earned': { id: string };
   'unlock.completed': { id: string; price: number; x: number; z: number };
@@ -97,4 +101,9 @@ export interface StationResult {
   bagRefund: number;
   /** The misses are shown (the soft cues are on): the red line, the "aww", the glance at the platform. */
   showMissed: boolean;
+  /** Phase 2: the stop's second and third stars (the train restocked, every guest happy), its length, the grumpy. */
+  restocked: boolean;
+  happy: boolean;
+  seconds: number;
+  grumpy: number;
 }

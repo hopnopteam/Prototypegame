@@ -55,3 +55,40 @@ export function ratingEffect(rating: number, low: number, high: number): number 
   const r = Math.max(1, Math.min(5, rating));
   return r <= 3 ? low + (1 - low) * ((r - 1) / 2) : 1 + (high - 1) * ((r - 3) / 2);
 }
+
+/**
+ * Phase 2, the stop's stars (owner: "rewards only… no grades, no negative wording"): one for everyone aboard, one
+ * for the train restocked (every washroom shelf and minibar full as the bell rings), one for every guest happy (nobody
+ * kept waiting into a grump, no bag left behind, nobody off the train unhappy here). Three is a perfect stop.
+ */
+export function stopStars(allAboard: boolean, restocked: boolean, happy: boolean): number {
+  if (!allAboard) return 0;
+  return 1 + (restocked ? 1 : 0) + (happy ? 1 : 0);
+}
+
+/** The stop bonus for its stars: a share of the full bonus (`shares[stars]`, three stars the whole of it). */
+export function starBonus(full: number, stars: number, shares: readonly number[]): number {
+  return Math.round(full * (shares[Math.max(0, Math.min(shares.length - 1, stars))] ?? 0));
+}
+
+/**
+ * Phase 2, the Train Rating from guest reviews (owner: "figure out a better way"): every guest who gets off leaves
+ * 1–5 stars. Five, less `perUnmet` for each thing they asked for and never got (at most three), `grumpy` if they
+ * were kept waiting on the platform, `perLate` for each late delivery.
+ */
+export function guestReview(unmet: number, grumpy: boolean, late: number, rules: { perUnmet: number; grumpy: number; perLate: number }): number {
+  const stars = 5 - Math.min(3, unmet) * rules.perUnmet - (grumpy ? rules.grumpy : 0) - late * rules.perLate;
+  return Math.max(1, Math.min(5, Math.round(stars * 2) / 2));
+}
+
+/**
+ * The Train Rating: the average of the most recent reviews, eased toward `prior` while there are fewer than
+ * `priorWeight` of them (so the first guest cannot swing it to 1 or 5). Always recoverable: old reviews roll off.
+ */
+export function reviewRating(reviews: readonly number[], prior: number, priorWeight: number): number {
+  const k = Math.max(0, priorWeight - reviews.length);
+  let sum = prior * k;
+  for (const r of reviews) sum += r;
+  const n = reviews.length + k;
+  return n > 0 ? sum / n : prior;
+}

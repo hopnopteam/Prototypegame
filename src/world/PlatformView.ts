@@ -297,6 +297,7 @@ export class PlatformView {
     buildTicketStand(props, lamps);
     buildBarrow(props);
     buildBellPost(props);
+    buildRestockCart(props);
 
     yield;
     const staticGeo = b.build();
@@ -762,6 +763,49 @@ function buildBarrow(b: GeoBuilder): void {
   b.rounded(r.x1 + 0.12, y + 1.3, r.z0 - 0.12, 0.05, 0.22, 0.34, 0.03, PALETTE.navy, { shade: 1 });
   b.box(r.x1 + 0.149, y + 1.3, r.z0 - 0.12, 0.008, 0.08, 0.2, PALETTE.creamBand, 0, { shade: 1 });
   b.box(r.x1 + 0.149, y + 1.36, r.z0 - 0.12, 0.008, 0.02, 0.12, PALETTE.brass, 0, { shade: 1 });
+  b.endObject();
+}
+
+/**
+ * Phase 2, the restock cart: a wooden handcart along the platform edge loaded with what the train runs on: folded
+ * towels in stacks, toilet rolls in a wicker basket and snack boxes, its handle toward the rear.
+ */
+function buildRestockCart(b: GeoBuilder): void {
+  const r = PLATFORM.restock;
+  const cx = (r.x0 + r.x1) / 2;
+  const cz = (r.z0 + r.z1) / 2;
+  const w = r.x1 - r.x0;
+  const d = r.z1 - r.z0 - 0.3;
+  const y = FLOOR_Y;
+  const bed = y + 0.5;
+  b.object('platform:restockCart');
+  // The bed and its low plank sides, painted the station's green with oak tops.
+  b.box(cx, bed - 0.03, cz, w, 0.06, d, PALETTE.oak, 0, { shade: 0.9, detail: 'wood' });
+  for (const dx of [-w / 2 + 0.025, w / 2 - 0.025]) b.box(cx + dx, bed + 0.09, cz, 0.05, 0.18, d, '#3F6B4F', 0, { shade: 0.85 });
+  for (const ez of [cz - d / 2 + 0.025, cz + d / 2 - 0.025]) b.box(cx, bed + 0.09, ez, w, 0.18, 0.05, '#3F6B4F', 0, { shade: 0.85 });
+  for (const dx of [-w / 2 + 0.025, w / 2 - 0.025]) b.box(cx + dx, bed + 0.185, cz, 0.06, 0.02, d + 0.02, '#D9BC8E', 0, { shade: 1 });
+  // Two big spoked wheels under the middle and a pair of legs at the front.
+  for (const sx of [-1, 1]) {
+    const wx = cx + sx * (w / 2 + 0.04);
+    b.cylinder(wx, y + 0.27, cz + 0.1, 0.27, 0.27, 0.05, '#2E2A30', 18, 'x', { shade: 0.9, surface: 'iron' });
+    b.cylinder(wx + sx * 0.004, y + 0.27, cz + 0.1, 0.22, 0.22, 0.055, '#9C5B3B', 18, 'x', { shade: 0.95 });
+    b.cylinder(wx + sx * 0.012, y + 0.27, cz + 0.1, 0.06, 0.06, 0.065, PALETTE.brass, 10, 'x', { shade: 1, surface: 'brass' });
+  }
+  for (const dx of [-w / 2 + 0.08, w / 2 - 0.08]) b.box(cx + dx, y + 0.24, cz - d / 2 + 0.1, 0.05, 0.48, 0.05, PALETTE.iron, 0, { shade: 0.8, surface: 'iron' });
+  // The handle: two shafts out of the back to a wooden bar.
+  for (const dx of [-0.22, 0.22]) b.add(new THREE.BoxGeometry(0.04, 0.04, 0.6), PALETTE.iron, cx + dx, y + 0.66, cz + d / 2 + 0.24, -0.5, 0, 0, { shade: 0.9, surface: 'iron' });
+  b.cylinder(cx, y + 0.8, cz + d / 2 + 0.5, 0.026, 0.026, 0.52, PALETTE.walnut, 8, 'x', { shade: 1 });
+  b.endObject();
+  // The load: two stacks of folded towels (white and striped), a basket of rolls, a crate of snack boxes.
+  b.object('platform:restockGoods');
+  const top = bed;
+  for (const [i, dz] of [-0.45, -0.15].entries()) {
+    for (let k = 0; k < 4; k++) b.rounded(cx - 0.12, top + 0.045 + k * 0.075, cz + dz, 0.3, 0.07, 0.24, 0.025, i === 0 ? '#FBF7EF' : k % 2 ? '#6FB3B0' : '#FBF7EF', { shade: 0.95, detail: 'wool' });
+  }
+  b.cylinder(cx + 0.14, top + 0.12, cz - 0.3, 0.14, 0.12, 0.22, '#B8874E', 14, 'y', { shade: 0.9, detail: 'wood' });
+  for (const [dx, dz] of [[0.09, -0.36], [0.19, -0.33], [0.13, -0.24], [0.18, -0.2]] as const) b.cylinder(cx + dx, top + 0.27, cz + dz, 0.05, 0.05, 0.1, '#FFFFFF', 12, 'y', { shade: 1 });
+  b.box(cx, top + 0.1, cz + 0.35, w - 0.16, 0.2, 0.42, '#C79A5E', 0, { shade: 0.88, detail: 'wood' });
+  for (const [dx, dz, c] of [[-0.15, 0.25, '#D9483B'], [0.0, 0.27, '#F2B53A'], [0.15, 0.25, '#D9483B'], [-0.08, 0.45, '#F2B53A'], [0.09, 0.45, '#4C8DC9']] as const) b.box(cx + dx, top + 0.25, cz + dz, 0.12, 0.1, 0.13, c, 0, { shade: 1 });
   b.endObject();
 }
 

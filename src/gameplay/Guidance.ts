@@ -244,6 +244,13 @@ export class Guidance {
       const boarding = w.guests.canBoard() && w.staff.count('porter') === 0;
       if (boarding && stack.isEmpty) return this.because('board', w.station.boardingPoint());
       if (!stack.isFull && w.demand.playerWants('luggage') > 0 && !stack.has('luggage')) return this.because('luggage', w.station.luggagePoint());
+      // Phase 2: travellers waiting for a tidy room (a broom over them): make one up first.
+      if (stack.isEmpty && w.guests.waitingForRoom()) {
+        const room = w.train.cabins.find((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
+        if (room) return this.because('clean', room.spots[0] ?? room.center);
+      }
+      // The restock cart: the washrooms and minibars topped up while the train is in.
+      if (!stack.isFull && w.station.restockKinds().length > 0 && !stack.items.some((k) => w.demand.surplus(player, k) > 0)) return this.because('fetch', PLATFORM.restockPad);
     }
 
     if (!stack.isEmpty) {
@@ -262,8 +269,8 @@ export class Guidance {
     // the cash on the floor wait for the train to pull out: that one first.
     const now = w.tiles.stationBuy(cash);
     if (now) return this.because('tile', now.pos);
-    // Session 33: once the platform is done, "All aboard!" sends the train off early for an on-time bonus.
-    if (w.journey.doorsOpen && w.station.bellReady() && stack.isEmpty) return this.because('bell', PLATFORM.bellPad);
+    // Session 33: once the platform is done, "All aboard!" (Phase 2: the only way a stop ends).
+    if (w.journey.doorsOpen && w.station.bellReady() && (stack.isEmpty || !this.whereNeeded(stack.items))) return this.because('bell', PLATFORM.bellPad);
 
     const pile = w.cash.nearestWithCash(player.pos);
     if (pile && pile.value >= 1) return this.because('cash', { x: pile.x, z: pile.z });

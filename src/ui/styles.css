@@ -1021,3 +1021,26 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 /* Phase 1: the Debug sheet's pickers (Settings, five taps on the build line). */
 .debug-pick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .debug-pick .btn { min-width: 0; padding: 8px 4px; }
+
+/* Phase 2: a held stop shows who is still to board, then the bell (no clock). */
+.journey .wait, .journey .bellcue { flex: none; display: flex; align-items: center; gap: 3px; height: 22px; padding: 0 8px 0 5px; border-radius: 11px; border: 2px solid var(--ink); box-sizing: border-box; color: #FFFFFF; font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; text-shadow: var(--outline-thin); box-shadow: 0 2px 0 var(--ink), inset 0 2px 0 rgba(255, 255, 255, 0.35); }
+.journey .wait { background: linear-gradient(#5CC2B9, #2F8580); }
+.journey .wait .ico { width: 14px; height: 14px; }
+.journey .bellcue { padding: 0 7px; background: linear-gradient(#FFF0A8, #FFC93A 55%, #E79A1C); animation: bellRing 1.4s ease-in-out infinite; }
+.journey .bellcue .ico { width: 18px; height: 18px; }
+.journey .wait[hidden], .journey .bellcue[hidden] { display: none; }
+@keyframes bellRing { 0%, 60%, 100% { transform: rotate(0); } 70% { transform: rotate(-14deg); } 80% { transform: rotate(12deg); } 90% { transform: rotate(-6deg); } }
+
+/* Phase 2: the stop's card is a celebration: stars, a headline, the bonus, and three chips for what each star was for. */
+.ticket.result.celebrate-stop { padding: 6px 8px 7px; }
+.ticket.result.celebrate-stop .res-head { gap: 7px; }
+.ticket.result.celebrate-stop .res-head h3 { font-size: 18px; }
+.ticket.result .res-bonuschip { display: flex; align-items: center; gap: 3px; padding: 1px 8px 1px 4px; border-radius: 12px; border: 2px solid var(--ink); background: linear-gradient(#FFF6C8, #FFD45A); box-shadow: 0 2px 0 var(--ink); font-size: 15px; font-variant-numeric: tabular-nums; animation: chipPop 420ms 0.7s cubic-bezier(.2,1.6,.4,1) both; }
+.ticket.result .res-bonuschip .ico { width: 18px; height: 18px; }
+.ticket.result .res-chips { display: flex; gap: 5px; justify-content: center; margin-top: 5px; }
+.ticket.result .res-chip { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 3px; padding: 2px 7px 2px 4px; border-radius: 11px; border: 2px dashed rgba(31, 53, 81, 0.35); background: rgba(255, 255, 255, 0.55); color: #6B7385; font-size: 12px; font-weight: 800; white-space: nowrap; animation: chipPop 380ms cubic-bezier(.2,1.6,.4,1) both; }
+.ticket.result .res-chip .ico { width: 16px; height: 16px; flex: none; }
+.ticket.result .res-chip:not(.on) .ico { filter: grayscale(1); opacity: 0.55; }
+.ticket.result .res-chip.on { border: 2px solid var(--ink); background: linear-gradient(#F2FFE8, #CDEFB6); color: #24671A; box-shadow: 0 2px 0 var(--ink); }
+.ticket.result .res-chip.on .ico:last-child { width: 13px; height: 13px; }
+@keyframes chipPop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
