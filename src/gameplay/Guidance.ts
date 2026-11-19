@@ -367,7 +367,9 @@ export class Guidance {
       const room = w.train.minibarToRestock(w.player.pos);
       if (room) return room.center;
     }
-    if (items.includes('luggage')) {
+    // Phase 3 (found by the pacing simulator): only while the racks have room. A bag in hand with every rack full (the
+    // porter filled the last place) used to point at the rack for ever, so the bell was never rung and the stop held.
+    if (items.includes('luggage') && w.train.luggageStored < w.train.luggageCapacity) {
       const luggage = w.train.indexOfType('luggage');
       const lobbyFull = w.train.luggageStored >= w.train.lobbyRackCapacity;
       return luggage !== null && lobbyFull ? w.map.anchor(luggage, 'rack') : w.map.anchor(0, 'rack');
