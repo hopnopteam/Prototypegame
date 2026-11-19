@@ -175,7 +175,7 @@ async function run(profile) {
   log(`=== Pacing: ${profile} player (idle +${Math.round((IDLE[profile] ?? 0) * 100)}%), ${fmt(snap.t)} played ===`);
   log(`End: level ${snap.level} (${snap.stars}★), ${snap.carriages} carriages, ${snap.open} tiles left, cash ${snap.cash}`);
   log('\nMilestones (minutes of active play):');
-  const order = [...Array.from({ length: 7 }, (_, i) => `carriage ${i + 2}`), ...Array.from({ length: 7 }, (_, i) => `level ${i + 2}`), 'all refits', 'route complete'];
+  const order = [...Array.from({ length: 8 }, (_, i) => `carriage ${i + 2}`), ...Array.from({ length: 7 }, (_, i) => `level ${i + 2}`), 'all refits', 'route complete'];
   const csv = ['type,name,minutes,target,within,kind,price'];
   let misses = 0;
   for (const k of order) {
