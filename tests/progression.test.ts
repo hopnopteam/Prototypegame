@@ -85,10 +85,11 @@ describe('UnlockChain', () => {
     expect(chain.isListed(def.id)).toBe(true);
     expect(chain.isAvailable(def.id)).toBe(false);
     expect(chain.pay(def.id, 10)).toBe(0);
-    work.rooms = 6;
+    const need = def.work!;
+    work.rooms = need.rooms!;
     work.requests = 3;
-    expect(chain.workShort(def)).toEqual({ metric: 'requests', done: 3, need: 15 });
-    work.requests = 15;
+    expect(chain.workShort(def)).toEqual({ metric: 'requests', done: 3, need: need.requests });
+    work.requests = need.requests!;
     expect(chain.workShort(def)).toBeNull();
     expect(chain.isAvailable(def.id)).toBe(true);
   });
