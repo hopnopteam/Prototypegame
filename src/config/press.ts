@@ -5,7 +5,7 @@ import type { IconName } from '../ui/icons';
  * routes, seasons and brand events can bring their own rivals, headlines, interviews and awards.
  *
  * Headline text takes {tokens}: {train} (the player's name for the train), {station}, {rival}, {n},
- * {livery}, {tier}, {carriage}, {rank}, {quote}, {award}, {story}.
+ * {livery}, {tier}, {carriage}, {rank}, {quote}, {award}.
  */
 
 /** How a rival owner's portrait is drawn (a quick caricature on the Gazette page). */
@@ -204,7 +204,7 @@ export const DEFAULT_TRAIN_NAME = 'The Night Express';
  * a luxury refit, a carriage reaching First Class or the Royal Suite, a new livery, breaking into the top
  * three, topping the league, a hundred passengers.
  */
-export type PressTrigger = 'named' | 'coupling' | 'refurb3' | 'firstClass' | 'royal' | 'livery' | 'topThree' | 'champion' | 'guests100' | 'story'
+export type PressTrigger = 'named' | 'coupling' | 'refurb3' | 'firstClass' | 'royal' | 'livery' | 'topThree' | 'champion' | 'guests100'
   // Session 20: a venue opens, the first Happy Hour, a race to a station won.
   | 'venue' | 'happyHour'
   // Phase 2: the Village Gazette's critic reviews the train.
@@ -224,7 +224,7 @@ export const PRESS_PACING = {
   /** Front pages waiting at most; beyond this the least important pays out with a toast instead. */
   maxWaitingFrontPages: 2,
   /** How much each kind of news matters when several wait for the same breather. */
-  newsWeight: { named: 10, royal: 9, champion: 9, firstClass: 8, topThree: 7, coupling: 6, venue: 6, story: 5, refurb3: 5, livery: 4, guests100: 4, happyHour: 3 } as Record<PressTrigger, number>,
+  newsWeight: { named: 10, royal: 9, champion: 9, firstClass: 8, topThree: 7, coupling: 6, venue: 6, refurb3: 5, livery: 4, guests100: 4, happyHour: 3 } as Record<PressTrigger, number>,
 };
 
 export interface HeadlineDef {
@@ -256,7 +256,6 @@ export const HEADLINES: Record<PressTrigger, HeadlineDef[]> = {
   topThree: [{ headline: 'Into the Top Three!', body: '{train} passes {rival} and joins the best sleepers on the line. “{quote}” says their owner.' }],
   champion: [{ headline: 'Number One!', body: '{train} tops the Countryside League. From one old carriage to the best sleeper on the line. “{quote}”' }],
   guests100: [{ headline: 'One Hundred Happy Sleepers!', body: '"I slept like a log," said a man who is, professionally, a lumberjack.' }],
-  story: [{ headline: '{story}', body: 'A regular passenger\'s journey comes to a happy end aboard {train}.' }],
   // Session 20: news on the strip (no card), each a few words.
   venue: [{ headline: '{venue} Now Open!', body: '{train} opens its {venue}. The queue starts at once.' }],
   happyHour: [{ headline: 'Happy Hour Aboard!', body: 'The bar lounge of {train} is in full swing.' }],
@@ -278,7 +277,6 @@ export const FRONT_PAGE_REWARDS: Record<PressTrigger, { gems?: number; railMiles
   topThree: { gems: 10 },
   champion: { gems: 25 },
   guests100: { gems: 10 },
-  story: { railMiles: 2 },
 };
 
 /** The debut interview's level key (it comes with the naming, after the first stop). */

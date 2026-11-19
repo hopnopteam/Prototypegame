@@ -2,7 +2,7 @@ import { DEBUG_JUMP, setDebugJump } from '../config/debugJump';
 import { ACTIVE_ROUTE } from '../config/routes';
 import { ANALYTICS } from '../config/analytics';
 import { MockAdService } from '../services/ads';
-import { CARRIAGE_CATALOGUE, CARRIAGE_ORDER, GEM_EXCHANGE, PRODUCTS, STATIONS, STORIES, STORIES_ENABLED, type PostcardArt, type ProductDef } from '../config/content';
+import { CARRIAGE_CATALOGUE, CARRIAGE_ORDER, GEM_EXCHANGE, PRODUCTS, STATIONS, type PostcardArt, type ProductDef } from '../config/content';
 import { CLASSES } from '../config/classes';
 import { AUDIO } from '../config/audio';
 import { ECONOMY, MONETIZATION_ENABLED } from '../config/economy';
@@ -579,16 +579,9 @@ export class Screens {
   album(): void {
     const g = this.game;
     const have = new Set(g.data.meta.postcards);
-    // Session 43: every card is a vintage stamp (`ui/postcard.ts`); a story's card borrows the countryside scene.
-    const storyArt = (colors: [string, string, string], motto: string): PostcardArt => ({
-      scene: 'ford', ink: colors[0], sky: ['#8CC3DE', colors[1]], land: ['#A7C1B4', colors[2], '#4D7340'], accent: colors[1], motto,
-    });
+    // Session 43: every card is a vintage stamp (`ui/postcard.ts`).
     const cards: { id: string; art: PostcardArt; text: PostcardText; blurb: string }[] = [
       ...STATIONS.map((s, i) => ({ id: s.id, art: s.postcard, blurb: s.blurb, text: { name: s.name, kicker: ACTIVE_ROUTE.name, number: i + 1, value: 10 + i * 5 } })),
-      ...(STORIES_ENABLED ? STORIES : []).map((s, i) => ({
-        id: `story:${s.id}`, art: storyArt(s.postcard, s.title), blurb: s.intro,
-        text: { name: s.name, kicker: 'Passenger story', number: STATIONS.length + i + 1, value: 50 },
-      })),
     ];
     const grid = h('div.postcards', {}, ...cards.map((card) => {
       const canvas = h('canvas', {});
@@ -612,7 +605,7 @@ export class Screens {
     this.sheet(text.name, 'album', [h('div.postcard-big', {}, canvas), h('p.postcard-blurb', { text: blurb })]);
   }
 
-  // ─── Daily: calendar, quests, stories ──────────────────────────────────────
+  // ─── Daily: calendar and quests ──────────────────────────────────────
 
   daily(): void {
     const g = this.game;
@@ -657,17 +650,6 @@ export class Screens {
           h('button', { disabled: q.claimed || q.progress < q.target, onclick: () => { meta.claimQuest(i); reopen(); } }, q.claimed ? 'Done' : `+${q.reward.gems ?? q.reward.railMiles}`),
         ));
       });
-    }
-    if (meta.storiesUnlocked()) {
-      parts.push(h('div.section-title', { text: 'Regular passengers' }));
-      for (const story of STORIES) {
-        const progress = meta.storyProgress(story);
-        const step = story.steps[progress.step];
-        parts.push(h('div.story', {},
-          h('b', { text: `${story.name}, ${story.title}` }),
-          h('p', { text: progress.done ? `Story complete: ${story.perk.label}` : step ? `Step ${progress.step + 1}/${story.steps.length}: "${step.line}"` : story.intro }),
-        ));
-      }
     }
     close = this.sheet('Daily', 'calendar', parts);
   }
@@ -904,7 +886,6 @@ export function levelPerkItems(level: number): { icon: IconName; text: string }[
   const features: Record<number, { icon: IconName; text: string }[]> = {
     2: [{ icon: 'conductor', text: 'Conductor upgrades' }, ...(ECONOMY.chest.enabled ? [{ icon: 'chest' as IconName, text: 'Daily chest' }] : []), { icon: 'calendar', text: 'Daily rewards' }],
   };
-  if (STORIES_ENABLED) features[5] = [{ icon: 'album', text: 'Passenger stories' }];
   if (features[level]) items.push(...features[level]);
   if (!MONETIZATION_ENABLED && !ECONOMY.journey.heldStops && level === ECONOMY.perks.holdTrainLevel) items.push({ icon: 'hold', text: 'Hold the train' });
   if (!MONETIZATION_ENABLED && level === ECONOMY.perks.scooterLevel) items.push({ icon: 'scooter', text: `Scooter ${Math.round(ECONOMY.perks.scooterSeconds / 60)} min` });
@@ -923,7 +904,6 @@ export function levelPerks(level: number): string[] {
   const features: Record<number, string> = {
     2: ECONOMY.chest.enabled ? 'Conductor upgrades with Rail Miles, the daily calendar and quests, and the Station Master\'s Chest' : 'Conductor upgrades with Rail Miles, the daily calendar and quests',
   };
-  if (STORIES_ENABLED) features[5] = 'Regular passengers with stories';
   if (features[level]) perks.push(features[level]);
   // Monetization off: what used to be an ad or a purchase is a level's reward (config: perks).
   if (!MONETIZATION_ENABLED && !ECONOMY.journey.heldStops && level === ECONOMY.perks.holdTrainLevel) perks.push('Hold the train at last call');

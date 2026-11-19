@@ -59,7 +59,6 @@ export interface GameEvents {
   'crate.delivered': Record<string, never>;
   'ftue.step': { step: string };
   'postcard.collected': { id: string; name: string };
-  'story.step': { id: string; step: number; done: boolean };
   'boost.changed': Record<string, never>;
   'toast': { text: string; icon?: string };
   'train.named': { name: string };

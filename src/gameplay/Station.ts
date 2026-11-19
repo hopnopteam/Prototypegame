@@ -294,7 +294,7 @@ export class Station {
     const arrivals = rules.arrivals.slice(0, rules.travellers);
     const together = Math.max(1, arrivals.filter((at) => at <= 0).length);
     const spots = Array.from({ length: together }, (_, i) => (i === 0 ? PLATFORM.window : queueSpot(i)));
-    w.guests.spawnPlatformGuests(spots, null, spots.map(() => 'basic' as const), rules.archetypes.slice(0, together));
+    w.guests.spawnPlatformGuests(spots, spots.map(() => 'basic' as const), rules.archetypes.slice(0, together));
     this.prologueArrivals = arrivals.slice(together).map((at, i) => ({ at, archetype: rules.archetypes[together + i] }));
     w.audio.setStationAmbience(true);
     this.prologueClock = 0;
@@ -498,9 +498,8 @@ export class Station {
     const cap = w.stage.tier === 'low' ? Math.min(econ.maxBoarders, LOW_TIER_BOARDERS) : econ.maxBoarders;
     const count = Math.max(early, Math.min(cap, Math.round((filled + extra + drawn + w.stationPerks().passengers) * crowdScale)));
     const spots = new Array<Vec2>(count).fill(PLATFORM.window);
-    const story = w.meta.storyGuestForStop();
     const classes = this.travellerClasses(stopSerial, count);
-    const guests = w.guests.spawnPlatformGuests(spots, story, classes, this.familiesFor(classes));
+    const guests = w.guests.spawnPlatformGuests(spots, classes, this.familiesFor(classes));
     w.stationEvents.dress(guests);
     this.luggagePile = Math.min(this.view.barrowCapacity, guests.filter((g) => g.hasLuggage).length);
     // A traveller or two turns up during the stop, out of the station house (once the crowd is part of the ride).
@@ -684,7 +683,6 @@ export class Station {
       w.audio.play('perfect');
       w.audio.play('chest', { volume: 0.7 });
       w.haptics.success();
-      w.meta.onCleanStop();
     } else if (stars > 0) {
       w.particles.emit('star', door.inside.x, FLOOR_Y + 1.2, door.inside.z, 6 * stars, 0.4);
       w.audio.play('chest', { volume: 0.55 });

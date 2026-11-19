@@ -520,9 +520,6 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 .quest .bar i { display: block; height: 100%; background: var(--mustard); }
 .quest button { height: 36px; border-radius: 10px; border: var(--line); background: var(--green-light); font-weight: 800; cursor: pointer; padding: 0 10px; flex: none; }
 .quest button:disabled { background: #E5DCCB; }
-.story { padding: 10px; border-radius: 12px; background: var(--cream); border: 2px solid var(--ink); }
-.story b { font-size: 15px; }
-.story p { font-size: 14px; margin-top: 2px; }
 
 /* ── Press: naming, Rail Gazette, Rails Tonight, Golden Whistle ── */
 .name-input { height: 50px; border-radius: 12px; border: var(--line); background: var(--cream); padding: 0 14px; font-family: var(--font); font-weight: 800; font-size: 20px; letter-spacing: 0.06em; color: var(--navy); user-select: text; -webkit-user-select: text; min-width: 0; }

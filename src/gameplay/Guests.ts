@@ -1,6 +1,6 @@
 import { iconFor } from '../config/itemIcons';
 import * as THREE from 'three';
-import { ARCHETYPES, COMMON_MESS, FAMILY_REQUESTS, type ArchetypeDef, type MessPiece, type StoryDef } from '../config/content';
+import { ARCHETYPES, COMMON_MESS, FAMILY_REQUESTS, type ArchetypeDef, type MessPiece } from '../config/content';
 import { CLASS_BY_ID, isDwellNeed, type ClassId, type ServiceNeed } from '../config/classes';
 import { CROWD, IDLES, type IdleAction } from '../config/crowd';
 import { PRAISE } from '../config/chatter';
@@ -207,23 +207,23 @@ export class Guest {
   idleLeft = 0;
   idleIn = 1 + Math.random() * 3;
 
-  constructor(readonly archetype: ArchetypeDef, x: number, z: number, speed: number, readonly story: StoryDef | null, variant: number, views: CharacterPool) {
+  constructor(readonly archetype: ArchetypeDef, x: number, z: number, speed: number, variant: number, views: CharacterPool) {
     this.cls = archetype.cls;
     this.pos = { x, z };
     this.childPos = { x, z: z + 0.6 };
     this.mover = new Mover(this.pos, speed);
-    const colors = story ? story.colors : archetype.colors;
+    const colors = archetype.colors;
     const base: CharacterLook = {
       ...colors,
-      ...(story ? {} : archetype.figure),
-      accessory: story ? (story.id === 'priya' ? 'camera' : 'none') : archetype.accessory === 'child' ? 'none' : archetype.accessory,
-      hat: story?.id === 'walter' ? 'conductor' : story ? 'none' : archetype.hat ?? 'none',
-      hatColor: story ? undefined : archetype.hatColor,
+      ...archetype.figure,
+      accessory: archetype.accessory === 'child' ? 'none' : archetype.accessory,
+      hat: archetype.hat ?? 'none',
+      hatColor: archetype.hatColor,
     };
-    const look = story ? base : routeLook(guestLook(base, archetype, variant), archetype, variant);
+    const look = routeLook(guestLook(base, archetype, variant), archetype, variant);
     const [short, tall] = CROWD.height;
-    this.view = views.take(look, story ? 1 : short + (tall - short) * Math.random());
-    this.child = !story && archetype.accessory === 'child'
+    this.view = views.take(look, short + (tall - short) * Math.random());
+    this.child = archetype.accessory === 'child'
       ? views.take({ body: '#F2C94C', accent: '#E26D8C', skin: colors.skin, hair: colors.hair, hat: 'none', outfit: 'dress', pants: '#E26D8C', hairStyle: 'bob', shoe: '#D64B6A' }, 0.62)
       : null;
   }
@@ -314,7 +314,7 @@ export class Guests {
   spawnStartingQueue(count: number): void {
     const slots = this.queueSlots(this.desks[0]);
     for (let i = 0; i < count; i++) {
-      const guest = this.create(this.pickArchetype('basic', i === 0 ? 'backpacker' : i === 1 ? 'student' : undefined), slots[i].x, slots[i].z, null);
+      const guest = this.create(this.pickArchetype('basic', i === 0 ? 'backpacker' : i === 1 ? 'student' : undefined), slots[i].x, slots[i].z);
       guest.state = 'queue';
       guest.queueSlot = i;
       guest.arrivedInQueue = true;
@@ -328,13 +328,11 @@ export class Guests {
    * Guests waiting on the platform, in platform-local coordinates, one class per spot (Station decides: the
    * classes the train sells, and now and then one it does not yet).
    */
-  spawnPlatformGuests(spots: Vec2[], storyGuest: StoryDef | null, classes: ClassId[], archetypes: string[] = []): Guest[] {
+  spawnPlatformGuests(spots: Vec2[], classes: ClassId[], archetypes: string[] = []): Guest[] {
     const created: Guest[] = [];
     spots.forEach((spot, i) => {
-      const story = i === 0 ? storyGuest : null;
       const cls = classes[i] ?? 'basic';
-      const guest = this.create(this.pickArchetype(cls, archetypes[i]), spot.x, spot.z, story);
-      // A story guest rides in whatever class they are given a ticket for.
+      const guest = this.create(this.pickArchetype(cls, archetypes[i]), spot.x, spot.z);
       guest.cls = cls;
       guest.state = 'platform';
       guest.onPlatform = true;
@@ -356,7 +354,7 @@ export class Guests {
    */
   spawnLatecomer(cls: ClassId, archetype?: string): Guest {
     const door = PLATFORM.houseDoor;
-    const guest = this.create(this.pickArchetype(cls, archetype), door.x, door.z, null);
+    const guest = this.create(this.pickArchetype(cls, archetype), door.x, door.z);
     guest.cls = cls;
     guest.state = 'platform';
     guest.onPlatform = true;
@@ -375,7 +373,7 @@ export class Guests {
   spawnDayRider(cls: ClassId): Guest {
     const w = this.w;
     const start = PLATFORM.houseDoor;
-    const guest = this.create(this.pickArchetype(cls), start.x, start.z, null);
+    const guest = this.create(this.pickArchetype(cls), start.x, start.z);
     guest.cls = cls;
     guest.dayRider = true;
     guest.outside = true;
@@ -823,7 +821,6 @@ export class Guests {
     guest.view.act('wave', 0.8);
     w.events.emit('guest.boarded', { byPlayer });
     w.events.emit('guest.checkedIn', { fare, x: guest.pos.x, z: guest.pos.z, byPlayer });
-    if (guest.story) w.meta?.onStoryGuestCheckedIn(guest.story);
     w.feedback.onCheckIn(guest);
   }
 
@@ -1247,7 +1244,7 @@ export class Guests {
           guest.phaseRequested = false;
           guest.wishIn = w.rng.range(...w.econ.trip.requestDelay);
         } else if (guest.stateTime >= guest.settleFor && this.outingDue(guest)) this.maybeOuting(guest);
-        else if (guest.again > 0 && guest.trip !== 'night' && !guest.story) {
+        else if (guest.again > 0 && guest.trip !== 'night') {
           // Their request seen to, one more thing (session 30): guests keep asking through the evening and morning.
           guest.again--;
           guest.againNow = true;
@@ -1394,7 +1391,7 @@ export class Guests {
   }
 
   /**
-   * This part of the night's one request: their story's next step, or one thing from their class's evening or
+   * This part of the night's one request: one thing from their class's evening or
    * morning list they have not asked for yet. Royal mornings bring the butler's whole list, one after another.
    */
   /** How many more requests a guest makes after this part's first (session 30, `trip.again`). */
@@ -1407,8 +1404,7 @@ export class Guests {
     const w = this.w;
     guest.phaseRequested = true;
     guest.pending = [];
-    const story = guest.story ? (w.meta?.storyRequest(guest.story) as ServiceNeed | null) : null;
-    let need: ServiceNeed | null = story;
+    let need: ServiceNeed | null = null;
     if (!need) {
       const cls = CLASS_BY_ID[guest.cls];
       // Phase 1: a family in the Family Sleeper asks from its own lists (the child wants snacks).
@@ -1461,7 +1457,7 @@ export class Guests {
       guest.outingTries = 0;
       return;
     }
-    if (guest.story || !w.rng.chance(routine ? rules.routine.chance : rules.outingChance)) return;
+    if (!w.rng.chance(routine ? rules.routine.chance : rules.outingChance)) return;
     // The washroom is part of the routine (session 40, owner: "washrooms… currently unused"): a wash first thing in
     // the morning, a wash before bed in the evening, whatever the venues have free.
     const bathroomOpen = w.train.bathrooms.some((b) => b.unlocked);
@@ -1588,7 +1584,6 @@ export class Guests {
     guest.view.bounce(1);
     guest.slow = false;
     w.events.emit('request.fulfilled', { item, tip, x: guest.pos.x, z: guest.pos.z, byPlayer, speedy: speed >= service.speedyTipMultiplier });
-    if (guest.story && !isDwellNeed(item)) w.meta?.onStoryRequestDone(guest.story, item);
     w.feedback.onRequestServed(guest, elapsed, byPlayer);
     // The butler's list: the next thing on it straight away.
     const next = guest.pending.shift();
@@ -1625,7 +1620,7 @@ export class Guests {
 
   private outingDue(guest: Guest): boolean {
     if (guest.trip === 'night') return false;
-    const limit = this.routineOn() && !guest.story ? this.w.econ.trip.routine.outings[guest.trip] : 1;
+    const limit = this.routineOn() ? this.w.econ.trip.routine.outings[guest.trip] : 1;
     if (guest.phaseOutings >= limit) return false;
     return guest.phaseOutings === 0 || guest.outingNext || guest.again <= 0;
   }
@@ -1743,7 +1738,7 @@ export class Guests {
     w.ui.floatIcon('key', guest.pos.x, FLOOR_Y + 1.9, guest.pos.z, 'info');
     guest.view.bounce(0.7);
     actor.view.bounce(0.4);
-    const venue = !guest.story && w.venues.bookable();
+    const venue = w.venues.bookable();
     const booked = !!venue && w.rng.chance(rules.reserveChance);
     if (venue && booked) {
       const fee = Math.max(1, Math.round(rules.reserveFee * CLASS_BY_ID[guest.cls].tip * w.tipMultiplier()));
@@ -1775,7 +1770,7 @@ export class Guests {
     // The opening is scripted: everyone gets off at the next stop, so cabins turn over on time, every time.
     const early = w.data.route.stopsCompleted < w.econ.guests.earlyStopsOneLeg;
     const legs = early ? 1 : Number(w.rng.weighted(w.econ.guests.rideLegsWeights as unknown as Record<string, number>));
-    guest.destinationStop = w.journey.stopSerial + (guest.story ? 2 : legs);
+    guest.destinationStop = w.journey.stopSerial + legs;
     // One trip, one sleep: their night starts now.
     guest.boardStop = w.journey.stopSerial;
     guest.trip = 'evening';
@@ -1793,7 +1788,7 @@ export class Guests {
     const trip = w.econ.trip;
     guest.rules.eveningEnd = trip.eveningEnd + w.rng.range(-trip.jitter, trip.jitter);
     // A night owl stays up a while longer for a nightcap (the morning still comes after their shortest night).
-    guest.owlWish = !guest.story && w.rng.chance(trip.owl.chance);
+    guest.owlWish = w.rng.chance(trip.owl.chance);
     guest.owlNow = false;
     if (guest.owlWish) guest.rules.eveningEnd += trip.owl.later;
     guest.rules.morningStart = trip.morningStart + w.rng.range(-trip.jitter, trip.jitter);
@@ -1820,7 +1815,7 @@ export class Guests {
   /** At their room: First and Royal wait for the turndown; everyone else sits on the bed with the paper a while. */
   private arriveAtRoom(guest: Guest): void {
     this.maybeSnack(guest);
-    if (CLASS_BY_ID[guest.cls].turndown && !guest.story) {
+    if (CLASS_BY_ID[guest.cls].turndown) {
       this.askTurndown(guest);
       return;
     }
@@ -1964,7 +1959,6 @@ export class Guests {
     if (guest.unmet > 0 || guest.grumpy) guest.view.showMood('angry');
     else guest.view.showMood('love');
     w.events.emit('guest.alighted', { tip: 0 });
-    if (guest.story) w.meta?.onStoryGuestAlighted(guest.story);
   }
 
   private arriveInQueue(guest: Guest): void {
@@ -2040,9 +2034,9 @@ export class Guests {
     return ARCHETYPES.find((a) => a.id === id) ?? ARCHETYPES[0];
   }
 
-  private create(archetype: ArchetypeDef, x: number, z: number, story: StoryDef | null): Guest {
+  private create(archetype: ArchetypeDef, x: number, z: number): Guest {
     const speed = this.w.econ.guests.walkSpeed * archetype.speedMultiplier;
-    const guest = new Guest(archetype, x, z, speed, story, this.looks++ % CROWD.variants, this.views);
+    const guest = new Guest(archetype, x, z, speed, this.looks++ % CROWD.variants, this.views);
     this.w.scene.add(guest.view.root);
     if (guest.child) this.w.scene.add(guest.child.root);
     this.list.push(guest);
@@ -2050,7 +2044,6 @@ export class Guests {
   }
 
   private destroy(guest: Guest): void {
-    if (guest.story && guest.state !== 'leaving') this.w.meta?.onStoryGuestLost(guest.story);
     this.w.venues?.releaseGuest(guest);
     guest.state = 'gone';
     if (guest.cabin && guest.cabin.guest === guest) {

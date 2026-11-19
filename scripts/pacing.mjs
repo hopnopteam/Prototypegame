@@ -53,7 +53,9 @@ const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshad
 const jobs = profiles.flatMap((profile) => seeds.map((seed) => ({ profile, seed })));
 const reports = [];
 let next = 0;
-await Promise.all(Array.from({ length: Math.min(parallel, jobs.length) }, async () => {
+await Promise.all(Array.from({ length: Math.min(parallel, jobs.length) }, async (_, lane) => {
+  // Staggered starts: several pages warming up their shaders at once in the software renderer is slow.
+  await new Promise((r) => setTimeout(r, lane * 20000));
   while (next < jobs.length) {
     const job = jobs[next++];
     reports.push(await run(job.profile, job.seed));
@@ -113,7 +115,7 @@ async function run(profile, seed) {
   await page.goto(`file://${resolve(process.env.PAGE ?? 'dist/index.html')}?seed=${seed}`);
   await page.waitForTimeout(600);
   await page.mouse.click(195, 700);
-  await page.waitForFunction(() => !!window.nightExpress, null, { timeout: 90000 });
+  await page.waitForFunction(() => !!window.nightExpress, null, { timeout: 600000 });
   await page.evaluate((idle) => {
     const g = window.nightExpress;
     g.skipIntro?.();

@@ -16,12 +16,6 @@ export interface QuestState {
   reward: { gems?: number; railMiles?: number };
 }
 
-export interface StoryState {
-  step: number;
-  done: boolean;
-  aboard: boolean;
-}
-
 /** A story in the Rail Gazette, with what the train looked like that day (for its photo). */
 export interface NewsItem {
   id: number;
@@ -146,7 +140,6 @@ export interface SaveData {
     postcards: string[];
     login: { lastClaimDay: string | null; day: number };
     quests: { day: string | null; items: QuestState[] };
-    stories: Record<string, StoryState>;
     perks: { tipBonus: number; fareBonus: number; speedBonus: number };
     /** Session 30: when the Station Master's Chest is full again (ms since epoch; 0 is ready now). */
     chestReadyAt: number;
@@ -253,7 +246,6 @@ export function createDefaultSave(now: number, installId: string): SaveData {
       postcards: [],
       login: { lastClaimDay: null, day: 0 },
       quests: { day: null, items: [] },
-      stories: {},
       perks: { tipBonus: 0, fareBonus: 0, speedBonus: 0 },
       chestReadyAt: 0,
     },

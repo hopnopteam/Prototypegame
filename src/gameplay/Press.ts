@@ -1,4 +1,4 @@
-import { STATIONS, STORIES } from '../config/content';
+import { STATIONS } from '../config/content';
 import { VENUES } from '../config/venues';
 import type { CarriageType, VenueKind } from '../core/types';
 import { isVenueType } from '../world/layout';
@@ -155,11 +155,6 @@ export class Press {
     });
     e.on('level.up', ({ level }) => {
       if (INTERVIEWS.some((i) => i.level === level) && !p.interviews.includes(level)) this.queue(`interview:${level}`);
-    });
-    e.on('story.step', ({ id, done }) => {
-      if (!done) return;
-      const story = STORIES.find((s) => s.id === id);
-      if (story) this.print('story', { story: `${story.name}'s Journey Ends Happily` });
     });
     e.on('journey.phase', ({ phase, previous }) => {
       if (phase === 'onTheMove' && previous === 'departing') {

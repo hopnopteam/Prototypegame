@@ -1,21 +1,17 @@
-import { QUEST_POOL, STATIONS, STORIES, STORIES_ENABLED, type StoryDef } from '../config/content';
-import type { ItemKind } from '../core/types';
+import { QUEST_POOL, STATIONS } from '../config/content';
 import type { QuestState } from '../save/SaveData';
 import { DailyLogin, dayKey, ensureTodayQuests, progressQuests } from '../sim/meta';
 import type { World } from './World';
 
 /**
- * The slower goals that aren't just bigger numbers (§11): postcards from every station and story, daily
- * quests (route level 3), the login calendar (level 4) and regular passengers with story chains (level 5).
+ * The slower goals that aren't just bigger numbers (§11): postcards from every station, daily quests and the login
+ * calendar (route level 2). Phase 3: the passengers' stories are gone (publisher: "remove the guest stories").
  */
 export class Meta {
   readonly login: DailyLogin;
-  private storyAboardThisStop: string | null = null;
 
   constructor(private readonly w: World) {
     this.login = new DailyLogin(w.data.meta.login, w.econ.daily.loginRewards.length);
-    // Guests are not saved, so nobody from a story is aboard when a session starts.
-    for (const state of Object.values(w.data.meta.stories)) state.aboard = false;
     w.events.on('guest.checkedIn', () => this.progress('serveGuests'));
     w.events.on('cabin.cleaned', () => this.progress('cleanCabins'));
     w.events.on('request.fulfilled', () => this.progress('fulfilRequests'));
@@ -41,8 +37,8 @@ export class Meta {
 
   postcardCount(): { have: number; total: number } {
     // Phase 1: only the active route's stations count (an older save may hold cards from stations the route left).
-    const ids = new Set([...STATIONS.map((s) => s.id), ...STORIES.map((s) => `story:${s.id}`)]);
-    return { have: this.w.data.meta.postcards.filter((id) => ids.has(id)).length, total: STATIONS.length + (STORIES_ENABLED ? STORIES.length : 0) };
+    const ids = new Set(STATIONS.map((s) => s.id));
+    return { have: this.w.data.meta.postcards.filter((id) => ids.has(id)).length, total: STATIONS.length };
   }
 
   // ─── Daily quests ───────────────────────────────────────────────────────────
@@ -135,99 +131,4 @@ export class Meta {
     return { cash, gems: c.gems };
   }
 
-  // ─── Stories ────────────────────────────────────────────────────────────────
-
-  storiesUnlocked(): boolean {
-    return STORIES_ENABLED && this.w.progression.isFeatureUnlocked('stories');
-  }
-
-  private storyState(story: StoryDef): { step: number; done: boolean; aboard: boolean } {
-    const all = this.w.data.meta.stories;
-    if (!all[story.id]) all[story.id] = { step: 0, done: false, aboard: false };
-    return all[story.id];
-  }
-
-  activeStory(): StoryDef | null {
-    if (!this.storiesUnlocked()) return null;
-    return STORIES.find((s) => !this.storyState(s).done) ?? null;
-  }
-
-  /** A story passenger boards at this stop if their chain is active and they are not already aboard. */
-  storyGuestForStop(): StoryDef | null {
-    const story = this.activeStory();
-    if (!story) return null;
-    const state = this.storyState(story);
-    if (state.aboard) return null;
-    state.aboard = true;
-    this.storyAboardThisStop = story.id;
-    return story;
-  }
-
-  /** The story passenger missed the train (or was removed): they will be on the next platform. */
-  onStoryGuestLost(story: StoryDef): void {
-    const state = this.storyState(story);
-    if (!state.done) state.aboard = false;
-  }
-
-  onStoryGuestCheckedIn(story: StoryDef): void {
-    this.w.save.markDirty();
-    this.w.ui.celebrate(story.name, story.intro, 'heart');
-  }
-
-  storyRequest(story: StoryDef): ItemKind | null {
-    const state = this.storyState(story);
-    const step = story.steps[state.step];
-    return step?.kind === 'request' && step.item ? step.item : null;
-  }
-
-  onStoryRequestDone(story: StoryDef, item: ItemKind): void {
-    const state = this.storyState(story);
-    const step = story.steps[state.step];
-    if (step?.kind === 'request' && step.item === item) this.advance(story);
-  }
-
-  onCleanStop(): void {
-    for (const story of STORIES) {
-      const state = this.storyState(story);
-      if (!state.aboard || state.done) continue;
-      if (story.steps[state.step]?.kind === 'cleanStop') this.advance(story);
-    }
-  }
-
-  onStoryGuestAlighted(story: StoryDef): void {
-    const state = this.storyState(story);
-    state.aboard = false;
-    if (story.steps[state.step]?.kind === 'ride') this.advance(story);
-    this.w.save.markDirty();
-  }
-
-  private advance(story: StoryDef): void {
-    const w = this.w;
-    const state = this.storyState(story);
-    state.step++;
-    const next = story.steps[state.step];
-    if (next) {
-      w.ui.toast(`${story.name}: "${next.line}"`, 'heart');
-    } else {
-      state.done = true;
-      state.aboard = false;
-      const perks = w.data.meta.perks;
-      if (story.perk.kind === 'tipBonus') perks.tipBonus += story.perk.amount;
-      else perks.fareBonus += story.perk.amount;
-      if (!w.data.meta.postcards.includes(`story:${story.id}`)) w.data.meta.postcards.push(`story:${story.id}`);
-      w.ui.celebrate(`${story.name}'s story`, story.perk.label, 'album');
-      w.audio.play('chest');
-    }
-    w.events.emit('story.step', { id: story.id, step: state.step, done: state.done });
-    w.save.markDirty();
-  }
-
-  storyProgress(story: StoryDef): { step: number; done: boolean } {
-    const state = this.storyState(story);
-    return { step: state.step, done: state.done };
-  }
-
-  get boardedStoryThisStop(): string | null {
-    return this.storyAboardThisStop;
-  }
 }

@@ -313,7 +313,7 @@ export class Venues {
 
   tryOuting(guest: Guest, when: 'evening' | 'morning'): boolean {
     const w = this.w;
-    if ((!guest.cabin && !guest.dayRider) || guest.story || this.list.length === 0) return false;
+    if ((!guest.cabin && !guest.dayRider) || this.list.length === 0) return false;
     const weights: Record<string, number> = {};
     for (const v of this.list) {
       if (!v.freeSeat() || !VENUES[v.kind].when.includes(when)) continue;

@@ -56,7 +56,6 @@ describe('Progression', () => {
     expect(p.isFeatureUnlocked('conductorUpgrades')).toBe(false);
     p.addStars(90);
     expect(p.isFeatureUnlocked('conductorUpgrades')).toBe(true);
-    expect(p.isFeatureUnlocked('stories')).toBe(false);
   });
 });
 

@@ -735,7 +735,6 @@ export const ECONOMY = {
       dailyQuests: 2,
       dailyLogin: 2,
       chest: 2,
-      stories: 5,
     },
   },
 

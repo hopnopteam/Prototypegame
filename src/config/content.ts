@@ -5,7 +5,7 @@ import type { ClassId } from './classes';
 import { ACTIVE_ROUTE, MAX_TRAIN_CARRIAGES } from './routes';
 
 /**
- * Content pack for route 1, Countryside Local. Routes, carriages, guests, stories and offers are data so
+ * Content pack for route 1, Countryside Local. Routes, carriages, guests and offers are data so
  * seasonal lines and collaborations can be added without touching systems (§13).
  */
 
@@ -726,55 +726,6 @@ export const RENAMED_UNLOCKS: Record<string, string> = {
 
 export const REQUEST_ITEMS: ItemKind[] = ['tea', 'blanket', 'pillow'];
 
-export interface StoryStepDef {
-  kind: 'request' | 'ride' | 'cleanStop';
-  item?: ItemKind;
-  line: string;
-}
-
-export interface StoryDef {
-  id: string;
-  name: string;
-  title: string;
-  colors: { body: string; accent: string; skin: string; hair: string };
-  intro: string;
-  steps: StoryStepDef[];
-  perk: { kind: 'tipBonus' | 'fareBonus'; amount: number; label: string };
-  postcard: [string, string, string];
-}
-
-/**
- * Session 40 (owner: "remove or disable the story features involving Walter and similar characters, not useful at this
- * stage"): story passengers are switched off by this one constant (nothing deleted; true brings them back).
- */
-export const STORIES_ENABLED = false;
-
-export const STORIES: StoryDef[] = [
-  {
-    id: 'walter', name: 'Walter', title: 'Retired conductor',
-    colors: { body: '#2E3F5C', accent: '#D9A441', skin: '#EFC9A8', hair: '#E6E6E6' },
-    intro: 'Forty years on the footplate. Now he wants to ride it properly.',
-    steps: [
-      { kind: 'request', item: 'tea', line: 'Strong enough to stand a spoon in, please.' },
-      { kind: 'request', item: 'blanket', line: 'The draught in carriage one never changes.' },
-      { kind: 'ride', line: 'One more stop. I proposed on that platform.' },
-    ],
-    perk: { kind: 'tipBonus', amount: 0.1, label: '+10% tips, for good' },
-    postcard: ['#2E3F5C', '#E7B98A', '#5F7F4E'],
-  },
-  {
-    id: 'priya', name: 'Priya', title: 'Travel vlogger',
-    colors: { body: '#E0567A', accent: '#FFD35C', skin: '#C98E68', hair: '#1D1616' },
-    intro: '1.2 million followers and not one decent train pillow.',
-    steps: [
-      { kind: 'request', item: 'pillow', line: 'Pillow review in three, two, one…' },
-      { kind: 'request', item: 'tea', line: 'Tea for the golden-hour shot!' },
-      { kind: 'cleanStop', line: 'Film me a perfect station stop!' },
-    ],
-    perk: { kind: 'fareBonus', amount: 0.08, label: '+8% fares, for good' },
-    postcard: ['#E0567A', '#FFD9A0', '#6E9A55'],
-  },
-];
 
 export type QuestKind = 'serveGuests' | 'cleanCabins' | 'fulfilRequests' | 'loadLuggage' | 'cleanStops';
 

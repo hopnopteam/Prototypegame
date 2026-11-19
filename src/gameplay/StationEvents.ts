@@ -204,7 +204,7 @@ export class StationEvents {
   /** A special traveller, first in the queue (they arrive along the red carpet, or simply first in line). */
   private spawnSpecial(archetype: string, cls: ClassId | null): Guest | null {
     if (!cls) return null;
-    const [guest] = this.w.guests.spawnPlatformGuests([PLATFORM.window], null, [cls], [archetype]);
+    const [guest] = this.w.guests.spawnPlatformGuests([PLATFORM.window], [cls], [archetype]);
     if (guest) guest.order = -1;
     this.w.guests.arrangePlatform(true);
     return guest ?? null;
