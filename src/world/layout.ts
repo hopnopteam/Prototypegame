@@ -1,4 +1,4 @@
-import { CUTAWAY_FRONT } from '../config/cameraStyle';
+import { CUTAWAY_FRONT, CUTAWAY_SIDE } from '../config/cameraStyle';
 import { rect, type CarriageType, type ItemKind, type Rect, type Vec2, type VenueKind } from '../core/types';
 
 /**
@@ -63,6 +63,11 @@ export const ROOM_DOOR = { hingeInset: 0.04, meetGap: 0.01, swing: Math.PI * 0.4
  * end of every carriage, where its improvement and staff tiles stand, is in full view.
  */
 export const CUTAWAY_WALL_HEIGHT = 0.36;
+/**
+ * Walls along the train between the corridor and the rooms: as tall as the rest, except in the side-view camera build
+ * (session 59b), where the camera looks across them and they are cut to waist height so the corridor stays in view.
+ */
+export const PARTITION_HEIGHT = CUTAWAY_SIDE ? 0.5 : INTERIOR_WALL_HEIGHT;
 export const GANGWAY_HALF = 0.7;
 export const DOOR_Z0 = 0.8;
 export const DOOR_Z1 = 2.2;
@@ -341,6 +346,12 @@ class LayoutBuilder {
   }
 
   wall(x0: number, z0: number, x1: number, z1: number, kind: WallBox['kind'] = 'interior', height = kind === 'exterior' ? EXTERIOR_WALL_HEIGHT : INTERIOR_WALL_HEIGHT): void {
+    if (CUTAWAY_SIDE && z1 - z0 >= x1 - x0) {
+      // The side view (session 59b): the platform-side wall faces the camera, the partitions along the train run
+      // across its view; both are cut down so the rooms and the corridor read like a dollhouse with its front open.
+      if (kind === 'exterior' && x0 > 0) height = Math.min(height, CUTAWAY_WALL_HEIGHT);
+      else if (kind === 'interior') height = Math.min(height, PARTITION_HEIGHT);
+    }
     this.layout.walls.push({ ...rect(x0, z0, x1, z1), height, kind });
   }
 

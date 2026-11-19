@@ -736,6 +736,9 @@ export class Game implements World {
     let ox = 0;
     let oz = 0;
     // At Millbrook the old carriage is the star: the view leans toward it from the ticket stand.
+    // The side view (session 59b): aboard, the view holds one line across the train, like a camera on a dolly.
+    const railX = VISUALS.camera.railX;
+    if (!Number.isNaN(railX) && p.pos.x <= HALF_WIDTH + 0.3) ox += railX - p.pos.x;
     if (p.pos.x > HALF_WIDTH + 0.3 && this.station.prologue && this.train.covered) {
       ox -= cam.prologueLean.x;
       oz += cam.prologueLean.z;

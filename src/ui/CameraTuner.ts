@@ -16,6 +16,7 @@ const SLIDERS: { key: keyof CameraTune; label: string; min: number; max: number;
   { key: 'lead', label: 'Hero low', min: -1, max: 3, step: 0.1 },
   { key: 'roomTurn', label: 'Room turn', min: 0, max: 60, step: 1 },
   { key: 'platform', label: 'Platform', min: 0.8, max: 1.5, step: 0.01 },
+  { key: 'rail', label: 'Rail', min: -2.5, max: 2.5, step: 0.05 },
 ];
 
 export class CameraTuner {

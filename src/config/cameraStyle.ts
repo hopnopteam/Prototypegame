@@ -41,15 +41,24 @@
  *   frames itself (centred, closer, never turning, so the stick never changes meaning mid-walk), and the platform
  *   pulls out 12% to take in the queue, the bell and the shops.
  * - The carriages' end walls facing the camera are cut down like the far ones, so no carriage hides its own floor.
+ *
+ * Session 59b, the Side View (owner, on the Showcase: "this game camera sucks, I told you to come with an innovative
+ * perspective"), built with CAMERA_STYLE=side (`OUT=side.html`) or `?cam=side`: the train seen side-on from the
+ * platform like a dollhouse with its front taken off (the cut-away train of a film's tracking shot). The platform-side
+ * wall is a sill and the corridor's partition waist-high (`CUTAWAY_SIDE`), so every room, guest and face reads from
+ * the side; the lake and the far shore fill the top of the portrait screen, the train runs across the middle with the
+ * locomotive to the right, the platform or the passing countryside below. Aboard, the view holds one line across the
+ * train (`rail`), like a camera on a dolly, and slides along it with the conductor; rooms frame themselves a little
+ * closer; the platform pulls back 10%.
  */
 
 declare const __CAMERA_STYLE__: string | undefined;
 
-export type CameraStyle = 'default' | 'mph' | 'showcase';
+export type CameraStyle = 'default' | 'mph' | 'showcase' | 'side';
 
 const fromUrl = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('cam') : null;
 const built = typeof __CAMERA_STYLE__ !== 'undefined' ? __CAMERA_STYLE__ : '';
-const pick = (v: string | null): CameraStyle | null => (v === 'mph' || v === 'showcase' ? v : null);
+const pick = (v: string | null): CameraStyle | null => (v === 'mph' || v === 'showcase' || v === 'side' ? v : null);
 
 export const CAMERA_STYLE: CameraStyle = pick(built) ?? pick(fromUrl) ?? 'default';
 
@@ -73,22 +82,34 @@ export interface CameraTune {
   roomTurn: number;
   /** Session 59: the platform's framing (1 the same distance as inside; above 1 pulls out). */
   platform: number;
+  /**
+   * Session 59b (the side view): inside the train the view holds this line across the carriage (metres, train x) like a
+   * camera on a dolly beside the train, so the train stays put on screen and only the conductor moves in it; NaN
+   * follows the conductor across too.
+   */
+  rail: number;
 }
 
-export const MPH_DEFAULTS: CameraTune = { yaw: 180, pitch: 58, fov: 35, width: 5.8, follow: 5, lead: 0, smooth: 0.08, roomTurn: 35, platform: 1 };
-export const SHOWCASE_DEFAULTS: CameraTune = { yaw: 160, pitch: 54, fov: 34, width: 5.6, follow: 5, lead: 0, smooth: 0.1, roomTurn: 0, platform: 1.12 };
+export const MPH_DEFAULTS: CameraTune = { yaw: 180, pitch: 58, fov: 35, width: 5.8, follow: 5, lead: 0, smooth: 0.08, roomTurn: 35, platform: 1, rail: NaN };
+export const SHOWCASE_DEFAULTS: CameraTune = { yaw: 160, pitch: 54, fov: 34, width: 5.6, follow: 5, lead: 0, smooth: 0.1, roomTurn: 0, platform: 1.12, rail: NaN };
+export const SIDE_DEFAULTS: CameraTune = { yaw: 90, pitch: 36, fov: 30, width: 6.2, follow: 5, lead: 3, smooth: 0.12, roomTurn: 0, platform: 1.1, rail: 0.2 };
 
 /** The defaults of the style this build runs. */
-export const STYLE_DEFAULTS: CameraTune = CAMERA_STYLE === 'showcase' ? SHOWCASE_DEFAULTS : MPH_DEFAULTS;
+export const STYLE_DEFAULTS: CameraTune = CAMERA_STYLE === 'showcase' ? SHOWCASE_DEFAULTS : CAMERA_STYLE === 'side' ? SIDE_DEFAULTS : MPH_DEFAULTS;
 
 // A new key whenever the defaults move (58c the straight view, 58e turned round), so old panel numbers do not carry over.
-const STORE_KEY = CAMERA_STYLE === 'showcase' ? 'nightexpress.camtune.showcase.v1' : 'nightexpress.camtune.v4';
+const STORE_KEY = CAMERA_STYLE === 'mph' ? 'nightexpress.camtune.v4' : `nightexpress.camtune.${CAMERA_STYLE}.v1`;
 
 /** The profile's numbers: the defaults, or what was last set on the panel in this browser. */
 export function styleTune(): CameraTune {
   try {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORE_KEY) : null;
-    if (raw) return { ...STYLE_DEFAULTS, ...(JSON.parse(raw) as Partial<CameraTune>) };
+    if (raw) {
+      const t = { ...STYLE_DEFAULTS, ...(JSON.parse(raw) as Partial<CameraTune>) };
+      // JSON has no NaN (it comes back as null): no rail.
+      if (typeof t.rail !== 'number') t.rail = NaN;
+      return t;
+    }
   } catch {
     /* no storage: the defaults */
   }
@@ -108,7 +129,14 @@ export function saveTune(t: CameraTune | null): void {
  * Session 59: the camera looks from the locomotive's end (its yaw past 90°), so the carriages' front end walls face it
  * and are cut down like the rear ones (read by the floor plans once, at load).
  */
-export const CUTAWAY_FRONT = CAMERA_STYLE !== 'default' && Math.cos((styleTune().yaw * Math.PI) / 180) < 0;
+export const CUTAWAY_FRONT = CAMERA_STYLE !== 'default' && Math.cos((styleTune().yaw * Math.PI) / 180) < -0.2;
+
+/**
+ * Session 59b, the side view: the camera looks across the train from the platform side like a dollhouse with its front
+ * taken off, so the platform-side wall is cut down to a sill and the corridor's partition to waist height (read by the
+ * floor plans once, at load).
+ */
+export const CUTAWAY_SIDE = CAMERA_STYLE === 'side';
 
 /** The view part of `VISUALS.camera` the profile sets. */
 export interface CameraVisuals {
@@ -125,6 +153,7 @@ export interface CameraVisuals {
   roomView: boolean;
   roomYawDeg: number;
   roomPitchDeg: number;
+  railX: number;
 }
 
 /** Puts a tune into `VISUALS.camera` (at load, and live from the panel). */
@@ -144,6 +173,7 @@ export function applyTune(cam: CameraVisuals, t: CameraTune): void {
   // from 180. With no turn it keeps the corridor's angle and tilt and only frames the room.
   cam.roomYawDeg = t.yaw + (Math.cos((t.yaw * Math.PI) / 180) >= 0 ? -t.roomTurn : t.roomTurn);
   cam.roomPitchDeg = t.roomTurn === 0 ? t.pitch : 52;
+  cam.railX = t.rail;
 }
 
 /** The framing part of `ECONOMY.camera` the profile sets: one distance everywhere (the platform aside). */

@@ -61,6 +61,8 @@ export const VISUALS = {
     roomMaxWidth: 7.5,
     roomTurnSharpness: 4,
     roomSmoothTime: 0.28,
+    /** Session 59b (camera builds): a line across the train the view holds while the conductor is aboard (NaN: none). */
+    railX: NaN,
   },
 
   /**

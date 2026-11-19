@@ -19,6 +19,7 @@ import {
   HALF_WIDTH,
   INNER,
   INTERIOR_WALL_HEIGHT,
+  PARTITION_HEIGHT,
   ROOM_DOOR,
   PARTITION_X0,
   PARTITION_X1,
@@ -157,7 +158,7 @@ const WASH_SHELF = { side: 0.03, middle: 0.33, top: 0.6, height: 0.64 };
  * doorway is only ~0.3 m, too short for sliding leaves to clear a 1.4 m opening (they used to stop at a third of
  * it); a swing reads clearly from above and needs no wall to hide in.
  */
-const LEAF_HEIGHT = INTERIOR_WALL_HEIGHT - 0.04;
+const LEAF_HEIGHT = PARTITION_HEIGHT - 0.04;
 const { hingeInset: HINGE_INSET, meetGap: LEAF_MEET_GAP, swing: DOOR_SWING, thickness: LEAF_THICKNESS } = ROOM_DOOR;
 /** The gangway's concertina sides. */
 const BELLOWS_HEIGHT = 0.4;
@@ -1657,6 +1658,15 @@ export class CarriageView {
     const white = '#FFFFFF';
     const [WY0, WY1] = this.layout.windowBand;
 
+    if (h < WY0) {
+      // Cut down to a sill (the side-view camera build): the inside finish, the livery outside and its cap, no windows.
+      this.innerFinish(s, inner, FLOOR_Y, FLOOR_Y + h, rail);
+      liv.slab(outer, 0.38, FLOOR_Y + h, white, 0, 0, { shade: 0.85 });
+      trim.slab(rect(outer.x0 - (left ? 0.004 : 0), r.z0 + END_INSET, outer.x1 + (left ? 0 : 0.004), r.z1 - END_INSET), FLOOR_Y + 0.28, FLOOR_Y + 0.32, white, 0, 0, FLAT);
+      liv.slab(rect(r.x0 - (left ? 0.05 : 0), r.z0, r.x1 + (left ? 0 : 0.05), r.z1), FLOOR_Y + h, FLOOR_Y + h + 0.05, white, 0, 0, { shade: 0.92 });
+      return;
+    }
+
     // Below and above the windows: solid.
     this.innerFinish(s, inner, FLOOR_Y, FLOOR_Y + WY0, rail);
     this.innerFinish(s, inner, FLOOR_Y + WY1, FLOOR_Y + h, rail);
@@ -1909,7 +1919,7 @@ export class CarriageView {
     const thick = PARTITION_X1 - PARTITION_X0;
     const spans = [...this.layout.cabins.map((c) => c.door), ...this.layout.bathrooms.map((b) => b.door)];
     for (const span of spans) {
-      for (const z of span) s.box(x, FLOOR_Y + (INTERIOR_WALL_HEIGHT + 0.06) / 2, z, thick + 0.04, INTERIOR_WALL_HEIGHT + 0.06, 0.06, this.finish.cap, 0, { shade: 0.85 });
+      for (const z of span) s.box(x, FLOOR_Y + (PARTITION_HEIGHT + 0.06) / 2, z, thick + 0.04, PARTITION_HEIGHT + 0.06, 0.06, this.finish.cap, 0, { shade: 0.85 });
       s.box(x, FLOOR_Y + 0.004, (span[0] + span[1]) / 2, thick, 0.008, span[1] - span[0], this.doorMetal(), 0, FLAT);
     }
   }

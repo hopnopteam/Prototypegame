@@ -102,6 +102,8 @@ export class ExteriorView {
       let longest: { z0: number; z1: number; face: number; top: number } | null = null;
       for (const wall of layout.walls) {
         if (wall.kind !== 'exterior' || wall.z1 - wall.z0 < wall.x1 - wall.x0) continue;
+        // A wall cut down to a sill (the side-view camera build) carries no dressing.
+        if (wall.height < WINDOW_Y0) continue;
         const right = wall.x0 > 0;
         const face = right ? wall.x1 : wall.x0;
         const out = right ? 1 : -1;
