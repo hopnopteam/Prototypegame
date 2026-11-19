@@ -4,13 +4,16 @@
  * for that."). On in a build made with CAMERA_STYLE=mph (`OUT=mph.html`) or with `?cam=mph` in the address; the normal
  * build is untouched.
  *
- * What My Perfect Hotel's camera does, and what this profile sets:
- * - One fixed angle for the whole game: an isometric-style three-quarter view, the building turned 45° to the screen,
- *   looking down about 50° through a narrow lens, so it reads almost like an orthographic diorama.
+ * Session 58c, after the owner's video of My Perfect Hotel (https://www.youtube.com/watch?v=4-otOq45qu8; read from its
+ * thumbnail frames, since this server cannot play YouTube): in play the camera faces straight along the building, no
+ * diagonal: the hallway runs up the middle of the portrait screen with rooms on both sides and the reception desk across
+ * it, seen from high up (about 55–60° down) through a moderate lens, the hero in the middle of the screen at one distance.
+ * For the train that is:
+ * - The train straight up the screen (`yaw` 0), the locomotive at the top, the corridor like MPH's hallway, the lake on
+ *   the left and the platform on the right; looking down 57° through a 35° lens, 6.6 m of floor across the screen, so the train fills the width as MPH's hotel does (MPH shows more metres, but its building is wider).
  * - One fixed distance: no zoom in while walking, none on entering a room or the platform, no zoom kick on a purchase.
- * - A plain, slightly lagging follow (a smooth-damp on both axes), the hero a little below the middle of the screen so
- *   more of what is ahead shows, no lead in the direction of travel.
- * - Free, analogue walking (no snapping onto the building's axes).
+ * - A plain smooth follow on both axes, the conductor in the middle of the screen, no lead.
+ * - Free, analogue walking (no snapping onto the train's axes).
  * - New things are shown by a pan over to them and back at the same distance, with no shake.
  * Every number can be changed live in that build with the camera button (bottom left); the values are kept in this
  * browser and shown on the panel, to copy into the profile below.
@@ -39,9 +42,10 @@ export interface CameraTune {
   lead: number;
 }
 
-export const MPH_DEFAULTS: CameraTune = { yaw: 45, pitch: 50, fov: 30, width: 8.4, follow: 5, lead: 0.7 };
+export const MPH_DEFAULTS: CameraTune = { yaw: 0, pitch: 57, fov: 35, width: 6.6, follow: 5, lead: 0 };
 
-const STORE_KEY = 'nightexpress.camtune';
+// Session 58c: a new key, so numbers tuned on the first (diagonal) version of the build do not carry over.
+const STORE_KEY = 'nightexpress.camtune.v2';
 
 /** The profile's numbers: the defaults, or what was last set on the panel in this browser. */
 export function mphTune(): CameraTune {
