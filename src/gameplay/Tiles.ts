@@ -240,6 +240,9 @@ export class Tiles {
       if (def.kind === 'comfort' && refitSpot.has(def.carriage)) continue;
       if ([...this.entries.values()].some((e) => e.def.carriage === def.carriage && regular(e.def))) continue;
       if (!firstPerCarriage.has(def.carriage)) firstPerCarriage.set(def.carriage, def);
+      // Phase 3 (found by the pacing simulator): an earned hire comes before the carriage's designed order. The lobby's
+      // first tile in order could be a dear one that never won a slot, and the Porter behind it was never on show.
+      else if (def.kind === 'hire' && firstPerCarriage.get(def.carriage)!.kind !== 'hire') firstPerCarriage.set(def.carriage, def);
     }
     const rank = (d: UnlockDef): number => (fresh(d.carriage) ? 0 : 1e9) + w.unlocks.remaining(d.id);
     const candidates = [...firstPerCarriage.values()].sort((a, b) => rank(a) - rank(b));
