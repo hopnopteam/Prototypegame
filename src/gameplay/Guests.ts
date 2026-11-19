@@ -499,6 +499,7 @@ export class Guests {
     waiting.sort((a, b) => a.order - b.order);
     this.bedsLeft.clear();
     this.readyLeft.clear();
+    this.possibleLeft.clear();
     // Phase 2: a traveller buys their ticket only once a tidy room of their class is free (rooms the guests getting
     // off here leave behind are made up first); until then a broom over them says what they are waiting for.
     const tidyFirst = j.heldStops && !prologue && j.phase === 'stationStop';
@@ -509,6 +510,14 @@ export class Guests {
         const beds = this.bedsLeft.get(guest.cls) ?? 0;
         eligible = beds > 0;
         if (eligible) this.bedsLeft.set(guest.cls, beds - 1);
+        // A safety net for held stops (Phase 3): only a room that can be made up this stop holds the train, never
+        // one whose guest rides on, whatever the count above says, so a stop can never wait for ever.
+        if (eligible && tidyFirst) {
+          if (!this.possibleLeft.has(guest.cls)) this.possibleLeft.set(guest.cls, this.roomsThisStop(serial, guest.cls));
+          const possible = this.possibleLeft.get(guest.cls) ?? 0;
+          eligible = possible > 0;
+          if (eligible) this.possibleLeft.set(guest.cls, possible - 1);
+        }
       }
       let ready = eligible;
       if (eligible && tidyFirst) {
@@ -558,6 +567,22 @@ export class Guests {
     return Math.max(0, rooms);
   }
   private readonly readyLeft = new Map<ClassId, number>();
+  private readonly possibleLeft = new Map<ClassId, number>();
+
+  /**
+   * Rooms of a class that can take a traveller before this stop ends: empty ones (tidy or not) and ones whose guest
+   * gets off here, less those already sold to a ticketed traveller still on their way to them.
+   */
+  private roomsThisStop(serial: number, cls: ClassId): number {
+    const train = this.w.train;
+    let rooms = 0;
+    for (const c of train.cabins) {
+      if (!c.unlocked || train.cabinClass(c) !== cls) continue;
+      if (!c.guest || c.guest.destinationStop <= serial) rooms++;
+    }
+    for (const g of this.list) if (g.paid && !g.dayRider && !g.cabin && g.cls === cls && g.state !== 'leaving' && g.state !== 'gone') rooms--;
+    return Math.max(0, rooms);
+  }
 
   /**
    * Phase 2: travellers the train is waiting for before the bell: anyone with a bed this stop not yet sold a
@@ -2098,7 +2123,11 @@ export class Guests {
   stayingPast(stopSerial: number, cls?: ClassId): number {
     let n = 0;
     for (const g of this.list) {
-      if ((cls && g.cls !== cls) || g.dayRider) continue;
+      if (g.dayRider) continue;
+      // Phase 3 (found by the pacing simulator): count a guest by the class of the room they hold. A guest handed a
+      // room of the class above (none of theirs was free) used to be counted in their own class, so that room read as
+      // free: a traveller of its class was told a bed waited and held the stop for ever (the room never freed).
+      if (cls && (g.cabin ? this.w.train.cabinClass(g.cabin) : g.cls) !== cls) continue;
       // Deck passengers get off at the first stop: they never hold a bed past it. A traveller with a ticket
       // waiting on the platform has a bed spoken for.
       if ((g.paid && g.state === 'platform') || (g.aboard && (g.cabin === null ? g.state !== 'platform' : g.destinationStop > stopSerial))) n++;
