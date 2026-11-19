@@ -1,10 +1,11 @@
 // Phase 3, the pacing simulator (a debug tool, never shipped): plays Route 1 with the autopilot, headless and
 // accelerated, as a "fast" (efficient) or "average" player (30% more time idle and wandering), and reports the minutes
-// of active play at each milestone against the Phase 3 targets, every purchase and the dry spells.
+// of active play at each milestone against the Phase 3 bot targets, every purchase, the dry spells and the stalls.
 //
-// Usage: node scripts/pacing.mjs [--profile=average|fast|both] [--minutes=260] [--out=dist/pacing] [--chunk=5]
-//        node scripts/pacing.mjs 900          (the old form: the first 900 seconds, average profile off = fast)
-// Writes <out>-<profile>.csv (one row per milestone and purchase) and <out>-<profile>.log (the full report).
+// Usage: node scripts/pacing.mjs [--profile=average|fast|both] [--seeds=1,2,3] [--minutes=260] [--out=dist/pacing]
+//        node scripts/pacing.mjs 900          (the old form: the first 900 seconds, fast profile)
+// Each run is seeded (the game's random and Math.random), so a seed replays the same game. Runs go in parallel
+// (--parallel=6). Writes <out>-<profile>-s<seed>.csv/.log per run and <out>-summary.log (median and slowest by profile).
 // PAGE=dist/god.html etc. picks another build; SHOTS=60,120 with --shots=dir takes screenshots.
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -20,6 +21,8 @@ const args = Object.fromEntries(process.argv.slice(2).filter((a) => a.startsWith
 const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const maxSeconds = positional[0] ? Number(positional[0]) : Number(args.minutes ?? 260) * 60;
 const profiles = (args.profile ?? (positional[0] ? 'fast' : 'both')) === 'both' ? ['average', 'fast'] : [args.profile ?? 'fast'];
+const seeds = (args.seeds ?? '1').split(',').map(Number);
+const parallel = Number(args.parallel ?? 6);
 const out = args.out ?? 'dist/pacing';
 const chunk = Number(args.chunk ?? 5);
 const shotDir = args.shots;
@@ -29,36 +32,85 @@ mkdirSync(dirname(resolve(out)), { recursive: true });
 /** The extra idle time on top of the work, by profile (see Autopilot.idleShare). */
 const IDLE = { fast: 0, average: 0.3 };
 
-/** Phase 3's Route 1 targets for the average player (minutes of active play), ±10%. */
+/**
+ * Phase 3's Route 1 targets for the "average" bot (minutes of active play), ±10%. The bot reaches the first carriages
+ * in about half a real player's time (calibrated on the legacy build), so these are set so real players land on the
+ * prompt's 4 / 14 / 28 / 45 / 65 / 90 / 120 (REAL below).
+ */
 const TARGETS = {
-  'carriage 2': 4, 'carriage 3': 14, 'carriage 4': 28, 'carriage 5': 45,
+  'carriage 2': 2.5, 'carriage 3': 8, 'carriage 4': 18, 'carriage 5': 38,
   'carriage 6': 65, 'carriage 7': 90, 'carriage 8': 120, 'route complete': [150, 170],
 };
-/** The old build's real players, for reference. */
-const REAL_OLD = { 'carriage 2': 6, 'carriage 3': 19, 'carriage 4': 40, 'carriage 5': 58, 'carriage 6': 82, 'carriage 7': 103 };
+/** What real players should see (the Phase 3 prompt's targets). */
+const REAL = { 'carriage 2': 4, 'carriage 3': 14, 'carriage 4': 28, 'carriage 5': 45, 'carriage 6': 65, 'carriage 7': 90, 'carriage 8': 120 };
 const DEAD_LIMIT = 15 * 60;
 const NEW_EVERY = [8 * 60, 12 * 60];
+/** A stretch with no purchase this long while cash holds or grows is a stall (the minute 150–200 flat cash). */
+const FLAT_CASH_LIMIT = 10 * 60;
+const ORDER = [...Array.from({ length: 8 }, (_, i) => `carriage ${i + 2}`), ...Array.from({ length: 7 }, (_, i) => `level ${i + 2}`), 'all refits', 'route complete'];
 
 const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const jobs = profiles.flatMap((profile) => seeds.map((seed) => ({ profile, seed })));
 const reports = [];
-for (const profile of profiles) reports.push(await run(profile));
-await browser.close();
-if (reports.length > 1) {
-  console.log('\n=== Side by side (minutes of active play) ===');
-  const keys = [...new Set(reports.flatMap((r) => Object.keys(r.milestones)))];
-  console.log(`${'milestone'.padEnd(16)}${reports.map((r) => r.profile.padStart(10)).join('')}    target   old build`);
-  for (const k of keys) {
-    const t = TARGETS[k];
-    console.log(`${k.padEnd(16)}${reports.map((r) => (r.milestones[k] != null ? (r.milestones[k] / 60).toFixed(1) : '-').padStart(10)).join('')}    ${String(Array.isArray(t) ? t.join('–') : (t ?? '')).padStart(6)}   ${REAL_OLD[k] ?? ''}`);
+let next = 0;
+await Promise.all(Array.from({ length: Math.min(parallel, jobs.length) }, async () => {
+  while (next < jobs.length) {
+    const job = jobs[next++];
+    reports.push(await run(job.profile, job.seed));
   }
-}
+}));
+await browser.close();
 
-async function run(profile) {
+// ─── Summary: the median and the slowest seed of each profile at every milestone ───
+const summary = [];
+const median = (xs) => { const a = [...xs].sort((x, y) => x - y); const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+const fmtMin = (v) => (v == null ? '-' : (v / 60).toFixed(1));
+for (const profile of profiles) {
+  const rs = reports.filter((r) => r.profile === profile).sort((a, b) => a.seed - b.seed);
+  summary.push(`\n=== ${profile}: ${rs.length} seed(s) (${rs.map((r) => r.seed).join(', ')}) ===`);
+  summary.push(`${'milestone'.padEnd(16)}${'median'.padStart(8)}${'slowest'.padStart(9)}   target   real   verdict   per seed`);
+  let misses = 0;
+  for (const k of ORDER) {
+    const vals = rs.map((r) => r.milestones[k]);
+    const done = vals.filter((v) => v != null);
+    const med = done.length === vals.length && vals.length ? median(done) : null;
+    const slow = done.length === vals.length && vals.length ? Math.max(...done) : null;
+    const t = TARGETS[k];
+    let verdict = '';
+    if (t != null && profile === 'average') {
+      const [lo, hi] = Array.isArray(t) ? t : [t * 0.9, t * 1.1];
+      const ok = med != null && med / 60 >= lo && med / 60 <= hi;
+      if (!ok) misses++;
+      verdict = ok ? 'ok' : med == null ? 'NOT REACHED' : med / 60 < lo ? 'EARLY' : 'LATE';
+    }
+    summary.push(`${k.padEnd(16)}${fmtMin(med).padStart(8)}${fmtMin(slow).padStart(9)}   ${String(t == null ? '' : Array.isArray(t) ? t.join('–') : t).padStart(6)}   ${String(REAL[k] ?? '').padStart(4)}   ${verdict.padEnd(9)} ${vals.map(fmtMin).join(' / ')}`);
+  }
+  for (const r of rs) {
+    const notes = [r.dead ? `${r.dead} dead stretch(es)` : '', r.flat ? `${r.flat} flat-cash stall(s)` : '', r.locks ? `${r.locks} soft-lock(s)` : '', r.longNew ? `${r.longNew} gap(s) >12 min without something new` : ''].filter(Boolean);
+    summary.push(`  seed ${r.seed}: ${notes.length ? notes.join(', ') : 'clean'}`);
+  }
+  if (profile === 'average') summary.push(`Targets missed (median): ${misses}`);
+}
+console.log(summary.join('\n'));
+writeFileSync(`${out}-summary.log`, summary.join('\n') + '\n');
+
+async function run(profile, seed) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, ignoreHTTPSErrors: true });
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}\n${e.stack}`));
-  await page.goto(`file://${resolve(process.env.PAGE ?? 'dist/index.html')}`);
+  // Seeded: the game's own random (`?seed=`) and Math.random (visual touches, ids), so a seed replays the same game.
+  await page.addInitScript((s0) => {
+    let st = s0 >>> 0;
+    Math.random = () => {
+      st = (st + 0x6d2b79f5) >>> 0;
+      let t = st;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }, seed * 7919 + 13);
+  await page.goto(`file://${resolve(process.env.PAGE ?? 'dist/index.html')}?seed=${seed}`);
   await page.waitForTimeout(600);
   await page.mouse.click(195, 700);
   await page.waitForFunction(() => !!window.nightExpress, null, { timeout: 90000 });
@@ -82,6 +134,9 @@ async function run(profile) {
   // A soft-lock alarm: no station stop completed for this long means the bot (or the game) is stuck somewhere.
   let lastStop = -1, lastStopAt = 0;
   const softLocks = [];
+  // The flat-cash alarm: no purchase for FLAT_CASH_LIMIT while cash holds or grows (and something is left to buy).
+  let lastBuyAt = 0, cashAtLastBuy = 0;
+  const flatStalls = [];
   let snap;
   for (let t = 0; t < maxSeconds; t += chunk) {
     snap = await page.evaluate((c) => {
@@ -118,6 +173,8 @@ async function run(profile) {
       seen.add(id);
       const d = defs[id] ?? { kind: id.startsWith('couple') ? 'couple' : '?', price: 0, label: id };
       bought.push({ t: now, id, kind: d.kind, price: d.price, label: d.label });
+      lastBuyAt = now;
+      cashAtLastBuy = snap.cash;
       if (['couple', 'refurb', 'hire', 'staffUpgrade', 'exterior', 'marketing', 'comfort', 'menu', 'station'].includes(d.kind) || id.startsWith('st.')) news.push({ t: now, what: `${d.kind} ${d.label}` });
     }
     if (snap.carriages > lastCarriages) {
@@ -130,6 +187,7 @@ async function run(profile) {
     }
     if (snap.stop !== lastStop) { lastStop = snap.stop; lastStopAt = now; }
     else if (now - lastStopAt > 8 * 60 && !softLocks.some((l) => l.from === lastStopAt)) softLocks.push({ from: lastStopAt, stop: snap.stop });
+    if (snap.open > 0 && now - lastBuyAt > FLAT_CASH_LIMIT && snap.cash >= cashAtLastBuy * 0.9 && !flatStalls.some((f) => f.from === lastBuyAt)) flatStalls.push({ from: lastBuyAt, cash: snap.cash });
     if (snap.event && snap.event !== lastEvent) news.push({ t: now, what: `event ${snap.event}` });
     lastEvent = snap.event;
     // A dry spell: nothing new affordable (and something left to buy).
@@ -143,7 +201,7 @@ async function run(profile) {
     const refitsDone = snap.defs.filter((d) => d.kind === 'refurb').every((d) => snap.unlocked.includes(d.id));
     if (snap.carriages >= snap.maxCarriages && refitsDone && milestones['all refits'] == null) milestones['all refits'] = now;
     if (snap.carriages >= snap.maxCarriages && snap.open === 0 && milestones['route complete'] == null) milestones['route complete'] = now;
-    if (process.env.EVERY && Math.round(t) % Number(process.env.EVERY) === 0) process.stderr.write(`[${profile}] ${fmt(now)} cash ${snap.cash} lvl ${snap.level} cars ${snap.carriages} open ${snap.open}\n`);
+    if (process.env.EVERY && Math.round(t) % Number(process.env.EVERY) === 0) process.stderr.write(`[${profile} s${seed}] ${fmt(now)} cash ${snap.cash} lvl ${snap.level} cars ${snap.carriages} open ${snap.open}\n`);
     const shotAt = (process.env.SHOTS ?? '').split(',').filter(Boolean).map(Number);
     if (shotDir && shotAt.some((s) => s >= t && s < t + chunk)) {
       await page.evaluate(() => { window.nightExpress.paused = false; });
@@ -172,10 +230,10 @@ async function run(profile) {
   await page.close();
 
   // ─── Report ───
-  log(`=== Pacing: ${profile} player (idle +${Math.round((IDLE[profile] ?? 0) * 100)}%), ${fmt(snap.t)} played ===`);
+  log(`=== Pacing: ${profile} player (idle +${Math.round((IDLE[profile] ?? 0) * 100)}%), seed ${seed}, ${fmt(snap.t)} played ===`);
   log(`End: level ${snap.level} (${snap.stars}★), ${snap.carriages} carriages, ${snap.open} tiles left, cash ${snap.cash}`);
   log('\nMilestones (minutes of active play):');
-  const order = [...Array.from({ length: 8 }, (_, i) => `carriage ${i + 2}`), ...Array.from({ length: 7 }, (_, i) => `level ${i + 2}`), 'all refits', 'route complete'];
+  const order = ORDER;
   const csv = ['type,name,minutes,target,within,kind,price'];
   let misses = 0;
   for (const k of order) {
@@ -188,10 +246,11 @@ async function run(profile) {
       if (!ok) misses++;
       verdict = ok ? 'ok' : v == null ? 'NOT REACHED' : v / 60 < lo ? 'EARLY' : 'LATE';
     }
-    log(`  ${k.padEnd(16)} ${v != null ? (v / 60).toFixed(1).padStart(6) : '     -'}${target != null ? `   target ${Array.isArray(target) ? target.join('–') : target}` : ''}${REAL_OLD[k] != null ? `   old ${REAL_OLD[k]}` : ''}  ${verdict}`);
+    log(`  ${k.padEnd(16)} ${v != null ? (v / 60).toFixed(1).padStart(6) : '     -'}${target != null ? `   target ${Array.isArray(target) ? target.join('–') : target}` : ''}${REAL[k] != null ? `   real ${REAL[k]}` : ''}  ${verdict}`);
     csv.push(`milestone,${k},${v != null ? (v / 60).toFixed(2) : ''},${target != null ? (Array.isArray(target) ? target.join('-') : target) : ''},${verdict},,`);
   }
   log(softLocks.length ? `SOFT-LOCK: no stop for 8+ min from ${softLocks.map((l) => `${fmt(l.from)} (stop ${l.stop})`).join(', ')}` : 'No soft-lock (a stop at least every 8 min).');
+  log(flatStalls.length ? `FLAT-CASH STALL: no purchase for 10+ min with cash holding from ${flatStalls.map((f) => `${fmt(f.from)} (cash ${f.cash})`).join(', ')}` : 'No flat-cash stall.');
   log(`\nDry spells (nothing new affordable for 3+ min): ${stuckSpells.length ? stuckSpells.map((s) => `${(s.s / 60).toFixed(1)} min from ${fmt(s.from)}`).join('; ') : 'none'}`);
   const dead = stuckSpells.filter((s) => s.s > DEAD_LIMIT);
   log(dead.length ? `DEAD STRETCHES over 15 min: ${dead.map((s) => `${(s.s / 60).toFixed(1)} min from ${fmt(s.from)}`).join('; ')}` : 'No dead stretch over 15 min.');
@@ -217,10 +276,11 @@ async function run(profile) {
   if (profile === 'average') log(`\nTargets missed: ${misses}`);
   if (errors.length) log('\nERRORS:\n' + [...new Set(errors)].slice(0, 12).join('\n'));
   const text = lines.join('\n');
-  console.log(text);
-  writeFileSync(`${out}-${profile}.csv`, csv.join('\n') + '\n');
-  writeFileSync(`${out}-${profile}.log`, text + '\n');
-  return { profile, milestones, misses, deadStretches: dead.length };
+  if (process.env.VERBOSE) console.log(text);
+  else console.log(`[${profile} s${seed}] done: ${fmt(snap.t)} played, ${snap.carriages} carriages, level ${snap.level}, ${snap.open} tiles left${softLocks.length ? `, ${softLocks.length} soft-lock(s)` : ''}${flatStalls.length ? `, ${flatStalls.length} flat-cash stall(s)` : ''}${errors.length ? `, ${errors.length} error(s)` : ''}`);
+  writeFileSync(`${out}-${profile}-s${seed}.csv`, csv.join('\n') + '\n');
+  writeFileSync(`${out}-${profile}-s${seed}.log`, text + '\n');
+  return { profile, seed, milestones, misses, dead: dead.length, flat: flatStalls.length, locks: softLocks.length, longNew: longNew.length };
 }
 
 function fmt(s) { return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; }

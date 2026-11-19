@@ -80,7 +80,13 @@ export class Player implements Actor {
     let speed = w.econ.player.moveSpeed * (1 + this.shoesLevel() * w.econ.player.shoes.perLevel) * (1 + w.data.conductor.speed * w.econ.conductor.speed.perLevel) * (1 + w.data.meta.perks.speedBonus);
     if (w.monetization.scooterOwned) speed *= 1 + SCOOTER_SPEED_BONUS;
     if (Date.now() < w.data.monetization.speedBoostUntil) speed *= w.econ.rewarded.speedBoost.multiplier;
-    return speed;
+    // Phase 3: never faster than the cap, so the conductor never overshoots a door or loses the camera.
+    return Math.min(speed, this.topSpeed());
+  }
+
+  /** Phase 3: the fastest the conductor ever walks (the starting speed × `player.speedCap`). */
+  topSpeed(): number {
+    return this.w.econ.player.moveSpeed * this.w.econ.player.speedCap;
   }
 
   /** Pairs of shoes bought in the lobby (tiles `c0.shoes_1`…). */
@@ -149,6 +155,7 @@ export class Player implements Actor {
     const ramp = Math.min(1, Math.max(0, (this.strideTime - stride.delaySeconds) / stride.rampSeconds));
     this.strideAmount = ramp * ramp * (3 - 2 * ramp);
     max *= 1 + (stride.multiplier - 1) * this.strideAmount;
+    if (!this.travel.active) max = Math.min(max, this.topSpeed());
     if (this.strideAmount > 0.5) {
       this.dashTrail -= dt;
       if (this.dashTrail <= 0 && this.speedNow > 1) {

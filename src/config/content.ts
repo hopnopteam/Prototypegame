@@ -355,9 +355,10 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       // upgrade in movement speed should come earlier… like my perfect hotel"): walking speed is bought in the lobby,
       // one pair of shoes at a time (each `player.shoes.perLevel` faster), the first straight after the Repair.
       { key: 'shoes_1', kind: 'shoes', label: 'Comfy Shoes', price: 45, stars: 2, requires: ['refurb_1'], effect: 'Walk faster' },
-      { key: 'shoes_2', kind: 'shoes', label: 'Sport Shoes', price: 110, stars: 2, requires: ['shoes_1', '@couple_2'], effect: 'Walk faster' },
-      { key: 'shoes_3', kind: 'shoes', label: 'Swift Shoes', price: 240, stars: 2, requires: ['shoes_2', '@couple_4'], effect: 'Walk faster' },
-      { key: 'shoes_4', kind: 'shoes', label: 'Gold Shoes', price: 480, stars: 3, requires: ['shoes_3', '@couple_6'], effect: 'Walk faster' },
+      // Phase 3: three pairs (were four), spread over the route; their prices are the route's (`economy.shoes.prices`).
+      // A save that bought the old Gold Shoes keeps them (the speed cap holds).
+      { key: 'shoes_2', kind: 'shoes', label: 'Sport Shoes', price: 110, stars: 2, requires: ['shoes_1', '@couple_3'], effect: 'Walk faster' },
+      { key: 'shoes_3', kind: 'shoes', label: 'Gold Shoes', price: 240, stars: 3, requires: ['shoes_2', '@couple_6'], effect: 'Walk faster' },
       { key: 'rack_1', kind: 'rack', label: 'Bigger Rack', price: 240, stars: 2, requires: ['hire_porter', '@couple_3'], effect: '+3 bags' },
       { key: 'rack_2', kind: 'rack', label: 'Grand Rack', price: 480, stars: 3, requires: ['rack_1', '@couple_5'], effect: '+3 bags' },
       // Session 29: earned like the attendant (tickets sold and bags loaded by hand); the bell stays the conductor's.

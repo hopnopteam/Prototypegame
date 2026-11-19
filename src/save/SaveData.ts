@@ -5,7 +5,7 @@ import type { CarriageType } from '../core/types';
  * - Adding a field: give it a default in createDefaultSave(); loading deep-merges defaults, no version bump.
  * - Renaming, removing or changing the meaning of a field: bump SAVE_VERSION and add a migration.
  */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export interface QuestState {
   kind: string;
@@ -55,6 +55,8 @@ export interface SaveData {
      * loaded, bells rung, venue orders served), for the help that must be earned first (`UnlockDef.work`).
      */
     handWork: Record<string, number>;
+    /** Phase 3: the same work done by staff (it counts toward the next hire of a job a helper already does). */
+    staffWork: Record<string, number>;
     /**
      * Phase 1: analytics milestones already sent (`train:N` carriages, `coupled:<type>`, `tier:<type>:<1-3>`,
      * `level:N`), so none is sent twice (an older train rebuilt by the v5 migration has them seeded).
@@ -224,7 +226,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     version: SAVE_VERSION,
     createdAt: now,
     lastActiveAt: now,
-    profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {}, handWork: {}, gaSent: {} },
+    profile: { installId, sessionCount: 0, lifetimePlaySeconds: 0, ftue: {}, flags: {}, handWork: {}, staffWork: {}, gaSent: {} },
     settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {}, qualityPolicy: 0, hapticsPolicy: 0, sfxVolume: 0.8 },
     wallet: { cash: 0, gems: 0, railMiles: 0 },
     station: { owned: {}, sinceEvent: 0, eventGap: 0, lastEvent: null, eventsSeen: 0, boosts: [], critic: {} },

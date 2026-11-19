@@ -1,5 +1,6 @@
 import { applyFraming, CAMERA_STYLE } from './cameraStyle';
 import type { ServiceNeed } from './classes';
+import { ACTIVE_ROUTE, type RouteEconomy } from './routes';
 
 /**
  * The one switch for every ad, offer, store and real-money purchase (fix list after the 1.3-hour playtest:
@@ -84,8 +85,11 @@ export const ECONOMY = {
   player: {
     // Session 37 (owner: "reduce the speed of the player movement… start normal, a little slow even, but as we grow it
     // gets faster"): 4.6 (was 5.6); each pair of shoes bought in the lobby adds `shoes.perLevel` (four pairs: ×1.48).
+    // Phase 3: these come from the route's economy (config/routes.ts `economy`, `applyRouteEconomy` below).
     moveSpeed: 4.2,
     shoes: { perLevel: 0.12 },
+    /** Phase 3: the conductor's top speed, as a multiple of `moveSpeed` (shoes, conductor, perks, boosts and stride). */
+    speedCap: 2.2,
     acceleration: 70,
     /** Stopping and turning back are firmer than starting, so the conductor stops where you let go. */
     braking: 110,
@@ -735,10 +739,15 @@ export const ECONOMY = {
     },
   },
 
+  /**
+   * Phase 3 (publisher: "lighter conductor upgrades"): three tracks of three levels, bought with Rail Miles (which carry
+   * over to the next route). Older saves keep what they bought up to level 3; levels above it are refunded in Rail Miles
+   * (the v6 → v7 migration, `OLD_CONDUCTOR_COSTS` in save/SaveSystem.ts).
+   */
   conductor: {
-    speed: { maxLevel: 5, perLevel: 0.07, costs: [2, 3, 5, 8, 12] },
-    capacity: { maxLevel: 5, perLevel: 1, costs: [3, 5, 8, 12, 16] },
-    fareBonus: { maxLevel: 5, perLevel: 0.06, costs: [3, 5, 8, 12, 16] },
+    speed: { maxLevel: 3, perLevel: 0.05, costs: [3, 6, 10] },
+    capacity: { maxLevel: 3, perLevel: 1, costs: [3, 6, 10] },
+    fareBonus: { maxLevel: 3, perLevel: 0.05, costs: [3, 6, 10] },
   },
 
   staff: {
@@ -855,6 +864,20 @@ export const ECONOMY = {
   // Session 33 (owner: "we don't need daily chest, remove it"): off; true brings it back.
   chest: { enabled: false, hours: 4, cashPerCarriage: 30, gems: 3 },
 
+  /**
+   * Phase 3: the active route's prices (from its `economy`, config/routes.ts). Read by `buildUnlocks` (sim/unlockPlan.ts)
+   * and `Game.fareMultiplier`/`tipMultiplier`; remote config can override any leaf ("route.couplePrices.0").
+   */
+  route: {
+    priceMultiplier: 1,
+    fareMultiplier: 1,
+    couplePrices: [] as number[],
+    slotPrice: [] as number[],
+    classRefit: { fromTier: 4, multiplier: 1 },
+    staffCost: 1,
+    shoePrices: [] as number[],
+  },
+
   daily: {
     loginRewards: [
       { cash: 100 },
@@ -868,6 +891,35 @@ export const ECONOMY = {
     questsPerDay: 3,
   },
 };
+
+/**
+ * Phase 3: the route's economy (config/routes.ts) over the defaults above, so one block per route holds every pacing
+ * number. Run once at load on `ECONOMY`; the game then clones it and applies remote overrides on top.
+ */
+export function applyRouteEconomy(e: typeof ECONOMY, r: RouteEconomy): void {
+  e.route.priceMultiplier = r.priceMultiplier;
+  e.route.fareMultiplier = r.fareMultiplier;
+  e.route.couplePrices = [...r.couplePrices];
+  e.route.slotPrice = [...r.slotPrice];
+  e.route.classRefit = { ...r.classRefit };
+  e.route.staffCost = r.staffCost;
+  e.route.shoePrices = [...r.shoes.prices];
+  e.priceScale = { ...r.priceScale };
+  e.priceCurve = { ...r.priceCurve };
+  e.player.moveSpeed = r.moveSpeed;
+  e.player.shoes.perLevel = r.shoes.step;
+  e.player.speedCap = r.speedCap;
+  e.player.maxDashMultiplier = r.maxDashMultiplier;
+  for (const role of Object.values(e.staff)) if (typeof role === 'object' && role && 'speed' in role) role.speed = Math.round(role.speed * r.staffSpeed * 100) / 100;
+  e.progression.levelThresholds = [...r.levels.thresholds];
+  e.progression.levelRailMiles = [...r.levels.railMiles];
+  e.progression.levelCash = [...r.levels.cash];
+  Object.assign(e.money, r.money);
+  e.offline.efficiency = r.offline.efficiency;
+  e.offline.capSeconds = r.offline.capSeconds;
+  e.station.kiosk.offlinePerMinute = r.offline.kioskPerMinute;
+}
+applyRouteEconomy(ECONOMY, ACTIVE_ROUTE.economy);
 
 // Session 58: the My Perfect Hotel camera build keeps one distance everywhere (config/cameraStyle.ts).
 if (CAMERA_STYLE !== 'default') applyFraming(ECONOMY.camera);

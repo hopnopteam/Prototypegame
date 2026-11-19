@@ -1,5 +1,5 @@
 import { ACTIVE_ROUTE } from '../config/routes';
-import { CARRIAGE_CATALOGUE, CARRIAGE_ORDER, COUPLE_SLOTS, LEGACY_TRAIN, MAX_CARRIAGES, SLOT_PRICE_STEP, STATION_UPGRADES, type UnlockDef } from '../config/content';
+import { CARRIAGE_CATALOGUE, CARRIAGE_ORDER, COUPLE_SLOTS, LEGACY_TRAIN, MAX_CARRIAGES, SLOT_PRICE_STEP, STATION_UPGRADES, type UnlockDef, type UnlockTemplate } from '../config/content';
 import { CLASS_BY_ID, isPassengerType, type ClassId } from '../config/classes';
 import type { CarriageType } from '../core/types';
 import { ECONOMY } from '../config/economy';
@@ -20,6 +20,37 @@ export function scaledPrice(price: number, scale = ECONOMY.priceScale): number {
   return price <= scale.keepUnder ? price : Math.round((price * scale.factor) / 5) * 5;
 }
 
+/** Phase 3: the route's price multiplier (Route 2: ×2.5), rounded to 5 above the opening's small tiles. */
+export function routePrice(price: number, econ = ECONOMY): number {
+  const m = econ.route.priceMultiplier;
+  if (m === 1) return price;
+  return price <= econ.priceScale.keepUnder ? Math.round(price * m) : Math.round((price * m) / 5) * 5;
+}
+
+/** Phase 3: the n-th coupling's price in play (the route's `couplePrices`; the old catalogue price past its end). */
+export function couplePrice(n: number, econ = ECONOMY): number {
+  const own = econ.route.couplePrices[n - 1];
+  return routePrice(own ?? curvedPrice(COUPLE_SLOTS[n - 1]?.price ?? 0), econ);
+}
+
+/**
+ * Phase 3: a carriage tile's price in play: its catalogue price × the route's price for its slot (and for a hire or
+ * staff training, `staffCost`; for First Class and up, `classRefit`), scaled and curved, then × the route multiplier.
+ * The lobby's shoes have their own prices (`route.shoePrices`).
+ */
+export function tilePrice(t: UnlockTemplate, type: CarriageType, index: number, econ = ECONOMY): number {
+  const r = econ.route;
+  if (t.kind === 'shoes') {
+    const n = Number(t.key.split('_')[1]);
+    const own = r.shoePrices[n - 1];
+    if (own !== undefined) return routePrice(own, econ);
+  }
+  let scale = r.slotPrice[index] ?? (index <= 1 ? 1 : 1 + SLOT_PRICE_STEP * (index - 1));
+  if (t.kind === 'hire' || t.kind === 'staffUpgrade') scale *= r.staffCost;
+  if (t.kind === 'refurb' && isPassengerType(type) && (t.tier ?? 0) >= r.classRefit.fromTier) scale *= r.classRefit.multiplier;
+  return routePrice(curvedPrice(Math.round(t.price * scale)), econ);
+}
+
 /** A tile's id: the carriage slot it lives in plus its key in that carriage's catalogue entry. */
 export const tileId = (carriage: number, key: string): string => `c${carriage}.${key}`;
 
@@ -32,13 +63,12 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
   let cabinsBefore = 0;
   carriages.forEach((type, index) => {
     const entry = CARRIAGE_CATALOGUE[type];
-    const scale = index <= 1 ? 1 : 1 + SLOT_PRICE_STEP * (index - 1);
     for (const t of entry.unlocks) {
       defs.push({
         id: tileId(index, t.key),
         kind: t.kind,
         label: t.label.replace('{n}', String(cabinsBefore + (t.cabin ?? 0) + 1)),
-        price: curvedPrice(Math.round(t.price * scale)),
+        price: tilePrice(t, type, index),
         stars: t.stars,
         carriage: index,
         requires: t.requires.map((r) => (r === 'couple' ? `couple_${index}` : r.startsWith('@') ? r.slice(1) : tileId(index, r))),
@@ -58,11 +88,11 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
   // Phase 2: the route's own station upgrades, in its order (config/routes.ts `station.upgrades`).
   for (const key of ACTIVE_ROUTE.station.upgrades) {
     const u = STATION_UPGRADES.find((d) => d.key === key);
-    if (u) defs.push({ id: `st.${u.key}`, kind: u.kind, label: u.label, price: curvedPrice(u.price), stars: u.stars, carriage: -1, requires: u.requires, effect: u.effect, work: u.work });
+    if (u) defs.push({ id: `st.${u.key}`, kind: u.kind, label: u.label, price: routePrice(curvedPrice(u.price)), stars: u.stars, carriage: -1, requires: u.requires, effect: u.effect, work: u.work });
   }
   COUPLE_SLOTS.forEach((slot, i) => {
     const n = i + 1;
-    defs.push({ id: `couple_${n}`, kind: 'couple', label: 'New Carriage', price: curvedPrice(slot.price), stars: slot.stars, carriage: n, requires: slot.requires, effect: 'A surprise joins the train' });
+    defs.push({ id: `couple_${n}`, kind: 'couple', label: 'New Carriage', price: couplePrice(n), stars: slot.stars, carriage: n, requires: slot.requires, effect: 'A surprise joins the train' });
   });
   return defs;
 }

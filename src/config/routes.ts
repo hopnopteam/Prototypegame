@@ -72,6 +72,48 @@ export interface RouteDef {
   music: string;
   /** Phase 2: what this route's platforms offer, its special stops and its critic. */
   station: RouteStationRules;
+  /** Phase 3: every pacing number of this route, in one place (applied over ECONOMY at load; remote config on top). */
+  economy: RouteEconomy;
+}
+
+/**
+ * Phase 3, a route's economy: everything that sets its pace. `ECONOMY` (config/economy.ts) takes these values at load
+ * (`applyRouteEconomy`), so the rest of the game reads them as before; GameAnalytics Remote Configs can override any
+ * leaf by its dotted path ("route.couplePrices.2", "player.moveSpeed"; see `services/remoteConfig.ts`).
+ */
+export interface RouteEconomy {
+  /** Every price on this route × this (Route 1: 1; Route 2: 2.5). Applied after everything below. */
+  priceMultiplier: number;
+  /** Every fare and tip on this route × this (Route 1: 1; Route 2: 2). */
+  fareMultiplier: number;
+  /** The couplings in play, the second carriage first (before `priceMultiplier`). */
+  couplePrices: number[];
+  /** Catalogue prices × `factor` (rounded to 5), except the opening's tiles at or under `keepUnder`. */
+  priceScale: { factor: number; keepUnder: number };
+  /** Then dearer tiles grow a little more: unchanged up to `from`, up to `max` times by `to`. */
+  priceCurve: { from: number; to: number; max: number };
+  /** A carriage's own tiles × this, by the slot it took (the lobby is slot 0). */
+  slotPrice: number[];
+  /** Passenger class refits from `fromTier` up (First Class, the Royal Suite) × `multiplier`. */
+  classRefit: { fromTier: number; multiplier: number };
+  /** Every hire and staff training tile × this. */
+  staffCost: number;
+  /** The conductor's walking speed (m/s) at the start. */
+  moveSpeed: number;
+  /** The lobby's shoes: each pair adds `step` of the starting speed; their prices in play, in order. */
+  shoes: { step: number; prices: number[] };
+  /** Starting speed × shoes × conductor × perks × boosts × stride never exceeds `speedCap` × the starting speed. */
+  speedCap: number;
+  /** Quick travel's top speed, as a multiple of walking pace (kept so a trip takes as long as before). */
+  maxDashMultiplier: number;
+  /** Every helper's walking speed × this. */
+  staffSpeed: number;
+  /** Stars to reach each route level (index 0 = level 1), and each level's Rail Miles and cash. */
+  levels: { thresholds: number[]; railMiles: number[]; cash: number[] };
+  /** The fare and tip base values. */
+  money: { baseFare: number; alightTip: number; luggageTip: number; requestTip: number; bathroomTip: number; stationBonusCash: number };
+  /** Away earnings: the share of automated income paid, its cap (seconds), and the kiosk's rate (per minute). */
+  offline: { efficiency: number; capSeconds: number; kioskPerMinute: number };
 }
 
 /** Phase 2: a route's station upgrades (one set for all its platforms), special stops and critic. */
@@ -174,6 +216,29 @@ export const COUNTRYSIDE_EXPRESS: RouteDef = {
   duskSeconds: 150,
   scenery: { wheat: true, stoneBridges: true },
   music: 'countryside_theme',
+  // Phase 3: Route 1's pacing, tuned with the pacing simulator (scripts/pacing.mjs) to the bot targets.
+  economy: {
+    priceMultiplier: 1,
+    fareMultiplier: 1,
+    couplePrices: [150, 450, 800, 1250, 1900, 2700, 3800],
+    priceScale: { factor: 2.0, keepUnder: 30 },
+    priceCurve: { from: 300, to: 4000, max: 1.3 },
+    slotPrice: [0.85, 0.85, 1.5, 1.69, 1.89, 2.32, 2.54, 2.76],
+    classRefit: { fromTier: 4, multiplier: 1.45 },
+    staffCost: 1,
+    moveSpeed: 3.15,
+    shoes: { step: 0.11, prices: [60, 700, 3000] },
+    speedCap: 2.2,
+    maxDashMultiplier: 5.3,
+    staffSpeed: 0.9,
+    levels: {
+      thresholds: [0, 75, 230, 470, 780, 1365, 2600, 4160],
+      railMiles: [0, 3, 4, 5, 6, 8, 10, 12],
+      cash: [0, 80, 150, 300, 550, 900, 1400, 2200],
+    },
+    money: { baseFare: 15, alightTip: 12, luggageTip: 4, requestTip: 9, bathroomTip: 3, stationBonusCash: 18 },
+    offline: { efficiency: 0.25, capSeconds: 3 * 60 * 60, kioskPerMinute: 1.5 },
+  },
   station: {
     upgrades: ['posters', 'booth', 'benches', 'windowboxes', 'kiosk', 'billboard', 'helper', 'lamps', 'lining', 'band', 'nameboards', 'gate2', 'redcarpet'],
     tilesAtOnce: 2,

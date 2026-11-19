@@ -1,6 +1,7 @@
 import { RENAMED_UNLOCKS } from '../config/content';
 import { legacyCarriages, migrateLegacyId } from '../sim/unlockPlan';
 import { migrateRoute } from '../sim/routeMigration';
+import { capConductor } from '../sim/meta';
 import { log } from '../core/log';
 import { createDefaultSave, mergeDefaults, SAVE_VERSION, type SaveData } from './SaveData';
 import type { SaveStorage } from './SaveStorage';
@@ -108,7 +109,30 @@ export const SAVE_MIGRATIONS: SaveMigration[] = [
       }
     },
   },
+  {
+    // v6 → v7 (Phase 3, pacing and economy): conductor upgrades are three levels each now; anything bought above level 3
+    // is refunded in Rail Miles at what it cost. Stories are gone: their stored progress is dropped.
+    from: 6,
+    apply(raw) {
+      const conductor = raw.conductor as Record<string, number> | undefined;
+      if (conductor) {
+        const { levels, refund } = capConductor(conductor, OLD_CONDUCTOR_COSTS, 3);
+        Object.assign(conductor, levels);
+        const wallet = (raw.wallet ?? (raw.wallet = {})) as { railMiles?: number };
+        wallet.railMiles = (wallet.railMiles ?? 0) + refund;
+      }
+      const meta = raw.meta as { stories?: unknown } | undefined;
+      if (meta) delete meta.stories;
+    },
+  },
 ];
+
+/** What each conductor level cost before Phase 3 (5 levels a track), for the v6 → v7 refund. */
+const OLD_CONDUCTOR_COSTS: Record<string, readonly number[]> = {
+  speed: [2, 3, 5, 8, 12],
+  capacity: [3, 5, 8, 12, 16],
+  fareBonus: [3, 5, 8, 12, 16],
+};
 
 /** The opening's Open carriage tile (session 22): bought for every save from before the station start. */
 const OPENED_CARRIAGE = 'c0.open';

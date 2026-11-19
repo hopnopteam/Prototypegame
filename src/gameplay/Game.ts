@@ -117,11 +117,20 @@ const QUALITY_POLICY = 28;
 /** Particle size scale at one device pixel per CSS pixel (Particles' default, tuned at that density). */
 const PARTICLE_SCALE = 400;
 
+/** The game's random seed from the page address (`?seed=N`), for repeatable runs. */
+function urlSeed(): number | null {
+  if (typeof location === 'undefined') return null;
+  const v = new URLSearchParams(location.search).get('seed');
+  const n = v === null ? NaN : Number(v);
+  return Number.isFinite(n) ? n * 2654435761 + 1 : null;
+}
+
 export class Game implements World {
   readonly econ: Economy;
   readonly events = new EventBus<GameEvents>();
   readonly save: SaveSystem;
-  readonly rng = new Rng();
+  // Phase 3: `?seed=N` replays the same game (the pacing simulator runs several seeds); otherwise the clock.
+  readonly rng = new Rng(urlSeed() ?? Date.now());
   readonly tweens = new Tweens();
   readonly background = new Background();
   readonly stage: Stage;
@@ -281,7 +290,7 @@ export class Game implements World {
     this.progression = new Progression(this.econ.progression, this.data.route);
     // Class upgrades wait for their route level: a flag per level reached (older saves get theirs here).
     for (let level = 1; level <= this.progression.level; level++) this.data.profile.flags[`level_${level}`] = true;
-    this.unlocks = new UnlockChain(buildUnlocks(this.data.route.carriages), this.data.route, () => this.data.profile.flags, () => (GOD_MODE ? GOD_WORK : this.data.profile.handWork));
+    this.unlocks = new UnlockChain(buildUnlocks(this.data.route.carriages), this.data.route, () => this.data.profile.flags, () => (GOD_MODE ? GOD_WORK : (this.handWork?.counts ?? this.data.profile.handWork)));
     const route = this.data.route;
     this.journey = new Journey(this.econ.journey, {
       onPhase: (phase, previous) => {

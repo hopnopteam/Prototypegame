@@ -101,7 +101,7 @@ import { SAVE_VERSION } from '../src/save/SaveData';
 
 describe('Phase 2: save v6', () => {
   it('keeps the station upgrades already bought as the route\'s platform upgrades, and turns recent stops into reviews', () => {
-    expect(SAVE_VERSION).toBe(6);
+    expect(SAVE_VERSION).toBeGreaterThanOrEqual(6);
     const raw: Record<string, unknown> = { route: { id: 'countryside', unlocked: ['c0.open', 'st.posters', 'st.windowboxes', 'couple_1'], recentStops: [1, 0.5, 0] } };
     SAVE_MIGRATIONS.find((m) => m.from === 5)?.apply(raw);
     expect((raw.station as { owned: Record<string, string[]> }).owned.countryside).toEqual(['posters', 'windowboxes']);

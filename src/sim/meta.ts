@@ -112,3 +112,19 @@ export interface ConductorTrack {
 export function conductorCost(track: ConductorTrack, level: number): number | null {
   return level >= track.maxLevel ? null : track.costs[level];
 }
+
+/**
+ * Phase 3: conductor upgrades capped at a new maximum. Levels above it are refunded at what they cost (`oldCosts`, the
+ * price of each level as bought), so a rebalance never takes away what a player paid for.
+ */
+export function capConductor(levels: Record<string, number>, oldCosts: Record<string, readonly number[]>, maxLevel: number): { levels: Record<string, number>; refund: number } {
+  const out: Record<string, number> = {};
+  let refund = 0;
+  for (const [key, level] of Object.entries(levels)) {
+    const n = Math.max(0, Math.floor(level || 0));
+    out[key] = Math.min(n, maxLevel);
+    const costs = oldCosts[key] ?? [];
+    for (let i = maxLevel; i < n; i++) refund += costs[i] ?? 0;
+  }
+  return { levels: out, refund };
+}

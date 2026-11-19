@@ -217,11 +217,15 @@ export class Guidance {
   }
 
   /** The most useful next thing for the player to do (also drives the autopilot). */
+  /** Phase 3, the pacing bot: saving for the next carriage (set by the Autopilot), so it buys nothing cheaper meanwhile. */
+  botSaving = false;
+
   bestTarget(forBot = false): Vec2 | null {
     const target = this.pick(forBot);
     if (target || !forBot) return target;
     // A bot with nothing to do waits by the cheapest tile, like a player saving up.
-    return this.w.tiles.cheapest()?.pos ?? null;
+    // Saving for the next carriage, it waits by that (paying into it as it earns).
+    return (this.botSaving ? this.w.tiles.coupling()?.pos : null) ?? this.w.tiles.cheapest()?.pos ?? null;
   }
 
   private pick(forBot = false): Vec2 | null {
@@ -279,7 +283,7 @@ export class Guidance {
     const cash = w.wallet.get('cash');
     // A station upgrade you can afford is now or never (it leaves with the platform), while the desk queue and
     // the cash on the floor wait for the train to pull out: that one first.
-    const now = w.tiles.stationBuy(cash);
+    const now = forBot && this.botSaving ? null : w.tiles.stationBuy(cash);
     if (now) return this.because('tile', now.pos);
     // Session 33: once the platform is done, "All aboard!" (Phase 2: the only way a stop ends).
     if (w.journey.doorsOpen && w.station.bellReady() && (stack.isEmpty || !this.whereNeeded(stack.items))) return this.because('bell', PLATFORM.bellPad);
@@ -293,7 +297,7 @@ export class Guidance {
     if (forBot) {
       const couple = w.tiles.coupling();
       if (couple && w.unlocks.remaining(couple.def.id) <= cash) return this.because('tile', couple.pos);
-      const cheap = w.tiles.cheapest();
+      const cheap = this.botSaving ? null : w.tiles.cheapest();
       if (cheap && w.unlocks.remaining(cheap.def.id) <= cash) return this.because('tile', cheap.pos);
     }
 
@@ -309,7 +313,7 @@ export class Guidance {
     // Phase 3, the pacing bot: the next carriage first, the moment it is affordable.
     const couple = forBot ? w.tiles.coupling() : null;
     if (couple && w.unlocks.remaining(couple.def.id) <= cash) return this.because('tile', couple.pos);
-    const tile = w.tiles.cheapest();
+    const tile = forBot && this.botSaving ? null : w.tiles.cheapest();
     if (tile && w.unlocks.remaining(tile.def.id) <= cash) return this.because('tile', tile.pos);
 
     const request = w.guests.openRequests().find((g) => !w.staff.isHandled(g));

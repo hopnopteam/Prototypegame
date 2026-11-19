@@ -6,6 +6,10 @@ const ARRIVE = 0.22;
 const REPATH_SECONDS = 0.6;
 /** The average player's work bursts (seconds, min and max) before each breather. */
 const IDLE_BURST: [number, number] = [20, 60];
+/** The bot saves for the next carriage once it is this many seconds of income away (Phase 3). */
+const SAVE_WITHIN = 120;
+/** Seconds of earnings in each income sample. */
+const INCOME_WINDOW = 30;
 /** How often a wandering player changes their mind (seconds). */
 const WANDER_STEP = 1.5;
 
@@ -33,6 +37,11 @@ export class Autopilot {
   private idleLeft = 0;
   private wanderLeft = 0;
   private seed = 0x2f6b1;
+  /** Income per second (an average over about a minute), from the wallet going up. */
+  incomeRate = 0;
+  private lastCash = -1;
+  private earned = 0;
+  private window = 0;
 
   constructor(private readonly w: World, private readonly setStick: (x: number, y: number) => void) {}
 
@@ -41,6 +50,7 @@ export class Autopilot {
     const w = this.w;
     const player = w.player;
     this.repath -= dt;
+    this.trackIncome(dt);
     // Like a player who follows the Rail Miles hint: spend them as soon as the Conductor sheet unlocks.
     if (w.progression.level >= w.econ.progression.unlockLevels.conductorUpgrades) {
       for (const key of ['capacity', 'fareBonus'] as const) if (w.buyConductorUpgrade(key)) break;
@@ -83,6 +93,28 @@ export class Autopilot {
         this.path = [];
       }
     }
+  }
+
+  /**
+   * Phase 3 (owner: "real players chase the new carriage, and the bot should too"): keep an average of what the
+   * player earns, and while the next coupling is within `SAVE_WITHIN` seconds of that income, save for it instead of
+   * spending on cheaper tiles (`Guidance.botSaving`).
+   */
+  private trackIncome(dt: number): void {
+    const w = this.w;
+    const cash = w.wallet.get('cash');
+    if (this.lastCash >= 0 && cash > this.lastCash) this.earned += cash - this.lastCash;
+    this.lastCash = cash;
+    this.window += dt;
+    if (this.window >= INCOME_WINDOW) {
+      const rate = this.earned / this.window;
+      this.incomeRate = this.incomeRate === 0 ? rate : this.incomeRate * 0.5 + rate * 0.5;
+      this.earned = 0;
+      this.window = 0;
+    }
+    const couple = w.tiles.coupling();
+    const left = couple ? w.unlocks.remaining(couple.def.id) - cash : Infinity;
+    w.guidance.botSaving = left > 0 && left <= this.incomeRate * SAVE_WITHIN;
   }
 
   /** True while the average player is taking a breather (looking around, wandering); the stick is set here. */
