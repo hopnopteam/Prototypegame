@@ -1032,9 +1032,13 @@ export class TileMarker {
     ctx.strokeStyle = INK;
     ctx.stroke();
     ctx.fillStyle = INK;
-    ctx.font = `800 22px ${TILE_FONT}`;
+    // Phase 3: the count reads as a phrase ("TIDY ROOMS 3/4"), shrunk to fit the bar.
+    const count = `${verb} ${done}/${need}`.toUpperCase();
+    let countSize = 22;
+    ctx.font = `800 ${countSize}px ${TILE_FONT}`;
+    while (countSize > 14 && ctx.measureText(count).width > x1 - x0 - 18) ctx.font = `800 ${--countSize}px ${TILE_FONT}`;
     ctx.textAlign = 'center';
-    ctx.fillText(`${verb} ${done}/${need}`.toUpperCase(), (x0 + x1) / 2, 78);
+    ctx.fillText(count, (x0 + x1) / 2, 78);
     ctx.textAlign = 'left';
     this.texture.needsUpdate = true;
   }

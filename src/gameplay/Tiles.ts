@@ -280,6 +280,21 @@ export class Tiles {
     }
   }
 
+  /**
+   * Phase 3: the locked next carriage says what it waits for on its own marker, seen from anywhere: a hire still being
+   * earned shows that hire and its live count ("Hire Attendant first", "Tidy rooms 3/4"); anything else, "After …".
+   */
+  private drawPreviewMarker(): void {
+    if (!this.preview) return;
+    const u = this.w.unlocks;
+    const def = u.defs.find((d) => d.id === this.preview!.id);
+    if (!def) return;
+    const waiting = def.requires.map((id) => u.get(id)).find((d) => d && !u.isUnlocked(d.id));
+    const short = waiting ? u.workShort(waiting) : null;
+    if (waiting && short) this.preview.view.marker.drawEarning('carriage', `Hire ${waiting.label} first`, WORK_VERB[short.metric], short.done, short.need);
+    else if (waiting) this.preview.view.marker.draw('carriage', markerName(`After ${waiting.label}`), def.price, false, true);
+  }
+
   get list(): TileEntry[] {
     return [...this.entries.values()];
   }
@@ -351,6 +366,7 @@ export class Tiles {
       }
       this.maybeReveal(entry);
     }
+    this.drawPreviewMarker();
     this.preview?.view.update(dt, false, false);
     this.shortOfCash = anyShort ? this.shortOfCash + dt : 0;
   }
@@ -442,7 +458,7 @@ export class Tiles {
     if (best) best.view.marker.sprite.visible = false;
     if (best) {
       // Help still being earned says what is left to do by hand: "Tidy 7/12 · Serve 3/8".
-      const work = best.def.work && this.w.unlocks.workShort(best.def) ? Object.entries(best.def.work).map(([m, need]) => `${WORK_VERB[m as keyof typeof WORK_VERB]} ${Math.min(need ?? 0, this.w.data.profile.handWork[m] ?? 0)}/${need}`).join(' · ') : null;
+      const work = best.def.work && this.w.unlocks.workShort(best.def) ? Object.entries(best.def.work).map(([m, need]) => `${WORK_VERB[m as keyof typeof WORK_VERB]} ${Math.min(need ?? 0, this.w.unlocks.workCount(m))}/${need}`).join(' · ') : null;
       return { label: best.def.label, effect: work ?? best.def.effect, x: best.pos.x, z: best.pos.z, locked: work !== null };
     }
     if (this.preview) {
@@ -472,6 +488,15 @@ export class Tiles {
       if (!best || price < this.w.unlocks.remaining(best.def.id)) best = entry;
     }
     return best;
+  }
+
+  /** Phase 3: a hire on show that is earned and affordable (the pacing bot hires help as soon as it can). */
+  affordableHire(cash: number): TileEntry | null {
+    for (const entry of this.entries.values()) {
+      if (entry.def.kind !== 'hire' || !this.w.unlocks.isAvailable(entry.def.id)) continue;
+      if (this.w.unlocks.remaining(entry.def.id) <= cash) return entry;
+    }
+    return null;
   }
 
   /** The next carriage's coupling tile, if it is on show and available (the pacing bot buys it first). */

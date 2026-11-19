@@ -291,6 +291,8 @@ export const ECONOMY = {
      * into its till while the train is in, and `offlinePerMinute` while the player is away (inside the offline cap).
      */
     kiosk: { perSecond: 0.5, perCarriage: 0.15, offlinePerMinute: 1.5 },
+    /** Phase 3, the stop watchdog: a held stop blocked this long with no progress settles whatever holds it. */
+    watchdogSeconds: 90,
   },
 
   /**

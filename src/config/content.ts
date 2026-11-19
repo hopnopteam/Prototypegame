@@ -244,9 +244,13 @@ export type WorkMetric = 'rooms' | 'requests' | 'tickets' | 'keys' | 'bags' | 'b
 export type WorkNeed = Partial<Record<WorkMetric, number>>;
 
 /** How each kind of hand work reads on a tile's marker ("Tidy 7/12"): one short verb. */
+/**
+ * What each kind of hand work is called on a hire's tile (its live count follows: "Tidy rooms 3/4"). Phase 3
+ * (publisher: "if players can't see why they're waiting, they'll think the game is stuck"): plain two-word phrases.
+ */
 export const WORK_VERB: Record<WorkMetric, string> = {
-  rooms: 'Tidy', requests: 'Serve', tickets: 'Tickets', keys: 'Keys', bags: 'Bags', bells: 'Bells',
-  cafe: 'Brew', dining: 'Dine', bar: 'Mix', dome: 'Show in', cinema: 'Films', restock: 'Restock',
+  rooms: 'Tidy rooms', requests: 'Serve guests', tickets: 'Sell tickets', keys: 'Hand keys', bags: 'Load bags', bells: 'Ring bell',
+  cafe: 'Serve coffee', dining: 'Serve dinners', bar: 'Serve drinks', dome: 'Show guests', cinema: 'Show films', restock: 'Restock',
 };
 
 export interface UnlockDef {

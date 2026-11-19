@@ -190,6 +190,8 @@ export class Guest {
    * time they began waiting, and `grumpy` once kept waiting past the station's patience: they board, but leave no tip.
    */
   eligible = false;
+  /** Phase 3, the stop watchdog: this traveller waits for the next train (never counted as missed). */
+  deferred = false;
   ready = false;
   platformSince = 0;
   grumpy = false;
@@ -503,7 +505,7 @@ export class Guests {
     const tidyFirst = j.heldStops && !prologue && j.phase === 'stationStop';
     for (const guest of waiting) {
       let eligible = prologue;
-      if (!prologue) {
+      if (!prologue && !guest.deferred) {
         if (!this.bedsLeft.has(guest.cls)) this.bedsLeft.set(guest.cls, this.bedsFree(serial, guest.cls));
         const beds = this.bedsLeft.get(guest.cls) ?? 0;
         eligible = beds > 0;
@@ -944,6 +946,46 @@ export class Guests {
         this.alightStagger += 0.45;
       }
     }
+  }
+
+  /**
+   * Phase 3, the stop watchdog (`Station.updateWatchdog`): settles whatever travellers still hold the bell after a long
+   * time with no progress. Travellers with no room they can take wait for the next train (not missed); anyone with a
+   * ticket, or a day rider, still outside steps aboard as the doors would put them. Returns what was settled.
+   */
+  watchdogRelease(): string[] {
+    const reasons = new Set<string>();
+    const door = this.w.map.doors()[0];
+    for (const guest of [...this.list]) {
+      if (guest.state === 'platform' && !guest.paid && guest.eligible) {
+        guest.deferred = true;
+        reasons.add('travellers');
+      } else if (guest.state === 'platform' && guest.paid) {
+        guest.onPlatform = false;
+        guest.state = 'boarding';
+        this.joinDesk(guest, this.deskFor(guest));
+        const inside = this.deskDoor(guest.desk ?? this.desks[0]).inside;
+        guest.pos.x = inside.x;
+        guest.pos.z = inside.z;
+        guest.mover.go([this.slotPosition(guest.queueSlot, guest.desk ?? this.desks[0])], () => this.arriveInQueue(guest));
+        reasons.add('boarders');
+      } else if (guest.state === 'boarding' && guest.pos.x > HALF_WIDTH - 0.2) {
+        const desk = guest.desk ?? this.desks[0];
+        const inside = this.deskDoor(desk).inside;
+        guest.pos.x = inside.x;
+        guest.pos.z = inside.z;
+        guest.mover.go([this.slotPosition(guest.queueSlot, desk)], () => this.arriveInQueue(guest));
+        reasons.add('boarders');
+      } else if (guest.dayRider && guest.outside && guest.state === 'strolling' && door) {
+        guest.mover.stop();
+        guest.pos.x = door.inside.x;
+        guest.pos.z = door.inside.z;
+        this.stepAboard(guest);
+        reasons.add('dayRiders');
+      }
+    }
+    if (reasons.has('travellers')) this.arrangePlatform(false);
+    return [...reasons];
   }
 
   /** Doors are closing: nobody is left half-way through a door. */

@@ -83,6 +83,11 @@ export class UnlockChain {
     return worst;
   }
 
+  /** Work done toward a metric (hand work and, once a helper does that job, staff work). */
+  workCount(metric: string): number {
+    return this.work()[metric as WorkMetric] ?? 0;
+  }
+
   paid(id: string): number {
     return this.state.partial[id] ?? 0;
   }

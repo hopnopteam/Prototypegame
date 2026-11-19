@@ -97,5 +97,6 @@ describe('Phase 3: analytics', () => {
     expect(translate('economy_stuck', { seconds: 250 })[0]).toMatchObject({ id: 'Economy:Stuck:180', value: 250 });
     expect(stuckBucket(700)).toBe('600');
     expect(stuckBucket(4000)).toBe('1800plus');
+    expect(translate('station_watchdog', { reason: 'sheep+travellers', seconds: 90 })).toEqual([{ kind: 'design', id: 'Station:Watchdog:sheep_travellers', value: 90 }]);
   });
 });

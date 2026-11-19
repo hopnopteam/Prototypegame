@@ -217,6 +217,18 @@ export class Guidance {
   }
 
   /** The most useful next thing for the player to do (also drives the autopilot). */
+  /** Venue kinds whose helper (a listed hire) still waits on hand work there (the work metric is the venue kind). */
+  private earningVenues(): Set<string> {
+    const u = this.w.unlocks;
+    const out = new Set<string>();
+    for (const d of u.listed()) {
+      if (d.kind !== 'hire' || !d.work) continue;
+      const short = u.workShort(d);
+      if (short && ['cafe', 'dining', 'bar', 'dome', 'cinema'].includes(short.metric)) out.add(short.metric);
+    }
+    return out;
+  }
+
   /** Phase 3, the pacing bot: saving for the next carriage (set by the Autopilot), so it buys nothing cheaper meanwhile. */
   botSaving = false;
 
@@ -295,6 +307,9 @@ export class Guidance {
     // Phase 3, the pacing bot: an upgrade it can afford before more cash off the floor (a player buys on the way past;
     // on a long, busy train there is always a pile somewhere, and the bot never got round to spending).
     if (forBot) {
+      // Phase 3: help first, the moment it is earned and affordable (a real player hires as soon as they can).
+      const hire = w.tiles.affordableHire(cash);
+      if (hire) return this.because('tile', hire.pos);
       const couple = w.tiles.coupling();
       if (couple && w.unlocks.remaining(couple.def.id) <= cash) return this.because('tile', couple.pos);
       const cheap = this.botSaving ? null : w.tiles.cheapest();
@@ -315,6 +330,16 @@ export class Guidance {
     if (couple && w.unlocks.remaining(couple.def.id) <= cash) return this.because('tile', couple.pos);
     const tile = forBot && this.botSaving ? null : w.tiles.cheapest();
     if (tile && w.unlocks.remaining(tile.def.id) <= cash) return this.because('tile', tile.pos);
+
+    // Phase 3, the pacing bot: while a venue's helper is still being earned by hand, that venue's work comes first
+    // (a player working toward the hire), so the bar's and the dining car's staff are not left unhired.
+    if (forBot) {
+      const earning = this.earningVenues();
+      if (earning.size) {
+        const job = w.venues.playerJob(player.pos, earning);
+        if (job) return this.because(job.reason, job.target);
+      }
+    }
 
     const request = w.guests.openRequests().find((g) => !w.staff.isHandled(g));
     // A turndown: straight to the room, nothing to fetch.

@@ -194,6 +194,8 @@ export function translate(event: string, p: AnalyticsParams = {}): GaCall[] {
       const hours = Math.max(0, Math.floor(num(p.hours)));
       return [{ kind: 'design', id: `Offline:Return:${hours > 12 ? '12plus' : String(hours)}`, value: num(p.amount) }];
     }
+    case 'station_watchdog':
+      return [{ kind: 'design', id: `Station:Watchdog:${part(p.reason)}`, value: num(p.seconds) }];
     case 'economy_stuck':
       return [{ kind: 'design', id: `Economy:Stuck:${stuckBucket(num(p.seconds))}`, value: num(p.seconds) }];
     case 'press_printed':

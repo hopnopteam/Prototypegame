@@ -883,7 +883,7 @@ export class Venues {
   }
 
   /** The next venue job for the player (none where a staff member has it in hand). */
-  playerJob(from: Vec2): { reason: 'fetch' | 'clean' | 'desk'; target: Vec2 } | null {
+  playerJob(from: Vec2, only?: ReadonlySet<string>): { reason: 'fetch' | 'clean' | 'desk'; target: Vec2 } | null {
     const w = this.w;
     let best: { reason: 'fetch' | 'clean' | 'desk'; target: Vec2 } | null = null;
     let bestD = Infinity;
@@ -896,6 +896,7 @@ export class Venues {
       }
     };
     for (const v of this.list) {
+      if (only && !only.has(v.kind)) continue;
       if (v.kind === 'cafe' && v.staffCount('barista') === 0) {
         for (const item of ['latte', 'pastry'] as const) if (v.waitingFor(item).length > 0 && w.demand.playerWants(item) > 0) offer('fetch', v.stationFor(item));
       }

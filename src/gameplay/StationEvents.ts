@@ -239,6 +239,24 @@ export class StationEvents {
     w.station.blocker = () => this.ready();
   }
 
+  /**
+   * Phase 3, the stop watchdog (`Station.updateWatchdog`): whatever the event still holds the bell for is settled
+   * (the sheep trot off, the delayed connection counts as arrived). Returns what was settled, or null.
+   */
+  forceReady(): string | null {
+    let what: string | null = null;
+    for (const s of this.sheep) if (s.fled === 0) {
+      s.fled = 0.001;
+      s.heading = Math.atan2(PLATFORM_X0 + 7 - s.x, 0.5);
+      what = 'sheep';
+    }
+    if (this.waveDue) {
+      this.waveDue = false;
+      what = what ?? 'delayed';
+    }
+    return what;
+  }
+
   /** Whatever the event asks before the bell: every sheep shooed, the connection's travellers arrived. */
   private ready(): boolean {
     if (this.sheep.some((s) => s.fled === 0)) return false;

@@ -430,6 +430,7 @@ export class Station {
     if (this.prologue) this.updatePrologue(_dt);
     // Phase 2, no teleport: once the bell has rung, the doors wait for the conductor (and anyone still walking in).
     if (j.phase === 'stationStop' && !j.held && j.heldStops && j.timeLeft < 0.6 && (this.outsideTrain(w.player.pos) || w.guests.walkingIn())) j.extend(_dt);
+    this.updateWatchdog(_dt);
     this.updateLatecomers();
     this.updateDayRiders();
     const toStop = j.distanceToStop;
@@ -1117,6 +1118,51 @@ export class Station {
   private unhappyAtArrival = 0;
 
   /** The conductor (or anyone) is out on the platform, not aboard. */
+  /**
+   * Phase 3, the stop watchdog (publisher: "any freeze nobody has found yet can't trap a player"): if a held stop's
+   * departure stays blocked (the bell not ready, or rung with the doors waiting on someone walking in) for
+   * `station.watchdogSeconds` with no progress at all (nobody boarding or paying, no room made up, no restock, no
+   * sheep shooed), whatever holds it is settled: the stop event's blocker (sheep trot off, the delayed connection counts
+   * as arrived), travellers with no room wait for the next train (never counted as missed), anyone with a ticket or a
+   * day rider still outside steps aboard. Logged as `Station:Watchdog:<reason>` and kept in `watchdogLog` (the
+   * pacing simulator reports it). A ready bell nobody rings is the player's choice and is left alone.
+   */
+  readonly watchdogLog: { stop: number; reason: string; seconds: number }[] = [];
+  private watchdogFor = 0;
+  private watchdogSig = '';
+  private updateWatchdog(dt: number): void {
+    const w = this.w;
+    const j = w.journey;
+    const rung = this.bellRungFor === j.stopSerial;
+    const watching = j.phase === 'stationStop' && j.heldStops && j.doorsOpen && !this.prologue && !w.coach?.tutorial
+      && (rung ? w.guests.walkingIn() : !this.bellReady());
+    if (!watching) {
+      this.watchdogFor = 0;
+      this.watchdogSig = '';
+      return;
+    }
+    let paid = 0;
+    let dirty = 0;
+    for (const g of w.guests.list) if (g.paid) paid++;
+    for (const c of w.train.cabins) if (c.unlocked && c.isDirty) dirty++;
+    const sig = `${w.guests.waitingCount()}|${paid}|${dirty}|${this.restocksThisStop}|${this.blocker?.() ?? true}|${rung}`;
+    if (sig !== this.watchdogSig) {
+      this.watchdogSig = sig;
+      this.watchdogFor = 0;
+      return;
+    }
+    this.watchdogFor += dt;
+    if (this.watchdogFor < w.econ.station.watchdogSeconds) return;
+    const reasons = [w.stationEvents.forceReady(), ...w.guests.watchdogRelease()].filter((r): r is string => !!r);
+    const reason = reasons.length ? reasons.join('+') : 'unknown';
+    const seconds = Math.round(this.watchdogFor);
+    this.watchdogLog.push({ stop: j.stopSerial, reason, seconds });
+    log.warn('Station', `watchdog: stop ${j.stopSerial} held ${seconds} s with no progress; settled ${reason}`);
+    w.analytics.log('station_watchdog', { reason, stop: j.stopSerial, seconds });
+    this.watchdogFor = 0;
+    this.watchdogSig = '';
+  }
+
   /** The bell has rung at this stop: the train is about to leave. */
   get bellRung(): boolean {
     return this.bellRungFor === this.w.journey.stopSerial && this.w.journey.phase === 'stationStop';

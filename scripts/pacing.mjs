@@ -88,7 +88,7 @@ for (const profile of profiles) {
     summary.push(`${k.padEnd(16)}${fmtMin(med).padStart(8)}${fmtMin(slow).padStart(9)}   ${String(t == null ? '' : Array.isArray(t) ? t.join('–') : t).padStart(6)}   ${String(REAL[k] ?? '').padStart(4)}   ${verdict.padEnd(9)} ${vals.map(fmtMin).join(' / ')}`);
   }
   for (const r of rs) {
-    const notes = [r.dead ? `${r.dead} dead stretch(es)` : '', r.flat ? `${r.flat} flat-cash stall(s)` : '', r.locks ? `${r.locks} soft-lock(s)` : '', r.longNew ? `${r.longNew} gap(s) >12 min without something new` : ''].filter(Boolean);
+    const notes = [`${r.hires} hired${r.unhired.length ? `, not hired: ${r.unhired.join(' ')}` : ''}`, r.watchdog.length ? `watchdog ${r.watchdog.length}× (${r.watchdog.map((w) => w.reason).join(', ')})` : '', r.dead ? `${r.dead} dead stretch(es)` : '', r.flat ? `${r.flat} flat-cash stall(s)` : '', r.locks ? `${r.locks} soft-lock(s)` : '', r.longNew ? `${r.longNew} gap(s) >12 min without something new` : ''].filter(Boolean);
     summary.push(`  seed ${r.seed}: ${notes.length ? notes.join(', ') : 'clean'}`);
   }
   if (profile === 'average') summary.push(`Targets missed (median): ${misses}`);
@@ -221,6 +221,8 @@ async function run(profile, seed) {
     if (s >= 180) stuckSpells.push({ from: stuckSince, s });
     if (s > longestStuck.s) longestStuck = { s, at: stuckSince };
   }
+  // Phase 3: every time the stop watchdog settled a stuck stop, and why.
+  const watchdog = await page.evaluate(() => window.nightExpress.station.watchdogLog?.slice() ?? []);
   // Why each tile left is still unbought: a missing requirement, a level gate, hand work, or simply not bought.
   const leftover = await page.evaluate(() => {
     const g = window.nightExpress;
@@ -255,6 +257,10 @@ async function run(profile, seed) {
     csv.push(`milestone,${k},${v != null ? (v / 60).toFixed(2) : ''},${target != null ? (Array.isArray(target) ? target.join('-') : target) : ''},${verdict},,`);
   }
   log(softLocks.length ? `SOFT-LOCK: no stop for 8+ min from ${softLocks.map((l) => `${fmt(l.from)} (stop ${l.stop})`).join(', ')}` : 'No soft-lock (a stop at least every 8 min).');
+  const hires = bought.filter((b) => b.kind === 'hire');
+  const unhired = leftover.filter((l) => l.includes('(hire,'));
+  log(`Hired: ${hires.map((h) => `${h.label} ${fmt(h.t)}`).join(', ') || 'nobody'}${unhired.length ? `; not hired: ${unhired.map((l) => l.split(' (')[0]).join(', ')}` : ''}`);
+  log(watchdog.length ? `WATCHDOG fired ${watchdog.length}×: ${watchdog.map((w) => `stop ${w.stop} ${w.reason} (${w.seconds} s)`).join('; ')}` : 'Watchdog never fired.');
   log(flatStalls.length ? `FLAT-CASH STALL: no purchase for 10+ min with cash holding from ${flatStalls.map((f) => `${fmt(f.from)} (cash ${f.cash})`).join(', ')}` : 'No flat-cash stall.');
   log(`\nDry spells (nothing new affordable for 3+ min): ${stuckSpells.length ? stuckSpells.map((s) => `${(s.s / 60).toFixed(1)} min from ${fmt(s.from)}`).join('; ') : 'none'}`);
   const dead = stuckSpells.filter((s) => s.s > DEAD_LIMIT);
@@ -285,7 +291,7 @@ async function run(profile, seed) {
   else console.log(`[${profile} s${seed}] done: ${fmt(snap.t)} played, ${snap.carriages} carriages, level ${snap.level}, ${snap.open} tiles left${softLocks.length ? `, ${softLocks.length} soft-lock(s)` : ''}${flatStalls.length ? `, ${flatStalls.length} flat-cash stall(s)` : ''}${errors.length ? `, ${errors.length} error(s)` : ''}`);
   writeFileSync(`${out}-${profile}-s${seed}.csv`, csv.join('\n') + '\n');
   writeFileSync(`${out}-${profile}-s${seed}.log`, text + '\n');
-  return { profile, seed, milestones, misses, dead: dead.length, flat: flatStalls.length, locks: softLocks.length, longNew: longNew.length };
+  return { profile, seed, milestones, misses, dead: dead.length, flat: flatStalls.length, locks: softLocks.length, longNew: longNew.length, watchdog, hires: hires.length, unhired: unhired.map((l) => l.split(' (')[0]) };
 }
 
 function fmt(s) { return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; }
