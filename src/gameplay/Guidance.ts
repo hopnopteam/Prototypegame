@@ -288,6 +288,15 @@ export class Guidance {
     const lost = w.stationEvents.lostTarget();
     if (lost) return this.because('deliver', lost);
 
+    // Phase 3, the pacing bot: an upgrade it can afford before more cash off the floor (a player buys on the way past;
+    // on a long, busy train there is always a pile somewhere, and the bot never got round to spending).
+    if (forBot) {
+      const couple = w.tiles.coupling();
+      if (couple && w.unlocks.remaining(couple.def.id) <= cash) return this.because('tile', couple.pos);
+      const cheap = w.tiles.cheapest();
+      if (cheap && w.unlocks.remaining(cheap.def.id) <= cash) return this.because('tile', cheap.pos);
+    }
+
     const pile = w.cash.nearestWithCash(player.pos);
     if (pile && pile.value >= 1) return this.because('cash', { x: pile.x, z: pile.z });
 
