@@ -79,6 +79,9 @@ async function run(profile) {
   let lastCarriages = 1, lastLevel = 1, lastEvent = null;
   let stuckSince = null, longestStuck = { s: 0, at: 0 };
   const stuckSpells = [];
+  // A soft-lock alarm: no station stop completed for this long means the bot (or the game) is stuck somewhere.
+  let lastStop = -1, lastStopAt = 0;
+  const softLocks = [];
   let snap;
   for (let t = 0; t < maxSeconds; t += chunk) {
     snap = await page.evaluate((c) => {
@@ -125,6 +128,8 @@ async function run(profile) {
       for (let n = lastLevel + 1; n <= snap.level; n++) { milestones[`level ${n}`] = now; news.push({ t: now, what: `level ${n}` }); }
       lastLevel = snap.level;
     }
+    if (snap.stop !== lastStop) { lastStop = snap.stop; lastStopAt = now; }
+    else if (now - lastStopAt > 8 * 60 && !softLocks.some((l) => l.from === lastStopAt)) softLocks.push({ from: lastStopAt, stop: snap.stop });
     if (snap.event && snap.event !== lastEvent) news.push({ t: now, what: `event ${snap.event}` });
     lastEvent = snap.event;
     // A dry spell: nothing new affordable (and something left to buy).
@@ -175,6 +180,7 @@ async function run(profile) {
     log(`  ${k.padEnd(16)} ${v != null ? (v / 60).toFixed(1).padStart(6) : '     -'}${target != null ? `   target ${Array.isArray(target) ? target.join('–') : target}` : ''}${REAL_OLD[k] != null ? `   old ${REAL_OLD[k]}` : ''}  ${verdict}`);
     csv.push(`milestone,${k},${v != null ? (v / 60).toFixed(2) : ''},${target != null ? (Array.isArray(target) ? target.join('-') : target) : ''},${verdict},,`);
   }
+  log(softLocks.length ? `SOFT-LOCK: no stop for 8+ min from ${softLocks.map((l) => `${fmt(l.from)} (stop ${l.stop})`).join(', ')}` : 'No soft-lock (a stop at least every 8 min).');
   log(`\nDry spells (nothing new affordable for 3+ min): ${stuckSpells.length ? stuckSpells.map((s) => `${(s.s / 60).toFixed(1)} min from ${fmt(s.from)}`).join('; ') : 'none'}`);
   const dead = stuckSpells.filter((s) => s.s > DEAD_LIMIT);
   log(dead.length ? `DEAD STRETCHES over 15 min: ${dead.map((s) => `${(s.s / 60).toFixed(1)} min from ${fmt(s.from)}`).join('; ')}` : 'No dead stretch over 15 min.');

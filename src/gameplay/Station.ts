@@ -1052,6 +1052,10 @@ export class Station {
       radius: 0.62,
       icon: 'crate',
       staff: false,
+      // Phase 3 (found by the pacing simulator): the cupboard shares its spot with the linen closet's towel shelf, which
+      // won the spot while the conductor held towels, so the box could never be put away and a held stop never ended.
+      // Only active with the box in hand, so it wins then and never otherwise.
+      priority: -1,
       active: () => this.supplyInHand,
       stay: (zone, actor, dt) => {
         if (!actor.isPlayer || !this.supplyInHand) return false;
