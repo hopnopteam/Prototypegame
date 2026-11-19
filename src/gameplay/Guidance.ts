@@ -316,6 +316,16 @@ export class Guidance {
       if (cheap && w.unlocks.remaining(cheap.def.id) <= cash) return this.because('tile', cheap.pos);
     }
 
+    // Phase 3, the pacing bot: while a venue's helper is still being earned by hand, that venue's work comes first,
+    // before more cash off the floor (a player working toward the hire), so the bar's and the dining car's staff are not left unhired.
+    if (forBot) {
+      const earning = this.earningVenues();
+      if (earning.size) {
+        const job = w.venues.playerJob(player.pos, earning);
+        if (job) return this.because(job.reason, job.target);
+      }
+    }
+
     const pile = w.cash.nearestWithCash(player.pos);
     if (pile && pile.value >= 1) return this.because('cash', { x: pile.x, z: pile.z });
 
@@ -330,16 +340,6 @@ export class Guidance {
     if (couple && w.unlocks.remaining(couple.def.id) <= cash) return this.because('tile', couple.pos);
     const tile = forBot && this.botSaving ? null : w.tiles.cheapest();
     if (tile && w.unlocks.remaining(tile.def.id) <= cash) return this.because('tile', tile.pos);
-
-    // Phase 3, the pacing bot: while a venue's helper is still being earned by hand, that venue's work comes first
-    // (a player working toward the hire), so the bar's and the dining car's staff are not left unhired.
-    if (forBot) {
-      const earning = this.earningVenues();
-      if (earning.size) {
-        const job = w.venues.playerJob(player.pos, earning);
-        if (job) return this.because(job.reason, job.target);
-      }
-    }
 
     const request = w.guests.openRequests().find((g) => !w.staff.isHandled(g));
     // A turndown: straight to the room, nothing to fetch.
