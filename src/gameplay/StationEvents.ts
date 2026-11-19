@@ -23,6 +23,14 @@ import { Zone } from './Zones';
 /** The sheep bolt once the conductor comes this close, and run at this pace. */
 const SHOO_RADIUS = 1.4;
 const SHEEP_RUN = 3.6;
+/**
+ * Phase 3 (found by the pacing simulator): the sheep graze within this stretch of the platform (platform-local z), the
+ * open walkway, and turn back at its ends. One used to wander past the platform's end, out of the conductor's reach, and
+ * the bell (which waits for every sheep) was never ready.
+ */
+const SHEEP_Z: [number, number] = [-6, 24];
+/** A safety net: sheep still about this long after the rest of the platform is done trot off by themselves. */
+const SHEEP_GIVE_UP_SECONDS = 90;
 /** Where the Lost & Found item lies, the Station Market's stall and the sheep's pen (platform-local, out from the edge). */
 const LOST_SPOT = { dx: 3.6, z: 5.9 };
 /** Session 55: the market stall stands in its own bay of the back lane (platformLayout.ts `BAYS.market`). */
@@ -76,6 +84,7 @@ export class StationEvents {
   private readonly group = new THREE.Group();
   private propsMesh: THREE.Mesh | null = null;
   private readonly sheep: Sheep[] = [];
+  private sheepWait = 0;
   private sheepGeometry: THREE.BufferGeometry | null = null;
   private lostMesh: THREE.Mesh | null = null;
   private lostState: 'none' | 'lying' | 'carried' | 'done' = 'none';
@@ -372,6 +381,8 @@ export class StationEvents {
     if (this.sheep.length === 0) return;
     const w = this.w;
     const p = w.player.pos;
+    // How long the sheep alone have held the stop (everyone aboard, the bell otherwise ready).
+    this.sheepWait = w.journey.doorsOpen && w.guests.waitingCount() === 0 && this.sheep.some((o) => o.fled === 0) ? this.sheepWait + dt : 0;
     for (const s of this.sheep) {
       if (s.fled === 0) {
         // Grazing about; the conductor comes close and off it bolts with a baa.
@@ -390,9 +401,17 @@ export class StationEvents {
             w.ui.floatText('Shoo!', p.x, FLOOR_Y + 2.4, p.z, 'praise');
             w.events.emit('station.sheepShooed', {});
           }
+        } else if (this.sheepWait > SHEEP_GIVE_UP_SECONDS) {
+          // Nobody came for it: off it goes over the back railing, as if shooed.
+          s.fled = 0.001;
+          s.heading = Math.atan2(PLATFORM_X0 + 7 - s.x, 0.5);
         } else {
           s.x = Math.max(PLATFORM_X0 + 1.9, Math.min(PLATFORM_X0 + 5.6, s.x + Math.sin(s.heading) * 0.18 * dt));
           s.z += Math.cos(s.heading) * 0.18 * dt;
+          if (s.z < SHEEP_Z[0] || s.z > SHEEP_Z[1]) {
+            s.z = Math.max(SHEEP_Z[0], Math.min(SHEEP_Z[1], s.z));
+            s.heading = Math.PI - s.heading;
+          }
         }
       } else {
         // Running off over the back railing.

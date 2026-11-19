@@ -341,7 +341,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       // minute early on, as guests ride several stops; 12 rooms took 14 minutes and left nothing to buy for 3).
       // Session 37: 120 (was 160): with the Café Car first, its tiles compete for the same early takings (the work was
       // earned at 4:34 on the autopilot, the money only at 24:45).
-      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 120, stars: 4, role: 'attendant', requires: ['cabin_1', '@couple_1'], work: { rooms: 6, requests: 15 }, effect: 'Tidies, serves' },
+      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 120, stars: 4, role: 'attendant', requires: ['cabin_1', '@couple_1'], work: { rooms: 4, requests: 10 }, effect: 'Tidies, serves' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 60, stars: 3, tier: 1, requires: ['cabin_2'], effect: 'Fares +25%' },
       // Session 17: 30 (was 35). Bought on the first leg for the travellers waiting at the first stop.
       { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 25, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
