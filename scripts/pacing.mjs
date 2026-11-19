@@ -47,7 +47,7 @@ const DEAD_LIMIT = 15 * 60;
 const NEW_EVERY = [8 * 60, 12 * 60];
 /** A stretch with no purchase this long while cash holds or grows is a stall (the minute 150–200 flat cash). */
 const FLAT_CASH_LIMIT = 10 * 60;
-const ORDER = [...Array.from({ length: 8 }, (_, i) => `carriage ${i + 2}`), ...Array.from({ length: 7 }, (_, i) => `level ${i + 2}`), 'all refits', 'route complete'];
+const ORDER = [...Array.from({ length: 8 }, (_, i) => `carriage ${i + 2}`), ...Array.from({ length: 7 }, (_, i) => `level ${i + 2}`), 'all refits', 'route complete', 'everything bought'];
 
 const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const jobs = profiles.flatMap((profile) => seeds.map((seed) => ({ profile, seed })));
@@ -202,7 +202,10 @@ async function run(profile, seed) {
     }
     const refitsDone = snap.defs.filter((d) => d.kind === 'refurb').every((d) => snap.unlocked.includes(d.id));
     if (snap.carriages >= snap.maxCarriages && refitsDone && milestones['all refits'] == null) milestones['all refits'] = now;
-    if (snap.carriages >= snap.maxCarriages && snap.open === 0 && milestones['route complete'] == null) milestones['route complete'] = now;
+    // Route complete (the Phase 3 prompt: "Level 8 / route complete (all tier-3 upgrades)"): the whole train, every refit
+    // and level 8. Everything bought (every tile) is reported too.
+    if (snap.carriages >= snap.maxCarriages && refitsDone && snap.level >= 8 && milestones['route complete'] == null) milestones['route complete'] = now;
+    if (snap.carriages >= snap.maxCarriages && snap.open === 0 && milestones['everything bought'] == null) milestones['everything bought'] = now;
     if (process.env.EVERY && Math.round(t) % Number(process.env.EVERY) === 0) process.stderr.write(`[${profile} s${seed}] ${fmt(now)} cash ${snap.cash} lvl ${snap.level} cars ${snap.carriages} open ${snap.open}\n`);
     const shotAt = (process.env.SHOTS ?? '').split(',').filter(Boolean).map(Number);
     if (shotDir && shotAt.some((s) => s >= t && s < t + chunk)) {
@@ -211,7 +214,7 @@ async function run(profile, seed) {
       await page.evaluate(() => { window.nightExpress.paused = true; });
       await page.screenshot({ path: `${shotDir}/${profile}-t${String(Math.round(t + chunk)).padStart(5, '0')}.png` });
     }
-    if (milestones['route complete'] != null) break;
+    if (milestones['route complete'] != null && (milestones['everything bought'] != null || now > (milestones['route complete'] + 30 * 60))) break;
   }
   if (stuckSince != null) {
     const s = snap.t - stuckSince;
