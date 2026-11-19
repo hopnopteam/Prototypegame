@@ -189,6 +189,13 @@ export function translate(event: string, p: AnalyticsParams = {}): GaCall[] {
       return [{ kind: 'design', id: `Daily:Quest:${part(p.kind)}` }];
     case 'offline_earnings':
       return [{ kind: 'design', id: 'Session:Offline', value: num(p.amount) }];
+    // Phase 3: hours away (0, 1, 2, … , 12, then 12+) with the cash collected; a stuck stretch's length, bucketed.
+    case 'offline_return': {
+      const hours = Math.max(0, Math.floor(num(p.hours)));
+      return [{ kind: 'design', id: `Offline:Return:${hours > 12 ? '12plus' : String(hours)}`, value: num(p.amount) }];
+    }
+    case 'economy_stuck':
+      return [{ kind: 'design', id: `Economy:Stuck:${stuckBucket(num(p.seconds))}`, value: num(p.seconds) }];
     case 'press_printed':
       return [{ kind: 'design', id: `Press:${part(p.trigger)}` }];
     case 'award_won':
@@ -227,4 +234,12 @@ export function translate(event: string, p: AnalyticsParams = {}): GaCall[] {
       // Anything new still reaches the dashboard, as a design event under its own name.
       return [{ kind: 'design', id: `Other:${part(event)}` }];
   }
+}
+
+/** Phase 3: a stuck stretch's length as a few buckets (its lower bound in seconds), so the dashboard groups them. */
+export function stuckBucket(seconds: number): string {
+  if (seconds >= 1800) return '1800plus';
+  let bucket = 180;
+  for (const b of [180, 300, 600, 900]) if (seconds >= b) bucket = b;
+  return String(bucket);
 }

@@ -1,3 +1,4 @@
+import { carryOver } from '../sim/carryOver';
 import { DEBUG_JUMP, setDebugJump } from '../config/debugJump';
 import { ACTIVE_ROUTE } from '../config/routes';
 import { ANALYTICS } from '../config/analytics';
@@ -29,6 +30,14 @@ interface SheetOptions {
 /** Every modal sheet. Opening one pauses the simulation; closing the last one resumes it. */
 /** Taps on Settings' build line that open the Debug sheet (Phase 1). */
 const DEBUG_TAPS = 5;
+/** Phase 3, the return screen: the count-up, the auto-collect (all within 3 s), the bills in the pile, the coins. */
+const WB_COUNT_MS = 1100;
+const WB_AUTO_MS = 2600;
+const WB_OUT_MS = 320;
+const WB_PILE_MAX = 16;
+const WB_COINS = 14;
+/** Phase 5 hook: the ×2 for a rewarded ad on the return screen (off until ads come in). */
+const OFFLINE_DOUBLE_ENABLED = false;
 
 export class Screens {
   private open = 0;
@@ -309,17 +318,70 @@ export class Screens {
     ]);
   }
 
+  /**
+   * Phase 3, the return screen (publisher: "make the return exciting… keep it short"): a pile of bills springs up, the
+   * total counts up, and a tap (or 2.6 s) collects it with a burst of coins flying to the cash counter, all within three
+   * seconds. The ×2 for a rewarded ad is a hook for Phase 5 (`OFFLINE_DOUBLE_ENABLED`), off for now.
+   */
   offline(amount: number, seconds: number, gemCost: number, onCollect: (choice: DoubleChoice) => void): void {
-    let close: () => void = () => undefined;
-    const finish = (choice: DoubleChoice): void => {
-      close();
-      onCollect(choice);
+    const amountEl = h('span.wb-num', { text: '0' });
+    const bills = Array.from({ length: Math.min(WB_PILE_MAX, 4 + Math.round(Math.log10(Math.max(10, amount)) * 4)) }, (_, i) =>
+      h('i.wb-bill', { style: { '--i': String(i), '--x': `${((i * 37) % 9) - 4}px`, '--r': `${((i * 53) % 11) - 5}deg` } }));
+    let collected = false;
+    const collect = (): void => {
+      if (collected) return;
+      collected = true;
+      this.coinBurst(card);
+      this.game?.audio.play('cash');
+      this.game?.haptics.success();
+      card.classList.add('wb-out');
+      setTimeout(() => {
+        scrim.remove();
+        this.setOpen(-1);
+        onCollect('none');
+      }, WB_OUT_MS);
     };
-    close = this.sheet('While you were away', 'clock', [
-      h('p.lead', { text: `Your staff kept the train running for ${formatDuration(seconds)}.` }),
-      h('div.reward', {}, h('span', {}, icon('cash', 30), `+${formatNumber(amount)}`)),
-      this.doubleButtons(gemCost, finish),
-    ], { closable: false, center: true });
+    const card = h('div.wb-card', {},
+      h('div.wb-title', { text: 'Welcome back!' }),
+      h('div.wb-sub', { text: `Your staff ran the train for ${formatDuration(seconds)}` }),
+      h('div.wb-pile', {}, ...bills),
+      h('div.wb-amount', {}, icon('cash', 34), '+', amountEl),
+      OFFLINE_DOUBLE_ENABLED ? this.doubleButtons(gemCost, (choice) => { collected = true; scrim.remove(); this.setOpen(-1); onCollect(choice); }) : h('div.wb-tap', { text: 'Tap to collect' }),
+    );
+    const scrim = h('div.scrim.center.welcome-back', { onclick: () => collect() }, card);
+    this.present(scrim);
+    // The count-up and the auto-collect start once the screen is really up (it may wait behind the loading screen).
+    let start = 0;
+    const tick = (now: number): void => {
+      if (collected) return;
+      if (!scrim.isConnected) { requestAnimationFrame(tick); return; }
+      if (!start) start = now;
+      const t = Math.min(1, (now - start) / WB_COUNT_MS);
+      amountEl.textContent = formatNumber(Math.round(amount * (1 - (1 - t) ** 3)));
+      if (now - start >= WB_AUTO_MS && !OFFLINE_DOUBLE_ENABLED) { collect(); return; }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  /** Coins burst from the return card and fly to the cash counter. */
+  private coinBurst(from: HTMLElement): void {
+    const root = this.ui.root;
+    const a = from.getBoundingClientRect();
+    const target = root.querySelector('.pill.cash')?.getBoundingClientRect();
+    const r = root.getBoundingClientRect();
+    for (let i = 0; i < WB_COINS; i++) {
+      const coin = h('i.wb-coin');
+      const x0 = a.left + a.width / 2 - r.left;
+      const y0 = a.top + a.height * 0.55 - r.top;
+      const ang = (i / WB_COINS) * Math.PI * 2;
+      coin.style.left = `${x0}px`;
+      coin.style.top = `${y0}px`;
+      root.appendChild(coin);
+      const burst = `translate(${Math.cos(ang) * 70}px, ${Math.sin(ang) * 50 - 30}px)`;
+      const end = target ? `translate(${target.left + target.width * 0.25 - r.left - x0}px, ${target.top + target.height / 2 - r.top - y0}px) scale(0.6)` : burst;
+      coin.animate([{ transform: 'translate(0,0) scale(0.4)', opacity: 1 }, { transform: burst + ' scale(1)', opacity: 1, offset: 0.35 }, { transform: end, opacity: 0.9 }], { duration: 650 + i * 18, easing: 'cubic-bezier(.3,.7,.4,1)' }).onfinish = () => coin.remove();
+    }
   }
 
   firstClass(discounted: boolean, price: string, onBuy: () => void, onClose: () => void): void {
@@ -770,6 +832,70 @@ export class Screens {
       h('button.btn.primary', { onclick: () => setDebugJump({ carriages, tier, staffed }) }, 'Open'),
       current ? h('button.btn', { onclick: () => setDebugJump(null) }, 'Back to my game') : null,
       h('p', { style: { fontSize: '12px', opacity: '0.6' }, text: 'Plays on its own save; your progress is never touched.' }),
+      h('div.section-title', { text: 'Pacing (Phase 3)' }),
+      h('button.btn', { onclick: () => this.economySheet() }, 'Economy values'),
+      h('button.btn', { onclick: () => this.carryOverSheet() }, 'Carry-over test'),
+    ]);
+  }
+
+  /**
+   * Phase 3: every pacing value in force and where it came from: the route's economy (config/routes.ts), a GameAnalytics
+   * Remote Config applied at start-up, or one fetched this session (applied live; prices take it from the next launch).
+   */
+  private economySheet(): void {
+    const g = this.game;
+    const rows: [string, unknown][] = [];
+    const walk = (prefix: string, value: unknown): void => {
+      if (Array.isArray(value)) value.forEach((v, i) => walk(`${prefix}.${i}`, v));
+      else if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) walk(`${prefix}.${k}`, v);
+      else rows.push([prefix, value]);
+    };
+    const e = g.econ;
+    walk('route', e.route);
+    for (const k of ['moveSpeed', 'speedCap', 'maxDashMultiplier'] as const) rows.push([`player.${k}`, e.player[k]]);
+    rows.push(['player.shoes.perLevel', e.player.shoes.perLevel]);
+    walk('priceScale', e.priceScale);
+    walk('priceCurve', e.priceCurve);
+    walk('progression.levelThresholds', e.progression.levelThresholds);
+    walk('progression.levelCash', e.progression.levelCash);
+    walk('progression.levelRailMiles', e.progression.levelRailMiles);
+    for (const k of ['baseFare', 'alightTip', 'luggageTip', 'requestTip', 'bathroomTip', 'stationBonusCash'] as const) rows.push([`money.${k}`, e.money[k]]);
+    for (const k of ['efficiency', 'capSeconds'] as const) rows.push([`offline.${k}`, e.offline[k]]);
+    rows.push(['station.kiosk.offlinePerMinute', e.station.kiosk.offlinePerMinute]);
+    walk('conductor', e.conductor);
+    for (const [role, v] of Object.entries(e.staff)) if (v && typeof v === 'object' && 'speed' in v) rows.push([`staff.${role}.speed`, (v as { speed: number }).speed]);
+    const fetched = new Set(Object.keys(g.remoteFetched).map((k) => k.split('__').join('.')));
+    const atStart = new Set(g.remoteApplied);
+    const source = (path: string): string => (fetched.has(path) ? (atStart.has(path) ? 'remote' : 'remote · next launch') : atStart.has(path) ? 'remote (cached)' : 'local');
+    const remoteCount = rows.filter(([p]) => source(p) !== 'local').length;
+    this.sheet('Economy', 'wrench', [
+      h('p', { style: { fontSize: '12px', opacity: '0.7' }, text: `Route: ${g.data.route.id} · ${rows.length} values · ${remoteCount} from GameAnalytics Remote Configs (${g.analyticsStatus})` }),
+      h('div.econ-list', {}, ...rows.map(([path, value]) => {
+        const src = source(path);
+        return h(`div.econ-row${src === 'local' ? '' : '.remote'}` as 'div', {}, h('span.k', { text: path }), h('span.v', { text: String(value) }), h('span.s', { text: src }));
+      })),
+    ]);
+  }
+
+  /** Phase 3: a dry run of the carry-over to the next route (nothing is changed): what would be kept and reset. */
+  private carryOverSheet(): void {
+    const g = this.game;
+    const { data, kept, cashLeft } = carryOver(g.data, 'next-route', Date.now());
+    const line = (k: string, v: string): HTMLElement => h('div.econ-row', {}, h('span.k', { text: k }), h('span.v', { text: v }));
+    this.sheet('Carry-over test', 'wrench', [
+      h('p', { style: { fontSize: '12px', opacity: '0.7' }, text: 'A dry run: what finishing this route would carry to the next one. Nothing is changed.' }),
+      h('div.section-title', { text: 'Kept' }),
+      line('Gems', String(kept.gems)),
+      line('Rail Miles', String(kept.railMiles)),
+      line('Conductor', `speed ${kept.conductor.speed}, carry ${kept.conductor.capacity}, fares ${kept.conductor.fareBonus}`),
+      line('Postcards', String(data.meta.postcards.length)),
+      h('div.section-title', { text: 'Reset' }),
+      line('Cash', `${Math.floor(cashLeft)} → ${data.wallet.cash}`),
+      line('Carriages', `${g.data.route.carriages.length} → ${data.route.carriages.length}`),
+      line('Unlocks (shoes too)', `${g.data.route.unlocked.length} → ${data.route.unlocked.length}`),
+      line('Staff', `${Object.keys(g.data.staff).length} → ${Object.keys(data.staff).length}`),
+      line('Route level', `${g.data.route.level} → ${data.route.level}`),
+      line('Station upgrades', `${(g.data.station.owned[g.data.route.id] ?? []).length} → ${(data.station.owned['next-route'] ?? []).length}`),
     ]);
   }
 

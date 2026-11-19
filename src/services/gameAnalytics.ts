@@ -31,6 +31,9 @@ interface GaApi {
   addErrorEvent(severity: number, message: string): void;
   onStop(): void;
   onResume(): void;
+  isRemoteConfigsReady(): boolean;
+  addRemoteConfigsListener(listener: { onRemoteConfigsUpdated: () => void }): void;
+  getRemoteConfigsContentAsString(): string;
 }
 
 const GA = (gameanalytics as unknown as { GameAnalytics: GaApi }).GameAnalytics;
@@ -79,6 +82,23 @@ export class GameAnalyticsService implements AnalyticsSink {
     GA.initialize(ANALYTICS.gameKey, ANALYTICS.secretKey);
     this.flushTimer = setInterval(() => this.flush(), ANALYTICS.resourceFlushSeconds * 1000);
     log.info('Analytics', `GameAnalytics started (${ctx.platform} ${ANALYTICS.build})`);
+  }
+
+  /**
+   * Phase 3: GameAnalytics Remote Configs. Calls back with every key and value (as sent: strings) whenever they arrive
+   * or change; the game applies them over its economy (`Game.onRemoteConfigs`).
+   */
+  onRemoteConfigs(callback: (content: Record<string, unknown>) => void): void {
+    const read = (): void => {
+      try {
+        const text = GA.getRemoteConfigsContentAsString();
+        callback(text ? (JSON.parse(text) as Record<string, unknown>) : {});
+      } catch (e) {
+        log.warn('Analytics', 'Remote configs could not be read', e);
+      }
+    };
+    GA.addRemoteConfigsListener({ onRemoteConfigsUpdated: read });
+    if (GA.isRemoteConfigsReady()) read();
   }
 
   log(event: string, params: AnalyticsParams): void {

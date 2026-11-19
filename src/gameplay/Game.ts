@@ -26,7 +26,8 @@ import { MockAdService, type AdService } from '../services/ads';
 import { MaxAdService, maxAvailable } from '../services/maxAds';
 import { EVENTS, MockAnalyticsService } from '../services/analytics';
 import { MockIapService } from '../services/iap';
-import { applyOverrides, LocalRemoteConfig } from '../services/remoteConfig';
+import { carryOver } from '../sim/carryOver';
+import { applyOverrides, flattenRemote, LocalRemoteConfig, readRemoteCache, writeRemoteCache, type RemoteValue } from '../services/remoteConfig';
 import { AdPolicy } from '../sim/AdPolicy';
 import { Autopilot } from './Autopilot';
 import { Journey } from '../sim/Journey';
@@ -116,6 +117,8 @@ const HAPTICS_POLICY = 1;
 const QUALITY_POLICY = 28;
 /** Particle size scale at one device pixel per CSS pixel (Particles' default, tuned at that density). */
 const PARTICLE_SCALE = 400;
+/** Phase 3: a stretch with nothing new affordable this long (seconds of active play) is reported as `Economy:Stuck`. */
+const ECONOMY_STUCK_SECONDS = 180;
 
 /** The game's random seed from the page address (`?seed=N`), for repeatable runs. */
 function urlSeed(): number | null {
@@ -203,9 +206,11 @@ export class Game implements World {
 
   constructor(canvas: HTMLCanvasElement, overlay: HTMLElement, readonly ui: GameUi) {
     // Remote config overrides a copy of the balance sheet, so tuning can change without an update.
+    // Phase 3: the GameAnalytics Remote Configs kept from the last launch apply over the route's economy first, onto the
+    // shared table itself (prices are built from it), before the game takes its copy; this session's fetch applies live.
+    this.remote = new LocalRemoteConfig(readRemoteCache());
+    this.remoteApplied = applyOverrides(ECONOMY as unknown as Record<string, unknown>, this.remote);
     this.econ = structuredClone(ECONOMY);
-    this.remote = new LocalRemoteConfig();
-    applyOverrides(this.econ as unknown as Record<string, unknown>, this.remote);
 
     const storage = new BrowserSaveStorage();
     storage.onWrite = (key, contents) => mirrorSave(key, contents);
@@ -455,6 +460,7 @@ export class Game implements World {
       const ga = new GameAnalyticsService({ userId: this.data.profile.installId, platform: nativePlatform, verbose: this.data.settings.devTools });
       this.analytics.sinks.push(ga);
       this.analyticsStatus = 'on';
+      ga.onRemoteConfigs((content) => this.onRemoteConfigs(content));
       // Every event carries the player's level, train size and graphics tier, the first ones included.
       this.analytics.beforeSend = () => {
         if (this.progression && this.train) this.analytics.setDimensions(this.progression.level, this.train.count, this.stage.tier);
@@ -467,6 +473,31 @@ export class Game implements World {
     }
   }
 
+  /**
+   * Phase 3: GameAnalytics Remote Configs arrived. They apply live to everything read while playing (speeds, fares,
+   * offline, timers), and are kept so they apply in full from the next launch (prices are built at start-up).
+   */
+  private onRemoteConfigs(content: Record<string, unknown>): void {
+    const values = flattenRemote(content);
+    writeRemoteCache(values);
+    this.remoteFetched = values;
+    const live = new LocalRemoteConfig(values);
+    this.remoteLive = applyOverrides(this.econ as unknown as Record<string, unknown>, live);
+    if (this.remoteLive.length) log.info('RemoteConfig', `Applied ${this.remoteLive.length} remote value(s): ${this.remoteLive.join(', ')}`);
+  }
+
+  /** Phase 3, debug: a dry run of the carry-over to the next route (`nightExpress.debugCarryOver()` in the console). */
+  debugCarryOver(nextRoute = 'next-route'): ReturnType<typeof carryOver> {
+    const result = carryOver(this.data, nextRoute, Date.now());
+    log.info('CarryOver', `kept gems ${result.kept.gems}, Rail Miles ${result.kept.railMiles}, conductor ${JSON.stringify(result.kept.conductor)}; cash left behind ${Math.floor(result.cashLeft)}`);
+    return result;
+  }
+
+  /** Phase 3: the remote values applied at start-up (from the last fetch), fetched this session, and applied live. */
+  remoteApplied: string[] = [];
+  remoteFetched: Record<string, RemoteValue> = {};
+  remoteLive: string[] = [];
+
   private perfSampleIn = 0;
 
   /** Keeps every event's dimensions current and takes the performance sample. */
@@ -477,6 +508,30 @@ export class Game implements World {
       const fps = Math.round(this.perfStats.summary().fps);
       if (fps > 0) this.analytics.log('perf_sample', { fps, quality: this.stage.tier });
     }
+    this.trackStuck(dt);
+  }
+
+  /** Phase 3: seconds of active play with nothing new affordable, checked once a second (`Economy:Stuck`). */
+  private stuckFor = 0;
+  private stuckCheck = 0;
+  private trackStuck(dt: number): void {
+    this.stuckCheck += dt;
+    if (this.stuckCheck < 1) return;
+    const step = this.stuckCheck;
+    this.stuckCheck = 0;
+    const cash = this.wallet.get('cash');
+    const open = this.unlocks.available();
+    if (open.length > 0 && !open.some((d) => this.unlocks.remaining(d.id) <= cash)) {
+      this.stuckFor += step;
+      return;
+    }
+    this.reportStuck();
+  }
+
+  /** Reports a stretch of 3+ minutes with nothing affordable as it ends (or as the session ends). */
+  private reportStuck(): void {
+    if (this.stuckFor >= ECONOMY_STUCK_SECONDS) this.analytics.log('economy_stuck', { seconds: Math.round(this.stuckFor), level: this.progression.level, carriages: this.train.count });
+    this.stuckFor = 0;
   }
 
   ftue(step: string): void {
@@ -489,13 +544,14 @@ export class Game implements World {
   }
 
   fareMultiplier(): number {
-    return (1 + this.data.conductor.fareBonus * this.econ.conductor.fareBonus.perLevel) * (1 + this.data.meta.perks.fareBonus + this.stationPerks().fares) * this.venues.boost() * this.stationEvents.fareBoost();
+    // Phase 3: × the route's fare multiplier (Route 2: ×2).
+    return this.econ.route.fareMultiplier * (1 + this.data.conductor.fareBonus * this.econ.conductor.fareBonus.perLevel) * (1 + this.data.meta.perks.fareBonus + this.stationPerks().fares) * this.venues.boost() * this.stationEvents.fareBoost();
   }
 
   /** Every tip on the train: perks, smart service cars, station upgrades, and the bar's Happy Hour. */
   tipMultiplier(): number {
     const r = this.econ.rating.tips;
-    return (1 + this.data.meta.perks.tipBonus + this.train.trainTipBonus() + this.stationPerks().tips) * this.venues.boost() * ratingEffect(this.trainRating(), r.low, r.high) * this.stationEvents.tipBoost();
+    return this.econ.route.fareMultiplier * (1 + this.data.meta.perks.tipBonus + this.train.trainTipBonus() + this.stationPerks().tips) * this.venues.boost() * ratingEffect(this.trainRating(), r.low, r.high) * this.stationEvents.tipBoost();
   }
 
   /** The Train Rating, 1..5 stars, from the recent station stops (fix list 4.2; config: rating). */
@@ -855,6 +911,8 @@ export class Game implements World {
     if (earned.amount <= 0) return;
     const gemCost = this.econ.rewarded.offlineDouble.gemCost;
     this.analytics.log('offline_earnings', { amount: earned.amount, minutes: Math.round(earned.seconds / 60) });
+    // Phase 3: how long they were away (whole hours, the cap's 3 h shown as 3+) and what they collected.
+    this.analytics.log('offline_return', { hours: Math.floor(secondsAway / 3600), amount: earned.amount });
     this.ui.showOffline(earned.amount, earned.seconds, gemCost, (choice) => this.collectWithDouble('offlineDouble', choice, gemCost, (k) => {
       this.wallet.add('cash', earned.amount * k, 'offline');
       this.audio.play('cash');
@@ -890,6 +948,7 @@ export class Game implements World {
     }
     this.inBackground = true;
     this.hiddenAt = Date.now();
+    this.reportStuck();
     this.analytics.log(EVENTS.sessionEnd, { session_number: this.data.profile.sessionCount, session_seconds: Math.round(this.sessionSeconds) });
     this.analytics.pause();
     this.save.saveNow();

@@ -1041,3 +1041,28 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 .ticket.result .res-chip.on { border: 2px solid var(--ink); background: linear-gradient(#F2FFE8, #CDEFB6); color: #24671A; box-shadow: 0 2px 0 var(--ink); }
 .ticket.result .res-chip.on .ico:last-child { width: 13px; height: 13px; }
 @keyframes chipPop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* Phase 3: the Economy debug sheet (values and their source). */
+.econ-list { display: flex; flex-direction: column; gap: 2px; max-height: 60vh; overflow-y: auto; }
+.econ-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; font-size: 12px; padding: 3px 6px; border-radius: 6px; background: rgba(0, 0, 0, 0.04); }
+.econ-row .k { overflow-wrap: anywhere; }
+.econ-row .v { font-weight: 700; }
+.econ-row .s { opacity: 0.6; }
+.econ-row.remote { background: rgba(80, 160, 255, 0.18); }
+
+/* Phase 3: the return screen (a pile of bills springs up, the total counts, coins fly to the counter). */
+.welcome-back { cursor: pointer; }
+.wb-card { position: relative; padding: 18px 22px 16px; border-radius: 22px; background: linear-gradient(#FFF8E7, #F6E3B4); border: 3px solid var(--ink); box-shadow: 0 6px 0 var(--ink), var(--gloss, none); text-align: center; animation: wbIn 0.32s cubic-bezier(.2,1.4,.4,1) both; min-width: 240px; }
+.wb-card.wb-out { animation: wbOut 0.32s ease-in both; }
+.wb-title { font-size: 24px; font-weight: 800; }
+.wb-sub { font-size: 13px; opacity: 0.75; margin-top: 2px; }
+.wb-pile { position: relative; height: 92px; margin: 10px auto 4px; width: 120px; }
+.wb-bill { position: absolute; left: 50%; bottom: 0; width: 78px; height: 30px; margin-left: -39px; border-radius: 5px; background: linear-gradient(#7FD08A, #3E9E52); border: 2px solid #1F5E2E; box-shadow: inset 0 0 0 3px rgba(255,255,255,0.35);
+  transform: translate(var(--x), calc(var(--i) * -5px)) rotate(var(--r)); animation: wbBill 0.42s cubic-bezier(.2,1.5,.5,1) both; animation-delay: calc(var(--i) * 45ms); }
+.wb-amount { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 34px; font-weight: 800; color: #1F6E33; -webkit-text-stroke: 1px var(--ink); }
+.wb-tap { margin-top: 6px; font-size: 13px; opacity: 0.6; animation: wbPulse 1s ease-in-out infinite alternate; }
+.wb-coin { position: absolute; z-index: 60; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #FFF2A8, #F2B33D 60%, #B9781B); border: 2px solid #7A4E10; pointer-events: none; }
+@keyframes wbIn { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes wbOut { to { transform: scale(0.85); opacity: 0; } }
+@keyframes wbBill { from { transform: translate(var(--x), -80px) rotate(var(--r)); opacity: 0; } }
+@keyframes wbPulse { to { opacity: 0.95; } }

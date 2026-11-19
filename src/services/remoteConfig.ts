@@ -65,32 +65,74 @@ export class LocalRemoteConfig implements RemoteConfig {
 }
 
 /**
- * Applies overrides onto a config object by dotted path ("ads.minIntervalSeconds"), only where the key
- * already exists with the same type, so a typo on the server can never inject garbage.
+ * Applies overrides onto a config object by dotted path ("ads.minIntervalSeconds", "route.couplePrices.2"), only where
+ * the key already exists with the same type, so a typo on the server can never inject garbage. Phase 3: array entries
+ * are reachable by index, and "__" works as a separator too (for dashboards that do not take dots in keys).
  */
 export function applyOverrides(target: Record<string, unknown>, remote: RemoteConfig): string[] {
   const applied: string[] = [];
-  for (const [path] of remote.entries()) {
+  for (const [key] of remote.entries()) {
+    const path = key.split('__').join('.');
     const parts = path.split('.');
-    let node: Record<string, unknown> | undefined = target;
+    let node: Record<string, unknown> | unknown[] | undefined = target;
     for (let i = 0; i < parts.length - 1 && node; i++) {
-      const next: unknown = node[parts[i]];
-      node = next !== null && typeof next === 'object' && !Array.isArray(next) ? (next as Record<string, unknown>) : undefined;
+      const next: unknown = (node as Record<string, unknown>)[parts[i]];
+      node = next !== null && typeof next === 'object' ? (next as Record<string, unknown> | unknown[]) : undefined;
     }
     const leaf = parts[parts.length - 1];
     if (!node || !(leaf in node)) {
-      log.warn('RemoteConfig', `Unknown key "${path}" ignored.`);
+      log.warn('RemoteConfig', `Unknown key "${key}" ignored.`);
       continue;
     }
-    const current = node[leaf];
-    if (typeof current === 'number') node[leaf] = remote.number(path, current);
-    else if (typeof current === 'boolean') node[leaf] = remote.bool(path, current);
-    else if (typeof current === 'string') node[leaf] = remote.string(path, current);
+    const holder = node as Record<string, unknown>;
+    const current = holder[leaf];
+    if (typeof current === 'number') holder[leaf] = remote.number(key, current);
+    else if (typeof current === 'boolean') holder[leaf] = remote.bool(key, current);
+    else if (typeof current === 'string') holder[leaf] = remote.string(key, current);
     else {
-      log.warn('RemoteConfig', `"${path}" is not a simple value; ignored.`);
+      log.warn('RemoteConfig', `"${key}" is not a simple value; ignored.`);
       continue;
     }
     applied.push(path);
   }
   return applied;
+}
+
+/**
+ * Phase 3: the values GameAnalytics Remote Configs sent last time, kept on the device so they apply in full at the next
+ * launch (prices are built at start-up). Each key is a dotted path into the economy; a key named "economy" may hold a
+ * JSON object of path → value instead.
+ */
+const REMOTE_CACHE_KEY = 'nightexpress.remoteConfig.v1';
+
+export function flattenRemote(content: Record<string, unknown>): Record<string, RemoteValue> {
+  const out: Record<string, RemoteValue> = {};
+  for (const [key, value] of Object.entries(content)) {
+    if (key === 'economy' && typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value) as Record<string, unknown>;
+        for (const [k, v] of Object.entries(parsed)) if (['number', 'boolean', 'string'].includes(typeof v)) out[k] = v as RemoteValue;
+      } catch {
+        log.warn('RemoteConfig', '"economy" is not valid JSON; ignored.');
+      }
+    } else if (['number', 'boolean', 'string'].includes(typeof value)) out[key] = value as RemoteValue;
+  }
+  return out;
+}
+
+export function readRemoteCache(): Record<string, RemoteValue> {
+  try {
+    const raw = typeof localStorage === 'undefined' ? null : localStorage.getItem(REMOTE_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, RemoteValue>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function writeRemoteCache(values: Record<string, RemoteValue>): void {
+  try {
+    localStorage.setItem(REMOTE_CACHE_KEY, JSON.stringify(values));
+  } catch {
+    // Private mode or storage off: the values still apply live this session.
+  }
 }
