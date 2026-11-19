@@ -652,6 +652,7 @@ export class Game implements World {
     rig.clampZ[1] = this.map.rearZ + REAR_DECK_LENGTH - VISUALS.camera.endMargin * 0.5;
     this.frameCamera(realDt);
     this.updateCinematic(realDt);
+    rig.setHeading(this.player.heading, this.player.speedNow);
     rig.update(realDt, this.player.pos.x, this.player.pos.z);
     this.scenery.present(realDt, rig.focusPoint, night, this.stage.size, rig.zoomNow);
     this.particles.setNight(night);

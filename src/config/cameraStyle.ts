@@ -23,41 +23,82 @@ const fromUrl = typeof location !== 'undefined' ? new URLSearchParams(location.s
 export const CAMERA_STYLE: 'default' | 'mph' =
   (typeof __CAMERA_STYLE__ !== 'undefined' && __CAMERA_STYLE__ === 'mph') || fromUrl === 'mph' ? 'mph' : 'default';
 
-/** The tunable numbers of the My Perfect Hotel profile (and the panel's sliders). */
+/**
+ * Session 58b (owner: "third person camera in the MPH camera… a little zoom out (give camera options)… you now follow the
+ * character so we see what character see… how third person camera acts, more responsive"): the build has two modes, the
+ * fixed isometric view (`iso`) and a third-person camera (`third`, the default) that sits behind the conductor and swings
+ * round to look where they are heading. Each mode keeps its own numbers.
+ */
+export type CameraMode = 'iso' | 'third';
+
+/** The tunable numbers of a mode (and the panel's sliders). */
 export interface CameraTune {
-  /** The building's angle to the screen (degrees). */
+  /** The view's angle to the train (degrees); in third person only where it starts, then it follows the conductor. */
   yaw: number;
   /** How far the camera looks down (degrees below the horizon). */
   pitch: number;
   /** Vertical field of view (degrees). */
   fov: number;
-  /** Metres of floor across the screen at the hero. */
+  /** Iso: metres of floor across the screen at the hero. */
   width: number;
+  /** Third person: metres from the camera to the point it looks at. */
+  distance: number;
   /** Follow easing (higher is snappier). */
   follow: number;
-  /** Metres the view sits ahead of the hero along the view, so they stand a little below the middle. */
+  /** Metres the view sits ahead of the hero along the view (they stand a little below the middle). */
   lead: number;
+  /** Third person: how quickly the camera swings round behind the conductor as they turn (higher is snappier). */
+  turn: number;
+  /** Third person: the height (metres) of the point the camera looks at, about the conductor's chest. */
+  look: number;
 }
 
-export const MPH_DEFAULTS: CameraTune = { yaw: 45, pitch: 50, fov: 30, width: 8.4, follow: 5, lead: 0.7 };
+export const MPH_DEFAULTS: CameraTune = { yaw: 45, pitch: 50, fov: 30, width: 8.4, distance: 0, follow: 5, lead: 0.7, turn: 0, look: 0 };
+export const THIRD_DEFAULTS: CameraTune = { yaw: 45, pitch: 42, fov: 50, width: 8.4, distance: 7.5, follow: 12, lead: 1.4, turn: 4.5, look: 0.9 };
+/** The zoom buttons: third-person distances and iso widths. */
+export const ZOOM_PRESETS: Record<CameraMode, { label: string; value: number }[]> = {
+  third: [{ label: 'Close', value: 5.2 }, { label: 'Mid', value: 7 }, { label: 'Far', value: 9.5 }],
+  iso: [{ label: 'Close', value: 6.5 }, { label: 'Mid', value: 8.4 }, { label: 'Far', value: 11 }],
+};
 
 const STORE_KEY = 'nightexpress.camtune';
 
-/** The profile's numbers: the defaults, or what was last set on the panel in this browser. */
-export function mphTune(): CameraTune {
+export function defaultsFor(mode: CameraMode): CameraTune {
+  return { ...(mode === 'third' ? THIRD_DEFAULTS : MPH_DEFAULTS) };
+}
+
+/** The mode last chosen on the panel in this browser (third person by default). */
+export function cameraMode(): CameraMode {
   try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORE_KEY) : null;
-    if (raw) return { ...MPH_DEFAULTS, ...(JSON.parse(raw) as Partial<CameraTune>) };
+    return localStorage.getItem(`${STORE_KEY}.mode`) === 'iso' ? 'iso' : 'third';
+  } catch {
+    return 'third';
+  }
+}
+
+export function saveMode(mode: CameraMode): void {
+  try {
+    localStorage.setItem(`${STORE_KEY}.mode`, mode);
+  } catch {
+    /* nothing to keep it in */
+  }
+}
+
+/** A mode's numbers: its defaults, or what was last set on the panel in this browser. */
+export function mphTune(mode: CameraMode = cameraMode()): CameraTune {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(`${STORE_KEY}.${mode}`) : null;
+    if (raw) return { ...defaultsFor(mode), ...(JSON.parse(raw) as Partial<CameraTune>) };
   } catch {
     /* no storage: the defaults */
   }
-  return { ...MPH_DEFAULTS };
+  return defaultsFor(mode);
 }
 
-export function saveTune(t: CameraTune | null): void {
+export function saveTune(mode: CameraMode, t: CameraTune | null): void {
   try {
-    if (t) localStorage.setItem(STORE_KEY, JSON.stringify(t));
-    else localStorage.removeItem(STORE_KEY);
+    if (t) localStorage.setItem(`${STORE_KEY}.${mode}`, JSON.stringify(t));
+    else localStorage.removeItem(`${STORE_KEY}.${mode}`);
   } catch {
     /* nothing to keep it in */
   }
@@ -74,10 +115,14 @@ export interface CameraVisuals {
   viewLead: number;
   fixedZoom: boolean;
   shake: boolean;
+  thirdPerson: boolean;
+  distance: number;
+  turnSharpness: number;
+  lookHeight: number;
 }
 
-/** Puts a tune into `VISUALS.camera` (at load, and live from the panel). */
-export function applyTune(cam: CameraVisuals, t: CameraTune): void {
+/** Puts a mode's numbers into `VISUALS.camera` (at load, and live from the panel). */
+export function applyTune(cam: CameraVisuals, t: CameraTune, mode: CameraMode = cameraMode()): void {
   cam.trainYawDeg = t.yaw;
   cam.pitchDeg = t.pitch;
   cam.fovDeg = t.fov;
@@ -87,6 +132,10 @@ export function applyTune(cam: CameraVisuals, t: CameraTune): void {
   cam.axisSnapDeg = 0;
   cam.fixedZoom = true;
   cam.shake = false;
+  cam.thirdPerson = mode === 'third';
+  cam.distance = t.distance;
+  cam.turnSharpness = t.turn;
+  cam.lookHeight = mode === 'third' ? t.look : 0;
 }
 
 /** The framing part of `ECONOMY.camera` the profile sets: one distance everywhere. */

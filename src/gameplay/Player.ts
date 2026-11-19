@@ -34,6 +34,10 @@ export class Player implements Actor {
   private vx = 0;
   private vz = 0;
   private facing = Math.PI;
+  /** The way the conductor faces (radians, as `Actor.facing`): the third-person camera follows it (session 58b). */
+  get heading(): number {
+    return this.facing;
+  }
   idleSeconds = 0;
   speedNow = 0;
   /** Current velocity (m/s), for the camera's lead. */

@@ -44,6 +44,14 @@ export const VISUALS = {
     fixedZoom: false,
     /** Session 58: screen shake on big moments (off in the MPH build). */
     shake: true,
+    /**
+     * Session 58b, the MPH build's third-person mode: the camera sits `distance` metres from a point `lookHeight` above
+     * the floor ahead of the conductor and swings round behind them at `turnSharpness` as they head somewhere new.
+     */
+    thirdPerson: false,
+    distance: 0,
+    turnSharpness: 4,
+    lookHeight: 0,
   },
 
   /**
