@@ -158,6 +158,17 @@ async function run(profile) {
     if (s >= 180) stuckSpells.push({ from: stuckSince, s });
     if (s > longestStuck.s) longestStuck = { s, at: stuckSince };
   }
+  // Why each tile left is still unbought: a missing requirement, a level gate, hand work, or simply not bought.
+  const leftover = await page.evaluate(() => {
+    const g = window.nightExpress;
+    const u = g.unlocks;
+    return u.defs.filter((d) => !u.isUnlocked(d.id)).map((d) => {
+      const missing = d.requires.filter((r) => !u.isUnlocked(r));
+      const short = u.workShort(d);
+      const why = missing.length ? `needs ${missing.join(', ')}` : !u.isListed(d.id) ? `gated ${(d.flags ?? []).join(',')}` : short ? `hand work ${short.metric} ${short.done}/${short.need}` : `buyable, ${Math.round(u.remaining(d.id))} left${g.tiles.entries?.has?.(d.id) ? ' (on show)' : ' (not on show)'}`;
+      return `${d.id} (${d.kind}, ${d.price}): ${why}`;
+    });
+  });
   await page.close();
 
   // ─── Report ───
@@ -202,6 +213,7 @@ async function run(profile) {
   }
   gaps.sort((a, b) => b.gap - a.gap);
   log('Longest gaps between purchases: ' + gaps.slice(0, 6).map((g) => `${Math.round(g.gap)}s before ${g.id} at ${fmt(g.at)}`).join('; '));
+  if (leftover.length) log(`\nTiles left (${leftover.length}):\n  ` + leftover.join('\n  '));
   if (profile === 'average') log(`\nTargets missed: ${misses}`);
   if (errors.length) log('\nERRORS:\n' + [...new Set(errors)].slice(0, 12).join('\n'));
   const text = lines.join('\n');
