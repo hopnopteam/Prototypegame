@@ -39,7 +39,9 @@ const IDLE = { fast: 0, average: 0.3 };
  */
 const TARGETS = {
   'carriage 2': 2.5, 'carriage 3': 8, 'carriage 4': 18, 'carriage 5': 38,
-  'carriage 6': 65, 'carriage 7': 90, 'carriage 8': 120, 'route complete': [150, 170],
+  'carriage 6': 65, 'carriage 7': 90, 'carriage 8': 120,
+  // Owner (Phase 3): route complete may run to about 200 minutes (longer content is the goal, the publisher leans grindy).
+  'route complete': [150, 200],
 };
 /** What real players should see (the Phase 3 prompt's targets). */
 const REAL = { 'carriage 2': 4, 'carriage 3': 14, 'carriage 4': 28, 'carriage 5': 45, 'carriage 6': 65, 'carriage 7': 90, 'carriage 8': 120 };
