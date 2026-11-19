@@ -1,4 +1,4 @@
-import { applyTune, CAMERA_STYLE, mphTune } from './cameraStyle';
+import { applyTune, CAMERA_STYLE, styleTune } from './cameraStyle';
 /**
  * How the game looks: the camera's view of the train, the quality tiers and the night staging. Tune freely:
  * no code changes needed.
@@ -238,7 +238,7 @@ export const VISUALS = {
 };
 
 // Session 58: the My Perfect Hotel camera build sets its own view (config/cameraStyle.ts).
-if (CAMERA_STYLE === 'mph') applyTune(VISUALS.camera, mphTune());
+if (CAMERA_STYLE !== 'default') applyTune(VISUALS.camera, styleTune());
 
 export type Visuals = typeof VISUALS;
 /** How the moon's shadows are drawn on a tier (see `quality`). */

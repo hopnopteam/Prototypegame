@@ -50,7 +50,7 @@ async function boot(): Promise<void> {
   }
   ui.bind(game);
   // Session 58: the My Perfect Hotel camera build's tuning panel.
-  if (CAMERA_STYLE === 'mph') new CameraTuner(document.body, game.stage.rig);
+  if (CAMERA_STYLE !== 'default') new CameraTuner(document.body, game.stage.rig, game.econ.camera);
   (window as unknown as { nightExpress: Game }).nightExpress = game;
   const app = connectNative({
     pause: () => game.toBackground(),

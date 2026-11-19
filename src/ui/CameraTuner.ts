@@ -1,11 +1,11 @@
 import { VISUALS } from '../config/visuals';
-import { applyTune, MPH_DEFAULTS, mphTune, saveTune, type CameraTune } from '../config/cameraStyle';
+import { applyFraming, applyTune, saveTune, STYLE_DEFAULTS, styleTune, type CameraFraming, type CameraTune } from '../config/cameraStyle';
 import type { CameraRig } from '../world/CameraRig';
 
 /**
  * Session 58, the My Perfect Hotel camera build: a small camera button (bottom left) opens sliders for the view's angle,
  * tilt, lens, width, follow and lead, applied live as the game plays, kept in this browser, with the numbers shown so
- * they can be sent back and written into the profile (`MPH_DEFAULTS` in config/cameraStyle.ts).
+ * they can be sent back and written into the profile (`MPH_DEFAULTS` or `SHOWCASE_DEFAULTS` in config/cameraStyle.ts).
  */
 const SLIDERS: { key: keyof CameraTune; label: string; min: number; max: number; step: number }[] = [
   { key: 'yaw', label: 'Angle', min: 0, max: 360, step: 1 },
@@ -14,10 +14,12 @@ const SLIDERS: { key: keyof CameraTune; label: string; min: number; max: number;
   { key: 'width', label: 'Width', min: 5, max: 16, step: 0.1 },
   { key: 'smooth', label: 'Smooth', min: 0.02, max: 0.5, step: 0.01 },
   { key: 'lead', label: 'Hero low', min: -1, max: 3, step: 0.1 },
+  { key: 'roomTurn', label: 'Room turn', min: 0, max: 60, step: 1 },
+  { key: 'platform', label: 'Platform', min: 0.8, max: 1.5, step: 0.01 },
 ];
 
 export class CameraTuner {
-  private tune = mphTune();
+  private tune = styleTune();
   private readonly panel: HTMLDivElement;
   private readonly values = new Map<keyof CameraTune, { input: HTMLInputElement; out: HTMLSpanElement }>();
   private readonly code: HTMLDivElement;
@@ -25,6 +27,7 @@ export class CameraTuner {
   constructor(
     host: HTMLElement,
     private readonly rig: CameraRig,
+    private readonly framing: CameraFraming,
   ) {
     const button = document.createElement('button');
     button.textContent = 'CAM';
@@ -62,7 +65,7 @@ export class CameraTuner {
     reset.textContent = 'Reset';
     reset.style.cssText = 'margin-top:6px;padding:4px 14px;border-radius:9px;border:2px solid #1d2430;background:#ffd65a;font:700 13px Jost,system-ui;';
     reset.addEventListener('click', () => {
-      this.tune = { ...MPH_DEFAULTS };
+      this.tune = { ...STYLE_DEFAULTS };
       saveTune(null);
       this.apply(false);
     });
@@ -80,6 +83,7 @@ export class CameraTuner {
 
   private apply(save = true): void {
     applyTune(VISUALS.camera, this.tune);
+    applyFraming(this.framing, this.tune);
     this.rig.retune();
     if (save) saveTune(this.tune);
     for (const s of SLIDERS) {

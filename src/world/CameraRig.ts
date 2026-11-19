@@ -216,7 +216,8 @@ export class CameraRig {
     let tx = Math.min(this.clampX[1], Math.max(this.clampX[0], followX + c.x)) - cfg.lakeBias;
     // Lead along the train toward the locomotive, never past either end of the world.
     let tz = Math.min(this.clampZ[1], Math.max(this.clampZ[0], followZ - cfg.lookAhead + c.z));
-    let zoom = this.zoom * (cfg.fixedZoom ? 1 : c.zoom);
+    // Context framing applies in every build (the camera builds set it to 1 everywhere but, in the Showcase, the platform).
+    let zoom = this.zoom * c.zoom;
     let sharpness = cfg.followSharpness;
     // Session 58 (the MPH build): the hero a little below the middle, the view sitting ahead of them along it.
     tx += this.forward.x * cfg.viewLead;

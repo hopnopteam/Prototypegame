@@ -1,3 +1,4 @@
+import { CUTAWAY_FRONT } from '../config/cameraStyle';
 import { rect, type CarriageType, type ItemKind, type Rect, type Vec2, type VenueKind } from '../core/types';
 
 /**
@@ -388,7 +389,8 @@ class LayoutBuilder {
     this.wallAlongZ(INNER, HALF_WIDTH, 0, L, doorGaps, 'exterior');
     // End walls run between the side walls: the corners belong to the side walls alone (overlapping shells
     // would put two coplanar faces at every corner, which flicker).
-    this.wallAlongX(0, WALL, -INNER, INNER, options.frontGangway ? [[-GANGWAY_HALF, GANGWAY_HALF]] : [], 'exterior');
+    // Session 59: cut down too where the camera looks from the locomotive's end (the Showcase and MPH builds).
+    this.wallAlongX(0, WALL, -INNER, INNER, options.frontGangway ? [[-GANGWAY_HALF, GANGWAY_HALF]] : [], 'exterior', CUTAWAY_FRONT ? CUTAWAY_WALL_HEIGHT : EXTERIOR_WALL_HEIGHT);
     this.wallAlongX(L - WALL, L, -INNER, INNER, [[-GANGWAY_HALF, GANGWAY_HALF]], 'exterior', CUTAWAY_WALL_HEIGHT);
 
     if (options.doors) {

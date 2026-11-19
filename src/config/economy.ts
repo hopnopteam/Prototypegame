@@ -870,6 +870,6 @@ export const ECONOMY = {
 };
 
 // Session 58: the My Perfect Hotel camera build keeps one distance everywhere (config/cameraStyle.ts).
-if (CAMERA_STYLE === 'mph') applyFraming(ECONOMY.camera);
+if (CAMERA_STYLE !== 'default') applyFraming(ECONOMY.camera);
 
 export type Economy = typeof ECONOMY;

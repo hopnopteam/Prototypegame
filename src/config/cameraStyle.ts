@@ -25,16 +25,35 @@
  * - New things are shown by a pan over to them and back at the same distance, with no shake.
  * Every number can be changed live in that build with the camera button (bottom left); the values are kept in this
  * browser and shown on the panel, to copy into the profile below.
+ *
+ * Session 59, the Showcase camera (owner: "full freedom… the absolute best camera angle… for playing, aesthetics,
+ * focus, retention"), built with CAMERA_STYLE=showcase (`OUT=showcase.html`) or `?cam=showcase`. Chosen by shooting
+ * every candidate at five moments of play (the opening, a corridor, a cabin, the café, a station stop):
+ * - A gentle three-quarter diagonal (`yaw` 160): the train runs up the portrait screen leaning about 25°, so walls,
+ *   counters and beds show their faces and the carriages read as a diorama (the straight MPH view reads as a floor
+ *   plan), while far more of the train is in view than on the old 37° diagonal.
+ * - From the platform side and the locomotive's end: the platform, where the busiest play happens, is the foreground
+ *   at the bottom of the screen, the lake the backdrop at the top; the rear of the train, where every new carriage
+ *   couples on and the next one waits under its tarp, is up the screen, so the train grows ahead of the player.
+ * - Looking down 54° through a 34° lens, 5.6 m across at the conductor: close enough that people and items read at
+ *   thumb size, wide enough to see the next job.
+ * - The spring follow of the MPH build (0.1 s), no lead, no shake, one steady distance, except: a cabin or washroom
+ *   frames itself (centred, closer, never turning, so the stick never changes meaning mid-walk), and the platform
+ *   pulls out 12% to take in the queue, the bell and the shops.
+ * - The carriages' end walls facing the camera are cut down like the far ones, so no carriage hides its own floor.
  */
 
 declare const __CAMERA_STYLE__: string | undefined;
 
+export type CameraStyle = 'default' | 'mph' | 'showcase';
+
 const fromUrl = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('cam') : null;
+const built = typeof __CAMERA_STYLE__ !== 'undefined' ? __CAMERA_STYLE__ : '';
+const pick = (v: string | null): CameraStyle | null => (v === 'mph' || v === 'showcase' ? v : null);
 
-export const CAMERA_STYLE: 'default' | 'mph' =
-  (typeof __CAMERA_STYLE__ !== 'undefined' && __CAMERA_STYLE__ === 'mph') || fromUrl === 'mph' ? 'mph' : 'default';
+export const CAMERA_STYLE: CameraStyle = pick(built) ?? pick(fromUrl) ?? 'default';
 
-/** The tunable numbers of the My Perfect Hotel profile (and the panel's sliders). */
+/** The tunable numbers of a camera profile (and the panel's sliders). */
 export interface CameraTune {
   /** The building's angle to the screen (degrees). */
   yaw: number;
@@ -50,22 +69,30 @@ export interface CameraTune {
   smooth: number;
   /** Metres the view sits ahead of the hero along the view, so they stand a little below the middle. */
   lead: number;
+  /** Session 59: how far a room's view turns from the corridor's (degrees, toward the corridor side; 0 keeps it). */
+  roomTurn: number;
+  /** Session 59: the platform's framing (1 the same distance as inside; above 1 pulls out). */
+  platform: number;
 }
 
-export const MPH_DEFAULTS: CameraTune = { yaw: 180, pitch: 58, fov: 35, width: 5.8, follow: 5, lead: 0, smooth: 0.08 };
+export const MPH_DEFAULTS: CameraTune = { yaw: 180, pitch: 58, fov: 35, width: 5.8, follow: 5, lead: 0, smooth: 0.08, roomTurn: 35, platform: 1 };
+export const SHOWCASE_DEFAULTS: CameraTune = { yaw: 160, pitch: 54, fov: 34, width: 5.6, follow: 5, lead: 0, smooth: 0.1, roomTurn: 0, platform: 1.12 };
+
+/** The defaults of the style this build runs. */
+export const STYLE_DEFAULTS: CameraTune = CAMERA_STYLE === 'showcase' ? SHOWCASE_DEFAULTS : MPH_DEFAULTS;
 
 // A new key whenever the defaults move (58c the straight view, 58e turned round), so old panel numbers do not carry over.
-const STORE_KEY = 'nightexpress.camtune.v4';
+const STORE_KEY = CAMERA_STYLE === 'showcase' ? 'nightexpress.camtune.showcase.v1' : 'nightexpress.camtune.v4';
 
 /** The profile's numbers: the defaults, or what was last set on the panel in this browser. */
-export function mphTune(): CameraTune {
+export function styleTune(): CameraTune {
   try {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORE_KEY) : null;
-    if (raw) return { ...MPH_DEFAULTS, ...(JSON.parse(raw) as Partial<CameraTune>) };
+    if (raw) return { ...STYLE_DEFAULTS, ...(JSON.parse(raw) as Partial<CameraTune>) };
   } catch {
     /* no storage: the defaults */
   }
-  return { ...MPH_DEFAULTS };
+  return { ...STYLE_DEFAULTS };
 }
 
 export function saveTune(t: CameraTune | null): void {
@@ -76,6 +103,12 @@ export function saveTune(t: CameraTune | null): void {
     /* nothing to keep it in */
   }
 }
+
+/**
+ * Session 59: the camera looks from the locomotive's end (its yaw past 90°), so the carriages' front end walls face it
+ * and are cut down like the rear ones (read by the floor plans once, at load).
+ */
+export const CUTAWAY_FRONT = CAMERA_STYLE !== 'default' && Math.cos((styleTune().yaw * Math.PI) / 180) < 0;
 
 /** The view part of `VISUALS.camera` the profile sets. */
 export interface CameraVisuals {
@@ -91,10 +124,8 @@ export interface CameraVisuals {
   smoothTime: number;
   roomView: boolean;
   roomYawDeg: number;
+  roomPitchDeg: number;
 }
-
-/** How far the room view turns from the corridor view (degrees). */
-const ROOM_TURN = 35;
 
 /** Puts a tune into `VISUALS.camera` (at load, and live from the panel). */
 export function applyTune(cam: CameraVisuals, t: CameraTune): void {
@@ -109,11 +140,13 @@ export function applyTune(cam: CameraVisuals, t: CameraTune): void {
   cam.shake = false;
   cam.smoothTime = t.smooth;
   cam.roomView = true;
-  // The room view turns toward the corridor side (−x) whichever end the camera stands at: −35° from yaw 0, +35° from 180.
-  cam.roomYawDeg = t.yaw + (Math.cos((t.yaw * Math.PI) / 180) >= 0 ? -ROOM_TURN : ROOM_TURN);
+  // The room view turns toward the corridor side (−x) whichever end the camera stands at: −turn from yaw 0, +turn
+  // from 180. With no turn it keeps the corridor's angle and tilt and only frames the room.
+  cam.roomYawDeg = t.yaw + (Math.cos((t.yaw * Math.PI) / 180) >= 0 ? -t.roomTurn : t.roomTurn);
+  cam.roomPitchDeg = t.roomTurn === 0 ? t.pitch : 52;
 }
 
-/** The framing part of `ECONOMY.camera` the profile sets: one distance everywhere. */
+/** The framing part of `ECONOMY.camera` the profile sets: one distance everywhere (the platform aside). */
 export interface CameraFraming {
   standZoom: number;
   walkZoom: number;
@@ -122,10 +155,10 @@ export interface CameraFraming {
   prologueLean: { x: number; z: number };
 }
 
-export function applyFraming(cam: CameraFraming): void {
+export function applyFraming(cam: CameraFraming, t: CameraTune = styleTune()): void {
   cam.standZoom = 1;
   cam.walkZoom = 1;
-  cam.platformZoom = 1;
+  cam.platformZoom = t.platform;
   cam.travelZoom = 1;
   cam.prologueLean = { x: 0, z: 0 };
 }
