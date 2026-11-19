@@ -1,3 +1,4 @@
+import { applyTune, CAMERA_STYLE, mphTune } from './cameraStyle';
 /**
  * How the game looks: the camera's view of the train, the quality tiers and the night staging. Tune freely:
  * no code changes needed.
@@ -37,6 +38,12 @@ export const VISUALS = {
     axisSnapDeg: 12,
     /** Metres of the world beyond the train's ends the view may show (scenery always covers more). */
     endMargin: 4,
+    /** Session 58: metres the view sits ahead of the conductor along the view (the My Perfect Hotel build; 0 here). */
+    viewLead: 0,
+    /** Session 58: one distance everywhere (no context zoom, no zoom kick, pans at the same distance); the MPH build. */
+    fixedZoom: false,
+    /** Session 58: screen shake on big moments (off in the MPH build). */
+    shake: true,
   },
 
   /**
@@ -212,6 +219,9 @@ export const VISUALS = {
     paving: { tile: 2.7, strength: 0.85 },
   },
 };
+
+// Session 58: the My Perfect Hotel camera build sets its own view (config/cameraStyle.ts).
+if (CAMERA_STYLE === 'mph') applyTune(VISUALS.camera, mphTune());
 
 export type Visuals = typeof VISUALS;
 /** How the moon's shadows are drawn on a tier (see `quality`). */

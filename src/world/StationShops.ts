@@ -67,6 +67,42 @@ export function buildBookingOffice(b: GeoBuilder, r: Rect, panel: string = PALET
 }
 
 /**
+ * The Train Works (session 58, owner: "make sure the train works… looks nice and does not look deformed"): a coachbuilder's
+ * workshop built like the parcels office, the booking office's walls in bottle green under a dark green roof, its window
+ * to the walkway; on the counter, what it fits to the train: tins of the liveries' paint with a brush across one, a roll
+ * of gold lining, a sample window box in flower and a brass carriage lamp. Its painter stands behind the counter and its
+ * board sits on the roof (PlatformView). `r` is the counter's rect.
+ */
+export function buildTrainWorks(b: GeoBuilder, r: Rect): void {
+  const y = FLOOR_Y;
+  const z = (r.z0 + r.z1) / 2;
+  const cx = (r.x0 + r.x1) / 2;
+  buildBookingOffice(b, r, '#2F5A47', '#3B4A40');
+  b.object('platform:worksCounter');
+  b.model('counter', cx, y, z, Math.PI / 2, 0.8, 0.98, (r.x1 - r.x0) / 1.5, { surface: 'varnish', shade: 0.85 });
+  const top = y + 0.98;
+  // Tins of the liveries' paint (Tiny Treats' tins, their lids in the colours), a brush across the first.
+  const tins: [string, number][] = [['#2F5A47', -0.5], ['#2F3E5C', -0.3], ['#8A2E3A', -0.1]];
+  for (const [paint, dz] of tins) {
+    fit(b, 'tin_grey', cx, top, z + dz, 0.13, 0, [{ hue: [0, 360], sat: [0, 0.25], val: [0, 1], ref: '#9AA0A8', to: '#B9BCC2' }]);
+    b.cylinder(cx, top + 0.132, z + dz, 0.05, 0.05, 0.006, paint, 12, 'y', { shade: 1 });
+  }
+  b.box(cx + 0.02, top + 0.142, z - 0.5, 0.025, 0.018, 0.2, '#7A5236', 0, { shade: 1, surface: 'wood' });
+  b.box(cx + 0.02, top + 0.142, z - 0.39, 0.03, 0.022, 0.035, '#E6D9B8', 0, { shade: 1 });
+  // A roll of gold lining.
+  b.cylinder(cx, top + 0.045, z + 0.1, 0.045, 0.045, 0.1, PALETTE.gold, 14, 'x', { shade: 1, surface: 'brass' });
+  // A sample window box in flower.
+  b.box(cx, top + 0.05, z + 0.38, 0.14, 0.1, 0.3, '#7A5236', 0, { shade: 0.9, surface: 'wood' });
+  fit(b, 'flower_white', cx, top + 0.1, z + 0.3, 0.1, 0.3);
+  fit(b, 'flower_blue', cx, top + 0.1, z + 0.46, 0.1, 1.4);
+  // A brass carriage lamp.
+  b.cylinder(cx, top + 0.02, z + 0.62, 0.05, 0.06, 0.04, PALETTE.brass, 12, 'y', { shade: 1, surface: 'brass' });
+  b.cylinder(cx, top + 0.12, z + 0.62, 0.045, 0.045, 0.16, '#F6E4B0', 12, 'y', { shade: 1.1 });
+  b.cylinder(cx, top + 0.22, z + 0.62, 0.025, 0.06, 0.05, PALETTE.brass, 12, 'y', { shade: 1, surface: 'brass' });
+  b.endObject();
+}
+
+/**
  * The Fruit Kiosk (session 57, replacing the red stall that looked like the ticket office): a greengrocer's barrow,
  * Tiny Treats' red wagon with two of Kenney's fruit stands on its bed, a watermelon's worth of colour, and KayKit's
  * green market umbrella on the walkway side.

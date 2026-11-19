@@ -129,13 +129,21 @@ export class CameraRig {
     return out;
   }
 
+  /** Session 58: re-reads the angles and framing from `VISUALS.camera` (the MPH build's tuning panel). */
+  retune(): void {
+    const c = VISUALS.camera;
+    this.setAngles(c.trainYawDeg, c.pitchDeg, c.fovDeg);
+  }
+
   shake(strength: number, seconds: number): void {
+    if (!VISUALS.camera.shake) return;
     this.shakeStrength = Math.max(this.shakeStrength, strength);
     this.shakeTime = Math.max(this.shakeTime, seconds);
   }
 
   /** A quick zoom-in kick (0.04 = subtle, 0.1 = big) that springs back: weight for a reward moment. */
   punch(amount: number): void {
+    if (VISUALS.camera.fixedZoom) return;
     this.punchAmount = Math.max(this.punchAmount, amount);
   }
 
@@ -185,13 +193,16 @@ export class CameraRig {
     let tx = Math.min(this.clampX[1], Math.max(this.clampX[0], followX + c.x)) - cfg.lakeBias;
     // Lead along the train toward the locomotive, never past either end of the world.
     let tz = Math.min(this.clampZ[1], Math.max(this.clampZ[0], followZ - cfg.lookAhead + c.z));
-    let zoom = this.zoom * c.zoom;
+    let zoom = this.zoom * (cfg.fixedZoom ? 1 : c.zoom);
     let sharpness = cfg.followSharpness;
+    // Session 58 (the MPH build): the hero a little below the middle, the view sitting ahead of them along it.
+    tx += this.forward.x * cfg.viewLead;
+    tz += this.forward.y * cfg.viewLead;
     if (this.overrideTarget && this.overrideTime > 0) {
       this.overrideTime -= dt;
       tx = this.overrideTarget.x;
       tz = this.overrideTarget.z;
-      zoom *= this.overrideZoom;
+      if (!cfg.fixedZoom) zoom *= this.overrideZoom;
       sharpness = this.overrideSharpness;
       if (this.overrideTime <= 0) this.overrideTarget = null;
     }

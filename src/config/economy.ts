@@ -1,3 +1,4 @@
+import { applyFraming, CAMERA_STYLE } from './cameraStyle';
 import type { ServiceNeed } from './classes';
 
 /**
@@ -867,5 +868,8 @@ export const ECONOMY = {
     questsPerDay: 3,
   },
 };
+
+// Session 58: the My Perfect Hotel camera build keeps one distance everywhere (config/cameraStyle.ts).
+if (CAMERA_STYLE === 'mph') applyFraming(ECONOMY.camera);
 
 export type Economy = typeof ECONOMY;

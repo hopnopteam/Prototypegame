@@ -1,4 +1,6 @@
 import { Game, SAVE_KEY } from './gameplay/Game';
+import { CAMERA_STYLE } from './config/cameraStyle';
+import { CameraTuner } from './ui/CameraTuner';
 import { connectNative, restoreSave } from './services/native';
 import { h } from './ui/dom';
 import { Loader, nextPaint } from './ui/Loader';
@@ -47,6 +49,8 @@ async function boot(): Promise<void> {
     throw error;
   }
   ui.bind(game);
+  // Session 58: the My Perfect Hotel camera build's tuning panel.
+  if (CAMERA_STYLE === 'mph') new CameraTuner(document.body, game.stage.rig);
   (window as unknown as { nightExpress: Game }).nightExpress = game;
   const app = connectNative({
     pause: () => game.toBackground(),
