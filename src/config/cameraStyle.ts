@@ -9,8 +9,10 @@
  * diagonal: the hallway runs up the middle of the portrait screen with rooms on both sides and the reception desk across
  * it, seen from high up (about 55–60° down) through a moderate lens, the hero in the middle of the screen at one distance.
  * For the train that is:
- * - The train straight up the screen (`yaw` 0), the locomotive at the top, the corridor like MPH's hallway, the lake on
- *   the left and the platform on the right; looking down 58° through a 35° lens, 5.8 m of floor across the screen (session 58d, owner: "zoom in a little more"; 6.6 before), so the train fills the width as MPH's hotel does.
+ * - The train straight up the screen, the corridor like MPH's hallway. Session 58e (owner: "it should start from
+ *   opposite direction… 180 from behind… whatever is behind the train"): `yaw` 180, so the camera stands at the
+ *   locomotive's end and looks back along the train: the locomotive at the bottom, the rear (and what lies behind the
+ *   train) at the top, the lake on the right and the platform on the left; looking down 58° through a 35° lens, 5.8 m of floor across the screen (session 58d, owner: "zoom in a little more"; 6.6 before), so the train fills the width as MPH's hotel does.
  * - One fixed distance: no zoom in while walking, none on entering a room or the platform, no zoom kick on a purchase.
  * - A spring follow on both axes (session 58d, owner: "much smoother, much more reactive"): a critically damped spring
  *   (Unity's SmoothDamp) with a 0.08 s smoothing time, so the camera eases into and out of a walk instead of jumping to
@@ -50,10 +52,10 @@ export interface CameraTune {
   lead: number;
 }
 
-export const MPH_DEFAULTS: CameraTune = { yaw: 0, pitch: 58, fov: 35, width: 5.8, follow: 5, lead: 0, smooth: 0.08 };
+export const MPH_DEFAULTS: CameraTune = { yaw: 180, pitch: 58, fov: 35, width: 5.8, follow: 5, lead: 0, smooth: 0.08 };
 
-// Session 58c: a new key, so numbers tuned on the first (diagonal) version of the build do not carry over.
-const STORE_KEY = 'nightexpress.camtune.v3';
+// A new key whenever the defaults move (58c the straight view, 58e turned round), so old panel numbers do not carry over.
+const STORE_KEY = 'nightexpress.camtune.v4';
 
 /** The profile's numbers: the defaults, or what was last set on the panel in this browser. */
 export function mphTune(): CameraTune {
@@ -88,7 +90,11 @@ export interface CameraVisuals {
   shake: boolean;
   smoothTime: number;
   roomView: boolean;
+  roomYawDeg: number;
 }
+
+/** How far the room view turns from the corridor view (degrees). */
+const ROOM_TURN = 35;
 
 /** Puts a tune into `VISUALS.camera` (at load, and live from the panel). */
 export function applyTune(cam: CameraVisuals, t: CameraTune): void {
@@ -103,6 +109,8 @@ export function applyTune(cam: CameraVisuals, t: CameraTune): void {
   cam.shake = false;
   cam.smoothTime = t.smooth;
   cam.roomView = true;
+  // The room view turns toward the corridor side (−x) whichever end the camera stands at: −35° from yaw 0, +35° from 180.
+  cam.roomYawDeg = t.yaw + (Math.cos((t.yaw * Math.PI) / 180) >= 0 ? -ROOM_TURN : ROOM_TURN);
 }
 
 /** The framing part of `ECONOMY.camera` the profile sets: one distance everywhere. */

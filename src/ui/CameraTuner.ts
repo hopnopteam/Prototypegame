@@ -8,7 +8,7 @@ import type { CameraRig } from '../world/CameraRig';
  * they can be sent back and written into the profile (`MPH_DEFAULTS` in config/cameraStyle.ts).
  */
 const SLIDERS: { key: keyof CameraTune; label: string; min: number; max: number; step: number }[] = [
-  { key: 'yaw', label: 'Angle', min: 0, max: 90, step: 1 },
+  { key: 'yaw', label: 'Angle', min: 0, max: 360, step: 1 },
   { key: 'pitch', label: 'Tilt', min: 30, max: 80, step: 1 },
   { key: 'fov', label: 'Lens', min: 15, max: 60, step: 1 },
   { key: 'width', label: 'Width', min: 5, max: 16, step: 0.1 },
