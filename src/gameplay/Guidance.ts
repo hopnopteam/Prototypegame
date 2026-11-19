@@ -256,6 +256,12 @@ export class Guidance {
       // Session 56: the box is carried in the hand, apart from the tray, so whatever the conductor holds never blocks it.
       if (w.station.cartWanted()) return this.because('restock', PLATFORM.restockPad);
     }
+    // Phase 3: the bell has rung and the doors are waiting for the conductor: aboard first (the cash on the floor waits).
+    if (w.journey.doorsOpen && w.station.bellRung && w.station.outsideTrain(player.pos)) {
+      let door = map.doors()[0];
+      for (const d of map.doors()) if (Math.abs(d.inside.z - player.pos.z) < Math.abs(door.inside.z - player.pos.z)) door = d;
+      if (door) return this.because('board', door.inside);
+    }
     // The box in hand goes to the cupboard, at a stop or after it.
     if (w.station.supplyInHand) return this.because('restock', w.station.cupboardPoint());
 

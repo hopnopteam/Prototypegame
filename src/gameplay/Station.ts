@@ -1084,6 +1084,9 @@ export class Station {
   private updateKiosk(dt: number): void {
     const w = this.w;
     if (!w.journey.doorsOpen || this.prologue || !w.stationPerks().kiosk) return;
+    // Phase 3 (found by the pacing simulator): the kiosk shuts its till once the bell has rung. It used to keep filling
+    // as the doors waited for the conductor, so a conductor collecting its takings could never finish, and never board.
+    if (this.bellRung) return;
     const k = w.econ.station.kiosk;
     this.kioskCarry += dt * k.perSecond * (1 + k.perCarriage * (w.train.count - 1));
     if (this.kioskCarry < 1) return;
@@ -1116,6 +1119,11 @@ export class Station {
   private unhappyAtArrival = 0;
 
   /** The conductor (or anyone) is out on the platform, not aboard. */
+  /** The bell has rung at this stop: the train is about to leave. */
+  get bellRung(): boolean {
+    return this.bellRungFor === this.w.journey.stopSerial && this.w.journey.phase === 'stationStop';
+  }
+
   outsideTrain(pos: Vec2): boolean {
     return pos.x > HALF_WIDTH - 0.2;
   }
