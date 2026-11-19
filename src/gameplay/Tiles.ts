@@ -474,6 +474,12 @@ export class Tiles {
     return best;
   }
 
+  /** The next carriage's coupling tile, if it is on show and available (the pacing bot buys it first). */
+  coupling(): TileEntry | null {
+    for (const entry of this.entries.values()) if (entry.def.kind === 'couple' && this.w.unlocks.isAvailable(entry.def.id)) return entry;
+    return null;
+  }
+
   cheapest(): TileEntry | null {
     let best: TileEntry | null = null;
     const atStation = this.w.journey.phase === 'stationStop';

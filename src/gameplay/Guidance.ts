@@ -291,6 +291,9 @@ export class Guidance {
       if (desk) return this.because('desk', desk);
     }
 
+    // Phase 3, the pacing bot: the next carriage first, the moment it is affordable.
+    const couple = forBot ? w.tiles.coupling() : null;
+    if (couple && w.unlocks.remaining(couple.def.id) <= cash) return this.because('tile', couple.pos);
     const tile = w.tiles.cheapest();
     if (tile && w.unlocks.remaining(tile.def.id) <= cash) return this.because('tile', tile.pos);
 

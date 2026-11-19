@@ -4,6 +4,10 @@ import type { World } from './World';
 
 const ARRIVE = 0.22;
 const REPATH_SECONDS = 0.6;
+/** The average player's work bursts (seconds, min and max) before each breather. */
+const IDLE_BURST: [number, number] = [20, 60];
+/** How often a wandering player changes their mind (seconds). */
+const WANDER_STEP = 1.5;
 
 /**
  * Plays the game like an attentive player: asks the guidance system for the most useful target and walks
@@ -17,6 +21,18 @@ export class Autopilot {
   private repath = 0;
   private stuck = 0;
   private lastPos: Vec2 = { x: 0, z: 0 };
+  /**
+   * Phase 3, the pacing simulator's profiles: the extra time an average player spends idle or wandering, as a share of
+   * the time spent working (0 = the efficient "fast player"; 0.3 = the "average player": 30% more time on top). Work
+   * comes in bursts of `IDLE_BURST` seconds, each followed by `idleShare` × that idling: half of it standing still,
+   * half wandering in short random pushes. Its own seeded random, so the game's randomness is untouched.
+   */
+  idleShare = 0;
+  private burstLeft = 0;
+  private lastBurst = 0;
+  private idleLeft = 0;
+  private wanderLeft = 0;
+  private seed = 0x2f6b1;
 
   constructor(private readonly w: World, private readonly setStick: (x: number, y: number) => void) {}
 
@@ -29,6 +45,7 @@ export class Autopilot {
     if (w.progression.level >= w.econ.progression.unlockLevels.conductorUpgrades) {
       for (const key of ['capacity', 'fareBonus'] as const) if (w.buyConductorUpgrade(key)) break;
     }
+    if (this.idleShare > 0 && this.idle(dt)) return;
     const target = w.guidance.bestTarget(true);
     const changed = !target || !this.target || Math.hypot(target.x - this.target.x, target.z - this.target.z) > 0.3;
     if (changed || this.repath <= 0) {
@@ -66,6 +83,44 @@ export class Autopilot {
         this.path = [];
       }
     }
+  }
+
+  /** True while the average player is taking a breather (looking around, wandering); the stick is set here. */
+  private idle(dt: number): boolean {
+    if (this.idleLeft > 0) {
+      this.idleLeft -= dt;
+      this.wanderLeft -= dt;
+      if (this.wanderLeft <= 0) {
+        this.wanderLeft = WANDER_STEP;
+        // Half the pushes stand still, half walk a few steps a random way (walls simply stop them).
+        if (this.rand() < 0.5) this.setStick(0, 0);
+        else {
+          const a = this.rand() * Math.PI * 2;
+          this.setStick(Math.cos(a) * 0.7, Math.sin(a) * 0.7);
+        }
+      }
+      if (this.idleLeft <= 0) {
+        this.repath = 0;
+        this.setStick(0, 0);
+      }
+      return this.idleLeft > 0;
+    }
+    this.burstLeft -= dt;
+    if (this.burstLeft <= 0) {
+      // A breather after each burst of work (none before the first), as long as `idleShare` of that burst.
+      if (this.lastBurst > 0) this.idleLeft = this.lastBurst * this.idleShare;
+      this.lastBurst = IDLE_BURST[0] + this.rand() * (IDLE_BURST[1] - IDLE_BURST[0]);
+      this.burstLeft = this.lastBurst;
+    }
+    return false;
+  }
+
+  /** A small seeded random of its own (mulberry32), so the game's random stream is unchanged. */
+  private rand(): number {
+    let t = (this.seed = (this.seed + 0x6d2b79f5) | 0);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   }
 
   private plan(target: Vec2): Vec2[] {
