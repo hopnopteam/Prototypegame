@@ -17,5 +17,9 @@ licence file). The item icons in `assets/icons/items.png` are rendered from the 
 | Session 55: Tiny Treats Homely House, Bakery Interior, Baked Goods, Pretty Park, Fun Playground — https://isalousberg.itch.io | Isa Lousberg | CC0 1.0 | station house, parcel, notice board, bread, pigeons, long hedge, picnic table |
 | Session 55: KayKit Halloween Bits, Holiday Bits — https://kaylousberg.itch.io | Kay Lousberg | CC0 1.0 | pumpkins, the hand bell |
 | Session 55: Quaternius Farm Animals, Farm Buildings, Ultimate House Interior — https://quaternius.com | Quaternius | CC0 1.0 | sheep, water tower, red carpet |
+| Session 57, the station's shops (the owner's Station Picks 2): Tiny Treats Bakery Interior, Baked Goods, Fun Playground, Homely House — https://isalousberg.itch.io | Isa Lousberg | CC0 1.0 | the booking office's and parcels office's walls and roof, price card, long display case, cake stand, baskets, coffee cupboard, takeaway cups, polish tins, scales, baguettes, the wagon (fruit barrow and flower cart), boots, letter |
+| Session 57: KayKit Mixed Bag 1, Holiday Bits — https://kaylousberg.itch.io | Kay Lousberg | CC0 1.0 | market umbrellas, the shoeshine chair and footstool |
+| Session 57: Kenney Mini Shop 2.1, City Kit Commercial 2.1, Food Kit, Survival Kit (via https://opengameart.org) — https://kenney.nl | Kenney | CC0 1.0 | fruit stands, ice-cream freezer, sack truck, parasol, ice cream, sundae, lolly, the shoeshine box |
+| Session 57: Quaternius Farm Animals (CC0 on its itch page) — https://quaternius.itch.io/lowpoly-animated-animals | Quaternius | CC0 1.0 | the pug |
 
 CC0 needs no attribution; thank you, Kay and Isa Lousberg, Quaternius, Kenney and samusaa.

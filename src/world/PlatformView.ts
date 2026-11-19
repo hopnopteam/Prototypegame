@@ -10,6 +10,7 @@ import { key, modelEntry, type Recolor } from './models/library';
 import { CharacterView, type CharacterAction, type CharacterLook } from './CharacterView';
 import { headlineTexture, posterTexture, signTexture } from './sprites';
 import { Strollers } from './Strollers';
+import { buildBookingOffice, buildFruitBarrow, buildShops, buildStationLife, type Shop } from './StationShops';
 import type { Rect } from '../core/types';
 import type { LampAnchor } from './Lighting';
 
@@ -152,6 +153,10 @@ export class PlatformView {
   private readonly clerkView = new CharacterView(CLERK_LOOK);
   private readonly keeperView = new CharacterView(KEEPER_LOOK);
   private readonly painter = new CharacterView(PAINTER_LOOK);
+  /** Session 57: the keepers of the station's shops (made as the shops are first built), and their idle clocks. */
+  private readonly shopKeepers: { view: CharacterView; idles: readonly CharacterAction[]; next: number }[] = [];
+  /** The ticket stand's board: on its post, or on the booking office's roof once the Ticket Office is bought. */
+  private ticketBoard!: THREE.Mesh;
   /** Session 56: townsfolk strolling the platform and browsing its shops. */
   private readonly strollers: Strollers;
   private kioskOwned = false;
@@ -182,6 +187,7 @@ export class PlatformView {
     tickets.rotation.x = -0.55;
     tickets.name = 'ticketSign';
     this.group.add(tickets);
+    this.ticketBoard = tickets;
 
     // Session 56: the Train Works' board over its bench, and its painter.
     const works = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.4), new THREE.MeshLambertMaterial({ color: '#ffffff', map: signTexture('Train Works', '#3F6E5A', PALETTE.creamBand) }));
@@ -260,6 +266,12 @@ export class PlatformView {
     // Session 55: the ticket stand is built here, so the Ticket Office can turn it into a booth (Kenney's stall in
     // navy, its table the counter, the till on it).
     buildTicketStand(b, lamps, 0, owned.has('booth'));
+    // Session 57: the booking office carries the "Tickets" board on its roof (its post is gone).
+    {
+      const c = PLATFORM.counter;
+      const office = owned.has('booth');
+      this.ticketBoard.position.set((c.x0 + c.x1) / 2 - (office ? 0.05 : 0), FLOOR_Y + (office ? 2.2 : 1.86), office ? (c.z0 + c.z1) / 2 : c.z0 - 0.12);
+    }
     // The Waiting Benches: two more benches in the waiting bay, either side of the one travellers already use.
     if (owned.has('benches')) {
       const r = PLATFORM.bench;
@@ -270,7 +282,7 @@ export class PlatformView {
       }
     }
     this.kioskOwned = owned.has('kiosk');
-    if (this.kioskOwned) buildFruitStall(b, at('kiosk'));
+    if (this.kioskOwned) buildFruitBarrow(b, { x: at('kiosk').x + 0.4, z: at('kiosk').z });
     const dz = gateZ !== null ? gateZ - LOBBY_DOOR_Z : 0;
     if (owned.has('gate2') && gateZ !== null) buildTicketStand(b, lamps, dz, true);
     for (const mesh of [this.upgradeMesh, this.upgradeLamps]) {
@@ -303,9 +315,35 @@ export class PlatformView {
     this.keeperView.root.visible = keeper;
     if (keeper) {
       const p = at('kiosk');
-      this.keeperView.setPosition(p.x + 0.85, FLOOR_Y, p.z);
+      this.keeperView.setPosition(p.x + 0.97, FLOOR_Y, p.z);
       this.keeperView.setFacing(-Math.PI / 2);
     }
+  }
+
+  /** Session 57: a running clock for the shop keepers' habits. */
+  private lifeClock = 0;
+
+  /** Session 57: stands each shop's keeper behind its goods (made the first time), hiding keepers of shops not built. */
+  private placeShopKeepers(shops: readonly Shop[]): void {
+    const tended = shops.filter((s) => s.keeper);
+    tended.forEach((shop, i) => {
+      const k = shop.keeper!;
+      let entry = this.shopKeepers[i];
+      if (!entry) {
+        const view = new CharacterView(k.look);
+        view.leans = false;
+        view.root.userData.object = `character:keeper-${shop.id}`;
+        this.group.add(view.root);
+        entry = { view, idles: k.idles, next: 3 + i * 1.3 };
+        this.shopKeepers.push(entry);
+      }
+      entry.idles = k.idles;
+      entry.view.root.userData.object = `character:keeper-${shop.id}`;
+      entry.view.root.visible = true;
+      entry.view.setPosition(k.x, FLOOR_Y, k.z);
+      entry.view.setFacing(-Math.PI / 2);
+    });
+    for (let i = tended.length; i < this.shopKeepers.length; i++) this.shopKeepers[i]!.view.root.visible = false;
   }
 
   /** Session 55: what the station upgrades owned add to the platform's solid floor plan (the extra benches). */
@@ -430,7 +468,8 @@ export class PlatformView {
     }
     props.endObject();
     // The ticket stand's own lamp, and one over the luggage barrow, so both read at night.
-    const standLamp = { x: PLATFORM.counter.x1 + 0.35, z: PLATFORM.counter.z0 - 0.35 };
+    // Session 57: a step further out and ahead, clear of the booking office's roof.
+    const standLamp = { x: PLATFORM.counter.x1 + 0.5, z: PLATFORM.counter.z0 - 0.55 };
     buildLampPost(props, lamps, standLamp.x, standLamp.z);
     block(standLamp.x, standLamp.z, LAMP_FOOT);
     anchors.push({ x: standLamp.x - 0.6, y: FLOOR_Y + 2.1, z: standLamp.z + 0.6, strength: 1 });
@@ -465,6 +504,10 @@ export class PlatformView {
     block(WORKS.x, WORKS.z, WORKS.depth / 2, WORKS.len / 2);
     block(PAINTER_POS.x, PAINTER_POS.z, PERSON_FOOT);
     props.endObject();
+    // Session 57: the station's own shops, each in its bay, and a little life (a pug, a letter, a picnic).
+    const shops = buildShops(props, z1, (r) => solids.push(r));
+    this.placeShopKeepers(shops);
+    buildStationLife(props, showBench, x1, 14.5, (r) => solids.push(r));
     // The luggage barrow (session 23; the ticket stand is built with the upgrades, `setUpgrades`).
     buildBarrow(props);
     buildBellPost(props);
@@ -637,6 +680,17 @@ export class PlatformView {
     this.master.update(dt, 0);
     this.strollers.update(dt, playerX, playerZ - this.group.position.z, this.master.waving);
     for (const view of [this.helperView, this.clerkView, this.keeperView]) if (view.root.visible) view.update(dt, 0);
+    for (const k of this.shopKeepers) {
+      if (!k.view.root.visible) continue;
+      k.view.update(dt, 0);
+      k.next -= dt;
+      if (k.next <= 0) {
+        // Each keeper's own small habit now and then (no game randomness: a fixed rhythm per keeper).
+        k.view.act(k.idles[Math.floor(this.lifeClock + k.next * 7) % k.idles.length]!, 1.6);
+        k.next = 5 + (this.shopKeepers.indexOf(k) % 3) * 1.7;
+      }
+    }
+    this.lifeClock += dt;
     this.painter.update(dt, 0);
     this.animatePigeons(dt);
     this.animateTownsfolk(dt);
@@ -964,27 +1018,6 @@ function buildBarrow(b: GeoBuilder): void {
 
 
 
-/**
- * The Fruit Kiosk (Phase 2; session 55, the owner's picks): Kenney's red-awning stall in the kiosk bay, its counter
- * toward the walkway, apples and oranges in two crates and Tiny Treats' loaves on it, the keeper behind.
- */
-function buildFruitStall(b: GeoBuilder, p: { x: number; z: number }): void {
-  const y = FLOOR_Y;
-  const table = 0.82;
-  b.object('platform:fruitStall');
-  buildStall(b, p.x, p.z, 1.6, 1.25, table, stallRecolor('#C0485C', '#B98A5E'), -Math.PI / 2);
-  b.endObject();
-  b.object('platform:fruitStallGoods');
-  const top = y + table;
-  for (const [dz, c] of [[-0.42, '#C8352B'], [0.0, '#F08A24']] as const) {
-    b.box(p.x - 0.18, top + 0.05, p.z + dz, 0.4, 0.1, 0.34, '#B8874E', 0, { shade: 0.9, detail: 'wood' });
-    for (let i = 0; i < 6; i++) b.sphere(p.x - 0.3 + (i % 3) * 0.12, top + 0.13, p.z + dz - 0.08 + Math.floor(i / 3) * 0.15, 0.055, c, 1, 1, { shade: 1 });
-  }
-  const e = modelEntry('bread');
-  const sc = 0.13 / (e.max[1] - e.min[1]);
-  for (const dz of [0.38, 0.6]) b.model('bread', p.x - 0.12, top, p.z + dz, 0.3, sc, sc, sc, { surface: 'matte', shade: 0.95 });
-  b.endObject();
-}
 
 
 /**
@@ -1114,16 +1147,13 @@ function buildTicketStand(b: GeoBuilder, lamps: GeoBuilder, dz = 0, office = fal
   const y = FLOOR_Y;
   let top: number;
   b.object('platform:ticketStand');
-  if (office) {
-    top = y + 0.86;
-    // The stall along the platform, its awning sloping gently down the counter's length.
-    buildStall(b, cx + 0.1, cz, w + 0.35, d, 0.86, stallRecolor(PALETTE.navy, '#B98A5E'), 0);
-  } else {
-    top = y + 0.98;
-    // Tiny Treats' counter (2 × 1.5 × 1 m) turned along the platform.
-    b.model('counter', cx, y, cz, Math.PI / 2, d / 2, 0.98, w / 1.5, { recolor: [key('ttWood', '#B98A5E'), key('ttLight', PALETTE.navy), key('ttMid', PALETTE.navyDark)], surface: 'varnish', shade: 0.85 });
-  }
+  top = y + 0.98;
+  // Tiny Treats' counter (2 × 1.5 × 1 m) turned along the platform.
+  b.model('counter', cx, y, cz, Math.PI / 2, d / 2, 0.98, w / 1.5, { recolor: [key('ttWood', '#B98A5E'), key('ttLight', PALETTE.navy), key('ttMid', PALETTE.navyDark)], surface: 'varnish', shade: 0.85 });
   b.endObject();
+  // Session 57 (owner: the navy stall "looks very weird, out of place, not a level up"): the Ticket Office builds a
+  // booking office round the counter (Station Picks 2, T1).
+  if (office) buildBookingOffice(b, r);
   // On the counter: the till in the middle, a small rack of tickets at the front end.
   b.object('platform:till');
   {
@@ -1137,6 +1167,7 @@ function buildTicketStand(b: GeoBuilder, lamps: GeoBuilder, dz = 0, office = fal
   colors.forEach((col, i) => b.box(cx + (i % 2) * 0.1, top + 0.16, r.z0 + 0.17 + Math.floor(i / 2) * 0.08, 0.08, 0.04, 0.06, col, 0, { shade: 1 }));
   b.endObject();
   void lamps;
+  if (office) return;
   // The "Tickets" board's post (the board itself is a painted plane, see PlatformView).
   b.object('platform:ticketSignPost');
   b.cylinder(cx, y + 1.0, r.z0 - 0.16, 0.026, 0.03, 2.0, PALETTE.navy, 8, 'y', { shade: 0.9 });

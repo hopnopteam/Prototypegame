@@ -332,6 +332,17 @@ const HOLDS: Record<string, string[]> = {
   'platform:boothCanopy': ['platform:boothPost'],
   'platform:stationClock': ['platform:clockFace~glow'],
   'platform:fruitStall': ['platform:fruitStallGoods', 'character:keeper'],
+  // Session 57: the booking office stands round its counter (and the parcels office round its own); a market umbrella's
+  // canopy reaches over its barrow and keeper; the goods lie on their barrows; a letter lies on a bench.
+  'platform:bookingOffice': ['platform:ticketStand', 'platform:till', 'platform:ticketRack', 'platform:parcelsCounter', 'character:keeper-parcels', 'character:clerk'],
+  'platform:fruitUmbrella': ['platform:fruitBarrow', 'platform:fruitBarrowGoods', 'character:keeper'],
+  'platform:fruitBarrow': ['platform:fruitBarrowGoods', 'character:keeper'],
+  'platform:coffeeCart': ['character:keeper-coffee'],
+  'platform:flowerCart': ['character:keeper-flowers'],
+  'platform:iceCream': ['character:keeper-icecream'],
+  'platform:bakery': ['character:keeper-bakery'],
+  'platform:parcelsCounter': ['character:keeper-parcels'],
+  'platform:bench': ['platform:letter'],
   // Session 55: the news vendor stands under the stall's awning, behind its counter.
   'platform:newsstand': ['character:newsvendor'],
   'platform:trolley': ['platform:trolleyCases'],

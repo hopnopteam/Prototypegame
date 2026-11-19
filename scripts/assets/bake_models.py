@@ -131,6 +131,38 @@ MODELS = {
     'carpet_rug': {'src': QH + 'Carpet_1.obj', 'linear': True},
     'sheep': {'src': 'quaternius-animals/Sheep.obj', 'linear': True},   # Quaternius Farm Animals
     'water_tower': {'src': 'quaternius-farm/WaterTower.obj', 'linear': True},  # Quaternius Farm Buildings
+    # Session 57: the owner's Station Picks 2 (all CC0): the booking office, the fruit barrow, the station's shops, its life
+    'wall_window': 'tinytreats-bakery/wall_modular_panelled_bakery_window_large_A.gltf',   # Tiny Treats Bakery Interior 1.1
+    'wall_window_small': 'tinytreats-bakery/wall_modular_panelled_bakery_window_small_A.gltf',
+    'floor_planks': 'tinytreats-bakery/floor_wood.gltf',
+    'price_card': 'tinytreats-bakery/pricing_card.gltf',
+    'display_case_long': 'tinytreats-bakery/display_case_long.gltf',
+    'cake_stand_b': 'tinytreats-bakery/pastry_stand_B_decorated.gltf',
+    'basket_round': 'tinytreats-bakery/basket_A.gltf',
+    'basket_long': 'tinytreats-bakery/basket_B.gltf',
+    'cupboard_small': 'tinytreats-bakery/countertop_closet_B_small.gltf',
+    'takeaway_stack': 'tinytreats-bakery/coffee_cup_takeaway_stacked.gltf',
+    'tin_brown': 'tinytreats-bakery/tin_A_brown.gltf',
+    'tin_grey': 'tinytreats-bakery/tin_B_grey.gltf',
+    'scales': 'tinytreats-bakery/scale.gltf',
+    'baguette': 'tinytreats-baked/baguette.gltf',                 # Tiny Treats Baked Goods 1.0
+    'wagon': 'tinytreats-playground/cart.gltf',                   # Tiny Treats Fun Playground 1.0
+    'boots': 'tinytreats-house/boots.gltf',                       # Tiny Treats Homely House 1.0
+    'letter': 'tinytreats-house/letter.gltf',
+    'umbrella_green': 'kaykit-mixed/umbrella_green.gltf',         # KayKit Mixed Bag 1
+    'umbrella_pink': 'kaykit-mixed/umbrella_pink.gltf',
+    'umbrella_yellow': 'kaykit-mixed/umbrella_yellow.gltf',
+    'wing_chair': 'kaykit-holiday/chair_large_red.gltf',          # KayKit Holiday Bits 1.0
+    'footstool': 'kaykit-holiday/footstool_brown.gltf',
+    'fruit_stand': 'kenney-minishop/display-fruit.glb',           # Kenney Mini Shop 2.1
+    'freezer': 'kenney-minishop/freezer.glb',
+    'sack_truck': 'kenney-minishop/hand-truck.glb',
+    'parasol': 'kenney-commercial/detail-parasol-b.glb',          # Kenney City Kit Commercial 2.1
+    'ice_cream': 'kenney-food/ice-cream.glb',                     # Kenney Food Kit
+    'sundae': 'kenney-food/sundae.glb',
+    'lolly': 'kenney-food/popsicle.glb',
+    'box_large': 'kenney-survival/box-large.glb',                 # Kenney Survival Kit
+    'pug': {'src': 'quaternius-animals/Pug.obj', 'linear': True},  # Quaternius Farm Animals
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}

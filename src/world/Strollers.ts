@@ -71,6 +71,9 @@ export class Strollers {
       { x: x0 + 5.85, z: mid(BAYS.newsstand), idles: ['read', 'look'] },
       { x: x0 + 5.75, z: BAYS.waiting[0] + 1.6, idles: ['phone', 'look', 'watch'] },
       { x: x0 + 5.75, z: mid(BAYS.kiosk), idles: ['look', 'chat'], open: kioskOpen },
+      // Session 57: the coffee cart and the flower seller.
+      { x: x0 + 5.75, z: mid(BAYS.coffee), idles: ['look', 'phone'] },
+      { x: x0 + 5.8, z: mid(BAYS.flowers), idles: ['look', 'chat'] },
       { x: x0 + 6.05, z: BAYS.smarten[0] + 0.85, idles: ['look', 'watch'] },
       { x: x0 + 5.85, z: BAYS.adverts[0] + 1.3, idles: ['look', 'read'] },
       { x: x0 + 5.7, z: mid(BAYS.market), idles: ['look', 'phone', 'yawn'] },

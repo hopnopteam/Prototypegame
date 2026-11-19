@@ -109,6 +109,13 @@ export const BAYS = {
   smarten: [9.4, 11.8],
   adverts: [13.4, 21.4],
   market: [23.6, 27.4],
+  // Session 57: the station's own shops (Station Picks 2), there from the first stop.
+  coffee: [1.0, 3.4],
+  flowers: [7.5, 9.25],
+  icecream: [28.2, 30.0],
+  bakery: [30.8, 33.0],
+  shoeshine: [33.8, 35.6],
+  parcels: [36.4, 39.6],
 } as const satisfies Record<string, readonly [number, number]>;
 
 /** How many travellers the queue holds; any more wait by the bench. */
