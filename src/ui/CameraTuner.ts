@@ -12,7 +12,7 @@ const SLIDERS: { key: keyof CameraTune; label: string; min: number; max: number;
   { key: 'pitch', label: 'Tilt', min: 30, max: 80, step: 1 },
   { key: 'fov', label: 'Lens', min: 15, max: 60, step: 1 },
   { key: 'width', label: 'Width', min: 5, max: 16, step: 0.1 },
-  { key: 'follow', label: 'Follow', min: 1, max: 15, step: 0.5 },
+  { key: 'smooth', label: 'Smooth', min: 0.02, max: 0.5, step: 0.01 },
   { key: 'lead', label: 'Hero low', min: -1, max: 3, step: 0.1 },
 ];
 

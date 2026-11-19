@@ -44,6 +44,23 @@ export const VISUALS = {
     fixedZoom: false,
     /** Session 58: screen shake on big moments (off in the MPH build). */
     shake: true,
+    /** Session 58d: the follow as a critically damped spring with this smoothing time (s); 0 keeps `followSharpness`. */
+    smoothTime: 0,
+    /**
+     * Session 58d, the MPH build (from the owner's video of My Perfect Hotel): stepping into a cabin or washroom turns the
+     * view to `roomYawDeg` (negative: looking in from the corridor side), tilts it to `roomPitchDeg` and frames the room
+     * (`roomWidthScale` × its longer side, at least `roomMinWidth` m across), centred on it; stepping out turns back.
+     * `roomTurnSharpness` eases the turn (about a second), `roomSmoothTime` the slide to and from the room's centre.
+     */
+    roomView: false,
+    roomYawDeg: -35,
+    roomPitchDeg: 52,
+    roomWidthScale: 1.6,
+    roomMinWidth: 4.4,
+    /** A suite is framed no wider than this (metres). */
+    roomMaxWidth: 7.5,
+    roomTurnSharpness: 4,
+    roomSmoothTime: 0.28,
   },
 
   /**

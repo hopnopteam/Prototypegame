@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { VISUALS } from '../config/visuals';
-import { damp } from '../core/math';
+import { damp, dampAngle } from '../core/math';
 
 /**
  * Pads, tiles and the guide arrow draw on their own camera layer, so the intro can show the train alone
@@ -129,6 +129,28 @@ export class CameraRig {
     return out;
   }
 
+  /** Session 58d (the MPH build): the room the conductor is in (its centre and how wide to frame it), or null. */
+  setRoomView(room: { x: number; z: number; width: number } | null): void {
+    this.room = room;
+  }
+  private room: { x: number; z: number; width: number } | null = null;
+  /** The width the view frames now, eased between the corridor's and a room's. */
+  private viewWidth = 0;
+
+  /** Turns, tilts and frames toward a room's view or back to the corridor's (the MPH build's room view). */
+  private updateRoomView(dt: number): void {
+    const c = VISUALS.camera;
+    const r = this.room;
+    const k = c.roomTurnSharpness;
+    this.yaw = dampAngle(this.yaw, (r ? c.roomYawDeg : c.trainYawDeg) * DEG, k, dt);
+    this.pitch = damp(this.pitch, (r ? c.roomPitchDeg : c.pitchDeg) * DEG, k, dt);
+    if (this.viewWidth === 0) this.viewWidth = c.minVisibleWidth;
+    this.viewWidth = damp(this.viewWidth, r ? r.width : c.minVisibleWidth, k, dt);
+    this.forward.set(-Math.sin(this.yaw), -Math.cos(this.yaw));
+    this.right.set(Math.cos(this.yaw), -Math.sin(this.yaw));
+    this.baseDistance = this.viewWidth / (2 * Math.tan((this.fov / 2) * DEG) * this.camera.aspect);
+  }
+
   /** Session 58: re-reads the angles and framing from `VISUALS.camera` (the MPH build's tuning panel). */
   retune(): void {
     const c = VISUALS.camera;
@@ -183,6 +205,7 @@ export class CameraRig {
 
   update(dt: number, followX: number, followZ: number): void {
     const cfg = VISUALS.camera;
+    if (cfg.roomView) this.updateRoomView(dt);
     // Slow, even easing so framing changes read as a glide, never a jolt.
     const c = this.contextNow;
     c.zoom = damp(c.zoom, this.context.zoom, cfg.contextSharpness, dt);
@@ -211,8 +234,26 @@ export class CameraRig {
       this.distance = this.baseDistance * zoom;
       this.initialised = true;
     }
-    this.focus.x = damp(this.focus.x, tx, sharpness, dt);
-    this.focus.z = damp(this.focus.z, tz, sharpness, dt);
+    const overriding = this.overrideTarget !== null && this.overrideTime > 0;
+    // Session 58d (the MPH build): in a room, the view sits on the room, not on the conductor; it slides there and back
+    // a little more slowly than it follows.
+    const inRoom = cfg.roomView && this.room !== null && !overriding;
+    if (inRoom) {
+      tx = this.room!.x;
+      tz = this.room!.z;
+    }
+    if (cfg.roomView) this.roomBlend = damp(this.roomBlend, inRoom ? 1 : 0, cfg.roomTurnSharpness, dt);
+    if (cfg.smoothTime > 0 && !overriding) {
+      // Session 58d (the MPH build): a critically damped spring, smooth into and out of a walk and quick to catch up.
+      const smooth = cfg.smoothTime + (cfg.roomSmoothTime - cfg.smoothTime) * this.roomBlend;
+      this.focus.x = this.spring(this.focus.x, tx, 0, smooth, dt);
+      this.focus.z = this.spring(this.focus.z, tz, 1, smooth, dt);
+    } else {
+      this.springVelocity[0] = 0;
+      this.springVelocity[1] = 0;
+      this.focus.x = damp(this.focus.x, tx, sharpness, dt);
+      this.focus.z = damp(this.focus.z, tz, sharpness, dt);
+    }
     this.distance = damp(this.distance, this.baseDistance * zoom, Math.min(3, sharpness), dt);
     if (this.punchAmount > 0.001) this.punchAmount = damp(this.punchAmount, 0, 6, dt);
     else this.punchAmount = 0;
@@ -235,6 +276,22 @@ export class CameraRig {
     const fz = this.focus.z + this.right.y * sr;
     cam.position.set(fx - this.forward.x * back, Math.sin(this.pitch) * distance + su, fz - this.forward.y * back);
     cam.lookAt(fx, 0, fz);
+  }
+
+  /** 0 in the corridor, 1 in a room: eases the follow's smoothing between the two (the MPH build). */
+  private roomBlend = 0;
+  /** The follow spring's velocity on each axis (x, z). */
+  private readonly springVelocity = [0, 0];
+
+  /** Unity's SmoothDamp: a critically damped spring toward `target`, reaching it in about `smoothTime`. */
+  private spring(current: number, target: number, axis: 0 | 1, smoothTime: number, dt: number): number {
+    const omega = 2 / smoothTime;
+    const x = omega * dt;
+    const decay = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+    const change = current - target;
+    const temp = (this.springVelocity[axis]! + omega * change) * dt;
+    this.springVelocity[axis] = (this.springVelocity[axis]! - omega * temp) * decay;
+    return target + (change + temp) * decay;
   }
 
   /** The current zoom relative to the default framing (above 1 is further out). */

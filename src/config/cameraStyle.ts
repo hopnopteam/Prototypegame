@@ -10,9 +10,15 @@
  * it, seen from high up (about 55–60° down) through a moderate lens, the hero in the middle of the screen at one distance.
  * For the train that is:
  * - The train straight up the screen (`yaw` 0), the locomotive at the top, the corridor like MPH's hallway, the lake on
- *   the left and the platform on the right; looking down 57° through a 35° lens, 6.6 m of floor across the screen, so the train fills the width as MPH's hotel does (MPH shows more metres, but its building is wider).
+ *   the left and the platform on the right; looking down 58° through a 35° lens, 5.8 m of floor across the screen (session 58d, owner: "zoom in a little more"; 6.6 before), so the train fills the width as MPH's hotel does.
  * - One fixed distance: no zoom in while walking, none on entering a room or the platform, no zoom kick on a purchase.
- * - A plain smooth follow on both axes, the conductor in the middle of the screen, no lead.
+ * - A spring follow on both axes (session 58d, owner: "much smoother, much more reactive"): a critically damped spring
+ *   (Unity's SmoothDamp) with a 0.08 s smoothing time, so the camera eases into and out of a walk instead of jumping to
+ *   full speed, and keeps the conductor within about half a metre of the middle while walking; no lead.
+ * - Rooms get their own view (session 58d, seen in the video: walking into a room, MPH turns to a diagonal and frames the
+ *   room, and turns back on leaving): stepping into a cabin or washroom turns the view 35° to look in from the corridor
+ *   side, a little lower (52°), centred on the room and close enough that it fills the screen; stepping out turns back,
+ *   each over about a second (`roomView` and the `room…` numbers in `VISUALS.camera`).
  * - Free, analogue walking (no snapping onto the train's axes).
  * - New things are shown by a pan over to them and back at the same distance, with no shake.
  * Every number can be changed live in that build with the camera button (bottom left); the values are kept in this
@@ -36,16 +42,18 @@ export interface CameraTune {
   fov: number;
   /** Metres of floor across the screen at the hero. */
   width: number;
-  /** Follow easing (higher is snappier). */
+  /** Follow easing for pans to new things (higher is snappier). */
   follow: number;
+  /** Session 58d: seconds the camera's spring takes to catch the hero (smaller is more reactive, never jerky). */
+  smooth: number;
   /** Metres the view sits ahead of the hero along the view, so they stand a little below the middle. */
   lead: number;
 }
 
-export const MPH_DEFAULTS: CameraTune = { yaw: 0, pitch: 57, fov: 35, width: 6.6, follow: 5, lead: 0 };
+export const MPH_DEFAULTS: CameraTune = { yaw: 0, pitch: 58, fov: 35, width: 5.8, follow: 5, lead: 0, smooth: 0.08 };
 
 // Session 58c: a new key, so numbers tuned on the first (diagonal) version of the build do not carry over.
-const STORE_KEY = 'nightexpress.camtune.v2';
+const STORE_KEY = 'nightexpress.camtune.v3';
 
 /** The profile's numbers: the defaults, or what was last set on the panel in this browser. */
 export function mphTune(): CameraTune {
@@ -78,6 +86,8 @@ export interface CameraVisuals {
   viewLead: number;
   fixedZoom: boolean;
   shake: boolean;
+  smoothTime: number;
+  roomView: boolean;
 }
 
 /** Puts a tune into `VISUALS.camera` (at load, and live from the panel). */
@@ -91,6 +101,8 @@ export function applyTune(cam: CameraVisuals, t: CameraTune): void {
   cam.axisSnapDeg = 0;
   cam.fixedZoom = true;
   cam.shake = false;
+  cam.smoothTime = t.smooth;
+  cam.roomView = true;
 }
 
 /** The framing part of `ECONOMY.camera` the profile sets: one distance everywhere. */

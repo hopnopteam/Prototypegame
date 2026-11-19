@@ -652,6 +652,7 @@ export class Game implements World {
     rig.clampZ[1] = this.map.rearZ + REAR_DECK_LENGTH - VISUALS.camera.endMargin * 0.5;
     this.frameCamera(realDt);
     this.updateCinematic(realDt);
+    if (VISUALS.camera.roomView) rig.setRoomView(this.roomAround(this.player.pos.x, this.player.pos.z));
     rig.update(realDt, this.player.pos.x, this.player.pos.z);
     this.scenery.present(realDt, rig.focusPoint, night, this.stage.size, rig.zoomNow);
     this.particles.setNight(night);
@@ -740,6 +741,23 @@ export class Game implements World {
       oz += cam.prologueLean.z;
     }
     this.stage.rig.setContext(zoom, ox, oz);
+  }
+  /**
+   * Session 58d (the MPH camera build): the open cabin or washroom the conductor is standing in, framed for the camera's
+   * room view (its centre, and how wide to show it), or null in a corridor, a venue or on the platform.
+   */
+  private roomAround(x: number, z: number): { x: number; z: number; width: number } | null {
+    const cam = VISUALS.camera;
+    for (const list of [this.train.cabins, this.train.bathrooms]) {
+      for (const r of list) {
+        if (!r.unlocked) continue;
+        const b = r.room;
+        if (x <= b.x0 || x >= b.x1 || z <= b.z0 || z >= b.z1) continue;
+        const width = Math.min(cam.roomMaxWidth, Math.max(cam.roomMinWidth, Math.max(b.x1 - b.x0, b.z1 - b.z0) * cam.roomWidthScale));
+        return { x: (b.x0 + b.x1) / 2, z: (b.z0 + b.z1) / 2, width };
+      }
+    }
+    return null;
   }
   /** The camera's eased distance factor (session 38b). */
   private camZoom = ECONOMY.camera.standZoom;
