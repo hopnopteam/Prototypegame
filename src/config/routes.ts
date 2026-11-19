@@ -220,7 +220,7 @@ export const COUNTRYSIDE_EXPRESS: RouteDef = {
   economy: {
     priceMultiplier: 1,
     fareMultiplier: 1,
-    couplePrices: [60, 300, 380, 620, 1700, 2900, 4200],
+    couplePrices: [60, 350, 450, 660, 1450, 3100, 5400],
     priceScale: { factor: 2.0, keepUnder: 30 },
     priceCurve: { from: 300, to: 4000, max: 1.0 },
     slotPrice: [0.85, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15],
