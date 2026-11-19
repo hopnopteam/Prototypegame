@@ -9,11 +9,6 @@ import { damp } from '../core/math';
 export const WORLD_UI_LAYER = 1;
 
 const DEG = Math.PI / 180;
-/** Session 58b, the third-person camera: its near plane, the speed it starts swinging round at, and how far round a
- * heading may be (radians) before it counts as walking back toward the camera (then it holds still). */
-const THIRD_PERSON_NEAR = 0.5;
-const THIRD_PERSON_MIN_SPEED = 0.4;
-const THIRD_PERSON_BACK = 2.4;
 
 /**
  * Three-quarter follow camera. The world is laid out in train coordinates (x across the train, +x the land
@@ -90,32 +85,8 @@ export class CameraRig {
   resize(aspect: number): void {
     this.camera.aspect = aspect;
     const halfFov = (this.fov / 2) * DEG;
-    const cfg = VISUALS.camera;
-    // Session 58b: a third-person camera keeps a set distance (and a near plane close enough for it).
-    this.baseDistance = cfg.thirdPerson ? cfg.distance : cfg.minVisibleWidth / (2 * Math.tan(halfFov) * aspect);
-    this.camera.near = cfg.thirdPerson ? THIRD_PERSON_NEAR : cfg.near;
+    this.baseDistance = VISUALS.camera.minVisibleWidth / (2 * Math.tan(halfFov) * aspect);
     this.camera.updateProjectionMatrix();
-  }
-
-  /** Session 58b: the conductor's heading (radians, as `Actor.facing`) and speed, for the third-person camera. */
-  setHeading(facing: number, speed: number): void {
-    this.heading = facing;
-    this.headingSpeed = speed;
-  }
-  private heading = 0;
-  private headingSpeed = 0;
-
-  /** Swings the view round behind the conductor while they walk somewhere (never while they walk back toward it). */
-  private followHeading(dt: number): void {
-    if (this.headingSpeed < THIRD_PERSON_MIN_SPEED || this.overrideTime > 0) return;
-    // The view's forward is (−sin yaw, −cos yaw); the conductor's is (sin facing, cos facing).
-    const want = this.heading + Math.PI;
-    let d = want - this.yaw;
-    d = Math.atan2(Math.sin(d), Math.cos(d));
-    if (Math.abs(d) > THIRD_PERSON_BACK) return;
-    this.yaw += d * Math.min(1, VISUALS.camera.turnSharpness * dt);
-    this.forward.set(-Math.sin(this.yaw), -Math.cos(this.yaw));
-    this.right.set(Math.cos(this.yaw), -Math.sin(this.yaw));
   }
 
   /** Pixels per metre at unit distance; the particle shader needs it. */
@@ -161,8 +132,7 @@ export class CameraRig {
   /** Session 58: re-reads the angles and framing from `VISUALS.camera` (the MPH build's tuning panel). */
   retune(): void {
     const c = VISUALS.camera;
-    // A third-person view keeps the way it faces (it follows the conductor); only its tilt and lens change.
-    this.setAngles(c.thirdPerson && this.initialised ? this.yaw / DEG : c.trainYawDeg, c.pitchDeg, c.fovDeg);
+    this.setAngles(c.trainYawDeg, c.pitchDeg, c.fovDeg);
   }
 
   shake(strength: number, seconds: number): void {
@@ -179,8 +149,6 @@ export class CameraRig {
 
   /** Look at a point for a while (celebrations), then glide back to the player. */
   focusOn(target: THREE.Vector3, seconds: number, zoom = 1.25, sharpness = VISUALS.camera.followSharpness): void {
-    // Session 58b: a third-person camera stays with the conductor (it sees what they see); no pans away.
-    if (VISUALS.camera.thirdPerson) return;
     this.overrideTarget = target.clone();
     this.overrideTime = seconds;
     this.overrideZoom = zoom;
@@ -215,7 +183,6 @@ export class CameraRig {
 
   update(dt: number, followX: number, followZ: number): void {
     const cfg = VISUALS.camera;
-    if (cfg.thirdPerson) this.followHeading(dt);
     // Slow, even easing so framing changes read as a glide, never a jolt.
     const c = this.contextNow;
     c.zoom = damp(c.zoom, this.context.zoom, cfg.contextSharpness, dt);
@@ -266,9 +233,8 @@ export class CameraRig {
     const back = Math.cos(this.pitch) * distance;
     const fx = this.focus.x + this.right.x * sr;
     const fz = this.focus.z + this.right.y * sr;
-    const fy = cfg.lookHeight;
-    cam.position.set(fx - this.forward.x * back, fy + Math.sin(this.pitch) * distance + su, fz - this.forward.y * back);
-    cam.lookAt(fx, fy, fz);
+    cam.position.set(fx - this.forward.x * back, Math.sin(this.pitch) * distance + su, fz - this.forward.y * back);
+    cam.lookAt(fx, 0, fz);
   }
 
   /** The current zoom relative to the default framing (above 1 is further out). */
