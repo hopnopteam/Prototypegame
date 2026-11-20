@@ -140,6 +140,8 @@ async function run(profile, seed) {
   // A soft-lock alarm: no station stop completed for this long means the bot (or the game) is stuck somewhere.
   let lastStop = -1, lastStopAt = 0;
   const softLocks = [];
+  const holds = []; // what held each long stop, every 30 s past 150 s
+
   // The flat-cash alarm: no purchase for FLAT_CASH_LIMIT while cash holds or grows (and something is left to buy).
   let lastBuyAt = 0, cashAtLastBuy = 0;
   const flatStalls = [];
@@ -171,6 +173,13 @@ async function run(profile, seed) {
         affordable,
         event: g.stationEvents?.active?.id ?? null,
         stop: g.journey.stopSerial,
+        // Phase 3: what holds a stop that runs long (owner: "no stop should run past ~3 minutes").
+        hold: g.journey.phase === 'stationStop' && g.journey.stopTime > 150 ? (() => {
+          const st = g.station;
+          const who = g.guests.list.filter((x) => x.state === 'platform' || x.state === 'boarding' || (x.dayRider && x.outside));
+          const n = (f) => who.filter(f).length;
+          return `${Math.round(g.journey.stopTime)}s bell ${st.bellReady() ? 'ready' : st.bellRung ? 'rung' : 'not ready'}, waiting ${g.guests.waitingCount()} (to buy ${n((x) => x.state === 'platform' && !x.paid && x.ready)}, room ${n((x) => x.state === 'platform' && !x.paid && x.eligible && !x.ready)}, paid ${n((x) => x.state === 'platform' && x.paid)}, walking ${n((x) => x.state === 'boarding')}, riders ${n((x) => x.dayRider)}), blocker ${st.blocker ? st.blocker() : '-'}, event ${g.stationEvents?.active?.id ?? '-'}, guide ${g.guidance.reason}, player x ${g.player.pos.x.toFixed(1)} z ${g.player.pos.z.toFixed(1)}`;
+        })() : null,
       };
     }, chunk);
     const now = snap.t;
@@ -191,6 +200,7 @@ async function run(profile, seed) {
       for (let n = lastLevel + 1; n <= snap.level; n++) { milestones[`level ${n}`] = now; news.push({ t: now, what: `level ${n}` }); }
       lastLevel = snap.level;
     }
+    if (snap.hold && holds.filter((h) => h.stop === snap.stop).length < 6 && (holds.length === 0 || now - holds[holds.length - 1].t >= 30 || holds[holds.length - 1].stop !== snap.stop)) holds.push({ t: now, stop: snap.stop, what: snap.hold });
     if (snap.stop !== lastStop) { lastStop = snap.stop; lastStopAt = now; }
     else if (now - lastStopAt > 8 * 60 && !softLocks.some((l) => l.from === lastStopAt)) softLocks.push({ from: lastStopAt, stop: snap.stop });
     if (snap.open > 0 && now - lastBuyAt > FLAT_CASH_LIMIT && snap.cash >= cashAtLastBuy * 0.9 && !flatStalls.some((f) => f.from === lastBuyAt)) flatStalls.push({ from: lastBuyAt, cash: snap.cash });
@@ -271,6 +281,7 @@ async function run(profile, seed) {
   log(watchdog.length ? `WATCHDOG fired ${watchdog.length}×: ${watchdog.map((w) => `stop ${w.stop} ${w.reason} (${w.seconds} s)`).join('; ')}` : 'Watchdog never fired.');
   log(`Stops: ${stops.length}, median ${stopStats.median} s, mean ${stopStats.mean} s, 90th percentile ${stopStats.p90} s, max ${stopStats.max} s`);
   log(longStops.length ? `LONG STOPS over ${LONG_STOP / 60} min: ${longStops.map((s) => `stop ${s.stop} ${s.seconds} s (${s.carriages} cars, ${s.alighted} off, ${s.boarded} on)`).join('; ')}` : `No stop over ${LONG_STOP / 60} min.`);
+  if (holds.length) log('What held the long stops:\n' + holds.map((h) => `  ${fmt(h.t)} stop ${h.stop}: ${h.what}`).join('\n'));
   log(flatStalls.length ? `FLAT-CASH STALL: no purchase for 10+ min with cash holding from ${flatStalls.map((f) => `${fmt(f.from)} (cash ${f.cash})`).join(', ')}` : 'No flat-cash stall.');
   log(`\nDry spells (nothing new affordable for 3+ min): ${stuckSpells.length ? stuckSpells.map((s) => `${(s.s / 60).toFixed(1)} min from ${fmt(s.from)}`).join('; ') : 'none'}`);
   const dead = stuckSpells.filter((s) => s.s > DEAD_LIMIT);
