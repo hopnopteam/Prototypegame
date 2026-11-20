@@ -417,6 +417,9 @@ export class Guidance {
     const w = this.w;
     const map = w.map;
     if (item === 'towel' || item === 'roll') return w.train.supplySource(item, w.player.pos);
+    // A bag nobody has room for (the rack filled meanwhile) goes back on the platform's barrow while the doors are
+    // open; never to the bin, which takes no bags (Phase 3: pointing there held a stop for minutes with the bell ready).
+    if (item === 'luggage') return w.journey.doorsOpen ? w.station.luggagePoint() : null;
     const name = sourceAnchorFor(item);
     if (name === 'urn' || name === 'linen') return this.nearestAnchor(name);
     const supply = w.train.indexOfType('supply');
