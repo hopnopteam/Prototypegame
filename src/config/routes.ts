@@ -224,7 +224,7 @@ export const COUNTRYSIDE_EXPRESS: RouteDef = {
     priceScale: { factor: 2.0, keepUnder: 30 },
     priceCurve: { from: 300, to: 4000, max: 1.0 },
     slotPrice: [0.85, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15],
-    classRefit: { fromTier: 4, multiplier: 0.6 },
+    classRefit: { fromTier: 4, multiplier: 0.7 },
     staffCost: 1,
     moveSpeed: 3.15,
     shoes: { step: 0.11, prices: [60, 700, 3000] },
@@ -232,7 +232,7 @@ export const COUNTRYSIDE_EXPRESS: RouteDef = {
     maxDashMultiplier: 5.3,
     staffSpeed: 0.9,
     levels: {
-      thresholds: [0, 40, 120, 290, 580, 1300, 2500, 4300],
+      thresholds: [0, 40, 120, 290, 580, 1300, 2500, 4600],
       railMiles: [0, 3, 4, 5, 6, 8, 10, 12],
       cash: [0, 80, 150, 300, 550, 900, 1400, 2200],
     },
