@@ -99,6 +99,34 @@ export class Walkable {
     return true;
   }
 
+  /**
+   * Whether a straight segment crosses any piece of furniture's collision box, exactly (Phase 3: sampling every 15 cm
+   * stepped over the thin corner of a chair's box, so the planner saw a way that walking could not take).
+   */
+  segmentBlocked(ax: number, az: number, bx: number, bz: number): boolean {
+    const dx = bx - ax;
+    const dz = bz - az;
+    for (let i = 0; i < this.blocked.length; i++) {
+      const r = this.blocked[i];
+      // Liang–Barsky: clip the segment to the box; anything left inside means it crosses.
+      let t0 = 0;
+      let t1 = 1;
+      const edges: [number, number][] = [[-dx, ax - r.x0], [dx, r.x1 - ax], [-dz, az - r.z0], [dz, r.z1 - az]];
+      let crosses = true;
+      for (const [p, q] of edges) {
+        if (p === 0) {
+          if (q < 0) { crosses = false; break; }
+          continue;
+        }
+        const t = q / p;
+        if (p < 0) { if (t > t1) { crosses = false; break; } if (t > t0) t0 = t; }
+        else { if (t < t0) { crosses = false; break; } if (t < t1) t1 = t; }
+      }
+      if (crosses && t1 - t0 > 1e-6) return true;
+    }
+    return false;
+  }
+
   isWalkable(x: number, z: number): boolean {
     let inside = false;
     for (let i = 0; i < this.areas.length; i++) {
