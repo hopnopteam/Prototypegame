@@ -49,6 +49,8 @@ const DEAD_LIMIT = 15 * 60;
 const NEW_EVERY = [8 * 60, 12 * 60];
 /** A stretch with no purchase this long while cash holds or grows is a stall (the minute 150–200 flat cash). */
 const FLAT_CASH_LIMIT = 10 * 60;
+/** Phase 3: a stop longer than this is flagged (owner: "no stop should run past ~3 minutes for an average player"). */
+const LONG_STOP = 3 * 60;
 const ORDER = [...Array.from({ length: 8 }, (_, i) => `carriage ${i + 2}`), ...Array.from({ length: 7 }, (_, i) => `level ${i + 2}`), 'all refits', 'route complete', 'everything bought'];
 
 const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
@@ -90,7 +92,7 @@ for (const profile of profiles) {
     summary.push(`${k.padEnd(16)}${fmtMin(med).padStart(8)}${fmtMin(slow).padStart(9)}   ${String(t == null ? '' : Array.isArray(t) ? t.join('–') : t).padStart(6)}   ${String(REAL[k] ?? '').padStart(4)}   ${verdict.padEnd(9)} ${vals.map(fmtMin).join(' / ')}`);
   }
   for (const r of rs) {
-    const notes = [`${r.hires} hired${r.unhired.length ? `, not hired: ${r.unhired.join(' ')}` : ''}`, r.watchdog.length ? `watchdog ${r.watchdog.length}× (${r.watchdog.map((w) => w.reason).join(', ')})` : '', r.dead ? `${r.dead} dead stretch(es)` : '', r.flat ? `${r.flat} flat-cash stall(s)` : '', r.locks ? `${r.locks} soft-lock(s)` : '', r.longNew ? `${r.longNew} gap(s) >12 min without something new` : ''].filter(Boolean);
+    const notes = [`stops median ${r.stopStats.median} s, p90 ${r.stopStats.p90} s, max ${r.stopStats.max} s${r.longStops ? ` (${r.longStops} over 3 min)` : ''}`, `${r.hires} hired${r.unhired.length ? `, not hired: ${r.unhired.join(' ')}` : ''}`, r.watchdog.length ? `watchdog ${r.watchdog.length}× (${r.watchdog.map((w) => w.reason).join(', ')})` : '', r.dead ? `${r.dead} dead stretch(es)` : '', r.flat ? `${r.flat} flat-cash stall(s)` : '', r.locks ? `${r.locks} soft-lock(s)` : '', r.longNew ? `${r.longNew} gap(s) >12 min without something new` : ''].filter(Boolean);
     summary.push(`  seed ${r.seed}: ${notes.length ? notes.join(', ') : 'clean'}`);
   }
   if (profile === 'average') summary.push(`Targets missed (median): ${misses}`);
@@ -225,6 +227,10 @@ async function run(profile, seed) {
   }
   // Phase 3: every time the stop watchdog settled a stuck stop, and why.
   const watchdog = await page.evaluate(() => window.nightExpress.station.watchdogLog?.slice() ?? []);
+  // Phase 3: every stop's length (owner: "stops should average 45–90 s, and no stop should run past ~3 minutes").
+  const stops = await page.evaluate(() => window.nightExpress.station.stopLog?.slice() ?? []);
+  const stopStats = statsOf(stops.map((s) => s.seconds));
+  const longStops = stops.filter((s) => s.seconds > LONG_STOP);
   // Why each tile left is still unbought: a missing requirement, a level gate, hand work, or simply not bought.
   const leftover = await page.evaluate(() => {
     const g = window.nightExpress;
@@ -263,6 +269,8 @@ async function run(profile, seed) {
   const unhired = leftover.filter((l) => l.includes('(hire,'));
   log(`Hired: ${hires.map((h) => `${h.label} ${fmt(h.t)}`).join(', ') || 'nobody'}${unhired.length ? `; not hired: ${unhired.map((l) => l.split(' (')[0]).join(', ')}` : ''}`);
   log(watchdog.length ? `WATCHDOG fired ${watchdog.length}×: ${watchdog.map((w) => `stop ${w.stop} ${w.reason} (${w.seconds} s)`).join('; ')}` : 'Watchdog never fired.');
+  log(`Stops: ${stops.length}, median ${stopStats.median} s, mean ${stopStats.mean} s, 90th percentile ${stopStats.p90} s, max ${stopStats.max} s`);
+  log(longStops.length ? `LONG STOPS over ${LONG_STOP / 60} min: ${longStops.map((s) => `stop ${s.stop} ${s.seconds} s (${s.carriages} cars, ${s.alighted} off, ${s.boarded} on)`).join('; ')}` : `No stop over ${LONG_STOP / 60} min.`);
   log(flatStalls.length ? `FLAT-CASH STALL: no purchase for 10+ min with cash holding from ${flatStalls.map((f) => `${fmt(f.from)} (cash ${f.cash})`).join(', ')}` : 'No flat-cash stall.');
   log(`\nDry spells (nothing new affordable for 3+ min): ${stuckSpells.length ? stuckSpells.map((s) => `${(s.s / 60).toFixed(1)} min from ${fmt(s.from)}`).join('; ') : 'none'}`);
   const dead = stuckSpells.filter((s) => s.s > DEAD_LIMIT);
@@ -293,7 +301,15 @@ async function run(profile, seed) {
   else console.log(`[${profile} s${seed}] done: ${fmt(snap.t)} played, ${snap.carriages} carriages, level ${snap.level}, ${snap.open} tiles left${softLocks.length ? `, ${softLocks.length} soft-lock(s)` : ''}${flatStalls.length ? `, ${flatStalls.length} flat-cash stall(s)` : ''}${errors.length ? `, ${errors.length} error(s)` : ''}`);
   writeFileSync(`${out}-${profile}-s${seed}.csv`, csv.join('\n') + '\n');
   writeFileSync(`${out}-${profile}-s${seed}.log`, text + '\n');
-  return { profile, seed, milestones, misses, dead: dead.length, flat: flatStalls.length, locks: softLocks.length, longNew: longNew.length, watchdog, hires: hires.length, unhired: unhired.map((l) => l.split(' (')[0]) };
+  return { profile, seed, stopStats, longStops: longStops.length, milestones, misses, dead: dead.length, flat: flatStalls.length, locks: softLocks.length, longNew: longNew.length, watchdog, hires: hires.length, unhired: unhired.map((l) => l.split(' (')[0]) };
+}
+
+/** Median, mean, 90th percentile and max of a list of seconds. */
+function statsOf(values) {
+  if (!values.length) return { median: 0, mean: 0, p90: 0, max: 0 };
+  const v = [...values].sort((a, b) => a - b);
+  const at = (q) => v[Math.min(v.length - 1, Math.floor(q * v.length))];
+  return { median: at(0.5), mean: Math.round(v.reduce((a, b) => a + b, 0) / v.length), p90: at(0.9), max: v[v.length - 1] };
 }
 
 function fmt(s) { return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; }

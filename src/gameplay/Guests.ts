@@ -503,6 +503,10 @@ export class Guests {
     // Phase 2: a traveller buys their ticket only once a tidy room of their class is free (rooms the guests getting
     // off here leave behind are made up first); until then a broom over them says what they are waiting for.
     const tidyFirst = j.heldStops && !prologue && j.phase === 'stationStop';
+    // Phase 3 (owner: "no stop should run past ~3 minutes"): after `boardInsideAfterSeconds` of a stop, travellers
+    // whose room is still being made up buy their ticket anyway and wait at the desk inside for their key, so a big
+    // wave of guests getting off never holds the bell by tidying alone.
+    const boardInside = tidyFirst && j.stopTime >= w.econ.station.boardInsideAfterSeconds;
     for (const guest of waiting) {
       let eligible = prologue;
       if (!prologue && !guest.deferred) {
@@ -520,7 +524,7 @@ export class Guests {
         }
       }
       let ready = eligible;
-      if (eligible && tidyFirst) {
+      if (eligible && tidyFirst && !boardInside) {
         if (!this.readyLeft.has(guest.cls)) this.readyLeft.set(guest.cls, this.readyRooms(guest.cls));
         const rooms = this.readyLeft.get(guest.cls) ?? 0;
         ready = rooms > 0;

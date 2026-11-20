@@ -39,6 +39,8 @@ function shuffled<T>(items: readonly T[], rng: { next(): number }): T[] {
 const BILLBOARD_COUNT = 3;
 /** Phase 2 (≥30 fps on a low-end phone): on Low quality a platform holds at most this many travellers. */
 const LOW_TIER_BOARDERS = 10;
+/** The stop log keeps this many stops (a few hours of play), so it never grows without end. */
+const STOP_LOG_MAX = 400;
 /** Session 55: the fruit kiosk's till, at the walkway's edge in front of its stall (the kiosk bay). */
 const KIOSK_TILL = { dx: 5.15, z: 6.0 };
 /** Where a new game's conductor stands on the platform: a few steps from the ticket stand's serving side. */
@@ -723,6 +725,7 @@ export class Station {
     w.data.route.stopsCompleted++;
     w.save.markDirty();
     const stopSeconds = Math.round(this.bellAt ?? w.journey.stopTime);
+    if (this.stopLog.length < STOP_LOG_MAX) this.stopLog.push({ stop: w.journey.stopSerial, seconds: Math.round(w.journey.stopTime), bell: stopSeconds, carriages: w.train.count, alighted: result.alighted, boarded: result.boarded });
     log.info('Stop', `stop ${w.journey.stopSerial} at ${result.stationName}: ${stars}★, ${stopSeconds}s to the bell, ${Math.round(w.journey.stopTime)}s in all, boarded ${result.boarded}, restocked ${restocked}, happy ${happy}, grumpy ${this.grumpyThisStop}`);
     w.analytics.log(EVENTS.stationResult, {
       station: result.stationName,
@@ -1128,6 +1131,8 @@ export class Station {
    * pacing simulator reports it). A ready bell nobody rings is the player's choice and is left alone.
    */
   readonly watchdogLog: { stop: number; reason: string; seconds: number }[] = [];
+  /** Phase 3: every stop's length (seconds from the doors opening to the doors closing), for the pacing simulator. */
+  readonly stopLog: { stop: number; seconds: number; bell: number; carriages: number; alighted: number; boarded: number }[] = [];
   private watchdogFor = 0;
   private watchdogSig = '';
   private updateWatchdog(dt: number): void {

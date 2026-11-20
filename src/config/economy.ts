@@ -278,6 +278,11 @@ export const ECONOMY = {
     /** A traveller with a bed kept waiting on the platform this long turns grumpy: they board, but leave no tip. */
     patienceSeconds: 60,
     /**
+     * Phase 3: a traveller waits on the platform for a tidy room of their class this long into a stop; after it they
+     * buy their ticket anyway and wait at the desk inside for their key (the room is tidied on the move).
+     */
+    boardInsideAfterSeconds: 40,
+    /**
      * Session 55 (owner: "we are not supposed to deliver it to the different places, just one cupboard in the initial
      * area and be done with it"): the lobby's supply cupboard holds `capacity` boxes of supplies, used up over each
      * ride. At a stop the conductor stands at the platform's supply cart `restockSeconds` and takes what is missing,
