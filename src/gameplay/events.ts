@@ -54,7 +54,7 @@ export interface GameEvents {
   /** Phase 4: a do-not-disturb sign in the Honeymoon Suites came down, respected or not. */
   'honeymoon.dnd': { respected: boolean; carriage: number };
   /** Phase 4: a spa massage given, the pool skimmed. */
-  'venue.massage': { byPlayer: boolean };
+  'venue.massage': { byPlayer: boolean; fee: number };
   'venue.skimmed': { byPlayer: boolean };
   'venue.cleared': { kind: VenueKind; byPlayer: boolean };
   'venue.happyHour': { seconds: number };

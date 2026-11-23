@@ -846,7 +846,7 @@ export class Venues {
       if (guest.outing) guest.outing.paid = true;
       w.particles.emit('sparkle', robed.sit.x, FLOOR_Y + 1.0, robed.sit.z, 10, 0.3);
       this.served(venue, guest, 'massage', amount, actor);
-      w.events.emit('venue.massage', { byPlayer: actor.isPlayer });
+      w.events.emit('venue.massage', { byPlayer: actor.isPlayer, fee: amount });
       return true;
     }
     // Dining: plates left on the table (Phase 4: the spa's table, fresh towels for the next guest).

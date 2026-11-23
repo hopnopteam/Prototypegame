@@ -67,6 +67,10 @@ export const COACH_HINTS: CoachLineDef[] = [
   { id: 'bar', icon: 'cocktail', text: 'Mix drinks' },
   { id: 'dome', icon: 'binoculars', text: 'Show in' },
   { id: 'cinema', icon: 'film', text: 'Start the film' },
+  // Phase 4, the Riviera's venues: the puppet show, a massage, the pool skimmed or a towel brought.
+  { id: 'kids', icon: 'kite', text: 'Start the show' },
+  { id: 'spa', icon: 'lotus', text: 'Give a massage' },
+  { id: 'pool', icon: 'pool', text: 'Pool time' },
   { id: 'map', icon: 'dash', text: 'Tap to dash' },
   { id: 'miles', icon: 'miles', text: 'Upgrades' },
 ];

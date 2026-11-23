@@ -371,6 +371,9 @@ export class Coach {
       case 'bar':
       case 'dome':
       case 'cinema':
+      case 'kids':
+      case 'spa':
+      case 'pool':
         return world(w.venues.lessonTarget(`venue_${id}`));
       default:
         return null;
@@ -424,6 +427,9 @@ export class Coach {
       case 'bar':
       case 'dome':
       case 'cinema':
+      case 'kids':
+      case 'spa':
+      case 'pool':
         return w.venues.lessonTarget(`venue_${id}`) !== null;
       default:
         return false;

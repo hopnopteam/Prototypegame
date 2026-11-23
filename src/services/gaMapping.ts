@@ -92,6 +92,12 @@ export function gaCurrency(kind: unknown): string | null {
 }
 
 /** Translates one of the game's events into GameAnalytics calls (none for events GameAnalytics counts itself). */
+/** Phase 4: the play car's loud stretches in buckets (seconds): 10, 30, 60, 120 or longer. */
+function noiseBucket(seconds: number): string {
+  for (const edge of [10, 30, 60, 120]) if (seconds <= edge) return `${String(edge).padStart(3, '0')}s`;
+  return '120plus';
+}
+
 export function translate(event: string, p: AnalyticsParams = {}): GaCall[] {
   switch (event) {
     // GameAnalytics opens and closes sessions itself (retention, session length, returning users).
@@ -139,7 +145,8 @@ export function translate(event: string, p: AnalyticsParams = {}): GaCall[] {
     case 'route_map_opened':
       return [{ kind: 'design', id: 'RouteMap:Opened' }];
     case 'kids_noise':
-      return [{ kind: 'design', id: `Kids:Noise:${Math.round(num(p.seconds))}`, value: num(p.seconds) }];
+      // How long the play car stayed loud before it was calmed, in a few buckets so the ids stay few.
+      return [{ kind: 'design', id: `Kids:Noise:${noiseBucket(num(p.seconds))}`, value: num(p.seconds) }];
     case 'spa_massage':
       return [{ kind: 'design', id: 'Spa:Massage', value: num(p.fee) }];
     case 'honeymoon_dnd':

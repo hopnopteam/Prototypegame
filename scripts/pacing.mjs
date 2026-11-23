@@ -37,21 +37,30 @@ const IDLE = { fast: 0, average: 0.3 };
  * in about half a real player's time (calibrated on the legacy build), so these are set so real players land on the
  * prompt's 4 / 14 / 28 / 45 / 65 / 90 / 120 (REAL below).
  */
-const TARGETS = {
-  'carriage 2': 2.5, 'carriage 3': 8, 'carriage 4': 18, 'carriage 5': 38,
-  'carriage 6': 65, 'carriage 7': 90, 'carriage 8': 120,
-  // Owner (Phase 3): route complete may run to about 200 minutes (longer content is the goal, the publisher leans grindy).
-  'route complete': [150, 200],
-};
+const ROUTE = process.env.ROUTE ?? 'countryside';
+const TARGETS = ROUTE === 'riviera'
+  ? {
+      // Phase 4, the Riviera Coast Line (bot targets from the Phase 4 prompt): nine carriages, ×2.5 prices, ×2 fares.
+      'carriage 2': 3, 'carriage 3': 9, 'carriage 4': 18, 'carriage 5': 47,
+      'carriage 6': 80, 'carriage 7': 110, 'carriage 8': 145, 'carriage 9': 180,
+      'route complete': [210, 240],
+    }
+  : {
+      'carriage 2': 2.5, 'carriage 3': 8, 'carriage 4': 18, 'carriage 5': 38,
+      'carriage 6': 65, 'carriage 7': 90, 'carriage 8': 120,
+      // Owner (Phase 3): route complete may run to about 200 minutes (longer content is the goal, the publisher leans grindy).
+      'route complete': [150, 200],
+    };
+const CARRIAGES = ROUTE === 'riviera' ? 9 : 8;
 /** What real players should see (the Phase 3 prompt's targets). */
-const REAL = { 'carriage 2': 4, 'carriage 3': 14, 'carriage 4': 28, 'carriage 5': 45, 'carriage 6': 65, 'carriage 7': 90, 'carriage 8': 120 };
+const REAL = ROUTE === 'riviera' ? {} : { 'carriage 2': 4, 'carriage 3': 14, 'carriage 4': 28, 'carriage 5': 45, 'carriage 6': 65, 'carriage 7': 90, 'carriage 8': 120 };
 const DEAD_LIMIT = 15 * 60;
 const NEW_EVERY = [8 * 60, 12 * 60];
 /** A stretch with no purchase this long while cash holds or grows is a stall (the minute 150–200 flat cash). */
 const FLAT_CASH_LIMIT = 10 * 60;
 /** Phase 3: a stop longer than this is flagged (owner: "no stop should run past ~3 minutes for an average player"). */
 const LONG_STOP = 3 * 60;
-const ORDER = [...Array.from({ length: 8 }, (_, i) => `carriage ${i + 2}`), ...Array.from({ length: 7 }, (_, i) => `level ${i + 2}`), 'all refits', 'route complete', 'everything bought'];
+const ORDER = [...Array.from({ length: CARRIAGES - 1 }, (_, i) => `carriage ${i + 2}`), ...Array.from({ length: 7 }, (_, i) => `level ${i + 2}`), 'all refits', 'route complete', 'everything bought'];
 
 const browser = await playwright.chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const jobs = profiles.flatMap((profile) => seeds.map((seed) => ({ profile, seed })));
@@ -116,7 +125,7 @@ async function run(profile, seed) {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }, seed * 7919 + 13);
-  await page.goto(`file://${resolve(process.env.PAGE ?? 'dist/index.html')}?seed=${seed}`);
+  await page.goto(`file://${resolve(process.env.PAGE ?? 'dist/index.html')}?seed=${seed}${ROUTE === 'countryside' ? '' : `&route=${ROUTE}`}`);
   await page.waitForTimeout(600);
   await page.mouse.click(195, 700);
   await page.waitForFunction(() => !!window.nightExpress, null, { timeout: 600000 });

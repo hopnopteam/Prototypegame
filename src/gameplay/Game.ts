@@ -1066,6 +1066,11 @@ export class Game implements World {
 
   private wireEvents(): void {
     const e = this.events;
+    // Phase 4, the Riviera's own jobs (gaMapping: Kids:Noise:<s>, Spa:Massage, Honeymoon:DND:<…>, Pool:Skim).
+    e.on('venue.noise', ({ loud, seconds }) => !loud && this.analytics.log(EVENTS.kidsNoise, { seconds: Math.round(seconds) }));
+    e.on('venue.massage', ({ fee }) => this.analytics.log(EVENTS.spaMassage, { fee }));
+    e.on('honeymoon.dnd', ({ respected }) => this.analytics.log(EVENTS.honeymoonDnd, { respected }));
+    e.on('venue.skimmed', () => this.analytics.log(EVENTS.poolSkim, { count: 1 }));
     e.on('guest.checkedIn', () => this.ftue('first_checkin'));
     e.on('cash.collected', () => this.ftue('first_cash'));
     e.on('unlock.completed', () => this.ftue('first_unlock'));
