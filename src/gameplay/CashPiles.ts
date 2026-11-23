@@ -138,11 +138,11 @@ export class CashPiles {
   }
 
   /** Nearest pile with money in it, for the guidance arrow. */
-  nearestWithCash(from: Vec2): CashPile | null {
+  nearestWithCash(from: Vec2, skip?: (pile: CashPile) => boolean): CashPile | null {
     let best: CashPile | null = null;
     let bestD = Infinity;
     for (const pile of this.piles.values()) {
-      if (pile.value < 1) continue;
+      if (pile.value < 1 || skip?.(pile)) continue;
       const d = (pile.x - from.x) ** 2 + (pile.z - from.z) ** 2;
       if (d < bestD) {
         bestD = d;

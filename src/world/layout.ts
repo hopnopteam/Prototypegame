@@ -491,7 +491,8 @@ class LayoutBuilder {
       else if (footZ1 - footZ0 >= 0.3) this.layout.blocked.push(rect(bed.x0 + 0.06, footZ0, INNER, footZ1));
 
       // The bigger rooms get a lounge beyond the bed (kept off the walk from the door to the room's heart).
-      if (style === 'business' && len > 3.2) this.prop('armchair', INNER - 0.72, cz1 - 0.92, INNER - 0.04, cz1 - 0.2, 'left');
+      // (Not in the Honeymoon Suites, which keep their rooms at every refit: an armchair there rose to a locked room's lid.)
+      if (style === 'business' && len > 3.2 && this.layout.type !== 'honeymoon') this.prop('armchair', INNER - 0.72, cz1 - 0.92, INNER - 0.04, cz1 - 0.2, 'left');
       if ((style === 'first' || style === 'royal') && len > 5) {
         // The sofa starts clear of whatever stands at the foot of the bed (the Royal slipper bath).
         const sofa = rect(INNER - 0.62, Math.max(cz1 - 2.5, footZ1 + (royalBath ? 0.3 : 0.1)), INNER - 0.04, cz1 - 0.95);
@@ -1059,8 +1060,9 @@ function buildDining(tier: number): CarriageLayout {
   b.edge('kitchen', 'stove');
   // Phase 4: a route may seat more (the Riviera's Seafood Diner: five rows, ten tables), the last row where it always was.
   const rowCount = OPTIONS.diningRows ?? 4;
-  const step = rowCount > 4 ? 2.1 : 2.6;
-  const rows = Array.from({ length: rowCount }, (_, i) => 14.2 - (rowCount - 1 - i) * step);
+  const step = rowCount > 4 ? 2.06 : 2.6;
+  const last = rowCount > 4 ? 13.99 : 14.2;
+  const rows = Array.from({ length: rowCount }, (_, i) => last - (rowCount - 1 - i) * step);
   let group = 0;
   let previous = 'pass';
   for (const z of rows) {
@@ -1448,8 +1450,9 @@ function buildKids(tier: number): CarriageLayout {
   if (tier <= 0) b.prop('crates', LAKE, 14.0, -1.85, 14.9, 'right', true, 'kids');
   else b.prop('planter', LAKE, 14.2, -1.92, 14.62, 'right', true, 'kids');
   backRoom(b, 'toystore', 'right', 0.5, 15.0);
-  if (tier >= 1) v.carpets.push({ rect: rect(-0.62, 5.6, 0.62, 13.9), style: tier >= 2 ? 'playmat' : 'jute' });
-  if (tier >= 3) v.carpets.push({ rect: rect(-INNER + 0.08, 5.0, INNER - 0.08, 5.5), style: 'playmat' });
+  // A jute runner once repaired, then a soft play mat wall to wall.
+  if (tier === 1) v.carpets.push({ rect: rect(-0.62, 5.6, 0.62, 13.9), style: 'jute' });
+  if (tier >= 2) v.carpets.push({ rect: rect(-INNER + 0.08, 0.3, INNER - 0.08, 14.85), style: 'playmat' });
   return b.layout;
 }
 
@@ -1502,8 +1505,9 @@ function buildSpa(tier: number): CarriageLayout {
     if (tier >= 2) b.prop('planter', 1.94, z - 0.2, NEAR, z + 0.2, 'left', true, 'low');
   }
   backRoom(b, 'spastore', 'left', -0.5, 15.0);
-  if (tier >= 1) v.carpets.push({ rect: rect(-0.7, 4.9, 0.7, 14.6), style: tier >= 3 ? 'stone' : 'jute' });
-  if (tier >= 2) v.carpets.push({ rect: rect(-INNER + 0.08, 0.3, INNER - 0.08, 1.85), style: 'stone' });
+  // A jute runner once repaired, then pale stone wall to wall.
+  if (tier === 1) v.carpets.push({ rect: rect(-0.7, 4.9, 0.7, 14.6), style: 'jute' });
+  if (tier >= 2) v.carpets.push({ rect: rect(-INNER + 0.08, 0.3, INNER - 0.08, 14.85), style: 'stone' });
   return b.layout;
 }
 
@@ -1538,7 +1542,7 @@ function buildPool(tier: number): CarriageLayout {
     b.edge(previous, node);
     previous = node;
     // Crosswise, its head to the wall; the swimmer's place in the water across the deck from it.
-    const lounger = b.prop('lounger', 1.12, c - 0.32, 2.28, c + 0.32, 'left', true);
+    const lounger = b.prop('lounger', 1.12, c - 0.32, INNER - 0.04, c + 0.32, 'left', true);
     v.groups.push({ index: group, tile: { x: 1.3, z: c }, props: [lounger], cash: null });
     v.seats.push({
       index: v.seats.length, group, sit: { x: -0.95 + (group % 2 ? -0.45 : 0.2), z: c }, facing: group % 2 ? FACE.rear : FACE.front,
@@ -1558,7 +1562,14 @@ function buildPool(tier: number): CarriageLayout {
   b.prop('lifeguardChair', 1.72, 13.2, NEAR, 13.95, 'left', true);
   b.prop('wallBoard', -1.5, WALL, -0.4, WALL + 0.05, 'rear', false, 'pool');
   backRoom(b, 'poolstore', 'left', -0.5, 14.95);
-  if (tier >= 1) v.carpets.push({ rect: rect(0.42, 4.25, 1.05, 13.95), style: tier >= 2 ? 'deck' : 'jute' });
+  // A jute runner along the deck once repaired, then teak decking wall to wall round the pool.
+  if (tier === 1) v.carpets.push({ rect: rect(0.42, 4.25, 1.05, 13.95), style: 'jute' });
+  if (tier >= 2) {
+    // Round the pool, never under it (its basin has its own tiled floor).
+    v.carpets.push({ rect: rect(-INNER + 0.08, 0.3, INNER - 0.08, POOL.z0 - 0.02), style: 'deck' });
+    v.carpets.push({ rect: rect(POOL.x1 + 0.02, POOL.z0 - 0.02, INNER - 0.08, POOL.z1 + 0.02), style: 'deck' });
+    v.carpets.push({ rect: rect(-INNER + 0.08, POOL.z1 + 0.02, INNER - 0.08, 14.8), style: 'deck' });
+  }
   return b.layout;
 }
 

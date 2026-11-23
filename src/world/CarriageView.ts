@@ -1225,6 +1225,22 @@ export class CarriageView {
     this.group.add(this.puppets);
   }
 
+  /** Phase 4, the Honeymoon Suites: a do-not-disturb hanger over a room's door, on the corridor side. */
+  private readonly dndSigns = new Map<number, THREE.Sprite>();
+  setDndSign(index: number, on: boolean): void {
+    let sign = this.dndSigns.get(index);
+    if (!sign && !on) return;
+    const cabin = this.layout.cabins[index];
+    if (!sign && cabin) {
+      sign = makeSprite(bubbleTexture('dnd', 'plain'), 0.5);
+      sign.layers.set(WORLD_UI_LAYER);
+      sign.position.set(PARTITION_X0 - 0.2, FLOOR_Y + 1.45, (cabin.door[0] + cabin.door[1]) / 2);
+      this.group.add(sign);
+      this.dndSigns.set(index, sign);
+    }
+    if (sign) sign.visible = on;
+  }
+
   /** Phase 4: the puppet show's progress (0..1), or below 0 when none is on. */
   setVenueShow(progress: number): void {
     if (this.puppets) this.puppets.visible = progress >= 0;

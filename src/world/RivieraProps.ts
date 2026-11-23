@@ -57,15 +57,14 @@ export function buildRivieraProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef
       const stripe = tier >= 2 ? theme.deep : '#C9473F';
       b.box(bx, Y + 0.44, cz, depth, 0.88, d - 0.04, stripe, 0, { pattern: PATTERN.stripesZ, color2: '#FFF6E4', scale: 0.12, shade: 0.9, surface: 'fabric' });
       // The frame round the stage window, the dark stage behind it.
-      for (const z of [r.z0 + 0.06, r.z1 - 0.06]) b.box(bx, Y + 1.14, z, depth, 0.56, 0.1, wood(tier), 0, { shade: 0.85, surface: 'varnish' });
-      b.box(back + out * 0.06, Y + 1.14, cz, 0.06, 0.56, d - 0.2, '#2E2A3E', 0, FLAT);
+      for (const z of [r.z0 + 0.06, r.z1 - 0.06]) b.box(bx, Y + 1.14, z, depth - 0.02, 0.5, 0.1, wood(tier), 0, { shade: 0.85, surface: 'varnish' });
+      b.box(back + out * 0.09, Y + 1.14, cz, 0.06, 0.5, d - 0.36, '#2E2A3E', 0, FLAT);
       // Curtains drawn back at each side of the window.
       const curtain = tier >= 3 ? '#B0283A' : tier === 2 ? '#F7B32B' : '#C9473F';
       for (const s of [-1, 1]) b.box(bx + out * 0.1, Y + 1.14, cz + s * (d / 2 - 0.26), 0.06, 0.52, 0.22, curtain, 0, { shade: 0.85, surface: tier >= 3 ? 'velvet' : 'fabric' });
       // The pediment: an arch of the theatre's colour with a trim.
       b.box(bx, Y + 1.5, cz, depth, 0.16, d - 0.02, tier >= 2 ? '#F7B32B' : wood(tier), 0, { shade: 0.9, surface: 'paint' });
-      b.box(front - out * 0.01, Y + 1.43, cz, 0.012, 0.02, d - 0.08, t.colour, 0, { ...FLAT, surface: t.surface });
-      if (tier >= 2) for (let i = 0; i < 5; i++) lamps.sphere(front - out * 0.02, Y + 1.56, r.z0 + 0.2 + (d - 0.4) * (i / 4), 0.025, '#FFE2B0', 0, 1, FLAT);
+      b.box(bx + out * (depth / 2 + 0.006), Y + 1.45, cz, 0.012, 0.025, d - 0.1, t.colour, 0, { ...FLAT, surface: t.surface });
       return true;
     }
     case 'freezer': {
@@ -155,7 +154,7 @@ export function buildRivieraProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef
       }
       const cushion = tier <= 0 ? '#BDB4A2' : tier >= 2 ? theme.blanket : '#F7F4EE';
       b.box(cx + out * 0.18, Y + 0.29, cz, w - 0.5, 0.06, d - 0.1, cushion, 0, { pattern: tier >= 2 ? PATTERN.stripesZ : PATTERN.none, color2: '#FFFFFF', scale: 0.1, shade: 0.9, surface: 'fabric' });
-      b.box(headX - out * 0.16, Y + 0.44, cz, 0.08, 0.34, d - 0.1, cushion, 0, { shade: 0.9, surface: 'fabric' });
+      b.box(headX + out * 0.16, Y + 0.44, cz, 0.08, 0.34, d - 0.1, cushion, 0, { shade: 0.9, surface: 'fabric' });
       if (tier >= 2) b.cylinder(cx + out * 0.32, Y + 0.36, cz, 0.05, 0.05, d - 0.2, '#FFFFFF', 10, 'z', { pattern: PATTERN.stripesX, color2: theme.deep, scale: 0.06, shade: 0.95 });
       return true;
     }

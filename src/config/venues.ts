@@ -198,6 +198,8 @@ export const VENUE_TUNING = {
   kids: {
     startSeconds: 1.2, showSeconds: 18, ticket: 6, icecreamChance: 0.55, autoShare: 0.5, autoWait: 12,
     noisePerChild: 0.022, quietPerSecond: 0.2, loud: 0.7, calm: 0.35, nearbyTip: 0.85,
+    /** How much more a family picks the play car over any other venue for an outing (the children ask for it). */
+    familyPull: 3,
   },
   /** Phase 4, the Spa Car: seconds of massage at the table, its price, the robe's tip, and seconds to lay fresh towels. */
   spa: { massageSeconds: 3, massage: 14, robeTip: 3, towelSeconds: 0.9 },

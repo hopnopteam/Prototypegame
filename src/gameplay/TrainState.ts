@@ -6,7 +6,7 @@ import { TeaserView } from '../world/TeaserView';
 import { CLASSES, classFare, classOfTier, classStartingAt, isPassengerType, maxTier, type ClassDef, type ClassId } from '../config/classes';
 import { ClassChips } from '../world/ClassChips';
 import { easeOutBack, easeOutCubic } from '../core/math';
-import type { CarriageType, ItemKind, Rect, Vec2 } from '../core/types';
+import { bagPlaces, isBag, type CarriageType, type ItemKind, type Rect, type Vec2 } from '../core/types';
 import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
 import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, CARRIAGE_PITCH, GANGWAY_LENGTH, LOCOMOTIVE_LENGTH, REAR_DECK_LENGTH, carriageOriginZ, doorTileSpot, getLayout, HALF_WIDTH, layoutKey, PARTITION_X0, ZONE_RADIUS, SERVICE_PROP_HEIGHT, type BathroomLayout, type CabinLayout, type CarriageLayout } from '../world/layout';
 import { VISUALS } from '../config/visuals';
@@ -61,6 +61,8 @@ export class Cabin {
   shoeZone: Zone | null = null;
   /** Fix list 4.6: snack boxes in the room's minibar (only counts once the carriage has Minibars). */
   snacks = 0;
+  /** Phase 4, the Honeymoon Suites: a do-not-disturb sign is on the door (the guide and the staff keep out). */
+  dnd = false;
   shoeMesh: THREE.Mesh | null = null;
   /** The pad by the door (corridor side) and where the shoes stand. */
   readonly shoePad: Vec2;
@@ -391,6 +393,18 @@ export class TrainState {
   }
 
   /** The cabin or washroom (world rect) the point is inside, if any: the camera frames it. */
+  /** Phase 4: a room with a do-not-disturb sign on its door at this point (world), if any. */
+  dndAt(x: number, z: number): Cabin | null {
+    for (const cabin of this.cabins) if (cabin.dnd && inRoom(cabin.room, x, z)) return cabin;
+    return null;
+  }
+
+  /** Phase 4: shows or takes down a room's do-not-disturb hanger on its door. */
+  setDnd(cabin: Cabin, on: boolean): void {
+    cabin.dnd = on;
+    this.views[cabin.carriage]?.setDndSign(cabin.layout.index, on);
+  }
+
   roomAt(p: Vec2): { x0: number; z0: number; x1: number; z1: number } | null {
     for (const list of [this.cabins, this.bathrooms] as (Cabin | Bathroom)[][]) {
       for (const room of list) {
@@ -1879,14 +1893,17 @@ export class TrainState {
       radius: ZONE_RADIUS.rack,
       icon: 'luggage',
       kind: 'drop',
-      active: () => this.luggageStored < this.luggageCapacity && (w.player.stack.has('luggage') || w.staff.anyCarrying('luggage')),
+      active: () => this.luggageStored < this.luggageCapacity && (w.player.stack.has('luggage') || w.player.stack.has('surfboard') || w.staff.anyCarrying('luggage') || w.staff.anyCarrying('surfboard')),
       stay: (zone, actor, dt) => {
-        if (!actor.stack.has('luggage') || this.luggageStored >= this.luggageCapacity) return false;
+        // Phase 4: a surfboard takes two places on the rack (a suitcase first when only one is left).
+        const room = this.luggageCapacity - this.luggageStored;
+        const bag: ItemKind | null = actor.stack.has('surfboard') && room >= 2 ? 'surfboard' : actor.stack.has('luggage') && room >= 1 ? 'luggage' : null;
+        if (!bag) return false;
         zone.timer += dt * actor.workMultiplier;
         if (zone.timer < w.econ.zones.dropIntervalSeconds) return true;
         zone.timer = 0;
-        actor.stack.remove('luggage', () => tmp.set(p.x + 0.6, FLOOR_Y + 0.9, p.z));
-        this.luggageStored++;
+        actor.stack.remove(bag, () => tmp.set(p.x + 0.6, FLOOR_Y + 0.9, p.z));
+        this.luggageStored += bagPlaces(bag);
         w.audio.play('drop', { pitch: 0.8 });
         w.events.emit('luggage.loaded', { byPlayer: actor.isPlayer });
         return true;
@@ -1900,7 +1917,7 @@ export class TrainState {
     const target = new THREE.Vector3(p.x, FLOOR_Y + 0.5, p.z);
     const binnable = (actor: Actor): ItemKind | null => {
       // Bags go to the rack, never in the bin.
-      for (const kind of actor.stack.items) if (kind !== 'luggage' && w.demand.surplus(actor, kind) > 0) return kind;
+      for (const kind of actor.stack.items) if (!isBag(kind) && w.demand.surplus(actor, kind) > 0) return kind;
       return null;
     };
     w.zones.add(new Zone({

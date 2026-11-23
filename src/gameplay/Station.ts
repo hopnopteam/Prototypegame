@@ -1,7 +1,7 @@
 import { CLASS_BY_ID } from '../config/classes';
 import * as THREE from 'three';
 import { STATION_UPGRADES, STATIONS } from '../config/content';
-import type { JourneyPhase, Vec2 } from '../core/types';
+import type { ItemKind, JourneyPhase, Vec2 } from '../core/types';
 import { EVENTS } from '../services/analytics';
 import { FLOOR_Y } from '../world/CarriageView';
 import { createItemMesh } from '../world/ItemMeshes';
@@ -63,7 +63,22 @@ const SUPPLY_BOX_SCALE = 0.75;
 export class Station {
   readonly view = new PlatformView();
   platformOffset = 1e6;
-  luggagePile = 0;
+  /**
+   * The bags on the barrow, top last (Phase 4: a surfer's board among them). `luggagePile` is their count; setting it
+   * lower takes from the top, higher adds suitcases.
+   */
+  readonly bagKinds: ItemKind[] = [];
+  get luggagePile(): number {
+    return this.bagKinds.length;
+  }
+  set luggagePile(n: number) {
+    while (this.bagKinds.length > Math.max(0, n)) this.bagKinds.pop();
+    while (this.bagKinds.length < n) this.bagKinds.push('luggage');
+  }
+  /** The bag on top of the barrow (taken next). */
+  topBag(): ItemKind {
+    return this.bagKinds[this.bagKinds.length - 1] ?? 'luggage';
+  }
   private luggageTotal = 0;
   vendorCrates = 0;
   private spawnedForStop = -1;
@@ -504,7 +519,9 @@ export class Station {
     const classes = this.travellerClasses(stopSerial, count);
     const guests = w.guests.spawnPlatformGuests(spots, classes, this.familiesFor(classes));
     w.stationEvents.dress(guests);
-    this.luggagePile = Math.min(this.view.barrowCapacity, guests.filter((g) => g.hasLuggage).length);
+    // Phase 4: a surfer's bag is their board.
+    this.bagKinds.length = 0;
+    for (const g of guests) if (g.hasLuggage && this.bagKinds.length < this.view.barrowCapacity) this.bagKinds.push(g.archetype.surfboard ? 'surfboard' : 'luggage');
     // A traveller or two turns up during the stop, out of the station house (once the crowd is part of the ride).
     this.latecomers.length = 0;
     if (crowd && !w.journey.heldStops) {
@@ -833,8 +850,12 @@ export class Station {
 
     const pile = PLATFORM.luggagePad;
     const luggagePoint = new THREE.Vector3();
+    const station = this;
     const luggageSpec: SourceSpec = {
-      kind: 'luggage',
+      // Phase 4: whatever is on top of the barrow (a suitcase or a surfboard).
+      get kind(): ItemKind {
+        return station.topBag();
+      },
       point: () => {
         const bag = PlatformView.bagPosition(this.luggagePile - 1);
         return luggagePoint.set(bag.x, bag.y, bag.z);
@@ -845,7 +866,7 @@ export class Station {
         this.layoutPlatformItems();
       },
       giveBack: () => {
-        this.luggagePile++;
+        this.bagKinds.push(luggageSpec.kind);
         this.layoutPlatformItems();
       },
       interval: w.econ.zones.pickupIntervalSeconds * 1.5,
@@ -858,7 +879,7 @@ export class Station {
       radius: 0.62,
       icon: 'luggage',
       active: () => w.journey.doorsOpen && sourceActive(w, luggageSpec),
-      highlight: () => w.demand.playerWants('luggage') > 0,
+      highlight: () => w.demand.playerWants(this.topBag()) > 0,
       stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, luggageSpec),
     }));
 

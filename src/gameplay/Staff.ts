@@ -451,14 +451,15 @@ export class StaffManager {
         const rack = this.nearestRack(pile);
         // Only as many bags as the rack has room for (session 42: a full rack left a porter holding one for the ride).
         m.stack.capacity = m.baseCapacity();
-        m.wantItems = { luggage: Math.max(1, Math.min(m.stack.capacity, w.train.luggageCapacity - w.train.luggageStored)) };
+        const places = Math.max(1, Math.min(m.stack.capacity, w.train.luggageCapacity - w.train.luggageStored));
+        m.wantItems = { luggage: places, surfboard: Math.floor(places / 2) };
         return {
           label: 'luggage', icon: 'luggage',
           steps: [
             { kind: 'goto', target: pile },
             { kind: 'stand', until: () => m.stack.isFull || station.luggagePile === 0 || !w.journey.doorsOpen, timeout: 8 },
             { kind: 'goto', target: rack.pos, node: rack.node },
-            { kind: 'stand', until: () => !m.stack.has('luggage') || w.train.luggageStored >= w.train.luggageCapacity, timeout: 6 },
+            { kind: 'stand', until: () => !(m.stack.has('luggage') || m.stack.has('surfboard')) || w.train.luggageStored >= w.train.luggageCapacity, timeout: 6 },
             { kind: 'do', fn: () => this.binLeftovers(m) },
           ],
           release: () => {
@@ -488,13 +489,13 @@ export class StaffManager {
     }
     // Luggage still in hand after the doors closed: finish the job indoors (once the rack has room; until then the
     // porter waits at their spot instead of standing at a full rack, session 42).
-    if (m.stack.has('luggage') && w.train.luggageStored < w.train.luggageCapacity) {
+    if ((m.stack.has('luggage') || m.stack.has('surfboard')) && w.train.luggageStored < w.train.luggageCapacity) {
       const rack = this.nearestRack(m.pos);
       return {
         label: 'luggage', icon: 'luggage',
         steps: [
           { kind: 'goto', target: rack.pos, node: rack.node },
-          { kind: 'stand', until: () => !m.stack.has('luggage'), timeout: 5 },
+          { kind: 'stand', until: () => !(m.stack.has('luggage') || m.stack.has('surfboard')), timeout: 5 },
           { kind: 'do', fn: () => this.binLeftovers(m) },
         ],
         release: () => undefined,
@@ -595,6 +596,7 @@ export class StaffManager {
       case 'crate':
         return supply !== null ? map.anchor(supply, 'crateDrop') : null;
       case 'luggage':
+      case 'surfboard':
         return this.nearestRack(m.pos).pos;
       default:
         // Venue dishes are made for someone: left over, they are simply set down (the bin).

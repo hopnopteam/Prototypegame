@@ -308,6 +308,12 @@ export const ECONOMY = {
    */
   luggage: { refundPerBag: 10 },
 
+  /**
+   * Phase 4, the Honeymoon Suites: after their evening request a honeymoon couple may hang a do-not-disturb sign on
+   * the door for `dndSeconds`. Leave them be and they leave `respectTip` (× their class's tip) in the room as it comes
+   * down; walk into the room meanwhile and the sign comes down at once, a frown, their tip × `ignoredTip` for the ride.
+   */
+  honeymoon: { dndChance: 0.85, dndSeconds: 24, respectTip: 8, ignoredTip: 0.6 },
   night: {
     shineSeconds: 1.3,
     shineTip: 4,

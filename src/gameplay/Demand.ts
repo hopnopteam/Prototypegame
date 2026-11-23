@@ -73,19 +73,16 @@ export class Demand {
         // Pool Car's swimmers, out on their loungers).
         return this.bathroomNeed(kind) + this.requestNeed(kind) + w.venues.need(kind);
       case 'surfboard':
-        // Phase 4: a surfer's board goes on the rack like a bag (two places): counted with the luggage.
-        return 0;
+        // Phase 4: a surfer's board goes on the rack like a bag (two places).
+        return this.bagNeed(kind);
       case 'roll':
         return this.bathroomNeed(kind);
       case 'snack':
         // Fix list 4.6: minibars short of snack boxes (less what the staff are already carrying); Phase 1: and the
         // Family Sleeper's children, who ask for one.
         return Math.max(0, w.train.snackShort() - this.staffCarrying('snack')) + this.requestNeed('snack');
-      case 'luggage': {
-        const room = w.train.luggageCapacity - w.train.luggageStored - this.staffCarrying('luggage');
-        const reachable = w.player.stack.countOf('luggage') + (w.journey.doorsOpen ? w.station.luggagePile : 0);
-        return Math.max(0, Math.min(room, reachable));
-      }
+      case 'luggage':
+        return this.bagNeed(kind);
       case 'crate': {
         // Session 55: without a stores car, the supplies go to the lobby's cupboard (`Station`).
         if (w.train.indexOfType('supply') === null) return 0; // Session 56: the supplies box is in the hand, not on the tray
@@ -98,6 +95,27 @@ export class Demand {
         return Math.max(0, Math.min(crates, reachable));
       }
     }
+  }
+
+  /**
+   * Bags of this kind the player could usefully carry: what they hold, and those on the barrow, from the top, that
+   * still fit on the racks (Phase 4: a surfboard takes two places; the barrow is taken from the top in order).
+   */
+  private bagNeed(kind: ItemKind): number {
+    const w = this.w;
+    const held = (k: ItemKind): number => w.player.stack.countOf(k);
+    let room = w.train.luggageCapacity - w.train.luggageStored - this.staffCarrying('luggage') - 2 * this.staffCarrying('surfboard') - held('luggage') - 2 * held('surfboard');
+    let n = held(kind);
+    if (room < 0) return Math.max(0, n + Math.floor(room / (kind === 'surfboard' ? 2 : 1)));
+    if (!w.journey.doorsOpen) return n;
+    const pile = w.station.bagKinds;
+    for (let i = pile.length - 1; i >= 0; i--) {
+      const places = pile[i] === 'surfboard' ? 2 : 1;
+      if (places > room) break;
+      room -= places;
+      if (pile[i] === kind) n++;
+    }
+    return n;
   }
 
   /** How many more of this kind the player should pick up right now. */

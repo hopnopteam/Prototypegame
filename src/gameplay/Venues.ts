@@ -377,7 +377,8 @@ export class Venues {
       // The dome is for the ride: nobody goes up to watch a station platform.
       if (v.kind === 'dome' && w.journey.phase !== 'onTheMove') continue;
       // The routine (session 36): a venue they have already visited this ride weighs less, so they tour the train.
-      weights[String(v.carriage)] = VENUES[v.kind].visitWeight * (guest.visited.has(v.kind) ? w.econ.trip.routine.revisitWeight : 1);
+      weights[String(v.carriage)] = VENUES[v.kind].visitWeight * (guest.visited.has(v.kind) ? w.econ.trip.routine.revisitWeight : 1)
+        * (VENUES[v.kind].families ? VENUE_TUNING.kids.familyPull : 1);
     }
     const keys = Object.keys(weights);
     if (keys.length === 0) return false;

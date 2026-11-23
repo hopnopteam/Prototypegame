@@ -40,6 +40,10 @@ export type ItemKind =
   // cold lemonade and a pot of aloe for the sunburnt (from the lobby's counter), and a surfer's board (two rack slots).
   | 'smoothie' | 'icecream' | 'seafood' | 'robe' | 'lemonade' | 'aloe' | 'surfboard';
 
+/** Phase 4: what a traveller's bag is (a suitcase, or a surfer's board, which takes two places on the rack). */
+export const isBag = (kind: ItemKind): boolean => kind === 'luggage' || kind === 'surfboard';
+export const bagPlaces = (kind: ItemKind): number => (kind === 'surfboard' ? 2 : 1);
+
 export type CurrencyKind = 'cash' | 'gems' | 'railMiles';
 
 export type StaffRole = 'attendant' | 'porter' | 'runner' | 'barista' | 'chef' | 'waiter' | 'bartender' | 'host' | 'projectionist'

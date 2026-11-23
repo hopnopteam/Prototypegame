@@ -11,7 +11,8 @@ const page = await browser.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 // The audit runs while the page loads (several minutes under SwiftShader), so don't wait for 'load' here.
-await page.goto(`file://${resolve('dist/geoaudit.html')}`, { waitUntil: 'commit' });
+// Phase 4: GEO_ROUTE=riviera audits that route's train (its own carriages and layout knobs).
+await page.goto(`file://${resolve('dist/geoaudit.html')}${process.env.GEO_ROUTE ? `?route=${process.env.GEO_ROUTE}` : ''}`, { waitUntil: 'commit' });
 await page.waitForFunction(() => document.body.dataset.done === '1' || window.__failed, null, { timeout: 900000 }).catch(() => undefined);
 const results = await page.evaluate(() => window.geoAudit);
 const clips = await page.evaluate(() => window.clipAudit);

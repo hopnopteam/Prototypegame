@@ -259,7 +259,7 @@ export class Guidance {
     if (w.journey.doorsOpen) {
       const boarding = w.guests.canBoard() && w.staff.count('porter') === 0;
       if (boarding && stack.isEmpty) return this.because('board', w.station.boardingPoint());
-      if (!stack.isFull && w.demand.playerWants('luggage') > 0 && !stack.has('luggage')) return this.because('luggage', w.station.luggagePoint());
+      if (!stack.isFull && w.demand.playerWants(w.station.topBag()) > 0 && !stack.has('luggage') && !stack.has('surfboard')) return this.because('luggage', w.station.luggagePoint());
       // Phase 2's special stops: sheep on the platform to shoo before the bell.
       const sheep = w.stationEvents.nearestSheep(player.pos);
       if (sheep && stack.isEmpty && w.guests.waitingCount() === 0) return this.because('shoo', sheep);
@@ -326,7 +326,8 @@ export class Guidance {
       }
     }
 
-    const pile = w.cash.nearestWithCash(player.pos);
+    // Phase 4: never into a honeymoon suite with its do-not-disturb sign up.
+    const pile = w.cash.nearestWithCash(player.pos, (p) => !!w.train.dndAt(p.x, p.z));
     if (pile && pile.value >= 1) return this.because('cash', { x: pile.x, z: pile.z });
 
     if (w.staff.count('porter') === 0) {
@@ -394,7 +395,7 @@ export class Guidance {
     }
     // Phase 3 (found by the pacing simulator): only while the racks have room. A bag in hand with every rack full (the
     // porter filled the last place) used to point at the rack for ever, so the bell was never rung and the stop held.
-    if (items.includes('luggage') && w.train.luggageStored < w.train.luggageCapacity) {
+    if ((items.includes('luggage') || items.includes('surfboard')) && w.train.luggageStored < w.train.luggageCapacity) {
       const luggage = w.train.indexOfType('luggage');
       const lobbyFull = w.train.luggageStored >= w.train.lobbyRackCapacity;
       return luggage !== null && lobbyFull ? w.map.anchor(luggage, 'rack') : w.map.anchor(0, 'rack');
@@ -419,7 +420,7 @@ export class Guidance {
     if (item === 'towel' || item === 'roll') return w.train.supplySource(item, w.player.pos);
     // A bag nobody has room for (the rack filled meanwhile) goes back on the platform's barrow while the doors are
     // open; never to the bin, which takes no bags (Phase 3: pointing there held a stop for minutes with the bell ready).
-    if (item === 'luggage') return w.journey.doorsOpen ? w.station.luggagePoint() : null;
+    if (item === 'luggage' || item === 'surfboard') return w.journey.doorsOpen ? w.station.luggagePoint() : null;
     const name = sourceAnchorFor(item);
     if (name === 'urn' || name === 'linen') return this.nearestAnchor(name);
     const supply = w.train.indexOfType('supply');

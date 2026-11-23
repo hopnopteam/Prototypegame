@@ -206,6 +206,9 @@ export class Guest {
   tipBoost = 1;
   /** Phase 4: heard the Kids' Play Car through the wall this ride (their tip is smaller once). */
   noiseHeard = false;
+  /** Phase 4, the Honeymoon Suites: when their do-not-disturb sign comes down (0: not up), and whether it was hung. */
+  dndUntil = 0;
+  dndDone = false;
   vip = false;
   critic = false;
   criticTrip = false;
@@ -1311,7 +1314,9 @@ export class Guests {
           this.startAlighting(guest);
           break;
         }
-        if (this.advanceTrip(guest, guest.stateTime < guest.settleFor)) break;
+        // Phase 4: a do-not-disturb sign holds their evening where it is (lights out waits for it to come down).
+        if (this.advanceTrip(guest, guest.stateTime < guest.settleFor || guest.dndUntil > 0)) break;
+        if (this.doNotDisturb(guest)) break;
         if (!guest.phaseRequested) {
           // Reading on the bed edge counts toward the request.
           guest.wishIn -= dt;
@@ -1426,6 +1431,59 @@ export class Guests {
    * Moves a guest on to the next part of their night when it is time (see sim/trip.ts), never back: lights out
    * once nothing is pending, the morning once the night has run. True when they changed.
    */
+  /**
+   * Phase 4, the Honeymoon Suites: after their evening request a couple may hang the do-not-disturb sign. While it is
+   * up they ask for nothing and go nowhere; true while it holds them. Walking into the room (the conductor) brings it
+   * down at once (a frown, a smaller tip for the ride); left be, it comes down with a thank-you tip in the room.
+   */
+  private doNotDisturb(guest: Guest): boolean {
+    const w = this.w;
+    const cabin = guest.cabin;
+    if (!cabin || w.train.partyOf(cabin) !== 'honeymooners') return false;
+    const h = w.econ.honeymoon;
+    if (guest.dndUntil > 0) {
+      const p = w.player.pos;
+      const intruded = p.x >= cabin.room.x0 && p.x <= cabin.room.x1 && p.z >= cabin.room.z0 && p.z <= cabin.room.z1;
+      if (!intruded && w.time < guest.dndUntil) {
+        guest.view.showBubble('dnd', 'plain', 1.1);
+        return true;
+      }
+      guest.dndUntil = 0;
+      w.train.setDnd(cabin, false);
+      if (intruded) {
+        guest.tipBoost *= h.ignoredTip;
+        guest.view.showMood('angry', 'dnd');
+        guest.view.act('stomp', 0.8);
+        w.audio.play('grumble');
+        w.feedback.nudge(-0.04);
+      } else {
+        const tip = Math.round(h.respectTip * CLASS_BY_ID[guest.cls].tip * w.tipMultiplier());
+        w.cash.add(cabin.pileId, tip, this.tmp.set(guest.pos.x, FLOOR_Y + 1.1, guest.pos.z));
+        guest.view.showMood('love');
+        w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.5, guest.pos.z, 6, 0.3);
+        w.audio.play('heart');
+      }
+      w.events.emit('honeymoon.dnd', { respected: !intruded, carriage: cabin.carriage });
+      return false;
+    }
+    if (!guest.dndDone && guest.trip === 'evening' && guest.phaseRequested && guest.stateTime >= guest.settleFor && !guest.request) {
+      guest.dndDone = true;
+      if (!w.rng.chance(h.dndChance)) return false;
+      guest.dndUntil = w.time + h.dndSeconds;
+      w.train.setDnd(cabin, true);
+      guest.view.showBubble('dnd', 'plain', 1.1);
+      return true;
+    }
+    return false;
+  }
+
+  /** Phase 4: their sign comes down without a verdict (they are getting off). */
+  private takeDownDnd(guest: Guest): void {
+    if (guest.dndUntil <= 0) return;
+    guest.dndUntil = 0;
+    if (guest.cabin?.dnd) this.w.train.setDnd(guest.cabin, false);
+  }
+
   private advanceTrip(guest: Guest, busy: boolean): boolean {
     const rules = this.w.econ.trip;
     const progress = this.progressOf(guest);
@@ -1923,6 +1981,7 @@ export class Guests {
     const w = this.w;
     if (!guest.cabin || guest.state === 'alighting' || guest.state === 'leaving' || guest.state === 'gone') return;
     if (guest.state === 'toBathroom' || guest.state === 'waitingBathroom' || guest.state === 'inBathroom') return;
+    this.takeDownDnd(guest);
     if (!w.journey.doorsOpen) return;
     const cabin = guest.cabin;
     const fromBed = guest.inCabin;
@@ -1938,7 +1997,8 @@ export class Guests {
     // service they never got takes a share off the tip, down to nothing (session 27).
     let tip = w.econ.money.alightTip * guest.archetype.tipMultiplier * w.tipMultiplier() * w.train.cabinTipMultiplier(cabin) * guest.tipBoost;
     if (w.train.luggageStored > 0) {
-      w.train.luggageStored--;
+      // Phase 4: a surfer takes their board (two places on the rack).
+      w.train.luggageStored = Math.max(0, w.train.luggageStored - (guest.archetype.surfboard ? 2 : 1));
       tip += w.econ.money.luggageTip;
     }
     // Session 32: nothing counts against the player during the first-passengers tutorial.
@@ -2128,6 +2188,7 @@ export class Guests {
 
   private destroy(guest: Guest): void {
     this.w.venues?.releaseGuest(guest);
+    this.takeDownDnd(guest);
     guest.state = 'gone';
     if (guest.cabin && guest.cabin.guest === guest) {
       this.w.train.clearShoes(guest.cabin);
