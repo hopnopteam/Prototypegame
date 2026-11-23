@@ -1,3 +1,4 @@
+import { REAL_CARRIAGE, REAL_TIME_OF_DAY, loadRealCarriage } from '../world/RealCarriage';
 import { ACTIVE_ROUTE, ROUTES, routeById } from '../config/routes';
 import { PLATFORM } from '../world/platformLayout';
 import { INTRO_BEATS } from '../config/coach';
@@ -216,6 +217,7 @@ export class Game implements World {
   idleSeconds = 0;
 
   constructor(canvas: HTMLCanvasElement, overlay: HTMLElement, readonly ui: GameUi) {
+    void loadRealCarriage();
     // Remote config overrides a copy of the balance sheet, so tuning can change without an update.
     // Phase 3: the GameAnalytics Remote Configs kept from the last launch apply over the route's economy first, onto the
     // shared table itself (prices are built from it), before the game takes its copy; this session's fetch applies live.
@@ -853,7 +855,8 @@ export class Game implements World {
   /** The camera's eased distance factor (session 38b). */
   private camZoom = ECONOMY.camera.standZoom;
 
-  private dayCycleOverride: number | null = null;
+  // Graphics experiment: the photoreal carriage is baked in afternoon sun, so the world around it holds that afternoon.
+  private dayCycleOverride: number | null = REAL_CARRIAGE ? REAL_TIME_OF_DAY : null;
 
   setTimeOfDay(t: number | null): void {
     this.dayCycleOverride = t;

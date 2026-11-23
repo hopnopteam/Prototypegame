@@ -1,3 +1,4 @@
+import { dressRealCarriage } from '../world/RealCarriage';
 import { LINEN_ITEMS, SERVICE_ITEMS } from './Demand';
 import { iconFor } from '../config/itemIcons';
 import * as THREE from 'three';
@@ -927,6 +928,7 @@ export class TrainState {
     const view = existingView ?? new CarriageView(getLayout(type, tier), index, tier);
     view.group.position.z = carriageOriginZ(index);
     this.group.add(view.group);
+    dressRealCarriage(view, index);
     this.views.push(view);
     this.types.push(type);
     this.tiers[index] = view.tier;
@@ -1212,6 +1214,7 @@ export class TrainState {
     view.setComforts(this.comfortsOf(index));
     view.setDoorOpen(this.doorAmount);
     this.group.add(view.group);
+    dressRealCarriage(view, index);
     this.views[index] = view;
     this.tiers[index] = tier;
     // A venue's tables, plates and extras on the rebuilt carriage, and its prices at the new tier.

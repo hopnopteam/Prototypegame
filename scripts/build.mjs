@@ -2,7 +2,7 @@
 // dist/night-express.html (a body fragment for publishing as an Artifact, which adds its own skeleton), and
 // dist/app/index.html (the page the iOS and Android apps load; see capacitor.config.ts and NATIVE.md).
 import { build, context } from 'esbuild';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,7 +21,7 @@ const options = {
   write: false,
   legalComments: 'none',
   // Session 31: the GameAnalytics keys can come from the environment (GitHub secrets) instead of src/config/analytics.ts.
-  define: { 'process.env.NODE_ENV': '"production"', __GA_GAME_KEY__: JSON.stringify((process.env.GA_GAME_KEY ?? '').replace(/\s+/g, '')), __GA_SECRET_KEY__: JSON.stringify((process.env.GA_SECRET_KEY ?? '').replace(/\s+/g, '')), __GOD_MODE__: JSON.stringify(process.env.GOD_MODE === '1'), __CAMERA_STYLE__: JSON.stringify(process.env.CAMERA_STYLE ?? ''), __GA_BUILD__: JSON.stringify(process.env.GITHUB_RUN_NUMBER ? `1.0.${process.env.GITHUB_RUN_NUMBER}` : '') },
+  define: { 'process.env.NODE_ENV': '"production"', __GA_GAME_KEY__: JSON.stringify((process.env.GA_GAME_KEY ?? '').replace(/\s+/g, '')), __GA_SECRET_KEY__: JSON.stringify((process.env.GA_SECRET_KEY ?? '').replace(/\s+/g, '')), __GOD_MODE__: JSON.stringify(process.env.GOD_MODE === '1'), __REAL_CARRIAGE__: JSON.stringify(process.env.REAL === '1'), __CAMERA_STYLE__: JSON.stringify(process.env.CAMERA_STYLE ?? ''), __GA_BUILD__: JSON.stringify(process.env.GITHUB_RUN_NUMBER ? `1.0.${process.env.GITHUB_RUN_NUMBER}` : '') },
   logLevel: 'warning',
   // Sound samples ride inside the one HTML file.
   loader: { '.mp3': 'base64', '.jpg': 'base64', '.bin': 'base64', '.png': 'base64' },
@@ -62,6 +62,15 @@ function emit(result) {
   writeFileSync(resolve(root, 'dist/app/index.html'), page);
   const kb = (Buffer.byteLength(page) / 1024).toFixed(0);
   console.log(`Built dist/index.html and dist/night-express.html (${kb} KB)`);
+  // Graphics experiment: the photoreal carriage's baked files sit beside the page (src/world/RealCarriage.ts).
+  if (process.env.REAL === '1') {
+    const from = resolve(root, 'experiments/realism/game/out');
+    if (existsSync(from)) {
+      mkdirSync(resolve(root, 'dist/real'), { recursive: true });
+      for (const f of readdirSync(from)) copyFileSync(resolve(from, f), resolve(root, 'dist/real', f));
+      console.log(`Copied the photoreal carriage (${readdirSync(from).length} files) to dist/real`);
+    }
+  }
 }
 
 if (watch) {

@@ -6,6 +6,8 @@ from lib import box, cyl, lathe, pbr, principled, emission, apply, cube_uv, add_
 
 M = {}
 FZ = 1.05
+# Game export level of detail: coarser leaves, cushions and quilts (the bake keeps the look; the phone keeps its frame rate).
+LOW = False
 
 
 def setup(materials, fz):
@@ -66,7 +68,7 @@ def rbox(name, x0, y0, z0, x1, y1, z1, mat, r=0.01, segs=3):
 def leaf(name, length, width, curl, mat):
     """A single leaf: an outline lofted along a bending midrib, with a fold."""
     bm = bmesh.new()
-    n, m = 14, 4
+    n, m = (6, 2) if LOW else (14, 4)
     rows = []
     for i in range(n + 1):
         t = i / n
@@ -343,14 +345,14 @@ def sofa(name, xc, yc, length, mat):
 def pillow(name, x, y, z, w, d, h, mat, rot=0.0):
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=1)
-    bmesh.ops.subdivide_edges(bm, edges=bm.edges, cuts=6, use_grid_fill=True)
+    bmesh.ops.subdivide_edges(bm, edges=bm.edges, cuts=4 if LOW else 6, use_grid_fill=True)
     for v in bm.verts:
         p = v.co
         # pillows bulge in the middle and pinch at the corners
         bulge = (1 - (2 * p.x) ** 2) * (1 - (2 * p.y) ** 2)
         v.co = Vector((p.x * w, p.y * d, p.z * h * (0.25 + 0.95 * bulge)))
     ob = mesh_obj(name, bm, mat, smooth=True)
-    subsurf(ob, 2)
+    subsurf(ob, 1 if LOW else 2)
     ob.rotation_euler = (0.0, 0.0, rot)
     ob.location = (x, y, z + h * 0.6)
     cube_uv(ob, 0.25)
@@ -406,7 +408,8 @@ def duvet_cloth(name, x0, x1, y0, y1, ztop, mat, colliders, frames=45, overhang=
     sol = g.modifiers.new('thick', 'SOLIDIFY')
     sol.thickness = 0.035
     sol.offset = 1
-    subsurf(g, 1)
+    if not LOW:
+        subsurf(g, 1)
     g.data.materials.append(mat)
     cube_uv(g, 1.0)
     return g
