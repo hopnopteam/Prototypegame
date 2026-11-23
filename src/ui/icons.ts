@@ -29,7 +29,9 @@ export type IconName =
   // Session 38: a plate of sandwiches (food asked for in the rooms).
   | 'sandwich'
   // Session 40: a dining table to clear and wipe (a spray bottle and a sponge with suds); the conductor's phone (quick travel).
-  | 'wipe' | 'phone';
+  | 'wipe' | 'phone'
+  // Phase 4: the route map (the line's routes, done, active and to come).
+  | 'map';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -1129,6 +1131,36 @@ const ICONS: Record<IconName, Draw> = {
     c.lineWidth = 6;
     c.strokeStyle = INK;
     c.stroke();
+  },
+  map: (c) => {
+    // A folded map in three panels, a dotted line across it and a red pin at its end.
+    const panels: [number, string][] = [[12, '#F3E4C2'], [38, '#E6D3AA'], [64, '#F3E4C2']];
+    for (const [x, fill] of panels) {
+      c.beginPath();
+      c.moveTo(x, x === 38 ? 24 : 18);
+      c.lineTo(x + 26, x === 38 ? 18 : 24);
+      c.lineTo(x + 26, x === 38 ? 78 : 84);
+      c.lineTo(x, x === 38 ? 84 : 78);
+      c.closePath();
+      fillStroke(c, fill);
+    }
+    c.strokeStyle = '#2F7FB6';
+    c.lineWidth = 5;
+    c.setLineDash([7, 6]);
+    c.beginPath();
+    c.moveTo(20, 66);
+    c.bezierCurveTo(36, 40, 52, 70, 70, 42);
+    c.stroke();
+    c.setLineDash([]);
+    c.beginPath();
+    c.arc(72, 34, 9, Math.PI, 0);
+    c.lineTo(72, 50);
+    c.closePath();
+    fillStroke(c, '#D9463E');
+    c.beginPath();
+    c.arc(72, 34, 3.5, 0, Math.PI * 2);
+    c.fillStyle = CREAM;
+    c.fill();
   },
   calendar: (c) => {
     rr(c, 14, 20, 72, 66, 8);

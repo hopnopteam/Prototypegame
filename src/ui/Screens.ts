@@ -1,6 +1,6 @@
 import { carryOver } from '../sim/carryOver';
 import { DEBUG_JUMP, setDebugJump } from '../config/debugJump';
-import { ACTIVE_ROUTE } from '../config/routes';
+import { ACTIVE_ROUTE, ROUTES, UPCOMING_ROUTES } from '../config/routes';
 import { ANALYTICS } from '../config/analytics';
 import { MockAdService } from '../services/ads';
 import { CARRIAGE_CATALOGUE, CARRIAGE_ORDER, GEM_EXCHANGE, PRODUCTS, STATIONS, type PostcardArt, type ProductDef } from '../config/content';
@@ -8,7 +8,7 @@ import { CLASSES } from '../config/classes';
 import { AUDIO } from '../config/audio';
 import { ECONOMY, MONETIZATION_ENABLED } from '../config/economy';
 import { formatDuration, formatNumber } from '../core/math';
-import type { DoubleChoice } from '../gameplay/GameUi';
+import type { DoubleChoice, NextLineInfo } from '../gameplay/GameUi';
 import { INTERVIEWS, RIVALS_ENABLED } from '../config/press';
 import { conductorCost } from '../sim/meta';
 import { LIVERIES, liveryFor } from '../world/palette';
@@ -257,6 +257,7 @@ export class Screens {
     close = this.sheet('Menu', 'menu', [
       RIVALS_ENABLED ? row('trophy', 'League', `#${standing.rank} of ${standing.total}`, go(() => this.leagueSheet())) : null,
       row('star', 'Route level', `Level ${g.progression.level}`, go(() => this.progress())),
+      row('map', 'Route map', ACTIVE_ROUTE.name, go(() => this.routeMap())),
       g.objectives.visible ? row(g.objectives.visible.icon, 'Goal', `${g.objectives.visible.text} · ${Math.min(g.objectives.shown.progress, g.objectives.shown.target)}/${g.objectives.shown.target}`, go(() => this.goal())) : null,
       g.progression.isFeatureUnlocked('conductorUpgrades') ? row('conductor', 'Conductor', 'Upgrades and outfits', go(() => this.upgrades()), upgrades) : null,
       MONETIZATION_ENABLED ? null : row('paint', 'Paint Shop', 'Liveries for your train', go(() => this.paintSheet())),
@@ -267,6 +268,72 @@ export class Screens {
   }
 
   /** Session 37: the current goal, its progress and reward (goals no longer sit on the play screen). */
+  /**
+   * Phase 4, the offer to open the next line (owner: "players choose when to press it… warn them before they leave
+   * that unbought upgrades will be lost"): what goes along (gems, Rail Miles, the conductor), what stays behind with the
+   * route's train, and how many upgrades are still unbought. "Not yet" keeps the player on the route; the right rail's
+   * button brings the offer back.
+   */
+  nextLine(info: NextLineInfo, onBoard: () => void): void {
+    const keep = (iconName: IconName, text: string): HTMLElement => h('li', {}, icon(iconName, 22), text);
+    const c = info.conductor;
+    let close = (): void => undefined;
+    const board = h('button.btn.primary.big', { onclick: () => { close(); onBoard(); } }, icon('ticket', 24), `Open the ${info.to}`);
+    close = this.sheet(info.to, 'map', [
+      h('p.lead', { text: `The ${info.from} is complete. A new line is waiting along the coast: a new train, new stations, new guests.` }),
+      h('div.nl-cols', {},
+        h('div.nl-col.keep', {}, h('div.section-title', { text: 'Comes along' }), h('ul', {},
+          keep('gem', `${formatNumber(info.gems)} gems`),
+          keep('miles', `${formatNumber(info.railMiles)} Rail Miles`),
+          keep('conductor', `Conductor upgrades (speed ${c.speed}, carry ${c.capacity}, fares ${c.fareBonus})`),
+        )),
+        h('div.nl-col.stay', {}, h('div.section-title', { text: 'Stays behind' }), h('ul', {},
+          keep('cash', 'Your Fares'),
+          keep('carriage', 'The train, its staff and its upgrades'),
+          keep('star', 'The route level'),
+          keep('shoe', 'Your walking shoes'),
+        )),
+      ),
+      info.unbought > 0 ? h('div.nl-warn', { role: 'alert' }, icon('lock', 24), h('span', { text: `${info.unbought} upgrade${info.unbought === 1 ? '' : 's'} on the ${info.from} still unbought. They will be left behind.` })) : h('div.nl-done', {}, icon('check', 24), h('span', { text: 'Every upgrade bought. A perfect run!' })),
+      h('div.btn-row.col', {}, board, h('button.btn', { 'data-default': '', onclick: () => close() }, info.unbought > 0 ? 'Not yet, finish here first' : 'Not yet')),
+    ], { className: 'nextline-sheet', center: true });
+  }
+
+  /** Phase 4: the route map, every route of the line: done with its final stats, the one being played, and what is to come. */
+  routeMap(): void {
+    const g = this.game;
+    g.analytics.log('route_map_opened', { route: ACTIVE_ROUTE.id });
+    const cards: HTMLElement[] = [];
+    ROUTES.forEach((r, i) => {
+      const archive = g.data.routes[r.id];
+      const done = g.data.completedRoutes.includes(r.id);
+      const active = r.id === ACTIVE_ROUTE.id;
+      const status = active ? 'Now travelling' : done ? 'Complete' : 'Locked';
+      const stats = archive
+        ? h('div.rm-stats', {},
+          h('span', {}, icon('carriage', 18), `${archive.route.carriages.length} carriages`),
+          h('span', {}, icon('star', 18), `Level ${archive.route.level}`),
+          h('span', {}, icon('person', 18), `${formatNumber(archive.stats.guests)} guests`),
+          h('span', {}, icon('clock', 18), formatDuration(archive.stats.minutes * 60)))
+        : active
+          ? h('div.rm-stats', {},
+            h('span', {}, icon('carriage', 18), `${g.train.count} of ${r.maxCarriages} carriages`),
+            h('span', {}, icon('star', 18), `Level ${g.progression.level}`))
+          : null;
+      cards.push(h(`div.rm-card${active ? '.active' : done ? '.done' : '.locked'}` as 'div', {},
+        h('div.rm-num', { text: String(i + 1) }),
+        h('div.rm-body', {}, h('div.rm-name', { text: r.name }), h('div.rm-status', {}, done && !active ? icon('check', 18) : null, status), stats),
+      ));
+    });
+    UPCOMING_ROUTES.forEach((r, i) => {
+      cards.push(h('div.rm-card.soon', {},
+        h('div.rm-num', { text: String(ROUTES.length + i + 1) }),
+        h('div.rm-body', {}, h('div.rm-name.silhouette', { text: r.name }), h('div.rm-status', { text: 'Coming soon' })),
+      ));
+    });
+    this.sheet('Route map', 'map', [h('div.routemap', {}, ...cards)], { className: 'routemap-sheet' });
+  }
+
   goal(): void {
     const g = this.game;
     const def = g.objectives.visible;
@@ -798,6 +865,7 @@ export class Screens {
     let carriages = current?.carriages ?? CARRIAGE_ORDER.length;
     let tier = current?.tier ?? 0;
     let staffed = current?.staffed ?? false;
+    let route = current?.route ?? ACTIVE_ROUTE.id;
     const pick = <T,>(values: T[], label: (v: T) => string, get: () => T, set: (v: T) => void): HTMLElement => {
       const row = h('div.debug-pick');
       const buttons = values.map((v) => {
@@ -823,13 +891,16 @@ export class Screens {
       staffSwitch.classList.toggle('on', staffed);
     });
     this.sheet('Debug', 'wrench', [
+      // Phase 4: which route to open it on (each on its own save; a fresh one starts as if the route before was done).
+      h('div.section-title', { text: 'Route' }),
+      pick(ROUTES.map((r) => r.id), (v) => ROUTES.find((r) => r.id === v)?.name ?? v, () => route, (v) => (route = v)),
       h('div.section-title', { text: 'Carriages' }),
       pick(CARRIAGE_ORDER.map((_, i) => i + 1), (v) => String(v), () => carriages, (v) => { carriages = v; showList(); }),
       listEl,
       h('div.section-title', { text: 'Tier' }),
       pick([0, 1, 2, 3], (v) => (v === 0 ? 'Broken' : `Tier ${v}`), () => tier, (v) => (tier = v)),
       h('div.toggle', {}, 'Staffed (every helper hired)', staffSwitch),
-      h('button.btn.primary', { onclick: () => setDebugJump({ carriages, tier, staffed }) }, 'Open'),
+      h('button.btn.primary', { onclick: () => setDebugJump({ carriages, tier, staffed, ...(route !== ROUTES[0].id ? { route } : {}) }) }, 'Open'),
       current ? h('button.btn', { onclick: () => setDebugJump(null) }, 'Back to my game') : null,
       h('p', { style: { fontSize: '12px', opacity: '0.6' }, text: 'Plays on its own save; your progress is never touched.' }),
       h('div.section-title', { text: 'Pacing (Phase 3)' }),

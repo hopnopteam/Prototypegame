@@ -1,4 +1,6 @@
 import { Game, RouteReload, SAVE_KEY } from './gameplay/Game';
+import { ACTIVE_ROUTE } from './config/routes';
+import { TUNNEL_KEY } from './gameplay/RouteLine';
 import { CAMERA_STYLE } from './config/cameraStyle';
 import { CameraTuner } from './ui/CameraTuner';
 import { connectNative, restoreSave } from './services/native';
@@ -28,6 +30,9 @@ async function boot(): Promise<void> {
   const overlay = document.getElementById('ui');
   if (!canvas || !overlay) throw new Error('Night Express: missing #scene or #ui');
   const loader = new Loader(document.getElementById('loader'));
+  // Phase 4: the far end of the tunnel to a new line: the loading screen is the dark of the tunnel.
+  const tunnel = takeTunnel();
+  if (tunnel) loader.tunnel(ACTIVE_ROUTE.name);
   loader.progress(0.06);
 
   // In the app, a save the system cleared from the web view comes back from the app's own storage first.
@@ -100,6 +105,18 @@ async function boot(): Promise<void> {
   // moment the loading screen goes. `Game.playIntro` stays for a future trailer but is not called.
   game.paused = false;
   ui.screens.holdForTitle(false);
+  if (tunnel) ui.tunnelOut(ACTIVE_ROUTE.name, (seconds) => game.analytics.log('route_transition_skipped', { route: ACTIVE_ROUTE.id, seconds: Math.round(seconds * 10) / 10 }));
+}
+
+/** Phase 4: true once, on the load that follows opening a new line (RouteLine leaves the note on its way out). */
+function takeTunnel(): boolean {
+  try {
+    const id = sessionStorage.getItem(TUNNEL_KEY);
+    sessionStorage.removeItem(TUNNEL_KEY);
+    return id === ACTIVE_ROUTE.id;
+  } catch {
+    return false;
+  }
 }
 
 void boot();

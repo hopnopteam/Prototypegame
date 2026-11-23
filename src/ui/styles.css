@@ -1066,3 +1066,60 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 @keyframes wbOut { to { transform: scale(0.85); opacity: 0; } }
 @keyframes wbBill { from { transform: translate(var(--x), -80px) rotate(var(--r)); opacity: 0; } }
 @keyframes wbPulse { to { opacity: 0.95; } }
+
+/* ─── Phase 4: moving along the line ─────────────────────────────────────────────────────────────────────────── */
+/* The tunnel: dark, with lamps rushing past toward the viewer, the next line's name glowing in the middle. */
+.tunnel { position: fixed; inset: 0; z-index: 190; pointer-events: auto; overflow: hidden; display: grid; place-items: center;
+  background: radial-gradient(ellipse 60% 45% at 50% 50%, #1b1410 0%, #070505 70%); }
+.tunnel.in { animation: tunnelDark 1.5s ease-in both; }
+.tunnel.gone { opacity: 0; transition: opacity 380ms ease-out; pointer-events: none; }
+@keyframes tunnelDark { from { opacity: 0; } to { opacity: 1; } }
+.tunnel-lamps, .loader.tunnel::before { position: absolute; inset: -20%; content: '';
+  background: repeating-conic-gradient(from 0deg at 50% 50%, transparent 0deg 13deg, #f6c66a22 13deg 15deg);
+  -webkit-mask: radial-gradient(circle at 50% 50%, transparent 10%, #000 30%, transparent 75%);
+  mask: radial-gradient(circle at 50% 50%, transparent 10%, #000 30%, transparent 75%);
+  animation: tunnelRush 0.55s linear infinite; }
+@keyframes tunnelRush { from { transform: scale(0.82); opacity: 0.6; } to { transform: scale(1.18); opacity: 1; } }
+.tunnel-name { position: relative; font: 800 26px/1.1 var(--font); color: #FFE7B0; letter-spacing: 0.06em; text-align: center; padding: 0 24px;
+  text-shadow: 0 0 18px #f6c66a99, 0 2px 0 #3a2410; animation: tunnelName 1.4s ease-out both; }
+@keyframes tunnelName { 0% { opacity: 0; transform: scale(0.7); } 60% { opacity: 1; } 100% { opacity: 1; transform: scale(1); } }
+/* Out of the tunnel: the mouth opens into the light, then everything fades to the sunny coast. */
+.tunnel.out { animation: tunnelFade 3.5s ease-in both; }
+.tunnel-mouth { position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%;
+  background: radial-gradient(circle, #fffaf0 0%, #ffe4a8 45%, #ffd27a00 72%); animation: tunnelMouth 3.5s cubic-bezier(.6,0,.4,1) both; }
+@keyframes tunnelMouth { 0%, 25% { transform: scale(0.1); } 85% { transform: scale(40); } 100% { transform: scale(46); } }
+@keyframes tunnelFade { 0%, 78% { opacity: 1; } 100% { opacity: 0; } }
+.loader.tunnel { background: radial-gradient(ellipse 60% 45% at 50% 50%, #1b1410 0%, #070505 70%); }
+.loader.tunnel .loader-moon { display: none; }
+.loader.tunnel .loader-word { font-size: 34px; color: #FFE7B0; text-shadow: 0 0 18px #f6c66a99; }
+
+/* The rail's button for the next line, once the route is complete. */
+.side button.nextline { background: linear-gradient(180deg, #FFE08A, #F2A93B); }
+.side button.nextline.glow { animation: nextlineGlow 1.6s ease-in-out infinite; }
+@keyframes nextlineGlow { 0%, 100% { box-shadow: 0 0 0 0 #ffd36a00, var(--bevel, 0 0 0 transparent); } 50% { box-shadow: 0 0 0 6px #ffd36a88, var(--bevel, 0 0 0 transparent); } }
+
+/* The offer to open the next line: what comes along, what stays behind, the unbought warning. */
+.nextline-sheet .lead { margin: 0 0 10px; }
+.nl-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.nl-col ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.nl-col li { display: flex; align-items: center; gap: 6px; }
+.nl-col.stay li { opacity: 0.75; }
+.nl-warn, .nl-done { display: flex; align-items: center; gap: 8px; margin: 12px 0 4px; padding: 9px 11px; border-radius: 12px; font-weight: 700; font-size: 13px; }
+.nl-warn { background: #FCE3D6; color: #8A2E1C; border: 2px solid #E9A487; }
+.nl-done { background: #E2F2D8; color: #2E6A1E; border: 2px solid #A9D08F; }
+.btn-row.col { flex-direction: column; align-items: stretch; gap: 8px; margin-top: 10px; }
+.btn.big { font-size: 17px; padding-block: 12px; }
+
+/* The route map: one card per route, done, active and to come. */
+.routemap { display: grid; gap: 10px; }
+.rm-card { display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 14px;
+  border: 3px solid var(--ink, #2B2230); background: #FFF6E4; box-shadow: 0 4px 0 #2B223033; }
+.rm-card.active { background: linear-gradient(180deg, #E6F4FF, #CBE6FA); }
+.rm-card.done { background: linear-gradient(180deg, #EAF6DF, #D4EBC2); }
+.rm-card.soon { background: #3A3448; color: #CFC6DE; border-style: dashed; }
+.rm-num { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font: 800 18px var(--font); background: #2B2230; color: #FFF6E4; }
+.rm-name { font: 800 16px/1.2 var(--font); }
+.rm-name.silhouette { color: transparent; text-shadow: 0 0 0 #8E86A3; filter: blur(0.4px); }
+.rm-status { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; opacity: 0.8; margin-top: 2px; }
+.rm-stats { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; font-size: 12px; }
+.rm-stats span { display: inline-flex; align-items: center; gap: 3px; }

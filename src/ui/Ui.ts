@@ -8,7 +8,7 @@ import { damp, formatClock, formatNumber } from '../core/math';
 import type { StationResult } from '../gameplay/events';
 import type { CoachAnchor } from '../gameplay/Coach';
 import type { Game } from '../gameplay/Game';
-import type { DoubleChoice, GameUi } from '../gameplay/GameUi';
+import type { DoubleChoice, GameUi, NextLineInfo } from '../gameplay/GameUi';
 import type { OfferView } from '../gameplay/Monetization';
 import type { FrontPageReward, LeagueRow, WireNews } from '../gameplay/Press';
 import type { FloatKind } from '../gameplay/UiApi';
@@ -111,6 +111,9 @@ const RESULT_HEADLINES: Record<0 | 1 | 2 | 3, string> = {
   2: 'Great stop!',
   3: 'Perfect stop!',
 };
+/** Phase 4: how long the way into the tunnel and the way out of it play (ms; the loading screen sits between). */
+const TUNNEL_IN_MS = 1500;
+const TUNNEL_OUT_MS = 3500;
 /** A new postcard's stamp waits for the arrival banner, then shows this long beside the toasts. */
 const POSTCARD_TOAST_DELAY_MS = 2900;
 const POSTCARD_TOAST_SECONDS = 3.6;
@@ -255,7 +258,10 @@ export class Ui implements GameUi {
     this.chestBtn = button('chest', 'Station Master\'s Chest', () => this.openChest());
     this.chestBtn.classList.add('chest');
     this.chestBtn.appendChild(this.chestTime);
-    const side = h('div.side', {}, MONETIZATION_ENABLED ? shop : null, this.chestBtn, this.boostLayer);
+    // Phase 4: once the route is complete, the way on to the next line (the player chooses when).
+    this.nextLineBtn = button('map', 'Open the next line', () => this.game.routeLine.offer());
+    this.nextLineBtn.classList.add('nextline', 'glow');
+    const side = h('div.side', {}, MONETIZATION_ENABLED ? shop : null, this.nextLineBtn, this.chestBtn, this.boostLayer);
 
     this.floatLayer = h('div.floats');
     this.burst.value = h('span', { text: '+0' });
@@ -516,6 +522,7 @@ export class Ui implements GameUi {
     setVisible(hud.menuDot, dailyCount > 0);
     setText(hud.menuDot, String(dailyCount));
 
+    setVisible(this.nextLineBtn, g.routeLine.canOpen && !g.ui.sheetOpen);
     // The Station Master's Chest: shown from its level, glowing when full, a countdown (h:mm) until then.
     const chestOpen = g.meta.chestUnlocked() && !g.flow.opening;
     setVisible(this.chestBtn, chestOpen);
@@ -1147,6 +1154,7 @@ export class Ui implements GameUi {
   }
 
   private readonly chestBtn: HTMLButtonElement;
+  private readonly nextLineBtn: HTMLButtonElement;
   private readonly chestTime: HTMLElement;
 
   /** Opens a full chest: the cash and gems fly to their counters with the chest's chime; otherwise a soft tock. */
@@ -1415,6 +1423,43 @@ export class Ui implements GameUi {
 
   showFrontPage(item: NewsItem, reward: FrontPageReward, gemCost: number, onCollect: (choice: DoubleChoice) => void): void {
     this.pressScreens.frontPage(item, reward, gemCost, onCollect);
+  }
+
+  showNextLine(info: NextLineInfo, onBoard: () => void): void {
+    this.screens.nextLine(info, onBoard);
+  }
+
+  /**
+   * Phase 4, the way into the tunnel (about 1.5 s): the screen darkens as tunnel lamps rush past, the next line's name
+   * comes up, then `onDark` (the save moves on and the page loads again; the loading screen carries the tunnel on).
+   */
+  tunnelIn(routeName: string, onDark: () => void): void {
+    const el = h('div.tunnel.in', { 'aria-hidden': 'true' }, h('div.tunnel-lamps'), h('div.tunnel-name', { text: routeName }));
+    this.root.appendChild(el);
+    this.game.audio.play('whistle');
+    window.setTimeout(onDark, TUNNEL_IN_MS);
+  }
+
+  /**
+   * Phase 4, out of the tunnel onto the new line (about 3.5 s, a tap skips it): dark with the lamps still rushing past,
+   * then the tunnel mouth opens into the light and the line's name rides in on a ribbon. `onSkip` hears a skip and how
+   * many seconds in it came.
+   */
+  tunnelOut(routeName: string, onSkip: (seconds: number) => void): void {
+    const el = h('div.tunnel.out', { 'aria-hidden': 'true' }, h('div.tunnel-lamps'), h('div.tunnel-mouth'), h('div.tunnel-name', { text: routeName }));
+    const started = performance.now();
+    let gone = false;
+    const finish = (skipped: boolean): void => {
+      if (gone) return;
+      gone = true;
+      if (skipped) onSkip((performance.now() - started) / 1000);
+      el.classList.add('gone');
+      window.setTimeout(() => el.remove(), 400);
+      this.stationBanner(routeName);
+    };
+    el.addEventListener('pointerdown', () => finish(true));
+    this.root.appendChild(el);
+    window.setTimeout(() => finish(false), TUNNEL_OUT_MS);
   }
 
 

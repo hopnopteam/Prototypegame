@@ -13,6 +13,8 @@ export interface DebugJump {
   carriages: number;
   tier: number;
   staffed: boolean;
+  /** Phase 4: the route to play it on (left out: the save's own; `?jump=8:3:s@riviera`). */
+  route?: string;
 }
 
 /** Where the Debug sheet keeps the chosen jump between reloads. */
@@ -20,10 +22,12 @@ export const DEBUG_JUMP_KEY = 'nightexpress.jump';
 
 function parseJump(raw: string | null): DebugJump | null {
   if (!raw) return null;
-  const [n, t, s] = raw.split(':');
-  const carriages = Math.max(1, Math.round(Number(n) || 1));
+  const [spec, route] = raw.split('@');
+  const [n, t, s] = spec.split(':');
+  // Phase 4: 0 carriages plays the jump's save as it is (the far end of opening the next line from a jump).
+  const carriages = Number(n) === 0 ? 0 : Math.max(1, Math.round(Number(n) || 1));
   const tier = Math.max(0, Math.min(3, Math.round(Number(t) || 0)));
-  return { carriages, tier, staffed: s === 's' };
+  return { carriages, tier, staffed: s === 's', ...(route ? { route } : {}) };
 }
 
 function stored(): string | null {
@@ -40,10 +44,19 @@ function fromAddress(): string | null {
 
 export const DEBUG_JUMP: DebugJump | null = parseJump(fromAddress() ?? stored());
 
+/** Remembers a jump for the next load without reloading (Phase 4: the caller reloads). */
+export function setDebugJumpQuietly(jump: DebugJump): void {
+  try {
+    localStorage.setItem(DEBUG_JUMP_KEY, `${jump.carriages}:${jump.tier}${jump.staffed ? ':s' : ''}${jump.route ? `@${jump.route}` : ''}`);
+  } catch {
+    // Without storage the jump cannot follow; the reload opens the jump as it was.
+  }
+}
+
 /** Opens the game at a jump (null: back to the player's own game), by reloading the page. */
 export function setDebugJump(jump: DebugJump | null): void {
   try {
-    if (jump) localStorage.setItem(DEBUG_JUMP_KEY, `${jump.carriages}:${jump.tier}${jump.staffed ? ':s' : ''}`);
+    if (jump) localStorage.setItem(DEBUG_JUMP_KEY, `${jump.carriages}:${jump.tier}${jump.staffed ? ':s' : ''}${jump.route ? `@${jump.route}` : ''}`);
     else localStorage.removeItem(DEBUG_JUMP_KEY);
   } catch {
     // Without storage the address (`?jump=`) is the only way in.

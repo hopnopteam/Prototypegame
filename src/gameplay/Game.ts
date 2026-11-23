@@ -71,6 +71,7 @@ import { Meta } from './Meta';
 import { Monetization } from './Monetization';
 import { Player } from './Player';
 import { Press } from './Press';
+import { RouteLine } from './RouteLine';
 import { Rush } from './Rush';
 import { HandWork } from './HandWork';
 import { Objectives } from './Objectives';
@@ -174,6 +175,8 @@ export class Game implements World {
   readonly guidance: Guidance;
   readonly meta: Meta;
   readonly press: Press;
+  /** Phase 4: moving along the line (the route completed, the next one opened). */
+  readonly routeLine: RouteLine;
   readonly rush: Rush;
   readonly handWork: HandWork;
   readonly objectives: Objectives;
@@ -229,7 +232,7 @@ export class Game implements World {
       if (reloadOnceFor(this.data.route.id)) throw new RouteReload();
     }
     if (ROUTE_PARAM && this.save.outcome === 'newPlayer') seedRouteStart(this.data);
-    if (DEBUG_JUMP) applyDebugJump(this.data, DEBUG_JUMP);
+    if (DEBUG_JUMP && DEBUG_JUMP.carriages > 0) applyDebugJump(this.data, DEBUG_JUMP);
     // Session 30 (owner: "remove developer tools"): no switch for them in Settings any more; `?dev=1` turns them on
     // for a build being tested (the test scripts set the flag themselves).
     if (typeof location !== 'undefined') this.data.settings.devTools = new URLSearchParams(location.search).get('dev') === '1';
@@ -346,6 +349,7 @@ export class Game implements World {
     this.reveal = new Reveal(this);
     this.meta = new Meta(this);
     this.press = new Press(this, ui);
+    this.routeLine = new RouteLine(this);
     this.rush = new Rush(this);
     this.handWork = new HandWork(this);
     this.objectives = new Objectives(this);
@@ -380,6 +384,7 @@ export class Game implements World {
     this.rush.init();
     this.handWork.init();
     this.objectives.init();
+    this.routeLine.init();
     this.feedback.init();
     const door = this.map.doors()[0];
     this.cash.create('bonus', door.inside.x - 0.55, door.inside.z + 0.5);
@@ -686,6 +691,7 @@ export class Game implements World {
     this.coach.update(dt);
     this.monetization.update(dt);
     this.press.update(dt);
+    this.routeLine.update(dt);
     this.rush.update(dt);
     this.objectives.update(dt);
     this.feedback.update(dt);
@@ -1317,6 +1323,7 @@ function applyDebugJump(data: SaveData, jump: DebugJump): void {
     }
   }
   const route = data.route;
+  route.id = ACTIVE_ROUTE.id;
   route.carriages = carriages;
   route.unlocked = unlocked;
   route.partial = {};

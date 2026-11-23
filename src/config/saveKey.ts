@@ -5,10 +5,12 @@ import { GOD, GOD_MODE } from './god';
  * Phase 4, debug: `?route=<id>` plays that route on a save of its own (a fresh one starts as if the route before it had
  * just been completed; `Game` seeds it), so a route can be tested and paced without playing the ones before it.
  */
-export const ROUTE_PARAM: string | null = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('route');
+const URL_ROUTE: string | null = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('route');
+/** The route forced for testing: the address's, or the Debug sheet's jump (which plays on the jump's own save). */
+export const ROUTE_PARAM: string | null = URL_ROUTE ?? DEBUG_JUMP?.route ?? null;
 
 /** Where the save lives (localStorage, mirrored into the app's own storage on iOS and Android). */
-export const SAVE_KEY = 'nightexpress.save' + (GOD_MODE ? GOD.saveSuffix : '') + (DEBUG_JUMP ? '.jump' : '') + (ROUTE_PARAM ? `.route-${ROUTE_PARAM}` : '');
+export const SAVE_KEY = 'nightexpress.save' + (GOD_MODE ? GOD.saveSuffix : '') + (DEBUG_JUMP ? '.jump' : '') + (URL_ROUTE ? `.route-${URL_ROUTE}` : '');
 
 /**
  * Phase 4: the route the save is on, read before anything else loads (the route decides the carriages, the stations,
