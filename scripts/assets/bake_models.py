@@ -20,7 +20,8 @@ OUT_BIN = os.path.join(ROOT, 'assets', 'models', 'models.bin')
 OUT_TS = os.path.join(ROOT, 'src', 'world', 'models', 'modelIndex.ts')
 
 # id → source under assets/models/src: a path, or {src, paint (material name → sRGB hex), linear (OBJ Kd is linear),
-# flip, hue: bake-time repaint of hue bands, see `repaint`}. Keep ids stable: the game names models by them. Flat-coloured models are painted in the KEY colours below, so
+# flip, hue: bake-time repaint of hue bands, see `repaint`; node: bake only the root node of that name, moved to the
+# origin; maps: material name → texture path beside the file, for packs that ship their atlas unlinked}. Keep ids stable: the game names models by them. Flat-coloured models are painted in the KEY colours below, so
 # the game recolours each part by its hue band (world/models/library.ts `KEY`, `paint`).
 WOOD, COVER, CUSHION, METAL, LINEN, BLANKET, DARK = '#8A4A37', '#FBB856', '#68A8D4', '#7A7A7A', '#F2F2F2', '#4E8DBA', '#3A2A22'
 QH = 'quaternius-house/'
@@ -249,6 +250,65 @@ MODELS = {
     'petal': {"src": "quaternius-stylized/Petal_1.gltf", "hue": [{"h": [0, 360], "s": [0.2, 1], "to": "#C8243A"}]},
     'rose': {"src": "kenney-nature/flower_redA.glb", "paint": {"grass": "#4E8A3A", "colorRed": "#C8243A"}},
     'present': "kaykit-holiday/present_A_red.gltf",
+    # Route 2, second pass (docs/riviera-assets/README.md, "Second pass"): what the first pass had no model for.
+    # d1mee Free Low Poly Summer Pack (free licence, see its License.txt); loafbrr_1 Inflatables and plaggy Pool Ladder
+    # (CC0, OpenGameArt; the inflatables ship as one file, so each piece names its node and its atlas); Tiny Treats
+    # Bubbly Bathroom 1.1 in its own folder (its atlas differs from 1.0); the rest from kits already in use (CC0).
+    # Coast scenery
+    'villa_f': {'src': 'kenney-suburban/building-type-a.glb', 'hue': [{'h': [90, 170], 's': [0.25, 1], 'to': '#A65640'}]},
+    'villa_h': {'src': 'kenney-suburban/building-type-h.glb', 'hue': [{'h': [90, 170], 's': [0.25, 1], 'to': '#A65640'}]},
+    'rock_islet': 'kenney-pirate/rocks-sand-a.glb',
+    'rock_islet_b': 'kenney-pirate/rocks-sand-b.glb',
+    'rock_flat': 'kenney-nature/rock_largeC.glb',
+    'jetty': 'kenney-pirate/structure-platform-dock.glb',
+    'speedboat': 'kenney-watercraft/boat-speed-c.glb',
+    'buoy': 'kenney-watercraft/buoy-flag.glb',
+    'beach_umbrella_blue': 'd1mee-summer/Umbrella_1.gltf',
+    'beach_umbrella_red': 'd1mee-summer/Umbrella_5.gltf',
+    'beach_umbrella_orange': 'd1mee-summer/Umbrella_4.gltf',
+    'beach_umbrella_shut': 'd1mee-summer/Closed_umbrella_1.gltf',
+    # Station
+    'sun_lounger': 'd1mee-summer/Sun_lounger_1.gltf',
+    'surfboard_green': 'd1mee-summer/Surfboard_1.gltf',
+    'surfboard_purple': 'd1mee-summer/Surfboard_2.gltf',
+    'surfboard_teal': 'd1mee-summer/Surfboard_3.gltf',
+    'beach_towel_orange': 'd1mee-summer/Towel_1.gltf',
+    'beach_towel_green': 'd1mee-summer/Towel_3.gltf',
+    'beach_towel_blue': 'd1mee-summer/Towel_5.gltf',
+    'lifebuoy': 'd1mee-summer/Lifebuoy.gltf',
+    'lifeguard_tower': 'd1mee-summer/LifeGuardTower.gltf',
+    'cooler_red': 'd1mee-summer/Box_3.gltf',
+    'beach_ball_stripes': 'd1mee-summer/Ball_1.gltf',
+    'starfish': 'd1mee-summer/Star_1.gltf',
+    'pot_ridged': 'tinytreats-plants/pot_C_large.gltf',
+    # Kids' Play Car
+    'ball_pit': {'src': 'loafbrr-inflatables/inflatables.glb', 'node': 'inflatable_BallPit_A', 'maps': {'inflatables': 'Textures/inflatables_Diffuse.png', 'Balls': 'Textures/Balls_Diffuse.png'}},
+    'slide_inflatable': {'src': 'loafbrr-inflatables/inflatables.glb', 'node': 'inflatable_Slide_A', 'maps': {'inflatables': 'Textures/inflatables_Diffuse.png', 'Balls': 'Textures/Balls_Diffuse.png'}},
+    'sand_spade': 'tinytreats-playground/shovel_A.gltf',
+    'soft_arch': 'tinytreats-playground/tire_pink.gltf',
+    'toy_block_blue': 'kaykit-blocks/colored_block_blue.gltf',
+    'toy_block_green': 'kaykit-blocks/striped_block_green.gltf',
+    'puzzle_cube': 'kaykit-mixed/puzzlecube_complete.gltf',
+    'play_ball_red': 'kaykit-platformer/ball_red.gltf',
+    'play_ball_blue': 'kaykit-platformer/ball_blue.gltf',
+    # Spa Car
+    'spa_bench': 'kenney-furniture/benchCushionLow.obj',
+    'spa_towel_blue': 'tinytreats-bathroom-1.1/towel_blue.gltf',
+    'spa_towel_yellow': 'tinytreats-bathroom-1.1/towel_yellow.gltf',
+    'soap_dish': 'tinytreats-bathroom-1.1/soap_dish_pink.gltf',
+    'spa_stone': 'kenney-nature/stone_smallFlatA.glb',
+    'spa_stone_b': 'kenney-nature/stone_smallFlatB.glb',
+    # Pool Car
+    'pool_ladder': 'plaggy-pool-ladder/PoolLadder.obj',
+    'ring_duck': {'src': 'loafbrr-inflatables/inflatables.glb', 'node': 'inflatable_Tube_Duck_A', 'maps': {'inflatables': 'Textures/inflatables_Diffuse.png', 'Balls': 'Textures/Balls_Diffuse.png'}},
+    'ring_float': {'src': 'loafbrr-inflatables/inflatables.glb', 'node': 'inflatable_Tube_A', 'maps': {'inflatables': 'Textures/inflatables_Diffuse.png', 'Balls': 'Textures/Balls_Diffuse.png'}},
+    'ring_lifesaver': {'src': 'loafbrr-inflatables/inflatables.glb', 'node': 'inflatable_Tube_lifesaver', 'maps': {'inflatables': 'Textures/inflatables_Diffuse.png', 'Balls': 'Textures/Balls_Diffuse.png'}},
+    'ring_horseshoe': {'src': 'loafbrr-inflatables/inflatables.glb', 'node': 'inflatable_Floater_A', 'maps': {'inflatables': 'Textures/inflatables_Diffuse.png', 'Balls': 'Textures/Balls_Diffuse.png'}},
+    'pool_float': {'src': 'loafbrr-inflatables/inflatables.glb', 'node': 'inflatable_Lounger_A', 'maps': {'inflatables': 'Textures/inflatables_Diffuse.png', 'Balls': 'Textures/Balls_Diffuse.png'}},
+    'float_dolphin': {'src': 'loafbrr-inflatables/inflatables.glb', 'node': 'inflatable_Dolphin', 'maps': {'inflatables': 'Textures/inflatables_Diffuse.png', 'Balls': 'Textures/Balls_Diffuse.png'}},
+    # Ice-cream bar
+    'ice_scoop_choc': 'kenney-food/ice-cream-scoop-chocolate.glb',
+    'popsicle_choc': 'kenney-food/popsicle-chocolate.glb',
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}
@@ -345,7 +405,7 @@ def load_gltf(path):
     return g, bufs, image
 
 
-def bake_gltf(path, paint):
+def bake_gltf(path, paint, only=None, maps=None):
     g, bufs, image = load_gltf(path)
     textures = {}
     pos, nor, col, idx = [], [], [], []
@@ -358,6 +418,12 @@ def bake_gltf(path, paint):
         pbr = mat.get('pbrMetallicRoughness', {})
         factor = pbr.get('baseColorFactor', [1, 1, 1, 1])
         tex = None
+        if maps and name in maps:
+            # a pack that ships its atlas beside the file instead of linking it (`maps`: material → image path)
+            key = 'map:' + name
+            if key not in textures:
+                textures[key] = Image.open(os.path.join(os.path.dirname(path), maps[name])).convert('RGB')
+            return factor, textures[key]
         if 'baseColorTexture' in pbr:
             src = g['textures'][pbr['baseColorTexture']['index']]['source']
             if src not in textures:
@@ -378,6 +444,7 @@ def bake_gltf(path, paint):
                 n = read_accessor(g, bufs, prim['attributes']['NORMAL']) if 'NORMAL' in prim['attributes'] else None
                 uv = read_accessor(g, bufs, prim['attributes']['TEXCOORD_0']) if 'TEXCOORD_0' in prim['attributes'] else None
                 factor, tex = material_color(prim.get('material'))
+                vc = read_accessor(g, bufs, prim['attributes']['COLOR_0']) if 'COLOR_0' in prim['attributes'] else None
                 flat = None
                 if tex is None:
                     # an override is sRGB already; a glTF factor is linear
@@ -393,7 +460,10 @@ def bake_gltf(path, paint):
                         nor.append(tuple(c / l for c in v))
                     else:
                         nor.append(None)
-                    if flat is not None:
+                    if vc is not None and tex is None and factor[0] != 'srgb':
+                        # vertex-coloured models (no texture): the vertex colour (linear) times the material colour
+                        col.append(tuple(min(255, round(lin_to_srgb(float(vc[k][i]) * factor[i]))) for i in range(3)))
+                    elif flat is not None:
                         col.append(flat)
                     elif uv:
                         u, w = uv[k]
@@ -408,7 +478,16 @@ def bake_gltf(path, paint):
 
     ident = ([[1, 0, 0], [0, 1, 0], [0, 0, 1]], [0, 0, 0])
     scene = g['scenes'][g.get('scene', 0)] if g.get('scenes') else {'nodes': [i for i in range(len(g['nodes']))]}
-    for ni in scene['nodes']:
+    roots = scene['nodes']
+    if only:
+        # one object out of a pack shipped as a single file (`node`: the root node's name), placed at the origin
+        roots = [i for i, n in enumerate(g['nodes']) if n.get('name') == only]
+        if not roots:
+            raise SystemExit(f'{path}: no node named {only}')
+        node = dict(g['nodes'][roots[0]])
+        node.pop('translation', None)
+        g['nodes'][roots[0]] = node
+    for ni in roots:
         visit(ni, ident)
     fill_normals(pos, nor, idx)
     return pos, nor, col, idx
@@ -498,7 +577,7 @@ def bake(spec):
     if path.lower().endswith('.obj'):
         out = bake_obj(path, paint, spec.get('linear', False))
     else:
-        out = bake_gltf(path, paint)
+        out = bake_gltf(path, paint, spec.get('node'), spec.get('maps'))
     if spec.get('hue'):
         out = (out[0], out[1], repaint(out[2], spec['hue']), out[3])
     if spec.get('flip'):

@@ -1,0 +1,3 @@
+Inflatables by loafbrr_1, https://opengameart.org/content/inflatables
+Licence: CC0 1.0 (public domain dedication), as stated on the OpenGameArt page.
+The two diffuse atlases are resized to 512 px; nothing else is changed.

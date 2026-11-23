@@ -32,3 +32,14 @@ CC0 needs no attribution; thank you, Kay and Isa Lousberg, Quaternius, Kenney an
 | Tiny Treats Pretty Park, House Plants, Fun Playground, Pleasant Picnic, Bubbly Bathroom — https://isalousberg.itch.io / https://tinytreats.itch.io | Isa Lousberg | CC0 1.0 | fountain, pots, slide, spring horse, seesaw, sandcastle, bucket, cool box, radio, candle, slippers, towel, spa bottle and plant, rubber duck, outdoor shower |
 | KayKit Platformer Pack, Block Bits, Furniture Bits, Mixed Bag 1, Holiday Bits, Restaurant Bits — https://kaylousberg.itch.io | Kay Lousberg | CC0 1.0 | beach ball, heart, toy blocks, play rugs, kids' table, chair and cushion, spa cabinet, plushie, present, menu board |
 | Ultimate Platformer Pack, 150+ LowPoly Nature Models, Stylized Nature MegaKit (free) — https://quaternius.itch.io | Quaternius | CC0 1.0 | crab, lemon tree (fruit bush, repainted), boulder, rose petal |
+
+## Route 2, second pass (docs/riviera-assets/README.md, "Second pass")
+
+| Source | Author | Licence | Used for |
+|---|---|---|---|
+| Free Low Poly Summer Pack — https://d1mee.itch.io/free-low-poly-summer-pack | d1mee | Free for personal and commercial projects, changes allowed, attribution appreciated but not required (`src/d1mee-summer/License.txt`) | beach umbrellas, sun lounger, surfboards, beach towels, lifebuoy, lifeguard tower, red cool box, striped beach ball, starfish |
+| Inflatables — https://opengameart.org/content/inflatables | loafbrr_1 | CC0 1.0 | ball pit, inflatable slide, swim rings, neck float, lilo, inflatable dolphin |
+| Pool Ladder — https://opengameart.org/content/pool-ladder | plaggy | CC0 1.0 | pool ladder |
+| Kenney City Kit Suburban, Pirate Kit, Nature Kit, Watercraft Kit, Furniture Kit, Food Kit; Tiny Treats House Plants, Fun Playground, Bubbly Bathroom 1.1; KayKit Block Bits, Mixed Bag 1, Platformer Pack (as above) | Kenney; Isa Lousberg; Kay Lousberg | CC0 1.0 | two more villas, rocky islets, flat rock, jetty, speedboat, buoy, ridged pot, spade, soft-play arch, toy blocks, puzzle cube, play balls, spa bench, folded towels, soap dish, spa stones, chocolate scoop and popsicle |
+
+Thank you, d1mee, loafbrr_1 and plaggy.
