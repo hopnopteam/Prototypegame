@@ -389,6 +389,8 @@ export class TrainState {
     let capacity = this.lobbyRackCapacity;
     // A Luggage Car coupled before session 26 keeps its racks.
     if (this.indexOfType('luggage') !== null) capacity += this.w.econ.facilities.luggageCarCapacity;
+    // Phase 4: the coast's Surfboard Rack.
+    capacity += this.w.stationPerks().rackPlaces;
     return capacity;
   }
 

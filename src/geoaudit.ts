@@ -327,6 +327,7 @@ const HOLDS: Record<string, string[]> = {
   // Phase 2: the restock cart's load lies in it; the booth's canopy stands on the ticket counter; the fruit stall holds its goods.
   'platform:restockCart': ['platform:restockGoods', 'platform:cartLoad'],
   'platform:restockGoods': ['platform:cartLoad'],
+  'platform:surfRack': ['platform:surfBoards'],
   'platform:cartAwning': ['platform:restockCart', 'platform:restockGoods', 'platform:cartLoad'],
   'platform:boothPost': ['platform:ticketStand'],
   'platform:boothCanopy': ['platform:boothPost'],
@@ -447,7 +448,7 @@ function scene(tier: number, locked: boolean, views: CarriageView[] = [], extras
   platform.build(trainRearZ(types.length), 2, 3);
   platform.setMarketing({ posters: true, band: true }, 'The Night Owl', '#5E8A6A', '#EFE6D2');
   // Phase 2: every station upgrade standing on the platform, the second gate at a door well along the train.
-  platform.setUpgrades(new Set(['benches', 'booth', 'cart', 'helper', 'trolley', 'kiosk', 'clock', 'gate2']), 70);
+  platform.setUpgrades(new Set(['benches', 'booth', 'cart', 'helper', 'trolley', 'kiosk', 'clock', 'gate2', 'surfrack']), 70);
   platform.group.visible = true;
   root.add(platform.group);
   extras.push(platform.group);

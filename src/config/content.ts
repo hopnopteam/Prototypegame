@@ -862,6 +862,8 @@ export interface StationUpgradeDef {
     kiosk?: boolean;
     /** Phase 2: a second ticket gate at the second entrance, its clerk selling to travellers for the back half. */
     secondDoor?: boolean;
+    /** Phase 4, the Surfboard Rack: more places for bags and boards (a surfboard takes two). */
+    rackPlaces?: number;
   };
   /**
    * Phase 2: where its tile waits on the platform and where the piece stands once bought: `dx` metres out from the
@@ -881,7 +883,7 @@ export interface StationUpgradeDef {
  * route picks and orders its own (`station.upgrades` in config/routes.ts); ids become 'st.<key>'. Prices are the
  * ones the existing upgrades already had (Phase 2 changed none); the new ones are first guesses (Phase 3 notes).
  */
-export const STATION_UPGRADES: StationUpgradeDef[] = [
+const STATION_UPGRADE_DEFS: StationUpgradeDef[] = [
   // Session 55 (owner: "I have no idea what each upgrade does… things are placed randomly and have no place of their
   // own"): seven upgrades, each something you can see working, each in its own bay of the platform (platformLayout.ts
   // `BAYS`). Advertising (posters → billboards → band) and Smarten the Train (flower boxes → … → red carpet) are one
@@ -899,7 +901,19 @@ export const STATION_UPGRADES: StationUpgradeDef[] = [
   { key: 'nameboards', kind: 'exterior', label: 'Name Signs', price: 520, stars: 4, requires: ['st.lining', 'couple_4'], effect: 'Fares +5%', bonus: { fares: 0.05 }, at: { dx: 5.65, z: 10.6 } },
   { key: 'gate2', kind: 'platform', label: 'Second Door', price: 600, stars: 5, requires: ['couple_4'], effect: 'A second ticket office', bonus: { secondDoor: true }, at: { dx: 3.3, z: 2.4, door: true }, minCarriages: 5 },
   { key: 'redcarpet', kind: 'exterior', label: 'Red Carpet', price: 700, stars: 5, requires: ['st.nameboards'], effect: 'Stop bonus +50%', bonus: { stationBonus: 0.5 }, at: { dx: 5.65, z: 10.6 } },
+  // Phase 4, the coast only (owner: "bring back the Surfboard Rack only on Route 2"): a timber rack along the platform
+  // edge behind the supply cart, four boards standing in it; the train holds four more bags (two boards).
+  { key: 'surfrack', kind: 'platform', label: 'Surfboard Rack', price: 280, stars: 4, requires: ['couple_2'], effect: 'Room for 2 more boards', bonus: { rackPlaces: 4 }, at: { dx: 1.0, z: 9.3 }, size: { w: 0.9, d: 1.8 } },
 ];
+
+/**
+ * The station upgrades as the active route dresses them (Phase 4: the coast keeps the same upgrades under its own
+ * names, `station.dress` in config/routes.ts). Prices, places and bonuses are the same on every route.
+ */
+export const STATION_UPGRADES: StationUpgradeDef[] = STATION_UPGRADE_DEFS.map((u) => {
+  const d = ACTIVE_ROUTE.station.dress?.[u.key];
+  return d ? { ...u, label: d.label, effect: d.effect ?? u.effect } : u;
+});
 
 /** Pre-v3 saves grew in this fixed order; the migration maps their ids onto carriage slots. */
 export const LEGACY_TRAIN: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper'];

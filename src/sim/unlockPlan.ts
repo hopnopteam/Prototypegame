@@ -162,11 +162,13 @@ export interface StationPerks {
   helper: boolean;
   kiosk: boolean;
   secondDoor: boolean;
+  /** Phase 4: extra places on the train's luggage racks (the Surfboard Rack). */
+  rackPlaces: number;
 }
 
 /** What the station upgrades bought so far add up to (each bonus is additive). */
 export function stationPerks(isUnlocked: (id: string) => boolean): StationPerks {
-  const perks: StationPerks = { tips: 0, fares: 0, passengers: 0, vip: 0, stationBonus: 0, fastTickets: false, patience: 1, helper: false, kiosk: false, secondDoor: false };
+  const perks: StationPerks = { tips: 0, fares: 0, passengers: 0, vip: 0, stationBonus: 0, fastTickets: false, patience: 1, helper: false, kiosk: false, secondDoor: false, rackPlaces: 0 };
   for (const u of STATION_UPGRADES) {
     if (!isUnlocked(`st.${u.key}`)) continue;
     perks.tips += u.bonus.tips ?? 0;
@@ -179,6 +181,7 @@ export function stationPerks(isUnlocked: (id: string) => boolean): StationPerks 
     perks.helper ||= u.bonus.helper ?? false;
     perks.kiosk ||= u.bonus.kiosk ?? false;
     perks.secondDoor ||= u.bonus.secondDoor ?? false;
+    perks.rackPlaces += u.bonus.rackPlaces ?? 0;
   }
   return perks;
 }

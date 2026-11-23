@@ -7,6 +7,7 @@ import { carriageOriginZ, DEFAULT_WINDOW_BAND, DOOR_Z0, DOOR_Z1, getLayout, HALF
 import { MATERIALS } from './materials';
 import { PALETTE } from './palette';
 import { letteringTexture } from './sprites';
+import { ACTIVE_ROUTE } from '../config/routes';
 
 /** Which exterior upgrades the train has (bought at station stops). */
 export interface ExteriorState {
@@ -18,11 +19,13 @@ export interface ExteriorState {
 }
 
 const FLAT: PartStyle = { shade: 1 };
-const FLOWERS = [PALETTE.blossom, PALETTE.mustard, PALETTE.linen, PALETTE.coral];
+const FLOWERS = ACTIVE_ROUTE.exterior?.flowers ?? [PALETTE.blossom, PALETTE.mustard, PALETTE.linen, PALETTE.coral];
+/** The trim line along the cornice (gold; Phase 4: the route's own colour). */
+const TRIM = ACTIVE_ROUTE.exterior?.trim ?? PALETTE.gold;
 /** Red carpet: how far it reaches onto the platform, and its colours. */
 const CARPET_LENGTH = 2.0;
-const CARPET_RED = '#B8434E';
-const CARPET_EDGE = '#D9B25A';
+const CARPET_RED = ACTIVE_ROUTE.exterior?.carpet ?? '#B8434E';
+const CARPET_EDGE = ACTIVE_ROUTE.exterior?.carpetEdge ?? '#D9B25A';
 /**
  * Fix list 5.7: the name is sign-written on a letterboard in the carriage's own paint that hangs from the roof edge
  * outward, sloping toward the camera like a fascia (the side itself is seen almost edge-on from above, so a name
@@ -132,8 +135,8 @@ export class ExteriorView {
         }
         if (state.lining) {
           // Gold along the cornice (the outline you see from above) and a fine line under the windows.
-          s.box(face + out * 0.02, top + 0.095, oz + (wall.z0 + wall.z1) / 2, 0.075, 0.016, len, PALETTE.gold, 0, FLAT);
-          s.box(face + out * 0.004, FLOOR_Y + WINDOW_Y0 - 0.16, oz + (wall.z0 + wall.z1) / 2, 0.012, 0.035, len, PALETTE.gold, 0, FLAT);
+          s.box(face + out * 0.02, top + 0.095, oz + (wall.z0 + wall.z1) / 2, 0.075, 0.016, len, TRIM, 0, FLAT);
+          s.box(face + out * 0.004, FLOOR_Y + WINDOW_Y0 - 0.16, oz + (wall.z0 + wall.z1) / 2, 0.012, 0.035, len, TRIM, 0, FLAT);
         }
       }
       if (state.nameboards && longest) {

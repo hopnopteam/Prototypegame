@@ -95,6 +95,8 @@ export interface RouteDef {
   mess?: string[];
   /** Phase 4: the stamp's line along the top of every postcard ("COUNTRYSIDE LINE"). */
   postcardLine?: string;
+  /** Phase 4: the colours of the train's bought dressing on this route (window-box flowers, the trim line, the carpet). */
+  exterior?: { flowers?: string[]; trim?: string; carpet?: string; carpetEdge?: string };
 }
 
 /** Phase 4: a carriage type's name and lines on one route. */
@@ -177,6 +179,10 @@ export interface RouteStationRules {
   upgrades: string[];
   /** Station upgrade tiles on show at once (never more than two at a stop). */
   tilesAtOnce: number;
+  /** Phase 4: how the platform's supply cart looks (a plank barrow, or the coast's ice-cream cart). */
+  supplyCart?: 'barrow' | 'icecream';
+  /** Phase 4: the route's own names for the shared station upgrades (by key; the effect line optional). */
+  dress?: Record<string, { label: string; effect?: string }>;
   /** Stops between special events (a new one comes after `[min, max]` ordinary stops, never two in a row). */
   eventEvery: [number, number];
   /** The first stop an event may come at. */
@@ -388,6 +394,8 @@ export const RIVIERA_COAST: RouteDef = {
   // Who travels on the coast: surfers and beach families in Basic, sunbathers and families in Comfort, honeymooners.
   archetypeWeights: { student: 1, backpacker: 2, surfer: 3, beachFamily: 2, tourist: 2, sunbather: 3, grandma: 1, family: 2 },
   mess: ['sand', 'shell', 'flipflops'],
+  // Bougainvillea in the window boxes, a sea-blue line along the cornice and a blue carpet at the door.
+  exterior: { flowers: ['#C8327A', '#E0559A', '#F2F0EA', '#B02A6B'], trim: '#2F7FC1', carpet: '#2E6FB0', carpetEdge: '#F2F0EA' },
   economy: {
     ...COUNTRYSIDE_EXPRESS.economy,
     priceMultiplier: 2.5,
@@ -400,6 +408,22 @@ export const RIVIERA_COAST: RouteDef = {
     ...COUNTRYSIDE_EXPRESS.station,
     // The same seven upgrades in coast dress (config/content.ts `STATION_DRESS`), and the Surfboard Rack.
     upgrades: ['posters', 'booth', 'benches', 'windowboxes', 'kiosk', 'billboard', 'helper', 'surfrack', 'lamps', 'lining', 'band', 'nameboards', 'gate2', 'redcarpet'],
+    supplyCart: 'icecream',
+    dress: {
+      posters: { label: 'Beach Posters' },
+      booth: { label: 'Ticket Kiosk' },
+      benches: { label: 'Deckchairs' },
+      windowboxes: { label: 'Bougainvillea' },
+      kiosk: { label: 'Lemon Stall' },
+      billboard: { label: 'Billboards' },
+      helper: { label: 'Supply Porter' },
+      lamps: { label: 'Lanterns' },
+      lining: { label: 'Blue Trim' },
+      band: { label: 'Mandolin Band' },
+      nameboards: { label: 'Name Signs' },
+      gate2: { label: 'Second Door' },
+      redcarpet: { label: 'Blue Carpet' },
+    },
     events: [
       ...COUNTRYSIDE_EXPRESS.station.events.filter((e) => e.kind !== 'harvest' && e.kind !== 'sheep'),
       // The coast's own: a party on the sand at Coral Beach, a surf contest (surfers with boards), a heatwave.

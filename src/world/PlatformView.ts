@@ -3,6 +3,7 @@ import { FLOOR_Y } from './CarriageView';
 import { GeoBuilder, mergePlanes } from './geo';
 import { carriageOriginZ, DOOR_Z0, DOOR_Z1, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0 } from './layout';
 import { STATION_UPGRADES } from '../config/content';
+import { ACTIVE_ROUTE } from '../config/routes';
 import { BAYS, PLATFORM } from './platformLayout';
 import { MATERIALS, PATTERN } from './materials';
 import { PALETTE } from './palette';
@@ -289,6 +290,8 @@ export class PlatformView {
     }
     this.kioskOwned = owned.has('kiosk');
     if (this.kioskOwned) buildFruitBarrow(b, { x: at('kiosk').x + 0.4, z: at('kiosk').z });
+    // Phase 4, the coast's Surfboard Rack: a low timber rack along the platform edge, four boards lying in it.
+    if (owned.has('surfrack')) buildSurfRack(b, at('surfrack'));
     const dz = gateZ !== null ? gateZ - LOBBY_DOOR_Z : 0;
     if (owned.has('gate2') && gateZ !== null) buildTicketStand(b, lamps, dz, true);
     for (const mesh of [this.upgradeMesh, this.upgradeLamps]) {
@@ -1030,7 +1033,77 @@ function buildBarrow(b: GeoBuilder): void {
  * Phase 2, the restock cart: a wooden handcart along the platform edge loaded with what the train runs on: folded
  * towels in stacks, toilet rolls in a wicker basket and snack boxes, its handle toward the rear.
  */
+/** Board colours in the Surfboard Rack (bottom to top), each with a white stripe down its middle. */
+const SURF_RACK_BOARDS = ['#3E8FC2', '#F2B134', '#E0559A', '#4FB89A'];
+
+/**
+ * Phase 4, the Surfboard Rack: two timber A-frames joined by rails, low enough that the train's windows stay in view
+ * over it, with four boards lying in two tiers (nose toward the front of the train).
+ */
+function buildSurfRack(b: GeoBuilder, at: { x: number; z: number }): void {
+  const y = FLOOR_Y;
+  const len = 1.7;
+  const z0 = at.z - len / 2 + 0.12;
+  const z1 = at.z + len / 2 - 0.12;
+  b.object('platform:surfRack');
+  for (const z of [z0, z1]) {
+    for (const dx of [-0.32, 0.32]) b.box(at.x + dx, y + 0.45, z, 0.07, 0.9, 0.07, '#B98B5A', 0, { shade: 0.85, detail: 'wood' });
+    b.box(at.x, y + 0.86, z, 0.72, 0.07, 0.08, '#B98B5A', 0, { shade: 0.85, detail: 'wood' });
+    for (const ty of [0.3, 0.62]) b.box(at.x, y + ty, z, 0.72, 0.05, 0.08, '#9C7046', 0, { shade: 0.85, detail: 'wood' });
+  }
+  for (const ty of [0.3, 0.62]) for (const dx of [-0.32, 0.32]) b.box(at.x + dx, y + ty - 0.04, at.z, 0.04, 0.04, z1 - z0, '#9C7046', 0, { shade: 0.85 });
+  b.endObject();
+  b.object('platform:surfBoards');
+  SURF_RACK_BOARDS.forEach((colour, i) => {
+    const bx = at.x + (i % 2 === 0 ? -0.17 : 0.17);
+    const by = y + (i < 2 ? 0.35 : 0.67);
+    b.add(new THREE.SphereGeometry(0.5, 16, 8).scale(0.3, 0.05, len), colour, bx, by, at.z, 0, 0, 0, { shade: 0.95, surface: 'varnish' });
+    b.box(bx, by + 0.026, at.z, 0.035, 0.004, len - 0.4, '#FFFFFF', 0, { shade: 1 });
+  });
+  b.endObject();
+}
+
+/**
+ * Phase 4 (owner: "the ice-cream cart becomes the normal supply cart on Route 2"): on a route whose supply cart is an
+ * ice-cream cart, the same cart in cream and sea blue under a short striped awning, cones on its lid beside the boxes.
+ */
+function buildIceCreamCart(b: GeoBuilder): void {
+  const r = PLATFORM.restock;
+  const cx = (r.x0 + r.x1) / 2;
+  const cz = (r.z0 + r.z1) / 2;
+  const w = r.x1 - r.x0;
+  const d = r.z1 - r.z0 - 0.3;
+  const y = FLOOR_Y;
+  const top = y + 0.78;
+  b.object('platform:restockCart');
+  b.rounded(cx, y + 0.5, cz, w, 0.56, d, 0.06, '#F4EEDF', { shade: 0.9, surface: 'paint' });
+  b.box(cx + w / 2 + 0.004, y + 0.5, cz, 0.008, 0.2, d - 0.16, '#2F7FC1', 0, { shade: 1 });
+  b.box(cx, top + 0.01, cz, w + 0.04, 0.03, d + 0.04, '#2F7FC1', 0, { shade: 0.95, surface: 'paint' });
+  for (const sx of [-1, 1]) {
+    const wx = cx + sx * (w / 2 + 0.04);
+    b.cylinder(wx, y + 0.22, cz + 0.1, 0.22, 0.22, 0.05, '#2E2A30', 18, 'x', { shade: 0.9, surface: 'iron' });
+    b.cylinder(wx + sx * 0.012, y + 0.22, cz + 0.1, 0.06, 0.06, 0.065, '#F4EEDF', 10, 'x', { shade: 1 });
+  }
+  // A short awning on two poles at the handle end, white and sea-blue stripes.
+  for (const dx of [-w / 2 + 0.05, w / 2 - 0.05]) b.cylinder(cx + dx, top + 0.28, cz + d / 2 - 0.05, 0.015, 0.015, 0.56, PALETTE.chrome, 6, 'y', { surface: 'steel' });
+  b.box(cx, top + 0.58, cz + d / 2 - 0.25, w + 0.1, 0.03, 0.5, '#2F7FC1', 0, { pattern: PATTERN.stripesX, color2: '#FFFFFF', scale: 0.12, shade: 0.95, surface: 'fabric' });
+  for (const dx of [-0.22, 0.22]) b.add(new THREE.BoxGeometry(0.04, 0.04, 0.5), PALETTE.chrome, cx + dx, y + 0.72, cz + d / 2 + 0.2, -0.5, 0, 0, { shade: 0.9, surface: 'steel' });
+  b.endObject();
+  b.object('platform:restockGoods');
+  const pe = modelEntry('parcel');
+  const ps = 0.34 / (pe.max[0] - pe.min[0]);
+  for (const [dz, rot] of [[-0.38, 0.1], [0.0, -0.08]] as const) b.model('parcel', cx, top + 0.025, cz + dz, rot, ps, ps, ps, { surface: 'matte', shade: 0.9 });
+  const ie = modelEntry('ice_cream');
+  const is = 0.18 / (ie.max[1] - ie.min[1]);
+  for (const dx of [-0.15, 0.0, 0.15]) b.model('ice_cream', cx + dx, top + 0.025, cz + 0.32, 0, is, is, is, { surface: 'matte', shade: 0.9 });
+  b.endObject();
+}
+
 function buildRestockCart(b: GeoBuilder): void {
+  if (ACTIVE_ROUTE.station.supplyCart === 'icecream') {
+    buildIceCreamCart(b);
+    return;
+  }
   const r = PLATFORM.restock;
   const cx = (r.x0 + r.x1) / 2;
   const cz = (r.z0 + r.z1) / 2;
