@@ -461,7 +461,8 @@ export const RIVIERA_COAST: RouteDef = {
   station: {
     ...COUNTRYSIDE_EXPRESS.station,
     // The same seven upgrades in coast dress (config/content.ts `STATION_DRESS`), and the Surfboard Rack.
-    upgrades: ['posters', 'booth', 'benches', 'windowboxes', 'kiosk', 'billboard', 'helper', 'surfrack', 'lamps', 'lining', 'band', 'nameboards', 'gate2', 'redcarpet'],
+    // No Second Door: the coast's train has one entrance (the Family Sleeper's second desk is Route 1's).
+    upgrades: ['posters', 'booth', 'benches', 'windowboxes', 'kiosk', 'billboard', 'helper', 'surfrack', 'lamps', 'lining', 'band', 'nameboards', 'redcarpet'],
     supplyCart: 'icecream',
     dress: {
       posters: { label: 'Beach Posters' },
@@ -475,7 +476,6 @@ export const RIVIERA_COAST: RouteDef = {
       lining: { label: 'Blue Trim' },
       band: { label: 'Mandolin Band' },
       nameboards: { label: 'Name Signs' },
-      gate2: { label: 'Second Door' },
       redcarpet: { label: 'Blue Carpet' },
     },
     events: [
