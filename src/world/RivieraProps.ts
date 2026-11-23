@@ -4,6 +4,7 @@ import type { GeoBuilder, PartStyle } from './geo';
 import type { PropDef } from './layout';
 import { PATTERN } from './materials';
 import { PALETTE, shadeHex, type CarriageTheme } from './palette';
+import { modelEntry, type ModelId } from './models/library';
 
 /**
  * Phase 4, the Riviera Coast Line's new carriages: the Kids' Play Car (a puppet theatre, the gelato freezer, six play
@@ -22,6 +23,20 @@ const WATER = 0.36;
 
 /** Bright toy colours (the play car's balls, blocks and poufs). */
 const TOYS = ['#F25C54', '#F7B32B', '#4FA8E0', '#7CCB7A', '#B07CE8', '#FF9F6E'];
+
+/**
+ * A model (the Riviera's CC0 kits, merged for Route 2) fitted inside a rect at its own proportions, no taller than
+ * `maxH`, its front (+z) turned to face the room across x (`out`), centred at (cx, cz) on the floor (or `y`).
+ */
+function fit(b: GeoBuilder, id: ModelId, cx: number, cz: number, w: number, d: number, out: number, maxH: number, y = Y): void {
+  const e = modelEntry(id);
+  const mx = e.max[0] - e.min[0];
+  const my = e.max[1] - e.min[1];
+  const mz = e.max[2] - e.min[2];
+  // Turned a quarter, the model's depth runs across x and its width along z.
+  const s = Math.min(maxH / my, (w - 0.04) / mz, (d - 0.04) / mx);
+  b.model(id, cx, y, cz, (out > 0 ? 1 : -1) * Math.PI / 2, s, s, s, { surface: 'paint', shade: 0.92 });
+}
 
 /** Wood by tier: weathered, honey, walnut, then dark walnut. */
 function wood(tier: number): string {
@@ -213,6 +228,7 @@ function buildPlay(b: GeoBuilder, prop: PropDef, tier: number): void {
   switch (prop.variant) {
     case 'ballpit': {
       const rad = Math.min(w, d) / 2 - 0.08;
+      if (tier >= 1) fit(b, 'plushie', cx + out * (rad - 0.05), cz + rad * 0.6, 0.22, 0.22, out, 0.2, y + 0.18);
       b.add(new THREE.TorusGeometry(rad - 0.08, 0.09, 8, 20), dull('#4FA8E0'), cx, y + 0.1, cz, Math.PI / 2, 0, 0, { shade: 0.9, surface: 'paint' });
       let k = 3;
       for (let i = 0; i < 22; i++) {
@@ -223,37 +239,23 @@ function buildPlay(b: GeoBuilder, prop: PropDef, tier: number): void {
       }
       break;
     }
-    case 'slide': {
-      // A ladder at the wall, the platform, and the chute running down toward the room.
-      const lx = back + out * 0.18;
-      for (const s of [-1, 1]) b.box(lx, y + 0.45, r.z0 + 0.3 + s * 0.16, 0.04, 0.9, 0.04, dull('#F7B32B'), 0, { surface: 'paint' });
-      for (let i = 1; i < 5; i++) b.box(lx, y + i * 0.18, r.z0 + 0.3, 0.03, 0.025, 0.32, dull('#F7B32B'), 0, { surface: 'paint' });
-      b.box(lx + out * 0.1, y + 0.9, r.z0 + 0.3, 0.3, 0.05, 0.4, dull('#F25C54'), 0, { surface: 'paint' });
-      const len = Math.min(d - 0.5, 0.95);
-      b.add(new THREE.BoxGeometry(0.34, 0.04, len), dull('#4FA8E0'), lx + out * 0.12, y + 0.48, r.z0 + 0.5 + len / 2, -0.78, 0, 0, { shade: 0.9, surface: 'paint' });
+    case 'slide':
+      // Tiny Treats' playground slide (run down: an old one, the same shape dulled by the mat round it).
+      fit(b, 'slide', cx, cz, w, d, -out, 1.05, y);
       break;
-    }
-    case 'horse': {
-      // A rocking horse on curved runners.
-      const body = dull('#F2EEE6');
-      for (const s of [-1, 1]) b.add(new THREE.TorusGeometry(0.42, 0.018, 6, 18, Math.PI * 0.5), dull('#C9473F'), cx + s * 0.12, y + 0.46, cz, 0, Math.PI / 2, Math.PI * 0.75, { surface: 'paint' });
-      b.rounded(cx, y + 0.42, cz, 0.18, 0.2, 0.48, 0.08, body, { shade: 0.9, surface: 'paint' });
-      b.rounded(cx, y + 0.6, cz - 0.24, 0.12, 0.26, 0.14, 0.05, body, { shade: 0.9, surface: 'paint' });
-      b.box(cx, y + 0.66, cz - 0.17, 0.04, 0.2, 0.06, dull('#8B5A3C'), 0, FLAT);
-      for (const s of [-1, 1]) b.box(cx + s * 0.05, y + 0.27, cz - 0.15, 0.04, 0.16, 0.04, body, 0, FLAT);
-      for (const s of [-1, 1]) b.box(cx + s * 0.05, y + 0.27, cz + 0.17, 0.04, 0.16, 0.04, body, 0, FLAT);
-      b.box(cx, y + 0.54, cz + 0.02, 0.2, 0.03, 0.16, dull('#C9473F'), 0, FLAT);
+    case 'horse':
+      // A spring rocking horse (Tiny Treats').
+      fit(b, 'spring_horse', cx, cz, w * 0.8, d * 0.8, out, 0.8, y);
       break;
-    }
     case 'blocks': {
-      // A low table with towers of building blocks, two little chairs.
-      b.box(cx, y + 0.3, cz, w - 0.3, 0.04, d - 0.4, dull('#F7F4EE'), 0, { surface: 'paint' });
-      for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) b.box(cx + dx * (w / 2 - 0.2), y + 0.14, cz + dz * (d / 2 - 0.25), 0.04, 0.28, 0.04, dull('#7CCB7A'), 0, FLAT);
-      for (let i = 0; i < 9; i++) {
-        const tx = cx - 0.18 + (i % 3) * 0.18;
-        const tz = cz - 0.14 + Math.floor(i / 3) * 0.14;
-        const n = 1 + (i % 3);
-        for (let j = 0; j < n; j++) b.box(tx, y + 0.35 + j * 0.06, tz, 0.06, 0.06, 0.06, dull(TOYS[(i + j) % TOYS.length]), j * 0.3, FLAT);
+      // A little play table with towers of toy blocks on it and two small chairs (KayKit).
+      fit(b, 'kids_table', cx, cz, w * 0.62, d * 0.56, out, 0.42, y);
+      for (const s2 of [-1, 1]) fit(b, 'kids_chair', cx, cz + s2 * (d / 2 - 0.2), 0.32, 0.3, out, 0.44, y);
+      const top = y + 0.42;
+      for (let i = 0; i < 6; i++) {
+        const tx = cx - 0.1 + (i % 3) * 0.1;
+        const tz = cz - 0.06 + Math.floor(i / 3) * 0.12;
+        for (let j = 0; j <= i % 3; j++) fit(b, i % 2 ? 'toy_block_stripe' : 'toy_block', tx, tz, 0.07, 0.07, 1, 0.065, top + j * 0.065);
       }
       break;
     }
@@ -313,4 +315,10 @@ function buildPool(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme: Carri
   for (const s of [-1, 1]) b.add(new THREE.TorusGeometry(0.12, 0.016, 6, 10, Math.PI), rail, r.x1 - 0.06, Y + top + 0.04, lz + s * 0.2, 0, Math.PI / 2, 0, { surface: 'steel' });
   for (const s of [-1, 1]) b.cylinder(r.x1 - wall - 0.08, Y + 0.2, lz + s * 0.2, 0.016, 0.016, 0.4, rail, 6, 'y', { surface: 'steel' });
   if (tier >= 1) for (let i = 0; i < 4; i++) lamps.box(r.x0 + wall + 0.006, Y + 0.16, r.z0 + 0.8 + (r.z1 - r.z0 - 1.6) * (i / 3), 0.01, 0.06, 0.16, '#DFF6FF', 0, FLAT);
+  // Rubber ducks bobbing on the water (from the Makeover), and a beach ball floating at Luxury.
+  if (tier >= 2) {
+    fit(b, 'rubber_duck', r.x0 + 0.5, r.z0 + 1.6, 0.2, 0.2, 1, 0.13, Y + WATER - 0.02);
+    fit(b, 'rubber_duck', r.x0 + 0.9, r.z1 - 2.2, 0.2, 0.2, -1, 0.13, Y + WATER - 0.02);
+  }
+  if (tier >= 3) fit(b, 'beach_ball', r.x0 + 0.7, (r.z0 + r.z1) / 2, 0.3, 0.3, 1, 0.26, Y + WATER - 0.06);
 }

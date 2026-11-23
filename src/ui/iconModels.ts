@@ -19,6 +19,11 @@ export const ICON_MODELS: readonly { name: IconName; parts: IconPart[]; build?: 
   { name: 'meal', parts: [{ src: 'kaykit-restaurant/food_dinner.gltf' }] },
   { name: 'cocktail', parts: [{ src: 'kenney-food/cocktail.glb' }] },
   { name: 'breakfast', parts: [{ src: 'tinytreats-bakery/plate.gltf', height: 0.06 }, { src: 'tinytreats-baked/croissant.gltf', height: 0.22, y: 0.04, x: -0.05 }, { src: 'tinytreats-bakery/mug_B.gltf', height: 0.3, x: 0.42, z: -0.25 }] },
+  // Phase 4, the Riviera (Kenney's Food Kit): a smoothie, gelato in a cone, grilled fish with lemon, a lemonade.
+  { name: 'smoothie', parts: [{ src: 'kenney-food/frappe.glb' }] },
+  { name: 'icecream', parts: [{ src: 'kenney-food/ice-cream-cne.glb' }, { src: 'kenney-food/ice-cream-scoop-mint.glb', height: 0.42, y: 0.66 }] },
+  { name: 'seafood', parts: [{ src: 'tinytreats-bakery/plate.gltf', height: 0.06 }, { src: 'kenney-food/fish.glb', height: 0.3, y: 0.05, rotY: 1.2 }, { src: 'kenney-food/lemon-half.glb', height: 0.16, x: 0.42, z: 0.3, y: 0.04 }] },
+  { name: 'lemonade', parts: [{ src: 'kenney-food/soda-glass.glb' }, { src: 'kenney-food/lemon.glb', height: 0.3, x: 0.45, z: 0.25 }] },
   // Session 51b: the rest of the world's icons, built in three.js in the same rounded style (src/iconBuilders.ts).
   { name: 'coffee', parts: [], build: true },
   { name: 'latte', parts: [], build: true },

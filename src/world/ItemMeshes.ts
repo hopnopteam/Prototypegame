@@ -157,26 +157,20 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       put(b, 'plate', 0, 0, 0, 0.02, [key('ttBlue', PALETTE.porcelain)]);
       put(b, 'sandwich', 0, 0.015, 0, 0.11, [], 'matte');
       break;
-    // Phase 4, the Riviera. A mango smoothie in a tall glass with a striped straw and an orange slice.
+    // Phase 4, the Riviera (Kenney's Food Kit, merged for Route 2): a smoothie with its straw, a gelato cone with a scoop
+    // in a cup, a grilled fish and half a lemon on a white plate.
     case 'smoothie':
-      b.cylinder(0, 0.09, 0, 0.05, 0.04, 0.18, '#F6A84A', 14, 'y', { shade: 0.95, surface: 'glass' });
-      b.cylinder(0, 0.183, 0, 0.052, 0.052, 0.012, '#FFD27A', 14, 'y', { shade: 1 });
-      b.cylinder(0.02, 0.22, 0, 0.006, 0.006, 0.12, '#E8525E', 6, 'y', { shade: 1 });
-      b.add(new THREE.CylinderGeometry(0.035, 0.035, 0.008, 12, 1, false, 0, Math.PI), '#FF9F2E', -0.05, 0.17, 0, Math.PI / 2, 0, 0, { shade: 1 });
+      put(b, 'smoothie', 0, 0, 0, 0.22, [], 'glass');
       break;
     case 'icecream':
-      // A gelato cone with two scoops, in a holder.
-      b.add(new THREE.ConeGeometry(0.04, 0.12, 10), '#E2A75A', 0, 0.08, 0, Math.PI, 0, 0, { shade: 0.9 });
-      b.sphere(0, 0.13, 0, 0.045, '#A8D98A', 1, 1, { shade: 0.95 });
-      b.sphere(0, 0.18, 0, 0.04, '#F49AB4', 1, 1, { shade: 0.95 });
-      b.cylinder(0, 0.01, 0, 0.05, 0.05, 0.02, PALETTE.porcelain, 12, 'y', { shade: 1 });
+      put(b, 'ice_cup', 0, 0, 0, 0.08, [], 'matte');
+      put(b, 'ice_cone', 0.12, 0, 0.02, 0.15, [], 'matte');
+      put(b, 'ice_scoop', 0.12, 0.13, 0.02, 0.07, [], 'matte');
       break;
     case 'seafood':
-      // A grilled fish on a white plate, a lemon wedge beside it.
-      b.cylinder(0, 0.01, 0, 0.16, 0.15, 0.02, PALETTE.porcelain, 18, 'y', { shade: 1, surface: 'ceramic' });
-      b.add(new THREE.SphereGeometry(0.5, 12, 8).scale(0.22, 0.05, 0.08), '#E9A36A', -0.01, 0.045, 0, 0, 0.3, 0, { shade: 0.9 });
-      b.cone(0.11, 0.045, -0.04, 0.035, 0.05, '#E9A36A', 6, { shade: 0.9 });
-      b.sphere(-0.08, 0.04, 0.07, 0.03, '#F5D22E', 1, 0.7, { shade: 1 });
+      put(b, 'plate', 0, 0, 0, 0.02, [key('ttBlue', PALETTE.porcelain)]);
+      put(b, 'fish', -0.01, 0.015, 0, 0.06, [], 'matte', 1.3);
+      put(b, 'lemon_half', 0.1, 0.015, 0.07, 0.04, [], 'matte');
       break;
     case 'robe':
       // A fluffy white robe, folded, its blue belt on top.
@@ -184,9 +178,9 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       b.box(0, 0.122, 0, 0.43, 0.012, 0.05, '#7FC1D9', 0, { shade: 1 });
       break;
     case 'lemonade':
-      // A tall glass of lemonade, a lemon slice on its rim.
-      b.cylinder(0, 0.08, 0, 0.045, 0.04, 0.16, '#FFF19A', 14, 'y', { shade: 0.95, surface: 'glass' });
-      b.add(new THREE.CylinderGeometry(0.035, 0.035, 0.008, 12, 1, false, 0, Math.PI), '#F5D22E', 0.045, 0.16, 0, Math.PI / 2, 0, 0, { shade: 1 });
+      // A fruit soda glass of lemonade, a whole lemon beside it.
+      put(b, 'soda_glass', 0, 0, 0, 0.18, [], 'glass');
+      put(b, 'lemon', 0.12, 0, 0.03, 0.07, [], 'matte');
       break;
     case 'aloe':
       // A pump bottle of aloe gel.
