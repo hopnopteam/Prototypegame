@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { CharacterView } from './CharacterView';
-import { MODEL_EXT, REAL_CARRIAGE } from './RealCarriage';
+import { applyLook, MODEL_EXT, REAL_CARRIAGE, realScene } from './RealCarriage';
 
 /**
  * Graphics experiment: the conductor as a realistic rigged figure to go with the photoreal carriage. A Ready Player
@@ -27,13 +27,13 @@ let current = '';
 let host: CharacterView | null = null;
 let hidden: THREE.Object3D[] = [];
 
-export function attachRealConductor(scene: THREE.Scene, view: CharacterView): void {
+export function attachRealConductor(_scene: THREE.Scene, view: CharacterView): void {
   if (!REAL_CARRIAGE) return;
   host = view;
-  void load(scene);
+  void load();
 }
 
-async function load(scene: THREE.Scene): Promise<void> {
+async function load(): Promise<void> {
   try {
     const loader = new GLTFLoader();
     const names = ['idle', 'walk', 'run'];
@@ -46,13 +46,14 @@ async function load(scene: THREE.Scene): Promise<void> {
     avatar.traverse((o) => {
       if (!(o instanceof THREE.Mesh)) return;
       o.frustumCulled = false;
-      o.castShadow = false;
+      o.castShadow = true;
       const name = o.name;
       if (/Headwear|Icosphere/i.test(name)) o.visible = false;
       const mat = o.material as THREE.MeshStandardMaterial;
       if (/Outfit_Top|Outfit_Bottom/.test(name) && mat.map) mat.map = redye(mat.map, NAVY);
       if (/Outfit_Footwear/.test(name) && mat.map) mat.map = redye(mat.map, [[0, [4, 4, 5]], [1, [40, 36, 36]]]);
       if (/Outfit/.test(name)) mat.roughness = Math.max(mat.roughness, 0.6);
+      applyLook(mat);
     });
     addCap(avatar);
     mixer = new THREE.AnimationMixer(avatar);
@@ -71,7 +72,8 @@ async function load(scene: THREE.Scene): Promise<void> {
       actions[names[i]] = mixer!.clipAction(new THREE.AnimationClip(names[i], clip.duration, tracks));
     });
     play('idle');
-    scene.add(root);
+    // In the photoreal scene: lit by its sun and sky, casting a real shadow.
+    realScene.add(root);
     figure = root;
   } catch (err) {
     console.warn('[RealConductor] could not load the conductor', err);
@@ -123,6 +125,7 @@ function addCap(avatar: THREE.Object3D): void {
   const peak = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.15 });
   const lathe = (pts: [number, number][], m: THREE.Material): THREE.Mesh =>
     new THREE.Mesh(new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), 40), m);
+  for (const m of [navy, gold, peak]) applyLook(m);
   const cap = new THREE.Group();
   const crown = lathe([[0, 0], [0.095, 0], [0.1, 0.05], [0.118, 0.085], [0.12, 0.095], [0.11, 0.1], [0, 0.105]], navy);
   crown.scale.set(1, 1, 1.1);

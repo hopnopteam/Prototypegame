@@ -1,126 +1,318 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { VISUALS } from '../config/visuals';
 import type { CarriageView } from './CarriageView';
 
 /**
- * Graphics experiment (branch `graphics-experiment`): the lobby carriage as a photoreal build. It is modelled in
- * Blender on the game's own floor plan (`experiments/realism/game_lobby.py`), its light path traced by Cycles and baked
- * into one texture (sun, sky, bounce light, contact shadows, lamp glow), and drawn here unlit with that texture, so a
- * phone shows the offline render's light for the price of one textured mesh.
+ * Graphics experiment (branch `graphics-experiment`): the lobby carriage, and the station and sea round it, drawn
+ * photoreal in real time, the way a modern engine draws a scene, after the owner's reference images.
  *
- * On in a build made with REAL=1 or with `?real=1`; `?real=0` turns it off. The files sit beside the page in `real/`.
- * Only the carriage's static structure, its beds and the rack's cases are swapped; everything that moves (doors,
- * blinds, guests, locks, the tarp, the cat) is still the game's own.
+ * Built in Blender on the game's own floor plan (`experiments/realism/game_export.py`) and drawn here in a scene of
+ * its own, after the game's, into the same frame and depth buffer (so everything still sorts): every surface with its
+ * own textures (colour, relief, roughness) and gloss, metal, clear coat or velvet sheen; a live sun with soft shadows
+ * (the conductor's too); the light that is not the sun's (the sky, with occlusion, and every bounce, the sun's
+ * included) baked by Cycles; reflections of the sky; and Blender's AgX tone curve. The game's own lights and grade
+ * never touch it, and its stylized lakeside is hidden.
+ *
+ * On in a build made with REAL=1 or with `?real=1`; `?real=0` turns it off. Its files sit beside the page in `real/`.
  */
 declare const __REAL_CARRIAGE__: boolean;
-const param = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('real') : null;
+const query = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
+const param = query?.get('real') ?? null;
 export const REAL_CARRIAGE: boolean = param === '1' || (param !== '0' && typeof __REAL_CARRIAGE__ !== 'undefined' && __REAL_CARRIAGE__ === true);
 
-/** The afternoon the bake was lit for, in the game's day cycle (Lighting's keys): the world around it matches. */
+/** The afternoon the scene was lit for, in the game's day cycle: the game's own things are lit for it too. */
 export const REAL_TIME_OF_DAY = 0.53;
 const BASE = 'real/';
-/**
- * The models are published as `.glb.wasm`: the artifact host serves only standard web types, and `.wasm` is served as
- * binary, untouched. GLTFLoader reads the bytes whatever the name.
- */
+/** Models are published as `.glb.wasm`: the artifact host serves `.wasm` as binary, untouched, and not `.glb`. */
 export const MODEL_EXT = '.glb.wasm';
-/** Exposure into the tone curve (Blender's renders used 0 EV). */
-const EXPOSURE = 1.0;
-/**
- * Blender's AgX view with its "Medium High Contrast" look, close enough for a phone: the AgX inset matrix, a log2
- * encoding over 16.5 stops, the default sigmoid, the outset matrix, then a gentle contrast lift around mid grey.
- */
-const AGX = `
-vec3 realAgX( vec3 color ) {
-  const mat3 inset = mat3( 0.856627153315983, 0.137318972929847, 0.11189821299995,
-                           0.0951212405381588, 0.761241990602591, 0.0767994186031903,
-                           0.0482516061458583, 0.101439036467562, 0.811302368396859 );
-  const mat3 outset = mat3( 1.1271005818144368, -0.1413297634984383, -0.14132976349843826,
-                            -0.11060664309660323, 1.157823702216272, -0.11060664309660294,
-                            -0.016493938717834573, -0.016493938717834257, 1.2519364065950405 );
-  const float minEv = -12.47393;
-  const float maxEv = 4.026069;
-  color = inset * max( color, vec3( 1e-10 ) );
-  color = clamp( ( log2( color ) - minEv ) / ( maxEv - minEv ), 0.0, 1.0 );
-  vec3 x2 = color * color;
-  vec3 x4 = x2 * x2;
-  color = 15.5 * x4 * x2 - 40.14 * x4 * color + 31.96 * x4 - 6.868 * x2 * color + 0.4298 * x2 + 0.1191 * color - 0.00232;
-  color = outset * color;
-  color = pow( max( vec3( 0.0 ), color ), vec3( 2.2 ) );
-  color = mix( color, smoothstep( 0.0, 1.0, color ), 0.35 );
-  return clamp( color, 0.0, 1.0 );
-}`;
+/** Exposure into the AgX curve (the Cycles renders used 0 EV); `?ev=` to try another. */
+const EXPOSURE = Number(query?.get('ev')) || 1.0;
+/** The references' framing: closer than the game's (7.8 m across). */
+const VIEW_WIDTH = 5.6;
+/** The sun's shadow: a square this many metres across round the view, this many texels. */
+const SHADOW_SPAN = 16;
+const SHADOW_SIZE = 4096;
 
-interface Loaded {
-  root: THREE.Group;
+if (REAL_CARRIAGE) VISUALS.camera.minVisibleWidth = VIEW_WIDTH;
+
+interface Spec {
+  kind: 'pbr' | 'flat' | 'emit';
+  color?: number[] | null;
+  rough?: number;
+  metal?: number;
+  coat?: number;
+  sheen?: number;
+  sheen_tint?: number[] | null;
+  scale?: number;
+  aspect?: number;
+  nstrength?: number;
+  map?: string;
+  normalMap?: string;
+  roughnessMap?: string;
+  strength?: number;
+  Coat_Weight?: number;
+  Coat_Roughness?: number;
+  Sheen_Weight?: number;
+  Sheen_Tint?: number[];
+  Transmission_Weight?: number;
+  Anisotropic?: number;
+  Emission_Strength?: number;
+  Emission_Color?: number[];
 }
 
-let loaded: Loaded | null = null;
-let loading: Promise<Loaded | null> | null = null;
+interface Lighting {
+  sun: { direction: [number, number, number]; strength: number; color: [number, number, number] };
+  bounceScale: number;
+  skyScale: number;
+}
+
+/** The photoreal scene, drawn after the game's own. */
+export const realScene = new THREE.Scene();
+if (REAL_CARRIAGE && typeof window !== 'undefined') {
+  const w = window as unknown as { nightExpressReal: THREE.Scene; nightExpressPick: (x: number, y: number, cam: THREE.Camera) => string[] };
+  w.nightExpressReal = realScene;
+  // debugging: what in the photoreal scene is under a point of the screen (normalised device coordinates)
+  w.nightExpressPick = (x, y, cam) => {
+    const r = new THREE.Raycaster();
+    r.setFromCamera(new THREE.Vector2(x, y), cam);
+    return r.intersectObject(realScene, true).slice(0, 3).map((h) => {
+      const m = h.object as THREE.Mesh;
+      const mat = Array.isArray(m.material) ? m.material[h.face?.materialIndex ?? 0] : m.material;
+      return `${m.name || m.type}/${mat?.name} @ ${h.point.toArray().map((v) => v.toFixed(2)).join(',')}`;
+    });
+  };
+}
+const world = new THREE.Group();
+world.matrixAutoUpdate = false;
+realScene.add(world);
+const sun = new THREE.DirectionalLight();
+realScene.add(sun, sun.target);
+const toSunDir = new THREE.Vector3(0, 1, 0);
+let anchor: THREE.Object3D | null = null;
+let ready = false;
+let loading: Promise<void> | null = null;
+let rendererRef: THREE.WebGLRenderer | null = null;
 const waiting: CarriageView[] = [];
 const dressed = new WeakSet<CarriageView>();
 
-export function loadRealCarriage(): Promise<Loaded | null> {
-  if (!REAL_CARRIAGE) return Promise.resolve(null);
+export function loadRealCarriage(renderer?: THREE.WebGLRenderer): Promise<void> {
+  if (!REAL_CARRIAGE) return Promise.resolve();
+  if (renderer) rendererRef = renderer;
   if (loading) return loading;
-  loading = (async () => {
-    try {
-      // Two bakes on one set of UVs: the surfaces' colour (sharp, 4096) and the light on them (soft, 2048, stored as a
-      // fraction of `lightScale`). Drawn unlit: colour × light, through the same AgX curve as the Cycles renders,
-      // instead of the game's own grade (which suits its stylized materials, not path-traced light).
-      const meta = await (await fetch(`${BASE}lobby_bake.json`)).json() as { lightScale: number };
-      const loader = new THREE.TextureLoader();
-      const [albedo, light] = await Promise.all([loader.loadAsync(`${BASE}lobby_albedo.jpg`), loader.loadAsync(`${BASE}lobby_light.jpg`)]);
-      for (const t of [albedo, light]) {
-        t.flipY = false;
-        t.colorSpace = THREE.SRGBColorSpace;
-        t.anisotropy = 8;
-      }
-      light.channel = 0;
-      const gltf = await new GLTFLoader().loadAsync(`${BASE}lobby${MODEL_EXT}`);
-      // MeshBasicMaterial divides a light map by π (physical units); the bake is already in the light's own units.
-      const baked = agx(new THREE.MeshBasicMaterial({ map: albedo, lightMap: light, lightMapIntensity: meta.lightScale * Math.PI, toneMapped: false }));
-      // Flowers, leaves and the chassis carry their lit colour per vertex (no texture space for things that small).
-      const dressing = agx(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }));
-      const glass = new THREE.MeshBasicMaterial({ color: 0xbcd4dc, transparent: true, opacity: 0.18, depthWrite: false });
-      const root = new THREE.Group();
-      root.name = 'real carriage';
-      gltf.scene.updateMatrixWorld(true);
-      gltf.scene.traverse((o) => {
-        if (!(o instanceof THREE.Mesh)) return;
-        const mesh = new THREE.Mesh(o.geometry, o.name.includes('glass') ? glass : o.name.includes('dressing') ? dressing : baked);
-        mesh.applyMatrix4(o.matrixWorld);
-        mesh.castShadow = false;
-        mesh.receiveShadow = false;
-        root.add(mesh);
-      });
-      loaded = { root };
-      for (const v of waiting.splice(0)) dress(v);
-      return loaded;
-    } catch (err) {
-      console.warn('[RealCarriage] could not load the photoreal carriage', err);
-      return null;
-    }
-  })();
+  loading = load().catch((err) => console.warn('[RealCarriage] could not load the photoreal carriage', err));
   return loading;
 }
 
-/** The renders' tone curve in place of the game's grade. */
-function agx(m: THREE.MeshBasicMaterial): THREE.MeshBasicMaterial {
-  m.onBeforeCompile = (shader) => {
-    shader.uniforms.uRealExposure = { value: EXPOSURE };
-    shader.fragmentShader = shader.fragmentShader
-      .replace('void main() {', 'uniform float uRealExposure;\n' + AGX + '\nvoid main() {')
-      .replace('#include <tonemapping_fragment>', 'gl_FragColor.rgb = realAgX( gl_FragColor.rgb * uRealExposure );');
+async function load(): Promise<void> {
+  const json = async <T>(f: string): Promise<T> => (await fetch(BASE + f)).json() as Promise<T>;
+  const [light, specs] = await Promise.all([json<Lighting>('lighting.json'), json<Record<string, Spec>>('materials.json')]);
+  const tl = new THREE.TextureLoader();
+  const texCache = new Map<string, Promise<THREE.Texture>>();
+  const tex = (f: string, srgb: boolean): Promise<THREE.Texture> => {
+    const key = `${f}|${srgb}`;
+    let p = texCache.get(key);
+    if (!p) {
+      p = tl.loadAsync(BASE + f).then((t) => {
+        t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.flipY = false;
+        t.anisotropy = 8;
+        return t;
+      });
+      texCache.set(key, p);
+    }
+    return p;
   };
-  m.customProgramCacheKey = () => 'real-agx';
-  return m;
+  const [bounce, ao, skyTex] = await Promise.all([tex('bounce.jpg', true), tex('ao.jpg', false), tl.loadAsync(BASE + 'sky.jpg')]);
+  for (const t of [bounce, ao]) {
+    t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+    t.channel = 1;
+  }
+  skyTex.colorSpace = THREE.SRGBColorSpace;
+  skyTex.mapping = THREE.EquirectangularReflectionMapping;
+  let env: THREE.Texture = skyTex;
+  realScene.environment = skyTex;
+  realScene.environmentIntensity = 1;
+  if (rendererRef) {
+    const pm = new THREE.PMREMGenerator(rendererRef);
+    env = pm.fromEquirectangular(skyTex).texture;
+    pm.dispose();
+  }
+
+  realScene.environmentIntensity = light.skyScale;
+  // the sun: its direction and strength from the bake, so live light and baked bounce agree
+  toSunDir.set(...light.sun.direction).normalize();
+  sun.color.setRGB(...light.sun.color);
+  sun.intensity = light.sun.strength;
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(SHADOW_SIZE, SHADOW_SIZE);
+  const sc = sun.shadow.camera;
+  sc.left = sc.bottom = -SHADOW_SPAN / 2;
+  sc.right = sc.top = SHADOW_SPAN / 2;
+  sc.near = 0.5;
+  sc.far = 60;
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.02;
+  sun.shadow.radius = 3;
+
+  const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  const gltf = await loader.loadAsync(`${BASE}scene${MODEL_EXT}`);
+  const made = new Map<string, Promise<THREE.Material>>();
+  const material = (name: string, baked: boolean): Promise<THREE.Material> => {
+    const key = `${name}|${baked}`;
+    let p = made.get(key);
+    if (!p) {
+      p = build(specs[name] ?? specs[name.replace(/\.\d+$/, '')] ?? { kind: 'flat', color: [0.5, 0.5, 0.5], rough: 0.6 }, name, baked);
+      made.set(key, p);
+    }
+    return p;
+  };
+  const build = async (s: Spec, name: string, baked: boolean): Promise<THREE.Material> => {
+    const coat = s.coat ?? s.Coat_Weight ?? 0;
+    const sheen = s.sheen ?? s.Sheen_Weight ?? 0;
+    const glass = /^(glass|bottle|crystal)/.test(name) || (s.Transmission_Weight ?? 0) > 0.5;
+    const m = coat > 0 || sheen > 0 || glass || (s.Anisotropic ?? 0) > 0 ? new THREE.MeshPhysicalMaterial() : new THREE.MeshStandardMaterial();
+    m.name = name;
+    const c = s.color ?? [1, 1, 1];
+    m.color.setRGB(c[0], c[1], c[2]);
+    m.roughness = s.rough ?? 0.5;
+    m.metalness = s.metal ?? 0;
+    const rx = 1 / (s.scale ?? 1);
+    const ry = 1 / ((s.scale ?? 1) * (s.aspect ?? 1));
+    const tiled = async (f: string, srgb: boolean): Promise<THREE.Texture> => {
+      const t = (await tex(f, srgb)).clone();
+      t.repeat.set(rx, ry);
+      t.needsUpdate = true;
+      return t;
+    };
+    if (s.map) {
+      m.map = await tiled(s.map, true);
+      m.color.setRGB(1, 1, 1);
+    }
+    if (s.normalMap) {
+      m.normalMap = await tiled(s.normalMap, false);
+      const k = s.nstrength ?? 1;
+      m.normalScale.set(k, k);
+    }
+    if (s.roughnessMap) {
+      m.roughnessMap = await tiled(s.roughnessMap, false);
+      m.roughness = 1;
+    }
+    if (m instanceof THREE.MeshPhysicalMaterial) {
+      m.clearcoat = coat;
+      m.clearcoatRoughness = s.Coat_Roughness ?? 0.12;
+      if (sheen > 0) {
+        m.sheen = sheen;
+        const st = s.sheen_tint ?? s.Sheen_Tint ?? [1, 1, 1];
+        m.sheenColor.setRGB(Math.min(1, c[0] * st[0] * 2 + 0.05), Math.min(1, c[1] * st[1] * 2 + 0.02), Math.min(1, c[2] * st[2] * 2 + 0.02));
+        m.sheenRoughness = 0.45;
+      }
+      if (s.Anisotropic) m.anisotropy = s.Anisotropic;
+      if (glass) {
+        m.transparent = true;
+        m.opacity = 0.16;
+        m.roughness = 0.03;
+        m.depthWrite = false;
+        m.color.setRGB(0.9, 0.95, 1);
+      }
+    }
+    if (s.kind === 'emit' || (s.Emission_Strength ?? 0) > 0) {
+      const ec = s.kind === 'emit' ? c : (s.Emission_Color ?? c);
+      m.emissive.setRGB(ec[0], ec[1], ec[2]);
+      m.emissiveIntensity = s.kind === 'emit' ? (s.strength ?? 1) * 0.5 : (s.Emission_Strength ?? 0);
+    }
+    m.envMap = env;
+    m.envMapIntensity = light.skyScale;
+    if (baked) {
+      // The carriage: the bake carries all light but the sun's direct light, so the sky's own diffuse light is not
+      // added again; its reflections stay, dimmed by the baked occlusion.
+      m.lightMap = bounce;
+      m.lightMapIntensity = light.bounceScale * Math.PI;
+      m.aoMap = ao;
+      m.aoMapIntensity = 1;
+      m.onBeforeCompile = (sh) => {
+        sh.fragmentShader = look(sh.fragmentShader.replace('#include <lights_fragment_maps>', LIGHTS_MAPS_NO_SKY_DIFFUSE));
+      };
+      m.customProgramCacheKey = () => 'real-baked';
+    } else {
+      applyLook(m);
+    }
+    return m;
+  };
+
+  gltf.scene.updateMatrixWorld(true);
+  const meshes: Promise<void>[] = [];
+  gltf.scene.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const owner = o.name === 'carriage' || o.parent?.name === 'carriage';
+    const src = (Array.isArray(o.material) ? o.material : [o.material]) as THREE.Material[];
+    meshes.push(Promise.all(src.map((mm) => material(mm.name, owner))).then((mats) => {
+      const mesh = new THREE.Mesh(o.geometry, mats.length === 1 ? mats[0] : mats);
+      mesh.applyMatrix4(o.matrixWorld);
+      mesh.castShadow = !/glass/.test(o.name);
+      mesh.receiveShadow = true;
+      world.add(mesh);
+    }));
+  });
+  await Promise.all(meshes);
+  ready = true;
+  for (const v of waiting.splice(0)) dress(v);
 }
+
+/**
+ * The renders' look: three's AgX, then Blender's "Medium High Contrast" (a gentle S-curve on the display values) and
+ * a little more colour.
+ */
+const LOOK = /* glsl */ `
+#if defined( TONE_MAPPING )
+  gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );
+  {
+    vec3 d = pow( max( gl_FragColor.rgb, 0.0 ), vec3( 1.0 / 2.2 ) );
+    d = mix( d, d * d * ( 3.0 - 2.0 * d ), 0.42 );
+    float l = dot( d, vec3( 0.2126, 0.7152, 0.0722 ) );
+    d = mix( vec3( l ), d, 1.14 );
+    gl_FragColor.rgb = pow( clamp( d, 0.0, 1.0 ), vec3( 2.2 ) );
+  }
+#endif
+`;
+const look = (src: string): string => src.replace('#include <tonemapping_fragment>', LOOK);
+
+/** Gives any material in the photoreal scene the renders' look (the conductor's too). */
+export function applyLook(m: THREE.Material): void {
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = look(sh.fragmentShader);
+  };
+  m.customProgramCacheKey = () => 'real-look';
+}
+
+/** three's lights_fragment_maps chunk without the sky's diffuse light: the baked map already holds it, occluded. */
+const LIGHTS_MAPS_NO_SKY_DIFFUSE = /* glsl */ `
+#if defined( RE_IndirectDiffuse )
+  #ifdef USE_LIGHTMAP
+    vec4 lightMapTexel = texture2D( lightMap, vLightMapUv );
+    vec3 lightMapIrradiance = lightMapTexel.rgb * lightMapIntensity;
+    irradiance += lightMapIrradiance;
+  #endif
+#endif
+#if defined( USE_ENVMAP ) && defined( RE_IndirectSpecular )
+  #ifdef USE_ANISOTROPY
+    radiance += getIBLAnisotropyRadiance( geometryViewDir, geometryNormal, material.roughness, material.anisotropyB, material.anisotropy );
+  #else
+    radiance += getIBLRadiance( geometryViewDir, geometryNormal, material.roughness );
+  #endif
+  #ifdef USE_CLEARCOAT
+    clearcoatRadiance += getIBLRadiance( geometryViewDir, geometryClearcoatNormal, material.clearcoatRoughness );
+  #endif
+#endif
+`;
 
 /** Swap carriage 0's procedural build for the photoreal one (now, or once the files have loaded). */
 export function dressRealCarriage(view: CarriageView, index: number): void {
   if (!REAL_CARRIAGE || index !== 0 || view.layout.type !== 'lobby') return;
-  if (!loaded) {
+  if (!ready) {
     waiting.push(view);
     void loadRealCarriage();
     return;
@@ -133,7 +325,7 @@ function hide(o: THREE.Object3D): void {
 }
 
 function dress(view: CarriageView): void {
-  if (!loaded || dressed.has(view)) return;
+  if (dressed.has(view)) return;
   dressed.add(view);
   const beds = new Set<THREE.Object3D>(view.cabinBeds);
   for (const child of view.group.children) {
@@ -141,6 +333,41 @@ function dress(view: CarriageView): void {
     const plain = child instanceof THREE.Mesh && !(child instanceof THREE.InstancedMesh) && Object.keys(child.userData ?? {}).length === 0;
     if (plain || beds.has(child) || (stock && stock.startsWith('stock:luggage'))) hide(child);
   }
-  const copy = loaded.root.clone();
-  view.group.add(copy);
+  anchor = view.group;
+}
+
+/**
+ * Draws the photoreal scene over the game's frame (Stage calls it right after its own render): follows carriage 0,
+ * keeps the sun's shadow round what the camera sees, and renders through AgX with its own soft shadows.
+ */
+export function renderRealScene(renderer: THREE.WebGLRenderer, camera: THREE.Camera, focus: THREE.Vector3): void {
+  if (!REAL_CARRIAGE || !ready) return;
+  if (anchor) {
+    anchor.updateWorldMatrix(true, false);
+    world.matrix.copy(anchor.matrixWorld);
+    world.matrixWorldNeedsUpdate = true;
+  }
+  // texel-snapped, so the soft edges do not shimmer as the view moves
+  const texel = SHADOW_SPAN / SHADOW_SIZE;
+  sun.target.position.set(Math.round(focus.x / texel) * texel, 0, Math.round(focus.z / texel) * texel);
+  sun.position.copy(sun.target.position).addScaledVector(toSunDir, 30);
+  const tm = renderer.toneMapping;
+  const te = renderer.toneMappingExposure;
+  const autoClear = renderer.autoClear;
+  const shadows = renderer.shadowMap.enabled;
+  const shadowType = renderer.shadowMap.type;
+  const shadowAuto = renderer.shadowMap.autoUpdate;
+  renderer.toneMapping = THREE.AgXToneMapping;
+  renderer.toneMappingExposure = EXPOSURE;
+  renderer.autoClear = false;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate = true;
+  renderer.render(realScene, camera);
+  renderer.toneMapping = tm;
+  renderer.toneMappingExposure = te;
+  renderer.autoClear = autoClear;
+  renderer.shadowMap.enabled = shadows;
+  renderer.shadowMap.type = shadowType;
+  renderer.shadowMap.autoUpdate = shadowAuto;
 }

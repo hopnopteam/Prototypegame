@@ -2,7 +2,7 @@
 // dist/night-express.html (a body fragment for publishing as an Artifact, which adds its own skeleton), and
 // dist/app/index.html (the page the iOS and Android apps load; see capacitor.config.ts and NATIVE.md).
 import { build, context } from 'esbuild';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -68,7 +68,8 @@ function emit(result) {
     if (existsSync(from)) {
       mkdirSync(resolve(root, 'dist/real'), { recursive: true });
       // models as .glb.wasm: the artifact host serves .wasm as binary but not .glb (RealCarriage.MODEL_EXT)
-      for (const f of readdirSync(from)) copyFileSync(resolve(from, f), resolve(root, 'dist/real', f.endsWith('.glb') ? `${f}.wasm` : f));
+      cpSync(from, resolve(root, 'dist/real'), { recursive: true });
+      for (const f of readdirSync(resolve(root, 'dist/real'))) if (f.endsWith('.glb')) renameSync(resolve(root, 'dist/real', f), resolve(root, 'dist/real', `${f}.wasm`));
       console.log(`Copied the photoreal carriage (${readdirSync(from).length} files) to dist/real`);
     }
   }

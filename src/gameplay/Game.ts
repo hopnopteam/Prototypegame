@@ -296,6 +296,8 @@ export class Game implements World {
     CharacterView.batch = this.characters;
     this.scene.add(this.characters.group);
     this.scene.add(this.scenery.group, this.ambient.group, this.fireflies.points, this.particles.points, this.cashView.mesh);
+    // Graphics experiment: the photoreal pass brings its own track, platform, grass and sea; the stylized lakeside goes.
+    if (REAL_CARRIAGE) for (const o of [this.scenery.group, this.ambient.group, this.fireflies.points]) o.visible = false;
     this.stage.attachParticles(this.particles);
 
     this.analytics = new MockAnalyticsService(80);

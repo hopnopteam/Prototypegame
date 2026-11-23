@@ -176,8 +176,13 @@ def img(path, non_color=False):
     return im
 
 
+# Every material's recipe, by the material's final name, so the game can rebuild it with the same textures (game_export.py).
+SPECS = {}
+
+
 def principled(name, color=(0.8, 0.8, 0.8), rough=0.5, metal=0.0, **kw):
     m = bpy.data.materials.new(name)
+    SPECS[m.name] = dict(kind='flat', color=list(color), rough=rough, metal=metal, **{k: (list(v) if isinstance(v, tuple) else v) for k, v in kw.items()})
     m.use_nodes = True
     nt = m.node_tree
     b = nt.nodes['Principled BSDF']
@@ -198,6 +203,9 @@ def pbr(name, diff=None, nor=None, rough=0.5, rough_map=None, scale=1.0, tint=No
         color=None, rough_range=None, aspect=1.0, bright=None, contrast=None, ao=None):
     """Texture-based material. `scale` = metres one texture tile covers."""
     m = bpy.data.materials.new(name)
+    SPECS[m.name] = dict(kind='pbr', diff=diff, nor=nor, rough=rough, rough_map=rough_map, scale=scale, aspect=aspect, tint=tint and list(tint),
+                         hsv=hsv and list(hsv), nstrength=nstrength, metal=metal, coat=coat, sheen=sheen, sheen_tint=sheen_tint and list(sheen_tint),
+                         color=color and list(color), rough_range=rough_range and list(rough_range), bright=bright, contrast=contrast, ao=ao)
     m.use_nodes = True
     nt = m.node_tree
     N, L = nt.nodes, nt.links
@@ -276,6 +284,9 @@ def pbr(name, diff=None, nor=None, rough=0.5, rough_map=None, scale=1.0, tint=No
 
 def noise_rough(m, lo, hi, scale=8.0):
     """Gentle roughness variation so large surfaces are never perfectly uniform."""
+    if m.name in SPECS:
+        SPECS[m.name]['rough'] = (lo + hi) / 2
+        SPECS[m.name]['rough_noise'] = [lo, hi, scale]
     nt = m.node_tree
     N, L = nt.nodes, nt.links
     b = N['Principled BSDF']
@@ -293,6 +304,7 @@ def noise_rough(m, lo, hi, scale=8.0):
 
 def emission(name, color, strength):
     m = bpy.data.materials.new(name)
+    SPECS[m.name] = dict(kind='emit', color=list(color), strength=strength)
     m.use_nodes = True
     nt = m.node_tree
     b = nt.nodes['Principled BSDF']

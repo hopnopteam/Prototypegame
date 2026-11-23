@@ -1,3 +1,4 @@
+import { REAL_CARRIAGE, renderRealScene } from './RealCarriage';
 import * as THREE from 'three';
 import { VISUALS, type QualityTier, type TierSettings } from '../config/visuals';
 import { CameraRig } from './CameraRig';
@@ -198,7 +199,8 @@ export class Stage {
     this.fx = null;
     // Post-processing when the tier blooms or antialiases offscreen; a canvas that cannot antialias itself
     // (it was created for a post-processed tier) always gets it.
-    if (s.bloom > 0 || s.msaa > 0 || s.fxaa || !this.contextAntialias) {
+    // (Not with the photoreal pass: it draws into the screen's own depth buffer after the game's frame.)
+    if (!REAL_CARRIAGE && (s.bloom > 0 || s.msaa > 0 || s.fxaa || !this.contextAntialias)) {
       const tierForFx = s.msaa > 0 || s.fxaa ? s : { ...s, fxaa: true };
       this.fx = new PostFx(this.renderer, this.scene, this.rig.camera, tierForFx, this.width, this.height, this.pixelRatio);
     }
@@ -290,6 +292,8 @@ export class Stage {
     this.preRender?.render(this.renderer, this.scene, cam);
     if (this.fx) this.fx.render(dt);
     else this.renderer.render(this.scene, cam);
+    // Graphics experiment: the photoreal carriage and its surroundings, drawn over the game's frame.
+    renderRealScene(this.renderer, cam, this.rig.focusPoint);
     this.pinPrograms();
   }
 

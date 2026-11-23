@@ -1,0 +1,1023 @@
+{
+ "underframe": {
+  "kind": "flat",
+  "color": [
+   0.07,
+   0.06,
+   0.055
+  ],
+  "rough": 0.7,
+  "metal": 0.3
+ },
+ "oak floor": {
+  "kind": "pbr",
+  "diff": "WoodFloor051_2K-JPG__WoodFloor051_2K_Color.jpg",
+  "nor": "WoodFloor051_2K-JPG__WoodFloor051_2K_NormalGL.jpg",
+  "rough": 0.32,
+  "rough_map": null,
+  "scale": 3.4,
+  "aspect": 1.0,
+  "tint": [
+   1.0,
+   0.74,
+   0.52
+  ],
+  "hsv": null,
+  "nstrength": 0.6,
+  "metal": 0.0,
+  "coat": 0.25,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/oak_floor_c.jpg",
+  "normalMap": "tex/oak_floor_n.jpg"
+ },
+ "red carpet": {
+  "kind": "pbr",
+  "diff": "gen__carpet_diff.jpg",
+  "nor": "yur__velour_velvet_nor_gl_1k.jpg",
+  "rough": 0.9,
+  "rough_map": null,
+  "scale": 0.55,
+  "aspect": 1.0,
+  "tint": null,
+  "hsv": null,
+  "nstrength": 0.5,
+  "metal": 0.0,
+  "coat": 0.0,
+  "sheen": 0.5,
+  "sheen_tint": [
+   1.0,
+   0.6,
+   0.5
+  ],
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/red_carpet_c.jpg",
+  "normalMap": "tex/red_carpet_n.jpg"
+ },
+ "gold thread": {
+  "kind": "flat",
+  "color": [
+   0.55,
+   0.38,
+   0.12
+  ],
+  "rough": 0.6,
+  "metal": 0.0,
+  "Sheen_Weight": 0.5
+ },
+ "crimson paint": {
+  "kind": "flat",
+  "color": [
+   0.16,
+   0.011,
+   0.015
+  ],
+  "rough": 0.3,
+  "metal": 0.0,
+  "Coat_Weight": 0.35,
+  "Coat_Roughness": 0.15,
+  "rough_noise": [
+   0.22,
+   0.38,
+   3
+  ]
+ },
+ "plain": {
+  "kind": "flat",
+  "color": [
+   0.5,
+   0.5,
+   0.5
+  ],
+  "rough": 0.6,
+  "metal": 0.0
+ },
+ "brass": {
+  "kind": "pbr",
+  "diff": "BrushedGold01_packed_2K__BrushedGold01_2K_BaseColor.png",
+  "nor": "BrushedGold01_packed_2K__BrushedGold01_2K_Normal.png",
+  "rough": 0.28,
+  "rough_map": null,
+  "scale": 0.6,
+  "aspect": 1.0,
+  "tint": [
+   1.0,
+   0.8,
+   0.5
+  ],
+  "hsv": null,
+  "nstrength": 0.3,
+  "metal": 1.0,
+  "coat": 0.0,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/brass_c.jpg",
+  "normalMap": "tex/brass_n.jpg"
+ },
+ "dark crimson": {
+  "kind": "flat",
+  "color": [
+   0.14,
+   0.012,
+   0.016
+  ],
+  "rough": 0.35,
+  "metal": 0.0,
+  "Coat_Weight": 0.3
+ },
+ "black iron": {
+  "kind": "flat",
+  "color": [
+   0.03,
+   0.03,
+   0.03
+  ],
+  "rough": 0.45,
+  "metal": 0.8
+ },
+ "cream panel": {
+  "kind": "pbr",
+  "diff": "yur__white_plaster_02_diff_1k.jpg",
+  "nor": "yur__white_plaster_02_nor_gl_1k.jpg",
+  "rough": 0.6,
+  "rough_map": null,
+  "scale": 1.6,
+  "aspect": 1.0,
+  "tint": [
+   1.0,
+   0.93,
+   0.8
+  ],
+  "hsv": null,
+  "nstrength": 0.25,
+  "metal": 0.0,
+  "coat": 0.0,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/cream_panel_c.jpg",
+  "normalMap": "tex/cream_panel_n.jpg"
+ },
+ "walnut": {
+  "kind": "pbr",
+  "diff": "wood_table_001_2k.blend__wood_table_001_diff_2k.jpg",
+  "nor": "wood_table_001_2k.blend__wood_table_001_nor_gl_2k.exr",
+  "rough": 0.3,
+  "rough_map": null,
+  "scale": 1.2,
+  "aspect": 1.0,
+  "tint": [
+   1.15,
+   0.95,
+   0.85
+  ],
+  "hsv": null,
+  "nstrength": 1.0,
+  "metal": 0.0,
+  "coat": 0.4,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/walnut_c.jpg",
+  "normalMap": "tex/walnut_n.jpg"
+ },
+ "green leather": {
+  "kind": "pbr",
+  "diff": "fabric_leather_02_2k.blend__fabric_leather_02_diff_2k.jpg",
+  "nor": "fabric_leather_02_2k.blend__fabric_leather_02_nor_gl_2k.exr",
+  "rough": 0.5,
+  "rough_map": "fabric_leather_02_2k.blend__fabric_leather_02_rough_2k.jpg",
+  "scale": 0.8,
+  "aspect": 1.0,
+  "tint": null,
+  "hsv": [
+   0.78,
+   0.7,
+   0.55
+  ],
+  "nstrength": 0.6,
+  "metal": 0.0,
+  "coat": 0.0,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/green_leather_c.jpg",
+  "normalMap": "tex/green_leather_n.jpg",
+  "roughnessMap": "tex/green_leather_r.jpg"
+ },
+ "polished brass": {
+  "kind": "flat",
+  "color": [
+   1.0,
+   0.72,
+   0.36
+  ],
+  "rough": 0.16,
+  "metal": 1.0
+ },
+ "book cloth": {
+  "kind": "flat",
+  "color": [
+   0.08,
+   0.12,
+   0.08
+  ],
+  "rough": 0.6,
+  "metal": 0.0
+ },
+ "paper": {
+  "kind": "flat",
+  "color": [
+   0.9,
+   0.86,
+   0.76
+  ],
+  "rough": 0.85,
+  "metal": 0.0
+ },
+ "china": {
+  "kind": "flat",
+  "color": [
+   0.95,
+   0.95,
+   0.93
+  ],
+  "rough": 0.1,
+  "metal": 0.0,
+  "Coat_Weight": 0.8
+ },
+ "croissant": {
+  "kind": "flat",
+  "color": [
+   0.55,
+   0.28,
+   0.07
+  ],
+  "rough": 0.42500000000000004,
+  "metal": 0.0,
+  "Coat_Weight": 0.5,
+  "Subsurface_Weight": 0.2,
+  "rough_noise": [
+   0.3,
+   0.55,
+   30
+  ]
+ },
+ "coffee": {
+  "kind": "flat",
+  "color": [
+   0.06,
+   0.025,
+   0.01
+  ],
+  "rough": 0.05,
+  "metal": 0.0
+ },
+ "bankers shade": {
+  "kind": "flat",
+  "color": [
+   0.02,
+   0.25,
+   0.08
+  ],
+  "rough": 0.1,
+  "metal": 0.0,
+  "Coat_Weight": 1.0,
+  "Transmission_Weight": 0.2
+ },
+ "bulb": {
+  "kind": "emit",
+  "color": [
+   1.0,
+   0.7,
+   0.4
+  ],
+  "strength": 30
+ },
+ "white linen": {
+  "kind": "pbr",
+  "diff": "yur__terry_cloth_diff_1k.jpg",
+  "nor": "yur__terry_cloth_nor_gl_1k.jpg",
+  "rough": 0.75,
+  "rough_map": null,
+  "scale": 0.25,
+  "aspect": 1.0,
+  "tint": [
+   0.95,
+   0.94,
+   0.92
+  ],
+  "hsv": [
+   0.5,
+   0.0,
+   1.3
+  ],
+  "nstrength": 0.25,
+  "metal": 0.0,
+  "coat": 0.0,
+  "sheen": 0.4,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/white_linen_c.jpg",
+  "normalMap": "tex/white_linen_n.jpg"
+ },
+ "rose towel": {
+  "kind": "flat",
+  "color": [
+   0.75,
+   0.42,
+   0.42
+  ],
+  "rough": 0.85,
+  "metal": 0.0,
+  "Sheen_Weight": 0.5
+ },
+ "sage towel": {
+  "kind": "flat",
+  "color": [
+   0.45,
+   0.55,
+   0.42
+  ],
+  "rough": 0.85,
+  "metal": 0.0,
+  "Sheen_Weight": 0.5
+ },
+ "leaf": {
+  "kind": "flat",
+  "color": [
+   0.05,
+   0.16,
+   0.03
+  ],
+  "rough": 0.38,
+  "metal": 0.0,
+  "Subsurface_Weight": 0.15,
+  "Coat_Weight": 0.2
+ },
+ "petal red": {
+  "kind": "flat",
+  "color": [
+   0.6,
+   0.01,
+   0.02
+  ],
+  "rough": 0.5,
+  "metal": 0.0,
+  "Subsurface_Weight": 0.3
+ },
+ "petal pink": {
+  "kind": "flat",
+  "color": [
+   0.85,
+   0.2,
+   0.35
+  ],
+  "rough": 0.5,
+  "metal": 0.0,
+  "Subsurface_Weight": 0.3
+ },
+ "petal white": {
+  "kind": "flat",
+  "color": [
+   0.85,
+   0.84,
+   0.8
+  ],
+  "rough": 0.5,
+  "metal": 0.0,
+  "Subsurface_Weight": 0.3
+ },
+ "soil": {
+  "kind": "flat",
+  "color": [
+   0.05,
+   0.035,
+   0.025
+  ],
+  "rough": 0.95,
+  "metal": 0.0
+ },
+ "oak": {
+  "kind": "pbr",
+  "diff": "american_walnut_1-2K__walnut_basecolor.png",
+  "nor": "american_walnut_1-2K__walnut_normal.png",
+  "rough": 0.38,
+  "rough_map": null,
+  "scale": 1.0,
+  "aspect": 1.0,
+  "tint": [
+   1.0,
+   0.72,
+   0.48
+  ],
+  "hsv": null,
+  "nstrength": 0.4,
+  "metal": 0.0,
+  "coat": 0.3,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/oak_c.jpg",
+  "normalMap": "tex/oak_n.jpg"
+ },
+ "case teal": {
+  "kind": "pbr",
+  "diff": "leather_red_02_2k.blend__leather_red_02_coll1_2k.png",
+  "nor": "leather_red_02_2k.blend__leather_red_02_nor_gl_2k.exr",
+  "rough": 0.45,
+  "rough_map": null,
+  "scale": 0.6,
+  "aspect": 1.0,
+  "tint": [
+   0.264,
+   0.7040000000000001,
+   0.66
+  ],
+  "hsv": [
+   0.5,
+   0.0,
+   1.6
+  ],
+  "nstrength": 0.5,
+  "metal": 0.0,
+  "coat": 0.2,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/case_teal_c.jpg",
+  "normalMap": "tex/case_teal_n.jpg"
+ },
+ "strap": {
+  "kind": "flat",
+  "color": [
+   0.1,
+   0.05,
+   0.025
+  ],
+  "rough": 0.5,
+  "metal": 0.0
+ },
+ "case grey": {
+  "kind": "pbr",
+  "diff": "leather_red_02_2k.blend__leather_red_02_coll1_2k.png",
+  "nor": "leather_red_02_2k.blend__leather_red_02_nor_gl_2k.exr",
+  "rough": 0.45,
+  "rough_map": null,
+  "scale": 0.6,
+  "aspect": 1.0,
+  "tint": [
+   0.77,
+   0.8140000000000001,
+   0.8360000000000001
+  ],
+  "hsv": [
+   0.5,
+   0.0,
+   1.6
+  ],
+  "nstrength": 0.5,
+  "metal": 0.0,
+  "coat": 0.2,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/case_grey_c.jpg",
+  "normalMap": "tex/case_grey_n.jpg"
+ },
+ "case cream": {
+  "kind": "pbr",
+  "diff": "leather_red_02_2k.blend__leather_red_02_coll1_2k.png",
+  "nor": "leather_red_02_2k.blend__leather_red_02_nor_gl_2k.exr",
+  "rough": 0.45,
+  "rough_map": null,
+  "scale": 0.6,
+  "aspect": 1.0,
+  "tint": [
+   1,
+   1,
+   0.9900000000000001
+  ],
+  "hsv": [
+   0.5,
+   0.0,
+   1.6
+  ],
+  "nstrength": 0.5,
+  "metal": 0.0,
+  "coat": 0.2,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/case_cream_c.jpg",
+  "normalMap": "tex/case_cream_n.jpg"
+ },
+ "case tan": {
+  "kind": "pbr",
+  "diff": "leather_red_02_2k.blend__leather_red_02_coll1_2k.png",
+  "nor": "leather_red_02_2k.blend__leather_red_02_nor_gl_2k.exr",
+  "rough": 0.45,
+  "rough_map": null,
+  "scale": 0.6,
+  "aspect": 1.0,
+  "tint": [
+   1,
+   0.66,
+   0.30800000000000005
+  ],
+  "hsv": [
+   0.5,
+   0.0,
+   1.6
+  ],
+  "nstrength": 0.5,
+  "metal": 0.0,
+  "coat": 0.2,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/case_tan_c.jpg",
+  "normalMap": "tex/case_tan_n.jpg"
+ },
+ "case olive": {
+  "kind": "pbr",
+  "diff": "leather_red_02_2k.blend__leather_red_02_coll1_2k.png",
+  "nor": "leather_red_02_2k.blend__leather_red_02_nor_gl_2k.exr",
+  "rough": 0.45,
+  "rough_map": null,
+  "scale": 0.6,
+  "aspect": 1.0,
+  "tint": [
+   0.55,
+   0.6160000000000001,
+   0.30800000000000005
+  ],
+  "hsv": [
+   0.5,
+   0.0,
+   1.6
+  ],
+  "nstrength": 0.5,
+  "metal": 0.0,
+  "coat": 0.2,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/case_olive_c.jpg",
+  "normalMap": "tex/case_olive_n.jpg"
+ },
+ "persian rug": {
+  "kind": "pbr",
+  "diff": "gen__rug_diff.jpg",
+  "nor": "gen__rug_nor.jpg",
+  "rough": 0.9,
+  "rough_map": null,
+  "scale": 1.0,
+  "aspect": 1.0,
+  "tint": null,
+  "hsv": null,
+  "nstrength": 0.5,
+  "metal": 0.0,
+  "coat": 0.0,
+  "sheen": 0.5,
+  "sheen_tint": [
+   1,
+   0.8,
+   0.7
+  ],
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/persian_rug_c.jpg",
+  "normalMap": "tex/persian_rug_n.jpg"
+ },
+ "red velvet": {
+  "kind": "pbr",
+  "diff": "yur__velour_velvet_diff_1k.jpg",
+  "nor": "yur__velour_velvet_nor_gl_1k.jpg",
+  "rough": 0.55,
+  "rough_map": null,
+  "scale": 0.5,
+  "aspect": 1.0,
+  "tint": [
+   0.75,
+   0.1,
+   0.11
+  ],
+  "hsv": [
+   0.5,
+   1.2,
+   0.55
+  ],
+  "nstrength": 0.4,
+  "metal": 0.0,
+  "coat": 0.0,
+  "sheen": 0.5,
+  "sheen_tint": [
+   1.0,
+   0.45,
+   0.45
+  ],
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/red_velvet_c.jpg",
+  "normalMap": "tex/red_velvet_n.jpg"
+ },
+ "red satin": {
+  "kind": "flat",
+  "color": [
+   0.13,
+   0.005,
+   0.01
+  ],
+  "rough": 0.3,
+  "metal": 0.0,
+  "Sheen_Weight": 0.35,
+  "Sheen_Tint": [
+   1,
+   0.5,
+   0.5
+  ],
+  "Anisotropic": 0.6,
+  "Coat_Weight": 0.0
+ },
+ "lamp shade": {
+  "kind": "flat",
+  "color": [
+   0.95,
+   0.86,
+   0.66
+  ],
+  "rough": 0.8,
+  "metal": 0.0,
+  "Subsurface_Weight": 0.0,
+  "Transmission_Weight": 0.35,
+  "Emission_Color": [
+   1.0,
+   0.62,
+   0.3
+  ],
+  "Emission_Strength": 0.6
+ },
+ "case ox": {
+  "kind": "pbr",
+  "diff": "leather_red_02_2k.blend__leather_red_02_coll1_2k.png",
+  "nor": "leather_red_02_2k.blend__leather_red_02_nor_gl_2k.exr",
+  "rough": 0.45,
+  "rough_map": null,
+  "scale": 0.6,
+  "aspect": 1.0,
+  "tint": [
+   0.66,
+   0.132,
+   0.11000000000000001
+  ],
+  "hsv": [
+   0.5,
+   0.0,
+   1.6
+  ],
+  "nstrength": 0.5,
+  "metal": 0.0,
+  "coat": 0.2,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/case_ox_c.jpg",
+  "normalMap": "tex/case_ox_n.jpg"
+ },
+ "cream paint": {
+  "kind": "flat",
+  "color": [
+   0.78,
+   0.72,
+   0.6
+  ],
+  "rough": 0.45,
+  "metal": 0.0,
+  "Coat_Weight": 0.2,
+  "rough_noise": [
+   0.35,
+   0.55,
+   6
+  ]
+ },
+ "glass": {
+  "kind": "flat",
+  "color": [
+   0.92,
+   0.96,
+   1.0
+  ],
+  "rough": 0.02,
+  "metal": 0.0,
+  "Transmission_Weight": 1.0,
+  "IOR": 1.5
+ },
+ "ballast": {
+  "kind": "pbr",
+  "diff": "clean_pebbles_2k__clean_pebbles_diff_2k.jpg",
+  "nor": "clean_pebbles_2k__clean_pebbles_nor_gl_2k.exr",
+  "rough": 0.85,
+  "rough_map": null,
+  "scale": 1.2,
+  "aspect": 1.0,
+  "tint": null,
+  "hsv": [
+   0.5,
+   0.6,
+   0.75
+  ],
+  "nstrength": 1.2,
+  "metal": 0.0,
+  "coat": 0.0,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/ballast_c.jpg",
+  "normalMap": "tex/ballast_n.jpg"
+ },
+ "sleeper wood": {
+  "kind": "pbr",
+  "diff": "blue_painted_planks_2k.blend__blue_painted_planks_diff_2k.jpg",
+  "nor": null,
+  "rough": 0.8,
+  "rough_map": null,
+  "scale": 2.0,
+  "aspect": 1.0,
+  "tint": [
+   0.55,
+   0.45,
+   0.35
+  ],
+  "hsv": [
+   0.5,
+   0.0,
+   0.5
+  ],
+  "nstrength": 1.0,
+  "metal": 0.0,
+  "coat": 0.0,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/sleeper_wood_c.jpg"
+ },
+ "rail steel": {
+  "kind": "flat",
+  "color": [
+   0.45,
+   0.43,
+   0.42
+  ],
+  "rough": 0.35,
+  "metal": 1.0
+ },
+ "platform paving.001": {
+  "kind": "pbr",
+  "diff": "PavingStones110_2K-JPG__PavingStones110_2K_Color.jpg",
+  "nor": "PavingStones110_2K-JPG__PavingStones110_2K_NormalGL.jpg",
+  "rough": 0.8,
+  "rough_map": null,
+  "scale": 2.4,
+  "aspect": 0.5,
+  "tint": [
+   1.0,
+   0.93,
+   0.8
+  ],
+  "hsv": [
+   0.52,
+   0.3,
+   1.9
+  ],
+  "nstrength": 1.0,
+  "metal": 0.0,
+  "coat": 0.0,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/platform_paving_001_c.jpg",
+  "normalMap": "tex/platform_paving_001_n.jpg"
+ },
+ "kerb stone": {
+  "kind": "pbr",
+  "diff": "rock_boulder_dry_2k__rock_boulder_dry_diff_2k.jpg",
+  "nor": "rock_boulder_dry_2k__rock_boulder_dry_nor_gl_2k.exr",
+  "rough": 0.8,
+  "rough_map": null,
+  "scale": 1.5,
+  "aspect": 1.0,
+  "tint": null,
+  "hsv": [
+   0.5,
+   0.2,
+   1.25
+  ],
+  "nstrength": 0.5,
+  "metal": 0.0,
+  "coat": 0.0,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/kerb_stone_c.jpg",
+  "normalMap": "tex/kerb_stone_n.jpg"
+ },
+ "safety line": {
+  "kind": "flat",
+  "color": [
+   0.85,
+   0.55,
+   0.05
+  ],
+  "rough": 0.55,
+  "metal": 0.0,
+  "rough_noise": [
+   0.4,
+   0.7,
+   20
+  ]
+ },
+ "lawn": {
+  "kind": "pbr",
+  "diff": "Grass01_MR_2K__Grass01_2K_BaseColor.png",
+  "nor": "Grass01_MR_2K__Grass01_2K_Normal.png",
+  "rough": 0.5,
+  "rough_map": "Grass01_MR_2K__Grass01_2K_Roughness.png",
+  "scale": 2.0,
+  "aspect": 1.0,
+  "tint": null,
+  "hsv": [
+   0.5,
+   1.25,
+   1.15
+  ],
+  "nstrength": 1.0,
+  "metal": 0.0,
+  "coat": 0.0,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/lawn_c.jpg",
+  "normalMap": "tex/lawn_n.jpg",
+  "roughnessMap": "tex/lawn_r.jpg"
+ },
+ "sand.001": {
+  "kind": "pbr",
+  "diff": "clean_pebbles_2k__clean_pebbles_diff_2k.jpg",
+  "nor": "clean_pebbles_2k__clean_pebbles_nor_gl_2k.exr",
+  "rough": 0.9,
+  "rough_map": null,
+  "scale": 1.6,
+  "aspect": 1.0,
+  "tint": [
+   1.0,
+   0.9,
+   0.74
+  ],
+  "hsv": [
+   0.52,
+   0.45,
+   1.9
+  ],
+  "nstrength": 0.6,
+  "metal": 0.0,
+  "coat": 0.0,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/sand_001_c.jpg",
+  "normalMap": "tex/sand_001_n.jpg"
+ },
+ "boulder": {
+  "kind": "pbr",
+  "diff": "rock_boulder_dry_2k__rock_boulder_dry_diff_2k.jpg",
+  "nor": "rock_boulder_dry_2k__rock_boulder_dry_nor_gl_2k.exr",
+  "rough": 0.85,
+  "rough_map": null,
+  "scale": 1.4,
+  "aspect": 1.0,
+  "tint": null,
+  "hsv": [
+   0.5,
+   0.35,
+   1.0
+  ],
+  "nstrength": 1.0,
+  "metal": 0.0,
+  "coat": 0.0,
+  "sheen": 0.0,
+  "sheen_tint": null,
+  "color": null,
+  "rough_range": null,
+  "bright": null,
+  "contrast": null,
+  "ao": null,
+  "map": "tex/boulder_c.jpg",
+  "normalMap": "tex/boulder_n.jpg"
+ },
+ "frosted glass": {
+  "kind": "flat",
+  "color": [
+   1.0,
+   0.93,
+   0.8
+  ],
+  "rough": 0.3,
+  "metal": 0.0,
+  "Transmission_Weight": 0.8,
+  "Emission_Color": [
+   1,
+   0.8,
+   0.5
+  ],
+  "Emission_Strength": 0.3
+ }
+}
