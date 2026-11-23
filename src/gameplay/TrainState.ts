@@ -1811,9 +1811,11 @@ export class TrainState {
       this.binZone('bin:supply', at('bin'));
     }
 
-    if (type === 'sleeper' || type === 'familySleeper') {
-      this.sourceZone(`src:tea:${index}`, at('urn'), SERVICE_ITEMS, undefined, undefined, 'tea');
-      this.sourceZone(`src:linen:${index}`, at('linen'), LINEN_ITEMS);
+    // Every passenger carriage past the lobby with a counter and a cupboard in its plan (Phase 4: the Honeymoon Suites
+    // too; their counter had no zone, so the guide sent the conductor there to put something back, for ever).
+    if (type !== 'lobby' && isPassengerType(type)) {
+      if (layout.anchors.urn) this.sourceZone(`src:tea:${index}`, at('urn'), SERVICE_ITEMS, undefined, undefined, 'tea');
+      if (layout.anchors.linen) this.sourceZone(`src:linen:${index}`, at('linen'), LINEN_ITEMS);
     }
 
     // The washroom car keeps its own towels and rolls: it works the day it couples on.

@@ -866,10 +866,13 @@ export class Station {
         this.luggagePile--;
         this.layoutPlatformItems();
       },
-      giveBack: () => {
-        this.bagKinds.push(luggageSpec.kind);
+      // Phase 4: a spare suitcase or surfboard goes back on the barrow, whatever is on top (a board held over with a
+      // suitcase on top could not be put back: the bot walked to the barrow for ever with the bell ready).
+      giveBack: (kind) => {
+        this.bagKinds.push(kind);
         this.layoutPlatformItems();
       },
+      returns: ['luggage', 'surfboard'],
       interval: w.econ.zones.pickupIntervalSeconds * 1.5,
     };
     this.luggageZone = w.zones.add(new Zone({

@@ -431,12 +431,22 @@ export class Guidance {
   }
 
   /** The nearest anchor of this name in any carriage (a linen cupboard, a service counter). */
+  /**
+   * Phase 4: a counter or cupboard counts only where it has its pickup zone (a plan may carry the anchor without one,
+   * and an arrow to it sent the conductor there for ever).
+   */
+  private served(name: string, carriage: number): boolean {
+    if (!this.w.map.hasAnchor(carriage, name)) return false;
+    const id = name === 'urn' ? 'src:tea' : name === 'linen' ? 'src:linen' : null;
+    return !id || !!this.w.zones.get(carriage === 0 ? id : `${id}:${carriage}`);
+  }
+
   private nearestAnchor(name: string): Vec2 | null {
     const w = this.w;
     const map = w.map;
     let best: Vec2 | null = null;
     for (let i = 0; i < map.count; i++) {
-      if (!map.hasAnchor(i, name)) continue;
+      if (!this.served(name, i)) continue;
       const a = map.anchor(i, name);
       if (!best || Math.abs(a.z - w.player.pos.z) < Math.abs(best.z - w.player.pos.z)) best = a;
     }
@@ -446,7 +456,7 @@ export class Guidance {
   private sourceFor(item: ItemKind, carriage: number): Vec2 | null {
     const map = this.w.map;
     const name = sourceAnchorFor(item);
-    if (map.hasAnchor(carriage, name)) return map.anchor(carriage, name);
-    return map.hasAnchor(0, name) ? map.anchor(0, name) : null;
+    if (this.served(name, carriage)) return map.anchor(carriage, name);
+    return this.served(name, 0) ? map.anchor(0, name) : null;
   }
 }

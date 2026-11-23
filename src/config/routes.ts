@@ -487,7 +487,7 @@ export const RIVIERA_COAST: RouteDef = {
     slotPrice: [0.85, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2],
     // Its own level thresholds: with Route 1's, level 8 came at about 130 minutes of a 216-minute route; stretched so the
     // last levels keep coming until near the end.
-    levels: { ...COUNTRYSIDE_EXPRESS.economy.levels, thresholds: [0, 40, 130, 330, 700, 1700, 4500, 9000], cash: COUNTRYSIDE_EXPRESS.economy.levels.cash.map((c) => c * 2.5) },
+    levels: { ...COUNTRYSIDE_EXPRESS.economy.levels, thresholds: [0, 40, 120, 290, 580, 1300, 2800, 6500], cash: COUNTRYSIDE_EXPRESS.economy.levels.cash.map((c) => c * 2.5) },
     money: { ...COUNTRYSIDE_EXPRESS.economy.money, stationBonusCash: 36 },
   },
   // Phase 4 (owner: "lighter Attendant requirements, since players arrive already knowing the cleaning job"): the

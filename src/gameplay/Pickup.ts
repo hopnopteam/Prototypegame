@@ -11,21 +11,33 @@ export interface SourceSpec {
   stock: () => number;
   take: () => void;
   /** Puts a returned item back. Sources without it never take items back. */
-  giveBack?: () => void;
+  giveBack?: (kind: ItemKind) => void;
+  /**
+   * Phase 4: every kind the source takes back (the barrow: suitcases and surfboards, whichever is on top). Defaults to
+   * `kind` alone.
+   */
+  returns?: readonly ItemKind[];
   /** Seconds between items once the actor has settled in. */
   interval: number;
 }
 
 const tmp = new THREE.Vector3();
 
+/** What the actor holds that this source would take back (none for a source that takes nothing back). */
+function returnable(w: World, actor: Actor, spec: SourceSpec): ItemKind | null {
+  if (!spec.giveBack) return null;
+  for (const kind of spec.returns ?? [spec.kind]) if (w.demand.surplus(actor, kind) > 0) return kind;
+  return null;
+}
+
 /** Whether a source has anything to do for anyone right now (drives the zone's active state). */
 export function sourceActive(w: World, spec: SourceSpec): boolean {
   const d = w.demand;
   const player = w.player;
-  if (spec.giveBack && d.surplus(player, spec.kind) > 0) return true;
+  if (returnable(w, player, spec)) return true;
   if (spec.stock() <= 0) return false;
   if (d.playerWants(spec.kind) > 0) return true;
-  for (const m of w.staff.members) if (d.wants(m, spec.kind) || (spec.giveBack && d.surplus(m, spec.kind) > 0)) return true;
+  for (const m of w.staff.members) if (d.wants(m, spec.kind) || returnable(w, m, spec)) return true;
   return false;
 }
 
@@ -35,7 +47,8 @@ export function sourceActive(w: World, spec: SourceSpec): boolean {
  */
 export function sourceStay(w: World, zone: Zone, actor: Actor, dt: number, spec: SourceSpec): boolean {
   const d = w.demand;
-  const canReturn = !!spec.giveBack && d.surplus(actor, spec.kind) > 0;
+  const back = returnable(w, actor, spec);
+  const canReturn = back !== null;
   const canTake = !actor.stack.isFull && spec.stock() > 0 && d.wants(actor, spec.kind);
   if (!canReturn && !canTake) {
     if (actor.isPlayer) zone.progress = 0;
@@ -52,10 +65,10 @@ export function sourceStay(w: World, zone: Zone, actor: Actor, dt: number, spec:
   zone.repeat = spec.interval;
 
   if (canReturn) {
-    actor.stack.remove(spec.kind, () => spec.point());
-    spec.giveBack!();
+    actor.stack.remove(back, () => spec.point());
+    spec.giveBack!(back);
     w.audio.play('drop', { pitch: 1.2 });
-    w.events.emit('item.returned', { item: spec.kind, byPlayer: actor.isPlayer });
+    w.events.emit('item.returned', { item: back, byPlayer: actor.isPlayer });
     return true;
   }
   actor.stack.add(spec.kind, tmp.copy(spec.point()));
