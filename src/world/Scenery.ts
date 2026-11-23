@@ -312,7 +312,7 @@ export class Scenery {
     for (const kind of FILL_KINDS) {
       const m = new THREE.InstancedMesh(this.shapes[kind], MATERIALS.scenery, FILL_SLOTS[kind]);
       m.count = 0;
-      m.castShadow = kind === 'pine' || kind === 'spruce' || kind === 'broadleaf';
+      m.castShadow = kind === 'pine' || kind === 'spruce' || kind === 'broadleaf' || kind === 'palm' || kind === 'cypress' || kind === 'lemon';
       m.receiveShadow = true;
       m.layers.enable(REFLECT_LAYER);
       group.add(m);

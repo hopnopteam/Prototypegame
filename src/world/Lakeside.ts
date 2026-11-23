@@ -4,7 +4,7 @@ import { Rng } from '../core/Rng';
 import { GeoBuilder, type PartStyle } from './geo';
 import { PATTERN } from './materials';
 import { packPattern } from './detail';
-import { modelEntry } from './models/library';
+import { key, modelEntry, type Recolor } from './models/library';
 import { groundColor, groundHeight, sceneryToWorldX, shoreX, TRACK_HALF, VERGE_Y, WATER_Y } from './terrain';
 
 /**
@@ -27,8 +27,11 @@ export const CHUNK = 24;
 /** The boats' lane on the lake (Ambient keeps its boats and swans in here). */
 export const BOAT_LANE: [number, number] = [-11.0, -14.3];
 
-export type ShoreKind = 'reeds' | 'beach' | 'jetty' | 'boathouse' | 'lilies' | 'promenade' | 'lighthouse' | 'fishing' | 'island';
-export type LandKind = 'forest' | 'meadow' | 'village' | 'farm' | 'orchard' | 'lane' | 'windmill' | 'chapel' | 'camp' | 'wheat' | 'bridge';
+export type ShoreKind = 'reeds' | 'beach' | 'jetty' | 'boathouse' | 'lilies' | 'promenade' | 'lighthouse' | 'fishing' | 'island' | 'cove' | 'headland' | 'marina';
+export type LandKind = 'forest' | 'meadow' | 'village' | 'farm' | 'orchard' | 'lane' | 'windmill' | 'chapel' | 'camp' | 'wheat' | 'bridge' | 'villas' | 'lemons' | 'palms';
+/** Every piece there is, whichever route deals it (the tests build them all). */
+export const ALL_SHORE_KINDS: ShoreKind[] = ['reeds', 'beach', 'jetty', 'boathouse', 'lilies', 'promenade', 'lighthouse', 'fishing', 'island', 'cove', 'headland', 'marina'];
+export const ALL_LAND_KINDS: LandKind[] = ['forest', 'meadow', 'village', 'farm', 'orchard', 'lane', 'windmill', 'chapel', 'camp', 'wheat', 'bridge', 'villas', 'lemons', 'palms'];
 export type PieceKind = ShoreKind | LandKind;
 
 export interface DeckEntry<K extends string> {
@@ -38,7 +41,7 @@ export interface DeckEntry<K extends string> {
   gap: number;
 }
 
-export const SHORE_DECK: DeckEntry<ShoreKind>[] = [
+const BASE_SHORE_DECK: DeckEntry<ShoreKind>[] = [
   { kind: 'reeds', weight: 2.2, gap: 1 },
   { kind: 'beach', weight: 1.3, gap: 3 },
   { kind: 'lilies', weight: 1.2, gap: 3 },
@@ -50,7 +53,7 @@ export const SHORE_DECK: DeckEntry<ShoreKind>[] = [
   { kind: 'lighthouse', weight: 0.4, gap: 20 },
 ];
 
-export const LAND_DECK: DeckEntry<LandKind>[] = [
+const BASE_LAND_DECK: DeckEntry<LandKind>[] = [
   { kind: 'forest', weight: 2.0, gap: 1 },
   { kind: 'meadow', weight: 1.4, gap: 2 },
   { kind: 'lane', weight: 1.1, gap: 3 },
@@ -65,11 +68,35 @@ export const LAND_DECK: DeckEntry<LandKind>[] = [
   ...(ACTIVE_ROUTE.scenery.stoneBridges ? [{ kind: 'bridge' as const, weight: 0.6, gap: 9 }] : []),
 ];
 
+/** Phase 4: how soon the coast's pieces may come round again. */
+const NEW_PIECE_GAP: Partial<Record<PieceKind, number>> = { cove: 3, headland: 9, marina: 6, villas: 3, lemons: 4, palms: 2 };
+
+/** A deck with the route's own weights laid over it (`scenery.shore`/`land`: 0 leaves a piece out, a new kind joins). */
+function routeDeck<K extends PieceKind>(base: DeckEntry<K>[], weights: Partial<Record<string, number>> | undefined): DeckEntry<K>[] {
+  if (!weights) return base;
+  const deck = base.map((d) => ({ ...d, weight: weights[d.kind] ?? d.weight }));
+  for (const [kind, weight] of Object.entries(weights)) {
+    if (weight === undefined || deck.some((d) => d.kind === kind)) continue;
+    deck.push({ kind: kind as K, weight, gap: NEW_PIECE_GAP[kind as PieceKind] ?? 4 });
+  }
+  return deck.filter((d) => d.weight > 0);
+}
+
+export const SHORE_DECK: DeckEntry<ShoreKind>[] = routeDeck(BASE_SHORE_DECK, ACTIVE_ROUTE.scenery.shore);
+export const LAND_DECK: DeckEntry<LandKind>[] = routeDeck(BASE_LAND_DECK, ACTIVE_ROUTE.scenery.land);
+
 /** Instanced fill: what each slot holds (positions in chunk-local z, world x). */
-export type FillKind = 'pine' | 'spruce' | 'broadleaf' | 'bush' | 'reed' | 'rock' | 'lily' | 'flower' | 'sheep';
-export const FILL_KINDS: FillKind[] = ['pine', 'spruce', 'broadleaf', 'bush', 'reed', 'rock', 'lily', 'flower', 'sheep'];
-/** Slots per stretch for each fill kind. */
-export const FILL_SLOTS: Record<FillKind, number> = { pine: 26, spruce: 14, broadleaf: 14, bush: 22, reed: 30, rock: 14, lily: 26, flower: 40, sheep: 8 };
+export type FillKind = 'pine' | 'spruce' | 'broadleaf' | 'bush' | 'reed' | 'rock' | 'lily' | 'flower' | 'sheep' | 'palm' | 'cypress' | 'lemon';
+export const FILL_KINDS: FillKind[] = ['pine', 'spruce', 'broadleaf', 'bush', 'reed', 'rock', 'lily', 'flower', 'sheep', 'palm', 'cypress', 'lemon'];
+/** Slots per stretch for each fill kind (a kind with none in a stretch is not drawn). */
+export const FILL_SLOTS: Record<FillKind, number> = { pine: 26, spruce: 14, broadleaf: 14, bush: 22, reed: 30, rock: 40, lily: 26, flower: 40, sheep: 8, palm: 14, cypress: 30, lemon: 18 };
+/** Phase 4: the coast's fill trees' heights at scale 1 (metres). */
+export const COAST_FILL_HEIGHT = { palm: 3.6, cypress: 3.1, lemon: 1.8 };
+/**
+ * Phase 4: the route's own fill (`scenery.fill`): what a kind becomes on this route (the coast's pines are cypresses,
+ * its reeds limestone, its lilies none at all on the sea).
+ */
+const FILL_SWAP: Partial<Record<string, string>> = ACTIVE_ROUTE.scenery.fill ?? {};
 
 export interface FillSpot {
   kind: FillKind;
@@ -173,7 +200,10 @@ class Stretch {
     return true;
   }
 
-  put(kind: FillKind, x: number, z: number, scale: number, land: boolean, y?: number, r = 0.3): boolean {
+  put(asked: FillKind, x: number, z: number, scale: number, land: boolean, y?: number, r = 0.3): boolean {
+    const swap = FILL_SWAP[asked];
+    if (swap === 'none') return false;
+    const kind = (swap as FillKind | undefined) ?? asked;
     if (z < 0.4 || z > CHUNK - 0.4 || Math.abs(x) < TRACK_HALF + 0.15) return false;
     if (!this.free(x, z, r * scale)) return false;
     this.fill.push({ kind, x, y: y ?? this.ground(x, z), z, scale, rot: this.rng.range(0, Math.PI * 2), land });
@@ -259,6 +289,46 @@ function hayBale(b: GeoBuilder, st: Stretch, x: number, z: number): void {
   b.cylinder(x, y + 0.38, z, 0.42, 0.42, 0.62, C.hay, 12, 'x', { shade: 0.85, surface: 'fabric' });
   b.endObject();
   st.claim(x - 0.5, z - 0.5, x + 0.5, z + 0.5);
+}
+
+/** Phase 4: a model fitted to a height, standing on y. */
+function placeModel(b: GeoBuilder, id: Parameters<typeof modelEntry>[0], x: number, y: number, z: number, height: number, rotY = 0, style: PartStyle = { shade: 0.85 }, recolor: Recolor[] = []): void {
+  const e = modelEntry(id);
+  const sc = height / (e.max[1] - e.min[1]);
+  b.model(id, x, y - e.min[1] * sc, z, rotY, sc, sc, sc, { ...style, recolor });
+}
+
+/** Phase 4: pastel walls for the coast's villas (their white walls recoloured through the linen band). */
+const VILLA_WALLS = ['#F6EFE2', '#F3D9A4', '#F2C2A8', '#EBC7CF', '#E8D08E', '#F7F2EA'];
+const VILLAS = ['villa_a', 'villa_b', 'villa_c', 'villa_d', 'villa_e', 'villa_cube'] as const;
+
+/** A villa from Kenney's suburban kit, scaled to a footprint about `size` metres across, in a pastel. */
+function villa(b: GeoBuilder, glow: GeoBuilder, st: Stretch, x: number, z: number, size: number): void {
+  const rng = st.rng;
+  const id = rng.pick([...VILLAS]);
+  const e = modelEntry(id);
+  const sc = size / Math.max(e.max[0] - e.min[0], e.max[2] - e.min[2]);
+  const y = st.ground(x, z);
+  b.object('scenery:villa');
+  b.model(id, x, y - e.min[1] * sc, z, rng.pick([0, Math.PI / 2, Math.PI, -Math.PI / 2]), sc, sc, sc, { shade: 0.85, surface: 'paint', recolor: [key('linen', rng.pick(VILLA_WALLS))] });
+  b.endObject();
+  const h = (e.max[1] - e.min[1]) * sc;
+  const half = ((e.max[0] - e.min[0]) * sc) / 2;
+  glow.box(x + half + 0.02, y + h * 0.35, z + rng.range(-0.3, 0.3), 0.024, 0.32, 0.3, C.glow, 0, FLAT);
+  st.pools.push({ x: x + half + 0.7, z, r: 1.3, land: true });
+  st.claim(x - size / 2 - 0.4, z - size / 2 - 0.4, x + size / 2 + 0.4, z + size / 2 + 0.4);
+}
+
+/** A terracotta pot with a lemon bush or a flowering shrub. */
+function terracottaPot(b: GeoBuilder, st: Stretch, x: number, z: number, land: boolean): void {
+  const y = st.ground(x, z);
+  b.object('scenery:pot');
+  placeModel(b, 'pot_terracotta', x, y, z, 0.42, 0, { shade: 0.85, surface: 'matte' });
+  b.sphere(x, y + 0.55, z, 0.28, '#5E8A4A', 0, 0.85, { shade: 0.8, surface: 'foliage' });
+  for (let k = 0; k < 4; k++) b.sphere(x + Math.cos(k * 1.7) * 0.18, y + 0.6 + (k % 2) * 0.08, z + Math.sin(k * 1.7) * 0.18, 0.045, k % 2 ? '#E8C53A' : '#D9408A', 0, 1, FLAT);
+  b.endObject();
+  st.claim(x - 0.32, z - 0.32, x + 0.32, z + 0.32);
+  void land;
 }
 
 // ─── Lake-side pieces ──────────────────────────────────────────────────────
@@ -409,6 +479,97 @@ function buildShore(st: Stretch, kind: ShoreKind): void {
       st.pools.push({ x: xs - 1.2, z: z - 1.6, r: 1.2, land: false });
       st.claim(xs - 1.8, z - 2.1, xs + 0.6, z - 1.1);
       waterline(st, 1.3, 0.3);
+      break;
+    }
+    case 'cove': {
+      // A little cove: sand to the water, palms leaning out over it, parasols with towels, a sandcastle and a ball.
+      for (let z = 2.5; z < CHUNK - 2; z += rng.range(5.5, 8)) {
+        const x = Math.min(st.shore(z) + 0.45, -TRACK_HALF - 1.6);
+        if (x - 0.3 < st.shore(z)) continue;
+        b.object('scenery:palm');
+        placeModel(b, rng.chance(0.5) ? 'palm_bend' : 'palm_lush', x, st.ground(x, z), z, rng.range(3.3, 3.9), rng.range(-0.15, 0.15), { shade: 0.78, surface: 'foliage' });
+        b.endObject();
+        st.claim(x - 0.4, z - 0.4, x + 0.4, z + 0.4);
+      }
+      const umbrellas = ['umbrella_pink', 'umbrella_yellow', 'umbrella_green'] as const;
+      for (let i = 0; i < 3; i++) {
+        const z = 3 + i * 7 + rng.range(0, 2.5);
+        const x = Math.min(vergeX(z, 1.1), -TRACK_HALF - 0.95);
+        if (x - 0.6 < st.shore(z) || !st.free(x, z, 0.7)) continue;
+        const y = st.ground(x, z);
+        b.object('scenery:parasol');
+        placeModel(b, umbrellas[i % 3], x, y, z, 1.6, 0, { shade: 0.9, surface: 'fabric' });
+        b.box(x - 0.15, y + 0.02, z + 0.55, 0.55, 0.02, 1.0, rng.pick(['#3E8FC2', '#F2B134', '#E0559A', '#F2F0EA']), 0, { pattern: PATTERN.stripesX, color2: '#FFFFFF', scale: 0.12, shade: 1, surface: 'fabric' });
+        b.endObject();
+        st.claim(x - 0.6, z - 0.6, x + 0.4, z + 1.1);
+      }
+      {
+        const z = rng.range(9, 15);
+        const x = vergeX(z, 0.7);
+        if (st.free(x, z, 0.35) && x - 0.2 > st.shore(z)) {
+          const y = st.ground(x, z);
+          b.object('scenery:sandcastle');
+          placeModel(b, 'sandcastle', x, y, z, 0.32, 0, { shade: 0.9, surface: 'matte' });
+          b.endObject();
+          b.object('scenery:beachball');
+          placeModel(b, 'beach_ball', x + 0.1, y, z + 0.75, 0.3, 0.5, { shade: 0.95, surface: 'paint' });
+          b.endObject();
+          st.claim(x - 0.3, z - 0.3, x + 0.3, z + 1.0);
+        }
+      }
+      waterline(st, 2.2, 0.8);
+      break;
+    }
+    case 'headland': {
+      // A rocky headland: the lighthouse on its rock, sea stacks standing off it, limestone along the water.
+      const z = rng.range(9, 15);
+      const x = Math.max(st.shore(z) - 3.0, -8.6);
+      for (let k = 0; k < 7; k++) st.put('rock', x + rng.range(-1.1, 1.1), z + rng.range(-1.1, 1.1), rng.range(1.2, 1.9), false, WATER_Y - 0.2, 0.5);
+      b.object('scenery:lighthouse');
+      b.cylinder(x, WATER_Y + 0.35, z, 1.1, 1.3, 0.7, '#C9BFA8', 12, 'y', { shade: 0.8, surface: 'stone' });
+      const lh = 5.4;
+      placeModel(b, 'lighthouse', x, WATER_Y + 0.7, z, lh, 0, { shade: 0.9, surface: 'paint' });
+      b.endObject();
+      glow.cylinder(x, WATER_Y + 0.7 + lh * 0.86, z, 0.22, 0.22, 0.32, C.glow, 10, 'y', FLAT);
+      st.beacon = new THREE.Vector3(x, WATER_Y + 0.7 + lh * 0.86, z);
+      st.claim(x - 1.6, z - 1.6, x + 1.6, z + 1.6);
+      for (const dz of [-6.5, 6.8]) {
+        const sz = z + dz;
+        if (sz < 1.5 || sz > CHUNK - 1.5) continue;
+        const sx = Math.max(st.shore(sz) - rng.range(2.4, 3.6), -9.2);
+        b.object('scenery:seastack');
+        placeModel(b, 'sea_stack', sx, WATER_Y - 0.4, sz, rng.range(2.2, 3.2), rng.range(0, 3), { shade: 0.85, surface: 'stone' });
+        b.endObject();
+        st.claim(sx - 0.8, sz - 0.8, sx + 0.8, sz + 0.8);
+      }
+      waterline(st, 1.0, 1);
+      break;
+    }
+    case 'marina': {
+      // A little marina: a stone quay along the bank, boats moored off it, lamps and bollards.
+      b.object('scenery:quay');
+      for (let z = 1; z < CHUNK - 1; z += 2) {
+        const x = st.shore(z + 1) + 0.25;
+        b.box(x, WATER_Y + 0.22, z + 1, 0.8, 0.44, 2.02, '#CFC3A8', 0, { pattern: PATTERN.dots, color2: '#B8AC92', scale: 0.2, shade: 0.85, surface: 'stone' });
+      }
+      b.endObject();
+      for (let z = 1; z < CHUNK - 1; z += 2) st.claim(st.shore(z + 1) - 0.2, z, st.shore(z + 1) + 0.7, z + 2);
+      const boats = ['fishing_boat', 'yacht', 'sailboat_b'] as const;
+      for (let z = 3.5, i = 0; z < CHUNK - 3; z += rng.range(5.5, 7), i++) {
+        const x = Math.max(st.shore(z) - 1.4, -8.8);
+        const id = boats[(i + rng.int(0, 2)) % boats.length];
+        const e = modelEntry(id);
+        const sc = 2.6 / Math.max(e.max[2] - e.min[2], e.max[0] - e.min[0]);
+        b.object('scenery:mooredBoat');
+        b.model(id, x, WATER_Y - 0.08 - e.min[1] * sc, z, rng.range(-0.08, 0.08), sc, sc, sc, { shade: 0.85, surface: 'paint' });
+        b.endObject();
+        st.claim(x - 0.8, z - 1.4, x + 0.8, z + 1.4);
+        // A bollard on the quay with its rope.
+        b.object('scenery:bollard');
+        b.cylinder(st.shore(z) + 0.15, WATER_Y + 0.55, z, 0.07, 0.08, 0.2, C.iron, 8, 'y', { surface: 'iron' });
+        b.endObject();
+      }
+      for (let z = 6; z < CHUNK - 2; z += 9) lampPost(b, glow, st, vergeX(z, 1.0), z, false);
       break;
     }
     case 'island': {
@@ -598,6 +759,44 @@ function buildLand(st: Stretch, kind: LandKind): void {
       woods(st, 11, 8, ['broadleaf', 'pine']);
       break;
     }
+    case 'villas': {
+      // Pastel villas up the hillside, a lane in front with lamps, cypresses and pots between.
+      for (let z = 4; z < CHUNK - 2; z += 8) lampPost(b, glow, st, 4.4, z, true);
+      const count = rng.int(2, 3);
+      for (let i = 0; i < count; i++) {
+        const z = 3.8 + (i + rng.range(0.1, 0.5)) * ((CHUNK - 7) / count);
+        villa(b, glow, st, rng.range(9.6, 11.2), z, rng.range(3.0, 3.8));
+      }
+      if (rng.chance(0.7)) villa(b, glow, st, rng.range(15, 16.5), rng.range(6, 18), 3.4);
+      for (let k = 0; k < 3; k++) {
+        const z = rng.range(2, CHUNK - 2);
+        if (st.free(7.2, z, 0.4)) terracottaPot(b, st, 7.2, z, true);
+      }
+      st.scatter('cypress', 6, 8.2, 13.5, [0.85, 1.15], true, 0.45);
+      st.scatter('flower', 12, 3.0, 4.2, [0.8, 1.2], true, 0.14);
+      break;
+    }
+    case 'lemons': {
+      // A lemon grove in rows behind a dry-stone wall, pots of geraniums by the gate.
+      b.object('scenery:wall');
+      b.box(6.4, st.ground(6.4, CHUNK / 2) + 0.24, CHUNK / 2, 0.38, 0.48, CHUNK - 2.5, '#CDBFA2', 0, { pattern: PATTERN.dots, color2: '#B3A486', scale: 0.18, shade: 0.85, surface: 'stone' });
+      b.endObject();
+      st.claim(6.1, 1.2, 6.7, CHUNK - 1.2);
+      for (let z = 2; z < CHUNK - 1; z += 3.0) for (const x of [8.0, 10.6, 13.2]) st.put('lemon', x + rng.range(-0.2, 0.2), z + rng.range(-0.3, 0.3), rng.range(0.85, 1.05), true, undefined, 0.85);
+      terracottaPot(b, st, 5.6, rng.range(3, 6), true);
+      st.scatter('flower', 10, 3.0, 5.4, [0.8, 1.2], true, 0.14);
+      woods(st, 15, 4, ['cypress']);
+      break;
+    }
+    case 'palms': {
+      // A palm-lined coast road: the lane, lamps, a row of palms, a villa behind and cypresses beyond.
+      for (let z = 3; z < CHUNK - 2; z += 7) lampPost(b, glow, st, 4.2, z, true);
+      for (let z = 2.5; z < CHUNK - 1.5; z += 4.2) st.put('palm', 7.6 + rng.range(-0.15, 0.15), z, rng.range(0.9, 1.08), true, undefined, 0.6);
+      villa(b, glow, st, rng.range(11.5, 12.5), rng.range(7, 16), 3.4);
+      st.scatter('bush', 8, 8.8, 10.0, [0.7, 1.0], true, 0.45);
+      woods(st, 13, 5, ['cypress', 'broadleaf']);
+      break;
+    }
     case 'camp': {
       const z = rng.range(8, 15);
       for (const [dx, dz, c] of [[6.8, -1.6, C.canvas], [8.2, 1.4, C.canvas2]] as const) {
@@ -651,7 +850,7 @@ function buildTerrain(s0: number, land: LandKind): THREE.BufferGeometry {
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
-  const lane = land === 'lane' || land === 'village' ? 5.5 : null;
+  const lane = land === 'lane' || land === 'village' || land === 'palms' || land === 'villas' ? 5.5 : null;
   const field = land === 'farm';
   for (const cols of [LAKE_COLS, LAND_COLS]) {
     const base = positions.length / 3;
@@ -819,7 +1018,18 @@ export function fillGeometries(): Record<FillKind, THREE.BufferGeometry> {
   sheep.add(soft(new THREE.IcosahedronGeometry(0.2, 1)), '#F3EEE2', 0.16, 0.66, 0.05, 0, 0, 0, { shade: 0.9, surface: 'fabric' });
   sheep.add(soft(new THREE.IcosahedronGeometry(0.13, 1)).scale(1.25, 0.9, 0.85), '#3A3436', 0.5, 0.38, 0, 0, 0, -0.5, { shade: 0.85 });
   for (const [lx, lz] of [[0.24, 0.14], [0.24, -0.14], [-0.24, 0.14], [-0.24, -0.14]]) sheep.cylinder(lx, 0.14, lz, 0.035, 0.035, 0.28, '#3A3436', 5);
+  // Phase 4, the coast: Kenney's palm and cypress and Quaternius' lemon tree (CC0), each fitted to its height.
+  const fitted = (id: Parameters<typeof modelEntry>[0], height: number, shade: number, surface: PartStyle['surface']): THREE.BufferGeometry => {
+    const g = new GeoBuilder();
+    const e = modelEntry(id);
+    const sc = height / (e.max[1] - e.min[1]);
+    g.model(id, 0, -e.min[1] * sc, 0, 0, sc, sc, sc, { shade, surface });
+    return g.build();
+  };
   return {
+    palm: fitted('palm_straight', COAST_FILL_HEIGHT.palm, 0.75, 'foliage'),
+    cypress: fitted('cypress', COAST_FILL_HEIGHT.cypress, 0.7, 'foliage'),
+    lemon: fitted('lemon_tree', COAST_FILL_HEIGHT.lemon, 0.75, 'foliage'),
     sheep: sheep.build(),
     pine: pine.build(),
     spruce: spruce.build(),

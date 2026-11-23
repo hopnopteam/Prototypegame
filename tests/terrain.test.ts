@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BOAT_LANE, buildChunk, CHUNK, LAND_DECK, SHORE_DECK, type FillKind } from '../src/world/Lakeside';
+import { ALL_LAND_KINDS, ALL_SHORE_KINDS, BOAT_LANE, buildChunk, CHUNK, COAST_FILL_HEIGHT, type FillKind } from '../src/world/Lakeside';
 import { groundHeight, SHORE_MID, SHORE_NEAREST, shoreX, TRACK_HALF, WORLD_PERIOD } from '../src/world/terrain';
 
 /** Rough heights of the fill shapes at scale 1 (metres). */
-const FILL_HEIGHT: Record<FillKind, number> = { pine: 3.4, spruce: 3.95, broadleaf: 2.8, bush: 0.6, reed: 1.0, rock: 0.35, lily: 0.05, flower: 0.27, sheep: 0.8 };
+const FILL_HEIGHT: Record<FillKind, number> = { pine: 3.4, spruce: 3.95, broadleaf: 2.8, bush: 0.6, reed: 1.0, rock: 0.35, lily: 0.05, flower: 0.27, sheep: 0.8, ...COAST_FILL_HEIGHT };
 /** Land side: anything nearer the line than this many metres per metre of height would hide the train. */
 const HIDE_SLOPE = 0.45;
 
@@ -33,7 +33,8 @@ describe('the lakeside ground', () => {
 });
 
 describe('the lakeside pieces', () => {
-  const builds = SHORE_DECK.flatMap((shore, i) => LAND_DECK.map((land, j) => buildChunk(-CHUNK * (i * 9 + j + 3), shore.kind, land.kind, 101 + i * 31 + j)));
+  // Every piece there is (Phase 4: the coast's too), whichever route deals it.
+  const builds = ALL_SHORE_KINDS.flatMap((shore, i) => ALL_LAND_KINDS.map((land, j) => buildChunk(-CHUNK * (i * 17 + j + 3), shore, land, 101 + i * 31 + j)));
 
   it('keep everything out of the track bed', () => {
     for (const b of builds) {

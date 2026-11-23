@@ -45,8 +45,27 @@ export interface RouteGuestLook {
   glasses?: boolean;
 }
 
-/** How a route is lit: `goldenHourToNight` opens each session at golden hour and fades into the blue night. */
-export type RouteLighting = 'night' | 'goldenHourToNight';
+/**
+ * How a route is lit: `goldenHourToNight` opens each session at golden hour and fades into the blue night;
+ * `sunnyToSunset` (Phase 4, the coast) opens on a sunny afternoon and settles into the sunset.
+ */
+export type RouteLighting = 'night' | 'goldenHourToNight' | 'sunnyToSunset';
+
+/** What passes the window on a route (world/Lakeside.ts deals the pieces; terrain.ts and Water.ts colour them). */
+export interface RouteScenery {
+  wheat: boolean;
+  stoneBridges: boolean;
+  /** Phase 4: weights for the water-side and land-side pieces by kind (0 leaves one out; a new kind joins the deck). */
+  shore?: Partial<Record<string, number>>;
+  land?: Partial<Record<string, number>>;
+  /** Phase 4: what a fill kind becomes on this route ('none' leaves it out): the coast's pines are cypresses. */
+  fill?: Partial<Record<string, string>>;
+  /** Phase 4: the ground's colours (terrain.ts `GROUND` keys) and the water's. */
+  ground?: Partial<Record<string, string>>;
+  water?: { deep?: string; shallow?: string; bed?: string; foam?: string; haze?: string };
+  /** Phase 4: what sails the water lane: lantern boats and swans, or sailing boats. */
+  boats?: 'lanterns' | 'sails';
+}
 
 export interface RouteDef {
   /** The route's id (saves, the GameAnalytics `route` dimension). */
@@ -68,7 +87,7 @@ export interface RouteDef {
   /** Seconds of play the golden hour takes to fade into night (`goldenHourToNight`). */
   duskSeconds: number;
   /** The countryside's own touches (wheat fields, stone bridges) are dealt among the scenery pieces. */
-  scenery: { wheat: boolean; stoneBridges: boolean };
+  scenery: RouteScenery;
   /** The music track (the music is switched off for now, `MUSIC_ENABLED`; the id names the track it would play). */
   music: string;
   /** Phase 2: what this route's platforms offer, its special stops and its critic. */
@@ -95,6 +114,12 @@ export interface RouteDef {
   mess?: string[];
   /** Phase 4: the stamp's line along the top of every postcard ("COUNTRYSIDE LINE"). */
   postcardLine?: string;
+  /**
+   * Phase 4: the liveries the train earns on this route by level (in place of the countryside's grey → green → navy →
+   * royal blue), and the engine at its head (Kenney's steam locomotive, or a shrouded streamliner in the livery).
+   */
+  liveries?: { id: string; minLevel: number; name: string; body: string; trim: string }[];
+  locomotive?: 'steam' | 'streamliner';
   /** Phase 4: the colours of the train's bought dressing on this route (window-box flowers, the trim line, the carpet). */
   exterior?: { flowers?: string[]; trim?: string; carpet?: string; carpetEdge?: string };
 }
@@ -355,9 +380,21 @@ export const RIVIERA_COAST: RouteDef = {
     // Grandparents in linen.
     { id: 'linen', archetype: 'grandma', share: 0.5, body: '#E9E1CF', accent: '#7FA9C9', outfit: 'gown', pants: '#C9B9A0', hat: 'boater', hatColor: '#F1E3B8', glasses: true },
   ],
-  lighting: 'goldenHourToNight',
+  lighting: 'sunnyToSunset',
   duskSeconds: 240,
-  scenery: { wheat: false, stoneBridges: false },
+  // The Amalfi coast: a turquoise sea with sailing boats, coves of sand under leaning palms, a headland with its
+  // lighthouse and sea stacks, a little marina; pastel villas, lemon groves and palm-lined lanes on the land side,
+  // cypresses where the countryside had pines, drier olive greens and warm sand.
+  scenery: {
+    wheat: false,
+    stoneBridges: false,
+    shore: { reeds: 0, lilies: 0, boathouse: 0, lighthouse: 0, fishing: 0.4, island: 0.5, beach: 1.0, jetty: 0.6, promenade: 1.0, cove: 1.8, headland: 0.55, marina: 0.8 },
+    land: { meadow: 0, village: 0, farm: 0, orchard: 0, windmill: 0, chapel: 0, camp: 0, forest: 0.7, lane: 0.6, villas: 1.6, lemons: 1.2, palms: 1.1 },
+    fill: { pine: 'cypress', spruce: 'cypress', reed: 'rock', lily: 'none', sheep: 'none' },
+    ground: { grass: '#7E9150', grassLight: '#A1AE62', grassDark: '#5F7444', sand: '#E3CFA2', bank: '#C2B8A4', bed: '#6F9A9A', lane: '#B89F82', path: '#CDBB9C' },
+    water: { deep: '#0F3D78', shallow: '#249AAE', bed: '#86B4A8', foam: '#E4F0F2', haze: '#4D6E9E' },
+    boats: 'sails',
+  },
   music: 'riviera_theme',
   postcardLine: 'RIVIERA COAST LINE',
   dress: {
@@ -394,6 +431,14 @@ export const RIVIERA_COAST: RouteDef = {
   // Who travels on the coast: surfers and beach families in Basic, sunbathers and families in Comfort, honeymooners.
   archetypeWeights: { student: 1, backpacker: 2, surfer: 3, beachFamily: 2, tourist: 2, sunbather: 3, grandma: 1, family: 2 },
   mess: ['sand', 'shell', 'flipflops'],
+  // A blue-and-white streamliner that starts out sun-faded and gets its colour back as the route grows.
+  locomotive: 'streamliner',
+  liveries: [
+    { id: 'sunfaded', minLevel: 1, name: 'Sun-faded Blue', body: '#9FB6C2', trim: '#E9E2D0' },
+    { id: 'harbour', minLevel: 2, name: 'Harbour Blue', body: '#5F8DB6', trim: '#F4EFE4' },
+    { id: 'riviera', minLevel: 4, name: 'Riviera Blue & White', body: '#2F6FB5', trim: '#FFFFFF' },
+    { id: 'azure', minLevel: 6, name: 'Azure & Ivory', body: '#1E5AA8', trim: '#F8F5EC' },
+  ],
   // Bougainvillea in the window boxes, a sea-blue line along the cornice and a blue carpet at the door.
   exterior: { flowers: ['#C8327A', '#E0559A', '#F2F0EA', '#B02A6B'], trim: '#2F7FC1', carpet: '#2E6FB0', carpetEdge: '#F2F0EA' },
   economy: {

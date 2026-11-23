@@ -188,7 +188,7 @@ describe('carriage choice', () => {
   });
 
   it('adds up the bonuses of the station upgrades bought', () => {
-    expect(stationPerks(() => false)).toEqual({ tips: 0, fares: 0, passengers: 0, vip: 0, stationBonus: 0, fastTickets: false, patience: 1, helper: false, kiosk: false, secondDoor: false });
+    expect(stationPerks(() => false)).toEqual({ tips: 0, fares: 0, passengers: 0, vip: 0, stationBonus: 0, fastTickets: false, patience: 1, helper: false, kiosk: false, secondDoor: false, rackPlaces: 0 });
     expect(stationPerks((id) => id === 'st.benches').patience).toBe(2);
     expect(stationPerks((id) => id === 'st.booth').fastTickets).toBe(true);
     const all = stationPerks(() => true);

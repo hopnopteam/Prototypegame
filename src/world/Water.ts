@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { LIGHT_UNIFORMS } from './materials';
+import { ACTIVE_ROUTE } from '../config/routes';
+
+/** The water's colours (Phase 4: the route may give its own, the coast's turquoise sea). */
+const WATER = { deep: '#18234E', shallow: '#2E6380', bed: '#6F7C76', foam: '#B9C6D8', haze: '#3A4178', ...ACTIVE_ROUTE.scenery.water };
 import type { PreRender } from './Stage';
 import { SHORE_GLSL, WORLD_PERIOD } from './terrain';
 
@@ -147,11 +151,11 @@ export class Water {
         ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
         uTime: { value: 0 },
         uScroll: { value: 0 },
-        uDeep: { value: new THREE.Color('#18234E') },
-        uShallow: { value: new THREE.Color('#2E6380') },
-        uBed: { value: new THREE.Color('#6F7C76') },
-        uFoam: { value: new THREE.Color('#B9C6D8') },
-        uHaze: { value: new THREE.Color('#3A4178') },
+        uDeep: { value: new THREE.Color(WATER.deep) },
+        uShallow: { value: new THREE.Color(WATER.shallow) },
+        uBed: { value: new THREE.Color(WATER.bed) },
+        uFoam: { value: new THREE.Color(WATER.foam) },
+        uHaze: { value: new THREE.Color(WATER.haze) },
         uNight: { value: 1 },
         uReflection: { value: null },
         uReflect: { value: 0 },

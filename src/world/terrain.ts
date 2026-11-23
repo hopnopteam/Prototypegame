@@ -1,3 +1,4 @@
+import { ACTIVE_ROUTE } from '../config/routes';
 /**
  * The lakeside as continuous functions of where you are, not of which piece you are on: the shoreline, the
  * ground's height and its colour are all functions of (x across the line, s along it), so pieces built at any
@@ -132,6 +133,8 @@ export const GROUND = {
   field: hex('#6F7A4E'),
   fieldDark: hex('#56603C'),
 };
+// Phase 4: the route's own ground colours (the coast's olive greens and warm sand).
+for (const [k, v] of Object.entries(ACTIVE_ROUTE.scenery.ground ?? {})) if (v && k in GROUND) GROUND[k as keyof typeof GROUND] = hex(v);
 
 /** Ground colour at (x, s) in sRGB 0..1 (vertex colours). `lane` marks a country lane's centre x, if any. */
 export function groundColor(x: number, s: number, lane: number | null = null, field = false): Rgb {

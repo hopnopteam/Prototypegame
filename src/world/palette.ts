@@ -207,11 +207,16 @@ export interface Livery {
   gems?: number;
 }
 
-export const LIVERIES: Livery[] = [
+/** The liveries earned by level (Phase 4: a route may give its own, the coast's sun-faded blue to azure). */
+const EARNED_LIVERIES: Livery[] = ACTIVE_ROUTE.liveries ?? [
   { id: 'primer', minLevel: 1, name: 'Workshop Grey', body: '#7F8E9B', trim: '#EDE6D6' },
   { id: 'meadow', minLevel: 2, name: 'Meadow Green', body: '#5E8A6A', trim: '#EFE6D2' },
   { id: 'navy', minLevel: 4, name: 'Midnight Navy', body: '#34507A', trim: '#F1E6CC' },
   { id: 'royal', minLevel: 6, name: 'Royal Blue & Gold', body: '#2F4C82', trim: '#E2B653' },
+];
+
+export const LIVERIES: Livery[] = [
+  ...EARNED_LIVERIES,
   { id: 'pillarbox', gems: 120, name: 'Pillar-box Red', body: '#B5433F', trim: '#F3E7CF' },
   { id: 'seafoam', gems: 120, name: 'Seafoam & Cream', body: '#6FA59C', trim: '#FBF3E4' },
   { id: 'mustard', gems: 150, name: 'Mustard Express', body: '#D3A043', trim: '#34405A' },

@@ -5,6 +5,8 @@ import { GeoBuilder } from './geo';
 import { BOAT_LANE } from './Lakeside';
 import { SCENERY_SPREAD } from './terrain';
 import { MATERIALS } from './materials';
+import { ACTIVE_ROUTE } from '../config/routes';
+import { modelEntry } from './models/library';
 
 /** People who come out to watch the train go by: farmers, children, a grandmother with a hat. */
 const ONLOOKER_LOOKS: { look: CharacterLook; scale: number }[] = [
@@ -58,6 +60,16 @@ export class Ambient {
       this.onlookers.push({ view, x: 0, z: 0, hop: this.rng.range(0, 2) });
     });
 
+    // Phase 4: on the coast, sailing boats and a launch out on the sea instead of lantern boats and swans.
+    if (ACTIVE_ROUTE.scenery.boats === 'sails') {
+      for (const id of ['sailboat', 'sailboat_b', 'yacht'] as const) {
+        const group = buildSailboat(id);
+        this.group.add(group);
+        this.boats.push({ group, z: 0, bob: this.rng.range(0, 6), drift: BOAT_DRIFT * (id === 'yacht' ? -1.6 : 1) });
+      }
+      this.setSpan(14);
+      return;
+    }
     for (let i = 0; i < 2; i++) {
       const group = buildBoat();
       this.group.add(group);
@@ -126,6 +138,19 @@ export class Ambient {
     b.z = z;
     b.group.rotation.y = this.rng.range(-0.6, 0.6);
   }
+}
+
+/** Phase 4: a sailing boat (Kenney's Watercraft Kit, CC0) about 2.8 m long, a riding light at its masthead. */
+function buildSailboat(id: 'sailboat' | 'sailboat_b' | 'yacht'): THREE.Group {
+  const b = new GeoBuilder();
+  const e = modelEntry(id);
+  const sc = 2.8 / (e.max[2] - e.min[2]);
+  b.model(id, 0, -e.min[1] * sc - 0.1, 0, 0, sc, sc, sc, { shade: 0.85, surface: 'paint' });
+  const group = new THREE.Group();
+  group.add(new THREE.Mesh(b.build(), MATERIALS.scenery));
+  const glow = new GeoBuilder().box(0, (e.max[1] - e.min[1]) * sc - 0.05, 0, 0.1, 0.1, 0.1, '#FFD08A', 0, { shade: 1 });
+  group.add(new THREE.Mesh(glow.build(), MATERIALS.lamps));
+  return group;
 }
 
 /** A little rowing boat with a lantern on a pole. */

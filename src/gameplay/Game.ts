@@ -107,6 +107,14 @@ const MAX_FRAME = 0.05;
 const NIGHT_TIME = 0.82;
 /** Phase 1: golden hour in the day cycle (Lighting's keys: past the day key, toward dusk), where a Countryside Express session opens. */
 const GOLDEN_TIME = 0.655;
+/**
+ * The routes' lighting presets: where in the day cycle a session opens and where it settles once `duskSeconds` of play
+ * have passed (Phase 1: golden hour into the blue night; Phase 4, the coast: a sunny afternoon into the sunset).
+ */
+const LIGHTING_SPAN: Record<Exclude<typeof ACTIVE_ROUTE.lighting, 'night'>, [number, number]> = {
+  goldenHourToNight: [GOLDEN_TIME, NIGHT_TIME],
+  sunnyToSunset: [0.53, 0.648],
+};
 
 /**
  * Composition root and main loop. Builds every system once, owns time (including the dev time scale and
@@ -865,9 +873,10 @@ export class Game implements World {
     let t = this.dayCycleOverride ?? (holdNight ? NIGHT_TIME : ((j.legsCompleted + fraction) / legs + 0.08) % 1);
     // Phase 1, the route's lighting preset: the Countryside Express opens each session at golden hour and fades into the
     // blue night over its first minutes of play, the lamps on the train coming on as it darkens (`setNightAmount`).
-    if (this.dayCycleOverride === null && holdNight && ACTIVE_ROUTE.lighting === 'goldenHourToNight') {
+    if (this.dayCycleOverride === null && holdNight && ACTIVE_ROUTE.lighting !== 'night') {
+      const [from, to] = LIGHTING_SPAN[ACTIVE_ROUTE.lighting];
       const f = Math.min(1, this.sessionSeconds / Math.max(1, ACTIVE_ROUTE.duskSeconds));
-      t = GOLDEN_TIME + (NIGHT_TIME - GOLDEN_TIME) * f * f * (3 - 2 * f);
+      t = from + (to - from) * f * f * (3 - 2 * f);
     }
     // In a rock cutting the moon is hidden and the train's lamps take over.
     this.stage.lighting.darkness = this.scenery.darknessAt(this.stage.rig.focusPoint.z);

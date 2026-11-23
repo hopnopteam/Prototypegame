@@ -9,6 +9,7 @@ import { PALETTE } from './palette';
 import { modelEntry } from './models/library';
 import { signTexture } from './sprites';
 import { REFLECT_LAYER } from './Water';
+import { ACTIVE_ROUTE } from '../config/routes';
 
 /** How far the headlight's beam dips toward the track (radians). */
 const HEADLIGHT_TILT = -0.09;
@@ -45,6 +46,12 @@ const TENDER_GAP = 0.25;
 const CHIMNEY_AT = 0.2;
 const LAMP_Y = 0.62;
 const CAB_ROOF_TOP = 1.66 * LOCO_SCALE;
+/**
+ * Phase 4, the streamliner (the coast's `locomotive`): a shrouded engine and a matching tender painted with the live
+ * livery (body and trim materials, so it fades from sun-bleached to fresh blue with the route's liveries), a rounded
+ * nose with the headlamp in it, a white band down each side, a dark skirt over the bogies and a raked windscreen.
+ */
+const STREAM = { width: 3.0, skirtTop: 0.78, waist: 1.85, bodyTop: 2.95, nose: 2.4, engine: 6.6, radius: 0.32, lampY: 1.5 };
 const PENNANT_ROW = 1.4;
 const PENNANT_POLE = 0.58;
 const PENNANT_WIDTH = 0.3;
@@ -62,12 +69,14 @@ export class LocomotiveView {
   /** World position the smoke puffs come out of. */
   readonly chimneyTop = new THREE.Vector3();
   /** The brass nameplate on the tender, facing the train: the player's name for her. */
-  private readonly nameplate: THREE.Mesh;
+  private nameplate!: THREE.Mesh;
   private name = '';
   /** Pennants of the rivals beaten (session 18): a line from a brass mast on the cab roof to the chimney. */
   private pennants: THREE.Mesh | null = null;
   private pennantKey = '';
-  private readonly pennantLine: { from: THREE.Vector3; to: THREE.Vector3 };
+  private pennantLine!: { from: THREE.Vector3; to: THREE.Vector3 };
+  /** The cab roof the pennants stand on. */
+  private roofTop = CAB_ROOF_TOP;
   private readonly lampMaterial = new THREE.MeshBasicMaterial({ color: '#FFE3A8' });
   private readonly beam = new THREE.Mesh(BEAM_GEOMETRY, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, forceSinglePass: true, fog: false }));
   private readonly pool = new THREE.Mesh(POOL_GEOMETRY, new THREE.MeshBasicMaterial({ map: POOL_TEXTURE(), color: 0x000000, ...ADD_GLOW }));
@@ -76,6 +85,32 @@ export class LocomotiveView {
     const back = -GANGWAY_LENGTH;
     const front = back - LOCOMOTIVE_LENGTH;
     const b = new GeoBuilder();
+    const streamliner = ACTIVE_ROUTE.locomotive === 'streamliner';
+    const roofTop = streamliner ? STREAM.bodyTop : CAB_ROOF_TOP;
+    if (streamliner) {
+      this.buildStreamliner(b, front, back);
+      const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.layers.enable(STATIC_CASTER_LAYER);
+      this.group.add(mesh);
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.12, 14).rotateX(Math.PI / 2), this.lampMaterial);
+      lamp.position.set(0, STREAM.lampY, front + 0.06);
+      this.group.add(lamp);
+      this.beam.position.set(0, STREAM.lampY, front + 0.02);
+      this.beam.rotation.x = HEADLIGHT_TILT;
+      this.pool.position.set(0, 0.3, front - 5.2);
+      this.group.add(this.beam, this.pool);
+      this.chimneyTop.set(0, STREAM.bodyTop + 0.2, front + STREAM.nose + 1.2);
+      this.pennantLine = { from: new THREE.Vector3(-PENNANT_ROW, roofTop, front + STREAM.engine - 0.3), to: new THREE.Vector3(PENNANT_ROW - PENNANT_WIDTH, roofTop, front + STREAM.engine - 0.3) };
+      this.roofTop = roofTop;
+      this.group.traverse((o) => o.layers.enable(REFLECT_LAYER));
+      this.nameplate = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.3), new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false }));
+      this.nameplate.position.set(0, 1.3, back + 0.03);
+      this.nameplate.visible = false;
+      this.group.add(this.nameplate);
+      return;
+    }
     // Session 51b (owner: "the engine… very ugly… the tires are all over the place… a model that looks and behaves very
     // well"): Kenney's Train Kit steam locomotive (CC0), blue with gold lining and proper wheels and rods, scaled up
     // uniformly, with the kit's own coal wagon as its tender behind the cab, shortened to fit the locomotive's length.
@@ -120,6 +155,62 @@ export class LocomotiveView {
   }
 
   /**
+   * Phase 4: the streamliner. Two-tone like the classic coast streamliners: the livery's body colour below the waist,
+   * its trim colour (white) above and over the roof with a stripe of the body colour down its middle, a dark window
+   * band along the cab, a rounded nose in the same two colours with a raked windscreen, a dark skirt over the bogies,
+   * and a matching tender. Livery parts are on the livery materials, so the paint follows the route's liveries.
+   */
+  private buildStreamliner(b: GeoBuilder, front: number, back: number): void {
+    const S = STREAM;
+    const lower = new GeoBuilder();
+    const upper = new GeoBuilder();
+    const w = S.width;
+    const waist = S.waist;
+    const engineBack = front + S.engine;
+    const shroud0 = front + S.nose;
+    const tender0 = engineBack + 0.3;
+    // The skirt and underframe, dark, the whole length; bogie wheels peeping out under it.
+    b.object('locomotive');
+    b.box(0, (S.skirtTop + 0.3) / 2, (front + 0.4 + back) / 2, w - 0.3, S.skirtTop - 0.3, back - front - 0.6, '#2B3038', 0, { shade: 0.85, surface: 'iron' });
+    for (const z of [front + 1.6, front + 2.6, engineBack - 1.8, engineBack - 0.8, back - 2.1, back - 1.0]) {
+      for (const x of [-1, 1]) b.cylinder(x * (w / 2 - 0.42), 0.42, z, 0.36, 0.36, 0.16, '#1E2128', 16, 'x', { shade: 0.9, surface: 'iron' });
+    }
+    // The window band along both sides of the engine (the cab at the front, the engine room behind), the raked
+    // windscreen at the top of the nose and the buffer beam.
+    for (const x of [-1, 1]) b.box(x * (w / 2 + 0.008), waist + 0.32, (shroud0 + engineBack) / 2, 0.02, 0.36, engineBack - shroud0 - 0.5, '#1F2A36', 0, { shade: 1, surface: 'glass' });
+    for (const x of [-1, 1]) b.box(x * (w / 2 - 0.042), waist + 0.22, (tender0 + back) / 2, 0.02, 0.3, back - tender0 - 0.8, '#1F2A36', 0, { shade: 1, surface: 'glass' });
+    b.add(new THREE.BoxGeometry(w * 0.6, 0.5, 0.06), '#1F2A36', 0, S.bodyTop - 0.38, shroud0 - 0.42, -0.75, 0, 0, { shade: 1, surface: 'glass' });
+    b.box(0, 0.7, front + 0.3, w - 0.5, 0.18, 0.3, '#2B3038', 0, { shade: 0.9, surface: 'iron' });
+    b.endObject();
+    // The shroud: the body colour from the skirt to the waist, the trim colour from the waist over the roof.
+    const block = (g: GeoBuilder, z0: number, z1: number, y0: number, y1: number, inset: number, radius: number): void => {
+      g.rounded(0, (y0 + y1) / 2, (z0 + z1) / 2, w - inset, y1 - y0, z1 - z0, radius, '#FFFFFF', { shade: 0.95 });
+    };
+    block(lower, shroud0, engineBack, S.skirtTop, waist, 0, 0.1);
+    block(upper, shroud0, engineBack, waist, S.bodyTop, 0.04, S.radius);
+    block(lower, tender0, back, S.skirtTop, waist - 0.1, 0.1, 0.1);
+    block(upper, tender0, back, waist - 0.1, S.bodyTop - 0.25, 0.14, S.radius);
+    // A stripe of the body colour down the middle of the roof, and a low vent where the steam comes out.
+    lower.box(0, S.bodyTop + 0.004, (shroud0 + engineBack) / 2 + 0.2, 0.46, 0.012, engineBack - shroud0 - 0.8, '#FFFFFF', 0, { shade: 1 });
+    lower.box(0, S.bodyTop - 0.25 + 0.004, (tender0 + back) / 2, 0.46, 0.012, back - tender0 - 0.8, '#FFFFFF', 0, { shade: 1 });
+    lower.rounded(0, S.bodyTop + 0.08, shroud0 + 1.2, 0.36, 0.16, 0.8, 0.06, '#FFFFFF', { shade: 0.85 });
+    // The nose: a half ellipsoid down the line, its lower half in the body colour and its upper half in the trim.
+    const ry = (S.bodyTop - S.skirtTop) / 2;
+    const noseY = waist;
+    const half = (phiStart: number, scale: number): THREE.BufferGeometry =>
+      new THREE.SphereGeometry(1, 28, 14, phiStart, Math.PI, 0, Math.PI / 2).rotateX(-Math.PI / 2).scale((w / 2) * scale, ry * scale, S.nose * scale);
+    lower.add(half(Math.PI, 1), '#FFFFFF', 0, noseY, shroud0, 0, 0, 0, { shade: 0.95 });
+    upper.add(half(0, 1), '#FFFFFF', 0, noseY, shroud0, 0, 0, 0, { shade: 0.95 });
+    for (const [g, material] of [[lower, MATERIALS.livery], [upper, MATERIALS.liveryTrim]] as const) {
+      const mesh = new THREE.Mesh(g.build(), material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.layers.enable(STATIC_CASTER_LAYER);
+      this.group.add(mesh);
+    }
+  }
+
+  /**
    * Hoists a pennant for each rival beaten: a row of little brass flagpoles along the cab roof's rear edge,
    * right above the nameplate where the camera looks, each flying that rival's livery with a band of their
    * trim, in the order they fell (the league table, worn on the engine). Rebuilt only when the list changes.
@@ -140,10 +231,10 @@ export class LocomotiveView {
       const x = from.x + ((to.x - from.x) * i) / Math.max(1, PENNANT_SLOTS - 1);
       const z = from.z;
       b.object(`pennant ${i}`);
-      b.cylinder(x, CAB_ROOF_TOP + PENNANT_POLE / 2, z, 0.012, 0.016, PENNANT_POLE, PALETTE.brass, 6);
-      b.sphere(x, CAB_ROOF_TOP + PENNANT_POLE + 0.02, z, 0.026, PALETTE.gold, 1);
+      b.cylinder(x, this.roofTop + PENNANT_POLE / 2, z, 0.012, 0.016, PENNANT_POLE, PALETTE.brass, 6);
+      b.sphere(x, this.roofTop + PENNANT_POLE + 0.02, z, 0.026, PALETTE.gold, 1);
       // The flag streams out sideways from the top of the pole: a band of trim at the hoist, the livery beyond.
-      const y = CAB_ROOF_TOP + PENNANT_POLE - PENNANT_DROP / 2 - 0.02;
+      const y = this.roofTop + PENNANT_POLE - PENNANT_DROP / 2 - 0.02;
       b.box(x + 0.035, y, z, 0.05, PENNANT_DROP, 0.012, lifted(colour.trim, PENNANT_LIFT * 0.5), 0, { shade: 1 });
       const shape = new THREE.Shape();
       shape.moveTo(0, PENNANT_DROP / 2);
