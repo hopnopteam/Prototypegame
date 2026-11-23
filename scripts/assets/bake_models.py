@@ -11,7 +11,7 @@ all indices (uint16, relative to the model's first vertex). Offsets in the index
 
 Run: python3 -I scripts/assets/bake_models.py
 """
-import io, json, os, struct, sys
+import base64, io, json, os, struct, sys, urllib.parse
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,7 +20,7 @@ OUT_BIN = os.path.join(ROOT, 'assets', 'models', 'models.bin')
 OUT_TS = os.path.join(ROOT, 'src', 'world', 'models', 'modelIndex.ts')
 
 # id → source under assets/models/src: a path, or {src, paint (material name → sRGB hex), linear (OBJ Kd is linear),
-# flip}. Keep ids stable: the game names models by them. Flat-coloured models are painted in the KEY colours below, so
+# flip, hue: bake-time repaint of hue bands, see `repaint`}. Keep ids stable: the game names models by them. Flat-coloured models are painted in the KEY colours below, so
 # the game recolours each part by its hue band (world/models/library.ts `KEY`, `paint`).
 WOOD, COVER, CUSHION, METAL, LINEN, BLANKET, DARK = '#8A4A37', '#FBB856', '#68A8D4', '#7A7A7A', '#F2F2F2', '#4E8DBA', '#3A2A22'
 QH = 'quaternius-house/'
@@ -163,6 +163,92 @@ MODELS = {
     'lolly': 'kenney-food/popsicle.glb',
     'box_large': 'kenney-survival/box-large.glb',                 # Kenney Survival Kit
     'pug': {'src': 'quaternius-animals/Pug.obj', 'linear': True},  # Quaternius Farm Animals
+    # Route 2, the Riviera Coast Line (docs/riviera-assets/README.md: sources, licences, uses; all CC0). Kenney Pirate,
+    # Nature, City Suburban/Commercial, Watercraft, Holiday and Food kits; Tiny Treats; KayKit; Quaternius. 'hue' repaints at bake time.
+    # Coast scenery
+    'palm_straight': "kenney-pirate/palm-straight.glb",
+    'palm_bend': "kenney-pirate/palm-bend.glb",
+    'palm_lush': "kenney-pirate/palm-detailed-bend.glb",
+    'palm_slim': {"src": "kenney-nature/tree_palmTall.glb", "paint": {"leafsGreen": "#3F9A4A", "woodBark": "#B07A50"}},
+    'cypress': {"src": "kenney-nature/tree_tall.glb", "paint": {"leafsGreen": "#3F7246", "woodBark": "#6E4A32"}},
+    'lemon_tree': {"src": "quaternius-platformer/Bush_Fruit.gltf", "hue": [{"h": [330, 50], "s": [0.4, 1], "to": "#F2D23C"}]},
+    'villa_a': {"src": "kenney-suburban/building-type-f.glb", "hue": [{"h": [90, 170], "s": [0.25, 1], "to": "#A65640"}]},
+    'villa_b': {"src": "kenney-suburban/building-type-k.glb", "hue": [{"h": [90, 170], "s": [0.25, 1], "to": "#A65640"}]},
+    'villa_c': {"src": "kenney-suburban/building-type-m.glb", "hue": [{"h": [90, 170], "s": [0.25, 1], "to": "#A65640"}]},
+    'villa_d': {"src": "kenney-suburban/building-type-r.glb", "hue": [{"h": [90, 170], "s": [0.25, 1], "to": "#A65640"}]},
+    'villa_e': {"src": "kenney-suburban/building-type-c.glb", "hue": [{"h": [90, 170], "s": [0.25, 1], "to": "#A65640"}]},
+    'villa_cube': {"src": "kenney-suburban/building-type-p.glb", "hue": [{"h": [0, 360], "s": [0, 0.35], "v": [0, 0.5], "to": "#E8DFD0"}]},
+    'lighthouse': {"src": "kenney-pirate/tower-complete-large.glb", "hue": [{"h": [190, 260], "s": [0.3, 1], "to": "#C8463A"}, {"h": [0, 360], "s": [0, 0.3], "v": [0.3, 1], "to": "#F4EFE6"}]},
+    'sea_stack': {"src": "kenney-nature/rock_tallA.glb", "paint": {"dirt": "#C9C0AE", "grass": "#7FA45A"}},
+    'coast_rock': {"src": "kenney-nature/stone_tallA.glb", "paint": {"stone": "#C9C0AE"}},
+    'boulder': {"src": "quaternius-nature/Rock_4.obj", "linear": True},
+    'sailboat': "kenney-watercraft/boat-sail-a.glb",
+    'sailboat_b': "kenney-watercraft/boat-sail-b.glb",
+    'fishing_boat': "kenney-watercraft/boat-fishing-small.glb",
+    'rowboat': "kenney-watercraft/boat-row-small.glb",
+    'yacht': "kenney-watercraft/boat-speed-e.glb",
+    # Station (Amalfi)
+    'awning': "kenney-commercial/detail-awning-wide.glb",
+    'string_lights': "kenney-holiday/lights-colored.glb",
+    'lantern_hang': "kenney-holiday/lantern-hanging.glb",
+    'fountain': "tinytreats-park/fountain.gltf",
+    'pot_terracotta': "tinytreats-plants/pot_A_large.gltf",
+    'pot_white': "tinytreats-plants/Pot_D_large.gltf",
+    'pots_stack': "tinytreats-plants/pots_stacked.gltf",
+    'column': {"src": "kenney-nature/statue_column.glb", "paint": {"stone": "#EDE6D8", "stoneDark": "#C9C0AE"}},
+    'crab': "quaternius-platformer/Crab.gltf",
+    'sandcastle': "tinytreats-playground/sandcastle_A.gltf",
+    'beach_bucket': "tinytreats-playground/bucket_A.gltf",
+    'cool_box': "tinytreats-picnic/cooler.gltf",
+    'radio': "tinytreats-picnic/radio.gltf",
+    'beach_ball': "kaykit-platformer/ball.gltf",
+    'menu_board': "kaykit-restaurant/menu.gltf",
+    # Kids' Play Car
+    'slide': "tinytreats-playground/slide_A.gltf",
+    'spring_horse': "tinytreats-playground/spring_horse_A.gltf",
+    'seesaw': "tinytreats-playground/seesaw_small.gltf",
+    'toy_block': "kaykit-blocks/colored_block_red.gltf",
+    'toy_block_stripe': "kaykit-blocks/striped_block_blue.gltf",
+    'play_rug': "kaykit-furniture/rug_oval_A.gltf",
+    'rug_stripes': "kaykit-furniture/rug_rectangle_stripes_A.gltf",
+    'kids_table': "kaykit-furniture/table_small.gltf",
+    'kids_chair': "kaykit-furniture/chair_C.gltf",
+    'floor_cushion': "kaykit-furniture/pillow_A.gltf",
+    'plushie': "kaykit-mixed/chicken_plushie_A.gltf",
+    # Spa Car
+    'candle': "tinytreats-bathroom/candle.gltf",
+    'slippers': "tinytreats-bathroom/slippers.gltf",
+    'towel_folded': "tinytreats-bathroom/towel_pink.gltf",
+    'spa_bottle': "tinytreats-bathroom/container_bathroom_C_pink.gltf",
+    'spa_plant': "tinytreats-bathroom/plant.gltf",
+    'spa_cabinet': "kaykit-furniture/cabinet_small_decorated.gltf",
+    # Pool Car
+    'rubber_duck': "tinytreats-bathroom/ducky.gltf",
+    'pool_shower': "tinytreats-bathroom/shower.gltf",
+    # Seafood Diner, smoothie and ice-cream bar
+    'fish': "kenney-food/fish.glb",
+    'mussel': "kenney-food/mussel-open.glb",
+    'skewer': "kenney-food/skewer.glb",
+    'lemon': "kenney-food/lemon.glb",
+    'lemon_half': "kenney-food/lemon-half.glb",
+    'orange': "kenney-food/orange.glb",
+    'pineapple': "kenney-food/pineapple.glb",
+    'coconut_half': "kenney-food/coconut-half.glb",
+    'banana': "kenney-food/banana.glb",
+    'strawberry': "kenney-food/strawberry.glb",
+    'cherries': "kenney-food/cherries.glb",
+    'ice_cone': "kenney-food/ice-cream-cne.glb",
+    'ice_cup': "kenney-food/ice-cream-cup.glb",
+    'ice_scoop': "kenney-food/ice-cream-scoop-mint.glb",
+    'smoothie': "kenney-food/frappe.glb",
+    'soda_glass': "kenney-food/soda-glass.glb",
+    'cake': "kenney-food/cake-birthday.glb",
+    'chocolate': "kenney-food/chocolate.glb",
+    # Honeymoon suite
+    'heart': "kaykit-platformer/heart_red.gltf",
+    'petal': {"src": "quaternius-stylized/Petal_1.gltf", "hue": [{"h": [0, 360], "s": [0.2, 1], "to": "#C8243A"}]},
+    'rose': {"src": "kenney-nature/flower_redA.glb", "paint": {"grass": "#4E8A3A", "colorRed": "#C8243A"}},
+    'present': "kaykit-holiday/present_A_red.gltf",
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}
@@ -226,6 +312,13 @@ def compose(a, b):
     return lin, t
 
 
+def read_uri(d, uri):
+    """A glTF buffer or image: a file beside the .gltf, or embedded as a base64 data URI (Quaternius' packs)."""
+    if uri.startswith('data:'):
+        return base64.b64decode(uri.split(',', 1)[1])
+    return open(os.path.join(d, urllib.parse.unquote(uri)), 'rb').read()
+
+
 def load_gltf(path):
     """(json, buffers, image loader) for a .gltf or a .glb."""
     d = os.path.dirname(path)
@@ -240,12 +333,12 @@ def load_gltf(path):
         bufs = [chunks[1][1]] if len(chunks) > 1 else []
     else:
         g = json.load(open(path))
-        bufs = [open(os.path.join(d, b['uri']), 'rb').read() for b in g.get('buffers', [])]
+        bufs = [read_uri(d, b['uri']) for b in g.get('buffers', [])]
 
     def image(i):
         im = g['images'][i]
         if 'uri' in im:
-            return Image.open(os.path.join(d, im['uri'])).convert('RGB')
+            return Image.open(io.BytesIO(read_uri(d, im['uri']))).convert('RGB')
         v = g['bufferViews'][im['bufferView']]
         o = v.get('byteOffset', 0)
         return Image.open(io.BytesIO(bufs[v['buffer']][o:o + v['byteLength']])).convert('RGB')
@@ -406,11 +499,52 @@ def bake(spec):
         out = bake_obj(path, paint, spec.get('linear', False))
     else:
         out = bake_gltf(path, paint)
+    if spec.get('hue'):
+        out = (out[0], out[1], repaint(out[2], spec['hue']), out[3])
     if spec.get('flip'):
         # turn the model half way round about y, for models authored facing the other way
         p, n, c, i = out
         out = ([(-x, y, -z) for x, y, z in p], [(-x, y, -z) for x, y, z in n], c, i)
     return weld(*out)
+
+
+def hsv(c):
+    r, g, b = (v / 255 for v in c)
+    mx, mn = max(r, g, b), min(r, g, b)
+    d = mx - mn
+    h = 0.0
+    if d > 1e-6:
+        h = ((g - b) / d) % 6 if mx == r else (b - r) / d + 2 if mx == g else (r - g) / d + 4
+        h *= 60
+    return h, (d / mx if mx > 0 else 0), mx
+
+
+def in_band(v, band):
+    lo, hi = band
+    return lo <= v <= hi if lo <= hi else v >= lo or v <= hi
+
+
+def repaint(col, rules):
+    """Route 2 (riviera assets): repaints hue bands of a textured model at bake time (a suburban house's green roof in
+    terracotta, a fruit bush's red fruit in lemon yellow), keeping each vertex's brightness relative to its band's average.
+    Each rule: {h: [lo, hi] degrees (wraps), s: [lo, hi], v: [lo, hi], to: '#hex'}; the first rule that matches wins."""
+    groups = [[] for _ in rules]
+    for i, c in enumerate(col):
+        h, s, v = hsv(c)
+        for k, r in enumerate(rules):
+            if in_band(h, r.get('h', [0, 360])) and in_band(s, r.get('s', [0, 1])) and in_band(v, r.get('v', [0, 1])):
+                groups[k].append((i, v))
+                break
+    out = list(col)
+    for k, r in enumerate(rules):
+        if not groups[k]:
+            continue
+        mean = sum(v for _, v in groups[k]) / len(groups[k])
+        to = hex_rgb(r['to'])
+        for i, v in groups[k]:
+            f = min(1.25, max(0.7, v / max(1e-4, mean)))
+            out[i] = tuple(min(255, round(c * f)) for c in to)
+    return out
 
 
 def weld(pos, nor, col, idx):

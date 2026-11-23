@@ -23,3 +23,12 @@ licence file). The item icons in `assets/icons/items.png` are rendered from the 
 | Session 57: Quaternius Farm Animals (CC0 on its itch page) — https://quaternius.itch.io/lowpoly-animated-animals | Quaternius | CC0 1.0 | the pug |
 
 CC0 needs no attribution; thank you, Kay and Isa Lousberg, Quaternius, Kenney and samusaa.
+
+## Route 2, the Riviera Coast Line (all CC0; docs/riviera-assets/README.md lists every model and its use)
+
+| Source | Author | Licence | Used for |
+|---|---|---|---|
+| Pirate Kit 2.1, Nature Kit 2.1, City Kit Suburban 2.0, City Kit Commercial 2.1, Watercraft Kit, Holiday Kit, Food Kit (via https://opengameart.org) — https://kenney.nl | Kenney | CC0 1.0 | palms, cypress, lighthouse, rocks, column, flower, villas (roofs repainted), awning, boats and yacht, string lights, lantern, fish, mussel, skewer, fruit, ice cream, smoothie, soda, cake, chocolate |
+| Tiny Treats Pretty Park, House Plants, Fun Playground, Pleasant Picnic, Bubbly Bathroom — https://isalousberg.itch.io / https://tinytreats.itch.io | Isa Lousberg | CC0 1.0 | fountain, pots, slide, spring horse, seesaw, sandcastle, bucket, cool box, radio, candle, slippers, towel, spa bottle and plant, rubber duck, outdoor shower |
+| KayKit Platformer Pack, Block Bits, Furniture Bits, Mixed Bag 1, Holiday Bits, Restaurant Bits — https://kaylousberg.itch.io | Kay Lousberg | CC0 1.0 | beach ball, heart, toy blocks, play rugs, kids' table, chair and cushion, spa cabinet, plushie, present, menu board |
+| Ultimate Platformer Pack, 150+ LowPoly Nature Models, Stylized Nature MegaKit (free) — https://quaternius.itch.io | Quaternius | CC0 1.0 | crab, lemon tree (fruit bush, repainted), boulder, rose petal |
