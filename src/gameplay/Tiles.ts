@@ -6,7 +6,8 @@ import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from '../world/CarriageView';
 import { carriageOriginZ, COUPLE_TILE_SIZE, doorTileSpot, PLATFORM_X0, TILE_SIZE, ZONE_RADIUS } from '../world/layout';
 import { STATION_UPGRADES } from '../config/content';
-import { ACTIVE_ROUTE } from '../config/routes';
+import { ACTIVE_ROUTE, routeItem } from '../config/routes';
+import { iconFor } from '../config/itemIcons';
 import { PLATFORM } from '../world/platformLayout';
 import { markWorldUi, TileView } from '../world/ZoneViews';
 import type { World } from './World';
@@ -76,9 +77,10 @@ const ICON_BY_KIND: Record<UnlockDef['kind'], IconName> = {
 /** A tile's icon: its kind's, or for a venue's seats and menus the venue's own (a cup, a cloche, a glass). */
 function iconOf(def: UnlockDef, type: string | undefined): IconName {
   if (def.kind === 'seat' || def.kind === 'menu') {
-    if (def.id.endsWith('menu_pastry')) return 'pastry';
-    if (type === 'cafe') return 'latte';
-    if (type === 'dining') return 'meal';
+    // Phase 4: the route's own menu (smoothies, gelato and seafood on the coast).
+    if (def.id.endsWith('menu_pastry')) return iconFor(routeItem('pastry'));
+    if (type === 'cafe') return iconFor(routeItem('latte'));
+    if (type === 'dining') return iconFor(routeItem('meal'));
     if (type === 'bar') return 'cocktail';
     if (type === 'dome') return 'binoculars';
     if (type === 'cinema') return def.id.endsWith('menu_snacks') ? 'popcorn' : 'film';

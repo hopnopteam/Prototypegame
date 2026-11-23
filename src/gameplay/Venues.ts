@@ -1243,7 +1243,7 @@ export class Venues {
     const stove = venue.stationFor(MEAL);
     if (!stove || this.chefPending(venue) <= 0 || venue.pass >= VENUE_TUNING.passMax) return null;
     return {
-      label: 'cook', icon: 'meal',
+      label: 'cook', icon: iconFor(MEAL),
       steps: [
         { kind: 'goto', target: stove },
         { kind: 'stand', until: () => this.chefPending(venue) <= 0 || venue.pass >= VENUE_TUNING.passMax, timeout: 20 },
@@ -1266,7 +1266,8 @@ export class Venues {
     if (seat && seat.serve && (venue.pass > 0 || m.stack.has(MEAL) || !chef)) {
       const steps: VenueStep[] = [];
       if (!m.stack.has(MEAL)) {
-        steps.push({ kind: 'do', fn: () => (m.wantItems = { meal: 1 }) });
+        // Phase 4: the route's dish (seafood on the coast), never the literal 'meal'.
+        steps.push({ kind: 'do', fn: () => (m.wantItems = { [MEAL]: 1 }) });
         // Plates from the pass (the chef's), or cooked at the range when there is no chef.
         const from = venue.pass > 0 || chef ? (venue.layout.pass ? venue.world(venue.layout.pass) : null) : venue.stationFor(MEAL);
         // Session 43: the seat is claimed only once the task will run (it was claimed first, and a waiter with nowhere

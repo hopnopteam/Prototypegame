@@ -441,13 +441,19 @@ export const RIVIERA_COAST: RouteDef = {
   ],
   // Bougainvillea in the window boxes, a sea-blue line along the cornice and a blue carpet at the door.
   exterior: { flowers: ['#C8327A', '#E0559A', '#F2F0EA', '#B02A6B'], trim: '#2F7FC1', carpet: '#2E6FB0', carpetEdge: '#F2F0EA' },
+  // Phase 4, tuned on the pacing simulator (ROUTE=riviera node scripts/pacing.mjs) to the Phase 4 bot targets. Prices ×2.5
+  // and fares ×2 as the prompt sets them; under them, the route's own base prices: the catalogue a little cheaper than
+  // Route 1's (×2.5 prices against ×2 fares compounded through every early cabin: the first pass had the third carriage
+  // at 56 minutes), the first couplings at Route 1's pace, the later ones dearer for the longer route, and the level and
+  // station bonuses (which take no fare multiplier) scaled with the prices.
   economy: {
     ...COUNTRYSIDE_EXPRESS.economy,
     priceMultiplier: 2.5,
     fareMultiplier: 2,
-    // Nine carriages: one more coupling than Route 1 (before ×2.5).
-    couplePrices: [60, 320, 380, 660, 1650, 3100, 6200, 9000],
+    couplePrices: [60, 360, 220, 800, 2100, 4000, 6800, 9600],
     slotPrice: [0.85, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2],
+    levels: { ...COUNTRYSIDE_EXPRESS.economy.levels, cash: COUNTRYSIDE_EXPRESS.economy.levels.cash.map((c) => c * 2.5) },
+    money: { ...COUNTRYSIDE_EXPRESS.economy.money, stationBonusCash: 36 },
   },
   station: {
     ...COUNTRYSIDE_EXPRESS.station,

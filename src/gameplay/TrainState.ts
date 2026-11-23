@@ -163,7 +163,10 @@ const OPEN_CARRIAGE = 'c0.open';
 const CARRIAGE_LIGHT = 'carriage:0';
 const NIGHT_FADE = 2.5;
 /** What a passenger carriage's service counter (the urn) hands out: drinks, the morning paper, breakfast trays. */
-const SERVICE_ITEMS: ItemKind[] = ['tea', 'coffee', 'champagne', 'newspaper', 'breakfast', 'snack', 'sandwich'];
+// Phase 4: the coast's cold lemonade comes from the same counter (Demand's `sourceAnchorFor` already sent people there).
+const SERVICE_ITEMS: ItemKind[] = ['tea', 'coffee', 'champagne', 'newspaper', 'breakfast', 'snack', 'sandwich', 'lemonade'];
+/** The linen cupboard: bedding and towels (Phase 4: and aloe for the sunburnt). */
+const LINEN_ITEMS: ItemKind[] = ['blanket', 'pillow', 'towel', 'aloe'];
 
 /** Whether a point is on a room's floor (its walls' inner faces, world coordinates). */
 function inRoom(room: { x0: number; x1: number; z0: number; z1: number }, x: number, z: number): boolean {
@@ -1769,7 +1772,7 @@ export class TrainState {
       // The urn is the service counter (tea; coffee for Business, champagne for First and Royal); the linen
       // cupboard has blankets, pillows and fresh towels for Comfort-class guests.
       this.sourceZone('src:tea', at('urn'), SERVICE_ITEMS, undefined, undefined, 'tea');
-      this.sourceZone('src:linen', at('linen'), ['blanket', 'pillow', 'towel']);
+      this.sourceZone('src:linen', at('linen'), LINEN_ITEMS);
       this.luggageDropZone('rack:lobby', at('rack'));
       this.binZone('bin:lobby', at('bin'));
     }
@@ -1815,7 +1818,7 @@ export class TrainState {
 
     if (type === 'sleeper' || type === 'familySleeper') {
       this.sourceZone(`src:tea:${index}`, at('urn'), SERVICE_ITEMS, undefined, undefined, 'tea');
-      this.sourceZone(`src:linen:${index}`, at('linen'), ['blanket', 'pillow', 'towel']);
+      this.sourceZone(`src:linen:${index}`, at('linen'), LINEN_ITEMS);
     }
 
     // The washroom car keeps its own towels and rolls: it works the day it couples on.

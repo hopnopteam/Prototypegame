@@ -1,3 +1,4 @@
+import { VENUE_KINDS } from '../config/venues';
 import * as THREE from 'three';
 import type { ItemKind, Vec2 } from '../core/types';
 import { isDwellNeed } from '../config/classes';
@@ -224,7 +225,8 @@ export class Guidance {
     for (const d of u.listed()) {
       if (d.kind !== 'hire' || !d.work) continue;
       const short = u.workShort(d);
-      if (short && ['cafe', 'dining', 'bar', 'dome', 'cinema'].includes(short.metric)) out.add(short.metric);
+      // Every venue kind (Phase 4: the play car, the spa and the pool too) names its own hand-work metric.
+      if (short && (VENUE_KINDS as readonly string[]).includes(short.metric)) out.add(short.metric);
     }
     return out;
   }
