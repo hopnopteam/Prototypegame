@@ -528,6 +528,7 @@ export class Station {
       for (let n = w.rng.int(LATECOMERS[0], LATECOMERS[1]); n > 0; n--) this.latecomers.push(w.rng.range(LATE_WINDOW[0], LATE_WINDOW[1]));
     }
     this.luggageTotal = this.luggagePile;
+    this.boardsThisStop = this.bagKinds.filter((k) => k === 'surfboard').length;
     // Session 40: day riders for the venues (a pass, no cabin), out of the station house once the doors open.
     this.dayRiders.length = 0;
     if (crowd && w.venues.list.length > 0) {
@@ -747,7 +748,7 @@ export class Station {
     w.data.route.stopsCompleted++;
     w.save.markDirty();
     const stopSeconds = Math.round(this.bellAt ?? w.journey.stopTime);
-    if (this.stopLog.length < STOP_LOG_MAX) this.stopLog.push({ stop: w.journey.stopSerial, seconds: Math.round(w.journey.stopTime), bell: stopSeconds, carriages: w.train.count, alighted: result.alighted, boarded: result.boarded });
+    if (this.stopLog.length < STOP_LOG_MAX) this.stopLog.push({ stop: w.journey.stopSerial, seconds: Math.round(w.journey.stopTime), bell: stopSeconds, carriages: w.train.count, alighted: result.alighted, boarded: result.boarded, boards: this.boardsThisStop });
     log.info('Stop', `stop ${w.journey.stopSerial} at ${result.stationName}: ${stars}★, ${stopSeconds}s to the bell, ${Math.round(w.journey.stopTime)}s in all, boarded ${result.boarded}, restocked ${restocked}, happy ${happy}, grumpy ${this.grumpyThisStop}`);
     w.analytics.log(EVENTS.stationResult, {
       station: result.stationName,
@@ -1158,7 +1159,9 @@ export class Station {
    */
   readonly watchdogLog: { stop: number; reason: string; seconds: number }[] = [];
   /** Phase 3: every stop's length (seconds from the doors opening to the doors closing), for the pacing simulator. */
-  readonly stopLog: { stop: number; seconds: number; bell: number; carriages: number; alighted: number; boarded: number }[] = [];
+  readonly stopLog: { stop: number; seconds: number; bell: number; carriages: number; alighted: number; boarded: number; boards: number }[] = [];
+  /** Phase 4: surfboards on the barrow at this stop (for the stop statistics). */
+  private boardsThisStop = 0;
   private watchdogFor = 0;
   private watchdogSig = '';
   private updateWatchdog(dt: number): void {

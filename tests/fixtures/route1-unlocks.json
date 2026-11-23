@@ -1,0 +1,1182 @@
+[
+ {
+  "id": "c0.open",
+  "price": 13,
+  "requires": [],
+  "work": null
+ },
+ {
+  "id": "c0.cabin_1",
+  "price": 13,
+  "requires": [
+   "c0.open"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.hire_attendant",
+  "price": 205,
+  "requires": [
+   "c0.cabin_1",
+   "couple_1"
+  ],
+  "work": {
+   "rooms": 4,
+   "requests": 10
+  }
+ },
+ {
+  "id": "c0.refurb_1",
+  "price": 100,
+  "requires": [
+   "c0.cabin_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.cabin_2",
+  "price": 21,
+  "requires": [
+   "c0.cabin_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.refurb_2",
+  "price": 255,
+  "requires": [
+   "c0.refurb_1",
+   "couple_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.comfort_lamp",
+  "price": 145,
+  "requires": [
+   "c0.refurb_1",
+   "couple_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.shoes_1",
+  "price": 60,
+  "requires": [
+   "c0.refurb_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.shoes_2",
+  "price": 700,
+  "requires": [
+   "c0.shoes_1",
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.shoes_3",
+  "price": 3000,
+  "requires": [
+   "c0.shoes_2",
+   "couple_6"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.rack_1",
+  "price": 410,
+  "requires": [
+   "c0.hire_porter",
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.rack_2",
+  "price": 815,
+  "requires": [
+   "c0.rack_1",
+   "couple_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.hire_porter",
+  "price": 475,
+  "requires": [
+   "couple_2"
+  ],
+  "work": {
+   "tickets": 24,
+   "bags": 10
+  }
+ },
+ {
+  "id": "c0.up_attendant",
+  "price": 410,
+  "requires": [
+   "c0.hire_porter",
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.comfort_radio",
+  "price": 545,
+  "requires": [
+   "c0.comfort_lamp",
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.comfort_tv",
+  "price": 885,
+  "requires": [
+   "c0.comfort_radio",
+   "couple_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.up_porter",
+  "price": 715,
+  "requires": [
+   "c0.hire_porter",
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.refurb_4",
+  "price": 3070,
+  "requires": [
+   "c0.refurb_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.up2_attendant",
+  "price": 1870,
+  "requires": [
+   "c0.up_attendant"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.up2_porter",
+  "price": 2210,
+  "requires": [
+   "c0.up_porter"
+  ],
+  "work": null
+ },
+ {
+  "id": "c0.refurb_5",
+  "price": 3930,
+  "requires": [
+   "c0.refurb_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c1.table_0",
+  "price": 70,
+  "requires": [
+   "couple_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c1.table_1",
+  "price": 120,
+  "requires": [
+   "c1.table_0"
+  ],
+  "work": null
+ },
+ {
+  "id": "c1.hire_barista",
+  "price": 255,
+  "requires": [
+   "c1.table_0"
+  ],
+  "work": {
+   "cafe": 6
+  }
+ },
+ {
+  "id": "c1.refurb_1",
+  "price": 190,
+  "requires": [
+   "c1.table_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c1.menu_pastry",
+  "price": 220,
+  "requires": [
+   "c1.table_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c1.table_2",
+  "price": 205,
+  "requires": [
+   "c1.table_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c1.table_3",
+  "price": 290,
+  "requires": [
+   "c1.table_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c1.station_machine",
+  "price": 375,
+  "requires": [
+   "c1.hire_barista",
+   "c1.menu_pastry"
+  ],
+  "work": null
+ },
+ {
+  "id": "c1.refurb_2",
+  "price": 510,
+  "requires": [
+   "c1.refurb_1",
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c1.table_4",
+  "price": 440,
+  "requires": [
+   "c1.table_3",
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c1.table_5",
+  "price": 545,
+  "requires": [
+   "c1.table_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c1.up_barista",
+  "price": 580,
+  "requires": [
+   "c1.hire_barista",
+   "couple_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c1.refurb_3",
+  "price": 1190,
+  "requires": [
+   "c1.refurb_2",
+   "couple_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.cabin_0",
+  "price": 110,
+  "requires": [
+   "couple_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.cabin_1",
+  "price": 160,
+  "requires": [
+   "c2.cabin_0"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.refurb_1",
+  "price": 215,
+  "requires": [
+   "c2.cabin_0"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.comfort_lamp",
+  "price": 235,
+  "requires": [
+   "c2.refurb_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.cabin_2",
+  "price": 200,
+  "requires": [
+   "c2.cabin_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.refurb_2",
+  "price": 540,
+  "requires": [
+   "c2.cabin_1",
+   "c2.refurb_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.cabin_3",
+  "price": 270,
+  "requires": [
+   "c2.cabin_2",
+   "couple_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.cabin_4",
+  "price": 325,
+  "requires": [
+   "c2.cabin_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.cabin_5",
+  "price": 395,
+  "requires": [
+   "c2.cabin_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.hire_attendant",
+  "price": 430,
+  "requires": [
+   "c2.cabin_1",
+   "couple_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.up_attendant",
+  "price": 685,
+  "requires": [
+   "c2.hire_attendant",
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.comfort_radio",
+  "price": 755,
+  "requires": [
+   "c2.comfort_lamp",
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.comfort_tv",
+  "price": 1115,
+  "requires": [
+   "c2.comfort_radio",
+   "couple_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.refurb_4",
+  "price": 4475,
+  "requires": [
+   "c2.refurb_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.up2_attendant",
+  "price": 2250,
+  "requires": [
+   "c2.up_attendant"
+  ],
+  "work": null
+ },
+ {
+  "id": "c2.refurb_5",
+  "price": 5165,
+  "requires": [
+   "c2.refurb_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c3.refurb_1",
+  "price": 65,
+  "requires": [
+   "couple_3",
+   "couple_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c3.bath_1",
+  "price": 85,
+  "requires": [
+   "couple_3",
+   "couple_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c3.bath_2",
+  "price": 135,
+  "requires": [
+   "c3.bath_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c3.comfort_soap",
+  "price": 105,
+  "requires": [
+   "c3.refurb_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c3.refurb_2",
+  "price": 250,
+  "requires": [
+   "c3.refurb_1",
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c3.comfort_rail",
+  "price": 230,
+  "requires": [
+   "c3.comfort_soap",
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c3.refurb_3",
+  "price": 495,
+  "requires": [
+   "c3.refurb_2",
+   "couple_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.stool_2",
+  "price": 440,
+  "requires": [
+   "couple_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.refurb_1",
+  "price": 520,
+  "requires": [
+   "couple_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.hire_bartender",
+  "price": 760,
+  "requires": [
+   "c4.stool_2"
+  ],
+  "work": {
+   "bar": 4
+  }
+ },
+ {
+  "id": "c4.stool_3",
+  "price": 520,
+  "requires": [
+   "c4.stool_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.menu_cocktails",
+  "price": 1040,
+  "requires": [
+   "c4.stool_3",
+   "couple_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.stool_4",
+  "price": 600,
+  "requires": [
+   "c4.stool_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.chair_5",
+  "price": 680,
+  "requires": [
+   "c4.stool_4",
+   "couple_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.chair_6",
+  "price": 760,
+  "requires": [
+   "c4.chair_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.refurb_2",
+  "price": 1120,
+  "requires": [
+   "c4.refurb_1",
+   "couple_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.station_piano",
+  "price": 1280,
+  "requires": [
+   "c4.hire_bartender",
+   "c4.chair_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.station_jukebox",
+  "price": 920,
+  "requires": [
+   "c4.hire_bartender",
+   "c4.stool_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.chair_7",
+  "price": 880,
+  "requires": [
+   "c4.chair_6",
+   "couple_6"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.chair_8",
+  "price": 960,
+  "requires": [
+   "c4.chair_7"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.chair_9",
+  "price": 1040,
+  "requires": [
+   "c4.chair_8"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.up_bartender",
+  "price": 1320,
+  "requires": [
+   "c4.hire_bartender",
+   "couple_6"
+  ],
+  "work": null
+ },
+ {
+  "id": "c4.refurb_3",
+  "price": 2200,
+  "requires": [
+   "c4.refurb_2",
+   "couple_6"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.refurb_1",
+  "price": 380,
+  "requires": [
+   "couple_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.table_0",
+  "price": 170,
+  "requires": [
+   "couple_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.table_1",
+  "price": 250,
+  "requires": [
+   "c5.table_0"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.table_2",
+  "price": 335,
+  "requires": [
+   "c5.table_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.hire_waiter",
+  "price": 380,
+  "requires": [
+   "couple_5"
+  ],
+  "work": {
+   "dining": 3
+  }
+ },
+ {
+  "id": "c5.hire_chef",
+  "price": 545,
+  "requires": [
+   "c5.hire_waiter"
+  ],
+  "work": {
+   "dining": 4
+  }
+ },
+ {
+  "id": "c5.table_3",
+  "price": 420,
+  "requires": [
+   "c5.table_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.table_4",
+  "price": 545,
+  "requires": [
+   "c5.table_3",
+   "couple_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.refurb_2",
+  "price": 880,
+  "requires": [
+   "c5.refurb_1",
+   "couple_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.station_range",
+  "price": 800,
+  "requires": [
+   "c5.hire_chef",
+   "c5.table_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.table_5",
+  "price": 670,
+  "requires": [
+   "c5.table_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.table_6",
+  "price": 800,
+  "requires": [
+   "c5.table_5",
+   "couple_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.table_7",
+  "price": 925,
+  "requires": [
+   "c5.table_6"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.up_waiter",
+  "price": 880,
+  "requires": [
+   "c5.hire_waiter",
+   "couple_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.up_chef",
+  "price": 1090,
+  "requires": [
+   "c5.hire_chef",
+   "couple_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.menu_lobster",
+  "price": 1890,
+  "requires": [
+   "c5.table_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c5.refurb_3",
+  "price": 1995,
+  "requires": [
+   "c5.refurb_2",
+   "couple_6"
+  ],
+  "work": null
+ },
+ {
+  "id": "c6.cabin_0",
+  "price": 130,
+  "requires": [
+   "couple_6"
+  ],
+  "work": null
+ },
+ {
+  "id": "c6.cabin_1",
+  "price": 200,
+  "requires": [
+   "c6.cabin_0"
+  ],
+  "work": null
+ },
+ {
+  "id": "c6.refurb_1",
+  "price": 265,
+  "requires": [
+   "c6.cabin_0"
+  ],
+  "work": null
+ },
+ {
+  "id": "c6.cabin_2",
+  "price": 240,
+  "requires": [
+   "c6.cabin_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c6.comfort_lamp",
+  "price": 285,
+  "requires": [
+   "c6.refurb_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c6.cabin_3",
+  "price": 330,
+  "requires": [
+   "c6.cabin_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c6.refurb_2",
+  "price": 660,
+  "requires": [
+   "c6.cabin_1",
+   "c6.refurb_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c6.cabin_4",
+  "price": 395,
+  "requires": [
+   "c6.cabin_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c6.hire_attendant",
+  "price": 530,
+  "requires": [
+   "c6.cabin_1"
+  ],
+  "work": {
+   "rooms": 6
+  }
+ },
+ {
+  "id": "c6.hire_porter",
+  "price": 705,
+  "requires": [
+   "couple_6",
+   "c0.hire_porter"
+  ],
+  "work": {
+   "keys": 12
+  }
+ },
+ {
+  "id": "c6.comfort_radio",
+  "price": 925,
+  "requires": [
+   "c6.comfort_lamp"
+  ],
+  "work": null
+ },
+ {
+  "id": "c6.refurb_3",
+  "price": 2970,
+  "requires": [
+   "c6.refurb_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.seats_0",
+  "price": 415,
+  "requires": [
+   "couple_7"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.seats_1",
+  "price": 550,
+  "requires": [
+   "c7.seats_0"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.seats_2",
+  "price": 690,
+  "requires": [
+   "c7.seats_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.refurb_1",
+  "price": 735,
+  "requires": [
+   "couple_7"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.hire_projectionist",
+  "price": 965,
+  "requires": [
+   "c7.seats_2"
+  ],
+  "work": {
+   "cinema": 3
+  }
+ },
+ {
+  "id": "c7.seats_3",
+  "price": 875,
+  "requires": [
+   "c7.seats_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.menu_snacks",
+  "price": 1105,
+  "requires": [
+   "c7.seats_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.seats_4",
+  "price": 1060,
+  "requires": [
+   "c7.seats_3",
+   "couple_6"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.refurb_2",
+  "price": 1470,
+  "requires": [
+   "c7.refurb_1",
+   "couple_6"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.station_sound",
+  "price": 1425,
+  "requires": [
+   "c7.hire_projectionist",
+   "c7.seats_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.seats_5",
+  "price": 1240,
+  "requires": [
+   "c7.seats_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.seats_6",
+  "price": 1380,
+  "requires": [
+   "c7.seats_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.seats_7",
+  "price": 1520,
+  "requires": [
+   "c7.seats_6"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.menu_premiere",
+  "price": 2070,
+  "requires": [
+   "c7.menu_snacks",
+   "couple_7"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.up_projectionist",
+  "price": 1565,
+  "requires": [
+   "c7.hire_projectionist",
+   "couple_7"
+  ],
+  "work": null
+ },
+ {
+  "id": "c7.refurb_3",
+  "price": 2875,
+  "requires": [
+   "c7.refurb_2",
+   "couple_7"
+  ],
+  "work": null
+ },
+ {
+  "id": "st.posters",
+  "price": 160,
+  "requires": [
+   "couple_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "st.booth",
+  "price": 300,
+  "requires": [
+   "couple_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "st.benches",
+  "price": 180,
+  "requires": [
+   "couple_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "st.windowboxes",
+  "price": 220,
+  "requires": [
+   "couple_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "st.kiosk",
+  "price": 520,
+  "requires": [
+   "couple_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "st.billboard",
+  "price": 380,
+  "requires": [
+   "st.posters",
+   "couple_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "st.helper",
+  "price": 600,
+  "requires": [
+   "couple_2"
+  ],
+  "work": {
+   "restock": 6
+  }
+ },
+ {
+  "id": "st.lamps",
+  "price": 320,
+  "requires": [
+   "st.windowboxes",
+   "couple_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "st.lining",
+  "price": 680,
+  "requires": [
+   "st.lamps",
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "st.band",
+  "price": 920,
+  "requires": [
+   "st.billboard",
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "st.nameboards",
+  "price": 1040,
+  "requires": [
+   "st.lining",
+   "couple_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "st.gate2",
+  "price": 1200,
+  "requires": [
+   "couple_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "st.redcarpet",
+  "price": 1400,
+  "requires": [
+   "st.nameboards"
+  ],
+  "work": null
+ },
+ {
+  "id": "couple_1",
+  "price": 60,
+  "requires": [
+   "c0.refurb_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "couple_2",
+  "price": 320,
+  "requires": [
+   "couple_1"
+  ],
+  "work": null
+ },
+ {
+  "id": "couple_3",
+  "price": 380,
+  "requires": [
+   "couple_2",
+   "c0.hire_attendant"
+  ],
+  "work": null
+ },
+ {
+  "id": "couple_4",
+  "price": 660,
+  "requires": [
+   "couple_3"
+  ],
+  "work": null
+ },
+ {
+  "id": "couple_5",
+  "price": 1650,
+  "requires": [
+   "couple_4"
+  ],
+  "work": null
+ },
+ {
+  "id": "couple_6",
+  "price": 3100,
+  "requires": [
+   "couple_5"
+  ],
+  "work": null
+ },
+ {
+  "id": "couple_7",
+  "price": 6200,
+  "requires": [
+   "couple_6"
+  ],
+  "work": null
+ }
+]

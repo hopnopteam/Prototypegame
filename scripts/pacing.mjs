@@ -289,6 +289,12 @@ async function run(profile, seed) {
   log(`Hired: ${hires.map((h) => `${h.label} ${fmt(h.t)}`).join(', ') || 'nobody'}${unhired.length ? `; not hired: ${unhired.map((l) => l.split(' (')[0]).join(', ')}` : ''}`);
   log(watchdog.length ? `WATCHDOG fired ${watchdog.length}×: ${watchdog.map((w) => `stop ${w.stop} ${w.reason} (${w.seconds} s)`).join('; ')}` : 'Watchdog never fired.');
   log(`Stops: ${stops.length}, median ${stopStats.median} s, mean ${stopStats.mean} s, 90th percentile ${stopStats.p90} s, max ${stopStats.max} s`);
+  // Phase 4: the stops where surfers' boards were on the barrow, on their own.
+  const boardStops = stops.filter((s) => (s.boards ?? 0) > 0);
+  if (boardStops.length) {
+    const b = statsOf(boardStops.map((s) => s.seconds));
+    log(`Stops with surfboards: ${boardStops.length} (${boardStops.reduce((n, s) => n + s.boards, 0)} boards), median ${b.median} s, 90th percentile ${b.p90} s, max ${b.max} s, ${boardStops.filter((s) => s.seconds > LONG_STOP).length} over 3 min`);
+  }
   log(longStops.length ? `LONG STOPS over ${LONG_STOP / 60} min: ${longStops.map((s) => `stop ${s.stop} ${s.seconds} s (${s.carriages} cars, ${s.alighted} off, ${s.boarded} on)`).join('; ')}` : `No stop over ${LONG_STOP / 60} min.`);
   if (holds.length) log('What held the long stops:\n' + holds.map((h) => `  ${fmt(h.t)} stop ${h.stop}: ${h.what}`).join('\n'));
   log(flatStalls.length ? `FLAT-CASH STALL: no purchase for 10+ min with cash holding from ${flatStalls.map((f) => `${fmt(f.from)} (cash ${f.cash})`).join(', ')}` : 'No flat-cash stall.');

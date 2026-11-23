@@ -111,3 +111,24 @@ describe('every request can be fetched', () => {
     }
   });
 });
+
+describe('hire requirements are route data', () => {
+  // Phase 4: moving the hand-work counts and the couplings' requirements into the route config left Route 1 exactly as
+  // it was (the fixture is Route 1's whole unlock plan from before the move: ids, prices, requirements, hand work).
+  it('leaves Route 1 unchanged', async () => {
+    const { buildUnlocks } = await import('../src/sim/unlockPlan');
+    const { CARRIAGE_ORDER } = await import('../src/config/content');
+    const before = (await import('./fixtures/route1-unlocks.json')).default;
+    const now = buildUnlocks(CARRIAGE_ORDER).map((d) => ({ id: d.id, price: d.price, requires: d.requires, work: d.work ?? null }));
+    expect(now).toEqual(before);
+  });
+
+  it('gives the coast a lighter attendant and its own helpers', async () => {
+    const { RIVIERA_COAST, COUNTRYSIDE_EXPRESS } = await import('../src/config/routes');
+    const coast = RIVIERA_COAST.hires.work['lobby.hire_attendant'];
+    const home = COUNTRYSIDE_EXPRESS.hires.work['lobby.hire_attendant'];
+    expect((coast.rooms ?? 0) + (coast.requests ?? 0)).toBeLessThan((home.rooms ?? 0) + (home.requests ?? 0));
+    for (const k of ['kids.hire_entertainer', 'spa.hire_masseur', 'pool.hire_lifeguard']) expect(RIVIERA_COAST.hires.work[k]).toBeDefined();
+    expect(RIVIERA_COAST.hires.couplings).toHaveLength(RIVIERA_COAST.maxCarriages - 1);
+  });
+});

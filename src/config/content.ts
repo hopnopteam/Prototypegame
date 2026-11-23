@@ -438,7 +438,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       // minute early on, as guests ride several stops; 12 rooms took 14 minutes and left nothing to buy for 3).
       // Session 37: 120 (was 160): with the Café Car first, its tiles compete for the same early takings (the work was
       // earned at 4:34 on the autopilot, the money only at 24:45).
-      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 120, stars: 4, role: 'attendant', requires: ['cabin_1', '@couple_1'], work: { rooms: 4, requests: 10 }, effect: 'Tidies, serves' },
+      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 120, stars: 4, role: 'attendant', requires: ['cabin_1', '@couple_1'], effect: 'Tidies, serves' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 60, stars: 3, tier: 1, requires: ['cabin_2'], effect: 'Fares +25%' },
       // Session 17: 30 (was 35). Bought on the first leg for the travellers waiting at the first stop.
       { key: 'cabin_2', kind: 'cabin', label: 'Cabin {n}', price: 25, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 guest' },
@@ -459,7 +459,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'rack_1', kind: 'rack', label: 'Bigger Rack', price: 240, stars: 2, requires: ['hire_porter', '@couple_3'], effect: '+3 bags' },
       { key: 'rack_2', kind: 'rack', label: 'Grand Rack', price: 480, stars: 3, requires: ['rack_1', '@couple_5'], effect: '+3 bags' },
       // Session 29: earned like the attendant (tickets sold and bags loaded by hand); the bell stays the conductor's.
-      { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 280, stars: 4, role: 'porter', requires: ['@couple_2'], work: { tickets: 24, bags: 10 }, effect: 'Check-in & bags' },
+      { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 280, stars: 4, role: 'porter', requires: ['@couple_2'], effect: 'Check-in & bags' },
       { key: 'up_attendant', kind: 'staffUpgrade', label: 'Faster Attendant', price: 240, stars: 2, role: 'attendant', requires: ['hire_porter', '@couple_3'], effect: 'Faster, +1 carry' },
       { key: 'comfort_radio', kind: 'comfort', label: 'Minibars', price: 320, stars: 2, comfort: 'minibar', requires: ['comfort_lamp', '@couple_3'], effect: 'Snack sales' },
       // Session 38 (owner: "a small TV upgrade, placed nicely within the room"): a television set in every room.
@@ -521,7 +521,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       // Phase 1 (owner: "Café 6 seats, +1 unlock"): every table is a tile, the first one too (it used to come free).
       { key: 'table_0', kind: 'seat', label: 'Table', price: 40, stars: 2, group: 0, requires: ['couple'], effect: '+2 seats' },
       { key: 'table_1', kind: 'seat', label: 'Table', price: 70, stars: 2, group: 1, requires: ['table_0'], effect: '+2 seats' },
-      { key: 'hire_barista', kind: 'hire', label: 'Barista', price: 150, stars: 3, role: 'barista', requires: ['table_0'], work: { cafe: 6 }, effect: 'Brews & serves' },
+      { key: 'hire_barista', kind: 'hire', label: 'Barista', price: 150, stars: 3, role: 'barista', requires: ['table_0'], effect: 'Brews & serves' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 110, stars: 3, tier: 1, requires: ['table_1'], effect: 'Prices +25%' },
       { key: 'menu_pastry', kind: 'menu', label: 'Pastries', price: 130, stars: 2, requires: ['table_1'], effect: 'Sells pastries' },
       { key: 'table_2', kind: 'seat', label: 'Table', price: 120, stars: 2, group: 2, requires: ['table_1'], effect: '+2 seats' },
@@ -544,8 +544,8 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'table_2', kind: 'seat', label: 'Table', price: 160, stars: 2, group: 2, requires: ['table_1'], effect: '+1 seat' },
       // Session 40 (owner: "the waiter… implemented as soon as possible… works throughout the game"): back, early and
       // cheap, the dining car's first hire: serves every table and clears it.
-      { key: 'hire_waiter', kind: 'hire', label: 'Waiter', price: 180, stars: 3, role: 'waiter', requires: ['couple'], work: { dining: 3 }, effect: 'Serves & clears' },
-      { key: 'hire_chef', kind: 'hire', label: 'Chef', price: 260, stars: 3, role: 'chef', requires: ['hire_waiter'], work: { dining: 4 }, effect: 'Cooks the orders' },
+      { key: 'hire_waiter', kind: 'hire', label: 'Waiter', price: 180, stars: 3, role: 'waiter', requires: ['couple'], effect: 'Serves & clears' },
+      { key: 'hire_chef', kind: 'hire', label: 'Chef', price: 260, stars: 3, role: 'chef', requires: ['hire_waiter'], effect: 'Cooks the orders' },
       { key: 'table_3', kind: 'seat', label: 'Table', price: 200, stars: 2, group: 3, requires: ['table_2'], effect: '+1 seat' },
       { key: 'table_4', kind: 'seat', label: 'Table', price: 260, stars: 2, group: 4, requires: ['table_3', '@couple_4'], effect: '+1 seat' },
       { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 420, stars: 4, tier: 2, requires: ['refurb_1', '@couple_4'], effect: 'Prices +60%' },
@@ -564,7 +564,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
     unlocks: [
       { key: 'stool_2', kind: 'seat', label: 'Stool', price: 220, stars: 2, group: 2, requires: ['couple'], effect: '+1 seat' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 260, stars: 3, tier: 1, requires: ['couple'], effect: 'Prices +25%' },
-      { key: 'hire_bartender', kind: 'hire', label: 'Bartender', price: 380, stars: 3, role: 'bartender', requires: ['stool_2'], work: { bar: 4 }, effect: 'Mixes & serves' },
+      { key: 'hire_bartender', kind: 'hire', label: 'Bartender', price: 380, stars: 3, role: 'bartender', requires: ['stool_2'], effect: 'Mixes & serves' },
       { key: 'stool_3', kind: 'seat', label: 'Stool', price: 260, stars: 2, group: 3, requires: ['stool_2'], effect: '+1 seat' },
       { key: 'menu_cocktails', kind: 'menu', label: 'Cocktails', price: 520, stars: 2, requires: ['stool_3', '@couple_5'], effect: 'Drinks ×1.5' },
       // Session 43 (owner: "table upgrades should happen one by one not randomly pop in"): one chain of seats, the
@@ -588,7 +588,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
     unlocks: [
       { key: 'row_1', kind: 'seat', label: 'Seats', price: 320, stars: 2, group: 1, requires: ['couple'], effect: '+2 seats' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 380, stars: 3, tier: 1, requires: ['couple'], effect: 'Views +25%' },
-      { key: 'hire_host', kind: 'hire', label: 'Host', price: 450, stars: 3, role: 'host', requires: ['row_1'], work: { dome: 8 }, effect: 'Shows guests in' },
+      { key: 'hire_host', kind: 'hire', label: 'Host', price: 450, stars: 3, role: 'host', requires: ['row_1'], effect: 'Shows guests in' },
       { key: 'row_2', kind: 'seat', label: 'Seats', price: 420, stars: 2, group: 2, requires: ['row_1'], effect: '+2 seats' },
       { key: 'row_3', kind: 'seat', label: 'Seats', price: 520, stars: 2, group: 3, requires: ['row_2', '@couple_6'], effect: '+2 seats' },
       { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 760, stars: 4, tier: 2, requires: ['refurb_1', '@couple_6'], effect: 'Views +60%' },
@@ -607,7 +607,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'seats_1', kind: 'seat', label: 'Seats', price: 240, stars: 2, group: 1, requires: ['seats_0'], effect: '+2 seats' },
       { key: 'seats_2', kind: 'seat', label: 'Seats', price: 300, stars: 2, group: 2, requires: ['seats_1'], effect: '+2 seats' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 320, stars: 3, tier: 1, requires: ['couple'], effect: 'Prices +25%' },
-      { key: 'hire_projectionist', kind: 'hire', label: 'Projectionist', price: 420, stars: 3, role: 'projectionist', requires: ['seats_2'], work: { cinema: 3 }, effect: 'Runs the films' },
+      { key: 'hire_projectionist', kind: 'hire', label: 'Projectionist', price: 420, stars: 3, role: 'projectionist', requires: ['seats_2'], effect: 'Runs the films' },
       { key: 'seats_3', kind: 'seat', label: 'Seats', price: 380, stars: 2, group: 3, requires: ['seats_2'], effect: '+2 seats' },
       { key: 'menu_snacks', kind: 'menu', label: 'Candy Bar', price: 480, stars: 2, requires: ['seats_3'], effect: 'Popcorn ×1.5' },
       { key: 'seats_4', kind: 'seat', label: 'Seats', price: 460, stars: 2, group: 4, requires: ['seats_3', '@couple_6'], effect: '+2 seats' },
@@ -660,9 +660,9 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'cabin_3', kind: 'cabin', label: 'Cabin {n}', price: 150, stars: 2, cabin: 3, requires: ['cabin_2'], effect: '+1 family' },
       { key: 'refurb_2', kind: 'refurb', label: 'Cosy', price: 300, stars: 4, tier: 2, requires: ['cabin_1', 'refurb_1'], effect: 'Fares ×1.8' },
       { key: 'cabin_4', kind: 'cabin', label: 'Cabin {n}', price: 180, stars: 2, cabin: 4, requires: ['cabin_3'], effect: '+1 family' },
-      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 240, stars: 3, role: 'attendant', requires: ['cabin_1'], work: { rooms: 6 }, effect: 'Tidies, serves' },
+      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 240, stars: 3, role: 'attendant', requires: ['cabin_1'], effect: 'Tidies, serves' },
       // Session 53: the second entrance's own porter moved here with its desk (the bags and the stand when the first is busy).
-      { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 320, stars: 3, role: 'porter', requires: ['couple', '@c0.hire_porter'], work: { keys: 12 }, effect: 'Second desk' },
+      { key: 'hire_porter', kind: 'hire', label: 'Porter', price: 320, stars: 3, role: 'porter', requires: ['couple', '@c0.hire_porter'], effect: 'Second desk' },
       { key: 'comfort_radio', kind: 'comfort', label: 'Minibars', price: 420, stars: 2, comfort: 'minibar', requires: ['comfort_lamp'], effect: 'Snack sales' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 1350, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_5'], effect: 'Fares ×2.6' },
     ],
@@ -676,7 +676,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'corner_1', kind: 'seat', label: 'Play Corner', price: 240, stars: 2, group: 1, requires: ['corner_0'], effect: '+1 family' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 320, stars: 3, tier: 1, requires: ['couple'], effect: 'Prices +25%' },
       { key: 'corner_2', kind: 'seat', label: 'Play Corner', price: 300, stars: 2, group: 2, requires: ['corner_1'], effect: '+1 family' },
-      { key: 'hire_entertainer', kind: 'hire', label: 'Entertainer', price: 420, stars: 3, role: 'entertainer', requires: ['corner_1'], work: { kids: 4 }, effect: 'Runs the shows' },
+      { key: 'hire_entertainer', kind: 'hire', label: 'Entertainer', price: 420, stars: 3, role: 'entertainer', requires: ['corner_1'], effect: 'Runs the shows' },
       { key: 'corner_3', kind: 'seat', label: 'Play Corner', price: 380, stars: 2, group: 3, requires: ['corner_2'], effect: '+1 family' },
       { key: 'menu_sundaes', kind: 'menu', label: 'Sundaes', price: 480, stars: 2, requires: ['corner_3'], effect: 'Gelato ×1.5' },
       { key: 'corner_4', kind: 'seat', label: 'Play Corner', price: 460, stars: 2, group: 4, requires: ['corner_3', '@couple_6'], effect: '+1 family' },
@@ -694,7 +694,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'table_0', kind: 'seat', label: 'Massage Table', price: 220, stars: 2, group: 0, requires: ['couple'], effect: '+1 seat' },
       { key: 'table_1', kind: 'seat', label: 'Massage Table', price: 280, stars: 2, group: 1, requires: ['table_0'], effect: '+1 seat' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 360, stars: 3, tier: 1, requires: ['couple'], effect: 'Prices +25%' },
-      { key: 'hire_masseur', kind: 'hire', label: 'Masseur', price: 460, stars: 3, role: 'masseur', requires: ['table_1'], work: { spa: 4 }, effect: 'Massages' },
+      { key: 'hire_masseur', kind: 'hire', label: 'Masseur', price: 460, stars: 3, role: 'masseur', requires: ['table_1'], effect: 'Massages' },
       { key: 'table_2', kind: 'seat', label: 'Massage Table', price: 340, stars: 2, group: 2, requires: ['table_1'], effect: '+1 seat' },
       { key: 'table_3', kind: 'seat', label: 'Massage Table', price: 400, stars: 2, group: 3, requires: ['table_2'], effect: '+1 seat' },
       { key: 'menu_stones', kind: 'menu', label: 'Hot Stones', price: 560, stars: 2, requires: ['table_3'], effect: 'Massages ×1.5' },
@@ -717,7 +717,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'comfort_flowers', kind: 'comfort', label: 'Roses', price: 260, stars: 2, comfort: 'flowers', requires: ['refurb_1'], effect: 'Tips +20%' },
       { key: 'cabin_3', kind: 'cabin', label: 'Suite {n}', price: 280, stars: 2, cabin: 3, requires: ['cabin_2'], effect: '+1 couple' },
       { key: 'refurb_2', kind: 'refurb', label: 'Cosy', price: 600, stars: 4, tier: 2, requires: ['cabin_1', 'refurb_1'], effect: 'Fares ×1.8' },
-      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 480, stars: 3, role: 'attendant', requires: ['cabin_1'], work: { rooms: 6 }, effect: 'Tidies, serves' },
+      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 480, stars: 3, role: 'attendant', requires: ['cabin_1'], effect: 'Tidies, serves' },
       { key: 'comfort_lamp', kind: 'comfort', label: 'Lamps', price: 420, stars: 2, comfort: 'lamp', requires: ['comfort_flowers'], effect: 'Tips +20%' },
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 2200, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_6'], effect: 'Fares ×2.6' },
     ],
@@ -730,7 +730,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'lounger_1', kind: 'seat', label: 'Lounger', price: 320, stars: 2, group: 1, requires: ['lounger_0'], effect: '+1 swimmer' },
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 420, stars: 3, tier: 1, requires: ['couple'], effect: 'Prices +25%' },
       { key: 'lounger_2', kind: 'seat', label: 'Lounger', price: 380, stars: 2, group: 2, requires: ['lounger_1'], effect: '+1 swimmer' },
-      { key: 'hire_lifeguard', kind: 'hire', label: 'Lifeguard', price: 520, stars: 3, role: 'lifeguard', requires: ['lounger_1'], work: { pool: 5 }, effect: 'Skims, towels' },
+      { key: 'hire_lifeguard', kind: 'hire', label: 'Lifeguard', price: 520, stars: 3, role: 'lifeguard', requires: ['lounger_1'], effect: 'Skims, towels' },
       { key: 'lounger_3', kind: 'seat', label: 'Lounger', price: 440, stars: 2, group: 3, requires: ['lounger_2'], effect: '+1 swimmer' },
       { key: 'menu_cabanas', kind: 'menu', label: 'Cabanas', price: 620, stars: 2, requires: ['lounger_3'], effect: 'Swims ×1.5' },
       { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 780, stars: 4, tier: 2, requires: ['refurb_1', 'lounger_2'], effect: 'Prices +60%' },
@@ -775,11 +775,10 @@ if (ACTIVE_ROUTE.menu?.meal) CARRIAGE_ICON.dining = ACTIVE_ROUTE.menu.meal as Ic
 /** The finished train (the geometry audit and the preview build it). */
 export const DEFAULT_TRAIN: CarriageType[] = CARRIAGE_ORDER;
 
-/** Couplings: each adds one carriage of the player's choice. */
+/** Couplings: each adds the next carriage (what each waits for is the route's, `hires.couplings` in config/routes.ts). */
 export interface CoupleSlot {
   price: number;
   stars: number;
-  requires: string[];
 }
 
 /** Every coupling price there is, in order (a route uses the first `carriages − 1`). */
@@ -791,22 +790,22 @@ export const ALL_COUPLE_SLOTS: CoupleSlot[] = [
   // attendant, so the help arrives just as there is a new carriage (and its new work) to save for.
   // Session 40 (owner: "the Sleeper carriage should unlock cheaper… rebalance relative to earnings"): 100, 62 (about
   // 200 and 125 in play, after `priceScale` 2.0), 160, 380.
-  { price: 100, stars: 6, requires: ['c0.refurb_1'] },
+  { price: 100, stars: 6 },
   // 200 (was 240): the attendant's 160 has just been spent, and the wait for this one is short (136 s at 240 on the autopilot).
   // Session 37: with the Café Car first, this coupling brings the Sleeper (more rooms, which is what earns the
   // attendant), so it no longer waits for the attendant; the third (the Washroom Car, a new chore) does.
   // Session 37: 110 (was 200): with the café first only the lobby's three rooms earn, and the Sleeper is what grows the
   // takings (at 200 the autopilot had not saved for it after 18 minutes).
-  { price: 62, stars: 6, requires: ['couple_1'] },
-  { price: 160, stars: 8, requires: ['couple_2', 'c0.hire_attendant'] },
-  { price: 380, stars: 8, requires: ['couple_3'] },
+  { price: 62, stars: 6 },
+  { price: 160, stars: 8 },
+  { price: 380, stars: 8 },
   // Session 20: three more couplings for the venues (route 1 holds eight carriages).
-  { price: 680, stars: 9, requires: ['couple_4'] },
-  { price: 940, stars: 10, requires: ['couple_5'] },
-  { price: 1250, stars: 10, requires: ['couple_6'] },
+  { price: 680, stars: 9 },
+  { price: 940, stars: 10 },
+  { price: 1250, stars: 10 },
   // Session 21: one more for the cinema car (route 1 holds nine carriages). Phase 1: eight carriages, so this one is
   // left out by `COUPLE_SLOTS` (kept for a longer route).
-  { price: 1600, stars: 11, requires: ['couple_7'] },
+  { price: 1600, stars: 11 },
 ];
 /** The couplings of the active route: one fewer than its carriages (the first coupling prices, in order). */
 export const COUPLE_SLOTS: CoupleSlot[] = ALL_COUPLE_SLOTS.slice(0, CARRIAGE_ORDER.length - 1);

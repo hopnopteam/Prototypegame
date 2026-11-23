@@ -78,7 +78,8 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
         carriage: index,
         requires: t.requires.map((r) => (r === 'couple' ? `couple_${index}` : r.startsWith('@') ? r.slice(1) : tileId(index, r))),
         flags: t.flags,
-        work: t.work,
+        // Phase 4: the hand work a hire asks is the route's (`hires.work`), not the catalogue's.
+        work: t.kind === 'hire' ? ACTIVE_ROUTE.hires.work[`${type}.${t.key}`] as UnlockDef['work'] : t.work,
         cabin: t.cabin,
         bathroom: t.bathroom,
         role: t.role,
@@ -97,7 +98,8 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
   }
   COUPLE_SLOTS.forEach((slot, i) => {
     const n = i + 1;
-    defs.push({ id: `couple_${n}`, kind: 'couple', label: 'New Carriage', price: couplePrice(n), stars: slot.stars, carriage: n, requires: slot.requires, effect: 'A surprise joins the train' });
+    const requires = ACTIVE_ROUTE.hires.couplings[i] ?? (n === 1 ? [] : [`couple_${n - 1}`]);
+    defs.push({ id: `couple_${n}`, kind: 'couple', label: 'New Carriage', price: couplePrice(n), stars: slot.stars, carriage: n, requires, effect: 'A surprise joins the train' });
   });
   return defs;
 }

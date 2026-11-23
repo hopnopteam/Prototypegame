@@ -51,6 +51,17 @@ export interface RouteGuestLook {
  */
 export type RouteLighting = 'night' | 'goldenHourToNight' | 'sunnyToSunset';
 
+/**
+ * Phase 4 (owner: "move hire requirements into the route config as data"): which helpers must be earned by hand on this
+ * route, and what each coupling waits for. `work` is keyed `<carriage type>.<tile key>` ('lobby.hire_attendant'): the
+ * counts of hand work the hire's tile asks before it can be bought (metrics as `WorkMetric` in config/content.ts). A
+ * hire the route does not list needs no hand work. `couplings[n - 1]` is what the n-th coupling requires (tile ids).
+ */
+export interface RouteHires {
+  work: Record<string, Partial<Record<string, number>>>;
+  couplings: string[][];
+}
+
 /** What passes the window on a route (world/Lakeside.ts deals the pieces; terrain.ts and Water.ts colour them). */
 export interface RouteScenery {
   wheat: boolean;
@@ -94,6 +105,8 @@ export interface RouteDef {
   station: RouteStationRules;
   /** Phase 3: every pacing number of this route, in one place (applied over ECONOMY at load; remote config on top). */
   economy: RouteEconomy;
+  /** Phase 4: the hand work each hire asks and what each coupling waits for (see `RouteHires`). */
+  hires: RouteHires;
   /**
    * Phase 4: how this route dresses the carriage types it shares with others (the Riviera's lobby is the Beach Lobby &
    * Cabanas, its café the Smoothie & Ice-Cream Bar). Names, the chooser's lines, the passenger chip's colours.
@@ -334,6 +347,23 @@ export const COUNTRYSIDE_EXPRESS: RouteDef = {
     money: { baseFare: 15, alightTip: 12, luggageTip: 4, requestTip: 9, bathroomTip: 3, stationBonusCash: 18 },
     offline: { efficiency: 0.25, capSeconds: 3 * 60 * 60, kioskPerMinute: 1.5 },
   },
+  // Phase 4: Route 1's hire requirements, exactly as they were in the catalogue (sessions 29, 37, Phase 3): the first
+  // coupling follows the Repair, the third waits for the attendant.
+  hires: {
+    work: {
+      'lobby.hire_attendant': { rooms: 4, requests: 10 },
+      'lobby.hire_porter': { tickets: 24, bags: 10 },
+      'cafe.hire_barista': { cafe: 6 },
+      'dining.hire_waiter': { dining: 3 },
+      'dining.hire_chef': { dining: 4 },
+      'bar.hire_bartender': { bar: 4 },
+      'dome.hire_host': { dome: 8 },
+      'cinema.hire_projectionist': { cinema: 3 },
+      'familySleeper.hire_attendant': { rooms: 6 },
+      'familySleeper.hire_porter': { keys: 12 },
+    },
+    couplings: [['c0.refurb_1'], ['couple_1'], ['couple_2', 'c0.hire_attendant'], ['couple_3'], ['couple_4'], ['couple_5'], ['couple_6']],
+  },
   station: {
     upgrades: ['posters', 'booth', 'benches', 'windowboxes', 'kiosk', 'billboard', 'helper', 'lamps', 'lining', 'band', 'nameboards', 'gate2', 'redcarpet'],
     tilesAtOnce: 2,
@@ -450,13 +480,31 @@ export const RIVIERA_COAST: RouteDef = {
     ...COUNTRYSIDE_EXPRESS.economy,
     priceMultiplier: 2.5,
     fareMultiplier: 2,
-    couplePrices: [60, 360, 220, 800, 2100, 3500, 7000, 15000],
+    couplePrices: [60, 360, 220, 800, 2100, 3500, 6000, 12500],
     // The longer route's last hour: the dearest tiles grow a little more, and First Class and the Royal Suites cost more.
     priceCurve: { from: 600, to: 6000, max: 1.25 },
     classRefit: { fromTier: 4, multiplier: 1.2 },
     slotPrice: [0.85, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2],
-    levels: { ...COUNTRYSIDE_EXPRESS.economy.levels, cash: COUNTRYSIDE_EXPRESS.economy.levels.cash.map((c) => c * 2.5) },
+    // Its own level thresholds: with Route 1's, level 8 came at about 130 minutes of a 216-minute route; stretched so the
+    // last levels keep coming until near the end.
+    levels: { ...COUNTRYSIDE_EXPRESS.economy.levels, thresholds: [0, 40, 130, 330, 700, 1700, 4500, 9000], cash: COUNTRYSIDE_EXPRESS.economy.levels.cash.map((c) => c * 2.5) },
     money: { ...COUNTRYSIDE_EXPRESS.economy.money, stationBonusCash: 36 },
+  },
+  // Phase 4 (owner: "lighter Attendant requirements, since players arrive already knowing the cleaning job"): the
+  // lobby's attendant asks half Route 1's hand work; the rest as on Route 1, plus the coast's own helpers.
+  hires: {
+    work: {
+      'lobby.hire_attendant': { rooms: 2, requests: 5 },
+      'lobby.hire_porter': { tickets: 24, bags: 10 },
+      'cafe.hire_barista': { cafe: 6 },
+      'dining.hire_waiter': { dining: 3 },
+      'dining.hire_chef': { dining: 4 },
+      'kids.hire_entertainer': { kids: 4 },
+      'spa.hire_masseur': { spa: 4 },
+      'honeymoon.hire_attendant': { rooms: 6 },
+      'pool.hire_lifeguard': { pool: 5 },
+    },
+    couplings: [['c0.refurb_1'], ['couple_1'], ['couple_2', 'c0.hire_attendant'], ['couple_3'], ['couple_4'], ['couple_5'], ['couple_6'], ['couple_7']],
   },
   station: {
     ...COUNTRYSIDE_EXPRESS.station,
