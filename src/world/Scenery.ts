@@ -200,8 +200,13 @@ export class Scenery {
     return this.reflection;
   }
 
+  /** Phase 4c: how far the last simulation step scrolled, and how far back the frame draws it (render interpolation). */
+  private stepDz = 0;
+  private drawnBack = 0;
+
   update(dt: number, speed: number): void {
     const dz = speed * dt;
+    this.stepDz = dz;
     this.scroll += dz;
     this.scrollRoot.position.z = this.scroll;
     // Stretches that have passed behind the train go round to the front with new pieces (built ahead of time).
@@ -251,7 +256,29 @@ export class Scenery {
 
   /** Per-frame look: the water ripples, catches the moon and the train's windows. */
   present(dt: number, _focus: THREE.Vector3, night: number, _resolution: { width: number; height: number }, _zoom: number): void {
-    this.water.update(dt, this.scroll, night);
+    this.water.update(dt, this.scroll - this.drawnBack, night);
+  }
+
+  /**
+   * Phase 4c: draws the countryside `alpha` of the way through the last simulation step (the scroll moves in fixed
+   * steps; frames fall between them). `uninterpolate` puts it back before the next step.
+   */
+  interpolate(alpha: number): void {
+    const back = (1 - alpha) * this.stepDz;
+    if (back === 0) return;
+    this.drawnBack = back;
+    this.scrollRoot.position.z -= back;
+    this.sleepers.position.z -= back;
+    for (const board of this.billboards) board.position.z -= back;
+  }
+
+  uninterpolate(): void {
+    const back = this.drawnBack;
+    if (back === 0) return;
+    this.drawnBack = 0;
+    this.scrollRoot.position.z += back;
+    this.sleepers.position.z += back;
+    for (const board of this.billboards) board.position.z += back;
   }
 
   /** No more rock cuttings (they hid the train): the moon always shines. Kept for the lighting hook. */

@@ -195,9 +195,11 @@ export const ECONOMY = {
     /**
      * Session 40 (owner: "the train still feels empty… substantially more passengers"): the most travellers waiting on
      * one platform (a performance cap: every free bed is offered, plus a few hopefuls). It was 7, which left a long
-     * train half empty however many rooms it had.
+     * train half empty however many rooms it had. Phase 4c (owner: "the tier should only change visuals, never
+     * gameplay"): 10 on every tier (it was 16, cut to 10 on Low for speed; the whole balance was measured on Low, at
+     * 10). Higher tiers show more strollers in the background instead (`quality.tiers.*.strollers`), for looks only.
      */
-    maxBoarders: 16,
+    maxBoarders: 10,
     luggageChance: 0.7,
     /** Session 16: one guest at the desk to start (one room, one guest, one upgrade); more walk in as cabins open. */
     /** Guests already inside at the desk when a new game opens (session 19: none, the opening starts outside). */

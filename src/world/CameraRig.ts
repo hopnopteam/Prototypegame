@@ -173,14 +173,26 @@ export class CameraRig {
   focusOn(target: THREE.Vector3, seconds: number, zoom = 1.25, sharpness = VISUALS.camera.followSharpness): void {
     this.overrideTarget = target.clone();
     this.overrideTime = seconds;
+    this.glideLeft = seconds;
     this.overrideZoom = zoom;
     this.overrideSharpness = sharpness;
   }
 
-  /** A focus override (a celebration, a reveal) is running. */
+  /**
+   * A focus override (a celebration, a reveal) is running. Phase 4c: counted in game time (`tickGlide`, every
+   * simulation step), not by the frames that draw it, since gameplay asks (a new tile waits for a glide to end):
+   * a 30 fps frame would otherwise end it a step later than a 60 fps one.
+   */
   get focusing(): boolean {
-    return this.overrideTime > 0;
+    return this.glideLeft > 0;
   }
+
+  /** Phase 4c: one simulation step of the glide's game-time clock (see `focusing`). */
+  tickGlide(dt: number): void {
+    if (this.glideLeft > 0) this.glideLeft = Math.max(0, this.glideLeft - dt);
+  }
+
+  private glideLeft = 0;
 
   setZoom(zoom: number): void {
     this.zoom = zoom;

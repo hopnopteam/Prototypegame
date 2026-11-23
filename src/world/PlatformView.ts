@@ -815,6 +815,11 @@ export class PlatformView {
     return { x: PLATFORM_X0 + 2.2, z: carriageOriginZ(supplyCarIndex) + DOOR_Z0 - 1.2 };
   }
 
+  /** Phase 4c: how many strollers walk (the quality tier's `strollers`; looks only, never gameplay). */
+  setStrollers(count: number): void {
+    this.strollers.setCount(count);
+  }
+
   /** Session 56: the strollers go home (the platform leaves; the next station's townsfolk come out afresh). */
   resetLife(): void {
     this.strollers.reset();

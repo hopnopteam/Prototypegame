@@ -12,8 +12,11 @@ import { BAYS, PLATFORM } from './platformLayout';
  * game randomness, and they stand still while the conductor is close (`PAUSE_NEAR`), so they never get in the way.
  */
 
-/** How many strollers walk at once, and the pause before someone new comes out of the station house. */
-const COUNT = 4;
+/**
+ * The most strollers there can be (Phase 4c: how many walk is the quality tier's `strollers`, for looks only), and
+ * the pause before someone new comes out of the station house.
+ */
+const MAX_COUNT = 8;
 const AWAY_SECONDS: [number, number] = [3, 9];
 /** Their walking pace (m/s), how long they browse a stop, and how many stops before they go home. */
 const WALK_SPEED = 1.0;
@@ -60,6 +63,8 @@ export class Strollers {
   private readonly stops: Stop[];
   private readonly home: { x: number; z: number };
   private readonly door: { x: number; z: number };
+  /** How many of them come out (the quality tier's choice); the rest stay in the station house. */
+  private active = 4;
 
   constructor(
     group: THREE.Group,
@@ -80,7 +85,7 @@ export class Strollers {
     ];
     this.home = { x: PLATFORM.houseDoor.x, z: PLATFORM.houseDoor.z };
     this.door = { x: PLATFORM.entrance.x, z: PLATFORM.entrance.z };
-    for (let i = 0; i < COUNT; i++) {
+    for (let i = 0; i < MAX_COUNT; i++) {
       const view = new CharacterView(LOOKS[i % LOOKS.length]);
       view.leans = false;
       view.root.userData.object = `character:stroller${i}`;
@@ -98,6 +103,17 @@ export class Strollers {
 
   private range(p: Stroller, r: [number, number]): number {
     return r[0] + this.next(p) * (r[1] - r[0]);
+  }
+
+  /** How many walk (the quality tier's `strollers`); anyone beyond that goes home at once. */
+  setCount(n: number): void {
+    this.active = Math.max(0, Math.min(MAX_COUNT, Math.round(n)));
+    this.people.forEach((p, i) => {
+      if (i < this.active) return;
+      p.state = 'away';
+      p.timer = 1 + i * 2.5;
+      p.view.root.visible = false;
+    });
   }
 
   /** Back to the station house: everyone goes home (a new platform). */
@@ -125,7 +141,8 @@ export class Strollers {
    * the train off).
    */
   update(dt: number, playerX: number, playerZ: number, waving: boolean): void {
-    for (const p of this.people) {
+    for (let i = 0; i < this.active; i++) {
+      const p = this.people[i];
       const v = p.view;
       if (p.state === 'away') {
         if ((p.timer -= dt) > 0) continue;

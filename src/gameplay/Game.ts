@@ -2,6 +2,8 @@ import { ACTIVE_ROUTE, ROUTES, routeById } from '../config/routes';
 import { PLATFORM } from '../world/platformLayout';
 import { INTRO_BEATS } from '../config/coach';
 import * as THREE from 'three';
+import { PoseHistory } from '../world/Interpolation';
+import { SIM_STEP, advanceClock } from '../sim/stepClock';
 import { AudioEngine, isAndroid } from '../audio/AudioEngine';
 import { AUDIO } from '../config/audio';
 import { Haptics } from '../audio/Haptics';
@@ -102,7 +104,7 @@ const FRAME_WORK_MS = 2.5;
 /** Behind the loading screen nobody sees a slow frame: queued work (bakes, scenery, rebuilds) gets this much a frame. */
 const LOADING_WORK_MS = 40;
 export { SAVE_KEY } from '../config/saveKey';
-const MAX_FRAME = 0.05;
+export { SIM_STEP } from '../sim/stepClock';
 /** Where in the day cycle the held night sits (the middle of the night key). */
 const NIGHT_TIME = 0.82;
 /** Phase 1: golden hour in the day cycle (Lighting's keys: past the day key, toward dusk), where a Countryside Express session opens. */
@@ -438,6 +440,10 @@ export class Game implements World {
     const reflections = (tier: TierSettings): void => this.stage.setPreRender(this.scenery.setReflections(tier.reflections));
     this.stage.tierListeners.push(reflections);
     reflections(this.stage.settings);
+    // Phase 4c: a higher tier's busier station is strollers in the background, never more travellers.
+    const strollers = (tier: TierSettings): void => this.station.view.setStrollers(tier.strollers);
+    this.stage.tierListeners.push(strollers);
+    strollers(this.stage.settings);
 
     this.wireEvents();
     this.applySettings();
@@ -683,21 +689,57 @@ export class Game implements World {
     return !this.background.busy && !this.stage.lightMap.busy && this.scenery.prepared;
   }
 
+  /** Phase 4c: simulated time owed to the fixed step (seconds), carried from frame to frame. */
+  private accumulator = 0;
+  /** Phase 4c: render interpolation of the platform and the carriages (characters keep their own, in the batch). */
+  private readonly poses = new PoseHistory();
+  /** The conductor before and after the last step, for the camera to follow in between. */
+  private readonly playerPrev = { x: 0, z: 0 };
+  private readonly playerCur = { x: 0, z: 0 };
+
   private frame(realDt: number): void {
     frameWork.begin(this.loading ? LOADING_WORK_MS : FRAME_WORK_MS);
+    let alpha = 1;
     if (!this.paused && !this.adPlaying) {
-      // Fast-forward (dev) runs several normal-sized steps so nothing tunnels through a zone.
-      let remaining = Math.min(realDt, MAX_FRAME * 4) * this.timeScale;
-      while (remaining > 1e-6) {
-        const dt = Math.min(MAX_FRAME, remaining);
-        this.step(dt);
-        remaining -= dt;
+      // Phase 4c: whole fixed steps only; what is left over is carried to the next frame and drawn by interpolation.
+      const clock = advanceClock(this.accumulator, realDt, this.timeScale);
+      let interrupted = false;
+      for (let i = 0; i < clock.steps; i++) {
+        // A step that opened a sheet (or started an ad) paused the game: the frame's other steps wait for it too, as
+        // they would at 60 fps, where each frame runs one step.
+        if (this.paused || this.adPlaying) {
+          interrupted = true;
+          break;
+        }
+        this.step(SIM_STEP);
+        // Rebuilds spread over frames advance with every step, as in `simulate`: the train waits on some of them (a
+        // carriage rolls in once it is built), so a frame running two steps must not leave them a step behind.
+        this.background.run(BACKGROUND_BUDGET_MS);
+        this.data.profile.lifetimePlaySeconds += SIM_STEP;
+        this.data.route.playSeconds += SIM_STEP;
+        this.recordPoses();
       }
-      this.data.profile.lifetimePlaySeconds += realDt * this.timeScale;
-      this.data.route.playSeconds += realDt * this.timeScale;
+      this.accumulator = interrupted ? 0 : clock.carry;
       this.sessionSeconds += realDt;
+      alpha = interrupted ? 1 : clock.alpha;
+    } else {
+      this.accumulator = 0;
     }
-    this.present(realDt);
+    this.present(realDt, true, alpha);
+  }
+
+  /** Phase 4c: where everything that is drawn in between steps stood after this step. */
+  private recordPoses(): void {
+    this.characters.recordPoses();
+    this.poses.beginStep();
+    this.poses.record(this.station.view.group);
+    for (const view of this.train.views) this.poses.record(view.group);
+    const p = this.player.pos;
+    const jump = (p.x - this.playerCur.x) ** 2 + (p.z - this.playerCur.z) ** 2 > 1;
+    this.playerPrev.x = jump ? p.x : this.playerCur.x;
+    this.playerPrev.z = jump ? p.z : this.playerCur.z;
+    this.playerCur.x = p.x;
+    this.playerCur.z = p.z;
   }
 
   private readonly emitChimneySmoke = (x: number, y: number, z: number): void => this.particles.emit('chimney', x, y, z, 1, 0.05);
@@ -705,6 +747,7 @@ export class Game implements World {
   /** One simulation step. */
   step(dt: number): void {
     this.time += dt;
+    this.stage.rig.tickGlide(dt);
     beginMaskFrame();
     this.autopilot.update(dt);
     this.journey.update(dt);
@@ -763,7 +806,19 @@ export class Game implements World {
   }
 
   /** `draw` false (lockstep): everything a frame does but the drawing and the overlays. */
-  private present(realDt: number, draw = true): void {
+  /**
+   * `alpha` (Phase 4c): how far the frame is between the last two simulation steps; what moves is drawn that far
+   * along (1 draws the last step as it is, as `simulate` does).
+   */
+  private present(realDt: number, draw = true, alpha = 1): void {
+    // Drawn in between steps: the countryside, the platform, the carriages (the characters in `characters.sync`).
+    const blend = draw && alpha < 1;
+    const blended: THREE.Object3D[] = [];
+    if (blend) {
+      this.scenery.interpolate(alpha);
+      if (this.poses.apply(this.station.view.group, alpha)) blended.push(this.station.view.group);
+      for (const view of this.train.views) if (this.poses.apply(view.group, alpha)) blended.push(view.group);
+    }
     const night = this.updateDayCycle();
     this.audio.setTrainSpeed(this.journey.speed / this.econ.journey.cruiseSpeed);
     this.audio.setNight(night);
@@ -777,7 +832,13 @@ export class Game implements World {
     this.frameCamera(realDt);
     this.updateCinematic(realDt);
     if (VISUALS.camera.roomView) rig.setRoomView(this.roomAround(this.player.pos.x, this.player.pos.z));
-    rig.update(realDt, this.player.pos.x, this.player.pos.z);
+    const p = this.player.pos;
+    const following = blend && p.x === this.playerCur.x && p.z === this.playerCur.z;
+    rig.update(
+      realDt,
+      following ? this.playerPrev.x + (p.x - this.playerPrev.x) * alpha : p.x,
+      following ? this.playerPrev.z + (p.z - this.playerPrev.z) * alpha : p.z,
+    );
     this.scenery.present(realDt, rig.focusPoint, night, this.stage.size, rig.zoomNow);
     this.particles.setNight(night);
     // Particle sizes are tuned at one device pixel per CSS pixel: keep them the same size on sharp screens.
@@ -786,10 +847,15 @@ export class Game implements World {
     // Rebuilds in progress get a slice of every frame, never a whole frame.
     this.background.run(this.loading ? LOADING_WORK_MS : BACKGROUND_BUDGET_MS);
     if (draw) {
-      this.characters.sync(this.stage.rig.camera);
+      this.characters.sync(this.stage.rig.camera, blend ? alpha : 1);
       this.stage.render(realDt);
       this.perfOverlay?.update(realDt, () => this.perfReport());
       this.characterDebug?.update(realDt);
+    }
+    // The simulation goes on from where its last step left everything.
+    if (blend) {
+      this.scenery.uninterpolate();
+      for (const object of blended) this.poses.restore(object);
     }
     if (!this.paused && !this.loading) this.trackAnalytics(realDt);
   }
@@ -1273,7 +1339,7 @@ export class Game implements World {
    * Runs the simulation without rendering (pacing tests). Rewarded offers and modals are auto-dismissed by
    * the caller. Returns the simulated seconds actually run.
    */
-  simulate(seconds: number, dt = 1 / 30): number {
+  simulate(seconds: number, dt = SIM_STEP): number {
     const steps = Math.round(seconds / dt);
     for (let i = 0; i < steps; i++) {
       frameWork.begin(FRAME_WORK_MS);

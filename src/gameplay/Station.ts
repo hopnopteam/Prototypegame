@@ -38,7 +38,6 @@ function shuffled<T>(items: readonly T[], rng: { next(): number }): T[] {
 
 const BILLBOARD_COUNT = 3;
 /** Phase 2 (≥30 fps on a low-end phone): on Low quality a platform holds at most this many travellers. */
-const LOW_TIER_BOARDERS = 10;
 /** The stop log keeps this many stops (a few hours of play), so it never grows without end. */
 const STOP_LOG_MAX = 400;
 /** Session 55: the fruit kiosk's till, at the walkway's edge in front of its stall (the kiosk bay). */
@@ -511,10 +510,10 @@ export class Station {
     const r = w.econ.rating;
     const filled = crowd ? Math.round(free * Math.min(1, ratingEffect(rating, r.fill.low, r.fill.high))) : free;
     const drawn = crowd && rating > 3 ? Math.round(((rating - 3) / 2) * r.extraTravellers.high) : 0;
-    // Phase 2: a special stop (Rush Hour doubles the crowd; a poor review thins it), and fewer people on Low quality.
+    // Phase 2: a special stop (Rush Hour doubles the crowd; a poor review thins it). The cap is the same on every
+    // quality tier (Phase 4c): the tier never changes gameplay.
     const crowdScale = w.stationEvents.prepare(stopSerial);
-    const cap = w.stage.tier === 'low' ? Math.min(econ.maxBoarders, LOW_TIER_BOARDERS) : econ.maxBoarders;
-    const count = Math.max(early, Math.min(cap, Math.round((filled + extra + drawn + w.stationPerks().passengers) * crowdScale)));
+    const count = Math.max(early, Math.min(econ.maxBoarders, Math.round((filled + extra + drawn + w.stationPerks().passengers) * crowdScale)));
     const spots = new Array<Vec2>(count).fill(PLATFORM.window);
     const classes = this.travellerClasses(stopSerial, count);
     const guests = w.guests.spawnPlatformGuests(spots, classes, this.familiesFor(classes));

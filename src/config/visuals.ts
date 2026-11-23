@@ -85,19 +85,21 @@ export const VISUALS = {
        * Session 38b (owner, with the ad playable: "make sure the game performance is as smooth if not better… character
        * models actually have strong feel"): the playable's settings on every tier: no shadow maps (a soft blob under
        * everyone, steady and never popping in), no MSAA or SSAO; bloom and real lake reflections on High and Ultra only.
+       * `strollers` (Phase 4c): how many townsfolk who are not travelling walk the platform, for looks only (they never
+       * board, pay or block anyone), so a higher tier's busier station changes nothing in play.
        */
       /**
        * Older or 2–3 GB phones: the same shaders as Medium (lite shading, the static train shadow), drawn at
        * fewer pixels. Session 19: Low used to drop the shadow map, so an automatic Medium → Low step recompiled
        * every shader at once (a freeze of seconds on a phone); now the step only changes resolution.
        */
-      low: { label: 'Low', pixelRatio: 1.75, maxMegapixels: 1.4, lite: true, shadows: 'off' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false },
+      low: { label: 'Low', pixelRatio: 1.75, maxMegapixels: 1.4, lite: true, shadows: 'off' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false , strollers: 4 },
       /** Every other phone: lite shading, the train's static moon shadow, drawn at 2× (session 19: crisp on every phone). */
-      medium: { label: 'Medium', pixelRatio: 2, maxMegapixels: 2.0, lite: true, shadows: 'off' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false },
+      medium: { label: 'Medium', pixelRatio: 2, maxMegapixels: 2.0, lite: true, shadows: 'off' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false , strollers: 6 },
       /** Laptops (and phones, by choice): full shading, bloom halos, soft shadows, real lake reflections. */
-      high: { label: 'High', pixelRatio: 2, maxMegapixels: 3.2, lite: false, shadows: 'off' as ShadowMode, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.5, msaa: 0, fxaa: false, reflections: 0.4, ssao: false },
+      high: { label: 'High', pixelRatio: 2, maxMegapixels: 3.2, lite: false, shadows: 'off' as ShadowMode, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.5, msaa: 0, fxaa: false, reflections: 0.4, ssao: false , strollers: 8 },
       /** Desktops: sharper reflections and screen-space ambient occlusion on top. */
-      ultra: { label: 'Ultra', pixelRatio: 2.5, maxMegapixels: 5.5, lite: false, shadows: 'off' as ShadowMode, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.5, msaa: 0, fxaa: false, reflections: 0.4, ssao: false },
+      ultra: { label: 'Ultra', pixelRatio: 2.5, maxMegapixels: 5.5, lite: false, shadows: 'off' as ShadowMode, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.5, msaa: 0, fxaa: false, reflections: 0.4, ssao: false , strollers: 8 },
     },
     /**
      * Frame pacing. High-refresh screens (120/144 Hz) are held to about 60 frames a second: the same smooth

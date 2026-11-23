@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PoseHistory } from './Interpolation';
 import { MATERIALS, pullMaterial, pullTexture } from './materials';
 import { welded } from './weld';
 
@@ -348,6 +349,8 @@ export class CharacterBatch {
   private readonly solid: Batch;
   private readonly shadow: Batch;
   private readonly roots = new Map<THREE.Object3D, number>();
+  /** Phase 4c: where each character stood before and after the last simulation step, to draw them in between. */
+  private readonly poses = new PoseHistory();
   private readonly parts = new Map<THREE.Mesh, Part>();
   private readonly highlighted = new Set<THREE.Object3D>();
   private frame = 0;
@@ -387,6 +390,7 @@ export class CharacterBatch {
   /** Back to drawing itself (a character leaving the game, or one that should not be batched). */
   unregister(root: THREE.Object3D): void {
     if (!this.roots.delete(root)) return;
+    this.poses.forget(root);
     this.highlighted.delete(root);
     root.matrixWorldAutoUpdate = true;
     root.traverse((o) => {
@@ -424,7 +428,14 @@ export class CharacterBatch {
    * (session 32: the pull batch draws every part, so this is what keeps the crowd's cost to who is in view, as
    * BatchedMesh's per-instance culling used to).
    */
-  sync(camera?: THREE.Camera): void {
+  /** Phase 4c: records every character's pose after a simulation step (see `PoseHistory`). */
+  recordPoses(): void {
+    this.poses.beginStep();
+    for (const root of this.roots.keys()) if (attached(root)) this.poses.record(root);
+  }
+
+  /** `alpha`: how far the frame is between the last two simulation steps (1 draws the last step as it is). */
+  sync(camera?: THREE.Camera, alpha = 1): void {
     const frame = ++this.frame;
     if (camera) {
       camera.updateMatrixWorld();
@@ -442,6 +453,7 @@ export class CharacterBatch {
       // updateWorldMatrix leaves a root that opted out of automatic updates alone: compose it by hand.
       const parent = root.parent as THREE.Object3D;
       parent.updateWorldMatrix(true, false);
+      const blended = this.poses.apply(root, alpha);
       if (root.matrixAutoUpdate) root.updateMatrix();
       root.matrixWorld.multiplyMatrices(parent.matrixWorld, root.matrix);
       let inView = true;
@@ -451,6 +463,7 @@ export class CharacterBatch {
         inView = this.frustum.intersectsSphere(this.sphere);
       }
       this.visit(root, inView && root.visible && visibleChain(parent), frame, true, this.highlighted.has(root));
+      if (blended) this.poses.restore(root);
     }
     // Parts not seen this frame left their character (a blanket swapped, a prop dropped, a character taken
     // off the stage): they go back to drawing themselves, wherever they are now.
