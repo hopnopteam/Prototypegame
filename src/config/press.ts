@@ -1,4 +1,5 @@
 import type { IconName } from '../ui/icons';
+import { ACTIVE_ROUTE } from './routes';
 
 /**
  * The press content pack: the in-universe world that notices your train. Everything here is data, so new
@@ -263,6 +264,14 @@ export const HEADLINES: Record<PressTrigger, HeadlineDef[]> = {
   venue: [{ headline: '{venue} Now Open!', body: '{train} opens its {venue}. The queue starts at once.' }],
   happyHour: [{ headline: 'Happy Hour Aboard!', body: 'The bar lounge of {train} is in full swing.' }],
 };
+
+// Phase 4: the route's own critic writes their own verdicts (the Riviera's travel writer).
+{
+  const pages = ACTIVE_ROUTE.station.critic.pages;
+  if (pages?.great) HEADLINES.criticGreat = [pages.great];
+  if (pages?.mixed) HEADLINES.criticMixed = [pages.mixed];
+  if (pages?.poor) HEADLINES.criticPoor = [pages.poor];
+}
 
 /** What each front page pays when you read it (cash scales with the train's length). */
 export const FRONT_PAGE_REWARDS: Record<PressTrigger, { gems?: number; railMiles?: number; cashPerCarriage?: number }> = {

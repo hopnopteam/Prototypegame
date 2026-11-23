@@ -42,6 +42,8 @@ const CRITIC_LEGS = 2;
 /** The critic's look: a tweed jacket, round spectacles and a notebook. */
 const CRITIC_LOOK = { body: '#6B5A45', accent: '#E9E2D2', glasses: true, accessory: 'hymnbook', hat: 'bowler', hatColor: '#3A3030' } as const;
 /** Festival Day: bright boaters and a buttonhole flower. */
+/** Phase 4: the beach party's sun hats. */
+const BEACH_HATS = ['#F7F1E6', '#F49AB4', '#FFE45C', '#7FDBFF'];
 const FESTIVAL_HATS = ['#E2506B', '#F2B53A', '#4FA3D9', '#7CC36E', '#B36BD6'];
 
 interface Sheep {
@@ -163,7 +165,7 @@ export class StationEvents {
     }
     this.active = def;
     let crowd = this.crowdBoost();
-    if (def?.kind === 'rushHour') crowd *= def.crowd ?? 2;
+    if (def?.kind === 'rushHour' || def?.kind === 'surfContest') crowd *= def.crowd ?? 2;
     return crowd;
   }
 
@@ -186,6 +188,24 @@ export class StationEvents {
       }
     }
     if (def?.kind === 'rushHour') for (const g of guests) g.hasLuggage = w.flow.allows('luggage');
+    // Phase 4, the Riviera. A beach party at Coral Beach: sun hats and garlands, and they tip like a festival.
+    if (def?.kind === 'beachParty') {
+      guests.forEach((g, i) => {
+        g.view.setLook({ ...g.view.look, hat: 'boater', hatColor: BEACH_HATS[i % BEACH_HATS.length], accessory: g.view.look.accessory === 'none' || !g.view.look.accessory ? 'flower' : g.view.look.accessory });
+        g.tipBoost = def.tips ?? 1.6;
+      });
+    }
+    // A surf contest: everyone travels with their board (two places on the rack each), the stop bonus × `bonus`.
+    if (def?.kind === 'surfContest') {
+      for (const g of guests) {
+        g.hasLuggage = w.flow.allows('luggage');
+        g.boardBag = g.hasLuggage;
+        if (g.view.look.accessory === 'none' || !g.view.look.accessory || g.view.look.accessory === 'camera') g.view.setLook({ ...g.view.look, accessory: 'surfboard' });
+      }
+    }
+    // A heatwave: everyone boarding is parched; their first request is a cold lemonade.
+    if (def?.kind === 'heatwave') for (const g of guests) g.thirsty = true;
+    this.heatGuests = def?.kind === 'heatwave' ? guests.slice() : [];
     if (def?.kind === 'vip') this.vipGuest = this.spawnSpecial('vip', this.bestBookableClass(true));
     if (this.criticDue()) {
       const cls = this.bestBookableClass(false);
@@ -193,7 +213,7 @@ export class StationEvents {
         this.criticGuest = this.spawnSpecial('businessman', cls);
         if (this.criticGuest) {
           this.criticGuest.critic = true;
-          this.criticGuest.view.setLook({ ...this.criticGuest.view.look, ...CRITIC_LOOK });
+          this.criticGuest.view.setLook({ ...this.criticGuest.view.look, ...CRITIC_LOOK, ...(this.rules.critic.look ?? {}) });
         }
       }
     }
@@ -298,9 +318,11 @@ export class StationEvents {
 
   private lastReward = 0;
 
-  /** Phase 4, the Heatwave: every cold drink asked for at this stop has been brought (see `heat`). */
+  /** Phase 4, the Heatwave: this stop's thirsty travellers. */
+  private heatGuests: Guest[] = [];
+  /** Phase 4, the Heatwave: every lemonade this stop's travellers asked for has been brought (or none is open now). */
   private heatwaveServed(): boolean {
-    return true;
+    return this.heatGuests.every((g) => g.state === 'gone' || (g.request !== 'lemonade' && !g.thirsty));
   }
 
   /** Whether the stop did what its event asked. */
@@ -332,7 +354,7 @@ export class StationEvents {
   /** The stop bonus's multiplier: Rush Hour pays big once everyone is aboard. */
   bonusScale(): number {
     const def = this.started ? this.active : null;
-    if (def?.kind === 'rushHour' && this.w.guests.waitingCount() === 0) {
+    if ((def?.kind === 'rushHour' || def?.kind === 'surfContest') && this.w.guests.waitingCount() === 0) {
       this.lastReward = def.bonus ?? 2;
       return def.bonus ?? 2;
     }
@@ -631,9 +653,9 @@ export class StationEvents {
     const b = new GeoBuilder();
     const y = FLOOR_Y;
     const X = PLATFORM_X0;
-    if (def.kind === 'festival' || def.kind === 'harvest') {
+    if (def.kind === 'festival' || def.kind === 'harvest' || def.kind === 'beachParty') {
       // Bunting strung along the platform between tall poles, triangles in turn.
-      const colors = def.kind === 'festival' ? ['#E2506B', '#F2B53A', '#4FA3D9', '#7CC36E'] : ['#C8352B', '#F2B53A', '#7C8F4E', '#E9D9A8'];
+      const colors = def.kind === 'festival' ? ['#E2506B', '#F2B53A', '#4FA3D9', '#7CC36E'] : def.kind === 'beachParty' ? ['#FF7F6E', '#FFFFFF', '#4FC3F7', '#F7B32B'] : ['#C8352B', '#F2B53A', '#7C8F4E', '#E9D9A8'];
       b.object('event:bunting');
       // Session 55: along the back railing, the poles clear of the bays.
       const poles = [-7.9, 0.4, 8.4, 12.9];
@@ -641,6 +663,31 @@ export class StationEvents {
       for (let z = poles[0]; z < poles[poles.length - 1]; z += 0.5) {
         const c = colors[Math.round((z - poles[0]) / 0.5) % colors.length];
         b.add(new THREE.ConeGeometry(0.13, 0.26, 3), c, X + 7.35, y + 2.55 - 0.08 * Math.sin(((z - poles[0]) % 8) / 8 * Math.PI), z, Math.PI, 0, 0, { shade: 1 });
+      }
+      b.endObject();
+    }
+    if (def.kind === 'beachParty' || def.kind === 'surfContest' || def.kind === 'heatwave') {
+      // Phase 4, the coast's own stops, in the market bay: beach balls and a sandcastle for the party, boards stood
+      // in a rack for the contest, a cool box and a stack of lemons for the heatwave.
+      b.object(`event:${def.kind}`);
+      const at = (id: Parameters<typeof modelEntry>[0], dx: number, z: number, h: number, yaw = 0): void => {
+        const e = modelEntry(id);
+        const sc = h / (e.max[1] - e.min[1]);
+        b.model(id, X + dx, y, z, yaw, sc, sc, sc, { surface: 'matte', shade: 1 });
+      };
+      if (def.kind === 'beachParty') {
+        at('sandcastle', 6.7, 24.6, 0.4);
+        at('beach_ball', 6.4, 25.8, 0.34);
+        at('beach_ball', 6.95, 26.6, 0.3, 1);
+        at('beach_bucket', 6.9, 23.8, 0.3);
+      } else if (def.kind === 'surfContest') {
+        for (let i = 0; i < 4; i++) {
+          b.add(new THREE.SphereGeometry(0.5, 14, 8).scale(0.26, 0.9, 0.05), ['#4FA8E0', '#F28C2E', '#7CCB7A', '#E8525E'][i], X + 7.1, y + 0.45, 24.2 + i * 0.55, 0.12, 0, 0, { shade: 0.95, surface: 'varnish' });
+        }
+      } else {
+        at('cool_box', 6.8, 24.6, 0.36);
+        at('radio', 6.9, 25.6, 0.22);
+        for (let i = 0; i < 5; i++) at('lemon', 6.55 + (i % 3) * 0.12, 26.2 + Math.floor(i / 3) * 0.12, 0.08);
       }
       b.endObject();
     }

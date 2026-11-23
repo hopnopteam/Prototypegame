@@ -521,7 +521,7 @@ export class Station {
     w.stationEvents.dress(guests);
     // Phase 4: a surfer's bag is their board.
     this.bagKinds.length = 0;
-    for (const g of guests) if (g.hasLuggage && this.bagKinds.length < this.view.barrowCapacity) this.bagKinds.push(g.archetype.surfboard ? 'surfboard' : 'luggage');
+    for (const g of guests) if (g.hasLuggage && this.bagKinds.length < this.view.barrowCapacity) this.bagKinds.push(g.boardBag ? 'surfboard' : 'luggage');
     // A traveller or two turns up during the stop, out of the station house (once the crowd is part of the ride).
     this.latecomers.length = 0;
     if (crowd && !w.journey.heldStops) {

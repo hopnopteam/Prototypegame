@@ -3,6 +3,7 @@
  * Build: ENTRY=src/postcardsheet.ts OUT=postcardsheet.html node scripts/build.mjs, then open dist/postcardsheet.html.
  */
 import { STATIONS } from './config/content';
+import { ACTIVE_ROUTE } from './config/routes';
 import { drawBlankStamp, drawPostcard, postcardFontsReady } from './ui/postcard';
 
 document.body.innerHTML = '';
@@ -16,14 +17,14 @@ void postcardFontsReady().then(() => {
   STATIONS.forEach((s, i) => {
     const c = document.createElement('canvas');
     const t0 = performance.now();
-    drawPostcard(c, s.postcard, { name: s.name, kicker: 'Countryside Line', number: i + 1, value: 10 + i * 5 });
+    drawPostcard(c, s.postcard, { name: s.name, kicker: ACTIVE_ROUTE.name, number: i + 1, value: 10 + i * 5 });
     times.push(Math.round(performance.now() - t0));
     c.style.cssText = 'width:240px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.4))';
     grid.appendChild(c);
   });
   const small = document.createElement('canvas');
   const t1 = performance.now();
-  drawPostcard(small, STATIONS[0].postcard, { name: STATIONS[0].name, kicker: 'Countryside Line', number: 1, value: 10 }, 0.34);
+  drawPostcard(small, STATIONS[0].postcard, { name: STATIONS[0].name, kicker: ACTIVE_ROUTE.name, number: 1, value: 10 }, 0.34);
   times.push(Math.round((performance.now() - t1) * 10) / 10);
   small.style.cssText = 'width:80px';
   grid.appendChild(small);

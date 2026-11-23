@@ -206,6 +206,10 @@ export class Guest {
   tipBoost = 1;
   /** Phase 4: heard the Kids' Play Car through the wall this ride (their tip is smaller once). */
   noiseHeard = false;
+  /** Phase 4: boarded with a surfboard for a bag (a surfer, or anyone on the day of the Surf Contest). */
+  boardBag = false;
+  /** Phase 4, the Heatwave: boarded thirsty (their first request is a cold lemonade, wanted fast). */
+  thirsty = false;
   /** Phase 4, the Honeymoon Suites: when their do-not-disturb sign comes down (0: not up), and whether it was hung. */
   dndUntil = 0;
   dndDone = false;
@@ -354,6 +358,7 @@ export class Guests {
       guest.mover.facing = -Math.PI / 2 + (this.w.rng.next() - 0.5) * 0.8;
       // Bags join the flow from the second station (config: flow); they wait on the luggage barrow.
       guest.hasLuggage = this.w.flow.allows('luggage') && this.w.rng.chance(this.w.econ.guests.luggageChance);
+      guest.boardBag = !!guest.archetype.surfboard;
       created.push(guest);
     });
     // Everyone straight to their place: the queue at the ticket stand, or the bench if there is no bed for them.
@@ -1556,8 +1561,11 @@ export class Guests {
         need = list.shift() ?? null;
         guest.pending = list;
       } else need = freshWish(pool, guest.asked, w.rng.next());
-      // The audit: a class request must come from this part of the night's list.
-      if (need && !(need in pool)) this.audit.misplaced++;
+      // Phase 4, the Heatwave: whoever boarded in it wants a cold lemonade first.
+      if (guest.thirsty && !guest.asked.has('lemonade')) {
+        need = 'lemonade';
+        guest.thirsty = false;
+      } else if (need && !(need in pool)) this.audit.misplaced++;
     }
     if (!need) return;
     for (const n of [need, ...guest.pending]) {
@@ -1998,7 +2006,7 @@ export class Guests {
     let tip = w.econ.money.alightTip * guest.archetype.tipMultiplier * w.tipMultiplier() * w.train.cabinTipMultiplier(cabin) * guest.tipBoost;
     if (w.train.luggageStored > 0) {
       // Phase 4: a surfer takes their board (two places on the rack).
-      w.train.luggageStored = Math.max(0, w.train.luggageStored - (guest.archetype.surfboard ? 2 : 1));
+      w.train.luggageStored = Math.max(0, w.train.luggageStored - (guest.boardBag ? 2 : 1));
       tip += w.econ.money.luggageTip;
     }
     // Session 32: nothing counts against the player during the first-passengers tutorial.

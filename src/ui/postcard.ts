@@ -276,6 +276,13 @@ function paintScene(ctx: CanvasRenderingContext2D, art: PostcardArt, rand: Rand)
     case 'thistle': return thistle(ctx, art, rand);
     case 'ridge': return ridge(ctx, art, rand);
     case 'halt': return halt(ctx, art, rand);
+    // Phase 4, the Riviera Coast Line.
+    case 'harbour': return harbour(ctx, art, rand);
+    case 'lemons': return lemons(ctx, art, rand);
+    case 'marina': return marina(ctx, art, rand);
+    case 'cliffs': return cliffs(ctx, art, rand);
+    case 'coral': return coral(ctx, art, rand);
+    case 'villa': return villa(ctx, art, rand);
   }
 }
 
@@ -1186,6 +1193,276 @@ function halt(ctx: CanvasRenderingContext2D, art: PostcardArt, rand: Rand): void
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Draws text with extra spacing between letters (canvas letterSpacing is not everywhere yet). Returns its width. */
+// ─── Phase 4: the Riviera's coast ──────────────────────────────────────────────
+
+/** The sea from the horizon down to `bottom`: deep blue far off, turquoise near, sparkles and a band of foam. */
+function sea(ctx: CanvasRenderingContext2D, rand: Rand, top: number, bottom: number, deep: string, near: string): void {
+  const g = ctx.createLinearGradient(0, top, 0, bottom);
+  g.addColorStop(0, deep);
+  g.addColorStop(1, near);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, top, W, bottom - top);
+  for (let i = 0; i < 90; i++) {
+    const y = top + Math.pow(rand(), 1.4) * (bottom - top);
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.25 + rand() * 0.45})`;
+    ctx.fillRect(rand() * W, y, 4 + rand() * 18 * (1 + (y - top) / (bottom - top)), 1.5);
+  }
+}
+
+/** A sun low in the sky with a soft glow. */
+function sun(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string): void {
+  const g = ctx.createRadialGradient(x, y, r * 0.4, x, y, r * 3);
+  g.addColorStop(0, rgba(color, 0.7));
+  g.addColorStop(1, rgba(color, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(x - r * 3, y - r * 3, r * 6, r * 6);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** Pastel cube houses stacked up a slope, with dark windows and a terracotta roof here and there. */
+function houses(ctx: CanvasRenderingContext2D, rand: Rand, x0: number, x1: number, base: number, rise: number, size: number, palette: string[]): void {
+  for (let row = 0; row < 5; row++) {
+    for (let x = x0 + (row % 2) * size * 0.5; x < x1; x += size * (0.9 + rand() * 0.4)) {
+      const t = (x - x0) / Math.max(1, x1 - x0);
+      const y = base - row * size * 0.72 - t * rise;
+      const w = size * (0.7 + rand() * 0.5);
+      const h = size * (0.6 + rand() * 0.5);
+      ctx.fillStyle = palette[Math.floor(rand() * palette.length)];
+      ctx.fillRect(x, y - h, w, h);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+      ctx.fillRect(x + w * 0.72, y - h, w * 0.28, h);
+      if (rand() < 0.35) {
+        ctx.fillStyle = '#C8653E';
+        ctx.fillRect(x - 1, y - h - 3, w + 2, 4);
+      }
+      ctx.fillStyle = '#3B4B6E';
+      for (let k = 0; k < 2; k++) ctx.fillRect(x + w * (0.2 + k * 0.4), y - h * 0.65, w * 0.14, h * 0.22);
+    }
+  }
+}
+
+function palm(ctx: CanvasRenderingContext2D, x: number, ground: number, height: number, lean: number, trunk: string, frond: string): void {
+  const topX = x + lean;
+  const topY = ground - height;
+  ctx.strokeStyle = trunk;
+  ctx.lineWidth = Math.max(3, height * 0.06);
+  ctx.beginPath();
+  ctx.moveTo(x, ground);
+  ctx.quadraticCurveTo(x + lean * 0.2, ground - height * 0.6, topX, topY);
+  ctx.stroke();
+  for (let i = 0; i < 7; i++) {
+    const a = -Math.PI * 0.95 + (i / 6) * Math.PI * 0.9;
+    leaf(ctx, topX + Math.cos(a) * height * 0.18, topY + Math.sin(a) * height * 0.08 + height * 0.06, height * 0.42, height * 0.09, a + (a < -Math.PI / 2 ? -0.5 : 0.5), i % 2 ? frond : shade(frond, -18));
+  }
+}
+
+function sailboat(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, hull: string): void {
+  ctx.fillStyle = hull;
+  ctx.beginPath();
+  ctx.moveTo(x - 16 * s, y);
+  ctx.lineTo(x + 16 * s, y);
+  ctx.lineTo(x + 11 * s, y + 6 * s);
+  ctx.lineTo(x - 11 * s, y + 6 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#5A4A3A';
+  ctx.lineWidth = 1.4 * s;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x, y - 34 * s);
+  ctx.stroke();
+  ctx.fillStyle = '#FBF6EA';
+  ctx.beginPath();
+  ctx.moveTo(x + 1.5 * s, y - 32 * s);
+  ctx.lineTo(x + 15 * s, y - 3 * s);
+  ctx.lineTo(x + 1.5 * s, y - 3 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x - 1.5 * s, y - 26 * s);
+  ctx.lineTo(x - 11 * s, y - 3 * s);
+  ctx.lineTo(x - 1.5 * s, y - 3 * s);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function parasol(ctx: CanvasRenderingContext2D, x: number, ground: number, r: number, a: string, b: string): void {
+  ctx.strokeStyle = '#6B5A48';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x, ground);
+  ctx.lineTo(x, ground - r * 1.6);
+  ctx.stroke();
+  for (let i = 0; i < 6; i++) {
+    ctx.fillStyle = i % 2 ? a : b;
+    ctx.beginPath();
+    ctx.moveTo(x, ground - r * 1.9);
+    ctx.lineTo(x - r + (i * 2 * r) / 6, ground - r * 1.45);
+    ctx.lineTo(x - r + ((i + 1) * 2 * r) / 6, ground - r * 1.45);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+/** Porto Sole: a harbour under a hill of pastel houses, fishing boats at the quay, the train along the waterfront. */
+function harbour(ctx: CanvasRenderingContext2D, art: PostcardArt, rand: Rand): void {
+  const [far, mid, near] = art.land;
+  sun(ctx, 100, 250, 26, '#FFE7A3');
+  hills(ctx, rand, 340, 70, 0.004, far, 0.08);
+  houses(ctx, rand, 170, W - 20, 376, 34, 26, ['#F6E6CC', '#F2C9A8', '#E8B98E', '#F7F1E6', '#F4D27A', '#E9A98C']);
+  sea(ctx, rand, 380, 452, '#2C78B8', '#5FC2D6');
+  // The quay and the train along it.
+  ctx.fillStyle = mid;
+  ctx.fillRect(0, 452, W, 10);
+  train(ctx, 330, 452, 1.1, 4);
+  ctx.fillStyle = near;
+  ctx.fillRect(0, 462, W, SCENE_BOTTOM - 462);
+  dabs(ctx, rand, (() => { const p = new Path2D(); p.rect(0, 462, W, SCENE_BOTTOM - 462); return p; })(), near, 462, SCENE_BOTTOM, 0.14);
+  for (const [x, c] of [[70, '#E3533C'], [140, '#2C78B8'], [210, '#F4D27A']] as const) {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.ellipse(x, 430, 22, 6, 0, 0, Math.PI);
+    ctx.fill();
+  }
+  palm(ctx, W - 40, SCENE_BOTTOM, 150, -40, '#8A5E3A', '#4E8A4A');
+}
+
+/** Lemon Cove: terraces of lemon trees down to a blue cove, the train on the lowest terrace. */
+function lemons(ctx: CanvasRenderingContext2D, art: PostcardArt, rand: Rand): void {
+  const [far, mid, near] = art.land;
+  sea(ctx, rand, 330, 400, '#2E7FBF', '#6CC8DC');
+  hills(ctx, rand, 336, 30, 0.006, far, 0.06);
+  for (let t = 0; t < 4; t++) {
+    const y = 400 + t * 34;
+    ctx.fillStyle = shade(mid, -t * 6);
+    ctx.fillRect(0, y - 26, W, 30);
+    ctx.fillStyle = '#D9C7A4';
+    ctx.fillRect(0, y + 2, W, 4);
+    for (let x = 14 + (t % 2) * 20; x < W; x += 40 + rand() * 12) {
+      roundTree(ctx, rand, x, y, 17 - t, shade(near, rand() * 20 - 10));
+      ctx.fillStyle = art.accent;
+      for (let k = 0; k < 4; k++) {
+        ctx.beginPath();
+        ctx.arc(x - 8 + rand() * 16, y - 22 + rand() * 14, 2.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    if (t === 1) train(ctx, 300, y - 2, 0.95, 4);
+  }
+}
+
+/** Marina Bay: sailboats crowd the marina, a pier with striped parasols, the train curving round the bay. */
+function marina(ctx: CanvasRenderingContext2D, art: PostcardArt, rand: Rand): void {
+  const [far, mid, near] = art.land;
+  hills(ctx, rand, 340, 34, 0.005, far, 0.08);
+  houses(ctx, rand, 20, 200, 350, 10, 18, ['#F7F1E6', '#F2C9A8', '#E8E0CE']);
+  sea(ctx, rand, 354, 470, '#1F6FAE', '#58BDD8');
+  train(ctx, 420, 350, 0.8, 5);
+  for (let i = 0; i < 7; i++) sailboat(ctx, 50 + i * 58 + rand() * 10, 400 + (i % 3) * 22, 0.9 + (i % 3) * 0.15, i % 2 ? '#F4F1EA' : '#2C5A8C');
+  ctx.fillStyle = mid;
+  ctx.fillRect(0, 470, W, SCENE_BOTTOM - 470);
+  ctx.fillStyle = near;
+  ctx.fillRect(0, 486, W, SCENE_BOTTOM - 486);
+  for (let i = 0; i < 4; i++) parasol(ctx, 60 + i * 100, 500, 22, '#FFFFFF', i % 2 ? '#E8525E' : '#4FA8E0');
+}
+
+/** Cliffside: white houses stacked on a sheer cliff over a deep blue sea, the train crossing a viaduct. */
+function cliffs(ctx: CanvasRenderingContext2D, art: PostcardArt, rand: Rand): void {
+  const [far, mid, near] = art.land;
+  sea(ctx, rand, 340, SCENE_BOTTOM, '#1D5E9E', '#3FA8CC');
+  const cliff = new Path2D();
+  cliff.moveTo(W * 0.42, SCENE_BOTTOM);
+  cliff.lineTo(W * 0.46, 330);
+  cliff.bezierCurveTo(W * 0.6, 250, W * 0.85, 240, W + 10, 250);
+  cliff.lineTo(W + 10, SCENE_BOTTOM);
+  cliff.closePath();
+  ctx.fillStyle = mid;
+  ctx.fill(cliff);
+  dabs(ctx, rand, cliff, far, 240, SCENE_BOTTOM, 0.2);
+  houses(ctx, rand, W * 0.5, W - 10, 340, 60, 24, ['#FBF8F2', '#F3EDE2', '#FFFFFF', '#E9F2F6']);
+  viaduct(ctx, -10, W * 0.46, 392, SCENE_BOTTOM, '#D8CDBA');
+  train(ctx, 170, 392, 1, 3);
+  ctx.fillStyle = near;
+  for (let i = 0; i < 3; i++) sprig(ctx, rand, 10 + i * 30, SCENE_BOTTOM, -Math.PI / 2 + 0.3 * i, 70, 18, 5, [shade(near, -10), near], 0.5);
+}
+
+/** Coral Beach: a pink-sand beach, striped parasols, a palm, turquoise shallows and the train behind the dunes. */
+function coral(ctx: CanvasRenderingContext2D, art: PostcardArt, rand: Rand): void {
+  const [far, mid, near] = art.land;
+  sun(ctx, W - 110, 260, 24, '#FFF1B8');
+  sea(ctx, rand, 350, 420, '#2496B8', '#7FE0DA');
+  ctx.fillStyle = far;
+  ctx.fillRect(0, 420, W, 16);
+  train(ctx, 360, 424, 0.85, 4);
+  const sand = new Path2D();
+  sand.moveTo(0, 436);
+  sand.bezierCurveTo(W * 0.3, 426, W * 0.7, 446, W, 432);
+  sand.lineTo(W, SCENE_BOTTOM);
+  sand.lineTo(0, SCENE_BOTTOM);
+  sand.closePath();
+  ctx.fillStyle = mid;
+  ctx.fill(sand);
+  dabs(ctx, rand, sand, near, 430, SCENE_BOTTOM, 0.18);
+  for (let i = 0; i < 3; i++) parasol(ctx, 90 + i * 110, 486 + i * 8, 26, '#FFFFFF', [art.accent, '#4FA8E0', '#F7B32B'][i]);
+  palm(ctx, 30, SCENE_BOTTOM, 170, 40, '#8A5E3A', '#3E8A4E');
+}
+
+/** Bellavista: a villa among cypresses on its promontory at sunset, a balustrade in front, the sea gold below. */
+function villa(ctx: CanvasRenderingContext2D, art: PostcardArt, rand: Rand): void {
+  const [far, mid, near] = art.land;
+  sun(ctx, 150, 330, 30, '#FFD27A');
+  sea(ctx, rand, 352, SCENE_BOTTOM, '#C9726A', '#F2B48A');
+  const land = new Path2D();
+  land.moveTo(W * 0.38, SCENE_BOTTOM);
+  land.bezierCurveTo(W * 0.45, 380, W * 0.6, 330, W + 10, 320);
+  land.lineTo(W + 10, SCENE_BOTTOM);
+  land.closePath();
+  ctx.fillStyle = mid;
+  ctx.fill(land);
+  dabs(ctx, rand, land, far, 320, SCENE_BOTTOM, 0.16);
+  // The villa: a pale ochre block, a terracotta roof, arched windows lit.
+  const vx = W * 0.62;
+  ctx.fillStyle = '#F2D9B0';
+  ctx.fillRect(vx, 296, 92, 48);
+  ctx.fillStyle = '#C8653E';
+  ctx.beginPath();
+  ctx.moveTo(vx - 8, 298);
+  ctx.lineTo(vx + 46, 280);
+  ctx.lineTo(vx + 100, 298);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#FFE3A0';
+  for (let k = 0; k < 4; k++) {
+    ctx.beginPath();
+    ctx.moveTo(vx + 10 + k * 21, 336);
+    ctx.lineTo(vx + 10 + k * 21, 316);
+    ctx.arc(vx + 15 + k * 21, 316, 5, Math.PI, 0);
+    ctx.lineTo(vx + 20 + k * 21, 336);
+    ctx.closePath();
+    ctx.fill();
+  }
+  for (let i = 0; i < 4; i++) poplar(ctx, vx - 26 + i * 40 + (i > 1 ? 60 : 0), 350, 70 + rand() * 20, shade(near, -20));
+  train(ctx, W * 0.5, 392, 0.9, 4, -1);
+  // The balustrade along the bottom, and a pot of bougainvillea.
+  ctx.fillStyle = '#EEE2CC';
+  ctx.fillRect(0, SCENE_BOTTOM - 46, W, 8);
+  ctx.fillRect(0, SCENE_BOTTOM - 10, W, 10);
+  for (let x = 8; x < W; x += 18) {
+    ctx.beginPath();
+    ctx.ellipse(x, SCENE_BOTTOM - 24, 5, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = art.accent;
+  for (let i = 0; i < 40; i++) {
+    ctx.beginPath();
+    ctx.arc(W - 70 + rand() * 60, SCENE_BOTTOM - 60 - rand() * 50, 4 + rand() * 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function spaced(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, spacing: number, align: 'left' | 'right' | 'center'): number {
   const width = spacedWidth(ctx, text, spacing);
   const saved = ctx.textAlign;

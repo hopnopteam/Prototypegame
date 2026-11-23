@@ -241,6 +241,10 @@ export interface CriticDef {
   mixedCash: number;
   poorCrowd: number;
   poorStops: number;
+  /** Phase 4: who the critic is on this route (a word for the cards), how they dress, and their verdicts' front pages. */
+  who?: string;
+  look?: { body?: string; accent?: string; hat?: 'none' | 'cap' | 'beanie' | 'boater' | 'bowler'; hatColor?: string; accessory?: 'camera' | 'hymnbook' | 'handbag'; glasses?: boolean };
+  pages?: Partial<Record<'great' | 'mixed' | 'poor', { headline: string; body: string }>>;
 }
 
 /**
@@ -403,7 +407,17 @@ export const RIVIERA_COAST: RouteDef = {
       { id: 'surf_contest', kind: 'surfContest', title: 'Surf Contest', weight: 2, minCarriages: 2, crowd: 1.5, bonus: 2 },
       { id: 'heatwave', kind: 'heatwave', title: 'Heatwave', weight: 2, minCarriages: 3, reward: 6 },
     ],
-    critic: { ...COUNTRYSIDE_EXPRESS.station.critic, minCarriages: 4, maxCarriages: 7 },
+    // The critic on the coast: a travel-magazine writer in linen with a camera.
+    critic: {
+      ...COUNTRYSIDE_EXPRESS.station.critic, minCarriages: 4, maxCarriages: 7,
+      who: 'Riviera Traveller',
+      look: { body: '#F2EAD8', accent: '#3E8FC2', hat: 'boater', hatColor: '#E9CF8C', accessory: 'camera', glasses: true },
+      pages: {
+        great: { headline: 'The Most Glamorous Train on the Coast!', body: 'Riviera Traveller’s writer rode {train} from cove to cove: gelato on the hour, sea views from every berth. Fares are up.' },
+        mixed: { headline: 'Sunny, If a Little Sandy', body: 'Our travel writer found {train} “delightful, once the towels arrived”. Worth the ticket.' },
+        poor: { headline: 'Sand in the Sheets, Slow at the Pool', body: 'Riviera Traveller’s writer left {train} unimpressed. Travellers may wait a stop or three, but every train deserves a second look.' },
+      },
+    },
   },
 };
 
