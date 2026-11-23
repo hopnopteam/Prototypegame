@@ -450,7 +450,10 @@ export const RIVIERA_COAST: RouteDef = {
     ...COUNTRYSIDE_EXPRESS.economy,
     priceMultiplier: 2.5,
     fareMultiplier: 2,
-    couplePrices: [60, 360, 220, 800, 2100, 4000, 6800, 9600],
+    couplePrices: [60, 360, 220, 800, 2100, 3500, 7000, 15000],
+    // The longer route's last hour: the dearest tiles grow a little more, and First Class and the Royal Suites cost more.
+    priceCurve: { from: 600, to: 6000, max: 1.25 },
+    classRefit: { fromTier: 4, multiplier: 1.2 },
     slotPrice: [0.85, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2],
     levels: { ...COUNTRYSIDE_EXPRESS.economy.levels, cash: COUNTRYSIDE_EXPRESS.economy.levels.cash.map((c) => c * 2.5) },
     money: { ...COUNTRYSIDE_EXPRESS.economy.money, stationBonusCash: 36 },

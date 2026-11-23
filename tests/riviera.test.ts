@@ -87,3 +87,27 @@ describe('the Riviera Coast Line', () => {
     }, 60_000);
   }
 });
+
+describe('every request can be fetched', () => {
+  // Phase 4: the coast's lemonade and aloe were asked for but no counter handed them out, so they were never served.
+  it('has a counter or cupboard for everything any class asks for on any route', async () => {
+    const { ROUTES } = await import('../src/config/routes');
+    const { CLASSES } = await import('../src/config/classes');
+    const { FAMILY_REQUESTS, HONEYMOON_REQUESTS } = await import('../src/config/content');
+    const { LINEN_ITEMS, SERVICE_ITEMS, sourceAnchorFor } = await import('../src/gameplay/Demand');
+    const lists: Record<string, number | undefined>[] = [];
+    for (const c of CLASSES) lists.push(c.evening, c.morning, c.extra ?? {});
+    for (const r of ROUTES) for (const req of Object.values(r.requests ?? {})) if (req) lists.push(req.evening ?? {}, req.morning ?? {}, req.extra ?? {});
+    for (const p of [FAMILY_REQUESTS, HONEYMOON_REQUESTS]) lists.push(p.evening, p.morning, p.extra);
+    const dwell = new Set(['turndown', 'butler']);
+    for (const list of lists) {
+      for (const item of Object.keys(list)) {
+        if (dwell.has(item)) continue;
+        const anchor = sourceAnchorFor(item as never);
+        if (anchor === 'urn') expect(SERVICE_ITEMS, item).toContain(item);
+        else if (anchor === 'linen') expect(LINEN_ITEMS, item).toContain(item);
+        else throw new Error(`${item} has no counter or cupboard (anchor ${anchor})`);
+      }
+    }
+  });
+});

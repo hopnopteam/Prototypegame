@@ -8,6 +8,11 @@ type StaffLike = Actor & { wantItems?: Partial<Record<ItemKind, number>> };
  * Which counter in a passenger carriage hands an item out (a layout anchor): the service counter (the urn) for
  * drinks, the paper and breakfast; the linen cupboard for blankets, pillows and towels.
  */
+/** What the tea counter (the urn) hands out (Phase 4: the coast's cold lemonade too). */
+export const SERVICE_ITEMS: ItemKind[] = ['tea', 'coffee', 'champagne', 'newspaper', 'breakfast', 'snack', 'sandwich', 'lemonade'];
+/** What the linen cupboard hands out: bedding and towels (Phase 4: and aloe for the sunburnt). */
+export const LINEN_ITEMS: ItemKind[] = ['blanket', 'pillow', 'towel', 'aloe'];
+
 export function sourceAnchorFor(item: ItemKind): string {
   switch (item) {
     case 'tea':

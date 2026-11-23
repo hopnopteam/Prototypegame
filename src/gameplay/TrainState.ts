@@ -1,3 +1,4 @@
+import { LINEN_ITEMS, SERVICE_ITEMS } from './Demand';
 import { iconFor } from '../config/itemIcons';
 import * as THREE from 'three';
 import { CARRIAGE_CATALOGUE, CARRIAGE_ICON, MAX_CARRIAGES, type ArchetypeId, type BedMess, type ComfortKey, type MessPiece, type UnlockDef } from '../config/content';
@@ -162,12 +163,6 @@ const TUTORIAL_ROOM = 'c0.cabin_1';
 const OPEN_CARRIAGE = 'c0.open';
 const CARRIAGE_LIGHT = 'carriage:0';
 const NIGHT_FADE = 2.5;
-/** What a passenger carriage's service counter (the urn) hands out: drinks, the morning paper, breakfast trays. */
-// Phase 4: the coast's cold lemonade comes from the same counter (Demand's `sourceAnchorFor` already sent people there).
-const SERVICE_ITEMS: ItemKind[] = ['tea', 'coffee', 'champagne', 'newspaper', 'breakfast', 'snack', 'sandwich', 'lemonade'];
-/** The linen cupboard: bedding and towels (Phase 4: and aloe for the sunburnt). */
-const LINEN_ITEMS: ItemKind[] = ['blanket', 'pillow', 'towel', 'aloe'];
-
 /** Whether a point is on a room's floor (its walls' inner faces, world coordinates). */
 function inRoom(room: { x0: number; x1: number; z0: number; z1: number }, x: number, z: number): boolean {
   return x > room.x0 && x < room.x1 && z > room.z0 && z < room.z1;
