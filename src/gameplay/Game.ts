@@ -207,6 +207,28 @@ export class Game implements World {
   private sessionSeconds = 0;
   private lastTrainSpeed = 0;
   private running = false;
+  /**
+   * Lockstep (the pacing simulator, `?sim=1`): the page's own frame loop updates and draws nothing, and `simulate`
+   * presents after every step it runs instead (everything but the drawing), so the UI, the camera and the rebuilds
+   * spread over frames follow game time, never how long the machine takes between the simulator's calls. The
+   * simulator also runs the page on a paused fake clock it advances with each chunk (scripts/pacing.mjs), so every
+   * timer, `performance.now` budget and `Date.now` follows game time too. Never on in play.
+   */
+  get lockstep(): boolean {
+    return this.lockstepOn;
+  }
+
+  set lockstep(on: boolean) {
+    this.lockstepOn = on;
+    // The frame loop stops asking for frames while in lockstep (each would be a timer for the fake clock to fire).
+    if (!on && this.running && !this.framing) requestAnimationFrame(this.frameLoop);
+  }
+
+  private lockstepOn = false;
+  /** The frame loop has a frame requested (false while it sleeps in lockstep). */
+  private framing = false;
+  /** The boot sequence (main.ts) has finished: the loading screen is gone and play has begun (or, `?sim=1`, is held). */
+  booted = false;
   private overlayRoot!: HTMLElement;
   /** Real frame times for the performance overlay and the soak test (session 24). */
   readonly perfStats = new PerfStats();
@@ -625,17 +647,25 @@ export class Game implements World {
     // High-refresh screens are held to about 60 fps (config: quality.maxFps): the same smooth motion for half
     // the work and heat. A frame that comes too soon after the last one is skipped (and a device that cannot
     // keep up is held to an even 30: Stage.minFrameMs).
-    const frame = (now: number): void => {
-      if (!this.running) return;
-      requestAnimationFrame(frame);
-      if (now - this.lastFrame < this.stage.minFrameMs) return;
-      this.perfStats.sample(now - this.lastFrame);
-      const real = Math.min(0.25, (now - this.lastFrame) / 1000);
-      this.lastFrame = now;
-      this.frame(real);
-    };
-    requestAnimationFrame(frame);
+    this.framing = true;
+    requestAnimationFrame(this.frameLoop);
   }
+
+  private readonly frameLoop = (now: number): void => {
+    this.framing = false;
+    if (!this.running) return;
+    if (this.lockstepOn) {
+      this.lastFrame = now;
+      return;
+    }
+    this.framing = true;
+    requestAnimationFrame(this.frameLoop);
+    if (now - this.lastFrame < this.stage.minFrameMs) return;
+    this.perfStats.sample(now - this.lastFrame);
+    const real = Math.min(0.25, (now - this.lastFrame) / 1000);
+    this.lastFrame = now;
+    this.frame(real);
+  };
 
   /**
    * Behind the loading screen (session 26): the game draws its first frames unseen, with a big work budget, so the
@@ -727,7 +757,8 @@ export class Game implements World {
     CharacterView.lean += (target - CharacterView.lean) * Math.min(1, dt * rules.sharpness);
   }
 
-  private present(realDt: number): void {
+  /** `draw` false (lockstep): everything a frame does but the drawing and the overlays. */
+  private present(realDt: number, draw = true): void {
     const night = this.updateDayCycle();
     this.audio.setTrainSpeed(this.journey.speed / this.econ.journey.cruiseSpeed);
     this.audio.setNight(night);
@@ -749,10 +780,12 @@ export class Game implements World {
     this.ui.update(realDt);
     // Rebuilds in progress get a slice of every frame, never a whole frame.
     this.background.run(this.loading ? LOADING_WORK_MS : BACKGROUND_BUDGET_MS);
-    this.characters.sync(this.stage.rig.camera);
-    this.stage.render(realDt);
-    this.perfOverlay?.update(realDt, () => this.perfReport());
-    this.characterDebug?.update(realDt);
+    if (draw) {
+      this.characters.sync(this.stage.rig.camera);
+      this.stage.render(realDt);
+      this.perfOverlay?.update(realDt, () => this.perfReport());
+      this.characterDebug?.update(realDt);
+    }
     if (!this.paused && !this.loading) this.trackAnalytics(realDt);
   }
 
@@ -1243,6 +1276,7 @@ export class Game implements World {
       this.background.run(BACKGROUND_BUDGET_MS);
       this.data.profile.lifetimePlaySeconds += dt;
       this.data.route.playSeconds += dt;
+      if (this.lockstep) this.present(dt, false);
     }
     return steps * dt;
   }
