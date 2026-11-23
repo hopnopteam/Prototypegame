@@ -1,4 +1,4 @@
-import { ROUTES } from './routes';
+import { ROUTE_NUMBER, ROUTES } from './routes';
 /**
  * GameAnalytics (session 31, owner: "connect GameAnalytics… track all the things in the game, retention and pretty much
  * everything… it's very crucial it's done right"). Everything the integration needs is here; the mapping from the
@@ -64,6 +64,6 @@ export const ANALYTICS = {
     route: ROUTES.map((r) => r.id),
     quality: ['low', 'medium', 'high', 'ultra'],
   },
-  /** The route's name in progression events (Route1 → Level02…, Route1Train → Carriage03…). */
-  route: 'Route1',
+  /** The route's name in progression events (Route1 → Level02…, Route1Train → Carriage03…; Route2 on the Riviera). */
+  route: `Route${ROUTE_NUMBER}`,
 };

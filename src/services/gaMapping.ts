@@ -126,6 +126,26 @@ export function translate(event: string, p: AnalyticsParams = {}): GaCall[] {
     case 'carriage_tier':
       // Phase 1: a carriage reached refit tier 1, 2 or 3 (its lifecycle step), the value the minutes played.
       return [{ kind: 'design', id: `Carriage:Tier:${part(p.type)}:${num(p.step)}`, value: minutes(p.time) }];
+    // Phase 4: moving along the line.
+    case 'route_complete':
+      return [{ kind: 'design', id: `Route:Complete:${part(p.route)}`, value: minutes(p.time) }];
+    case 'route_unlock':
+      return [{ kind: 'design', id: `Route:Unlock:${part(p.route)}`, value: minutes(p.time) }];
+    case 'route_leave':
+      // How many players buy everything before moving on: Complete (nothing left) or Partial (value: tiles left).
+      return [{ kind: 'design', id: `Route:Leave:${part(p.route)}:${num(p.unbought) === 0 ? 'Complete' : 'Partial'}`, value: num(p.unbought) }];
+    case 'route_transition_skipped':
+      return [{ kind: 'design', id: 'Route:TransitionSkipped', value: num(p.seconds) }];
+    case 'route_map_opened':
+      return [{ kind: 'design', id: 'RouteMap:Opened' }];
+    case 'kids_noise':
+      return [{ kind: 'design', id: `Kids:Noise:${Math.round(num(p.seconds))}`, value: num(p.seconds) }];
+    case 'spa_massage':
+      return [{ kind: 'design', id: 'Spa:Massage', value: num(p.fee) }];
+    case 'honeymoon_dnd':
+      return [{ kind: 'design', id: `Honeymoon:DND:${p.respected ? 'respected' : 'ignored'}` }];
+    case 'pool_skim':
+      return [{ kind: 'design', id: 'Pool:Skim', value: num(p.count, 1) }];
     case 'route_migrated':
       return [{ kind: 'design', id: 'Route:Migrated', value: num(p.refund) }];
     case 'route_level_up': {

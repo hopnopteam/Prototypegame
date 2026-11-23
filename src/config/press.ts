@@ -208,7 +208,9 @@ export type PressTrigger = 'named' | 'coupling' | 'refurb3' | 'firstClass' | 'ro
   // Session 20: a venue opens, the first Happy Hour, a race to a station won.
   | 'venue' | 'happyHour'
   // Phase 2: the Village Gazette's critic reviews the train.
-  | 'criticGreat' | 'criticMixed' | 'criticPoor';
+  | 'criticGreat' | 'criticMixed' | 'criticPoor'
+  // Phase 4: a route completed, the next one opening.
+  | 'routeComplete';
 
 /**
  * How the press is paced (session 14, owner: "the interview, the Gazette… come very quickly all at once"):
@@ -234,6 +236,7 @@ export interface HeadlineDef {
 
 /** One or more variants per trigger; a variant is picked by how many times the trigger has fired. */
 export const HEADLINES: Record<PressTrigger, HeadlineDef[]> = {
+  routeComplete: [{ headline: '{route} Restored!', body: 'Next stop: the {next}. {train} pulls into {station}, every carriage gleaming, every berth sold. The {nextName} is waiting.' }],
   criticGreat: [{ headline: "The Countryside's Finest Train!", body: 'The Village Gazette’s critic rode {train} and filled a notebook with praise: spotless cabins, tea before you ask. Fares are up.' }],
   criticMixed: [{ headline: 'A Pleasant Ride, Says Our Critic', body: 'Our reviewer found {train} “charming, if a touch busy”. Worth the ticket.' }],
   criticPoor: [{ headline: 'Dusty Cabins and Slow Service', body: 'Our critic left {train} unimpressed. Travellers may think twice for a stop or three, but every train deserves a second look.' }],
@@ -263,6 +266,7 @@ export const HEADLINES: Record<PressTrigger, HeadlineDef[]> = {
 
 /** What each front page pays when you read it (cash scales with the train's length). */
 export const FRONT_PAGE_REWARDS: Record<PressTrigger, { gems?: number; railMiles?: number; cashPerCarriage?: number }> = {
+  routeComplete: { gems: 30, railMiles: 5 },
   criticGreat: { gems: 10 },
   criticMixed: { cashPerCarriage: 40 },
   criticPoor: {},

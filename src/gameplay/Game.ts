@@ -1,4 +1,4 @@
-import { ACTIVE_ROUTE } from '../config/routes';
+import { ACTIVE_ROUTE, ROUTES, routeById } from '../config/routes';
 import { PLATFORM } from '../world/platformLayout';
 import { INTRO_BEATS } from '../config/coach';
 import * as THREE from 'three';
@@ -20,6 +20,7 @@ import { ANALYTICS } from '../config/analytics';
 import { GameAnalyticsService, gameAnalyticsWanted } from '../services/gameAnalytics';
 import { GOD, GOD_MODE, GOD_WORK } from '../config/god';
 import { DEBUG_JUMP, type DebugJump } from '../config/debugJump';
+import { ROUTE_PARAM, SAVE_KEY } from '../config/saveKey';
 import { CARRIAGE_ORDER } from '../config/content';
 import { SaveSystem } from '../save/SaveSystem';
 import { MockAdService, type AdService } from '../services/ads';
@@ -99,8 +100,7 @@ const IDLE_GRACE_SECONDS = 60;
 const FRAME_WORK_MS = 2.5;
 /** Behind the loading screen nobody sees a slow frame: queued work (bakes, scenery, rebuilds) gets this much a frame. */
 const LOADING_WORK_MS = 40;
-/** Where the save lives (localStorage, mirrored into the app's own storage on iOS and Android). */
-export const SAVE_KEY = 'nightexpress.save' + (GOD_MODE ? GOD.saveSuffix : '') + (DEBUG_JUMP ? '.jump' : '');
+export { SAVE_KEY } from '../config/saveKey';
 const MAX_FRAME = 0.05;
 /** Where in the day cycle the held night sits (the middle of the night key). */
 const NIGHT_TIME = 0.82;
@@ -221,6 +221,14 @@ export class Game implements World {
       newId: () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)),
     });
     this.save.load();
+    // Phase 4: the route is chosen from the save as the game loads (`ACTIVE_ROUTE`). If they disagree (a save brought
+    // back from the app's own storage after the web view lost it), the save is the truth: write it where the next load
+    // reads it and load again, once.
+    if (!ROUTE_PARAM && this.data.route.id !== ACTIVE_ROUTE.id && routeById(this.data.route.id)) {
+      this.save.saveNow();
+      if (reloadOnceFor(this.data.route.id)) throw new RouteReload();
+    }
+    if (ROUTE_PARAM && this.save.outcome === 'newPlayer') seedRouteStart(this.data);
     if (DEBUG_JUMP) applyDebugJump(this.data, DEBUG_JUMP);
     // Session 30 (owner: "remove developer tools"): no switch for them in Settings any more; `?dev=1` turns them on
     // for a build being tested (the test scripts set the flag themselves).
@@ -638,6 +646,7 @@ export class Game implements World {
         remaining -= dt;
       }
       this.data.profile.lifetimePlaySeconds += realDt * this.timeScale;
+      this.data.route.playSeconds += realDt * this.timeScale;
       this.sessionSeconds += realDt;
     }
     this.present(realDt);
@@ -1024,7 +1033,7 @@ export class Game implements World {
       this.ui.toast('Scooter!', 'scooter');
     }
     const reward = this.progression.rewardFor(level);
-    this.analytics.log(EVENTS.routeLevelUp, { level, time: Math.round(this.lifetimeSeconds()), first: this.firstTime(`level:${level}`) });
+    this.analytics.log(EVENTS.routeLevelUp, { level, time: Math.round(this.data.route.playSeconds), first: this.firstTime(`level:${level}`) });
     this.events.emit('level.up', { level });
     this.audio.play('levelup');
     this.haptics.success();
@@ -1054,7 +1063,7 @@ export class Game implements World {
       this.ftue('first_carriage');
       if (this.train.count >= 3) this.ftue('second_carriage');
       this.analytics.log(EVENTS.carriageCoupled, {
-        index, type, count: this.train.count, time: Math.round(this.lifetimeSeconds()),
+        index, type, count: this.train.count, time: Math.round(this.data.route.playSeconds),
         first_count: this.firstTime(`train:${this.train.count}`), first_type: this.firstTime(`coupled:${type}`),
       });
       this.scenerySpanChanged();
@@ -1064,7 +1073,7 @@ export class Game implements World {
     // Phase 1: each carriage's refit tiers 1–3 (the passenger carriages' Repair is their "Repaired" step, not a tier).
     e.on('carriage.refurbished', ({ type, tier }) => {
       const step = refitStep(type as CarriageType, tier);
-      if (step > 0 && this.firstTime(`tier:${type}:${step}`)) this.analytics.log('carriage_tier', { type, step, time: Math.round(this.lifetimeSeconds()) });
+      if (step > 0 && this.firstTime(`tier:${type}:${step}`)) this.analytics.log('carriage_tier', { type, step, time: Math.round(this.data.route.playSeconds) });
     });
     e.on('currency.changed', () => undefined);
     // The flow moves on with the ride (the first fare collected, a stop behind the train): what is on show follows.
@@ -1078,7 +1087,9 @@ export class Game implements World {
    * Phase 1: true the first time an analytics milestone is reached on this save (and remembers it), false after, so no
    * milestone is ever sent twice (an older train rebuilt by the v5 migration has the ones it had reached seeded).
    */
-  private firstTime(key: string): boolean {
+  private firstTime(name: string): boolean {
+    // Phase 4: each route has its own milestones (Route 1's keep their unprefixed names, seeded by the v5 migration).
+    const key = ACTIVE_ROUTE === ROUTES[0] ? name : `${ACTIVE_ROUTE.id}:${name}`;
     const sent = this.data.profile.gaSent;
     if (sent[key]) return false;
     sent[key] = true;
@@ -1211,6 +1222,7 @@ export class Game implements World {
       this.step(dt);
       this.background.run(BACKGROUND_BUDGET_MS);
       this.data.profile.lifetimePlaySeconds += dt;
+      this.data.route.playSeconds += dt;
     }
     return steps * dt;
   }
@@ -1239,6 +1251,42 @@ export class Game implements World {
   get catalogue(): typeof CARRIAGE_CATALOGUE {
     return CARRIAGE_CATALOGUE;
   }
+}
+
+/** Phase 4: thrown from the constructor when the page must load again on the save's route (main.ts reloads). */
+export class RouteReload extends Error {
+  constructor() {
+    super('Night Express: reloading on the save\'s route');
+  }
+}
+
+/** Reloads at most once per page session for a route (a save that keeps disagreeing must never loop). */
+function reloadOnceFor(routeId: string): boolean {
+  try {
+    const key = 'nightexpress.routeReload';
+    if (sessionStorage.getItem(key) === routeId) return false;
+    sessionStorage.setItem(key, routeId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Phase 4, debug (`?route=<id>` on a fresh save): the route starts as it would after finishing the one before it on
+ * an average run: the tutorial and the opening behind the player, the train named, and the conductor's upgrades an
+ * average Route 1 finish affords with its Rail Miles (about 48: two tracks full, the third at level 2).
+ */
+function seedRouteStart(data: SaveData): void {
+  const flags = data.profile.flags;
+  for (const f of ['openingSeen', 'first_upgrade_pan', 'firstStationDone', 'firstCabinCleaned']) flags[f] = true;
+  // A player who finished a route has long since collected a fare: no first-passengers tutorial (Coach, `tut_v32`).
+  data.profile.ftue.first_cash ??= 1;
+  for (const step of ['walk', 'tickets', 'cash', 'tile', 'key', 'room', 'serve', 'tip', 'key2', 'serve2', 'tip2']) flags[`coach_${step}`] = true;
+  data.conductor = { speed: 3, capacity: 3, fareBonus: 2 };
+  data.wallet.railMiles = 1;
+  data.press.trainName ??= 'The Night Owl';
+  data.completedRoutes = ROUTES.slice(0, Math.max(0, ROUTES.findIndex((r) => r.id === data.route.id))).map((r) => r.id);
 }
 
 /**

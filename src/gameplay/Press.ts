@@ -301,6 +301,27 @@ export class Press {
     const w = this.w;
     const p = this.state;
     if (!p.trainName && trigger !== 'named') return null;
+    const item = this.edition(trigger, vars);
+    if (trigger === 'named' || trigger.startsWith('critic')) {
+      // The debut is the one front page that still comes as a card (it opens the story).
+      this.queue(`front:${item.id}`);
+      this.foldFrontPages();
+    } else {
+      // Session 20 (owner: "news in the game without disrupting the gameplay flow"): every other story is a few
+      // words on the news strip, and what it is worth is paid on the spot.
+      const reward = this.rewardFor(item);
+      if (extra?.cash) reward.cash += extra.cash;
+      this.pay(reward);
+      this.ui.wire({ headline: item.headline, icon: 'news', rival: extra?.rival ?? null, reward, tone: extra?.league ? 'win' : 'news', kicker: extra?.league ? 'League' : 'Late edition', league: extra?.league });
+    }
+    w.analytics.log('press_printed', { trigger, level: item.level });
+    return item;
+  }
+
+  /** A story printed into the paper's archive (no card or strip of its own: the caller shows it). */
+  edition(trigger: PressTrigger, vars: Record<string, string | number> = {}): NewsItem {
+    const w = this.w;
+    const p = this.state;
     const variants = HEADLINES[trigger];
     const count = p.fired[trigger] ?? 0;
     const def = variants[count % variants.length];
@@ -323,20 +344,28 @@ export class Press {
     };
     p.items.unshift(item);
     if (p.items.length > PRESS_ARCHIVE) p.items.length = PRESS_ARCHIVE;
-    if (trigger === 'named' || trigger.startsWith('critic')) {
-      // The debut is the one front page that still comes as a card (it opens the story).
-      this.queue(`front:${item.id}`);
-      this.foldFrontPages();
-    } else {
-      // Session 20 (owner: "news in the game without disrupting the gameplay flow"): every other story is a few
-      // words on the news strip, and what it is worth is paid on the spot.
-      const reward = this.rewardFor(item);
-      if (extra?.cash) reward.cash += extra.cash;
-      this.pay(reward);
-      this.ui.wire({ headline: item.headline, icon: 'news', rival: extra?.rival ?? null, reward, tone: extra?.league ? 'win' : 'news', kicker: extra?.league ? 'League' : 'Late edition', league: extra?.league });
-    }
-    w.analytics.log('press_printed', { trigger, level: item.level });
     return item;
+  }
+
+  /**
+   * Phase 4: a front page shown now (not at the next calm), its reward collected, then `after` (the route completed:
+   * the grand station's front page, then the offer to open the next line).
+   */
+  frontPageNow(item: NewsItem, after: () => void): void {
+    const w = this.w;
+    const reward = this.rewardFor(item);
+    w.audio.play('chest');
+    w.haptics.success();
+    this.ui.showFrontPage(item, reward, w.econ.rewarded.levelUpDouble.gemCost, (choice) => {
+      w.collectWithDouble('frontPageDouble', choice, w.econ.rewarded.levelUpDouble.gemCost, (k) => {
+        if (reward.cash > 0) w.wallet.add('cash', reward.cash * k, 'press');
+        if (reward.gems > 0) w.wallet.add('gems', reward.gems * k, 'press');
+        if (reward.railMiles > 0) w.wallet.add('railMiles', reward.railMiles * k, 'press');
+        w.audio.play('chest');
+        w.particles.emit('confetti', w.player.pos.x, 2.6, w.player.pos.z, 60, 1.5);
+      });
+      after();
+    });
   }
 
   private pay(reward: FrontPageReward): void {

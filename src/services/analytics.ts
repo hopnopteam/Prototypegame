@@ -27,6 +27,17 @@ export const EVENTS = {
   /** Phase 2: a natural break the ad layer may use later (no ads change here). */
   breakPoint: 'break_point',
   routeLevelUp: 'route_level_up',
+  /** Phase 4: the route completed (its carriages all coupled and level 8), opening the next; and leaving it. */
+  routeComplete: 'route_complete',
+  routeUnlock: 'route_unlock',
+  routeLeave: 'route_leave',
+  routeTransitionSkipped: 'route_transition_skipped',
+  routeMapOpened: 'route_map_opened',
+  /** Phase 4, the Riviera's own jobs. */
+  kidsNoise: 'kids_noise',
+  spaMassage: 'spa_massage',
+  honeymoonDnd: 'honeymoon_dnd',
+  poolSkim: 'pool_skim',
   rewardedOfferShown: 'rewarded_offer_shown',
   rewardedOfferAccepted: 'rewarded_offer_accepted',
   rewardedOfferCompleted: 'rewarded_offer_completed',

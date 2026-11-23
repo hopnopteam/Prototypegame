@@ -1,4 +1,4 @@
-import { createDefaultSave, type SaveData } from '../save/SaveData';
+import { createDefaultSave, type RouteArchive, type SaveData } from '../save/SaveData';
 
 /** What a completed route hands to the next one, and what it leaves behind (Phase 3; the flow comes in Phase 4). */
 export interface CarryOverResult {
@@ -16,7 +16,7 @@ export interface CarryOverResult {
  * carriages and their unlocks (the shoes among them), the staff, the station upgrades of the new route, the route level
  * and stars, the facilities and the goals. Pure: returns a new save and never touches the one passed in.
  */
-export function carryOver(from: SaveData, nextRouteId: string, now: number): CarryOverResult {
+export function carryOver(from: SaveData, nextRouteId: string, now: number, unbought = 0): CarryOverResult {
   const src = structuredClone(from);
   const data = createDefaultSave(now, src.profile.installId);
   data.createdAt = src.createdAt;
@@ -32,5 +32,31 @@ export function carryOver(from: SaveData, nextRouteId: string, now: number): Car
   data.station.owned = { ...src.station.owned, [nextRouteId]: [] };
   data.station.critic = { ...src.station.critic };
   data.route.id = nextRouteId;
+  // Phase 4: the finished route is kept as it was (the route map shows its final stats), and marked completed.
+  const done = src.route.id;
+  const earlier = Object.values(src.routes ?? {}).filter((a) => a.route.id !== done);
+  const sum = (pick: (a: RouteArchive) => number): number => earlier.reduce((total, a) => total + pick(a), 0);
+  data.routes = {
+    ...(src.routes ?? {}),
+    [done]: {
+      route: src.route,
+      staff: src.staff,
+      facilities: src.facilities,
+      stationOwned: src.station.owned[done] ?? [],
+      critic: src.station.critic[done] ?? null,
+      leftAt: now,
+      cashLeft: src.wallet.cash,
+      unbought,
+      stats: {
+        guests: Math.max(0, src.press.stats.guests - sum((a) => a.stats.guests)),
+        perfectStops: Math.max(0, src.press.stats.perfectStops - sum((a) => a.stats.perfectStops)),
+        minutes: Math.round((src.route.playSeconds ?? 0) / 60),
+      },
+    },
+  };
+  data.completedRoutes = [...new Set([...(src.completedRoutes ?? []), done])];
+  // Help is earned again on the new route: the hand work counted toward its hires starts from nothing.
+  data.profile.handWork = {};
+  data.profile.staffWork = {};
   return { data, kept: { gems: data.wallet.gems, railMiles: data.wallet.railMiles, conductor: { ...data.conductor } }, cashLeft: src.wallet.cash };
 }

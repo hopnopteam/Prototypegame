@@ -1,5 +1,6 @@
 import type { CarriageType } from '../core/types';
 import type { ClassId } from './classes';
+import { ROUTE_PARAM, savedRouteId } from './saveKey';
 
 /**
  * Routes (Phase 1, owner: "a route config object… the train, unlocks and progression read from the active route").
@@ -259,8 +260,61 @@ export const COUNTRYSIDE_EXPRESS: RouteDef = {
   },
 };
 
-/** Every route there is (one for now). */
-export const ROUTES: RouteDef[] = [COUNTRYSIDE_EXPRESS];
+/**
+ * Route 2, the Riviera Coast Line (Phase 4): a bright Amalfi-style coast, a blue-and-white streamliner that starts
+ * sun-faded and salt-stained, nine carriages, six stations. Prices ×2.5 and fares ×2 over Route 1 (its economy block).
+ */
+export const RIVIERA_COAST: RouteDef = {
+  id: 'riviera',
+  name: 'Riviera Coast Line',
+  carriageOrder: ['lobby', 'cafe', 'sleeper', 'bathroom', 'dining', 'bar', 'familySleeper', 'cinema'],
+  maxCarriages: 8,
+  stations: [
+    { art: 'millbrook', name: 'Porto Sole', blurb: 'Where the line meets the sea, and the sea meets the lemons.' },
+    { art: 'hazelford', name: 'Lemon Cove', blurb: 'Every terrace a lemon grove, every lemon an opinion.' },
+    { art: 'barley-cross', name: 'Marina Bay', blurb: 'Sailboats, gelato, and a harbourmaster who naps at noon.' },
+    { art: 'wrenfield', name: 'Cliffside', blurb: 'White houses stacked on the rock like sugar cubes.' },
+    { art: 'oakhollow', name: 'Coral Beach', blurb: 'The beach is right behind the platform. Mind the sand.' },
+    { art: 'pennyridge', name: 'Bellavista', blurb: 'The best view on the line, and everyone knows it.' },
+  ],
+  classLadder: ['basic', 'comfort', 'first', 'royal'],
+  guestLooks: [],
+  lighting: 'goldenHourToNight',
+  duskSeconds: 240,
+  scenery: { wheat: false, stoneBridges: false },
+  music: 'riviera_theme',
+  economy: {
+    ...COUNTRYSIDE_EXPRESS.economy,
+    priceMultiplier: 2.5,
+    fareMultiplier: 2,
+  },
+  station: {
+    ...COUNTRYSIDE_EXPRESS.station,
+    events: COUNTRYSIDE_EXPRESS.station.events.filter((e) => e.kind !== 'harvest' && e.kind !== 'sheep'),
+  },
+};
 
-/** The route being played. */
-export const ACTIVE_ROUTE: RouteDef = COUNTRYSIDE_EXPRESS;
+/** Every route there is, in the order they open (a route is completed to open the next). */
+export const ROUTES: RouteDef[] = [COUNTRYSIDE_EXPRESS, RIVIERA_COAST];
+
+/** Phase 4: routes still to come, shown on the route map as a silhouette ("Coming soon"). */
+export const UPCOMING_ROUTES: { id: string; name: string }[] = [{ id: 'winter', name: 'Winter City Express' }];
+
+export function routeById(id: string | null | undefined): RouteDef | null {
+  return ROUTES.find((r) => r.id === id) ?? null;
+}
+
+/** The route that opens once this one is completed (null after the last). */
+export function nextRoute(id: string): RouteDef | null {
+  const i = ROUTES.findIndex((r) => r.id === id);
+  return i >= 0 ? ROUTES[i + 1] ?? null : null;
+}
+
+/**
+ * The route being played (Phase 4: the save's route, read as the game loads; `?route=<id>` forces one for testing).
+ * Fixed for the whole session: moving to the next route saves and reloads behind the tunnel.
+ */
+export const ACTIVE_ROUTE: RouteDef = routeById(ROUTE_PARAM) ?? routeById(savedRouteId()) ?? COUNTRYSIDE_EXPRESS;
+
+/** Its number on the line (1 for the Countryside Express), for the GameAnalytics progression names (`Route2:Level03`). */
+export const ROUTE_NUMBER = ROUTES.indexOf(ACTIVE_ROUTE) + 1;

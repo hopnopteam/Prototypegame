@@ -1,11 +1,12 @@
 import type { CarriageType } from '../core/types';
+import { ACTIVE_ROUTE } from '../config/routes';
 
 /**
  * Everything persisted for the player. Rules that keep old saves loading forever:
  * - Adding a field: give it a default in createDefaultSave(); loading deep-merges defaults, no version bump.
  * - Renaming, removing or changing the meaning of a field: bump SAVE_VERSION and add a migration.
  */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 export interface QuestState {
   kind: string;
@@ -112,7 +113,16 @@ export interface SaveData {
     floorCash: number;
     /** Phase 1: cash handed back by the v5 migration (carriages that left the route), shown once on the next start. */
     migrationRefund: number;
+    /** Phase 4: seconds of active play on this route (the route's analytics values and its final stats). */
+    playSeconds: number;
   };
+  /**
+   * Phase 4: every route finished and left behind, by id: its train, unlocks, staff and station upgrades as they were,
+   * and its final stats (shown on the route map; a later version may let the player go back to it).
+   */
+  routes: Record<string, RouteArchive>;
+  /** Phase 4: the routes completed, in order. */
+  completedRoutes: string[];
   staff: Record<string, { level: number }>;
   conductor: { speed: number; capacity: number; fareBonus: number };
   facilities: {
@@ -182,6 +192,20 @@ export interface SaveData {
   station: StationSave;
 }
 
+/** Phase 4: a route finished and left behind. */
+export interface RouteArchive {
+  route: SaveData['route'];
+  staff: SaveData['staff'];
+  facilities: SaveData['facilities'];
+  stationOwned: string[];
+  critic: CriticSave | null;
+  /** When it was left (ms since epoch), the cash left in the wallet, and the upgrades left unbought. */
+  leftAt: number;
+  cashLeft: number;
+  unbought: number;
+  stats: { guests: number; perfectStops: number; minutes: number };
+}
+
 /** Phase 2: the critic of a route (once per route): where they are, what they have seen, and the verdict. */
 export interface CriticSave {
   /** 'aboard' riding and judging, 'reviewing' got off with the review still to print, 'done' printed. */
@@ -223,7 +247,9 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {}, qualityPolicy: 0, hapticsPolicy: 0, sfxVolume: 0.8 },
     wallet: { cash: 0, gems: 0, railMiles: 0 },
     station: { owned: {}, sinceEvent: 0, eventGap: 0, lastEvent: null, eventsSeen: 0, boosts: [], critic: {} },
-    route: { id: 'countryside', stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0, perfectStreak: 0, recentStops: [], reviews: [], floorCash: 0, migrationRefund: 0 },
+    route: { id: ACTIVE_ROUTE.id, stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0, perfectStreak: 0, recentStops: [], reviews: [], floorCash: 0, migrationRefund: 0, playSeconds: 0 },
+    routes: {},
+    completedRoutes: [],
     staff: {},
     conductor: { speed: 0, capacity: 0, fareBonus: 0 },
     facilities: { supplyTowel: -1, supplyRoll: -1, bathrooms: [] },

@@ -1,4 +1,4 @@
-import { Game, SAVE_KEY } from './gameplay/Game';
+import { Game, RouteReload, SAVE_KEY } from './gameplay/Game';
 import { CAMERA_STYLE } from './config/cameraStyle';
 import { CameraTuner } from './ui/CameraTuner';
 import { connectNative, restoreSave } from './services/native';
@@ -44,6 +44,11 @@ async function boot(): Promise<void> {
   try {
     game = new Game(canvas, overlay, ui);
   } catch (error) {
+    // Phase 4: the save is on another route than the page loaded with; load again on it.
+    if (error instanceof RouteReload) {
+      location.reload();
+      return;
+    }
     loader.hide(true);
     overlay.appendChild(h('div.splash', {}, h('div.title', { text: 'Night Express' }), h('div.tag', { text: 'This phone could not start 3D graphics. Updating Chrome and Android System WebView usually fixes it.' })));
     throw error;

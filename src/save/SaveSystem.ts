@@ -125,6 +125,18 @@ export const SAVE_MIGRATIONS: SaveMigration[] = [
       if (meta) delete meta.stories;
     },
   },
+  {
+    // v7 → v8 (Phase 4, more than one route): the route's own play time starts from the whole game's (every save so far
+    // played only the Countryside Express); the archive of finished routes and the completed list start empty.
+    from: 7,
+    apply(raw) {
+      const route = raw.route as { playSeconds?: number } | undefined;
+      const profile = raw.profile as { lifetimePlaySeconds?: number } | undefined;
+      if (route && typeof route.playSeconds !== 'number') route.playSeconds = profile?.lifetimePlaySeconds ?? 0;
+      raw.routes ??= {};
+      raw.completedRoutes ??= [];
+    },
+  },
 ];
 
 /** What each conductor level cost before Phase 3 (5 levels a track), for the v6 → v7 refund. */
