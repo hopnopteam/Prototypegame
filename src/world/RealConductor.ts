@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { CharacterView } from './CharacterView';
-import { REAL_CARRIAGE } from './RealCarriage';
+import { MODEL_EXT, REAL_CARRIAGE } from './RealCarriage';
 
 /**
  * Graphics experiment: the conductor as a realistic rigged figure to go with the photoreal carriage. A Ready Player
@@ -37,7 +37,7 @@ async function load(scene: THREE.Scene): Promise<void> {
   try {
     const loader = new GLTFLoader();
     const names = ['idle', 'walk', 'run'];
-    const [body, ...clips] = await Promise.all([`${BASE}conductor.glb`, ...names.map((n) => `${BASE}${n}.glb`)].map((u) => loader.loadAsync(u)));
+    const [body, ...clips] = await Promise.all([`${BASE}conductor${MODEL_EXT}`, ...names.map((n) => `${BASE}${n}${MODEL_EXT}`)].map((u) => loader.loadAsync(u)));
     const root = new THREE.Group();
     root.name = 'real conductor';
     const avatar = body.scene;

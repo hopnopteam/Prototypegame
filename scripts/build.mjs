@@ -67,7 +67,8 @@ function emit(result) {
     const from = resolve(root, 'experiments/realism/game/out');
     if (existsSync(from)) {
       mkdirSync(resolve(root, 'dist/real'), { recursive: true });
-      for (const f of readdirSync(from)) copyFileSync(resolve(from, f), resolve(root, 'dist/real', f));
+      // models as .glb.wasm: the artifact host serves .wasm as binary but not .glb (RealCarriage.MODEL_EXT)
+      for (const f of readdirSync(from)) copyFileSync(resolve(from, f), resolve(root, 'dist/real', f.endsWith('.glb') ? `${f}.wasm` : f));
       console.log(`Copied the photoreal carriage (${readdirSync(from).length} files) to dist/real`);
     }
   }

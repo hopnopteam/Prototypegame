@@ -19,6 +19,11 @@ export const REAL_CARRIAGE: boolean = param === '1' || (param !== '0' && typeof 
 /** The afternoon the bake was lit for, in the game's day cycle (Lighting's keys): the world around it matches. */
 export const REAL_TIME_OF_DAY = 0.53;
 const BASE = 'real/';
+/**
+ * The models are published as `.glb.wasm`: the artifact host serves only standard web types, and `.wasm` is served as
+ * binary, untouched. GLTFLoader reads the bytes whatever the name.
+ */
+export const MODEL_EXT = '.glb.wasm';
 /** Exposure into the tone curve (Blender's renders used 0 EV). */
 const EXPOSURE = 1.0;
 /**
@@ -72,7 +77,7 @@ export function loadRealCarriage(): Promise<Loaded | null> {
         t.anisotropy = 8;
       }
       light.channel = 0;
-      const gltf = await new GLTFLoader().loadAsync(`${BASE}lobby.glb`);
+      const gltf = await new GLTFLoader().loadAsync(`${BASE}lobby${MODEL_EXT}`);
       // MeshBasicMaterial divides a light map by π (physical units); the bake is already in the light's own units.
       const baked = agx(new THREE.MeshBasicMaterial({ map: albedo, lightMap: light, lightMapIntensity: meta.lightScale * Math.PI, toneMapped: false }));
       // Flowers, leaves and the chassis carry their lit colour per vertex (no texture space for things that small).
