@@ -28,7 +28,7 @@ const BASE = 'real/';
 /** Models are published as `.glb.wasm`: the artifact host serves `.wasm` as binary, untouched, and not `.glb`. */
 export const MODEL_EXT = '.glb.wasm';
 /** Exposure into the AgX curve (the Cycles renders used 0 EV); `?ev=` to try another. */
-const EXPOSURE = Number(query?.get('ev')) || 1.0;
+const EXPOSURE = Number(query?.get('ev')) || 1.25;
 /** The references' framing: closer than the game's (7.8 m across). */
 const VIEW_WIDTH = 5.6;
 /** The sun's shadow: a square this many metres across round the view, this many texels. */

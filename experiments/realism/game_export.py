@@ -123,7 +123,7 @@ def sand_textured():
 
 M['sand_tex'] = sand_textured()
 M['paving'] = pbr('platform paving', 'PavingStones110_2K-JPG__PavingStones110_2K_Color.jpg', 'PavingStones110_2K-JPG__PavingStones110_2K_NormalGL.jpg',
-                  rough=0.8, scale=2.4, aspect=0.5, hsv=(0.52, 0.3, 1.9), tint=(1.0, 0.93, 0.80), nstrength=1.0)
+                  rough=0.8, scale=2.4, aspect=0.5, hsv=(0.5, 0.15, 1.55), tint=(1.0, 0.88, 0.70), nstrength=1.0)
 surroundings()
 
 # ------------------------------------------------------------------ light: the sky without its sun, and a sun lamp
@@ -168,7 +168,8 @@ def flatten(coll, name, glass_name=None):
 
 def split_dressing(car):
     """Petals, leaves and the like leave the carriage mesh (they need no bake UVs: lit live)."""
-    names = {i for i, m in enumerate(car.data.materials) if m and any(k in m.name for k in ('petal', 'leaf', 'soil', 'stem'))}
+    # Bedding too: draped cloth unwraps into thousands of tiny islands, which a bake shows as blocks; live light suits it.
+    names = {i for i, m in enumerate(car.data.materials) if m and any(k in m.name for k in ('petal', 'leaf', 'soil', 'stem', 'satin', 'linen', 'velvet'))}
     bpy.context.view_layer.objects.active = car
     for o in bpy.context.view_layer.objects:
         o.select_set(o == car)
