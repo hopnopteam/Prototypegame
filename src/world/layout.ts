@@ -1,4 +1,5 @@
 import { CUTAWAY_FRONT, CUTAWAY_SIDE } from '../config/cameraStyle';
+import { ACTIVE_ROUTE, routeItem, type RouteLayout } from '../config/routes';
 import { rect, type CarriageType, type ItemKind, type Rect, type Vec2, type VenueKind } from '../core/types';
 
 /**
@@ -126,7 +127,12 @@ export type PropKind =
   // Fix list 4.7: the back room at the end of a venue or the stores car (a pantry, a scullery, a cellar, a store).
   | 'backroom'
   // Fix list 4.8: the bar lounge's jukebox.
-  | 'jukebox';
+  | 'jukebox'
+  // Phase 4, the Riviera's new carriages: the Kids' Play Car (a puppet theatre, the gelato freezer, play corners and
+  // poufs for the parents), the Spa Car (massage tables, the robe rack, a little fountain) and the Pool Car (the pool,
+  // loungers, the skimmer's rack, the towel cart, the lifeguard's chair).
+  | 'puppetTheatre' | 'freezer' | 'play' | 'pouf' | 'massageTable' | 'robeRack' | 'fountain' | 'pool' | 'lounger' | 'skimmer'
+  | 'towelCart' | 'lifeguardChair';
 
 export interface PropDef {
   kind: PropKind;
@@ -223,6 +229,12 @@ export interface VenueSeatLayout {
   node: string;
   /** The seat's height (a bar stool is taller than a chair). */
   top: number;
+  /** Phase 4: lying down there (a spa's massage table), not sitting. */
+  lie?: boolean;
+  /** Phase 4, the Kids' Play Car: where the family's child plays while the parent sits. */
+  play?: Vec2;
+  /** Phase 4, the Pool Car: the lounger the swimmer climbs out onto (they swim at `sit`, then wait for a towel here). */
+  rest?: Vec2;
 }
 
 export interface VenueGroupLayout {
@@ -256,8 +268,12 @@ export interface VenueLayout {
    * piano): props that show (and block the way) only once bought.
    */
   extras: { key: string; props: number[] }[];
-  /** The cinema: where the film is started (the projector's pad). */
+  /** The cinema: where the film is started (the projector's pad); the Kids' Play Car: where the puppet show starts. */
   projector: Vec2 | null;
+  /** Phase 4, the Pool Car: the skimmer's pad, where the leaves are fished off the water. */
+  skim: Vec2 | null;
+  /** Phase 4, the Pool Car: the water's rect (the view draws it, animated). */
+  water: Rect | null;
   /** Rugs, runners and carpets this refit lays (Floors.ts draws them). */
   carpets: VenueCarpet[];
 }
@@ -267,7 +283,9 @@ export interface VenueLayout {
  * Fix list 5.4–5.5: the café's floors are tiles (cream and sage, then cream and mocha marble) and the dining car's
  * a claret carpet with a tiled kitchen, so the two never look alike.
  */
-export type CarpetStyle = 'jute' | 'runner' | 'persian' | 'theatre' | 'checker' | 'kitchen' | 'wine' | 'claret' | 'terracotta' | 'forest' | 'moss' | 'tobacco' | 'dove';
+export type CarpetStyle = 'jute' | 'runner' | 'persian' | 'theatre' | 'checker' | 'kitchen' | 'wine' | 'claret' | 'terracotta' | 'forest' | 'moss' | 'tobacco' | 'dove'
+  // Phase 4: the Kids' Play Car's soft play mat, the spa's pale stone, the pool deck's teak.
+  | 'playmat' | 'stone' | 'deck';
 
 export interface VenueCarpet {
   rect: Rect;
@@ -554,10 +572,29 @@ class LayoutBuilder {
 const LOBBY_ROOMS: [number, RoomStyle][] = [[3, 'berth'], [3, 'berth'], [3, 'berth'], [3, 'berth'], [2, 'first'], [1, 'royal']];
 const SLEEPER_ROOMS: [number, RoomStyle][] = [[6, 'berth'], [6, 'berth'], [6, 'berth'], [6, 'berth'], [2, 'first'], [2, 'royal']];
 
+/**
+ * Phase 4: the floor plans' knobs on the active route (the Riviera's four cabanas, three showers, ten diner tables).
+ * Tests turn them with `setLayoutOptions` to check another route's plans.
+ */
+let OPTIONS: RouteLayout = ACTIVE_ROUTE.layout ?? {};
+export function setLayoutOptions(options: RouteLayout): void {
+  OPTIONS = options;
+  cache.clear();
+}
+export const layoutOptions = (): RouteLayout => OPTIONS;
+
+/** Rooms and their style in the lobby car at a refit tier (the route may give its Basic plan more rooms). */
+function lobbyRooms(tier: number): [number, RoomStyle] {
+  const [count, style] = LOBBY_ROOMS[Math.min(LOBBY_ROOMS.length - 1, Math.max(0, tier))];
+  return style === 'berth' && OPTIONS.lobbyRooms ? [OPTIONS.lobbyRooms, style] : [count, style];
+}
+
 /** How many rooms a passenger carriage has at a refit tier (the economy and the tiles use this). */
 export function roomsAt(type: CarriageType, tier: number): number {
   if (type === 'familySleeper') return FAMILY_ROOMS[0];
-  const table = type === 'lobby' ? LOBBY_ROOMS : type === 'sleeper' ? SLEEPER_ROOMS : null;
+  if (type === 'honeymoon') return HONEYMOON_ROOMS[0];
+  if (type === 'lobby') return lobbyRooms(tier)[0];
+  const table = type === 'sleeper' ? SLEEPER_ROOMS : null;
   if (!table) return 0;
   return table[Math.min(table.length - 1, Math.max(0, tier))][0];
 }
@@ -641,12 +678,12 @@ function buildLobby(tier: number): CarriageLayout {
   b.chain('lobby_front', 'lobby_rear', 'rack');
   b.edge('lobby_rl', 'lobby_rear');
 
-  const [count, style] = LOBBY_ROOMS[Math.min(LOBBY_ROOMS.length - 1, Math.max(0, tier))];
+  const [count, style] = lobbyRooms(tier);
   b.rooms(lobbyEnd, cabinsEnd, count, 'corr_in', style);
   return b.layout;
 }
 
-function buildSleeper(tier: number, type: 'sleeper' | 'familySleeper' = 'sleeper'): CarriageLayout {
+function buildSleeper(tier: number, type: 'sleeper' | 'familySleeper' | 'honeymoon' = 'sleeper'): CarriageLayout {
   const b = new LayoutBuilder(type);
   // Deep enough that the linen pad in the nook stands clear of the first room's wall (in full view).
   const family = type === 'familySleeper';
@@ -670,7 +707,7 @@ function buildSleeper(tier: number, type: 'sleeper' | 'familySleeper' = 'sleeper
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, front - 0.1);
   b.node('nook', 0, 1.05);
   b.chain('vest_front', 'nook', 'corr_in');
-  const [count, style] = family ? FAMILY_ROOMS : SLEEPER_ROOMS[Math.min(SLEEPER_ROOMS.length - 1, Math.max(0, tier))];
+  const [count, style] = family ? FAMILY_ROOMS : type === 'honeymoon' ? HONEYMOON_ROOMS : SLEEPER_ROOMS[Math.min(SLEEPER_ROOMS.length - 1, Math.max(0, tier))];
   if (family) {
     // The desk faces the platform wall: the line waits between it and that wall (in from the door, clear of everyone
     // walking through the carriage), and whoever serves works it from its camera end.
@@ -700,6 +737,12 @@ function buildSleeper(tier: number, type: 'sleeper' | 'familySleeper' = 'sleeper
  * session 53, when its lounge took the second check-in desk. */
 const FAMILY_ROOMS: [number, RoomStyle] = [5, 'berth'];
 const buildFamilySleeper = (tier: number): CarriageLayout => buildSleeper(tier, 'familySleeper');
+/**
+ * Phase 4, the Riviera's Honeymoon Suites: four rooms for couples (a double bed and an armchair at every refit, which
+ * refurnish and never rebuild: Repair, Cosy, Luxury, like the Family Sleeper).
+ */
+const HONEYMOON_ROOMS: [number, RoomStyle] = [4, 'business'];
+const buildHoneymoon = (tier: number): CarriageLayout => buildSleeper(tier, 'honeymoon');
 
 function buildBathroom(): CarriageLayout {
   const b = new LayoutBuilder('bathroom');
@@ -709,7 +752,9 @@ function buildBathroom(): CarriageLayout {
   // shower… toilets and showers are different, toilets much smaller and covered"): two small toilet rooms, each a
   // cubicle round the loo with a basin outside it, then a shower room. The check-in desk moved to the Family Sleeper.
   const front = WASHROOM_FRONT;
-  const lengths = [TOILET_LENGTH, TOILET_LENGTH, SHOWER_LENGTH];
+  // Phase 4: a route may choose the rooms (the Riviera's Washroom & Showers: three showers).
+  const kinds = OPTIONS.washrooms ?? ['toilet', 'toilet', 'shower'];
+  const lengths = kinds.map((k) => (k === 'shower' ? SHOWER_LENGTH : TOILET_LENGTH));
   const end = front + lengths.reduce((sum, l) => sum + l, 0);
   b.shell({ frontGangway: true, doors: false });
   b.vestibules(front);
@@ -731,9 +776,9 @@ function buildBathroom(): CarriageLayout {
   let z0 = front;
   lengths.forEach((length, index) => {
     const z1 = z0 + length;
-    const shower = index === lengths.length - 1;
+    const shower = kinds[index] === 'shower';
     b.wall(PARTITION_X1, z0 - 0.06, INNER, z0 + 0.06);
-    if (shower) b.wall(PARTITION_X1, z1 - 0.06, INNER, z1 + 0.06);
+    if (index === lengths.length - 1) b.wall(PARTITION_X1, z1 - 0.06, INNER, z1 + 0.06);
     const [doorZ0, doorZ1] = centredDoor(z0, z1);
     const doorZ = (doorZ0 + doorZ1) / 2;
     gaps.push([doorZ0, doorZ1]);
@@ -881,7 +926,7 @@ function backRoom(b: LayoutBuilder, variant: string, side: 'left' | 'right', inn
 }
 
 function newVenue(kind: VenueKind): VenueLayout {
-  return { kind, seats: [], groups: [], stations: [], counter: null, pass: null, cash: null, openGroups: 1, sign: null, extras: [], projector: null, carpets: [] };
+  return { kind, seats: [], groups: [], stations: [], counter: null, pass: null, cash: null, openGroups: 1, sign: null, extras: [], projector: null, skim: null, water: null, carpets: [] };
 }
 
 /**
@@ -1012,7 +1057,10 @@ function buildDining(tier: number): CarriageLayout {
   b.node('pass', 0.2, 4.75);
   b.chain('vest_front', 'kitchen', 'pass');
   b.edge('kitchen', 'stove');
-  const rows = [6.4, 9.0, 11.6, 14.2];
+  // Phase 4: a route may seat more (the Riviera's Seafood Diner: five rows, ten tables), the last row where it always was.
+  const rowCount = OPTIONS.diningRows ?? 4;
+  const step = rowCount > 4 ? 2.1 : 2.6;
+  const rows = Array.from({ length: rowCount }, (_, i) => 14.2 - (rowCount - 1 - i) * step);
   let group = 0;
   let previous = 'pass';
   for (const z of rows) {
@@ -1033,7 +1081,9 @@ function buildDining(tier: number): CarriageLayout {
       const mid = (wall + inner) / 2;
       // The tile reaches under the table a little, kept clear of the camera-side wall (which hides the floor by it).
       // The last table on the right leaves its tip on the near side (the scullery is behind it, fix list 4.7).
-      const cashZ = z === rows[rows.length - 1] && side > 0 ? z - 1.05 : z + 1.05;
+      // Phase 4: with five rows the row before it already leaves its tip there, so this one goes past its own chair.
+      const last = z === rows[rows.length - 1] && side > 0;
+      const cashZ = last ? (rowCount > 4 ? z + 0.8 : z - 1.05) : z + 1.05;
       v.groups.push({ index: group, tile: { x: side * 1.3, z }, props: [table, c0, c1], cash: { x: side * 1.0, z: cashZ } });
       v.seats.push({ index: v.seats.length, group, sit: { x: mid, z: z - 0.8 }, facing: FACE.rear, serve: { x: side * 1.0, z }, node, top: 0.4 });
       group++;
@@ -1043,7 +1093,7 @@ function buildDining(tier: number): CarriageLayout {
   // Phase 1 (owner: "Dining 8 seats, +2"): all eight tables are bought.
   v.openGroups = 0;
   b.anchor('home_chef', -0.2, 2.9);
-  b.anchor('home_waiter', -1.45, 4.6);
+  b.anchor('home_waiter', -1.45, rowCount > 4 ? 4.2 : 4.6);
   b.anchor('tile_up_chef', -REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_up_waiter', -1.2, 15.75);
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
@@ -1052,10 +1102,11 @@ function buildDining(tier: number): CarriageLayout {
 
   // The furnishings: the dresser of plates and glasses at the back where the waiter lays up, plants in the gaps
   // between the tables, coats at the back by the gangway, and a runner down the aisle once it is cosy.
-  const gaps = [7.7, 10.3, 12.9];
+  // Plants between the tables (with five rows the chairs leave no room between them).
+  const gaps = rowCount > 4 ? [] : rows.slice(0, -1).map((z, i) => (z + rows[i + 1]) / 2);
   if (tier <= 0) {
     b.prop('crates', LAKE, 15.3, -1.9, 16.35, 'right', true, 'dining');
-    b.prop('planter', LAKE, gaps[1] - 0.2, -1.94, gaps[1] + 0.2, 'right', true, 'dining');
+    if (gaps[1] !== undefined) b.prop('planter', LAKE, gaps[1] - 0.2, -1.94, gaps[1] + 0.2, 'right', true, 'dining');
   } else {
     b.prop('sideboard', LAKE, 15.3, -1.9, 16.38, 'right', true, 'dining');
     for (const z of gaps) b.prop('planter', LAKE, z - 0.2, -1.94, z + 0.2, 'right', true, 'dining');
@@ -1333,6 +1384,184 @@ function buildCinema(tier: number): CarriageLayout {
   return b.layout;
 }
 
+
+/**
+ * Phase 4, the Kids' Play Car (the Riviera): the gelato freezer up front on the platform side, the puppet theatre
+ * across from it, then play corners down both sides, each a toy to play with and a pouf beside it for the parent.
+ * A family's child plays while the parent sits; children waiting for the show get louder (the noise carries into the
+ * cabins next door), and the puppet show quietens them and pays a ticket a child. Gelato for anyone who asks.
+ */
+const KIDS_CORNERS = [6.2, 9.2, 12.2];
+function buildKids(tier: number): CarriageLayout {
+  const b = new LayoutBuilder('kids');
+  const v = newVenue('kids');
+  b.layout.venue = v;
+  const front = 2.0;
+  venueShell(b, front);
+  b.prop('freezer', 1.52, 2.3, INNER, 3.9, 'left');
+  v.stations.push({ item: 'icecream', pad: { x: 0.86, z: 3.1 } });
+  b.prop('puppetTheatre', -INNER, 2.3, -1.5, 4.5, 'right');
+  // The show starts from the theatre's side nearest the camera (the theatre itself hides the floor in front of it).
+  v.projector = { x: -0.9, z: 5.0 };
+  v.sign = { x: -1.9, z: 3.4 };
+  b.node('kids_front', 0.2, front + 0.45);
+  b.node('show', v.projector.x, v.projector.z);
+  b.node('aisle_f', 0.1, 5.0);
+  b.chain('vest_front', 'kids_front', 'aisle_f');
+  b.edge('aisle_f', 'show');
+  b.node('freezer', 0.62, 3.1);
+  b.edge('kids_front', 'freezer');
+  let group = 0;
+  let previous = 'aisle_f';
+  for (const c of KIDS_CORNERS) {
+    const aisle = b.node(`aisle_${group}`, 0, c + 0.95);
+    b.edge(previous, aisle);
+    previous = aisle;
+    for (const side of [-1, 1]) {
+      // The toy against the wall (each corner its own: a ball pit, a slide, a rocking horse, blocks, a play kitchen,
+      // a toy railway), the parent's pouf on its aisle side at the rear, where the camera sees the child at play.
+      const wx0 = side < 0 ? -INNER : 1.3;
+      const wx1 = side < 0 ? -1.3 : INNER;
+      const toy = b.prop('play', wx0, c - 0.7, wx1, c + 0.55, side < 0 ? 'right' : 'left', true, ['ballpit', 'slide', 'horse', 'blocks', 'kitchen', 'railway'][group]);
+      const px = side * 1.0;
+      const pouf = b.prop('pouf', px - 0.2, c + 0.78, px + 0.2, c + 1.18, undefined, true);
+      const node = b.node(`corner_${group}`, side * 0.48, c + 0.95);
+      b.edge(aisle, node);
+      v.groups.push({ index: group, tile: { x: side * 1.55, z: c + 1.05 }, props: [toy, pouf], cash: null });
+      v.seats.push({
+        index: v.seats.length, group, sit: { x: px, z: c + 0.98 }, facing: side < 0 ? FACE.left : FACE.right,
+        serve: { x: side * 0.42, z: c + 0.98 }, node, top: 0.36,
+        play: { x: side * 1.55, z: c - 0.05 },
+      });
+      group++;
+    }
+  }
+  b.chain(previous, 'corr_end', 'vest_rear');
+  v.openGroups = 0;
+  b.anchor('home_entertainer', -0.55, 15.55);
+  b.anchor('tile_up_entertainer', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_menu', 0.6, 4.55);
+  // The furnishings: crayons and a chalkboard on the front wall, a toy box, cushions; a soft play mat from the Repair,
+  // a bright alphabet carpet from the Makeover.
+  b.prop('wallBoard', 0.2, WALL, 1.3, WALL + 0.05, 'rear', false, 'kids');
+  if (tier <= 0) b.prop('crates', LAKE, 14.0, -1.85, 14.9, 'right', true, 'kids');
+  else b.prop('planter', LAKE, 14.2, -1.92, 14.62, 'right', true, 'kids');
+  backRoom(b, 'toystore', 'right', 0.5, 15.0);
+  if (tier >= 1) v.carpets.push({ rect: rect(-0.62, 5.6, 0.62, 13.9), style: tier >= 2 ? 'playmat' : 'jute' });
+  if (tier >= 3) v.carpets.push({ rect: rect(-INNER + 0.08, 5.0, INNER - 0.08, 5.5), style: 'playmat' });
+  return b.layout;
+}
+
+/**
+ * Phase 4, the Spa Car (the Riviera): the robe rack up front, then massage tables lengthwise down both sides with the
+ * aisle between them. A guest takes a robe, lies down and waits; three seconds' massage at the table, and they pay;
+ * when they go, the table wants fresh towels before the next. The Masseur does all of it once hired.
+ */
+const SPA_TABLES = [6.1, 9.6, 13.1];
+function buildSpa(tier: number): CarriageLayout {
+  const b = new LayoutBuilder('spa');
+  const v = newVenue('spa');
+  b.layout.venue = v;
+  const front = 2.0;
+  venueShell(b, front);
+  b.prop('robeRack', 1.62, 2.3, INNER, 3.95, 'left');
+  v.stations.push({ item: 'robe', pad: { x: 0.92, z: 3.1 } });
+  b.prop('fountain', -INNER, 2.4, -1.62, 3.6, 'right');
+  b.node('spa_front', 0.2, front + 0.45);
+  b.node('aisle_f', 0, 4.6);
+  b.chain('vest_front', 'spa_front', 'aisle_f');
+  let group = 0;
+  let previous = 'aisle_f';
+  for (const c of SPA_TABLES) {
+    const aisle = b.node(`aisle_${group}`, 0, c);
+    b.edge(previous, aisle);
+    previous = aisle;
+    for (const side of [-1, 1]) {
+      const x0 = side < 0 ? -2.16 : 1.36;
+      const x1 = side < 0 ? -1.36 : 2.16;
+      const table = b.prop('massageTable', x0, c - 1.0, x1, c + 1.0, side < 0 ? 'right' : 'left', true);
+      const node = b.node(`table_${group}`, side * 0.4, c + 0.3);
+      b.edge(aisle, node);
+      // Whoever massages stands at the table's side, on the aisle, a little past its middle (toward the camera).
+      v.groups.push({ index: group, tile: { x: side * 1.3, z: c }, props: [table], cash: null });
+      v.seats.push({ index: v.seats.length, group, sit: { x: (x0 + x1) / 2, z: c }, facing: FACE.rear, serve: { x: side * 0.92, z: c + 0.3 }, node, top: 0.62, lie: true });
+      group++;
+    }
+  }
+  b.chain(previous, 'corr_end', 'vest_rear');
+  v.openGroups = 0;
+  b.anchor('home_masseur', 0.55, 15.55);
+  b.anchor('tile_up_masseur', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_menu', 1.45, 14.95);
+  b.prop('wallBoard', 0.2, WALL, 1.3, WALL + 0.05, 'rear', false, 'spa');
+  // Plants and candles between the tables (from the Repair); stones and bamboo at Luxury.
+  for (const z of [7.85, 11.35]) {
+    if (tier >= 1) b.prop('planter', LAKE, z - 0.2, -1.94, z + 0.2, 'right', true, 'spa');
+    if (tier >= 2) b.prop('planter', 1.94, z - 0.2, NEAR, z + 0.2, 'left', true, 'low');
+  }
+  backRoom(b, 'spastore', 'left', -0.5, 15.0);
+  if (tier >= 1) v.carpets.push({ rect: rect(-0.7, 4.9, 0.7, 14.6), style: tier >= 3 ? 'stone' : 'jute' });
+  if (tier >= 2) v.carpets.push({ rect: rect(-INNER + 0.08, 0.3, INNER - 0.08, 1.85), style: 'stone' });
+  return b.layout;
+}
+
+/**
+ * Phase 4, the Pool Car (the Riviera's finale): a pool along the lake side under the windows, loungers crosswise
+ * down the platform side, the towel cart up front, the skimmer's net at the pool's far end. A guest swims, climbs out
+ * onto their lounger and waits for a towel (they pay as it is handed over). The leaves blown in settle on the water;
+ * past a point nobody wants to swim until it is skimmed. The Lifeguard skims and hands out towels.
+ */
+const POOL = { x0: -2.24, x1: 0.32, z0: 4.3, z1: 12.9 };
+const LOUNGERS = [5.0, 6.45, 7.9, 9.35, 10.8, 12.25];
+function buildPool(tier: number): CarriageLayout {
+  const b = new LayoutBuilder('pool');
+  const v = newVenue('pool');
+  b.layout.venue = v;
+  const front = 2.0;
+  venueShell(b, front);
+  b.prop('towelCart', 1.62, 2.3, INNER, 3.55, 'left');
+  v.stations.push({ item: 'towel', pad: { x: 0.95, z: 2.95 } });
+  b.prop('pool', POOL.x0, POOL.z0, POOL.x1, POOL.z1, 'right');
+  v.water = rect(POOL.x0 + 0.14, POOL.z0 + 0.14, POOL.x1 - 0.14, POOL.z1 - 0.14);
+  b.prop('skimmer', -2.24, 13.25, -1.7, 13.85, 'right');
+  v.skim = { x: -1.05, z: 13.6 };
+  v.sign = { x: -1.0, z: 8.6 };
+  b.node('pool_front', 0.2, front + 0.45);
+  b.node('deck_f', 0.72, 4.2);
+  b.chain('vest_front', 'pool_front', 'deck_f');
+  let group = 0;
+  let previous = 'deck_f';
+  for (const c of LOUNGERS) {
+    const node = b.node(`deck_${group}`, 0.72, c);
+    b.edge(previous, node);
+    previous = node;
+    // Crosswise, its head to the wall; the swimmer's place in the water across the deck from it.
+    const lounger = b.prop('lounger', 1.12, c - 0.32, 2.28, c + 0.32, 'left', true);
+    v.groups.push({ index: group, tile: { x: 1.3, z: c }, props: [lounger], cash: null });
+    v.seats.push({
+      index: v.seats.length, group, sit: { x: -0.95 + (group % 2 ? -0.45 : 0.2), z: c }, facing: group % 2 ? FACE.rear : FACE.front,
+      serve: { x: 0.72, z: c + 0.36 }, node, top: 0.1, rest: { x: 1.78, z: c },
+    });
+    group++;
+  }
+  b.node('skim', v.skim.x, v.skim.z);
+  b.node('deck_r', 0.72, 13.6);
+  b.chain(previous, 'deck_r', 'skim');
+  b.chain('deck_r', 'corr_end', 'vest_rear');
+  v.openGroups = 0;
+  b.anchor('home_lifeguard', 0.55, 15.55);
+  b.anchor('tile_up_lifeguard', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_menu', 1.55, 14.65);
+  b.prop('lifeguardChair', 1.72, 13.2, NEAR, 13.95, 'left', true);
+  b.prop('wallBoard', -1.5, WALL, -0.4, WALL + 0.05, 'rear', false, 'pool');
+  backRoom(b, 'poolstore', 'left', -0.5, 14.95);
+  if (tier >= 1) v.carpets.push({ rect: rect(0.42, 4.25, 1.05, 13.95), style: tier >= 2 ? 'deck' : 'jute' });
+  return b.layout;
+}
+
 const BUILDERS: Record<CarriageType, (tier: number) => CarriageLayout> = {
   lobby: buildLobby,
   sleeper: buildSleeper,
@@ -1345,9 +1574,13 @@ const BUILDERS: Record<CarriageType, (tier: number) => CarriageLayout> = {
   bar: buildBar,
   dome: buildDome,
   cinema: buildCinema,
+  kids: buildKids,
+  spa: buildSpa,
+  pool: buildPool,
+  honeymoon: buildHoneymoon,
 };
 
-const VENUE_TYPES: ReadonlySet<CarriageType> = new Set<CarriageType>(['cafe', 'dining', 'bar', 'dome', 'cinema']);
+const VENUE_TYPES: ReadonlySet<CarriageType> = new Set<CarriageType>(['cafe', 'dining', 'bar', 'dome', 'cinema', 'kids', 'spa', 'pool']);
 /** The venue carriages (session 20; the cinema since session 21). */
 export const isVenueType = (type: CarriageType): boolean => VENUE_TYPES.has(type);
 
@@ -1360,7 +1593,7 @@ const SHARED_PLAN_TIER = 3;
 export function layoutKey(type: CarriageType, tier = 0): string {
   // Session 21: a venue's furnishings change with every refit (its tables, seats and pads stay where they are).
   if (isVenueType(type)) return `${type}:${Math.min(3, Math.max(0, tier))}`;
-  if (type === 'familySleeper') return `${type}:0`;
+  if (type === 'familySleeper' || type === 'honeymoon') return `${type}:0`;
   if (type !== 'lobby' && type !== 'sleeper') return type;
   const t = Math.min(5, Math.max(0, tier));
   return `${type}:${t <= SHARED_PLAN_TIER ? 0 : t}`;
@@ -1372,6 +1605,8 @@ export function getLayout(type: CarriageType, tier = 0): CarriageLayout {
   let layout = cache.get(key);
   if (!layout) {
     layout = BUILDERS[type](tier);
+    // Phase 4: what the route serves in place of an item (the Riviera's café blends smoothies at the espresso machine).
+    if (layout.venue) for (const s of layout.venue.stations) s.item = routeItem(s.item);
     cache.set(key, layout);
   }
   return layout;
@@ -1402,6 +1637,7 @@ export const SERVICE_PROP_HEIGHT: Partial<Record<PropKind, number>> = {
   desk: 0.9, urn: 1.2, linen: 1.7, rack: 0.95, bin: 0.6, washShelf: 0.9, shelfTowel: 0.65, shelfRoll: 0.65, crateBay: 0.95,
   luggageRack: 0.95, closet: 1.8, laundry: 1.0, counter: 0.95, espresso: 1.4, pastryCase: 1.3, pastries: 1.1, beans: 1.2,
   range: 0.95, pass: 1.0, bar: 1.05, basket: 0.6, rope: 0.9, projector: 1.05, concession: 0.95, popcornMachine: 1.5,
+  freezer: 1.0, puppetTheatre: 1.6, robeRack: 1.5, towelCart: 1.0, skimmer: 1.3,
 };
 
 export const ZONE_RADIUS = {
@@ -1492,7 +1728,7 @@ export function footprints(layout: CarriageLayout): Footprint[] {
   zone('shelf_roll', a.shelf_roll, ZONE_RADIUS.source);
   zone('crateDrop', a.crateDrop, ZONE_RADIUS.crate);
   tile('tile_refurb', a.tile_refurb);
-  for (const role of ['attendant', 'porter', 'runner', 'barista', 'chef', 'waiter', 'bartender', 'host']) {
+  for (const role of ['attendant', 'porter', 'runner', 'barista', 'chef', 'waiter', 'bartender', 'host', 'entertainer', 'masseur', 'lifeguard']) {
     // A staff member's hire tile sits on their home, then the training tile does: never together.
     tile(`tile_up_${role}`, a[`tile_up_${role}`], `staff_${role}`);
     tile(`hire_${role}`, a[`home_${role}`], `staff_${role}`);
@@ -1511,6 +1747,8 @@ export function footprints(layout: CarriageLayout): Footprint[] {
       venue.counter.queue.forEach((q, i) => out.push({ id: `queue_${i}`, kind: 'home', x: q.x, z: q.z, r: 0.26 }));
     }
     if (venue.pass) zone('pass', venue.pass, ZONE_RADIUS.source);
+    if (venue.projector) zone('projector', venue.projector, ZONE_RADIUS.source);
+    if (venue.skim) zone('skim', venue.skim, ZONE_RADIUS.source);
     pile('venueCash', venue.cash ?? undefined);
     const extras = (prefix: string): number[] => venue.extras.filter((e) => e.key.startsWith(prefix)).flatMap((e) => e.props);
     tile('tile_menu', a.tile_menu, undefined, extras('menu_'));

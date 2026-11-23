@@ -1,6 +1,6 @@
 import { iconFor } from '../config/itemIcons';
 import * as THREE from 'three';
-import { CARRIAGE_CATALOGUE, CARRIAGE_ICON, MAX_CARRIAGES, type BedMess, type ComfortKey, type MessPiece, type UnlockDef } from '../config/content';
+import { CARRIAGE_CATALOGUE, CARRIAGE_ICON, MAX_CARRIAGES, type ArchetypeId, type BedMess, type ComfortKey, type MessPiece, type UnlockDef } from '../config/content';
 import { buildUnlocks, nextCarriage } from '../sim/unlockPlan';
 import { TeaserView } from '../world/TeaserView';
 import { CLASSES, classFare, classOfTier, classStartingAt, isPassengerType, maxTier, type ClassDef, type ClassId } from '../config/classes';
@@ -497,29 +497,41 @@ export class TrainState {
 
   /**
    * The best free cabin for a new guest of this class (any class if none given): the lowest carriage first. Phase 1:
-   * a family takes a Family Sleeper cabin first and everyone else any other first (`family`: whose room it is for;
+   * a family takes a Family Sleeper cabin first and everyone else any other first (`party`: whose room it is for, null
+   * for anyone's; Phase 4: a honeymoon couple a Honeymoon Suite;
    * left out, any room). Either takes the other kind when it is all that is free.
    */
-  freeCabin(cls?: ClassId, family?: boolean): Cabin | null {
+  freeCabin(cls?: ClassId, party?: ArchetypeId | null): Cabin | null {
     let fallback: Cabin | null = null;
     for (const cabin of this.cabins) {
       if (!cabin.isFree || (cls && this.cabinClass(cabin) !== cls)) continue;
-      if (family === undefined || this.isFamilyRoom(cabin) === family) return cabin;
+      if (party === undefined || this.partyOf(cabin) === party) return cabin;
       fallback ??= cabin;
     }
     return fallback;
   }
 
-  /** A Family Sleeper cabin (Phase 1: its bunks are for a parent and a child). */
-  isFamilyRoom(cabin: Cabin): boolean {
-    return this.types[cabin.carriage] === 'familySleeper';
+  /**
+   * Phase 4: whose room this is (a Family Sleeper cabin is a family's, a Honeymoon Suite a honeymoon couple's: their
+   * carriage's `party`), or null for anyone.
+   */
+  partyOf(cabin: Cabin): ArchetypeId | null {
+    return CARRIAGE_CATALOGUE[this.types[cabin.carriage]]?.party ?? null;
   }
 
-  /** Free Family Sleeper cabins of a class (for who turns up on the platform: a family for each). */
-  freeFamilyRooms(cls: ClassId): number {
-    let n = 0;
-    for (const cabin of this.cabins) if (cabin.isFree && this.isFamilyRoom(cabin) && this.cabinClass(cabin) === cls) n++;
-    return n;
+  /** A Family Sleeper cabin (Phase 1: its bunks are for a parent and a child). */
+  isFamilyRoom(cabin: Cabin): boolean {
+    return this.partyOf(cabin) === 'family';
+  }
+
+  /** Free rooms of a class kept for a party (a family, a honeymoon couple), by whose they are. */
+  freePartyRooms(cls: ClassId): Map<ArchetypeId, number> {
+    const out = new Map<ArchetypeId, number>();
+    for (const cabin of this.cabins) {
+      const party = this.partyOf(cabin);
+      if (party && cabin.isFree && this.cabinClass(cabin) === cls) out.set(party, (out.get(party) ?? 0) + 1);
+    }
+    return out;
   }
 
   /**
@@ -527,16 +539,16 @@ export class TrainState {
    * no longer has a single open room of their class (a refit moved the only Basic carriage up to Comfort while they
    * waited), a free one of the nearest class above, on the house. Without this they stood at the desk for good.
    */
-  roomFor(cls: ClassId, anyClass = false, family = false): Cabin | null {
-    const own = this.freeCabin(cls, family);
+  roomFor(cls: ClassId, anyClass = false, party: ArchetypeId | null = null): Cabin | null {
+    const own = this.freeCabin(cls, party);
     if (own || (this.openCabinCount(cls) > 0 && !anyClass)) return own;
     const from = CLASSES.findIndex((c) => c.id === cls);
     for (let i = from + 1; i < CLASSES.length; i++) {
-      const up = this.freeCabin(CLASSES[i].id, family);
+      const up = this.freeCabin(CLASSES[i].id, party);
       if (up) return up;
     }
     for (let i = from - 1; i >= 0; i--) {
-      const down = this.freeCabin(CLASSES[i].id, family);
+      const down = this.freeCabin(CLASSES[i].id, party);
       if (down) return down;
     }
     return null;

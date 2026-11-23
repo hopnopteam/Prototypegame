@@ -1,4 +1,5 @@
 import type { ItemKind, StaffRole, VenueKind } from '../core/types';
+import { routeItem } from './routes';
 
 /**
  * The venue carriages (session 20, owner: "restaurants, cafes, things that are going to be added over time in
@@ -49,14 +50,17 @@ export interface VenueDef {
   roles: StaffRole[];
   /** Price multiplier for refit tiers 0 (run-down) … 3 (luxurious). */
   tierPrice: number[];
+  /** Phase 4: only families visit (the Kids' Play Car: a parent sits while the child plays). */
+  families?: boolean;
 }
 
 export const VENUES: Record<VenueKind, VenueDef> = {
   cafe: {
     kind: 'cafe', name: 'Café Car', visitWeight: 1.3, when: ['evening', 'morning'],
     products: [
-      { item: 'latte', price: 5, makeSeconds: 1.4 },
-      { item: 'pastry', price: 8, makeSeconds: 0.6, menu: 'menu_pastry' },
+      // Phase 4: the route's own menu (the Riviera blends smoothies and scoops gelato here: `routeItem`).
+      { item: routeItem('latte'), price: 5, makeSeconds: 1.4 },
+      { item: routeItem('pastry'), price: 8, makeSeconds: 0.6, menu: 'menu_pastry' },
     ],
     // Session 36, the routine: guests linger over a coffee, a dinner, a cocktail (7, 8 and 7 s before), so the
     // venues look lived in and more tables pay.
@@ -66,7 +70,7 @@ export const VENUES: Record<VenueKind, VenueDef> = {
   },
   dining: {
     kind: 'dining', name: 'Dining Car', visitWeight: 1.0, when: ['evening', 'morning'],
-    products: [{ item: 'meal', price: 14, makeSeconds: 2.2 }],
+    products: [{ item: routeItem('meal'), price: 14, makeSeconds: 2.2 }],
     consumeSeconds: 16,
     roles: ['chef', 'waiter'],
     tierPrice: [1, 1.25, 1.6, 2.1],
@@ -95,16 +99,50 @@ export const VENUES: Record<VenueKind, VenueDef> = {
     roles: ['projectionist'],
     tierPrice: [1, 1.25, 1.6, 2.1],
   },
+  // Phase 4, the Riviera's own three. The Kids' Play Car: families only; the child plays while the parent sits, the
+  // puppet show quietens the room and pays a ticket a child; gelato for anyone who asks.
+  kids: {
+    kind: 'kids', name: "Kids' Play Car", visitWeight: 1.6, when: ['evening', 'morning'],
+    products: [{ item: 'icecream', price: 5, makeSeconds: 0.8 }],
+    consumeSeconds: 0,
+    roles: ['entertainer'],
+    tierPrice: [1, 1.25, 1.6, 2.1],
+    families: true,
+  },
+  // The Spa Car: a robe, a massage at the table (paid as it ends), a moment's rest; fresh towels before the next.
+  spa: {
+    kind: 'spa', name: 'Spa Car', visitWeight: 1.1, when: ['evening', 'morning'],
+    products: [],
+    consumeSeconds: 7,
+    roles: ['masseur'],
+    tierPrice: [1, 1.25, 1.6, 2.1],
+  },
+  // The Pool Car: a swim, out onto a lounger, a towel (paid as it is handed over).
+  pool: {
+    kind: 'pool', name: 'Pool Car', visitWeight: 1.4, when: ['morning', 'evening'],
+    products: [],
+    consumeSeconds: 12,
+    roles: ['lifeguard'],
+    tierPrice: [1, 1.25, 1.6, 2.1],
+  },
 };
 
-export const VENUE_KINDS: VenueKind[] = ['cafe', 'dining', 'bar', 'dome', 'cinema'];
+export const VENUE_KINDS: VenueKind[] = ['cafe', 'dining', 'bar', 'dome', 'cinema', 'kids', 'spa', 'pool'];
 
-/** What a venue charges for: an item it makes, a scenic view (dome), a film ticket (cinema). */
-export type VenueCharge = ItemKind | 'scenic' | 'ticket';
+/**
+ * What a venue charges for: an item it makes, a scenic view (dome), a film ticket (cinema), and (Phase 4) a puppet
+ * show (the Kids' Play Car), a massage (the spa) and a swim (the pool, paid with the towel).
+ */
+export type VenueCharge = ItemKind | 'scenic' | 'ticket' | 'show' | 'massage' | 'swim';
 
 /** Price multipliers from menu and station tiles (by unlock key), and what each applies to. */
 export const VENUE_MENUS: Record<string, { price: number; items: VenueCharge[] }> = {
-  menu_lobster: { price: 1.5, items: ['meal'] },
+  menu_lobster: { price: 1.5, items: [routeItem('meal')] },
+  // Phase 4: the Riviera's menus (sundaes in the play car, hot stones in the spa, cabanas by the pool).
+  menu_sundaes: { price: 1.5, items: ['icecream'] },
+  menu_puppets: { price: 1.4, items: ['show'] },
+  menu_stones: { price: 1.5, items: ['massage'] },
+  menu_cabanas: { price: 1.5, items: ['swim'] },
   menu_cocktails: { price: 1.5, items: ['cocktail'] },
   // Session 21, the cinema: premieres (a red carpet and spotlights), the candy cart, the speakers by the screen.
   menu_premiere: { price: 1.6, items: ['ticket'] },
@@ -151,4 +189,22 @@ export const VENUE_TUNING = {
    * share of the open seats taken, or the first guest has waited this long).
    */
   cinema: { startSeconds: 1.2, filmSeconds: 22, ticket: 10, popcornChance: 0.5, autoShare: 0.6, autoWait: 14 },
+  /**
+   * Phase 4, the Kids' Play Car: seconds at the theatre to start a puppet show, its length, each child's ticket, the
+   * chance a child wants gelato once it starts, and when the entertainer starts one by themselves. Noise: every child
+   * waiting for a show adds `noisePerChild` a second (0–1); a show takes it down `quietPerSecond`. From `loud`, the
+   * guests in the cabins next door hear it (a frown, and their tip × `nearbyTip`); it counts as calm again under `calm`.
+   */
+  kids: {
+    startSeconds: 1.2, showSeconds: 18, ticket: 6, icecreamChance: 0.55, autoShare: 0.5, autoWait: 12,
+    noisePerChild: 0.022, quietPerSecond: 0.2, loud: 0.7, calm: 0.35, nearbyTip: 0.85,
+  },
+  /** Phase 4, the Spa Car: seconds of massage at the table, its price, the robe's tip, and seconds to lay fresh towels. */
+  spa: { massageSeconds: 3, massage: 14, robeTip: 3, towelSeconds: 0.9 },
+  /**
+   * Phase 4, the Pool Car: what a swim costs (paid with the towel), the leaves on the water (a share 0–1: `leafRate` a
+   * second while the train is moving, `leafPerSwimmer` more for each swimmer), from `closedAt` nobody new swims,
+   * from `warnAt` the skimmer's badge shows; seconds at the skimmer to clear it.
+   */
+  pool: { swim: 9, leafRate: 0.004, leafPerSwimmer: 0.0025, warnAt: 0.45, closedAt: 0.75, skimSeconds: 1.5 },
 };

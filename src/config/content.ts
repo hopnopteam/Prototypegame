@@ -10,7 +10,9 @@ import { ACTIVE_ROUTE, MAX_TRAIN_CARRIAGES } from './routes';
  */
 
 /** The scene a station's postcard paints (session 43: vintage stamps, `ui/postcard.ts`). */
-export type PostcardScene = 'mill' | 'ford' | 'fields' | 'wren' | 'oak' | 'thistle' | 'ridge' | 'halt';
+export type PostcardScene = 'mill' | 'ford' | 'fields' | 'wren' | 'oak' | 'thistle' | 'ridge' | 'halt'
+  // Phase 4, the Riviera's stations.
+  | 'harbour' | 'lemons' | 'marina' | 'cliffs' | 'coral' | 'villa';
 
 export interface PostcardArt {
   scene: PostcardScene;
@@ -86,6 +88,37 @@ export const STATION_ART: StationDef[] = [
     postcard: { scene: 'halt', ink: '#22336B', sky: ['#7FA6DA', '#ECE4D4'], land: ['#AEB9C9', '#7E9F63', '#4E7448'], accent: '#5C6FD6', motto: 'Please request it' },
     sign: { from: '#6E9BFF', to: '#2F4FC4', trim: '#E6EEFF', motif: 'dots' },
   },
+  // Phase 4, the Riviera Coast Line: a sunny sea in every picture (land runs far, near; the sea is `sky[1]`'s line).
+  {
+    id: 'porto-sole', name: 'Porto Sole', blurb: 'Where the line meets the sea, and the sea meets the lemons.',
+    postcard: { scene: 'harbour', ink: '#1E4E79', sky: ['#5FB4E6', '#F6E7C4'], land: ['#E8C9A0', '#D98B5F', '#B9653F'], accent: '#E3533C', motto: 'Where the line meets the sea' },
+    sign: { from: '#FFC93C', to: '#F08A24', trim: '#FFF6D6', motif: 'rays' },
+  },
+  {
+    id: 'lemon-cove', name: 'Lemon Cove', blurb: 'Every terrace a lemon grove, every lemon an opinion.',
+    postcard: { scene: 'lemons', ink: '#3E5A1E', sky: ['#6CC2EA', '#F7EBC6'], land: ['#C9D9A2', '#8DB34E', '#557A2E'], accent: '#F5D22E', motto: 'Every lemon an opinion' },
+    sign: { from: '#FFE45C', to: '#E2B414', trim: '#FFFBE0', motif: 'dots' },
+  },
+  {
+    id: 'marina-bay', name: 'Marina Bay', blurb: 'Sailboats, gelato, and a harbourmaster who naps at noon.',
+    postcard: { scene: 'marina', ink: '#123F6E', sky: ['#4FA8E0', '#EAF2EE'], land: ['#E9DCC2', '#CFB792', '#8E7656'], accent: '#F2F2EA', motto: 'The harbourmaster naps at noon' },
+    sign: { from: '#4FC3F7', to: '#1565C0', trim: '#E3F4FF', motif: 'stripes' },
+  },
+  {
+    id: 'cliffside', name: 'Cliffside', blurb: 'White houses stacked on the rock like sugar cubes.',
+    postcard: { scene: 'cliffs', ink: '#2A3F6B', sky: ['#78C0EA', '#F4E9D6'], land: ['#D9CBB6', '#B49B7E', '#7E6A54'], accent: '#F7F4EE', motto: 'Houses like sugar cubes' },
+    sign: { from: '#7FDBFF', to: '#2C7FB8', trim: '#F2FBFF', motif: 'chevrons' },
+  },
+  {
+    id: 'coral-beach', name: 'Coral Beach', blurb: 'The beach is right behind the platform. Mind the sand.',
+    postcard: { scene: 'coral', ink: '#8A2F3E', sky: ['#56C6E0', '#FFE9CC'], land: ['#F6E2B8', '#EFC98E', '#D9A96A'], accent: '#FF7F6E', motto: 'Mind the sand' },
+    sign: { from: '#FF9E8A', to: '#E8525E', trim: '#FFF0EA', motif: 'dots' },
+  },
+  {
+    id: 'bellavista', name: 'Bellavista', blurb: 'The best view on the line, and everyone knows it.',
+    postcard: { scene: 'villa', ink: '#5E2A54', sky: ['#F2A97A', '#FBE3C4'], land: ['#E2B9A4', '#C98A72', '#7E5A4A'], accent: '#D0569A', motto: 'The best view on the line' },
+    sign: { from: '#F78FB3', to: '#B83A7E', trim: '#FFEAF4', motif: 'rays' },
+  },
 ];
 
 /**
@@ -99,7 +132,10 @@ export const STATIONS: StationDef[] = ACTIVE_ROUTE.stations.map((s) => {
 });
 
 
-export type ArchetypeId = 'student' | 'backpacker' | 'tourist' | 'grandma' | 'family' | 'businessman' | 'newlyweds' | 'vip' | 'celebrity' | 'royal';
+export type ArchetypeId = 'student' | 'backpacker' | 'tourist' | 'grandma' | 'family' | 'businessman' | 'newlyweds' | 'vip' | 'celebrity' | 'royal'
+  // Phase 4, the Riviera's own: surfers (a board takes two places on the rack), families on a beach holiday, sunburnt
+  // sunbathers (aloe and cold drinks), and the honeymoon couples of the Honeymoon Suites.
+  | 'surfer' | 'beachFamily' | 'sunbather' | 'honeymooners';
 
 export interface ArchetypeDef {
   id: ArchetypeId;
@@ -118,13 +154,17 @@ export interface ArchetypeDef {
   /** Carriages coupled before this archetype starts appearing. */
   minCarriages: number;
   colors: { body: string; accent: string; skin: string; hair: string };
-  accessory: 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'child' | 'furcoat' | 'camera' | 'sash';
+  accessory: 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'child' | 'furcoat' | 'camera' | 'sash' | 'surfboard' | 'partner';
   hat?: 'beanie' | 'bun' | 'cap' | 'boater' | 'crown' | 'tophat' | 'bowler';
   hatColor?: string;
   /** Session 30: their clothes and hair (the new figures, after the owner's reference sheets). */
   figure?: Figure;
   /** What they like best among their class's requests (weights multiply the class's own). */
-  requests: Partial<Record<'tea' | 'coffee' | 'champagne' | 'blanket' | 'pillow' | 'towel', number>>;
+  requests: Partial<Record<ItemKind, number>>;
+  /** Phase 4: only on these routes (left out: every route). The route's `archetypeWeights` can retune or drop anyone. */
+  routes?: string[];
+  /** Phase 4: their bags are surfboards (two places on the rack each). */
+  surfboard?: boolean;
   /** Their signature reaction now and then during the ride (an icon in a bubble, never a sentence). */
   mood: IconName;
   /** What they leave behind in the cabin (a few are picked each time; see MESS in economy.ts). */
@@ -134,11 +174,13 @@ export interface ArchetypeDef {
 /** Things a guest can leave on the cabin floor, one per stay (built in world/Mess.ts). */
 export type MessPiece =
   | 'newspaper' | 'cup' | 'papers' | 'paperBalls' | 'socks' | 'map' | 'wrappers' | 'bottle' | 'book' | 'yarn'
-  | 'petals' | 'champagne' | 'teddy' | 'toyTrain' | 'appleCore' | 'boa' | 'cards';
+  | 'petals' | 'champagne' | 'teddy' | 'toyTrain' | 'appleCore' | 'boa' | 'cards'
+  // Phase 4, the coast: sand tipped out of a shoe, a seashell, a pair of flip-flops, a beach ball, a sun hat.
+  | 'sand' | 'shell' | 'flipflops' | 'beachball' | 'sunhat';
 /** How they leave the bed (session 17: one look everywhere, the duvet kicked down to the foot). */
 export type BedMess = 'unmade';
-/** Bits anyone might leave, mixed in now and then so no two rooms look alike. */
-export const COMMON_MESS: MessPiece[] = ['paperBalls', 'wrappers', 'cup'];
+/** Bits anyone might leave, mixed in now and then so no two rooms look alike (Phase 4: and the route's own, sand on the coast). */
+export const COMMON_MESS: MessPiece[] = ['paperBalls', 'wrappers', 'cup', ...((ACTIVE_ROUTE.mess ?? []) as MessPiece[])];
 
 /**
  * Who travels, class by class. Fares come from the class alone (config/classes.ts); the archetype's tip multiplier
@@ -215,7 +257,47 @@ export const ARCHETYPES: ArchetypeDef[] = [
     mood: 'crown',
     mess: ['champagne', 'petals', 'book', 'cards'],
   },
+  // Phase 4, the Riviera. Surfers: sun-bleached hair, a wetsuit top, a board under the arm (two places on the rack).
+  {
+    id: 'surfer', label: 'Surfer', cls: 'basic', weight: 3, fareMultiplier: 1, tipMultiplier: 1, speedMultiplier: 1.1, minCarriages: 1, routes: ['riviera'],
+    colors: { body: '#2F6F8F', accent: '#F2C94C', skin: '#D49A6E', hair: '#E8CF8E' }, accessory: 'surfboard', surfboard: true, requests: { lemonade: 2, pillow: 1 },
+    figure: { outfit: 'tee', pants: '#E39A4E', hairStyle: 'curly', shoe: '#F2EEE6' },
+    mood: 'smile',
+    mess: ['sand', 'flipflops', 'shell', 'wrappers'],
+  },
+  // Families on a beach holiday, travelling Basic: the child goes straight to the Kids' Play Car.
+  {
+    id: 'beachFamily', label: 'Beach family', cls: 'basic', weight: 2, fareMultiplier: 1, tipMultiplier: 1.1, speedMultiplier: 0.95, minCarriages: 1, routes: ['riviera'],
+    colors: { body: '#F28C6B', accent: '#5FB4E6', skin: '#E8B48C', hair: '#4A3426' }, accessory: 'child', hat: 'cap', hatColor: '#5FB4E6', requests: { lemonade: 2, blanket: 1 },
+    figure: { outfit: 'tee', stripes: true, trim: '#FFFFFF', pants: '#2F6F8F', hairStyle: 'side', shoe: '#F2EEE6' },
+    mood: 'smile',
+    mess: ['beachball', 'sand', 'teddy', 'wrappers'],
+  },
+  // Sunbathers who stayed out too long: pink, a sun hat, sunglasses. They want aloe and something cold.
+  {
+    id: 'sunbather', label: 'Sunbather', cls: 'comfort', weight: 3, fareMultiplier: 1, tipMultiplier: 1.1, speedMultiplier: 0.95, minCarriages: 1, routes: ['riviera'],
+    colors: { body: '#F7F1E1', accent: '#E2533C', skin: '#F08C78', hair: '#7A4A2E' }, accessory: 'camera', hat: 'boater', hatColor: '#E9CF8C', requests: { aloe: 3, lemonade: 2 },
+    figure: { outfit: 'shirt', pants: '#5FB4E6', hairStyle: 'side', glasses: true, shoe: '#C9533F' },
+    mood: 'smile',
+    mess: ['sunhat', 'sand', 'bottle', 'shell'],
+  },
+  // The honeymoon couple (one guest, two figures: the other walks with them), for the Honeymoon Suites only.
+  {
+    id: 'honeymooners', label: 'Honeymooners', cls: 'comfort', weight: 0, fareMultiplier: 1, tipMultiplier: 1.35, speedMultiplier: 1, minCarriages: 1, routes: ['riviera'],
+    colors: { body: '#FBF3E4', accent: '#E8849A', skin: '#EDBE9A', hair: '#5A3B2A' }, accessory: 'partner', requests: { champagne: 2, lemonade: 1 },
+    figure: { outfit: 'dress', pants: '#F6EBDD', hairStyle: 'long', shoe: '#E8849A', sock: '#FBF3E4' },
+    mood: 'heart',
+    mess: ['petals', 'champagne', 'shell', 'cards'],
+  },
 ];
+
+/**
+ * Phase 4: who travels on the active route, and how often (an archetype's `routes` and the route's `archetypeWeights`).
+ * Archetypes not on this route are left out; a weight of 0 keeps someone for a carriage of their own (honeymooners).
+ */
+export const ROUTE_ARCHETYPES: ArchetypeDef[] = ARCHETYPES
+  .filter((a) => !a.routes || a.routes.includes(ACTIVE_ROUTE.id))
+  .map((a) => ({ ...a, weight: ACTIVE_ROUTE.archetypeWeights?.[a.id] ?? a.weight }));
 
 export type UnlockKind =
   | 'cabin' | 'hire' | 'couple' | 'bathroom' | 'refurb' | 'staffUpgrade' | 'comfort' | 'exterior' | 'marketing'
@@ -240,7 +322,9 @@ export type ComfortKey = 'lamp' | 'flowers' | 'minibar' | 'soap' | 'rail' | 'tv'
  * Hand work the conductor does, counted for the earned-help gates (session 29): rooms tidied, requests served, tickets
  * sold at the stand, keys handed at the desk, bags loaded, bells rung, and orders served in each venue.
  */
-export type WorkMetric = 'rooms' | 'requests' | 'tickets' | 'keys' | 'bags' | 'bells' | 'cafe' | 'dining' | 'bar' | 'dome' | 'cinema' | 'restock';
+export type WorkMetric = 'rooms' | 'requests' | 'tickets' | 'keys' | 'bags' | 'bells' | 'cafe' | 'dining' | 'bar' | 'dome' | 'cinema' | 'restock'
+  // Phase 4: puppet shows and gelato in the Kids' Play Car, massages in the spa, swims seen to in the pool.
+  | 'kids' | 'spa' | 'pool';
 export type WorkNeed = Partial<Record<WorkMetric, number>>;
 
 /** How each kind of hand work reads on a tile's marker ("Tidy 7/12"): one short verb. */
@@ -251,6 +335,7 @@ export type WorkNeed = Partial<Record<WorkMetric, number>>;
 export const WORK_VERB: Record<WorkMetric, string> = {
   rooms: 'Tidy rooms', requests: 'Serve guests', tickets: 'Sell tickets', keys: 'Hand keys', bags: 'Load bags', bells: 'Ring bell',
   cafe: 'Serve coffee', dining: 'Serve dinners', bar: 'Serve drinks', dome: 'Show guests', cinema: 'Show films', restock: 'Restock',
+  kids: 'Entertain kids', spa: 'Give massages', pool: 'Look after swimmers',
 };
 
 export interface UnlockDef {
@@ -322,8 +407,13 @@ export interface CarriageDef {
   needs?: CarriageType[];
   /** Offered from this coupling on (the train already has this many carriages): venues join as the train grows. */
   fromSlot?: number;
-  /** Cabins in its floor plan (for train-wide cabin numbers on tiles). */
+  /** Cabins in its floor plan (for train-wide cabin numbers on tiles; the route's layout may give it more). */
   cabins: number;
+  /**
+   * Phase 4: whose rooms these are (the Family Sleeper's are a family's, the Honeymoon Suites' a honeymoon couple's):
+   * one of them is brought to the platform for each free room, and they take one of these first.
+   */
+  party?: ArchetypeId;
   /** What is inside, for the chooser card. */
   inside: string;
   unlocks: UnlockTemplate[];
@@ -339,6 +429,9 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       // Session 22: a new game's train stands covered at Millbrook; the first ticket opens the first carriage.
       { key: 'open', kind: 'open', label: 'Open carriage', price: 15, stars: 2, requires: [], effect: 'Let guests in' },
       { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 15, stars: 2, cabin: 1, requires: ['open'], effect: '+1 guest' },
+      // Phase 4: a fourth cabana where the route's lobby has room for one (the Riviera's Beach Lobby); left out on a
+      // lobby of three (unlockPlan drops a tile for a room the plan does not have).
+      { key: 'cabin_3', kind: 'cabin', label: 'Cabin {n}', price: 70, stars: 2, cabin: 3, requires: ['cabin_2', '@couple_1'], effect: '+1 guest' },
       // Session 29 (partner: "the attendant unlocks too early and cheaply… the player has barely done any work"): 160
       // (was 45, about 3.5×), on show from the end of the opening with its count, and payable once the conductor has
       // tidied 6 rooms and served 15 requests by hand (about 8 minutes in on the autopilot: rooms come about one a
@@ -557,7 +650,7 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
   // family archetype); the children ask for snacks. A warmer look than the Sleeper; costs like it. Three refits
   // (Repair, Cosy, Luxury: the Basic, Comfort and Business finishes, its rooms kept), one hire, two comforts.
   familySleeper: {
-    type: 'familySleeper', name: 'Family Sleeper', pitch: '+5 family cabins', max: 1, cabins: 5, inside: '5 cabins of bunk beds, a second check-in desk',
+    type: 'familySleeper', name: 'Family Sleeper', pitch: '+5 family cabins', max: 1, cabins: 5, party: 'family', inside: '5 cabins of bunk beds, a second check-in desk',
     unlocks: [
       { key: 'cabin_0', kind: 'cabin', label: 'Cabin {n}', price: 60, stars: 2, cabin: 0, requires: ['couple'], effect: '+1 family' },
       { key: 'cabin_1', kind: 'cabin', label: 'Cabin {n}', price: 90, stars: 2, cabin: 1, requires: ['cabin_0'], effect: '+1 family' },
@@ -574,7 +667,83 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
       { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 1350, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_5'], effect: 'Fares ×2.6' },
     ],
   },
+  // Phase 4, the Riviera Coast Line's new carriages. The Kids' Play Car: six play corners (a toy and a pouf each), the
+  // puppet shows and gelato, an entertainer who runs the shows.
+  kids: {
+    type: 'kids', name: "Kids' Play Car", pitch: 'Puppets & gelato', max: 1, fromSlot: 5, cabins: 0, inside: 'A puppet theatre, a gelato freezer, six play corners',
+    unlocks: [
+      { key: 'corner_0', kind: 'seat', label: 'Play Corner', price: 180, stars: 2, group: 0, requires: ['couple'], effect: '+1 family' },
+      { key: 'corner_1', kind: 'seat', label: 'Play Corner', price: 240, stars: 2, group: 1, requires: ['corner_0'], effect: '+1 family' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 320, stars: 3, tier: 1, requires: ['couple'], effect: 'Prices +25%' },
+      { key: 'corner_2', kind: 'seat', label: 'Play Corner', price: 300, stars: 2, group: 2, requires: ['corner_1'], effect: '+1 family' },
+      { key: 'hire_entertainer', kind: 'hire', label: 'Entertainer', price: 420, stars: 3, role: 'entertainer', requires: ['corner_1'], work: { kids: 4 }, effect: 'Runs the shows' },
+      { key: 'corner_3', kind: 'seat', label: 'Play Corner', price: 380, stars: 2, group: 3, requires: ['corner_2'], effect: '+1 family' },
+      { key: 'menu_sundaes', kind: 'menu', label: 'Sundaes', price: 480, stars: 2, requires: ['corner_3'], effect: 'Gelato ×1.5' },
+      { key: 'corner_4', kind: 'seat', label: 'Play Corner', price: 460, stars: 2, group: 4, requires: ['corner_3', '@couple_6'], effect: '+1 family' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 640, stars: 4, tier: 2, requires: ['refurb_1', '@couple_6'], effect: 'Prices +60%' },
+      { key: 'corner_5', kind: 'seat', label: 'Play Corner', price: 540, stars: 2, group: 5, requires: ['corner_4'], effect: '+1 family' },
+      { key: 'menu_puppets', kind: 'menu', label: 'Puppet Show', price: 700, stars: 3, requires: ['hire_entertainer', 'corner_4'], effect: 'Shows ×1.4' },
+      { key: 'up_entertainer', kind: 'staffUpgrade', label: 'Faster Entertainer', price: 680, stars: 2, role: 'entertainer', requires: ['hire_entertainer', '@couple_7'], effect: 'Faster' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 1250, stars: 5, tier: 3, requires: ['refurb_2', '@couple_7'], effect: 'Prices ×2.1' },
+    ],
+  },
+  // The Spa Car: six massage tables, robes, hot stones, a masseur.
+  spa: {
+    type: 'spa', name: 'Spa Car', pitch: 'Massages', max: 1, fromSlot: 6, cabins: 0, inside: 'Massage tables, a robe rack, a fountain',
+    unlocks: [
+      { key: 'table_0', kind: 'seat', label: 'Massage Table', price: 220, stars: 2, group: 0, requires: ['couple'], effect: '+1 seat' },
+      { key: 'table_1', kind: 'seat', label: 'Massage Table', price: 280, stars: 2, group: 1, requires: ['table_0'], effect: '+1 seat' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 360, stars: 3, tier: 1, requires: ['couple'], effect: 'Prices +25%' },
+      { key: 'hire_masseur', kind: 'hire', label: 'Masseur', price: 460, stars: 3, role: 'masseur', requires: ['table_1'], work: { spa: 4 }, effect: 'Massages' },
+      { key: 'table_2', kind: 'seat', label: 'Massage Table', price: 340, stars: 2, group: 2, requires: ['table_1'], effect: '+1 seat' },
+      { key: 'table_3', kind: 'seat', label: 'Massage Table', price: 400, stars: 2, group: 3, requires: ['table_2'], effect: '+1 seat' },
+      { key: 'menu_stones', kind: 'menu', label: 'Hot Stones', price: 560, stars: 2, requires: ['table_3'], effect: 'Massages ×1.5' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 700, stars: 4, tier: 2, requires: ['refurb_1', '@couple_7'], effect: 'Prices +60%' },
+      { key: 'table_4', kind: 'seat', label: 'Massage Table', price: 480, stars: 2, group: 4, requires: ['table_3', '@couple_7'], effect: '+1 seat' },
+      { key: 'table_5', kind: 'seat', label: 'Massage Table', price: 560, stars: 2, group: 5, requires: ['table_4'], effect: '+1 seat' },
+      { key: 'up_masseur', kind: 'staffUpgrade', label: 'Faster Masseur', price: 720, stars: 2, role: 'masseur', requires: ['hire_masseur', '@couple_8'], effect: 'Faster' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 1400, stars: 5, tier: 3, requires: ['refurb_2', '@couple_8'], effect: 'Prices ×2.1' },
+    ],
+  },
+  // The Honeymoon Suites: four rooms for couples (a double bed and an armchair), refurnished three times; couples hang
+  // a do-not-disturb sign on the door for a while each evening.
+  honeymoon: {
+    type: 'honeymoon', name: 'Honeymoon Suites', pitch: '+4 suites for two', max: 1, cabins: 4, party: 'honeymooners', inside: '4 suites for honeymoon couples',
+    unlocks: [
+      { key: 'cabin_0', kind: 'cabin', label: 'Suite {n}', price: 120, stars: 2, cabin: 0, requires: ['couple'], effect: '+1 couple' },
+      { key: 'cabin_1', kind: 'cabin', label: 'Suite {n}', price: 170, stars: 2, cabin: 1, requires: ['cabin_0'], effect: '+1 couple' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 240, stars: 3, tier: 1, requires: ['cabin_0'], effect: 'Fares +25%' },
+      { key: 'cabin_2', kind: 'cabin', label: 'Suite {n}', price: 220, stars: 2, cabin: 2, requires: ['cabin_1'], effect: '+1 couple' },
+      { key: 'comfort_flowers', kind: 'comfort', label: 'Roses', price: 260, stars: 2, comfort: 'flowers', requires: ['refurb_1'], effect: 'Tips +20%' },
+      { key: 'cabin_3', kind: 'cabin', label: 'Suite {n}', price: 280, stars: 2, cabin: 3, requires: ['cabin_2'], effect: '+1 couple' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Cosy', price: 600, stars: 4, tier: 2, requires: ['cabin_1', 'refurb_1'], effect: 'Fares ×1.8' },
+      { key: 'hire_attendant', kind: 'hire', label: 'Attendant', price: 480, stars: 3, role: 'attendant', requires: ['cabin_1'], work: { rooms: 6 }, effect: 'Tidies, serves' },
+      { key: 'comfort_lamp', kind: 'comfort', label: 'Lamps', price: 420, stars: 2, comfort: 'lamp', requires: ['comfort_flowers'], effect: 'Tips +20%' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 2200, stars: 5, tier: 3, requires: ['refurb_2'], flags: ['level_6'], effect: 'Fares ×2.6' },
+    ],
+  },
+  // The Pool Car: six loungers, towels, cabanas, a lifeguard who skims the water and hands out towels.
+  pool: {
+    type: 'pool', name: 'Pool Car', pitch: 'A swimming pool', max: 1, fromSlot: 8, cabins: 0, inside: 'A pool, loungers, a towel cart, a lifeguard',
+    unlocks: [
+      { key: 'lounger_0', kind: 'seat', label: 'Lounger', price: 260, stars: 2, group: 0, requires: ['couple'], effect: '+1 swimmer' },
+      { key: 'lounger_1', kind: 'seat', label: 'Lounger', price: 320, stars: 2, group: 1, requires: ['lounger_0'], effect: '+1 swimmer' },
+      { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 420, stars: 3, tier: 1, requires: ['couple'], effect: 'Prices +25%' },
+      { key: 'lounger_2', kind: 'seat', label: 'Lounger', price: 380, stars: 2, group: 2, requires: ['lounger_1'], effect: '+1 swimmer' },
+      { key: 'hire_lifeguard', kind: 'hire', label: 'Lifeguard', price: 520, stars: 3, role: 'lifeguard', requires: ['lounger_1'], work: { pool: 5 }, effect: 'Skims, towels' },
+      { key: 'lounger_3', kind: 'seat', label: 'Lounger', price: 440, stars: 2, group: 3, requires: ['lounger_2'], effect: '+1 swimmer' },
+      { key: 'menu_cabanas', kind: 'menu', label: 'Cabanas', price: 620, stars: 2, requires: ['lounger_3'], effect: 'Swims ×1.5' },
+      { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 780, stars: 4, tier: 2, requires: ['refurb_1', 'lounger_2'], effect: 'Prices +60%' },
+      { key: 'lounger_4', kind: 'seat', label: 'Lounger', price: 520, stars: 2, group: 4, requires: ['lounger_3'], effect: '+1 swimmer' },
+      { key: 'lounger_5', kind: 'seat', label: 'Lounger', price: 600, stars: 2, group: 5, requires: ['lounger_4'], effect: '+1 swimmer' },
+      { key: 'up_lifeguard', kind: 'staffUpgrade', label: 'Faster Lifeguard', price: 760, stars: 2, role: 'lifeguard', requires: ['hire_lifeguard', 'lounger_4'], effect: 'Faster' },
+      { key: 'refurb_3', kind: 'refurb', label: 'Luxury', price: 1600, stars: 5, tier: 3, requires: ['refurb_2', 'lounger_5'], effect: 'Prices ×2.1' },
+    ],
+  },
 };
+
+// Phase 4: the active route's names for the types it shares (the Riviera's Beach Lobby & Cabanas, its Seafood Diner).
+for (const [type, dress] of Object.entries(ACTIVE_ROUTE.dress ?? {})) if (dress) Object.assign(CARRIAGE_CATALOGUE[type as CarriageType], dress);
 
 
 /**
@@ -598,7 +767,11 @@ export const CARRIAGE_ORDER: CarriageType[] = ACTIVE_ROUTE.carriageOrder.slice(0
 export const CARRIAGE_ICON: Record<CarriageType, IconName> = {
   lobby: 'ticket', sleeper: 'bed', familySleeper: 'heart', bathroom: 'bath', supply: 'towel', luggage: 'luggage',
   cafe: 'latte', dining: 'meal', bar: 'cocktail', dome: 'binoculars', cinema: 'film',
+  kids: 'kite', spa: 'lotus', pool: 'pool', honeymoon: 'heart',
 };
+// Phase 4: the route's own menu sets a venue's emblem (the Riviera's café: a smoothie; its diner: a fish).
+if (ACTIVE_ROUTE.menu?.latte) CARRIAGE_ICON.cafe = ACTIVE_ROUTE.menu.latte as IconName;
+if (ACTIVE_ROUTE.menu?.meal) CARRIAGE_ICON.dining = ACTIVE_ROUTE.menu.meal as IconName;
 /** The finished train (the geometry audit and the preview build it). */
 export const DEFAULT_TRAIN: CarriageType[] = CARRIAGE_ORDER;
 
@@ -648,6 +821,16 @@ export const FAMILY_REQUESTS: { evening: Partial<Record<ItemKind, number>>; morn
   evening: { snack: 2, blanket: 1 },
   morning: { snack: 2, tea: 1 },
   extra: { snack: 2, pillow: 1, blanket: 1 },
+};
+
+/**
+ * Phase 4, the Honeymoon Suites: what a honeymoon couple asks for in their suite (champagne in the evening, breakfast in
+ * bed, a lemonade or fresh towels in between), in place of their class's lists.
+ */
+export const HONEYMOON_REQUESTS: { evening: Partial<Record<ItemKind, number>>; morning: Partial<Record<ItemKind, number>>; extra: Partial<Record<ItemKind, number>> } = {
+  evening: { champagne: 2, lemonade: 1 },
+  morning: { breakfast: 2, coffee: 1 },
+  extra: { lemonade: 2, towel: 1, pillow: 1, champagne: 1 },
 };
 
 /** Each later slot makes a carriage's own tiles this much dearer (a second sleeper is a bigger step). */

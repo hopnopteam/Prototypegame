@@ -17,7 +17,7 @@ export type ClassId = 'basic' | 'comfort' | 'business' | 'first' | 'royal';
  * are ordered in the venue. Session 26: the wake-up call is gone (owner: "what does our player do when a timer logo pops
  * on a passenger's head? it's unclear"): an alarm clock that meant "stand at their door" read as a countdown.
  */
-export type ServiceNeed = Exclude<ItemKind, 'latte' | 'pastry' | 'meal' | 'cocktail' | 'popcorn'> | 'turndown';
+export type ServiceNeed = Exclude<ItemKind, 'latte' | 'pastry' | 'meal' | 'cocktail' | 'popcorn' | 'smoothie' | 'icecream' | 'seafood' | 'robe' | 'surfboard'> | 'turndown';
 
 /** Asked for by standing at the room a moment (no item to carry): the First and Royal turndown. */
 export const isDwellNeed = (need: ServiceNeed | 'bathroom' | null): need is 'turndown' => need === 'turndown';
@@ -93,10 +93,20 @@ export const CLASSES: ClassDef[] = [
   },
 ];
 
+// Phase 4: what each class asks for on the active route (the Riviera's welcome lemonade, aloe for the sunburnt).
+for (const c of CLASSES) {
+  const r = ACTIVE_ROUTE.requests?.[c.id];
+  if (!r) continue;
+  if (r.evening) c.evening = r.evening as ClassDef['evening'];
+  if (r.morning) c.morning = r.morning as ClassDef['morning'];
+  if (r.extra) c.extra = r.extra as ClassDef['extra'];
+  if (r.turndown !== undefined) c.turndown = r.turndown;
+}
+
 export const CLASS_BY_ID: Record<ClassId, ClassDef> = Object.fromEntries(CLASSES.map((c) => [c.id, c])) as Record<ClassId, ClassDef>;
 
 /** Carriages that carry passengers (and so have a class). */
-export const PASSENGER_TYPES: readonly CarriageType[] = ['lobby', 'sleeper', 'familySleeper'];
+export const PASSENGER_TYPES: readonly CarriageType[] = ['lobby', 'sleeper', 'familySleeper', 'honeymoon'];
 
 export function isPassengerType(type: CarriageType): boolean {
   return PASSENGER_TYPES.includes(type);
@@ -105,7 +115,8 @@ export function isPassengerType(type: CarriageType): boolean {
 /** The top refit tier of a carriage type: passenger carriages climb to Royal (5), service cars to 3. */
 export function maxTier(type: CarriageType): number {
   // Phase 1: the Family Sleeper has three refits (Repair, Cosy, Luxury: up to the Business finish, its rooms kept).
-  if (type === 'familySleeper') return 3;
+  // Phase 4: the Honeymoon Suites likewise (their rooms kept, refurnished).
+  if (type === 'familySleeper' || type === 'honeymoon') return 3;
   return isPassengerType(type) ? 5 : 3;
 }
 

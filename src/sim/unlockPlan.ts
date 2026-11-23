@@ -3,6 +3,7 @@ import { CARRIAGE_CATALOGUE, CARRIAGE_ORDER, COUPLE_SLOTS, LEGACY_TRAIN, MAX_CAR
 import { CLASS_BY_ID, isPassengerType, type ClassId } from '../config/classes';
 import type { CarriageType } from '../core/types';
 import { ECONOMY } from '../config/economy';
+import { roomsAt } from '../world/layout';
 
 /** The late-game price curve (config: priceCurve): unchanged up to `from`, up to `max` times by `to`. */
 export function curvedPrice(price: number, curve = ECONOMY.priceCurve): number {
@@ -63,7 +64,11 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
   let cabinsBefore = 0;
   carriages.forEach((type, index) => {
     const entry = CARRIAGE_CATALOGUE[type];
+    // Phase 4: the plan's own number of rooms (the route's layout may give a lobby four; a tile for a room the plan
+    // does not have is left out).
+    const rooms = isPassengerType(type) ? roomsAt(type, 0) : entry.cabins;
     for (const t of entry.unlocks) {
+      if (t.kind === 'cabin' && t.cabin !== undefined && t.cabin >= rooms) continue;
       defs.push({
         id: tileId(index, t.key),
         kind: t.kind,
@@ -83,7 +88,7 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
         effect: t.effect,
       });
     }
-    cabinsBefore += entry.cabins;
+    cabinsBefore += rooms;
   });
   // Phase 2: the route's own station upgrades, in its order (config/routes.ts `station.upgrades`).
   for (const key of ACTIVE_ROUTE.station.upgrades) {

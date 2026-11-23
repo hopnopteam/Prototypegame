@@ -1,4 +1,4 @@
-import type { CarriageType } from '../core/types';
+import type { CarriageType, ItemKind } from '../core/types';
 import type { ClassId } from './classes';
 import { ROUTE_PARAM, savedRouteId } from './saveKey';
 
@@ -75,6 +75,60 @@ export interface RouteDef {
   station: RouteStationRules;
   /** Phase 3: every pacing number of this route, in one place (applied over ECONOMY at load; remote config on top). */
   economy: RouteEconomy;
+  /**
+   * Phase 4: how this route dresses the carriage types it shares with others (the Riviera's lobby is the Beach Lobby &
+   * Cabanas, its café the Smoothie & Ice-Cream Bar). Names, the chooser's lines, the passenger chip's colours.
+   */
+  dress?: Partial<Record<CarriageType, RouteCarriageDress>>;
+  /** Phase 4: what this route serves in place of an item (the Riviera's café makes smoothies where Route 1 brews lattes). */
+  menu?: Partial<Record<ItemKind, ItemKind>>;
+  /** Phase 4: the floor plans' knobs on this route (see `RouteLayout`). */
+  layout?: RouteLayout;
+  /** Phase 4: what each class asks for on this route (lists replace the class's own; `turndown` switches it on or off). */
+  requests?: Partial<Record<ClassId, RouteRequests>>;
+  /**
+   * Phase 4: who travels on this route. Archetypes with `routes` set appear only on those routes; this overrides an
+   * archetype's weight here (0 keeps them off the route).
+   */
+  archetypeWeights?: Partial<Record<string, number>>;
+  /** Phase 4: what guests on this route leave behind besides their own things (sand, shells: config/content.ts `MessPiece`). */
+  mess?: string[];
+  /** Phase 4: the stamp's line along the top of every postcard ("COUNTRYSIDE LINE"). */
+  postcardLine?: string;
+}
+
+/** Phase 4: a carriage type's name and lines on one route. */
+export interface RouteCarriageDress {
+  name: string;
+  pitch?: string;
+  inside?: string;
+  /** Its colours inside (world/palette.ts `CarriageTheme`; any left out keep the type's own). */
+  theme?: Partial<Record<'wall' | 'wallLow' | 'carpet' | 'deep' | 'blanket' | 'curtain', string>>;
+  /** A venue's walls at its three refits (world/CarriageView.ts `VENUE_WALLS`), when the route paints its own. */
+  walls?: { wall: string; wallLow: string; panel?: string; cap?: string; curtain?: string }[];
+}
+
+/**
+ * Phase 4: the floor plans' knobs a route may turn (the builders in world/layout.ts read them; tests turn them through
+ * `setLayoutOptions`). Left out, a carriage is built as on the Countryside Express.
+ */
+export interface RouteLayout {
+  /** Rooms in the lobby car while it keeps its Basic plan (Route 1: 3; the Riviera's Beach Lobby: 4 cabanas). */
+  lobbyRooms?: number;
+  /** The washroom car's rooms, front to back (Route 1: two toilets and a shower; the Riviera: three showers). */
+  washrooms?: ('toilet' | 'shower')[];
+  /** Rows of window tables in the dining car, two a row (Route 1: 4; the Riviera's Seafood Diner: 5). */
+  diningRows?: number;
+  /** The lobby's rack holds surfboards (each takes two places): the rack is drawn with board slots. */
+  surfboards?: boolean;
+}
+
+/** Phase 4: a class's requests on one route (weights, as in config/classes.ts). */
+export interface RouteRequests {
+  evening?: Partial<Record<ItemKind | 'turndown', number>>;
+  morning?: Partial<Record<ItemKind | 'turndown', number>>;
+  extra?: Partial<Record<ItemKind | 'turndown', number>>;
+  turndown?: boolean;
 }
 
 /**
@@ -133,7 +187,9 @@ export interface RouteStationRules {
   critic: CriticDef;
 }
 
-export type StationEventKind = 'rushHour' | 'festival' | 'lostFound' | 'vip' | 'delayed' | 'market' | 'harvest' | 'sheep';
+export type StationEventKind = 'rushHour' | 'festival' | 'lostFound' | 'vip' | 'delayed' | 'market' | 'harvest' | 'sheep'
+  // Phase 4, the Riviera's own: a party on the sand, a surf contest, a heatwave.
+  | 'beachParty' | 'surfContest' | 'heatwave';
 
 /** Phase 2: a special stop (config: the route's `station.events`). */
 export interface StationEventDef {
@@ -165,6 +221,9 @@ export interface StationEventDef {
   /** Sheep on the Tracks: how many to shoo. */
   sheep?: number;
 }
+
+/** Phase 4: what a carriage type, an item or a layout knob is on the active route (the route's own, or the shared one). */
+export const routeItem = (item: ItemKind): ItemKind => ACTIVE_ROUTE.menu?.[item] ?? item;
 
 /** Phase 2: the Village Gazette's critic. */
 export interface CriticDef {
@@ -267,30 +326,84 @@ export const COUNTRYSIDE_EXPRESS: RouteDef = {
 export const RIVIERA_COAST: RouteDef = {
   id: 'riviera',
   name: 'Riviera Coast Line',
-  carriageOrder: ['lobby', 'cafe', 'sleeper', 'bathroom', 'dining', 'bar', 'familySleeper', 'cinema'],
-  maxCarriages: 8,
+  // Phase 4: nine carriages. The lobby, café, sleeper, washrooms and diner are Route 1's types dressed for the coast
+  // (`dress`, `menu`, `layout`); the Kids' Play Car, the Spa Car, the Honeymoon Suites and the Pool Car are new types.
+  carriageOrder: ['lobby', 'cafe', 'sleeper', 'bathroom', 'dining', 'kids', 'spa', 'honeymoon', 'pool'],
+  maxCarriages: 9,
   stations: [
-    { art: 'millbrook', name: 'Porto Sole', blurb: 'Where the line meets the sea, and the sea meets the lemons.' },
-    { art: 'hazelford', name: 'Lemon Cove', blurb: 'Every terrace a lemon grove, every lemon an opinion.' },
-    { art: 'barley-cross', name: 'Marina Bay', blurb: 'Sailboats, gelato, and a harbourmaster who naps at noon.' },
-    { art: 'wrenfield', name: 'Cliffside', blurb: 'White houses stacked on the rock like sugar cubes.' },
-    { art: 'oakhollow', name: 'Coral Beach', blurb: 'The beach is right behind the platform. Mind the sand.' },
-    { art: 'pennyridge', name: 'Bellavista', blurb: 'The best view on the line, and everyone knows it.' },
+    { art: 'porto-sole', name: 'Porto Sole' },
+    { art: 'lemon-cove', name: 'Lemon Cove' },
+    { art: 'marina-bay', name: 'Marina Bay' },
+    { art: 'cliffside', name: 'Cliffside' },
+    { art: 'coral-beach', name: 'Coral Beach' },
+    { art: 'bellavista', name: 'Bellavista' },
   ],
   classLadder: ['basic', 'comfort', 'first', 'royal'],
-  guestLooks: [],
+  guestLooks: [
+    // Sunburnt tourists: pink in the face, a straw hat, a camera (they ask for aloe and cold drinks: `sunbather`).
+    { id: 'daytripper', archetype: 'tourist', share: 0.5, body: '#F4F0E4', accent: '#3E8FC2', outfit: 'shirt', pants: '#E9D7AE', hat: 'boater', hatColor: '#E9CF8C', hairStyle: 'side' },
+    // Grandparents in linen.
+    { id: 'linen', archetype: 'grandma', share: 0.5, body: '#E9E1CF', accent: '#7FA9C9', outfit: 'gown', pants: '#C9B9A0', hat: 'boater', hatColor: '#F1E3B8', glasses: true },
+  ],
   lighting: 'goldenHourToNight',
   duskSeconds: 240,
   scenery: { wheat: false, stoneBridges: false },
   music: 'riviera_theme',
+  postcardLine: 'RIVIERA COAST LINE',
+  dress: {
+    lobby: { name: 'Beach Lobby & Cabanas', pitch: 'Desk, 4 cabanas', inside: 'A beach desk, welcome drinks, 4 cabanas, a surfboard rack',
+      theme: { wall: '#F4E4C4', wallLow: '#7FC6D6', carpet: '#F3E7D0', deep: '#2E8FA8', blanket: '#F28C6B', curtain: '#F7F4EE' } },
+    cafe: { name: 'Smoothie & Ice-Cream Bar', pitch: 'Smoothies & gelato', inside: 'A juice bar, a gelato case, tables for two',
+      theme: { wall: '#FBE3D4', wallLow: '#F2A6A0', carpet: '#F6ECE0', deep: '#E8604C', blanket: '#F7B32B', curtain: '#F7F4EE' },
+      walls: [
+        { wall: '#FBF4E8', wallLow: '#E9D4C2' },
+        { wall: '#FBE3D4', wallLow: '#F2A6A0', curtain: '#F7F4EE' },
+        { wall: '#FFF6EC', wallLow: '#E8604C', panel: '#5FB4E6', cap: '#E2B653', curtain: '#FBE3D4' },
+      ] },
+    sleeper: { name: 'Sea-View Sleeper', pitch: '+6 sea-view berths', inside: '6 berths facing the sea',
+      theme: { wall: '#D6EAF0', wallLow: '#8CC3D6', carpet: '#EEF2EE', deep: '#2E6F9A', blanket: '#5FA8D3', curtain: '#F7F4EE' } },
+    bathroom: { name: 'Washroom & Showers', pitch: '3 showers', inside: 'Three showers and a linen closet',
+      theme: { wall: '#DDF0EE', wallLow: '#9ED6DC', carpet: '#F2F4F0', deep: '#3E9AA8', blanket: '#F2A6A0', curtain: '#FFFDF8' } },
+    dining: { name: 'Seafood Diner', pitch: 'Grilled seafood', inside: 'A grill, the pass, 10 window tables',
+      theme: { wall: '#E6EEF2', wallLow: '#6E9AB8', carpet: '#F1EDE4', deep: '#1E4E79', blanket: '#F7F4EE', curtain: '#E2B653' },
+      walls: [
+        { wall: '#EDF1F0', wallLow: '#B9C6C9' },
+        { wall: '#E6EEF2', wallLow: '#2E6F9A', curtain: '#F7F4EE' },
+        { wall: '#F4F2EA', wallLow: '#1E3A5C', panel: '#1E3A5C', cap: '#E2B653', curtain: '#F7F4EE' },
+      ] },
+  },
+  menu: { latte: 'smoothie', pastry: 'icecream', meal: 'seafood' },
+  layout: { lobbyRooms: 4, washrooms: ['shower', 'shower', 'shower'], diningRows: 5, surfboards: true },
+  // Cold drinks and aloe on the coast: a welcome lemonade in the evening, aloe for the sunburnt in the morning; the
+  // Sea-View Sleeper's guests have their beds turned down from Comfort up.
+  requests: {
+    basic: { evening: { lemonade: 2, blanket: 1 }, morning: { tea: 1, aloe: 1 }, extra: { pillow: 2, lemonade: 2, aloe: 1, sandwich: 1 } },
+    comfort: { evening: { lemonade: 1, sandwich: 1 }, morning: { towel: 1, aloe: 1 }, extra: { lemonade: 2, pillow: 1, towel: 1, aloe: 1 }, turndown: true },
+    business: { evening: { newspaper: 1, lemonade: 1 }, morning: { coffee: 1 }, extra: { lemonade: 1, towel: 1, coffee: 1, aloe: 1 } },
+  },
+  // Who travels on the coast: surfers and beach families in Basic, sunbathers and families in Comfort, honeymooners.
+  archetypeWeights: { student: 1, backpacker: 2, surfer: 3, beachFamily: 2, tourist: 2, sunbather: 3, grandma: 1, family: 2 },
+  mess: ['sand', 'shell', 'flipflops'],
   economy: {
     ...COUNTRYSIDE_EXPRESS.economy,
     priceMultiplier: 2.5,
     fareMultiplier: 2,
+    // Nine carriages: one more coupling than Route 1 (before ×2.5).
+    couplePrices: [60, 320, 380, 660, 1650, 3100, 6200, 9000],
+    slotPrice: [0.85, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2],
   },
   station: {
     ...COUNTRYSIDE_EXPRESS.station,
-    events: COUNTRYSIDE_EXPRESS.station.events.filter((e) => e.kind !== 'harvest' && e.kind !== 'sheep'),
+    // The same seven upgrades in coast dress (config/content.ts `STATION_DRESS`), and the Surfboard Rack.
+    upgrades: ['posters', 'booth', 'benches', 'windowboxes', 'kiosk', 'billboard', 'helper', 'surfrack', 'lamps', 'lining', 'band', 'nameboards', 'gate2', 'redcarpet'],
+    events: [
+      ...COUNTRYSIDE_EXPRESS.station.events.filter((e) => e.kind !== 'harvest' && e.kind !== 'sheep'),
+      // The coast's own: a party on the sand at Coral Beach, a surf contest (surfers with boards), a heatwave.
+      { id: 'beach_party', kind: 'beachParty', title: 'Beach Party', weight: 4, station: 4, tips: 1.6 },
+      { id: 'surf_contest', kind: 'surfContest', title: 'Surf Contest', weight: 2, minCarriages: 2, crowd: 1.5, bonus: 2 },
+      { id: 'heatwave', kind: 'heatwave', title: 'Heatwave', weight: 2, minCarriages: 3, reward: 6 },
+    ],
+    critic: { ...COUNTRYSIDE_EXPRESS.station.critic, minCarriages: 4, maxCarriages: 7 },
   },
 };
 

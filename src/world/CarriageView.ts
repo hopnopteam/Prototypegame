@@ -1,5 +1,6 @@
 import { TrainCat } from './TrainCat';
 import { VISUALS } from '../config/visuals';
+import { ACTIVE_ROUTE } from '../config/routes';
 import * as THREE from 'three';
 import { rect, type CarriageType, type Rect, type VenueKind } from '../core/types';
 import type { ComfortKey } from '../config/content';
@@ -43,7 +44,7 @@ import { STATIC_CASTER_LAYER } from './Lighting';
 import type { LampAnchor } from './Lighting';
 import { REFLECT_LAYER } from './Water';
 import { buildBarBulbs, buildDomeCanopy, buildPassPlate, buildTableDirt, buildVenueProp, projectorLens, screenArea } from './VenueProps';
-import { bubbleTexture, filmTexture, FILM_COLS, FILM_FPS, FILM_FRAMES, FILM_ROWS, makeSprite } from './sprites';
+import { bubbleTexture, filmTexture, FILM_COLS, FILM_FPS, FILM_FRAMES, FILM_ROWS, makeSprite, poolTexture } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 import type { IconName } from '../ui/icons';
 
@@ -201,6 +202,10 @@ interface Finish {
  * grand finish (the café's green panelling, the dining car's walnut, the bar's warm wood under cream with globe
  * sconces, the dome's midnight blue, the picture palace's mahogany under deep red).
  */
+/** Phase 4, the Pool Car: the water's height over the floor (the basin is raised; VenueProps builds it to this), and its leaves. */
+export const POOL_WATER_Y = 0.36;
+const POOL_LEAVES = 16;
+
 const VENUE_WALLS: Record<VenueKind, { wall: string; wallLow: string; panel?: string; cap?: string; curtain?: string }[]> = {
   // Fix list 5.4–5.5: the café bright and airy (whitewash, then sage, then green and gold), the dining car warm and
   // evening (oatmeal over terracotta, then claret, then walnut and gold), so they never look alike.
@@ -229,7 +234,28 @@ const VENUE_WALLS: Record<VenueKind, { wall: string; wallLow: string; panel?: st
     { wall: '#4A3F4E', wallLow: '#6B2A4A', cap: PALETTE.walnutDark, curtain: '#A3283A' },
     { wall: '#7A2A30', wallLow: '#5A2C1E', panel: '#5A2C1E', cap: PALETTE.gold, curtain: '#8E1F2B' },
   ],
+  // Phase 4, the Riviera: the play car whitewash, then sunshine and sky, then candy stripes under a gold cap; the spa
+  // stone, sage, then teak panelling; the pool white tile, aqua, then blue and white with brass.
+  kids: [
+    { wall: '#F4F0E4', wallLow: '#D9D2BE' },
+    { wall: '#F8E7A8', wallLow: '#8FCBEA', curtain: '#F25C54' },
+    { wall: '#FBEFD0', wallLow: '#E8604C', panel: '#4FA8E0', cap: PALETTE.gold, curtain: '#F7B32B' },
+  ],
+  spa: [
+    { wall: '#ECE7DC', wallLow: '#C9C1AE' },
+    { wall: '#DCE6D8', wallLow: '#8FA88A', curtain: '#F2E9D6' },
+    { wall: '#EEE6D6', wallLow: '#8A6A4A', panel: '#8A6A4A', cap: PALETTE.brass, curtain: '#E9DFC8' },
+  ],
+  pool: [
+    { wall: '#EEF3F2', wallLow: '#C7D6D6' },
+    { wall: '#E7F3F4', wallLow: '#4FB4C9', curtain: '#F7F4EE' },
+    { wall: '#F4F7F6', wallLow: '#1E5F8E', panel: '#1E5F8E', cap: PALETTE.brass, curtain: '#F7F4EE' },
+  ],
 };
+// Phase 4: a route's own walls for a venue type it shares (the Riviera's smoothie bar and seafood diner).
+for (const [type, dress] of Object.entries(ACTIVE_ROUTE.dress ?? {})) {
+  if (dress?.walls && type in VENUE_WALLS) VENUE_WALLS[type as VenueKind] = dress.walls;
+}
 
 function venueFinish(kind: VenueKind, tier: number): Finish | null {
   if (tier <= 0) return null;
@@ -449,6 +475,11 @@ export class CarriageView {
   private filmPicture: THREE.Mesh | null = null;
   private filmBeam: THREE.Mesh | null = null;
   private filmOn = false;
+  /** Phase 4: the Pool Car's water (two shimmering layers), its leaves, and the play car's puppets. */
+  private poolWater: THREE.Mesh[] = [];
+  private poolLeaves: THREE.Mesh | null = null;
+  private poolLeafCount = 0;
+  private puppets: THREE.Group | null = null;
   /** The dome's "next view" bubble. */
   private venueSign: THREE.Sprite | null = null;
   private venueSignKey = '';
@@ -1065,6 +1096,8 @@ export class CarriageView {
       }
     }
     if (venue.kind === 'cinema') this.buildFilm();
+    if (venue.water) this.buildPoolWater(venue.water);
+    if (venue.kind === 'kids') this.buildPuppets();
     const bar = this.layout.props.find((p) => p.kind === 'bar');
     if (bar) {
       const glow = new GeoBuilder();
@@ -1119,6 +1152,82 @@ export class CarriageView {
       this.filmBeam.renderOrder = 3;
       this.group.add(this.filmBeam);
     }
+  }
+
+  /**
+   * Phase 4, the Pool Car's water: two planes of the caustic tile (`poolTexture`) sliding over each other, lit from
+   * below like a pool at night; the leaves that blow in float on it (shown a few at a time as they gather).
+   */
+  private buildPoolWater(r: Rect): void {
+    const y = FLOOR_Y + POOL_WATER_Y;
+    for (const [i, scale] of [[0, 1.6], [1, 2.3]] as const) {
+      const texture = poolTexture().clone();
+      texture.needsUpdate = true;
+      texture.repeat.set((r.x1 - r.x0) / scale, (r.z1 - r.z0) / scale);
+      const plane = new THREE.PlaneGeometry(r.x1 - r.x0, r.z1 - r.z0).rotateX(-Math.PI / 2).translate((r.x0 + r.x1) / 2, y + i * 0.004, (r.z0 + r.z1) / 2);
+      const mesh = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false, opacity: i === 0 ? 0.95 : 0.45, depthWrite: i === 0 }));
+      mesh.renderOrder = 2 + i;
+      mesh.userData.object = 'venue:water';
+      this.poolWater.push(mesh);
+      this.group.add(mesh);
+    }
+    const b = new GeoBuilder();
+    b.object('venue:leaves');
+    let seed = 11;
+    const rand = (): number => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    for (let i = 0; i < POOL_LEAVES; i++) {
+      const x = r.x0 + 0.2 + rand() * (r.x1 - r.x0 - 0.4);
+      const z = r.z0 + 0.2 + rand() * (r.z1 - r.z0 - 0.4);
+      const tone = ['#C9A03E', '#8FA84A', '#B5732C', '#6E8C3A'][i % 4];
+      b.add(new THREE.SphereGeometry(0.5, 6, 3).scale(0.09, 0.012, 0.05), tone, x, y + 0.012, z, 0, rand() * Math.PI, 0, { shade: 0.95 });
+    }
+    b.endObject();
+    this.poolLeaves = new THREE.Mesh(b.build(), MATERIALS.solid);
+    this.poolLeaves.renderOrder = 4;
+    this.group.add(this.poolLeaves);
+    this.setPoolLeaves(0);
+  }
+
+  /** Phase 4: how leafy the pool is (0–1): that share of its leaves float on the water. */
+  setPoolLeaves(share: number): void {
+    const mesh = this.poolLeaves;
+    if (!mesh) return;
+    const count = Math.round(Math.max(0, Math.min(1, share)) * POOL_LEAVES);
+    if (count === this.poolLeafCount) return;
+    this.poolLeafCount = count;
+    const index = mesh.geometry.index;
+    const total = index ? index.count : mesh.geometry.getAttribute('position').count;
+    mesh.geometry.setDrawRange(0, Math.round((total / POOL_LEAVES) * count));
+    mesh.visible = count > 0;
+  }
+
+  /** Phase 4, the Kids' Play Car: two glove puppets in the theatre's window (they come up while a show is on). */
+  private buildPuppets(): void {
+    const theatre = this.layout.props.find((p) => p.kind === 'puppetTheatre');
+    if (!theatre) return;
+    const r = theatre.rect;
+    const x = r.x1 - 0.14;
+    const cz = (r.z0 + r.z1) / 2;
+    const b = new GeoBuilder();
+    b.object('venue:puppets');
+    for (const [dz, body, hat] of [[-0.28, '#F25C54', '#F7B32B'], [0.28, '#4FA8E0', '#7CCB7A']] as const) {
+      b.cone(x, FLOOR_Y + 0.98, cz + dz, 0.1, 0.24, body, 10, { shade: 0.95, surface: 'fabric' });
+      b.sphere(x, FLOOR_Y + 1.16, cz + dz, 0.075, '#F2C9A0', 1, 1, { shade: 0.95 });
+      b.cone(x, FLOOR_Y + 1.27, cz + dz, 0.06, 0.12, hat, 8, { shade: 0.95, surface: 'fabric' });
+      b.sphere(x + 0.07, FLOOR_Y + 1.17, cz + dz - 0.025, 0.012, '#2B2230', 0, 1, { shade: 1 });
+      b.sphere(x + 0.07, FLOOR_Y + 1.17, cz + dz + 0.025, 0.012, '#2B2230', 0, 1, { shade: 1 });
+    }
+    b.endObject();
+    const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+    this.puppets = new THREE.Group();
+    this.puppets.add(mesh);
+    this.puppets.visible = false;
+    this.group.add(this.puppets);
+  }
+
+  /** Phase 4: the puppet show's progress (0..1), or below 0 when none is on. */
+  setVenueShow(progress: number): void {
+    if (this.puppets) this.puppets.visible = progress >= 0;
   }
 
   /** The film's progress (0..1), or below 0 when none is on: the picture and the beam show while it plays. */
@@ -1548,6 +1657,17 @@ export class CarriageView {
     }
     if (this.barBulbs && this.barParty) this.setBarLit(Math.floor(this.clock * 6) % 2 === 0 ? this.barBulbCount : Math.floor(this.clock * 12) % this.barBulbCount);
     this.animateFilm();
+    // Phase 4: the pool shimmers (its two layers drift apart), the puppets bob through their show.
+    if (this.poolWater.length) {
+      const t = this.clock;
+      (this.poolWater[0].material as THREE.MeshBasicMaterial).map?.offset.set(t * 0.035, t * 0.021);
+      (this.poolWater[1].material as THREE.MeshBasicMaterial).map?.offset.set(-t * 0.027, t * 0.031);
+      if (this.poolLeaves) this.poolLeaves.position.set(Math.sin(t * 0.4) * 0.05, 0, Math.cos(t * 0.33) * 0.07);
+    }
+    if (this.puppets?.visible) {
+      const t = this.clock;
+      this.puppets.position.y = Math.abs(Math.sin(t * 5)) * 0.06;
+    }
     for (let i = 0; i < this.spinners.length; i++) this.spinners[i].rotation.y += dt * (2.6 + (i % 2) * 0.7);
   }
 

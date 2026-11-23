@@ -103,6 +103,33 @@ const FLOOR: Record<MessPiece, Builder> = {
     }
     b.box(-0.08, y + 0.004, 0.09, 0.07, 0.002, 0.095, '#C0485C', 0.3, FLAT);
   },
+  // Phase 4, the coast. Sand tipped out of a shoe: a low drift and a few grains round it.
+  sand: (b, y) => {
+    b.sphere(0, y, 0, 0.12, '#E8CF9A', 0, 0.22, { shade: 0.9, surface: 'matte' });
+    b.sphere(0.08, y, 0.07, 0.05, '#E2C48C', 0, 0.25, { shade: 0.9, surface: 'matte' });
+    b.sphere(-0.09, y, -0.06, 0.04, '#EBD5A4', 0, 0.25, { shade: 0.9, surface: 'matte' });
+  },
+  // A pink scallop shell.
+  shell: (b, y) => {
+    b.sphere(0, y + 0.006, 0, 0.07, '#F4B8A8', 0, 0.32, { shade: 0.9 });
+    for (let i = -2; i <= 2; i++) b.box(i * 0.024, y + 0.026, 0.005, 0.006, 0.004, 0.1, '#E09A88', i * 0.25, FLAT);
+  },
+  // A pair of flip-flops, one turned over.
+  flipflops: (b, y) => {
+    b.rounded(-0.05, y + 0.008, 0, 0.07, 0.016, 0.22, 0.03, '#4FA8E0', { shade: 0.9 });
+    b.rounded(0.06, y + 0.008, 0.03, 0.07, 0.016, 0.21, 0.03, '#F25C54', { shade: 0.9 });
+    b.box(-0.05, y + 0.022, -0.05, 0.05, 0.012, 0.008, '#FFFFFF', 0, FLAT);
+  },
+  // A striped beach ball.
+  beachball: (b, y) => {
+    b.sphere(0, y + 0.1, 0, 0.1, '#F25C54', 1, 1, { shade: 0.95, pattern: 2, color2: '#FFFFFF', scale: 0.05 });
+  },
+  // A wide straw sun hat dropped on the floor.
+  sunhat: (b, y) => {
+    b.cylinder(0, y + 0.006, 0, 0.14, 0.14, 0.012, '#E9CF8C', 18, 'y', { shade: 0.95 });
+    b.sphere(0, y + 0.012, 0, 0.07, '#E2C47E', 1, 0.6, { shade: 0.9 });
+    b.cylinder(0, y + 0.03, 0, 0.071, 0.071, 0.016, '#E8525E', 16, 'y', FLAT);
+  },
 };
 
 /** Builds one floor piece around its slot's origin; `y` is the surface it rests on (the mat's top). */

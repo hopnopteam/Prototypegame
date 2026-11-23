@@ -31,7 +31,12 @@ export type IconName =
   // Session 40: a dining table to clear and wipe (a spray bottle and a sponge with suds); the conductor's phone (quick travel).
   | 'wipe' | 'phone'
   // Phase 4: the route map (the line's routes, done, active and to come).
-  | 'map';
+  | 'map'
+  // Phase 4, the Riviera: the smoothie bar's smoothie and gelato, the diner's grilled fish, the spa's robe, a cold
+  // lemonade, a pot of aloe, a surfboard; the new carriages' emblems (a kite, a lotus, a pool ladder); the play car's
+  // noise, a do-not-disturb hanger, the pool skimmer's net and the puppet show.
+  | 'smoothie' | 'icecream' | 'seafood' | 'robe' | 'lemonade' | 'aloe' | 'surfboard' | 'kite' | 'lotus' | 'pool' | 'noise'
+  | 'dnd' | 'net' | 'puppet';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -1162,6 +1167,401 @@ const ICONS: Record<IconName, Draw> = {
     c.fillStyle = CREAM;
     c.fill();
   },
+  smoothie: (c) => {
+    // A tall glass of mango smoothie, a striped straw and a slice of orange on the rim.
+    c.beginPath();
+    c.moveTo(30, 24);
+    c.lineTo(70, 24);
+    c.lineTo(64, 86);
+    c.quadraticCurveTo(50, 91, 36, 86);
+    c.closePath();
+    fillStroke(c, '#F6A84A');
+    c.fillStyle = '#FFD27A';
+    c.beginPath();
+    c.moveTo(31, 24);
+    c.lineTo(69, 24);
+    c.lineTo(68, 36);
+    c.quadraticCurveTo(50, 40, 32, 36);
+    c.closePath();
+    c.fill();
+    c.beginPath();
+    c.moveTo(30, 24);
+    c.lineTo(70, 24);
+    c.lineTo(64, 86);
+    c.quadraticCurveTo(50, 91, 36, 86);
+    c.closePath();
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.beginPath();
+    c.moveTo(55, 30);
+    c.lineTo(64, 4);
+    c.lineWidth = 7;
+    c.stroke();
+    c.strokeStyle = '#E8525E';
+    c.lineWidth = 4;
+    c.beginPath();
+    c.moveTo(55, 30);
+    c.lineTo(64, 4);
+    c.stroke();
+    c.beginPath();
+    c.arc(30, 26, 12, Math.PI * 0.95, Math.PI * 2.05);
+    fillStroke(c, '#FF9F2E', 4);
+  },
+  icecream: (c) => {
+    // A waffle cone with two scoops (pistachio and strawberry).
+    c.beginPath();
+    c.moveTo(30, 50);
+    c.lineTo(70, 50);
+    c.lineTo(50, 94);
+    c.closePath();
+    fillStroke(c, '#E2A75A');
+    c.strokeStyle = '#B5732C';
+    c.lineWidth = 3;
+    for (const d of [0, 10, 20]) {
+      c.beginPath();
+      c.moveTo(34 + d, 52);
+      c.lineTo(46 + d * 0.3, 80);
+      c.stroke();
+    }
+    c.beginPath();
+    c.arc(50, 46, 20, Math.PI, 0);
+    c.quadraticCurveTo(70, 56, 60, 52);
+    c.quadraticCurveTo(50, 58, 40, 52);
+    c.quadraticCurveTo(30, 56, 30, 46);
+    fillStroke(c, '#A8D98A');
+    c.beginPath();
+    c.arc(50, 26, 15, 0, Math.PI * 2);
+    fillStroke(c, '#F49AB4');
+    c.beginPath();
+    c.arc(55, 12, 4.5, 0, Math.PI * 2);
+    fillStroke(c, '#C0283A', 3);
+  },
+  seafood: (c) => {
+    // A grilled fish on a plate, a lemon wedge beside it.
+    c.beginPath();
+    c.ellipse(50, 74, 44, 13, 0, 0, Math.PI * 2);
+    fillStroke(c, '#FFFFFF');
+    c.beginPath();
+    c.moveTo(20, 60);
+    c.quadraticCurveTo(44, 34, 70, 56);
+    c.lineTo(86, 44);
+    c.lineTo(84, 72);
+    c.lineTo(70, 62);
+    c.quadraticCurveTo(44, 84, 20, 60);
+    c.closePath();
+    fillStroke(c, '#E9A36A');
+    c.strokeStyle = '#8A4E2A';
+    c.lineWidth = 3.5;
+    for (const x of [38, 48, 58]) {
+      c.beginPath();
+      c.moveTo(x, 50);
+      c.lineTo(x - 5, 66);
+      c.stroke();
+    }
+    c.beginPath();
+    c.arc(29, 58, 3, 0, Math.PI * 2);
+    c.fillStyle = INK;
+    c.fill();
+    c.beginPath();
+    c.moveTo(14, 80);
+    c.arc(22, 80, 10, Math.PI, 0);
+    c.closePath();
+    fillStroke(c, '#F5D22E', 4);
+  },
+  robe: (c) => {
+    // A fluffy white bathrobe on a hanger, its belt tied.
+    c.beginPath();
+    c.moveTo(50, 8);
+    c.lineTo(50, 16);
+    c.moveTo(30, 24);
+    c.quadraticCurveTo(50, 12, 70, 24);
+    c.lineWidth = 5;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.beginPath();
+    c.moveTo(34, 22);
+    c.lineTo(66, 22);
+    c.lineTo(88, 44);
+    c.lineTo(78, 52);
+    c.lineTo(72, 46);
+    c.lineTo(74, 92);
+    c.lineTo(26, 92);
+    c.lineTo(28, 46);
+    c.lineTo(22, 52);
+    c.lineTo(12, 44);
+    c.closePath();
+    fillStroke(c, '#F8F4EC');
+    c.beginPath();
+    c.moveTo(40, 22);
+    c.lineTo(50, 50);
+    c.lineTo(60, 22);
+    c.lineWidth = 5;
+    c.stroke();
+    rr(c, 27, 56, 46, 8, 3);
+    fillStroke(c, '#7FC1D9', 4);
+  },
+  lemonade: (c) => {
+    // A frosted glass of lemonade with ice, a lemon slice on the rim.
+    c.beginPath();
+    c.moveTo(26, 28);
+    c.lineTo(74, 28);
+    c.lineTo(68, 88);
+    c.lineTo(32, 88);
+    c.closePath();
+    fillStroke(c, '#FFF19A');
+    c.fillStyle = 'rgba(255,255,255,0.85)';
+    for (const [x, y] of [[40, 46], [56, 56], [44, 68]]) {
+      rr(c, x, y, 12, 12, 3);
+      c.fill();
+    }
+    c.beginPath();
+    c.moveTo(26, 28);
+    c.lineTo(74, 28);
+    c.lineTo(68, 88);
+    c.lineTo(32, 88);
+    c.closePath();
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.beginPath();
+    c.arc(72, 28, 15, Math.PI, Math.PI * 2);
+    c.closePath();
+    fillStroke(c, '#F5D22E', 4);
+    c.strokeStyle = '#E2B414';
+    c.lineWidth = 2.5;
+    for (const a of [1.2, 1.5, 1.8]) {
+      c.beginPath();
+      c.moveTo(72, 28);
+      c.lineTo(72 + Math.cos(a * Math.PI) * 12, 28 + Math.sin(a * Math.PI) * 12);
+      c.stroke();
+    }
+  },
+  aloe: (c) => {
+    // A pump bottle of green aloe gel with a leaf on its label.
+    rr(c, 28, 34, 44, 58, 10);
+    fillStroke(c, '#7CCB7A');
+    rr(c, 40, 20, 20, 14, 3);
+    fillStroke(c, '#F2F2EA', 5);
+    c.beginPath();
+    c.moveTo(50, 20);
+    c.lineTo(50, 10);
+    c.lineTo(66, 10);
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.stroke();
+    rr(c, 34, 50, 32, 30, 6);
+    fillStroke(c, '#F8F4EC', 4);
+    c.beginPath();
+    c.moveTo(50, 76);
+    c.quadraticCurveTo(38, 64, 50, 54);
+    c.quadraticCurveTo(62, 64, 50, 76);
+    fillStroke(c, '#3E9A4A', 3);
+  },
+  surfboard: (c) => {
+    // A surfboard on a slant, a stripe down it and a fin.
+    c.save();
+    c.translate(50, 50);
+    c.rotate(-0.6);
+    c.beginPath();
+    c.ellipse(0, 0, 16, 44, 0, 0, Math.PI * 2);
+    fillStroke(c, '#5FB4E6');
+    c.fillStyle = '#FFFFFF';
+    c.fillRect(-4, -40, 8, 80);
+    c.fillStyle = '#F28C2E';
+    c.fillRect(-16, -6, 32, 6);
+    c.beginPath();
+    c.ellipse(0, 0, 16, 44, 0, 0, Math.PI * 2);
+    c.lineWidth = 6;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.restore();
+  },
+  kite: (c) => {
+    // A diamond kite in four colours with a ribbon tail.
+    const pts: [number, number][] = [[50, 8], [80, 40], [50, 74], [20, 40]];
+    const cols = ['#F25C54', '#F7B32B', '#4FA8E0', '#7CCB7A'];
+    for (let i = 0; i < 4; i++) {
+      c.beginPath();
+      c.moveTo(50, 40);
+      c.lineTo(pts[i][0], pts[i][1]);
+      c.lineTo(pts[(i + 1) % 4][0], pts[(i + 1) % 4][1]);
+      c.closePath();
+      c.fillStyle = cols[i];
+      c.fill();
+    }
+    c.beginPath();
+    c.moveTo(50, 8);
+    c.lineTo(80, 40);
+    c.lineTo(50, 74);
+    c.lineTo(20, 40);
+    c.closePath();
+    c.moveTo(50, 8);
+    c.lineTo(50, 74);
+    c.moveTo(20, 40);
+    c.lineTo(80, 40);
+    c.lineWidth = 5;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.beginPath();
+    c.moveTo(50, 74);
+    c.bezierCurveTo(40, 84, 60, 88, 48, 96);
+    c.lineWidth = 4;
+    c.stroke();
+  },
+  lotus: (c) => {
+    // A pink lotus on the water: three petals open, two behind.
+    c.beginPath();
+    c.ellipse(50, 82, 40, 8, 0, 0, Math.PI * 2);
+    fillStroke(c, '#7FC1D9', 5);
+    const petal = (rot: number, fill: string): void => {
+      c.save();
+      c.translate(50, 76);
+      c.rotate(rot);
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.quadraticCurveTo(-16, -26, 0, -52);
+      c.quadraticCurveTo(16, -26, 0, 0);
+      fillStroke(c, fill, 5);
+      c.restore();
+    };
+    petal(-1.0, '#F2A6C2');
+    petal(1.0, '#F2A6C2');
+    petal(-0.5, '#F7BFD3');
+    petal(0.5, '#F7BFD3');
+    petal(0, '#FBD7E4');
+  },
+  pool: (c) => {
+    // A pool ladder dipping into rippling blue water.
+    rr(c, 10, 52, 80, 38, 10);
+    fillStroke(c, '#4FB4E6');
+    c.strokeStyle = '#FFFFFF';
+    c.lineWidth = 4;
+    for (const y of [64, 76]) {
+      c.beginPath();
+      c.moveTo(18, y);
+      c.bezierCurveTo(32, y - 6, 42, y + 6, 56, y);
+      c.bezierCurveTo(66, y - 6, 74, y + 6, 84, y);
+      c.stroke();
+    }
+    c.strokeStyle = INK;
+    c.lineWidth = 6;
+    for (const x of [38, 62]) {
+      c.beginPath();
+      c.moveTo(x, 70);
+      c.lineTo(x, 22);
+      c.quadraticCurveTo(x, 10, x - 12, 12);
+      c.stroke();
+    }
+    c.strokeStyle = '#C9D2DC';
+    c.lineWidth = 3;
+    for (const x of [38, 62]) {
+      c.beginPath();
+      c.moveTo(x, 66);
+      c.lineTo(x, 24);
+      c.stroke();
+    }
+    c.strokeStyle = INK;
+    c.lineWidth = 5;
+    for (const y of [34, 50]) {
+      c.beginPath();
+      c.moveTo(38, y);
+      c.lineTo(62, y);
+      c.stroke();
+    }
+  },
+  noise: (c) => {
+    // A shout: a red loudness burst with sound arcs.
+    c.beginPath();
+    for (let i = 0; i < 16; i++) {
+      const r = i % 2 ? 30 : 42;
+      const a = (i / 16) * Math.PI * 2;
+      c.lineTo(46 + Math.cos(a) * r, 50 + Math.sin(a) * r);
+    }
+    c.closePath();
+    fillStroke(c, '#F25C54');
+    c.strokeStyle = '#FFFFFF';
+    c.lineWidth = 6;
+    for (const r of [8, 18]) {
+      c.beginPath();
+      c.arc(40, 50, r, -0.8, 0.8);
+      c.stroke();
+    }
+    c.beginPath();
+    c.arc(34, 50, 5, 0, Math.PI * 2);
+    c.fillStyle = '#FFFFFF';
+    c.fill();
+  },
+  dnd: (c) => {
+    // A door hanger: "Shh", a moon, on a red card with a hole for the handle.
+    rr(c, 26, 8, 48, 86, 12);
+    fillStroke(c, '#C0485C');
+    c.beginPath();
+    c.arc(50, 24, 9, 0, Math.PI * 2);
+    c.fillStyle = CREAM;
+    c.fill();
+    c.lineWidth = 4;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.beginPath();
+    c.arc(50, 60, 16, 0.6, Math.PI * 2 - 0.6);
+    c.arc(58, 56, 12, Math.PI * 2 - 0.9, 0.9, true);
+    c.closePath();
+    fillStroke(c, '#FFE2A0', 4);
+  },
+  net: (c) => {
+    // A pool skimmer: a net on a long pole with a leaf in it.
+    c.beginPath();
+    c.moveTo(14, 90);
+    c.lineTo(56, 40);
+    c.lineWidth = 7;
+    c.strokeStyle = INK;
+    c.stroke();
+    c.strokeStyle = '#E2B653';
+    c.lineWidth = 3;
+    c.beginPath();
+    c.moveTo(14, 90);
+    c.lineTo(56, 40);
+    c.stroke();
+    c.beginPath();
+    c.ellipse(68, 28, 22, 16, -0.7, 0, Math.PI * 2);
+    fillStroke(c, '#DDEFF6');
+    c.strokeStyle = '#9CC9DA';
+    c.lineWidth = 2;
+    for (let i = -2; i <= 2; i++) {
+      c.beginPath();
+      c.moveTo(60 + i * 6, 12);
+      c.lineTo(74 + i * 6, 44);
+      c.stroke();
+    }
+    c.beginPath();
+    c.ellipse(70, 28, 9, 5, 0.6, 0, Math.PI * 2);
+    fillStroke(c, '#E6A33E', 3);
+  },
+  puppet: (c) => {
+    // A little striped puppet theatre with its curtains open and a puppet waving.
+    rr(c, 12, 30, 76, 60, 6);
+    fillStroke(c, '#F25C54');
+    c.fillStyle = '#FFFFFF';
+    for (let x = 18; x < 84; x += 16) c.fillRect(x, 33, 8, 54);
+    rr(c, 26, 42, 48, 30, 4);
+    fillStroke(c, '#3B2F5E', 5);
+    c.beginPath();
+    c.moveTo(8, 32);
+    c.quadraticCurveTo(50, 6, 92, 32);
+    c.closePath();
+    fillStroke(c, '#F7B32B');
+    c.beginPath();
+    c.arc(50, 56, 9, 0, Math.PI * 2);
+    fillStroke(c, '#F2C9A0', 4);
+    c.beginPath();
+    c.moveTo(42, 72);
+    c.lineTo(58, 72);
+    c.lineTo(56, 64);
+    c.lineTo(44, 64);
+    c.closePath();
+    fillStroke(c, '#4FA8E0', 4);
+  },
   calendar: (c) => {
     rr(c, 14, 20, 72, 66, 8);
     fillStroke(c, CREAM);
@@ -1808,4 +2208,11 @@ export const ITEM_ICON: Record<string, IconName> = {
   breakfast: 'breakfast',
   snack: 'snack',
   sandwich: 'sandwich',
+  smoothie: 'smoothie',
+  icecream: 'icecream',
+  seafood: 'seafood',
+  robe: 'robe',
+  lemonade: 'lemonade',
+  aloe: 'aloe',
+  surfboard: 'surfboard',
 };

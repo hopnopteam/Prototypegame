@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { CarriageType } from '../src/core/types';
-import { footprints, getLayout, layoutKey, PARTITION_X0, PARTITION_X1, ROOM_DOOR, type CarriageLayout } from '../src/world/layout';
+import { footprints, PARTITION_X0, PARTITION_X1, ROOM_DOOR, type CarriageLayout } from '../src/world/layout';
+import { layoutVariants } from './layoutVariants';
 
 /**
  * Session 16 (owner: "the doors are half animated… make them feel like part of the train… accessible"): room
@@ -8,20 +8,10 @@ import { footprints, getLayout, layoutKey, PARTITION_X0, PARTITION_X1, ROOM_DOOR
  * room's furniture, its tiles and every wall but the partition it hangs in.
  */
 
-const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper', 'familySleeper', 'cafe', 'dining', 'bar', 'dome', 'cinema'];
 const { hingeInset: HINGE_INSET, meetGap: LEAF_MEET_GAP, swing: DOOR_SWING } = ROOM_DOOR;
 const HALF_THICK = ROOM_DOOR.thickness / 2;
 
-const variants: { name: string; layout: CarriageLayout }[] = [];
-for (const type of TYPES) {
-  const seen = new Set<string>();
-  for (let tier = 0; tier <= 5; tier++) {
-    const key = layoutKey(type, tier);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    variants.push({ name: key, layout: getLayout(type, tier) });
-  }
-}
+const variants: { name: string; layout: CarriageLayout }[] = layoutVariants();
 
 interface Box { x0: number; z0: number; x1: number; z1: number }
 

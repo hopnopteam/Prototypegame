@@ -25,6 +25,13 @@ export const ITEM_HEIGHT: Record<ItemKind, number> = {
   breakfast: 0.16,
   snack: 0.12,
   sandwich: 0.14,
+  smoothie: 0.22,
+  icecream: 0.2,
+  seafood: 0.12,
+  robe: 0.14,
+  lemonade: 0.2,
+  aloe: 0.16,
+  surfboard: 0.12,
 };
 
 const cache = new Map<ItemKind, THREE.BufferGeometry>();
@@ -45,7 +52,7 @@ function put(b: GeoBuilder, id: ModelId, x: number, y: number, z: number, height
  */
 export const TRAY_TOP = 0.035;
 /** What goes on the tray (food and drink); bags, linen and boxes are carried as they are. */
-export const ON_TRAY: ReadonlySet<ItemKind> = new Set<ItemKind>(['tea', 'coffee', 'champagne', 'latte', 'pastry', 'meal', 'cocktail', 'popcorn', 'newspaper', 'breakfast', 'snack', 'sandwich']);
+export const ON_TRAY: ReadonlySet<ItemKind> = new Set<ItemKind>(['tea', 'coffee', 'champagne', 'latte', 'pastry', 'meal', 'cocktail', 'popcorn', 'newspaper', 'breakfast', 'snack', 'sandwich', 'smoothie', 'icecream', 'seafood', 'lemonade']);
 let trayGeometry: THREE.BufferGeometry | null = null;
 export function createTrayMesh(): THREE.Mesh {
   if (!trayGeometry) {
@@ -149,6 +156,48 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       // Session 38, models since 51: a sandwich (Tiny Treats') on a white plate.
       put(b, 'plate', 0, 0, 0, 0.02, [key('ttBlue', PALETTE.porcelain)]);
       put(b, 'sandwich', 0, 0.015, 0, 0.11, [], 'matte');
+      break;
+    // Phase 4, the Riviera. A mango smoothie in a tall glass with a striped straw and an orange slice.
+    case 'smoothie':
+      b.cylinder(0, 0.09, 0, 0.05, 0.04, 0.18, '#F6A84A', 14, 'y', { shade: 0.95, surface: 'glass' });
+      b.cylinder(0, 0.183, 0, 0.052, 0.052, 0.012, '#FFD27A', 14, 'y', { shade: 1 });
+      b.cylinder(0.02, 0.22, 0, 0.006, 0.006, 0.12, '#E8525E', 6, 'y', { shade: 1 });
+      b.add(new THREE.CylinderGeometry(0.035, 0.035, 0.008, 12, 1, false, 0, Math.PI), '#FF9F2E', -0.05, 0.17, 0, Math.PI / 2, 0, 0, { shade: 1 });
+      break;
+    case 'icecream':
+      // A gelato cone with two scoops, in a holder.
+      b.add(new THREE.ConeGeometry(0.04, 0.12, 10), '#E2A75A', 0, 0.08, 0, Math.PI, 0, 0, { shade: 0.9 });
+      b.sphere(0, 0.13, 0, 0.045, '#A8D98A', 1, 1, { shade: 0.95 });
+      b.sphere(0, 0.18, 0, 0.04, '#F49AB4', 1, 1, { shade: 0.95 });
+      b.cylinder(0, 0.01, 0, 0.05, 0.05, 0.02, PALETTE.porcelain, 12, 'y', { shade: 1 });
+      break;
+    case 'seafood':
+      // A grilled fish on a white plate, a lemon wedge beside it.
+      b.cylinder(0, 0.01, 0, 0.16, 0.15, 0.02, PALETTE.porcelain, 18, 'y', { shade: 1, surface: 'ceramic' });
+      b.add(new THREE.SphereGeometry(0.5, 12, 8).scale(0.22, 0.05, 0.08), '#E9A36A', -0.01, 0.045, 0, 0, 0.3, 0, { shade: 0.9 });
+      b.cone(0.11, 0.045, -0.04, 0.035, 0.05, '#E9A36A', 6, { shade: 0.9 });
+      b.sphere(-0.08, 0.04, 0.07, 0.03, '#F5D22E', 1, 0.7, { shade: 1 });
+      break;
+    case 'robe':
+      // A fluffy white robe, folded, its blue belt on top.
+      b.rounded(0, 0.06, 0, 0.42, 0.12, 0.3, 0.05, '#F8F4EC', { shade: 0.9 });
+      b.box(0, 0.122, 0, 0.43, 0.012, 0.05, '#7FC1D9', 0, { shade: 1 });
+      break;
+    case 'lemonade':
+      // A tall glass of lemonade, a lemon slice on its rim.
+      b.cylinder(0, 0.08, 0, 0.045, 0.04, 0.16, '#FFF19A', 14, 'y', { shade: 0.95, surface: 'glass' });
+      b.add(new THREE.CylinderGeometry(0.035, 0.035, 0.008, 12, 1, false, 0, Math.PI), '#F5D22E', 0.045, 0.16, 0, Math.PI / 2, 0, 0, { shade: 1 });
+      break;
+    case 'aloe':
+      // A pump bottle of aloe gel.
+      b.rounded(0, 0.06, 0, 0.09, 0.12, 0.06, 0.02, '#7CCB7A', { shade: 0.95 });
+      b.cylinder(0, 0.135, 0, 0.012, 0.012, 0.03, '#F2F2EA', 8, 'y', { shade: 1 });
+      b.box(0.02, 0.15, 0, 0.04, 0.01, 0.012, '#F2F2EA', 0, { shade: 1 });
+      break;
+    case 'surfboard':
+      // A surfboard carried flat, blue with a white stripe.
+      b.add(new THREE.SphereGeometry(0.5, 16, 8).scale(0.32, 0.05, 1.2), '#4FA8E0', 0, 0.03, 0, 0, 0, 0, { shade: 0.95, surface: 'varnish' });
+      b.box(0, 0.056, 0, 0.04, 0.004, 1.0, '#FFFFFF', 0, { shade: 1 });
       break;
     case 'crate':
       b.box(0, 0.17, 0, 0.5, 0.34, 0.42, PALETTE.oak, 0, { pattern: PATTERN.stripesZ, color2: '#A87544', scale: 0.09, shade: 0.8 });

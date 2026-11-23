@@ -583,6 +583,56 @@ export function filmTexture(): THREE.CanvasTexture {
   return texture;
 }
 
+let poolSheet: THREE.CanvasTexture | null = null;
+/**
+ * Phase 4, the Pool Car's water: a seamless tile of aqua with bright caustic lines (where the light through the ripples
+ * gathers on the pool floor), part see-through so the tiles show under it. Two planes of it slide over each other at
+ * different speeds (CarriageView), so the water shimmers with no shader of its own: the material is the film's (the
+ * same program the warm-up compiles).
+ */
+export function poolTexture(): THREE.CanvasTexture {
+  if (poolSheet) return poolSheet;
+  const n = 128;
+  const c = document.createElement('canvas');
+  c.width = n;
+  c.height = n;
+  const ctx = c.getContext('2d');
+  if (!ctx) throw new Error('2D canvas unavailable');
+  const image = ctx.createImageData(n, n);
+  // A wrapped Voronoi: the caustic lines run where the two nearest points are about as near (cell edges).
+  let seed = 7;
+  const rand = (): number => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  const points: [number, number][] = [];
+  for (let i = 0; i < 14; i++) points.push([rand() * n, rand() * n]);
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      let d1 = Infinity;
+      let d2 = Infinity;
+      for (const [px, py] of points) {
+        let dx = Math.abs(x - px);
+        let dy = Math.abs(y - py);
+        if (dx > n / 2) dx = n - dx;
+        if (dy > n / 2) dy = n - dy;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
+      }
+      const edge = Math.max(0, 1 - (d2 - d1) / 4.5);
+      const line = edge * edge;
+      const i = (y * n + x) * 4;
+      image.data[i] = Math.round(60 + 195 * line);
+      image.data[i + 1] = Math.round(178 + 77 * line);
+      image.data[i + 2] = Math.round(214 + 41 * line);
+      image.data[i + 3] = Math.round(150 + 95 * line);
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  const texture = finishTexture(c);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  poolSheet = texture;
+  return texture;
+}
+
 /** One frame of the cartoon at loop time t (0..1). */
 function drawFilmFrame(ctx: CanvasRenderingContext2D, w: number, h: number, t: number): void {
   const TAU = Math.PI * 2;

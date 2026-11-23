@@ -1,6 +1,6 @@
 import { iconFor } from '../config/itemIcons';
 import * as THREE from 'three';
-import { ARCHETYPES, COMMON_MESS, FAMILY_REQUESTS, type ArchetypeDef, type MessPiece } from '../config/content';
+import { ARCHETYPES, CARRIAGE_CATALOGUE, COMMON_MESS, FAMILY_REQUESTS, HONEYMOON_REQUESTS, ROUTE_ARCHETYPES, type ArchetypeDef, type ArchetypeId, type MessPiece } from '../config/content';
 import { CLASS_BY_ID, isDwellNeed, type ClassId, type ServiceNeed } from '../config/classes';
 import { CROWD, IDLES, type IdleAction } from '../config/crowd';
 import { PRAISE } from '../config/chatter';
@@ -22,6 +22,9 @@ import type { Outing } from './Venues';
 import type { VenueKind } from '../core/types';
 import { guestReview, ratingEffect } from '../sim/stationResult';
 import { guestLook, routeLook } from './guestLook';
+
+/** Phase 4: the archetypes whose rooms are their own (a family's cabin, a honeymoon couple's suite). */
+const PARTY_ARCHETYPES: ReadonlySet<ArchetypeId> = new Set(Object.values(CARRIAGE_CATALOGUE).map((c) => c.party).filter((p): p is ArchetypeId => !!p));
 
 export type GuestState =
   | 'platform' | 'boarding' | 'queue' | 'toCabin' | 'settling' | 'resting' | 'requesting'
@@ -201,6 +204,8 @@ export class Guest {
   gate: boolean | null = null;
   /** Phase 2's special stops: tips × this for their ride (Festival Day, the Harvest Fair), the VIP, the critic. */
   tipBoost = 1;
+  /** Phase 4: heard the Kids' Play Car through the wall this ride (their tip is smaller once). */
+  noiseHeard = false;
   vip = false;
   critic = false;
   criticTrip = false;
@@ -218,16 +223,20 @@ export class Guest {
     const base: CharacterLook = {
       ...colors,
       ...archetype.figure,
-      accessory: archetype.accessory === 'child' ? 'none' : archetype.accessory,
+      // Phase 4: a honeymoon bride carries a flower; her partner walks with her (the companion below).
+      accessory: archetype.accessory === 'child' ? 'none' : archetype.accessory === 'partner' ? 'flower' : archetype.accessory,
       hat: archetype.hat ?? 'none',
       hatColor: archetype.hatColor,
     };
     const look = routeLook(guestLook(base, archetype, variant), archetype, variant);
     const [short, tall] = CROWD.height;
     this.view = views.take(look, short + (tall - short) * Math.random());
+    // The one who walks with them: a family's child, or (Phase 4) a honeymoon couple's other half, in a linen suit.
     this.child = archetype.accessory === 'child'
       ? views.take({ body: '#F2C94C', accent: '#E26D8C', skin: colors.skin, hair: colors.hair, hat: 'none', outfit: 'dress', pants: '#E26D8C', hairStyle: 'bob', shoe: '#D64B6A' }, 0.62)
-      : null;
+      : archetype.accessory === 'partner'
+        ? views.take({ body: '#E9E1CF', accent: '#E8849A', skin: '#D49A6E', hair: '#2F2520', hat: 'none', outfit: 'jacket', pants: '#E2D7C1', hairStyle: 'side', shoe: '#7A5A3E', accessory: 'flower' }, 1.02)
+        : null;
   }
 
   get inCabin(): boolean {
@@ -862,7 +871,7 @@ export class Guests {
 
   /** A room for a guest in the desk's line: their class (or the nearest above), or any free one once they have waited long. */
   private roomForGuest(guest: Guest): Cabin | null {
-    return this.w.train.roomFor(guest.cls, this.w.time - guest.queuedAt > this.w.econ.desk.anyRoomAfterSeconds, guest.archetype.id === 'family');
+    return this.w.train.roomFor(guest.cls, this.w.time - guest.queuedAt > this.w.econ.desk.anyRoomAfterSeconds, PARTY_ARCHETYPES.has(guest.archetype.id) ? guest.archetype.id : null);
   }
 
   /** Desk zone: hand the first guest the key to a clean cabin of their class, if there is one. */
@@ -1100,9 +1109,27 @@ export class Guests {
       } else if (guest.outing?.seated && (guest.state === 'seated' || guest.state === 'consuming')) {
         // Sat at a venue's table, stool or dome seat.
         const seat = guest.outing.seat;
-        guest.view.setPose('sit');
-        guest.view.setPosition(seat.sit.x, y + seat.layout.top - 0.24, seat.sit.z);
-        guest.view.setFacing(seat.layout.facing);
+        const rest = seat.stage === 'towel' ? seat.layout.rest : undefined;
+        if (seat.layout.lie) {
+          // Phase 4, the spa: lying on the massage table under a white towel.
+          guest.view.setPose('sleep', '#F8F4EC');
+          guest.view.setPosition(seat.sit.x, y + seat.layout.top, seat.sit.z - 0.55);
+          guest.view.setFacing(0);
+        } else if (rest) {
+          // Phase 4, the pool: out of the water, stretched out on their lounger waiting for a towel.
+          guest.view.setPose('sleep', '#F2C94C');
+          guest.view.setPosition(rest.x - 0.5, y + 0.36, guest.pos.z);
+          guest.view.setFacing(Math.PI / 2);
+        } else if (guest.outing.venue.kind === 'pool') {
+          // Phase 4: swimming, up to the shoulders in the water, bobbing.
+          guest.view.setPose('sit');
+          guest.view.setPosition(seat.sit.x, y - 0.12 + Math.sin(w.time * 2.2 + seat.sit.z) * 0.035, seat.sit.z);
+          guest.view.setFacing(seat.layout.facing + Math.sin(w.time * 0.7 + seat.sit.z) * 0.4);
+        } else {
+          guest.view.setPose('sit');
+          guest.view.setPosition(seat.sit.x, y + seat.layout.top - 0.24, seat.sit.z);
+          guest.view.setFacing(seat.layout.facing);
+        }
       } else if (guest.state === 'settling' && guest.cabin && !guest.mover.isMoving) {
         guest.view.setPose('sit');
         guest.view.setPosition(guest.cabin.sitPose.x, y + SIT_ROOT, guest.cabin.sitPose.z);
@@ -1129,11 +1156,17 @@ export class Guests {
         // stood in the aisle or inside the next chair.
         const seated = (guest.outing?.seated && (guest.state === 'seated' || guest.state === 'consuming'))
           || (guest.state === 'settling' && !guest.mover.isMoving);
-        const visible = guest.state !== 'resting' && guest.state !== 'inBathroom' && !seated;
-        if (!visible) { cz.x = guest.pos.x; cz.z = guest.pos.z; }
+        // Phase 4, the Kids' Play Car: while the parent sits on the pouf, the child plays at the toy beside them.
+        const play = seated && guest.outing?.venue.kind === 'kids' ? guest.outing.seat.layout.play : undefined;
+        const visible = guest.state !== 'resting' && guest.state !== 'inBathroom' && (!seated || !!play);
+        if (play && guest.outing) {
+          cz.x = play.x;
+          cz.z = play.z + guest.outing.venue.originZ;
+          if (Math.sin(w.time * 3 + cz.z) > 0.95) guest.child.bounce(0.35);
+        } else if (!visible) { cz.x = guest.pos.x; cz.z = guest.pos.z; }
         guest.child.root.visible = visible;
         guest.child.setPosition(cz.x, y, cz.z + (guest.onPlatform ? platformOffset : 0));
-        guest.child.setFacing(guest.mover.facing);
+        guest.child.setFacing(play ? guest.mover.facing + Math.sin(w.time * 1.3) * 1.2 : guest.mover.facing);
         guest.child.update(dt, moving ? guest.mover.speed : 0);
       }
     }
@@ -1454,7 +1487,9 @@ export class Guests {
     if (!need) {
       const cls = CLASS_BY_ID[guest.cls];
       // Phase 1: a family in the Family Sleeper asks from its own lists (the child wants snacks).
-      const lists = guest.cabin && w.train.isFamilyRoom(guest.cabin) ? FAMILY_REQUESTS : cls;
+      // Phase 4: a honeymoon couple in their suite asks from theirs (champagne, roses, breakfast in bed).
+      const party = guest.cabin ? w.train.partyOf(guest.cabin) : null;
+      const lists = party === 'family' ? FAMILY_REQUESTS : party === 'honeymooners' ? HONEYMOON_REQUESTS : cls;
       const pool = guest.owlNow ? w.econ.trip.owl.pool : guest.againNow ? lists.extra : guest.trip === 'morning' ? lists.morning : lists.evening;
       guest.owlNow = false;
       guest.againNow = false;
@@ -2075,7 +2110,9 @@ export class Guests {
     // Billboards and the Train Rating (fix list 4.2) both draw the grandest guests.
     const r = this.w.econ.rating.richer;
     const vipBoost = (1 + this.w.stationPerks().vip) * ratingEffect(this.w.trainRating(), r.low, r.high);
-    for (const a of ARCHETYPES) if (a.cls === cls) weights[a.id] = a.id === 'vip' || a.id === 'celebrity' ? a.weight * vipBoost : a.weight;
+    // Phase 4: who travels on this route (`ROUTE_ARCHETYPES`: the Riviera's surfers and sunbathers).
+    for (const a of ROUTE_ARCHETYPES) if (a.cls === cls && a.weight > 0) weights[a.id] = a.id === 'vip' || a.id === 'celebrity' ? a.weight * vipBoost : a.weight;
+    if (Object.keys(weights).length === 0) for (const a of ARCHETYPES) if (a.cls === cls) weights[a.id] = a.weight;
     const id = this.w.rng.weighted(weights);
     return ARCHETYPES.find((a) => a.id === id) ?? ARCHETYPES[0];
   }

@@ -2,6 +2,7 @@ import { iconFor } from '../config/itemIcons';
 import * as THREE from 'three';
 import { CLASS_BY_ID } from '../config/classes';
 import { VENUES, VENUE_MENUS, VENUE_TUNING, type VenueCharge } from '../config/venues';
+import { routeItem } from '../config/routes';
 import type { CarriageType, ItemKind, StaffRole, Vec2, VenueKind } from '../core/types';
 import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from '../world/CarriageView';
@@ -42,6 +43,29 @@ export interface Outing {
 
 const tmp = new THREE.Vector3();
 
+/** Phase 4: what the route serves where Route 1 serves a latte, a pastry and a dinner (the Riviera: smoothies, gelato, seafood). */
+const LATTE = routeItem('latte');
+const PASTRY = routeItem('pastry');
+const MEAL = routeItem('meal');
+/** Stations that simply hand out what someone asked for (no making): the dome's blankets, the spa's robes, the pool's towels. */
+const PLAIN_SOURCE: ReadonlySet<ItemKind> = new Set<ItemKind>(['blanket', 'robe', 'towel']);
+/** Venues where a seat wants seeing to after each guest: the dining car's plates, the spa's fresh towels. */
+const CLEARS: ReadonlySet<VenueKind> = new Set<VenueKind>(['dining', 'spa']);
+/** Venues that pay as the order is handed over (the rest pay as their own thing happens). */
+const PAYS_ON_SERVE: ReadonlySet<VenueKind> = new Set<VenueKind>(['dining', 'bar', 'cafe']);
+
+/** Phase 4: a show venue's numbers (the cinema's films, the Kids' Play Car's puppet shows). */
+interface ShowTuning { startSeconds: number; length: number; charge: VenueCharge; order: ItemKind; orderChance: number; autoShare: number; autoWait: number; icon: IconName }
+function showTuning(kind: VenueKind): ShowTuning {
+  if (kind === 'kids') {
+    const k = VENUE_TUNING.kids;
+    return { startSeconds: k.startSeconds, length: k.showSeconds, charge: 'show', order: 'icecream', orderChance: k.icecreamChance, autoShare: k.autoShare, autoWait: k.autoWait, icon: 'puppet' };
+  }
+  const c = VENUE_TUNING.cinema;
+  return { startSeconds: c.startSeconds, length: c.filmSeconds, charge: 'ticket', order: 'popcorn', orderChance: c.popcornChance, autoShare: c.autoShare, autoWait: c.autoWait, icon: 'film' };
+}
+const isShow = (kind: VenueKind): boolean => kind === 'cinema' || kind === 'kids';
+
 export class VenueSeat {
   state: SeatState = 'locked';
   guest: Guest | null = null;
@@ -52,6 +76,13 @@ export class VenueSeat {
   servedBy: StaffMember | null = null;
   /** Dome: views watched this visit. Cinema: 1 while watching the film that is on (0 waiting for the next). */
   views = 0;
+  /**
+   * Phase 4: where they are in a two-part visit: the spa's guest in their robe waiting for the massage ('massage'),
+   * the pool's swimmer out on their lounger waiting for a towel ('towel'); null otherwise.
+   */
+  stage: 'massage' | 'towel' | null = null;
+  /** Phase 4: someone (the conductor or the masseur) is giving the massage: seconds of it so far. */
+  massaged = 0;
   timer = 0;
   readonly sit: Vec2;
   readonly serve: Vec2 | null;
@@ -92,6 +123,12 @@ export class Venue {
   /** Cinema: seconds left of the film on now (0: none on), and when the first guest sat down to wait for one. */
   filmLeft = 0;
   waitingSince = 0;
+  /** Phase 4, the Kids' Play Car: how loud it is (0–1), whether it is loud now, and since when. */
+  noise = 0;
+  loud = false;
+  loudSince = 0;
+  /** Phase 4, the Pool Car: the leaves on the water (0–1). */
+  leaves = 0;
 
   /**
    * The floor plan in use: a refit swaps it for its own tier's (session 21: the furnishings change, the tables, seats
@@ -116,6 +153,11 @@ export class Venue {
     return { x: p.x, z: p.z + this.originZ };
   }
 
+  /** Phase 4: this venue's show numbers (the cinema's films, the play car's puppet shows). */
+  get show(): ShowTuning {
+    return showTuning(this.kind);
+  }
+
   /** What is on the menu now (the pastry case once bought). */
   products(): ItemKind[] {
     return VENUES[this.kind].products.filter((p) => !p.menu || this.keys.has(p.menu)).map((p) => p.item);
@@ -130,6 +172,10 @@ export class Venue {
     if (item === 'scenic') base = t.scenicTip;
     else if (item === 'usher') base = 2;
     else if (item === 'ticket') base = t.cinema.ticket;
+    else if (item === 'show') base = t.kids.ticket;
+    else if (item === 'massage') base = t.spa.massage;
+    else if (item === 'swim') base = t.pool.swim;
+    else if (item === 'robe') base = t.spa.robeTip;
     else if (item === 'blanket') base = t.blanketTip;
     else base = def.products.find((p) => p.item === item)?.price ?? 5;
     let menu = 1;
@@ -150,10 +196,16 @@ export class Venue {
     return base * second;
   }
 
-  /** A free seat in an open group (dining: a cleared table). */
+  /** A free seat in an open group (dining: a cleared table; Phase 4, the pool: nobody swims in a pool full of leaves). */
   freeSeat(): VenueSeat | null {
+    if (this.kind === 'pool' && this.leaves >= VENUE_TUNING.pool.closedAt) return null;
     for (const seat of this.seats) if (seat.state === 'free' && this.open[seat.group] && !this.dirty[seat.group]) return seat;
     return null;
+  }
+
+  /** Phase 4, the spa: robed guests lying on a table waiting for their massage (none being given it by staff). */
+  massageWaiting(): VenueSeat[] {
+    return this.seats.filter((s) => s.stage === 'massage' && !s.order && s.guest?.outing?.seated && !s.servedBy);
   }
 
   /** Where the i-th guest in the queue stands (beyond the painted places they wait in a line behind). */
@@ -185,7 +237,9 @@ export class Venue {
     const waiting = this.filmWaiting().length;
     if (waiting === 0) return false;
     const open = this.seats.filter((s) => this.open[s.group]).length;
-    const c = VENUE_TUNING.cinema;
+    const c = this.show;
+    // Phase 4: a loud play car wants its show now.
+    if (this.kind === 'kids' && this.loud) return true;
     return waiting >= Math.max(1, Math.ceil(open * c.autoShare)) || this.w.time - this.waitingSince >= c.autoWait;
   }
 
@@ -317,6 +371,8 @@ export class Venues {
     const weights: Record<string, number> = {};
     for (const v of this.list) {
       if (!v.freeSeat() || !VENUES[v.kind].when.includes(when)) continue;
+      // Phase 4: the Kids' Play Car is for families with a child.
+      if (VENUES[v.kind].families && guest.archetype.accessory !== 'child') continue;
       if (v.kind === 'dome' && v.queue.length >= VENUE_TUNING.cafeQueueMax) continue;
       // The dome is for the ride: nobody goes up to watch a station platform.
       if (v.kind === 'dome' && w.journey.phase !== 'onTheMove') continue;
@@ -349,7 +405,16 @@ export class Venues {
   }
 
   venueIcon(kind: VenueKind): IconName {
-    return kind === 'cafe' ? 'latte' : kind === 'dining' ? 'meal' : kind === 'bar' ? 'cocktail' : kind === 'cinema' ? 'film' : 'binoculars';
+    switch (kind) {
+      case 'cafe': return iconFor(LATTE);
+      case 'dining': return iconFor(MEAL);
+      case 'bar': return 'cocktail';
+      case 'cinema': return 'film';
+      case 'kids': return 'puppet';
+      case 'spa': return 'lotus';
+      case 'pool': return 'pool';
+      default: return 'binoculars';
+    }
   }
 
   private walkTo(guest: Guest, spot: Vec2, onArrive: () => void, node?: string): void {
@@ -436,13 +501,28 @@ export class Venues {
       guest.view.showMood('wait', iconFor(seat.order));
       guest.view.act('wave', w.econ.guests.waveSeconds);
       w.audio.play('bloop');
-    } else if (venue.kind === 'cinema') {
-      // Settles in for the next film (the one on, if any, is half over: they wait for the next).
+    } else if (isShow(venue.kind)) {
+      // Settles in for the next film (the one on, if any, is half over: they wait for the next). Phase 4: the play
+      // car's children the same, for the next puppet show.
       seat.state = 'consuming';
       seat.views = 0;
       outing.waitSince = w.time;
       if (venue.filmWaiting().length === 1) venue.waitingSince = w.time;
-      guest.view.showMood('wait', 'film');
+      guest.view.showMood('wait', venue.show.icon);
+    } else if (venue.kind === 'spa') {
+      // Phase 4: they lie down and wait for a robe first, then the massage.
+      seat.order = 'robe';
+      seat.orderAt = w.time;
+      seat.state = 'waiting';
+      seat.stage = null;
+      seat.massaged = 0;
+      guest.view.showMood('wait', 'robe');
+      w.audio.play('bloop');
+    } else if (venue.kind === 'pool') {
+      // Phase 4: in for a swim (the towel comes once they climb out onto their lounger).
+      seat.state = 'consuming';
+      seat.stage = null;
+      guest.view.showBubble(null);
     } else {
       seat.state = 'consuming';
       guest.view.showBubble(null);
@@ -475,8 +555,9 @@ export class Venues {
       return;
     }
     if (guest.state === 'seated') {
-      // Waiting to be served: the bubble stays up.
+      // Waiting to be served: the bubble stays up (Phase 4: the spa's guest in a robe, waiting for the massage).
       if (seat.order) guest.view.showMood(this.moodOf(guest), iconFor(seat.order));
+      else if (seat.stage === 'massage') guest.view.showMood(this.moodOf(guest), 'lotus');
       return;
     }
     if (guest.state === 'consuming') {
@@ -486,10 +567,15 @@ export class Venues {
         guest.view.showMood(seat.order ? this.moodOf(guest) : null, seat.order ? iconFor(seat.order) : null);
         return;
       }
-      if (venue.kind === 'cinema') {
-        // Waiting for the film (a little reel), watching it, or wanting popcorn.
+      if (isShow(venue.kind)) {
+        // Waiting for the film (a little reel), watching it, or wanting popcorn (Phase 4: a puppet show, and gelato).
         if (seat.order) guest.view.showMood(this.moodOf(guest), iconFor(seat.order));
-        else guest.view.showMood(seat.views === 0 ? this.moodOf(guest) : null, 'film');
+        else guest.view.showMood(seat.views === 0 ? this.moodOf(guest) : null, venue.show.icon);
+        return;
+      }
+      if (venue.kind === 'pool' && seat.timer >= VENUES.pool.consumeSeconds) {
+        // Phase 4: out of the water and onto the lounger, wanting a towel.
+        this.climbOut(guest);
         return;
       }
       if (seat.timer >= VENUES[venue.kind].consumeSeconds) this.finish(guest);
@@ -502,7 +588,7 @@ export class Venues {
     const outing = guest.outing;
     if (!outing) return;
     const { venue, seat } = outing;
-    if (!outing.paid && venue.kind !== 'dome') this.pay(guest);
+    if (!outing.paid && venue.kind !== 'dome' && venue.kind !== 'spa' && venue.kind !== 'pool') this.pay(guest);
     // A popcorn asked for and never brought before the film ended: they go back unhappy (session 27).
     if (seat.order) w.guests.unhappy(guest);
     else {
@@ -539,8 +625,10 @@ export class Venues {
     const { venue, seat } = outing;
     if (guest.state === 'venueQueue') return outing.waitSince || null;
     if (!outing.seated) return null;
-    if (venue.kind === 'cinema' && seat.views === 0) return outing.waitSince || null;
+    if (isShow(venue.kind) && seat.views === 0) return outing.waitSince || null;
     if (seat.order) return seat.orderAt;
+    // Phase 4: robed and waiting for the massage.
+    if (seat.stage === 'massage') return seat.orderAt;
     return null;
   }
 
@@ -557,7 +645,7 @@ export class Venues {
     const since = this.waitingSince(guest);
     const minded = since !== null && w.time - since >= w.econ.guests.unmetAfterSeconds;
     const served = guest.state === 'consuming';
-    if (served && (venue.kind === 'dining' || venue.kind === 'bar' || venue.kind === 'cafe')) this.pay(guest);
+    if (served && PAYS_ON_SERVE.has(venue.kind)) this.pay(guest);
     const qi = venue.queue.indexOf(guest);
     if (qi >= 0) {
       venue.queue.splice(qi, 1);
@@ -565,12 +653,14 @@ export class Venues {
       this.reflowQueue(venue);
     }
     if (seat.guest === guest) {
-      if (served && venue.kind === 'dining') this.releaseSeat(venue, seat);
+      if ((served || seat.stage === 'towel') && CLEARS.has(venue.kind)) this.releaseSeat(venue, seat);
       else {
         seat.guest = null;
         seat.order = null;
         seat.servedBy = null;
         seat.views = 0;
+        seat.stage = null;
+        seat.massaged = 0;
         if (seat.state !== 'dirty') seat.state = venue.open[seat.group] ? 'free' : 'locked';
       }
     }
@@ -608,7 +698,9 @@ export class Venues {
     seat.order = null;
     seat.servedBy = null;
     seat.views = 0;
-    if (venue.kind === 'dining') {
+    seat.stage = null;
+    seat.massaged = 0;
+    if (CLEARS.has(venue.kind)) {
       venue.dirty[seat.group] = true;
       seat.state = 'dirty';
       this.w.train.views[venue.carriage]?.setVenueDirty(seat.group, true);
@@ -632,9 +724,32 @@ export class Venues {
       seat.guest = null;
       seat.order = null;
       seat.servedBy = null;
+      seat.stage = null;
+      seat.massaged = 0;
       if (seat.state !== 'dirty') seat.state = venue.open[seat.group] ? 'free' : 'locked';
     }
     guest.outing = null;
+  }
+
+  /** Phase 4, the pool: the swim is over; they climb out onto their lounger and wait for a towel. */
+  private climbOut(guest: Guest): void {
+    const w = this.w;
+    const outing = guest.outing;
+    if (!outing) return;
+    const { seat } = outing;
+    const rest = seat.layout.rest;
+    if (rest) {
+      guest.pos.x = rest.x;
+      guest.pos.z = rest.z + outing.venue.originZ;
+    }
+    seat.state = 'waiting';
+    seat.stage = 'towel';
+    seat.order = 'towel';
+    seat.orderAt = w.time;
+    w.guests.setOutingState(guest, 'seated');
+    guest.view.showMood('wait', 'towel');
+    w.particles.emit('steam', guest.pos.x, FLOOR_Y + 0.6, guest.pos.z, 4, 0.2);
+    w.audio.play('bloop');
   }
 
   // ── Serving ────────────────────────────────────────────────────────────────────────────
@@ -676,6 +791,23 @@ export class Venues {
         w.cash.payDirect(amount, seat.sit.x, seat.sit.z, `venue:${venue.kind}`);
         this.served(venue, guest, item, amount, actor);
         guest.view.act('sip', 4);
+      } else if (item === 'robe') {
+        // Phase 4, the spa: robed, they wait for the massage (a small tip for the robe).
+        const amount = venue.priceFor('robe', guest);
+        w.cash.payDirect(amount, seat.sit.x, seat.sit.z, `venue:${venue.kind}`);
+        seat.stage = 'massage';
+        seat.orderAt = w.time;
+        seat.massaged = 0;
+        guest.view.showMood('wait', 'lotus');
+        this.served(venue, guest, item, amount, actor);
+      } else if (item === 'towel' && venue.kind === 'pool') {
+        // Phase 4, the pool: the towel, and the swim is paid as it is handed over.
+        const amount = venue.priceFor('swim', guest);
+        w.cash.payDirect(amount, seat.sit.x, seat.sit.z, `venue:${venue.kind}`);
+        if (guest.outing) guest.outing.paid = true;
+        this.served(venue, guest, item, amount, actor);
+        guest.view.act('hug', 1.2);
+        this.finish(guest);
       } else if (item === 'blanket') {
         // The dome: a blanket for the view (a tip now; they stay for the rest of it).
         const amount = venue.priceFor('blanket', guest);
@@ -687,19 +819,43 @@ export class Venues {
         seat.timer = 0;
         w.guests.setOutingState(guest, 'consuming');
         // Session 38: dinner is paid as it is served, straight into the wallet; session 43: a drink at the bar too.
-        const amount = venue.kind === 'dining' || venue.kind === 'bar' || venue.kind === 'cafe' ? this.pay(guest) : 0;
+        const amount = PAYS_ON_SERVE.has(venue.kind) ? this.pay(guest) : 0;
         this.served(venue, guest, item, amount, actor);
         guest.view.act('sip', VENUES[venue.kind].consumeSeconds);
       }
       return true;
     }
-    // Dining: plates left on the table.
+    // Phase 4, the spa: the massage, three seconds at the table.
+    const robed = seats.find((st) => st.stage === 'massage' && !st.order && st.guest?.outing?.seated && (!st.servedBy || st.servedBy === actor));
+    if (venue.kind === 'spa' && robed && robed.guest) {
+      const seconds = VENUE_TUNING.spa.massageSeconds;
+      robed.massaged += dt * actor.workMultiplier;
+      zone.progress = Math.min(1, robed.massaged / seconds);
+      actor.view.act('stamp', 0.3);
+      if (robed.massaged < seconds) return true;
+      zone.progress = 0;
+      const guest = robed.guest;
+      robed.stage = null;
+      robed.massaged = 0;
+      robed.state = 'consuming';
+      robed.timer = 0;
+      w.guests.setOutingState(guest, 'consuming');
+      const amount = venue.priceFor('massage', guest);
+      w.cash.payDirect(amount, robed.sit.x, robed.sit.z, `venue:${venue.kind}`);
+      if (guest.outing) guest.outing.paid = true;
+      w.particles.emit('sparkle', robed.sit.x, FLOOR_Y + 1.0, robed.sit.z, 10, 0.3);
+      this.served(venue, guest, 'massage', amount, actor);
+      w.events.emit('venue.massage', { byPlayer: actor.isPlayer });
+      return true;
+    }
+    // Dining: plates left on the table (Phase 4: the spa's table, fresh towels for the next guest).
     const group = seats[0]?.group;
-    if (venue.kind === 'dining' && group !== undefined && venue.dirty[group]) {
+    if (CLEARS.has(venue.kind) && group !== undefined && venue.dirty[group]) {
+      const clearSeconds = venue.kind === 'spa' ? VENUE_TUNING.spa.towelSeconds : VENUE_TUNING.clearSeconds;
       zone.timer += dt * actor.workMultiplier;
-      zone.progress = Math.min(1, zone.timer / VENUE_TUNING.clearSeconds);
+      zone.progress = Math.min(1, zone.timer / clearSeconds);
       if (actor.isPlayer || actor.view) actor.view.act('sweep', 0.3);
-      if (zone.timer < VENUE_TUNING.clearSeconds) return true;
+      if (zone.timer < clearSeconds) return true;
       zone.timer = 0;
       zone.progress = 0;
       venue.dirty[group] = false;
@@ -716,7 +872,7 @@ export class Venues {
     return false;
   }
 
-  private served(venue: Venue, guest: Guest, item: ItemKind | 'usher' | 'film', amount: number, actor: Actor): void {
+  private served(venue: Venue, guest: Guest, item: ItemKind | 'usher' | 'film' | 'show' | 'massage', amount: number, actor: Actor): void {
     const w = this.w;
     guest.view.bounce(0.8);
     w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.5, guest.pos.z, 4, 0.2);
@@ -785,19 +941,19 @@ export class Venues {
     const w = this.w;
     const audience = venue.filmWaiting();
     if (audience.length === 0 || venue.filmLeft > 0) return false;
-    const c = VENUE_TUNING.cinema;
-    venue.filmLeft = c.filmSeconds;
+    const c = venue.show;
+    venue.filmLeft = c.length;
     for (const seat of audience) {
       seat.views = 1;
-      if (!seat.order && w.rng.chance(c.popcornChance)) {
-        seat.order = 'popcorn';
+      if (!seat.order && w.rng.chance(c.orderChance)) {
+        seat.order = c.order;
         seat.orderAt = w.time;
       }
     }
     const p = venue.layout.projector ? venue.world(venue.layout.projector) : { x: 0, z: venue.originZ + 9 };
     w.particles.emit('sparkle', p.x, FLOOR_Y + 1.2, p.z, 10, 0.4);
-    w.audio.play('sparkle', { pitch: 0.85 });
-    w.events.emit('venue.served', { kind: 'cinema', item: 'film', amount: 0, x: p.x, z: p.z, byPlayer: actor.isPlayer });
+    w.audio.play('sparkle', { pitch: venue.kind === 'kids' ? 1.2 : 0.85 });
+    w.events.emit('venue.served', { kind: venue.kind, item: venue.kind === 'kids' ? 'show' : 'film', amount: 0, x: p.x, z: p.z, byPlayer: actor.isPlayer });
     return true;
   }
 
@@ -811,9 +967,9 @@ export class Venues {
       const guest = seat.guest;
       const outing = guest?.outing;
       if (!guest || !outing?.seated || seat.views !== 1) continue;
-      const amount = venue.priceFor('ticket', guest);
+      const amount = venue.priceFor(venue.show.charge, guest);
       w.cash.payDirect(amount, seat.sit.x, seat.sit.z, `venue:${venue.kind}`);
-      w.ui.floatIcon('film', seat.sit.x, FLOOR_Y + 1.9, seat.sit.z, 'star');
+      w.ui.floatIcon(venue.show.icon, seat.sit.x, FLOOR_Y + 1.9, seat.sit.z, 'star');
       outing.paid = true;
       total += amount;
       guests++;
@@ -841,17 +997,91 @@ export class Venues {
     for (const v of this.list) {
       // The bar's party meter and the dome's next view, on their signs.
       const view = w.train.views[v.carriage];
-      if (v.kind === 'cinema') {
+      if (isShow(v.kind)) {
         if (v.filmLeft > 0) {
           v.filmLeft = Math.max(0, v.filmLeft - dt);
           if (v.filmLeft === 0) this.endFilm(v);
         }
-        view?.setVenueFilm(v.filmLeft > 0 ? 1 - v.filmLeft / VENUE_TUNING.cinema.filmSeconds : -1);
+        const share = v.filmLeft > 0 ? 1 - v.filmLeft / v.show.length : -1;
+        if (v.kind === 'cinema') view?.setVenueFilm(share);
+        else view?.setVenueShow(share);
       }
+      if (v.kind === 'kids') this.updateNoise(v, dt);
+      if (v.kind === 'pool') this.updateLeaves(v, dt);
       if (!view) continue;
       if (v.kind === 'bar') view.setVenueSign('party', this.happyLeft > 0 ? 1 : v.party / VENUE_TUNING.party.goal, this.happyLeft > 0);
       if (v.kind === 'dome') view.setVenueSign('binoculars', this.scenicTimer / VENUE_TUNING.scenicEverySeconds, false);
+      if (v.kind === 'kids') view.setVenueSign('noise', v.noise, v.loud);
+      if (v.kind === 'pool') view.setPoolLeaves(v.leaves);
     }
+  }
+
+  /**
+   * Phase 4, the Kids' Play Car: children waiting for a show get louder; a show quietens them. Loud, the cabins next
+   * door hear it (their guests frown and tip less: `nearbyTip`, once a ride); calm again, it is logged with how long it
+   * lasted (`venue.noise`).
+   */
+  private updateNoise(v: Venue, dt: number): void {
+    const w = this.w;
+    const k = VENUE_TUNING.kids;
+    const waiting = v.filmWaiting().length;
+    if (v.filmLeft > 0) v.noise = Math.max(0, v.noise - k.quietPerSecond * dt);
+    else v.noise = Math.min(1, v.noise + k.noisePerChild * waiting * dt);
+    if (!v.loud && v.noise >= k.loud) {
+      v.loud = true;
+      v.loudSince = w.time;
+      w.events.emit('venue.noise', { loud: true, seconds: 0 });
+      const sign = v.layout.sign ? v.world(v.layout.sign) : { x: 0, z: v.originZ + 4 };
+      w.ui.floatIcon('noise', sign.x, FLOOR_Y + 2.0, sign.z, 'miss');
+      w.audio.play('grumble', { volume: 0.5 });
+    } else if (v.loud && v.noise <= k.calm) {
+      v.loud = false;
+      w.events.emit('venue.noise', { loud: false, seconds: w.time - v.loudSince });
+    }
+    if (!v.loud) return;
+    // The guests in the carriages either side, in their rooms, hear it.
+    for (const g of w.guests.list) {
+      const cabin = g.cabin;
+      if (!cabin || g.noiseHeard || Math.abs(cabin.carriage - v.carriage) !== 1 || !g.inCabin) continue;
+      g.noiseHeard = true;
+      g.tipBoost *= k.nearbyTip;
+      g.view.showMood('angry', 'noise');
+      w.feedback.nudge(-0.02);
+    }
+  }
+
+  /** Phase 4, the Pool Car: leaves blow in while the train moves (and more with every swimmer), settling on the water. */
+  private updateLeaves(v: Venue, dt: number): void {
+    const p = VENUE_TUNING.pool;
+    const swimmers = v.seats.filter((st) => st.state === 'consuming').length;
+    const moving = this.w.journey.phase === 'onTheMove' ? p.leafRate : p.leafRate * 0.3;
+    v.leaves = Math.min(1, v.leaves + (moving + p.leafPerSwimmer * swimmers) * dt);
+  }
+
+  /** Phase 4, the pool's skimmer: stand there and the leaves come off the water. */
+  private skim(venue: Venue, actor: Actor, zone: Zone, dt: number): boolean {
+    const w = this.w;
+    if (venue.leaves < 0.05) {
+      zone.timer = 0;
+      zone.progress = 0;
+      return false;
+    }
+    const seconds = VENUE_TUNING.pool.skimSeconds;
+    zone.timer += dt * actor.workMultiplier;
+    zone.progress = Math.min(1, zone.timer / seconds);
+    actor.view.act('sweep', 0.3);
+    if (zone.timer < seconds) return true;
+    zone.timer = 0;
+    zone.progress = 0;
+    venue.leaves = 0;
+    const water = venue.layout.water;
+    const c = water ? venue.world({ x: (water.x0 + water.x1) / 2, z: (water.z0 + water.z1) / 2 }) : { x: 0, z: venue.originZ + 8 };
+    w.particles.emit('sparkle', c.x, FLOOR_Y + 0.3, c.z, 18, 1.2);
+    w.audio.play('done');
+    w.addStars(VENUE_TUNING.stars, 'venue', actor.isPlayer ? c : undefined);
+    w.events.emit('venue.served', { kind: 'pool', item: 'skim', amount: 0, x: c.x, z: c.z, byPlayer: actor.isPlayer });
+    w.events.emit('venue.skimmed', { byPlayer: actor.isPlayer });
+    return true;
   }
 
   // ── Demand, guidance, staff ────────────────────────────────────────────────────────────
@@ -898,10 +1128,10 @@ export class Venues {
     for (const v of this.list) {
       if (only && !only.has(v.kind)) continue;
       if (v.kind === 'cafe' && v.staffCount('barista') === 0) {
-        for (const item of ['latte', 'pastry'] as const) if (v.waitingFor(item).length > 0 && w.demand.playerWants(item) > 0) offer('fetch', v.stationFor(item));
+        for (const item of v.products()) if (v.waitingFor(item).length > 0 && w.demand.playerWants(item) > 0) offer('fetch', v.stationFor(item));
       }
       if (v.kind === 'dining') {
-        if (v.waitingFor('meal').length > 0 && v.staffCount('waiter') === 0 && w.demand.playerWants('meal') > 0) offer('fetch', v.pass > 0 && v.layout.pass ? v.world(v.layout.pass) : v.stationFor('meal'));
+        if (v.waitingFor(MEAL).length > 0 && v.staffCount('waiter') === 0 && w.demand.playerWants(MEAL) > 0) offer('fetch', v.pass > 0 && v.layout.pass ? v.world(v.layout.pass) : v.stationFor(MEAL));
         if (v.staffCount('waiter') === 0) {
           const dirty = v.seats.find((s) => s.state === 'dirty' && s.serve && !v.clearing[s.group]);
           if (dirty?.serve) offer('clean', dirty.serve);
@@ -912,9 +1142,22 @@ export class Venues {
         if (v.queue[0] && v.arrived.has(v.queue[0]) && v.layout.counter) offer('desk', v.world(v.layout.counter.pad));
         if (v.waitingFor('blanket').length > 0 && w.demand.playerWants('blanket') > 0) offer('fetch', v.stationFor('blanket'));
       }
-      if (v.kind === 'cinema' && v.staffCount('projectionist') === 0) {
+      if (isShow(v.kind) && v.staffCount(v.kind === 'kids' ? 'entertainer' : 'projectionist') === 0) {
+        const order = v.show.order;
         if (v.filmReady() && v.layout.projector) offer('desk', v.world(v.layout.projector));
-        if (v.waitingFor('popcorn').length > 0 && w.demand.playerWants('popcorn') > 0) offer('fetch', v.stationFor('popcorn'));
+        if (v.waitingFor(order).length > 0 && w.demand.playerWants(order) > 0) offer('fetch', v.stationFor(order));
+      }
+      // Phase 4: the spa (robes, massages, fresh towels) and the pool (towels, the skimmer), until their helpers come.
+      if (v.kind === 'spa' && v.staffCount('masseur') === 0) {
+        if (v.waitingFor('robe').length > 0 && w.demand.playerWants('robe') > 0) offer('fetch', v.stationFor('robe'));
+        const robed = v.massageWaiting()[0];
+        if (robed?.serve) offer('desk', robed.serve);
+        const dirty = v.seats.find((st) => st.state === 'dirty' && st.serve && !v.clearing[st.group]);
+        if (dirty?.serve) offer('clean', dirty.serve);
+      }
+      if (v.kind === 'pool' && v.staffCount('lifeguard') === 0) {
+        if (v.waitingFor('towel').length > 0 && w.demand.playerWants('towel') > 0) offer('fetch', v.stationFor('towel'));
+        if (v.leaves >= VENUE_TUNING.pool.warnAt && v.layout.skim) offer('clean', v.world(v.layout.skim));
       }
     }
     return best;
@@ -931,17 +1174,72 @@ export class Venues {
       case 'bartender': return this.serveTask(venue, m, 'cocktail');
       case 'host': return this.hostTask(venue, m);
       case 'projectionist': return this.projectionistTask(venue, m);
+      case 'entertainer': return this.projectionistTask(venue, m);
+      case 'masseur': return this.masseurTask(venue, m);
+      case 'lifeguard': return this.lifeguardTask(venue, m);
       default: return null;
     }
   }
 
   /** The barista brews what a table is waiting for and takes it over (session 51b: served at the table). */
   private baristaTask(venue: Venue, m: StaffMember): VenueTask | null {
-    return this.serveTask(venue, m, 'latte') ?? this.serveTask(venue, m, 'pastry');
+    return this.serveTask(venue, m, LATTE) ?? this.serveTask(venue, m, PASTRY);
+  }
+
+  /** Phase 4, the masseur: robes to the tables, the massages, then fresh towels on the tables left. */
+  private masseurTask(venue: Venue, m: StaffMember): VenueTask | null {
+    const robed = venue.massageWaiting()[0];
+    if (robed?.serve) {
+      robed.servedBy = m;
+      return {
+        label: 'massage', icon: 'lotus',
+        steps: [
+          { kind: 'goto', target: robed.serve },
+          { kind: 'stand', until: () => robed.stage !== 'massage' || !robed.guest, timeout: VENUE_TUNING.spa.massageSeconds / Math.max(0.3, m.workMultiplier) + 3 },
+        ],
+        release: () => { if (robed.servedBy === m) robed.servedBy = null; },
+      };
+    }
+    const robe = this.serveTask(venue, m, 'robe');
+    if (robe) return robe;
+    return this.clearTask(venue, m, 'towel');
+  }
+
+  /** Phase 4, the lifeguard: skims a leafy pool, hands out towels. */
+  private lifeguardTask(venue: Venue, m: StaffMember): VenueTask | null {
+    const skim = venue.layout.skim ? venue.world(venue.layout.skim) : null;
+    if (skim && venue.leaves >= VENUE_TUNING.pool.warnAt && !venue.queueServer) {
+      venue.queueServer = m;
+      return {
+        label: 'skim', icon: 'net',
+        steps: [
+          { kind: 'goto', target: skim },
+          { kind: 'stand', until: () => venue.leaves < 0.05, timeout: VENUE_TUNING.pool.skimSeconds / Math.max(0.3, m.workMultiplier) + 3 },
+        ],
+        release: () => { if (venue.queueServer === m) venue.queueServer = null; },
+      };
+    }
+    return this.serveTask(venue, m, 'towel');
+  }
+
+  /** A table to see to after its guest (the dining car's plates, the spa's towels). */
+  private clearTask(venue: Venue, m: StaffMember, icon: IconName): VenueTask | null {
+    const dirty = venue.seats.find((st) => st.state === 'dirty' && st.serve && !venue.clearing[st.group]);
+    if (!dirty?.serve) return null;
+    const group = dirty.group;
+    venue.clearing[group] = m;
+    return {
+      label: 'clear', icon,
+      steps: [
+        { kind: 'goto', target: dirty.serve },
+        { kind: 'stand', until: () => !venue.dirty[group], timeout: 4 },
+      ],
+      release: () => { if (venue.clearing[group] === m) venue.clearing[group] = null; },
+    };
   }
 
   private chefTask(venue: Venue): VenueTask | null {
-    const stove = venue.stationFor('meal');
+    const stove = venue.stationFor(MEAL);
     if (!stove || this.chefPending(venue) <= 0 || venue.pass >= VENUE_TUNING.passMax) return null;
     return {
       label: 'cook', icon: 'meal',
@@ -955,31 +1253,31 @@ export class Venues {
 
   /** Plates still to cook: diners waiting, less what is on the pass and in someone's hands. */
   chefPending(venue: Venue): number {
-    let held = this.w.player.stack.countOf('meal');
-    for (const s of this.w.staff.members) held += s.stack.countOf('meal');
-    const waiting = venue.seats.filter((s) => s.order === 'meal' && s.guest).length;
+    let held = this.w.player.stack.countOf(MEAL);
+    for (const s of this.w.staff.members) held += s.stack.countOf(MEAL);
+    const waiting = venue.seats.filter((s) => s.order === MEAL && s.guest).length;
     return waiting - venue.pass - held;
   }
 
   private waiterTask(venue: Venue, m: StaffMember): VenueTask | null {
-    const seat = venue.waitingFor('meal')[0];
+    const seat = venue.waitingFor(MEAL)[0];
     const chef = venue.staffCount('chef') > 0;
-    if (seat && seat.serve && (venue.pass > 0 || m.stack.has('meal') || !chef)) {
+    if (seat && seat.serve && (venue.pass > 0 || m.stack.has(MEAL) || !chef)) {
       const steps: VenueStep[] = [];
-      if (!m.stack.has('meal')) {
+      if (!m.stack.has(MEAL)) {
         steps.push({ kind: 'do', fn: () => (m.wantItems = { meal: 1 }) });
         // Plates from the pass (the chef's), or cooked at the range when there is no chef.
-        const from = venue.pass > 0 || chef ? (venue.layout.pass ? venue.world(venue.layout.pass) : null) : venue.stationFor('meal');
+        const from = venue.pass > 0 || chef ? (venue.layout.pass ? venue.world(venue.layout.pass) : null) : venue.stationFor(MEAL);
         // Session 43: the seat is claimed only once the task will run (it was claimed first, and a waiter with nowhere
         // to fetch from left it claimed for ever: nobody else, the conductor included, would serve that table).
         if (!from) return null;
         steps.push({ kind: 'goto', target: from });
-        steps.push({ kind: 'stand', until: () => m.stack.has('meal') || !seat.guest, timeout: chef ? 6 : venue.makeSeconds('meal') / Math.max(0.3, m.workMultiplier) + 3 });
+        steps.push({ kind: 'stand', until: () => m.stack.has(MEAL) || !seat.guest, timeout: chef ? 6 : venue.makeSeconds(MEAL) / Math.max(0.3, m.workMultiplier) + 3 });
       }
       steps.push({ kind: 'goto', target: seat.serve });
-      steps.push({ kind: 'stand', until: () => seat.order !== 'meal' || !m.stack.has('meal'), timeout: 4 });
+      steps.push({ kind: 'stand', until: () => seat.order !== MEAL || !m.stack.has(MEAL), timeout: 4 });
       seat.servedBy = m;
-      return { label: 'serve', icon: 'meal', steps, release: () => { if (seat.servedBy === m) seat.servedBy = null; m.wantItems = {}; } };
+      return { label: 'serve', icon: iconFor(MEAL), steps, release: () => { if (seat.servedBy === m) seat.servedBy = null; m.wantItems = {}; } };
     }
     const dirty = venue.seats.find((s) => s.state === 'dirty' && s.serve && !venue.clearing[s.group]);
     if (dirty?.serve) {
@@ -1037,7 +1335,7 @@ export class Venues {
     if (booth && venue.filmReady() && !venue.queueServer) {
       venue.queueServer = m;
       return {
-        label: 'film', icon: 'film',
+        label: 'film', icon: venue.show.icon,
         steps: [
           { kind: 'goto', target: booth },
           { kind: 'stand', until: () => venue.filmLeft > 0 || venue.filmWaiting().length === 0, timeout: 6 },
@@ -1045,7 +1343,8 @@ export class Venues {
         release: () => { if (venue.queueServer === m) venue.queueServer = null; },
       };
     }
-    return this.serveTask(venue, m, 'popcorn');
+    // Phase 4: the entertainer brings the gelato as the projectionist brings popcorn.
+    return this.serveTask(venue, m, venue.show.order);
   }
 
   /** Where a lesson about this venue points (the coach): the station, the counter, the table, the rope. */
@@ -1060,9 +1359,31 @@ export class Venues {
       }
       case 'venue_dining': {
         const v = this.ofKind('dining');
-        const seat = v?.waitingFor('meal')[0];
+        const seat = v?.waitingFor(MEAL)[0];
         if (!v || !seat) return null;
-        return this.w.player.stack.has('meal') ? seat.serve : v.pass > 0 && v.layout.pass ? v.world(v.layout.pass) : v.stationFor('meal');
+        return this.w.player.stack.has(MEAL) ? seat.serve : v.pass > 0 && v.layout.pass ? v.world(v.layout.pass) : v.stationFor(MEAL);
+      }
+      // Phase 4: start the puppet show; robe and massage a spa guest; skim the pool or bring a towel.
+      case 'venue_kids': {
+        const v = this.ofKind('kids');
+        return v && v.filmLeft === 0 && v.filmWaiting().length > 0 && v.layout.projector ? v.world(v.layout.projector) : null;
+      }
+      case 'venue_spa': {
+        const v = this.ofKind('spa');
+        if (!v) return null;
+        const robed = v.massageWaiting()[0];
+        if (robed?.serve) return robed.serve;
+        const seat = v.waitingFor('robe')[0];
+        if (!seat) return null;
+        return this.w.player.stack.has('robe') ? seat.serve : v.stationFor('robe');
+      }
+      case 'venue_pool': {
+        const v = this.ofKind('pool');
+        if (!v) return null;
+        if (v.leaves >= VENUE_TUNING.pool.warnAt && v.layout.skim) return v.world(v.layout.skim);
+        const seat = v.waitingFor('towel')[0];
+        if (!seat) return null;
+        return this.w.player.stack.has('towel') ? seat.serve : v.stationFor('towel');
       }
       case 'venue_clear': {
         const v = this.ofKind('dining');
@@ -1109,20 +1430,23 @@ export class Venues {
     for (const station of layout.stations) {
       const p = venue.world(station.pad);
       const item = station.item;
-      if (item === 'blanket') {
-        // The dome's basket: blankets for anyone who wants one (a plain source, no making).
-        const spec: SourceSpec = { kind: 'blanket', point: () => tmp.set(p.x + 0.6, FLOOR_Y + 0.7, p.z + 0.4), stock: () => Infinity, take: () => undefined, giveBack: () => undefined, interval: w.econ.zones.pickupIntervalSeconds };
+      if (PLAIN_SOURCE.has(item)) {
+        // The dome's basket: blankets for anyone who wants one (a plain source, no making). Phase 4: the spa's robe
+        // rack and the pool's towel cart the same.
+        const spec: SourceSpec = { kind: item, point: () => tmp.set(p.x + 0.6, FLOOR_Y + 0.7, p.z + 0.4), stock: () => Infinity, take: () => undefined, giveBack: () => undefined, interval: w.econ.zones.pickupIntervalSeconds };
+        const id = item === 'blanket' ? 'basket' : item;
         w.zones.add(new Zone({
-          id: `venue:${venue.carriage}:basket`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: 'blanket', kind: 'pickup',
-          active: () => w.demand.playerWants('blanket') > 0 || w.staff.members.some((m) => w.demand.wants(m, 'blanket')) || w.demand.surplus(w.player, 'blanket') > 0,
-          highlight: () => venue.waitingFor('blanket').length > 0 && w.demand.playerWants('blanket') > 0,
+          id: `venue:${venue.carriage}:${id}`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: iconFor(item), kind: 'pickup',
+          active: () => venue.waitingFor(item).length > 0 && (w.demand.playerWants(item) > 0 || w.staff.members.some((m) => w.demand.wants(m, item)) || w.demand.surplus(w.player, item) > 0),
+          highlight: () => venue.waitingFor(item).length > 0 && w.demand.playerWants(item) > 0,
           stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, spec),
         }));
         continue;
       }
+      const menuKey = VENUES[venue.kind].products.find((x) => x.item === item)?.menu;
       w.zones.add(new Zone({
         id: `venue:${venue.carriage}:${item}`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: iconFor(item), kind: 'pickup',
-        active: () => (item !== 'pastry' || venue.keys.has('menu_pastry')) && (w.demand.playerWants(item) > 0 || w.staff.members.some((m) => m.carriage === venue.carriage && (w.demand.wants(m, item) || (m.role === 'chef' && item === 'meal')))),
+        active: () => (!menuKey || venue.keys.has(menuKey)) && (w.demand.playerWants(item) > 0 || w.staff.members.some((m) => m.carriage === venue.carriage && (w.demand.wants(m, item) || (m.role === 'chef' && item === MEAL)))),
         highlight: () => w.demand.playerWants(item) > 0,
         stay: (zone, actor, dt) => this.makeStay(venue, item, zone, actor, dt, p),
       }));
@@ -1130,16 +1454,16 @@ export class Venues {
     if (layout.pass) {
       const p = venue.world(layout.pass);
       const spec: SourceSpec = {
-        kind: 'meal',
+        kind: MEAL,
         point: () => tmp.set(p.x, FLOOR_Y + 1.0, p.z - 0.6),
         stock: () => venue.pass,
         take: () => { venue.pass = Math.max(0, venue.pass - 1); this.w.train.views[venue.carriage]?.setVenuePass(venue.pass); },
         interval: w.econ.zones.pickupIntervalSeconds,
       };
       w.zones.add(new Zone({
-        id: `venue:${venue.carriage}:pass`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: 'meal', kind: 'pickup',
+        id: `venue:${venue.carriage}:pass`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: iconFor(MEAL), kind: 'pickup',
         active: () => venue.pass > 0,
-        highlight: () => venue.pass > 0 && w.demand.playerWants('meal') > 0,
+        highlight: () => venue.pass > 0 && w.demand.playerWants(MEAL) > 0,
         stay: (zone, actor, dt) => sourceStay(w, zone, actor, dt, spec),
       }));
     }
@@ -1164,7 +1488,7 @@ export class Venues {
     if (layout.projector) {
       const p = venue.world(layout.projector);
       w.zones.add(new Zone({
-        id: `venue:${venue.carriage}:projector`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: 'film', kind: 'work',
+        id: `venue:${venue.carriage}:projector`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: venue.show.icon, kind: 'work',
         active: () => venue.filmLeft === 0 && venue.filmWaiting().length > 0,
         highlight: () => venue.filmReady(),
         stay: (zone, actor, dt) => {
@@ -1174,12 +1498,22 @@ export class Venues {
             return false;
           }
           zone.timer += dt * actor.workMultiplier;
-          zone.progress = Math.min(1, zone.timer / VENUE_TUNING.cinema.startSeconds);
-          if (zone.timer < VENUE_TUNING.cinema.startSeconds) return true;
+          zone.progress = Math.min(1, zone.timer / venue.show.startSeconds);
+          if (zone.timer < venue.show.startSeconds) return true;
           zone.timer = 0;
           zone.progress = 0;
           return this.startFilm(venue, actor);
         },
+      }));
+    }
+    // Phase 4, the pool's skimmer: stand there and the leaves come off the water.
+    if (layout.skim) {
+      const p = venue.world(layout.skim);
+      w.zones.add(new Zone({
+        id: `venue:${venue.carriage}:skim`, x: p.x, z: p.z, radius: ZONE_RADIUS.source, icon: 'net', kind: 'work',
+        active: () => venue.leaves >= 0.05,
+        highlight: () => venue.leaves >= VENUE_TUNING.pool.warnAt,
+        stay: (zone, actor, dt) => this.skim(venue, actor, zone, dt),
       }));
     }
     // Serve pads: one per table side, stool or dome row.
@@ -1189,22 +1523,40 @@ export class Venues {
       const at = venue.seats.filter((s) => s.serve && Math.abs(s.serve.x - p.x) < 0.05 && Math.abs(s.serve.z - p.z) < 0.05);
       w.zones.add(new Zone({
         id: `venue:${venue.carriage}:serve:${key}`, x: p.x, z: p.z, radius: ZONE_RADIUS.serve,
-        icon: venue.kind === 'dining' ? 'meal' : venue.kind === 'bar' ? 'cocktail' : venue.kind === 'cinema' ? 'popcorn' : venue.kind === 'cafe' ? 'latte' : 'blanket',
+        icon: this.padIcon(venue, at, group),
         kind: 'drop',
-        active: () => venue.open[group] && (at.some((s) => !!s.order && !!s.guest) || (venue.kind === 'dining' && venue.dirty[group])),
+        active: () => venue.open[group] && (at.some((s) => (!!s.order || s.stage === 'massage') && !!s.guest) || (CLEARS.has(venue.kind) && venue.dirty[group])),
         // Session 40 (owner: "the table cleaning icon… visible from a reasonable distance whenever a table needs
         // cleaning… disappear once cleaned"): a table to clear always shows its badge, with the cleaning icon.
-        highlight: () => (venue.kind === 'dining' && venue.dirty[group]) || at.some((s) => !!s.order && w.player.stack.has(s.order)),
-        iconFor: () => (venue.kind === 'dining' && venue.dirty[group] ? 'wipe' : venue.kind === 'dining' ? 'meal' : venue.kind === 'bar' ? 'cocktail' : venue.kind === 'cinema' ? 'popcorn' : venue.kind === 'cafe' ? iconFor(at.find((st) => st.order)?.order ?? 'latte') : 'blanket'),
+        highlight: () => (CLEARS.has(venue.kind) && venue.dirty[group]) || at.some((s) => !!s.order && w.player.stack.has(s.order)) || at.some((s) => s.stage === 'massage' && !s.order && !!s.guest),
+        iconFor: () => this.padIcon(venue, at, group),
         stay: (zone, actor, dt) => this.serveAt(venue, p, actor, zone, dt),
       }));
+    }
+  }
+
+  /** What a serve pad's badge shows: what is wanted there now, or what that venue hands over. */
+  private padIcon(venue: Venue, at: VenueSeat[], group: number): IconName {
+    if (CLEARS.has(venue.kind) && venue.dirty[group]) return venue.kind === 'spa' ? 'towel' : 'wipe';
+    const ordered = at.find((st) => st.order && st.guest)?.order;
+    if (ordered) return iconFor(ordered);
+    if (venue.kind === 'spa') return at.some((st) => st.stage === 'massage') ? 'lotus' : 'robe';
+    switch (venue.kind) {
+      case 'dining': return iconFor(MEAL);
+      case 'bar': return 'cocktail';
+      case 'cinema': return 'popcorn';
+      case 'kids': return 'icecream';
+      case 'pool': return 'towel';
+      case 'cafe': return iconFor(LATTE);
+      default: return 'blanket';
     }
   }
 
   /** Standing at a station: the ring fills while it is made, then it is yours (the chef's goes on the pass). */
   private makeStay(venue: Venue, item: ItemKind, zone: Zone, actor: Actor, dt: number, p: Vec2): boolean {
     const w = this.w;
-    if (item === 'pastry' && !venue.keys.has('menu_pastry')) return false;
+    const menuKey = VENUES[venue.kind].products.find((x) => x.item === item)?.menu;
+    if (menuKey && !venue.keys.has(menuKey)) return false;
     const chef = (actor as StaffMember).role === 'chef';
     const wants = chef ? this.chefPending(venue) > 0 && venue.pass < VENUE_TUNING.passMax : !actor.stack.isFull && w.demand.wants(actor, item);
     if (!wants) {
@@ -1215,7 +1567,7 @@ export class Venues {
     const seconds = venue.makeSeconds(item);
     zone.timer += dt * actor.workMultiplier;
     zone.progress = Math.min(1, zone.timer / seconds);
-    actor.view.act(item === 'meal' ? 'stamp' : 'stamp', 0.3);
+    actor.view.act('stamp', 0.3);
     if (zone.timer < seconds) return true;
     zone.timer = 0;
     zone.progress = 0;

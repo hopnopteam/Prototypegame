@@ -563,13 +563,18 @@ export class Station {
    * class; everyone else is whoever their class brings. Returns an archetype per traveller ('' for the class's pick).
    */
   private familiesFor(classes: ClassId[]): string[] {
-    const quota = new Map<ClassId, number>();
+    // Phase 4: every party's rooms the same way (a honeymoon couple for each free Honeymoon Suite).
+    const quota = new Map<ClassId, Map<string, number>>();
     return classes.map((cls) => {
-      if (!quota.has(cls)) quota.set(cls, this.w.train.freeFamilyRooms(cls));
-      const left = quota.get(cls) ?? 0;
-      if (left <= 0) return '';
-      quota.set(cls, left - 1);
-      return 'family';
+      if (!quota.has(cls)) quota.set(cls, this.w.train.freePartyRooms(cls));
+      const left = quota.get(cls);
+      if (!left) return '';
+      for (const [party, n] of left) {
+        if (n <= 0) continue;
+        left.set(party, n - 1);
+        return party;
+      }
+      return '';
     });
   }
 

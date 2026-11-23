@@ -6,6 +6,7 @@ import { PATTERN } from './materials';
 import { PALETTE, shadeHex, type CarriageTheme } from './palette';
 import { key, modelEntry, type ModelId, type Recolor } from './models/library';
 import { seatModel } from './models/place';
+import { buildRivieraProp } from './RivieraProps';
 
 /**
  * The venue carriages' furniture (session 20), dressed by the refit tier (session 21, owner: "the interiors… should
@@ -775,7 +776,8 @@ export function buildVenueProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, 
       buildTrolley(b, prop, tier);
       return true;
     default:
-      return false;
+      // Phase 4: the Riviera's new carriages (world/RivieraProps.ts).
+      return buildRivieraProp(b, lamps, prop, theme, tier);
   }
 }
 
@@ -1259,6 +1261,10 @@ const BACK_ROOM_GOODS: Record<string, string[]> = {
   filmstore: ['#7E8790', '#9AA2AA', '#3A3940', '#C9473F', '#E2B653', '#F2E3C6'],
   stores: ['#F4F1EA', '#9DB8CF', '#E8D9B0', '#C9A46A', '#D96C4F', '#7D9CBB'],
   linen: ['#F4F1EA', '#FFFFFF', '#9DB8CF', '#F2A7B5', '#E8D9B0', '#AFCBA7'],
+  // Phase 4: the play car's toy store, the spa's oils and towels, the pool's floats and chemicals.
+  toystore: ['#F25C54', '#F7B32B', '#4FA8E0', '#7CCB7A', '#B07CE8', '#FF9F6E'],
+  spastore: ['#F8F4EC', '#DCE6D8', '#B9C9B2', '#E9DFC8', '#C9A46A', '#7FA38A'],
+  poolstore: ['#4FA8E0', '#F25C54', '#F7F4EE', '#F7B32B', '#7FC6D6', '#2E8FA8'],
 };
 
 /**

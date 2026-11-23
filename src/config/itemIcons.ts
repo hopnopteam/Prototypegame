@@ -27,6 +27,13 @@ export const ITEM_ICON: Record<ItemKind | 'turndown', IconName> = {
   breakfast: 'breakfast',
   snack: 'snack',
   sandwich: 'sandwich',
+  smoothie: 'smoothie',
+  icecream: 'icecream',
+  seafood: 'seafood',
+  robe: 'robe',
+  lemonade: 'lemonade',
+  aloe: 'aloe',
+  surfboard: 'surfboard',
   turndown: 'turndown',
 };
 

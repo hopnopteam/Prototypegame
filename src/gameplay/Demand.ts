@@ -17,10 +17,13 @@ export function sourceAnchorFor(item: ItemKind): string {
     case 'breakfast':
     case 'snack':
     case 'sandwich':
+    // Phase 4, the coast: a cold lemonade from the counter, aloe from the linen cupboard.
+    case 'lemonade':
       return 'urn';
     case 'blanket':
     case 'pillow':
     case 'towel':
+    case 'aloe':
       return 'linen';
     default:
       return item;
@@ -47,6 +50,8 @@ export class Demand {
       case 'newspaper':
       case 'breakfast':
       case 'sandwich':
+      case 'lemonade':
+      case 'aloe':
         return this.requestNeed(kind);
       case 'blanket':
         // Cabin requests, and the dome's guests who would like one for the view.
@@ -56,11 +61,20 @@ export class Demand {
       case 'meal':
       case 'cocktail':
       case 'popcorn':
+      // Phase 4: the Riviera's smoothies, gelato and seafood, and the spa's robes.
+      case 'smoothie':
+      case 'icecream':
+      case 'seafood':
+      case 'robe':
         // What the venue carriages are waiting for (session 20).
         return w.venues.need(kind);
       case 'towel':
-        // Towels go to washrooms running low and to Comfort-class guests who ask for a fresh one.
-        return this.bathroomNeed(kind) + this.requestNeed(kind);
+        // Towels go to washrooms running low and to Comfort-class guests who ask for a fresh one (Phase 4: and to the
+        // Pool Car's swimmers, out on their loungers).
+        return this.bathroomNeed(kind) + this.requestNeed(kind) + w.venues.need(kind);
+      case 'surfboard':
+        // Phase 4: a surfer's board goes on the rack like a bag (two places): counted with the luggage.
+        return 0;
       case 'roll':
         return this.bathroomNeed(kind);
       case 'snack':

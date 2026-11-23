@@ -534,6 +534,24 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
           { color: '#6A2230', inset: 0.06, pattern: { pattern: PATTERN.dots, color2: '#8C5A3A', scale: 0.24, shade: 1, surface: 'velvet', detail: 'wool' } },
         ]);
         break;
+      // Phase 4, the Riviera. The play car's soft mat: sunny squares in a sky-blue border.
+      case 'playmat':
+        lay([
+          { color: '#4FA8E0', inset: 0 },
+          { color: '#F7E3A1', inset: 0.05, pattern: { pattern: PATTERN.checker, color2: '#F7B32B', scale: 0.45, shade: 1, surface: 'fabric' } },
+        ]);
+        break;
+      case 'stone':
+        // The spa's pale stone flags in a darker border.
+        lay([
+          { color: '#9A9283', inset: 0 },
+          { color: '#E2DBCB', inset: 0.06, pattern: { pattern: PATTERN.none, shade: 1, surface: 'stone', detail: 'paving' } },
+        ]);
+        break;
+      case 'deck':
+        // The pool deck: teak boards with their dark seams.
+        lay([{ color: '#8A5E3A', inset: 0, pattern: { pattern: PATTERN.boards, color2: '#6E4630', scale: 0.12, shade: 1, surface: 'varnish', detail: 'wood' } }]);
+        break;
     }
   }
 }

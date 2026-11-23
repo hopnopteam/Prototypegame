@@ -35,15 +35,20 @@ export type ItemKind =
   // Fix list 4.6: a box of snacks for a room's minibar.
   | 'snack'
   // Session 38: a plate of sandwiches, food a guest can ask for (from the tea counter).
-  | 'sandwich';
+  | 'sandwich'
+  // Phase 4, the Riviera: the smoothie bar's smoothies and ice creams, the diner's grilled seafood, the spa's robes, a
+  // cold lemonade and a pot of aloe for the sunburnt (from the lobby's counter), and a surfer's board (two rack slots).
+  | 'smoothie' | 'icecream' | 'seafood' | 'robe' | 'lemonade' | 'aloe' | 'surfboard';
 
 export type CurrencyKind = 'cash' | 'gems' | 'railMiles';
 
-export type StaffRole = 'attendant' | 'porter' | 'runner' | 'barista' | 'chef' | 'waiter' | 'bartender' | 'host' | 'projectionist';
+export type StaffRole = 'attendant' | 'porter' | 'runner' | 'barista' | 'chef' | 'waiter' | 'bartender' | 'host' | 'projectionist'
+  // Phase 4, the Riviera's new carriages: the Kids' Play Car, the Spa Car and the Pool Car.
+  | 'entertainer' | 'masseur' | 'lifeguard';
 
-export type CarriageType = 'lobby' | 'bathroom' | 'supply' | 'luggage' | 'sleeper' | 'familySleeper' | VenueKind;
+export type CarriageType = 'lobby' | 'bathroom' | 'supply' | 'luggage' | 'sleeper' | 'familySleeper' | 'honeymoon' | VenueKind;
 
-/** The venue carriages (session 20): each its own little game inside the train. */
-export type VenueKind = 'cafe' | 'dining' | 'bar' | 'dome' | 'cinema';
+/** The venue carriages (session 20): each its own little game inside the train (Phase 4: the Riviera's three). */
+export type VenueKind = 'cafe' | 'dining' | 'bar' | 'dome' | 'cinema' | 'kids' | 'spa' | 'pool';
 
 export type JourneyPhase = 'onTheMove' | 'arriving' | 'stationStop' | 'departing';

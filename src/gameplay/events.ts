@@ -48,7 +48,14 @@ export interface GameEvents {
   'conductor.upgraded': { key: string; level: number };
   'bathroom.used': { tipped: boolean };
   /** Session 20, the venue carriages: something served at a venue (and what it paid). */
-  'venue.served': { kind: VenueKind; item: ItemKind | 'usher' | 'film'; amount: number; x: number; z: number; byPlayer: boolean };
+  'venue.served': { kind: VenueKind; item: ItemKind | 'usher' | 'film' | 'show' | 'massage' | 'skim'; amount: number; x: number; z: number; byPlayer: boolean };
+  /** Phase 4: the Kids' Play Car went loud (the cabins next door hear it) and is calm again after `seconds`. */
+  'venue.noise': { loud: boolean; seconds: number };
+  /** Phase 4: a do-not-disturb sign in the Honeymoon Suites came down, respected or not. */
+  'honeymoon.dnd': { respected: boolean; carriage: number };
+  /** Phase 4: a spa massage given, the pool skimmed. */
+  'venue.massage': { byPlayer: boolean };
+  'venue.skimmed': { byPlayer: boolean };
   'venue.cleared': { kind: VenueKind; byPlayer: boolean };
   'venue.happyHour': { seconds: number };
   'venue.scenic': { guests: number; amount: number };

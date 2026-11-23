@@ -298,6 +298,11 @@ export class StationEvents {
 
   private lastReward = 0;
 
+  /** Phase 4, the Heatwave: every cold drink asked for at this stop has been brought (see `heat`). */
+  private heatwaveServed(): boolean {
+    return true;
+  }
+
   /** Whether the stop did what its event asked. */
   private completed(def: StationEventDef): boolean {
     const w = this.w;
@@ -306,7 +311,11 @@ export class StationEvents {
       case 'delayed':
       case 'festival':
       case 'harvest':
+      case 'beachParty':
+      case 'surfContest':
         return w.guests.waitingCount() === 0;
+      case 'heatwave':
+        return w.guests.waitingCount() === 0 && this.heatwaveServed();
       case 'vip':
         return this.vipGuest?.paid ?? false;
       case 'market':

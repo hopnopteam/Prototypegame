@@ -1,4 +1,5 @@
 import type { CarriageType } from '../core/types';
+import { ACTIVE_ROUTE } from '../config/routes';
 
 /**
  * Night Express palette, v2: calm and legible first.
@@ -161,7 +162,16 @@ export const CARRIAGE_THEMES: Record<CarriageType, CarriageTheme> = {
   dome: { wall: '#CBDDEB', wallLow: '#A3C1D8', carpet: '#E2E8EC', deep: '#3E6A93', blanket: '#E9B949', curtain: '#E2B653' },
   // Session 21: the cinema, plum and gold (red velvet from the Luxury refit).
   cinema: { wall: '#D9CBD6', wallLow: '#A88DA3', carpet: '#E6DCE2', deep: '#6B2A4A', blanket: '#B03A3E', curtain: '#A3283A' },
+  // Phase 4, the Riviera's own: the play car sunny yellow and sky blue, the spa sage and stone, the pool white tile and
+  // aqua, the Honeymoon Suites blush and rose gold.
+  kids: { wall: '#F8E7A8', wallLow: '#8FCBEA', carpet: '#F2EAD2', deep: '#E8604C', blanket: '#5FB4E6', curtain: '#F7B32B' },
+  spa: { wall: '#DCE6D8', wallLow: '#B9C9B2', carpet: '#EEEADF', deep: '#6E8C6A', blanket: '#F4EFE4', curtain: '#E2D6BC' },
+  pool: { wall: '#E7F3F4', wallLow: '#9ED6DC', carpet: '#F1EEE6', deep: '#2E8FA8', blanket: '#F25C54', curtain: '#F7F4EE' },
+  honeymoon: { wall: '#F5DCD6', wallLow: '#E2B1A9', carpet: '#F4E6E0', deep: '#B4506A', blanket: '#E8849A', curtain: '#E2B653' },
 };
+
+// Phase 4: the active route's own colours for the types it shares (the Riviera's sandy lobby, its sea-blue sleeper).
+for (const [type, dress] of Object.entries(ACTIVE_ROUTE.dress ?? {})) if (dress?.theme) Object.assign(CARRIAGE_THEMES[type as CarriageType], dress.theme);
 
 /**
  * Inside a passenger carriage the class sets the palette (outside, its livery: config/classes.ts). Basic

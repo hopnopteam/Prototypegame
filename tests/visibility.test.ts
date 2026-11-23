@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { CarriageType } from '../src/core/types';
 import { VISUALS } from '../src/config/visuals';
-import { COVER_BASE, COVER_INSET, COVER_TOP, footprints, getLayout, layoutKey, type CarriageLayout, type Footprint, type WallBox } from '../src/world/layout';
+import { COVER_BASE, COVER_INSET, COVER_TOP, footprints, type CarriageLayout, type Footprint, type WallBox } from '../src/world/layout';
+import { layoutVariants } from './layoutVariants';
 
 /**
  * Session 15 (owner: "the upgrade markers are still hidden… something where the player can actually see what
@@ -10,17 +10,7 @@ import { COVER_BASE, COVER_INSET, COVER_TOP, footprints, getLayout, layoutKey, t
  * may sit there: every tile and pad must be in full view of the camera, from wherever it looks.
  */
 
-const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper', 'familySleeper', 'cafe', 'dining', 'bar', 'dome', 'cinema'];
-const VARIANTS: { type: CarriageType; tier: number; name: string }[] = [];
-for (const type of TYPES) {
-  const seen = new Set<string>();
-  for (let tier = 0; tier <= 5; tier++) {
-    const key = layoutKey(type, tier);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    VARIANTS.push({ type, tier, name: key });
-  }
-}
+const VARIANTS = layoutVariants();
 
 const yaw = (VISUALS.camera.trainYawDeg * Math.PI) / 180;
 const rise = Math.tan((VISUALS.camera.pitchDeg * Math.PI) / 180);
@@ -76,8 +66,7 @@ const TILE_IN_VIEW = 0.75;
 const PAD_IN_VIEW = 0.55;
 
 describe('visibility: every tile and pad is in full view of the camera', () => {
-  for (const { type, tier, name } of VARIANTS) {
-    const layout = getLayout(type, tier);
+  for (const { name, layout } of VARIANTS) {
     it(`${name}: tiles are fully visible`, () => {
       for (const f of footprints(layout)) {
         if (f.kind !== 'tile') continue;
@@ -114,8 +103,7 @@ function lids(layout: CarriageLayout, except: number | null, kind: 'cabin' | 'ba
 }
 
 describe('visibility: covered rooms never hide a tile or a pad', () => {
-  for (const { type, tier, name } of VARIANTS) {
-    const layout = getLayout(type, tier);
+  for (const { name, layout } of VARIANTS) {
     if (layout.cabins.length === 0 && layout.bathrooms.length === 0) continue;
     it(`${name}: door tiles and pads in view with the other rooms covered`, () => {
       for (const kind of ['cabin', 'bath'] as const) {
@@ -147,11 +135,13 @@ const OCCLUDER_HEIGHT: Partial<Record<string, number>> = {
   bar: 1.05, desk: 0.9, urn: 1.2, linen: 1.7, closet: 1.8, shelfTowel: 0.65, shelfRoll: 0.65, crateBay: 0.95, laundry: 1.0,
   popcornMachine: 1.5, projector: 1.05, wineRack: 1.6, aquarium: 1.2, candyCart: 1.1, sideboard: 1.0, bureau: 1.3,
   wardrobe: 1.9, luggageRack: 0.95, rack: 0.95, cubicle: 0.9, shower: 1.0,
+  // Phase 4, the Riviera's carriages.
+  puppetTheatre: 1.62, freezer: 1.0, play: 0.9, pouf: 0.4, massageTable: 0.7, robeRack: 1.4, fountain: 0.9, pool: 0.46,
+  lounger: 0.62, skimmer: 1.2, towelCart: 0.95, lifeguardChair: 1.5,
 };
 
 describe('visibility: pads in view over the furniture too', () => {
-  for (const { type, tier, name } of VARIANTS) {
-    const layout = getLayout(type, tier);
+  for (const { name, layout } of VARIANTS) {
     const boxes: WallBox[] = [];
     for (const p of layout.props) {
       // Phase 1: the Family Sleeper's bunk beds stand taller than a bed (the upper bunk and its rail).

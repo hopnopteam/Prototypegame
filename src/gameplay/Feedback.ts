@@ -216,7 +216,7 @@ export class Feedback {
 
   // ─── Speaking ────────────────────────────────────────────────────────────
 
-  private nudge(amount: number): void {
+  nudge(amount: number): void {
     this.mood = Math.max(0, Math.min(1, this.mood + amount));
   }
 

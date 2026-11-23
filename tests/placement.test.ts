@@ -1,20 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { CarriageType, Rect } from '../src/core/types';
+import type { Rect } from '../src/core/types';
 import { Walkable } from '../src/sim/Walkable';
-import { footprints, getLayout, HALF_WIDTH, CARRIAGE_LENGTH, layoutKey, QUEUE_SLOTS, type Footprint } from '../src/world/layout';
+import { footprints, getLayout, HALF_WIDTH, CARRIAGE_LENGTH, QUEUE_SLOTS, type Footprint } from '../src/world/layout';
+import { layoutVariants } from './layoutVariants';
 
-const TYPES: CarriageType[] = ['lobby', 'bathroom', 'supply', 'luggage', 'sleeper', 'familySleeper', 'cafe', 'dining', 'bar', 'dome', 'cinema'];
-/** Every floor plan there is: passenger carriages have one per class (refit tiers 0–5). */
-const VARIANTS: { type: CarriageType; tier: number; name: string }[] = [];
-for (const type of TYPES) {
-  const seen = new Set<string>();
-  for (let tier = 0; tier <= 5; tier++) {
-    const key = layoutKey(type, tier);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    VARIANTS.push({ type, tier, name: key });
-  }
-}
+/** Every floor plan there is: passenger carriages have one per class (refit tiers 0–5); Phase 4: and every route's. */
+const VARIANTS = layoutVariants();
 const PLAYER_RADIUS = 0.3;
 
 /** How far a footprint reaches into a rect (0 when clear). Tiles are squares, the rest circles. */
@@ -31,8 +22,7 @@ function overlap(a: Footprint, b: Footprint): number {
 }
 
 describe('placement: everything you walk over sits cleanly on the floor', () => {
-  for (const { type: kind, tier, name: type } of VARIANTS) {
-    const layout = getLayout(kind, tier);
+  for (const { name: type, layout } of VARIANTS) {
     const walk = new Walkable(PLAYER_RADIUS);
     walk.rebuild([{ layout, originZ: 0 }], { doorsOpen: false, platform: null, rearDeck: null });
     const items = footprints(layout);
@@ -106,8 +96,7 @@ describe('placement: everything you walk over sits cleanly on the floor', () => 
     const W = HALF_WIDTH * 2 * S;
     const H = CARRIAGE_LENGTH * S;
     const parts: string[] = [];
-    VARIANTS.forEach(({ type: kind, tier, name: type }, i) => {
-      const layout = getLayout(kind, tier);
+    VARIANTS.forEach(({ name: type, layout }, i) => {
       const ox = 20 + i * (W + 40);
       const X = (x: number): number => ox + (x + HALF_WIDTH) * S;
       const Z = (z: number): number => 30 + z * S;

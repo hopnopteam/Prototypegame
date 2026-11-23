@@ -12,7 +12,7 @@ import { underPopup } from './screenMask';
 import type { CharacterBatch } from './CharacterBatch';
 
 export type HatKind = 'conductor' | 'boater' | 'bowler' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'toque' | 'none';
-export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'sash' | 'basket' | 'hymnbook' | 'cane' | 'none';
+export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'sash' | 'basket' | 'hymnbook' | 'cane' | 'surfboard' | 'partner' | 'whistle' | 'none';
 
 export interface CharacterLook {
   body: string;
@@ -208,6 +208,20 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
       break;
     case 'handbag':
       for (let i = 0; i < 5; i++) b.sphere(-0.08 + i * 0.04, 0.79 - Math.abs(i - 2) * 0.012, front(0.79) + 0.01, 0.018, PALETTE.linen, 0, 1, flat);
+      break;
+    // Phase 4, the Riviera. A surfer's board stood on its tail at their side, under the arm: blue with a white stripe.
+    case 'surfboard': {
+      const sx = 0.3;
+      const board = new THREE.SphereGeometry(0.5, 16, 10).scale(0.26, 1, 0.05);
+      b.add(board, '#4FA8E0', sx, 0.55, -0.04, 0, 0, 0.08, { shade: 0.95, surface: 'varnish' });
+      b.box(sx - 0.002, 0.55, -0.012, 0.03, 0.86, 0.006, '#FFFFFF', 0.08, flat);
+      b.box(sx, 0.62, -0.012, 0.12, 0.03, 0.006, '#F28C2E', 0.08, flat);
+      break;
+    }
+    // The lifeguard's whistle on a red cord.
+    case 'whistle':
+      b.add(new THREE.TorusGeometry(0.1, 0.008, 5, 14, Math.PI).scale(1, 1.4, 1), '#C0283A', 0, 0.72, front(0.68) - 0.02, Math.PI, 0, 0, flat);
+      b.rounded(0, 0.6, front(0.6) + 0.02, 0.05, 0.03, 0.03, 0.01, '#E8E2D6', { shade: 1, surface: 'steel' });
       break;
     default:
       break;
@@ -984,6 +998,11 @@ export const STAFF_LOOKS: Record<StaffRole, CharacterLook> = {
   host: { body: '#2E5A7A', accent: '#2E5A7A', skin: '#F2CFB3', hair: '#C9A15A', pants: '#22324A', hat: 'pillbox', arms: true },
   // Session 21: the cinema's projectionist, in an usher's red jacket with gold braid and a cap.
   projectionist: { body: '#A3283A', accent: PALETTE.gold, skin: '#E3AE87', hair: '#2A1C16', pants: '#22181C', hat: 'pillbox', accessory: 'sash', arms: true },
+  // Phase 4, the Riviera: the children's entertainer in a striped top and a bright cap, the masseur in a mint tunic,
+  // the lifeguard in red with a sun cap and a whistle.
+  entertainer: { body: '#F7B32B', accent: '#4FA8E0', skin: '#E3AE87', hair: '#C9532F', pants: '#4FA8E0', hat: 'cap', hatColor: '#F25C54', arms: true, outfit: 'tee', stripes: true, trim: '#FFFFFF', hairStyle: 'curly', shoe: '#F25C54' },
+  masseur: { body: '#9FD8C8', accent: '#F2EEE6', skin: '#C98E68', hair: '#1D1616', pants: '#F2EEE6', hat: 'none', arms: true, outfit: 'shirt', sleeves: 'short', hairStyle: 'bun', shoe: '#F2EEE6' },
+  lifeguard: { body: '#D9363E', accent: '#F2EEE6', skin: '#D49A6E', hair: '#E8CF8E', pants: '#F2C94C', hat: 'cap', hatColor: '#F2EEE6', accessory: 'whistle', arms: true, outfit: 'tee', sleeves: 'short', hairStyle: 'short', shoe: '#F2EEE6' },
 };
 
 /**

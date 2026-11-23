@@ -767,6 +767,10 @@ export const ECONOMY = {
     bartender: { speed: 3.0, capacity: 1, homeIdleSeconds: 0.4 },
     host: { speed: 3.0, capacity: 1, homeIdleSeconds: 0.4 },
     projectionist: { speed: 3.0, capacity: 1, homeIdleSeconds: 0.4 },
+    // Phase 4, the Riviera's new carriages.
+    entertainer: { speed: 3.0, capacity: 1, homeIdleSeconds: 0.4 },
+    masseur: { speed: 2.9, capacity: 1, homeIdleSeconds: 0.4 },
+    lifeguard: { speed: 3.1, capacity: 2, homeIdleSeconds: 0.4 },
     /**
      * The staff level from which the Attendant also answers guests' requests and polishes shoes (besides tidying).
      * Fix list 3.1 (owner: "the assistant no longer does all the tasks it used to"): 1 again, from the moment it is
