@@ -449,6 +449,11 @@ export class Game implements World {
 
   // ─── World helpers ──────────────────────────────────────────────────────────
 
+  /** The route this game is on (read by the scripts: the smoke run, the pacing simulator). */
+  get route(): typeof ACTIVE_ROUTE {
+    return ACTIVE_ROUTE;
+  }
+
   lifetimeSeconds(): number {
     return this.data.profile.lifetimePlaySeconds;
   }

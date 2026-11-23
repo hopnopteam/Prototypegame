@@ -91,6 +91,9 @@ for (let t = 0; t < total; t += 5) {
       taunts: g.data.press.rivals.taunted.length,
       types: g.train.types.slice(),
       handWork: { ...g.data.profile.handWork },
+      // Phase 4: the route's own carriage order and the lobby attendant's hand work (route data, config/routes.ts).
+      order: g.route?.carriageOrder?.slice() ?? [],
+      attendantWork: g.unlocks.get('c0.hire_attendant')?.work ?? {},
       chooser: !!document.querySelector('.chooser, .carriage-card'),
       rack: g.train.rackLevel,
       rackCapacity: g.train.luggageCapacity,
@@ -128,10 +131,11 @@ check(snap.taunts === 0 && !snap.rivalBar, `the rivals are switched off (taunts 
 check(!snap.types.includes('luggage'), `no Luggage Car joins the train (${snap.types.join(', ')})`);
 // Session 29: carriages are a surprise, in the designed order (config: CARRIAGE_ORDER), and no chooser ever opens.
 // Session 37: the Café Car first.
-const ORDER = ['lobby', 'cafe', 'sleeper', 'bathroom', 'sleeper', 'dining', 'cinema', 'bar', 'dome'];
-check(snap.types.every((t, i) => t === ORDER[i]), `carriages join in the designed order (${snap.types.join(', ')})`);
+// Phase 1/4: the order is the route's (`carriageOrder`), read from the game.
+check(snap.order.length > 0 && snap.types.every((t, i) => t === snap.order[i]), `carriages join in the designed order (${snap.types.join(', ')})`);
 check(!chooserSeen, 'no carriage chooser ever opened');
-check((snap.handWork.rooms ?? 0) >= 6 && (snap.handWork.requests ?? 0) >= 15, `the attendant was earned by hand (${snap.handWork.rooms ?? 0} rooms, ${snap.handWork.requests ?? 0} requests)`);
+// Phase 4: what the attendant asks is the route's (`hires.work`; Route 1: 4 rooms, 10 requests).
+check((snap.handWork.rooms ?? 0) >= (snap.attendantWork.rooms ?? 0) && (snap.handWork.requests ?? 0) >= (snap.attendantWork.requests ?? 0) && (snap.attendantWork.rooms ?? 0) > 0, `the attendant was earned by hand (${snap.handWork.rooms ?? 0}/${snap.attendantWork.rooms} rooms, ${snap.handWork.requests ?? 0}/${snap.attendantWork.requests} requests)`);
 check(snap.rackCapacity >= 4, `the lobby rack holds the bags (level ${snap.rack}, ${snap.rackCapacity} bags)`);
 check(!snap.joystickShown, 'no joystick is drawn');
 check(snap.tiers.some((t) => t >= 1), `at least one carriage refurbished (tiers ${snap.tiers.join(',')})`);
