@@ -67,7 +67,7 @@ describe('Phase 4: more than one route', () => {
     expect(translate('route_leave', { route: 'countryside', unbought: 7 })[0]).toMatchObject({ id: 'Route:Leave:countryside:Partial', value: 7 });
     expect(translate('route_transition_skipped', { seconds: 1.4 })[0]).toMatchObject({ id: 'Route:TransitionSkipped' });
     expect(translate('route_map_opened', {})[0]).toMatchObject({ id: 'RouteMap:Opened' });
-    expect(translate('kids_noise', { seconds: 12 })[0]).toMatchObject({ id: 'Kids:Noise:12' });
+    expect(translate('kids_noise', { seconds: 12 })[0]).toMatchObject({ id: 'Kids:Noise:030s' });
     expect(translate('honeymoon_dnd', { respected: true })[0]).toMatchObject({ id: 'Honeymoon:DND:respected' });
     expect(translate('spa_massage', { fee: 30 })[0]).toMatchObject({ id: 'Spa:Massage' });
     expect(translate('pool_skim', {})[0]).toMatchObject({ id: 'Pool:Skim' });
