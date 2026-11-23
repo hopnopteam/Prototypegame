@@ -7,6 +7,13 @@
 // Each run is seeded (the game's random and Math.random), so a seed replays the same game. Runs go in parallel
 // (--parallel=6). Writes <out>-<profile>-s<seed>.csv/.log per run and <out>-summary.log (median and slowest by profile).
 // PAGE=dist/god.html etc. picks another build; SHOTS=60,120 with --shots=dir takes screenshots.
+//
+// Repeatable whatever the machine's load: the page runs on Playwright's fake clock, paused once the game has loaded
+// (`?sim=1` keeps it paused and in lockstep, `Game.lockstep`), and the clock is advanced by exactly the simulated
+// time after each chunk. So every page timer (cards, toasts, the news strip), every `performance.now` work budget
+// (rebuilds, the light bake, scenery) and `Date.now` (boosts) follow game time, and the page's own frame loop does
+// nothing between chunks. The same build, seed and profile give byte-identical logs. Screenshots (SHOTS) let the
+// page draw for a moment and so step outside that.
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -31,6 +38,10 @@ mkdirSync(dirname(resolve(out)), { recursive: true });
 
 /** The extra idle time on top of the work, by profile (see Autopilot.idleShare). */
 const IDLE = { fast: 0, average: 0.3 };
+/** Where the page's fake clock starts (a fixed date, so the daily calendar and quests are the same every run). */
+const CLOCK_START = Date.UTC(2026, 0, 5, 9, 0, 0);
+/** The quality tier every run is forced to (it caps how many travellers a platform holds: Station LOW_TIER_BOARDERS); Low is what the headless renderer picked by itself before. */
+const QUALITY = args.quality ?? 'low';
 
 /**
  * Phase 3's Route 1 targets for the "average" bot (minutes of active play), ±10%. The bot reaches the first carriages
@@ -114,9 +125,13 @@ async function run(profile, seed) {
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}\n${e.stack}`));
+  // A fake clock (flowing in real time while the page loads, paused once it has).
+  await page.clock.install({ time: CLOCK_START });
   // Seeded: the game's own random (`?seed=`) and Math.random (visual touches, ids), so a seed replays the same game.
+  // Math.random is seeded again once loading is over, since the loading screen draws a varying number of frames.
   await page.addInitScript((s0) => {
     let st = s0 >>> 0;
+    window.__nxReseed = () => { st = s0 >>> 0; };
     Math.random = () => {
       st = (st + 0x6d2b79f5) >>> 0;
       let t = st;
@@ -125,12 +140,17 @@ async function run(profile, seed) {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }, seed * 7919 + 13);
-  await page.goto(`file://${resolve(process.env.PAGE ?? 'dist/index.html')}?seed=${seed}${ROUTE === 'countryside' ? '' : `&route=${ROUTE}`}`);
+  await page.goto(`file://${resolve(process.env.PAGE ?? 'dist/index.html')}?seed=${seed}&sim=1&quality=${QUALITY}${ROUTE === 'countryside' ? '' : `&route=${ROUTE}`}`);
   await page.waitForTimeout(600);
   await page.mouse.click(195, 700);
-  await page.waitForFunction(() => !!window.nightExpress, null, { timeout: 600000 });
+  await page.waitForFunction(() => window.nightExpress?.booted, null, { timeout: 600000 });
+  // Pause the clock on a round time after loading (the game is held: `?sim=1`); from here it moves only with the game.
+  const loaded = await page.evaluate(() => Date.now());
+  await page.clock.pauseAt(CLOCK_START + Math.ceil((loaded - CLOCK_START + 1000) / 10000) * 10000);
   await page.evaluate((idle) => {
     const g = window.nightExpress;
+    if (!g.lockstep) throw new Error('This build does not run in lockstep (?sim=1): rebuild it (npm run build).');
+    window.__nxReseed();
     g.skipIntro?.();
     g.paused = true;
     g.setAutopilot(true);
@@ -191,6 +211,8 @@ async function run(profile, seed) {
         })() : null,
       };
     }, chunk);
+    // The page's clock follows the game: its timers (cards closing, toasts, the news strip) run for the same time.
+    await page.clock.runFor(chunk * 1000);
     const now = snap.t;
     const defs = Object.fromEntries(snap.defs.map((d) => [d.id, d]));
     for (const id of snap.unlocked) if (!seen.has(id)) {
@@ -232,9 +254,11 @@ async function run(profile, seed) {
     if (process.env.EVERY && Math.round(t) % Number(process.env.EVERY) === 0) process.stderr.write(`[${profile} s${seed}] ${fmt(now)} cash ${snap.cash} lvl ${snap.level} cars ${snap.carriages} open ${snap.open}\n`);
     const shotAt = (process.env.SHOTS ?? '').split(',').filter(Boolean).map(Number);
     if (shotDir && shotAt.some((s) => s >= t && s < t + chunk)) {
-      await page.evaluate(() => { window.nightExpress.paused = false; });
-      await page.waitForTimeout(700);
-      await page.evaluate(() => { window.nightExpress.paused = true; });
+      // A screenshot needs drawn frames: out of lockstep for a moment (the game stays paused), which the timers see.
+      await page.evaluate(() => { window.nightExpress.lockstep = false; });
+      await page.clock.runFor(200);
+      await page.waitForTimeout(300);
+      await page.evaluate(() => { window.nightExpress.lockstep = true; });
       await page.screenshot({ path: `${shotDir}/${profile}-t${String(Math.round(t + chunk)).padStart(5, '0')}.png` });
     }
     if (milestones['route complete'] != null && (milestones['everything bought'] != null || now > (milestones['route complete'] + 30 * 60))) break;

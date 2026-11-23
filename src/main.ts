@@ -17,6 +17,11 @@ const SETTLE_MIN_SECONDS = 1.2;
 const SETTLE_MIN_FRAMES = 24;
 /** Longest to wait for the sounds to render (a phone's slow offline render must not hold the game). */
 const AUDIO_WAIT_MS = 4000;
+/**
+ * `?sim=1`: the pacing simulator drives this page (scripts/pacing.mjs). Once loaded the game stays paused and runs in
+ * lockstep (`Game.lockstep`): it moves only when the simulator calls `simulate`, so a seed replays the same game.
+ */
+const SIM_DRIVEN = new URLSearchParams(location.search).get('sim') === '1';
 
 /**
  * Boots the game behind the loading screen (session 26, owner: "right as the game starts it glitches quite a lot in
@@ -103,9 +108,11 @@ async function boot(): Promise<void> {
 
   // No title screen and no story intro (session 32, owner: "loading and then gameplay"): everyone starts playing the
   // moment the loading screen goes. `Game.playIntro` stays for a future trailer but is not called.
-  game.paused = false;
+  game.paused = SIM_DRIVEN;
+  game.lockstep = SIM_DRIVEN;
   ui.screens.holdForTitle(false);
   if (tunnel) ui.tunnelOut(ACTIVE_ROUTE.name, (seconds) => game.analytics.log('route_transition_skipped', { route: ACTIVE_ROUTE.id, seconds: Math.round(seconds * 10) / 10 }));
+  game.booted = true;
 }
 
 /** Phase 4: true once, on the load that follows opening a new line (RouteLine leaves the note on its way out). */
