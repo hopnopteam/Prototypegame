@@ -1,3 +1,4 @@
+import { realConductorWorking } from '../world/RealConductor';
 import { REAL_CARRIAGE, REAL_TIME_OF_DAY, loadRealCarriage } from '../world/RealCarriage';
 import { ACTIVE_ROUTE, ROUTES, routeById } from '../config/routes';
 import { PLATFORM } from '../world/platformLayout';
@@ -341,6 +342,7 @@ export class Game implements World {
     this.zones.reach = this.econ.zones.reach;
     // Session 29: every job sounds the same way as its ring fills, a gentle soft tick each quarter, a little higher each time.
     this.zones.onPlayerWork = (_zone, before, after) => {
+      realConductorWorking();
       if (Math.floor(after * 4) > Math.floor(before * 4) && after < 1) this.audio.play('fill', { pitch: 0.95 + after * 0.3 });
     };
     this.zones.badgeReach = this.econ.zones.badgeReach;

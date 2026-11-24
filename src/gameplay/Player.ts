@@ -1,4 +1,4 @@
-import { attachRealConductor, updateRealConductor } from '../world/RealConductor';
+import { attachRealConductor, realConductorCheer, setRealConductorCarrying, updateRealConductor } from '../world/RealConductor';
 import { SCOOTER_SPEED_BONUS } from '../config/content';
 import { approach, dampAngle } from '../core/math';
 
@@ -58,6 +58,7 @@ export class Player implements Actor {
     this.gear = new ConductorGear(this.view, CONDUCTOR_LOOK);
     w.scene.add(this.view.root);
     attachRealConductor(w.scene, this.view);
+    w.events.on('unlock.completed', () => realConductorCheer());
   }
 
   /** The outfit being worn (falls back to the classic navy if the saved one is not available). */
@@ -200,6 +201,7 @@ export class Player implements Actor {
     this.view.setFacing(this.facing);
     this.view.setCarrying(!this.stack.isEmpty);
     this.view.update(dt, this.speedNow);
+    setRealConductorCarrying(!this.stack.isEmpty);
     updateRealConductor(dt, this.speedNow);
     const m = w.data.monetization;
     this.gear.update(dt, {

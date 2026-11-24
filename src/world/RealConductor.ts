@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { CharacterView } from './CharacterView';
 import { applyLook, MODEL_EXT, REAL_CARRIAGE, realScene } from './RealCarriage';
+import { STYLE } from './RealStyle';
 
 /**
  * Graphics experiment: the conductor as a realistic rigged figure to go with the photoreal carriage. A Ready Player
@@ -30,7 +31,107 @@ let hidden: THREE.Object3D[] = [];
 export function attachRealConductor(_scene: THREE.Scene, view: CharacterView): void {
   if (!REAL_CARRIAGE) return;
   host = view;
-  void load();
+  void (STYLE ? loadStylized() : load());
+}
+
+// ------------------------------------------------------------------ the stylized conductor
+/**
+ * The stylized look's conductor (`experiments/stylized/conductor.py`): an original character modelled, rigged and
+ * animated in Blender to match the painted carriage. Its clips: idle, walk, run, carry_idle, carry_walk, work (any job
+ * the conductor is filling), cheer (a purchase), wave (now and then after standing still a while).
+ */
+const STYLED_SCALE = 1.12;
+const STYLED_WALK_SPEED = 1.2;   // m/s the walk clip covers at 1×
+const STYLED_RUN_SPEED = 2.35;
+const STYLED_RUN_FROM = 1.9;
+const WORK_HOLD = 0.3;           // seconds a job keeps the work clip after its last tick
+const WAVE_AFTER = 9;            // seconds standing idle before he waves
+let stylized = false;
+let workUntil = 0;
+let cheerUntil = 0;
+let waveUntil = 0;
+let stillFor = 0;
+let clock = 0;
+let carryingNow = false;
+
+/** The player is filling a job's ring this frame (Game's zone hook). */
+export function realConductorWorking(): void {
+  workUntil = clock + WORK_HOLD;
+}
+
+/** Something was just bought: a little hop with arms up. */
+export function realConductorCheer(): void {
+  if (!stylized) return;
+  cheerUntil = clock + (actions.cheer?.getClip().duration ?? 1.3);
+  actions.cheer?.reset();
+}
+
+export function setRealConductorCarrying(carrying: boolean): void {
+  carryingNow = carrying;
+}
+
+async function loadStylized(): Promise<void> {
+  try {
+    const gltf = await new GLTFLoader().loadAsync(`${BASE}stylized_conductor${MODEL_EXT}`);
+    const root = new THREE.Group();
+    root.name = 'stylized conductor';
+    const avatar = gltf.scene;
+    avatar.scale.setScalar(STYLED_SCALE);
+    root.add(avatar);
+    const done = new Set<THREE.Material>();
+    avatar.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      o.frustumCulled = false;
+      o.castShadow = true;
+      o.receiveShadow = true;
+      const m = o.material as THREE.MeshStandardMaterial;
+      if (!done.has(m)) {
+        done.add(m);
+        applyLook(m);
+      }
+    });
+    mixer = new THREE.AnimationMixer(avatar);
+    for (const clip of gltf.animations) {
+      const a = mixer.clipAction(clip);
+      if (clip.name === 'cheer' || clip.name === 'wave') {
+        a.setLoop(THREE.LoopOnce, 1);
+        a.clampWhenFinished = true;
+      }
+      actions[clip.name] = a;
+    }
+    stylized = true;
+    play('idle');
+    realScene.add(root);
+    figure = root;
+  } catch (err) {
+    console.warn('[RealConductor] could not load the stylized conductor', err);
+  }
+}
+
+function pickStylized(dt: number, speed: number): void {
+  clock += dt;
+  const moving = speed > 0.2;
+  stillFor = moving || carryingNow || clock < workUntil ? 0 : stillFor + dt;
+  if (clock < cheerUntil && !moving) return play('cheer');
+  if (moving) {
+    cheerUntil = 0;
+    waveUntil = 0;
+    if (carryingNow) return play('carry_walk', Math.max(0.6, speed / STYLED_WALK_SPEED));
+    if (speed < STYLED_RUN_FROM) return play('walk', Math.max(0.6, speed / STYLED_WALK_SPEED));
+    return play('run', speed / STYLED_RUN_SPEED);
+  }
+  if (clock < workUntil) return play('work');
+  if (carryingNow) return play('carry_idle');
+  if (stillFor > WAVE_AFTER && waveUntil === 0) {
+    waveUntil = clock + (actions.wave?.getClip().duration ?? 2);
+    actions.wave?.reset();
+  }
+  if (clock < waveUntil) return play('wave');
+  if (waveUntil && clock >= waveUntil) {
+    waveUntil = 0;
+    stillFor = 0;
+  }
+  play('idle');
 }
 
 async function load(): Promise<void> {
@@ -165,9 +266,10 @@ export function updateRealConductor(dt: number, speed: number): void {
   const root = host.root;
   figure.position.copy(root.position);
   figure.quaternion.copy(root.quaternion);
-  if (speed < 0.2) play('idle');
+  if (stylized) pickStylized(dt, speed);
+  else if (speed < 0.2) play('idle');
   else if (speed < RUN_FROM) play('walk', Math.max(0.6, speed / WALK_SPEED));
-  else play('run', speed / RUN_SPEED);
+  else if (!stylized) play('run', speed / RUN_SPEED);
   mixer.update(dt);
   // Hide the game figure's body (its carried things, shadow and bubble stay).
   if (!hidden.length) {
