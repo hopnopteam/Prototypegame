@@ -199,8 +199,8 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
           break;
         case 'kitchen':
           // A bamboo toy shelf against the wall, blocks spilled on the rug in front of it.
-          place(b, 'toy_shelf', back + out * 0.16, floor, cz, Math.min(0.85, d - 0.1), 0.9, Math.PI / 2);
-          place(b, 'toy_blocks', back + out * 0.5, floor, r.z0 + 0.25, 0.32, 0.2);
+          place(b, 'toy_shelf', back + out * 0.3, floor, cz, Math.min(0.85, d - 0.1), 0.9, Math.PI / 2);
+          place(b, 'toy_blocks', back + out * 0.62, floor, r.z0 + 0.25, 0.32, 0.2);
           break;
         case 'railway':
           // A wooden train on its oval track, and a pouf.

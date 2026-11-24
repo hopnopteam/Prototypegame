@@ -929,7 +929,9 @@ export function* chunkSteps(s0: number, shore: ShoreKind, land: LandKind, seed: 
   // Visual overhaul (owner, 24 Nov: "lush grass with flowers"): tufts of long grass and more flowers over both verges and
   // the land, placed last with the stretch's own random numbers, so nothing placed before moves.
   if (NEW_LOOK) {
-    st.scatter('tuft', LUSH.tufts * 0.6, 2.9, 11, [1.4, 2.3], true, 0.1);
+    // Camera side: short tufts on the verge, the tall ones from 3.7 m out, so none hides the train (tests/terrain.test.ts).
+    st.scatter('tuft', LUSH.tufts * 0.12, 3.2, 3.7, [0.55, 0.85], true, 0.1);
+    st.scatter('tuft', LUSH.tufts * 0.48, 3.7, 11, [1.4, 2.3], true, 0.1);
     st.scatter('tuft', LUSH.tufts * 0.4, -TRACK_HALF - 1.6, -TRACK_HALF - 0.2, [1.2, 2.0], false, 0.1);
     st.scatter('flower', LUSH.flowers * 0.7, 2.9, 10, [0.9, 1.3], true, 0.12);
     st.scatter('flower', LUSH.flowers * 0.3, -TRACK_HALF - 1.4, -TRACK_HALF - 0.2, [0.9, 1.2], false, 0.12);
