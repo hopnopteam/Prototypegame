@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { VISUALS } from '../config/visuals';
 import { clamp01, lerp } from '../core/math';
 import { LIGHT_UNIFORMS, setNightAmount } from './materials';
+import { LOOK_SUN_OFFSET, NEW_LOOK, NEW_LOOK_GOLDEN } from '../config/look';
+import { ACTIVE_ROUTE } from '../config/routes';
 
 interface Key {
   t: number;
@@ -29,7 +31,7 @@ const DAY_KEY = { sky: '#DCE6EE', hemiSky: '#FFF8EC', hemiGround: '#8C9A78', hem
 const KEYS: Key[] = [
   { t: 0.0, ...DAY_KEY },
   { t: 0.5, ...DAY_KEY },
-  { t: 0.6, sky: '#F1D6BC', hemiSky: '#FFF0DC', hemiGround: '#948B78', hemi: 1.7, sun: '#FFD8AC', sunIntensity: 2.2, night: 0.05, env: 0.8, fog: 0.007 },
+  NEW_LOOK ? { t: 0.6, ...NEW_LOOK_GOLDEN } : { t: 0.6, sky: '#F1D6BC', hemiSky: '#FFF0DC', hemiGround: '#948B78', hemi: 1.7, sun: '#FFD8AC', sunIntensity: 2.2, night: 0.05, env: 0.8, fog: 0.007 },
   { t: 0.68, sky: '#6F6E93', hemiSky: '#E8C9C4', hemiGround: '#4F4E62', hemi: 1.4, sun: '#FFB894', sunIntensity: 1.5, night: 0.5, env: 0.65, fog: 0.009 },
   { t: 0.75, ...NIGHT_KEY },
   { t: 0.9, ...NIGHT_KEY },
@@ -45,7 +47,8 @@ const a = new THREE.Color();
 const b = new THREE.Color();
 
 /** Moon (and sun) direction, from the target toward the light: high over the lake, a little ahead of the train. */
-const LIGHT_OFFSET = new THREE.Vector3(-9, 16, -6);
+const LOOK_SUN = NEW_LOOK ? LOOK_SUN_OFFSET[ACTIVE_ROUTE.id] : undefined;
+const LIGHT_OFFSET = LOOK_SUN ? new THREE.Vector3(...LOOK_SUN) : new THREE.Vector3(-9, 16, -6);
 /** The fill comes from where the camera stands (the land side, behind the train), a little above. */
 const FILL_OFFSET = new THREE.Vector3(9, 6, 12);
 /** Half-size of the shadow camera, and how far it is centred ahead of the focus along the view. */

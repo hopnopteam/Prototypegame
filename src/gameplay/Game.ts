@@ -1,4 +1,5 @@
 import { ACTIVE_ROUTE, ROUTES, routeById } from '../config/routes';
+import { LOOK_ROUTE_TIME, NEW_LOOK } from '../config/look';
 import { PLATFORM } from '../world/platformLayout';
 import { INTRO_BEATS } from '../config/coach';
 import * as THREE from 'three';
@@ -45,11 +46,11 @@ import { buildUnlocks, stationPerks, type StationPerks } from '../sim/unlockPlan
 import { refitStep } from '../sim/refitSteps';
 import type { CarriageType } from '../core/types';
 import { Wallet } from '../sim/Wallet';
-import { FLOOR_Y } from '../world/CarriageView';
+import { CarriageView, FLOOR_Y } from '../world/CarriageView';
 import { CharacterView } from '../world/CharacterView';
 import { beginMaskFrame, setPopupTest } from '../world/screenMask';
 import { CharacterBatch } from '../world/CharacterBatch';
-import { CARRIAGE_PITCH, carriageOriginZ, GANGWAY_LENGTH, HALF_WIDTH, INNER, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0, REAR_DECK_LENGTH } from '../world/layout';
+import { CARRIAGE_LENGTH, CARRIAGE_PITCH, carriageOriginZ, GANGWAY_LENGTH, HALF_WIDTH, INNER, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0, REAR_DECK_LENGTH } from '../world/layout';
 import { VISUALS, type QualityTier, type TierSettings } from '../config/visuals';
 import { setLivery, SHADOW_GEOMETRY } from '../world/materials';
 import { LIVERIES, liveryFor, type Livery } from '../world/palette';
@@ -810,6 +811,16 @@ export class Game implements World {
    * `alpha` (Phase 4c): how far the frame is between the last two simulation steps; what moves is drawn that far
    * along (1 draws the last step as it is, as `simulate` does).
    */
+  /** Visual overhaul: the train's static shadow (Medium and up in the new look) is redrawn whenever the train changes. */
+  private shadowEpochSeen = -1;
+  private syncStaticShadow(): void {
+    if (CarriageView.shadowEpoch === this.shadowEpochSeen) return;
+    this.shadowEpochSeen = CarriageView.shadowEpoch;
+    const n = this.train.types.length;
+    this.stage.lighting.setTrainSpan(-LOCOMOTIVE_LENGTH - 2, carriageOriginZ(Math.max(0, n - 1)) + CARRIAGE_LENGTH + 2);
+    this.stage.lighting.invalidateShadows();
+  }
+
   private present(realDt: number, draw = true, alpha = 1): void {
     // Drawn in between steps: the countryside, the platform, the carriages (the characters in `characters.sync`).
     const blend = draw && alpha < 1;
@@ -848,6 +859,7 @@ export class Game implements World {
     this.background.run(this.loading ? LOADING_WORK_MS : BACKGROUND_BUDGET_MS);
     if (draw) {
       this.characters.sync(this.stage.rig.camera, blend ? alpha : 1);
+      if (NEW_LOOK) this.syncStaticShadow();
       this.stage.render(realDt);
       this.perfOverlay?.update(realDt, () => this.perfReport());
       this.characterDebug?.update(realDt);
@@ -977,7 +989,8 @@ export class Game implements World {
     let t = this.dayCycleOverride ?? (holdNight ? NIGHT_TIME : ((j.legsCompleted + fraction) / legs + 0.08) % 1);
     // Phase 1, the route's lighting preset: the Countryside Express opens each session at golden hour and fades into the
     // blue night over its first minutes of play, the lamps on the train coming on as it darkens (`setNightAmount`).
-    if (this.dayCycleOverride === null && holdNight && ACTIVE_ROUTE.lighting !== 'night') {
+    if (this.dayCycleOverride === null && NEW_LOOK) t = LOOK_ROUTE_TIME[ACTIVE_ROUTE.id] ?? NIGHT_TIME;
+    else if (this.dayCycleOverride === null && holdNight && ACTIVE_ROUTE.lighting !== 'night') {
       const [from, to] = LIGHTING_SPAN[ACTIVE_ROUTE.lighting];
       const f = Math.min(1, this.sessionSeconds / Math.max(1, ACTIVE_ROUTE.duskSeconds));
       t = from + (to - from) * f * f * (3 - 2 * f);

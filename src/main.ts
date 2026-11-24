@@ -3,6 +3,10 @@ import { ACTIVE_ROUTE } from './config/routes';
 import { TUNNEL_KEY } from './gameplay/RouteLine';
 import { CAMERA_STYLE } from './config/cameraStyle';
 import { CameraTuner } from './ui/CameraTuner';
+import { NEW_LOOK } from './config/look';
+
+// Visual overhaul (config/look.ts): the restyled HUD hangs off this class.
+if (NEW_LOOK) document.body.classList.add('look-new');
 import { connectNative, restoreSave } from './services/native';
 import { h } from './ui/dom';
 import { Loader, nextPaint } from './ui/Loader';

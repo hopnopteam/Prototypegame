@@ -37,7 +37,9 @@ function emit(result) {
   // Playfair Display (a Didone serif, OFL) letters the postcards like a vintage stamp (session 43), in two weights.
   const playfair = (weight) => readFileSync(resolve(root, `node_modules/@fontsource/playfair-display/files/playfair-display-latin-${weight}-normal.woff2`)).toString('base64');
   const serifFace = (weight) => `@font-face { font-family: 'Playfair Display'; font-style: normal; font-weight: ${weight}; font-display: block; src: url(data:font/woff2;base64,${playfair(weight)}) format('woff2'); }`;
-  const fontFace = `@font-face { font-family: 'Jost'; font-style: normal; font-weight: 100 900; font-display: block; src: url(data:font/woff2;base64,${jost}) format('woff2'); }\n${serifFace(400)}\n${serifFace(700)}`;
+  // Visual overhaul: Fredoka (OFL), the display face of the new look's HUD numbers and titles (only used under body.look-new).
+  const fredoka = readFileSync(resolve(root, 'node_modules/@fontsource/fredoka/files/fredoka-latin-600-normal.woff2')).toString('base64');
+  const fontFace = `@font-face { font-family: 'Jost'; font-style: normal; font-weight: 100 900; font-display: block; src: url(data:font/woff2;base64,${jost}) format('woff2'); }\n${serifFace(400)}\n${serifFace(700)}\n@font-face { font-family: 'Fredoka'; font-style: normal; font-weight: 600; font-display: swap; src: url(data:font/woff2;base64,${fredoka}) format('woff2'); }`;
   const head = `<title>Night Express</title>\n<style>\n${fontFace}\n${css}\n</style>\n`;
   const script = `<script>\n${js}\n</script>\n`;
   // The Artifact skeleton already pads :root by the safe-area insets, so the fragment must not add them again.

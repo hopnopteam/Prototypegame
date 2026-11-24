@@ -1,0 +1,156 @@
+type,name,minutes,target,within,kind,price
+milestone,carriage 2,2.42,2.5,ok,,
+milestone,carriage 3,5.08,8,EARLY,,
+milestone,carriage 4,20.83,18,LATE,,
+milestone,carriage 5,33.83,38,EARLY,,
+milestone,carriage 6,53.08,65,EARLY,,
+milestone,carriage 7,78.83,90,EARLY,,
+milestone,carriage 8,105.08,120,EARLY,,
+milestone,level 2,4.83,,,,
+milestone,level 3,14.75,,,,
+milestone,level 4,28.00,,,,
+milestone,level 5,46.75,,,,
+milestone,level 6,73.08,,,,
+milestone,level 7,101.00,,,,
+milestone,level 8,142.17,,,,
+milestone,all refits,159.25,,,,
+milestone,route complete,159.25,150-200,ok,,
+milestone,everything bought,159.25,,,,
+purchase,c0.open,0.08,,,open,13
+purchase,c0.cabin_1,0.08,,,cabin,13
+purchase,c0.cabin_2,0.92,,,cabin,21
+purchase,c0.refurb_1,2.25,,,refurb,100
+purchase,couple_1,2.33,,,couple,60
+purchase,couple_2,5.00,,,couple,320
+purchase,c1.table_0,5.50,,,seat,70
+purchase,c2.cabin_0,6.50,,,cabin,110
+purchase,c1.table_1,7.67,,,seat,120
+purchase,c0.comfort_lamp,8.83,,,comfort,145
+purchase,c2.cabin_1,12.17,,,cabin,160
+purchase,c0.hire_attendant,13.92,,,hire,205
+purchase,c1.hire_barista,15.00,,,hire,255
+purchase,couple_3,20.75,,,couple,380
+purchase,c0.shoes_1,21.08,,,shoes,60
+purchase,c1.refurb_1,21.25,,,refurb,190
+purchase,c3.refurb_1,21.58,,,refurb,65
+purchase,c3.bath_1,22.17,,,bathroom,85
+purchase,st.posters,23.17,,,marketing,160
+purchase,c3.comfort_soap,24.00,,,comfort,105
+purchase,st.benches,26.33,,,platform,180
+purchase,c3.bath_2,26.83,,,bathroom,135
+purchase,c2.refurb_1,26.92,,,refurb,215
+purchase,c0.hire_porter,28.08,,,hire,475
+purchase,couple_4,33.83,,,couple,660
+purchase,c1.menu_pastry,34.08,,,menu,220
+purchase,c1.table_2,34.67,,,seat,205
+purchase,c3.comfort_rail,37.33,,,comfort,230
+purchase,st.windowboxes,39.17,,,exterior,220
+purchase,c1.table_3,40.08,,,seat,290
+purchase,c0.refurb_2,41.83,,,refurb,255
+purchase,c3.refurb_2,43.42,,,refurb,250
+purchase,c1.station_machine,44.58,,,station,375
+purchase,st.booth,46.00,,,platform,300
+purchase,c2.hire_attendant,47.00,,,hire,430
+purchase,c2.comfort_lamp,47.00,,,comfort,235
+purchase,couple_5,53.08,,,couple,1650
+purchase,c2.cabin_2,53.25,,,cabin,200
+purchase,c5.table_0,53.83,,,seat,170
+purchase,st.billboard,55.42,,,marketing,380
+purchase,c5.table_1,56.42,,,seat,250
+purchase,c2.cabin_3,57.67,,,cabin,270
+purchase,st.kiosk,58.75,,,platform,520
+purchase,c2.cabin_4,59.08,,,cabin,325
+purchase,c5.hire_waiter,60.92,,,hire,380
+purchase,c5.table_2,62.67,,,seat,335
+purchase,c1.refurb_2,63.58,,,refurb,510
+purchase,st.lamps,65.33,,,exterior,320
+purchase,c5.hire_chef,66.08,,,hire,545
+purchase,c3.refurb_3,66.50,,,refurb,495
+purchase,st.helper,68.42,,,platform,600
+purchase,c5.refurb_1,69.17,,,refurb,380
+purchase,c2.cabin_5,69.83,,,cabin,395
+purchase,c5.table_3,70.50,,,seat,420
+purchase,c4.stool_2,73.08,,,seat,440
+purchase,c1.table_4,73.25,,,seat,440
+purchase,c4.hire_bartender,73.83,,,hire,760
+purchase,couple_6,78.83,,,couple,3100
+purchase,c4.refurb_1,79.08,,,refurb,520
+purchase,c4.stool_3,79.67,,,seat,520
+purchase,c2.refurb_2,81.33,,,refurb,540
+purchase,c1.table_5,82.33,,,seat,545
+purchase,c6.hire_porter,83.42,,,hire,705
+purchase,c6.cabin_0,83.50,,,cabin,130
+purchase,c6.cabin_1,83.75,,,cabin,200
+purchase,c6.hire_attendant,85.08,,,hire,530
+purchase,c6.cabin_2,86.58,,,cabin,240
+purchase,c6.cabin_3,86.67,,,cabin,330
+purchase,c6.cabin_4,86.75,,,cabin,395
+purchase,c5.table_4,87.50,,,seat,545
+purchase,c1.up_barista,87.92,,,staffUpgrade,580
+purchase,st.lining,89.17,,,exterior,680
+purchase,c2.up_attendant,89.83,,,staffUpgrade,685
+purchase,c0.shoes_2,90.17,,,shoes,700
+purchase,c2.comfort_radio,90.67,,,comfort,755
+purchase,c5.station_range,92.50,,,station,800
+purchase,c5.table_5,94.08,,,seat,670
+purchase,c5.table_6,94.50,,,seat,800
+purchase,c5.refurb_2,95.50,,,refurb,880
+purchase,c6.refurb_1,95.58,,,refurb,265
+purchase,c6.comfort_lamp,97.92,,,comfort,285
+purchase,c5.table_7,98.17,,,seat,925
+purchase,c5.up_waiter,99.00,,,staffUpgrade,880
+purchase,st.band,100.33,,,marketing,920
+purchase,couple_7,105.00,,,couple,6200
+purchase,c7.seats_0,105.25,,,seat,415
+purchase,c7.seats_1,105.33,,,seat,550
+purchase,c7.seats_2,106.08,,,seat,690
+purchase,c6.comfort_radio,108.58,,,comfort,925
+purchase,c7.seats_3,109.08,,,seat,875
+purchase,st.nameboards,110.75,,,exterior,1040
+purchase,c7.hire_projectionist,112.17,,,hire,965
+purchase,c4.menu_cocktails,113.08,,,menu,1040
+purchase,c4.stool_4,113.83,,,seat,600
+purchase,c4.chair_5,114.50,,,seat,680
+purchase,c4.chair_6,115.58,,,seat,760
+purchase,c5.up_chef,117.08,,,staffUpgrade,1090
+purchase,st.gate2,118.92,,,platform,1200
+purchase,c4.refurb_2,120.08,,,refurb,1120
+purchase,c6.refurb_2,120.50,,,refurb,660
+purchase,st.redcarpet,122.50,,,exterior,1400
+purchase,c7.refurb_1,123.25,,,refurb,735
+purchase,c7.refurb_2,124.33,,,refurb,1470
+purchase,c2.comfort_tv,125.50,,,comfort,1115
+purchase,c1.refurb_3,126.00,,,refurb,1190
+purchase,c7.menu_snacks,126.75,,,menu,1105
+purchase,c7.seats_4,126.83,,,seat,1060
+purchase,c4.station_piano,127.67,,,station,1280
+purchase,c4.station_jukebox,128.08,,,station,920
+purchase,c4.chair_7,128.58,,,seat,880
+purchase,c4.chair_8,130.00,,,seat,960
+purchase,c4.chair_9,130.50,,,seat,1040
+purchase,c4.up_bartender,131.33,,,staffUpgrade,1320
+purchase,c7.station_sound,134.17,,,station,1425
+purchase,c7.seats_5,134.17,,,seat,1240
+purchase,c7.seats_6,135.25,,,seat,1380
+purchase,c7.seats_7,136.83,,,seat,1520
+purchase,c5.menu_lobster,137.92,,,menu,1890
+purchase,c5.refurb_3,138.83,,,refurb,1995
+purchase,c7.menu_premiere,140.08,,,menu,2070
+purchase,c7.up_projectionist,142.25,,,staffUpgrade,1565
+purchase,c4.refurb_3,143.50,,,refurb,2200
+purchase,c2.up2_attendant,143.67,,,staffUpgrade,2250
+purchase,c7.refurb_3,146.00,,,refurb,2875
+purchase,c0.comfort_radio,147.67,,,comfort,545
+purchase,c6.refurb_3,148.42,,,refurb,2970
+purchase,c0.comfort_tv,149.25,,,comfort,885
+purchase,c0.shoes_3,149.42,,,shoes,3000
+purchase,c0.rack_1,149.75,,,rack,410
+purchase,c0.rack_2,150.33,,,rack,815
+purchase,c0.up_attendant,150.33,,,staffUpgrade,410
+purchase,c0.up_porter,150.83,,,staffUpgrade,715
+purchase,c0.up2_attendant,151.58,,,staffUpgrade,1870
+purchase,c0.up2_porter,152.92,,,staffUpgrade,2210
+purchase,c0.refurb_4,154.08,,,refurb,3380
+purchase,c0.refurb_5,156.50,,,refurb,4320
+purchase,c2.refurb_4,158.33,,,refurb,4920
+purchase,c2.refurb_5,159.25,,,refurb,5680

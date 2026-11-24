@@ -1,3 +1,4 @@
+import { NEW_LOOK, setLook } from '../config/look';
 import { carryOver } from '../sim/carryOver';
 import { DEBUG_JUMP, setDebugJump } from '../config/debugJump';
 import { ACTIVE_ROUTE, ROUTES, UPCOMING_ROUTES } from '../config/routes';
@@ -903,6 +904,9 @@ export class Screens {
       h('button.btn.primary', { onclick: () => setDebugJump({ carriages, tier, staffed, ...(route !== ROUTES[0].id ? { route } : {}) }) }, 'Open'),
       current ? h('button.btn', { onclick: () => setDebugJump(null) }, 'Back to my game') : null,
       h('p', { style: { fontSize: '12px', opacity: '0.6' }, text: 'Plays on its own save; your progress is never touched.' }),
+      // Visual overhaul (config/look.ts): compare the classic and the new look; reloads the page.
+      h('div.section-title', { text: 'Look (visual overhaul)' }),
+      h('button.btn', { onclick: () => setLook(NEW_LOOK ? 'classic' : 'new') }, NEW_LOOK ? 'Back to the classic look' : 'New look'),
       h('div.section-title', { text: 'Pacing (Phase 3)' }),
       h('button.btn', { onclick: () => this.economySheet() }, 'Economy values'),
       h('button.btn', { onclick: () => this.carryOverSheet() }, 'Carry-over test'),

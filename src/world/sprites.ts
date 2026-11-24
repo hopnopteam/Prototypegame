@@ -1,5 +1,6 @@
 import { CLASS_BY_ID, type ClassId } from '../config/classes';
 import * as THREE from 'three';
+import { NEW_LOOK } from '../config/look';
 import { formatNumber } from '../core/math';
 import { drawIcon, INK, type IconName } from '../ui/icons';
 import { shadeHex } from './palette';
@@ -76,6 +77,28 @@ export function floorIconTexture(icon: IconName): THREE.CanvasTexture {
   return t;
 }
 
+/**
+ * Visual overhaul: the request pins read as soft enamel buttons (ART_BIBLE.md, "UI"): a lit top, a shaded bottom and a
+ * gloss highlight, drawn over the pin's own fill so its colour (grey-green waiting, gold active, blue job) is unchanged.
+ */
+function pinGloss(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number): void {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+  const shade = ctx.createLinearGradient(0, cy - r, 0, cy + r);
+  shade.addColorStop(0, 'rgba(255,255,255,0.28)');
+  shade.addColorStop(0.5, 'rgba(255,255,255,0)');
+  shade.addColorStop(1, 'rgba(20,16,40,0.26)');
+  ctx.fillStyle = shade;
+  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(cx - r * 0.18, cy - r * 0.62, r * 0.55, r * 0.2, -0.15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ring = -1): THREE.CanvasTexture {
   const key = `${icon}:${style}:${ring}`;
   const cached = bubbleCache.get(key);
@@ -104,6 +127,7 @@ export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ri
     ctx.beginPath();
     ctx.arc(cx, cy, 32, 0, Math.PI * 2);
     ctx.fill();
+    if (NEW_LOOK) pinGloss(ctx, cx, cy, 41);
     // Session 35 (owner: "the quality of logos… quite clear"): the icon fills the badge's face.
     drawIcon(ctx, icon, cx - 30, cy - 31, 60);
   } else if (style !== 'plain') {
@@ -123,6 +147,7 @@ export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ri
     ctx.beginPath();
     ctx.arc(cx, cy, 39, 0, Math.PI * 2);
     ctx.fill();
+    if (NEW_LOOK) pinGloss(ctx, cx, cy, 39);
     drawIcon(ctx, icon, cx - 35, cy - 36, 70);
     if (ring >= 0) {
       const fraction = Math.min(1, ring / RING_STEPS);

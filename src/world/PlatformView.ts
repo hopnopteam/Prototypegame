@@ -5,7 +5,9 @@ import { carriageOriginZ, DOOR_Z0, DOOR_Z1, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, P
 import { STATION_UPGRADES } from '../config/content';
 import { ACTIVE_ROUTE } from '../config/routes';
 import { BAYS, PLATFORM } from './platformLayout';
-import { MATERIALS, PATTERN } from './materials';
+import { ADD_GLOW, MATERIALS, PATTERN } from './materials';
+import { NEW_LOOK, WET_STONE } from '../config/look';
+import { VISUALS } from '../config/visuals';
 import { PALETTE } from './palette';
 import { key, modelEntry, type Recolor } from './models/library';
 import { CharacterView, type CharacterAction, type CharacterLook } from './CharacterView';
@@ -135,6 +137,47 @@ export class PlatformView {
   private propsMesh: THREE.Mesh | null = null;
   private deckMesh: THREE.Mesh | null = null;
   private lampMesh: THREE.Mesh | null = null;
+  /** Visual overhaul: each lamp's reflection on the wet flags, a soft streak running toward the camera. */
+  private wetMesh: THREE.Mesh | null = null;
+
+  /**
+   * Wet stone without real-time reflections (ART_BIBLE.md, "Fake the expensive things"): a lamp seen in wet stone shows
+   * as a soft vertical streak below it on screen. On the ground that streak runs from the lamp's foot toward the camera,
+   * so each lamp gets one additive decal laid along the camera's ground direction. One draw, no shader of its own.
+   */
+  private buildWetStreaks(anchors: readonly LampAnchor[]): void {
+    if (this.wetMesh) {
+      this.group.remove(this.wetMesh);
+      this.wetMesh.geometry.dispose();
+      this.wetMesh = null;
+    }
+    if (!anchors.length) return;
+    const yaw = (VISUALS.camera.trainYawDeg * Math.PI) / 180;
+    // Toward the camera along the ground (the camera stands on the +x, +z side of the train).
+    const dx = Math.sin(yaw);
+    const dz = Math.cos(yaw);
+    const L = WET_STONE.streakLength;
+    const planes: THREE.BufferGeometry[] = [];
+    for (const a of anchors) {
+      const g = new THREE.PlaneGeometry(WET_STONE.streakWidth, L);
+      g.rotateX(-Math.PI / 2);
+      g.rotateY(Math.atan2(dx, dz));
+      g.translate(a.x + 0.7 + dx * (L / 2 - 0.15), FLOOR_Y + 0.004, a.z + dz * (L / 2 - 0.15));
+      planes.push(g);
+    }
+    const material = (PlatformView.wetMaterial ??= new THREE.MeshBasicMaterial({
+      map: streakTexture(),
+      color: new THREE.Color('#FFB868').multiplyScalar(WET_STONE.streakStrength),
+      ...ADD_GLOW,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    }));
+    this.wetMesh = new THREE.Mesh(mergePlanes(planes), material);
+    this.wetMesh.renderOrder = 1;
+    this.group.add(this.wetMesh);
+  }
+  private static wetMaterial: THREE.MeshBasicMaterial | undefined;
   private vendor: THREE.Group | null = null;
   private posters: THREE.Group | null = null;
   private readonly posterMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
@@ -409,7 +452,9 @@ export class PlatformView {
     b.box((x0 + x1) / 2, FLOOR_Y / 2 - 0.02, zc, x1 - x0, FLOOR_Y - 0.04, length, '#D9CCB4', 0, { shade: 0.75 });
     // Session 30: stone flags laid in running bond, in close tones (the big diamond tile read as a loud pattern).
     // Session 51b (owner: "the surface… find a better realistic [one]"): warm sandstone flags, the photo's own joints.
-    deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, PALETTE.platformTile, 0, { shade: 1, detail: 'paving' });
+    // Visual overhaul: wet slate-grey flags with bevelled joints, polished so the night sky and the lamps shine in them (ref 1).
+    if (NEW_LOOK) deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, '#A39390', 0, { shade: 1, detail: 'flagstone', surface: { roughness: 1 - WET_STONE.smoothness, metalness: 0 } });
+    else deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, PALETTE.platformTile, 0, { shade: 1, detail: 'paving' });
     deck.box(x0 + 0.2, FLOOR_Y - 0.008, zc, 0.4, 0.024, length, '#D3C9B8', 0, { shade: 1 });
     deck.box(x0 + 0.34, FLOOR_Y + 0.006, zc, 0.12, 0.004, length, PALETTE.platformEdge, 0, { shade: 1 });
 
@@ -562,6 +607,7 @@ export class PlatformView {
     this.deckMesh = solid(deckGeo, false);
     this.lampMesh = new THREE.Mesh(lampGeo, MATERIALS.lamps);
     this.group.add(this.lampMesh);
+    if (NEW_LOOK) this.buildWetStreaks(anchors);
     if (supplyCarIndex !== null) {
       this.vendor = buildVendor(carriageOriginZ(supplyCarIndex));
       this.vendor.userData.object = 'platform:vendor';
@@ -1497,4 +1543,27 @@ function buildForecourt(flat: GeoBuilder, b: GeoBuilder, lamps: GeoBuilder, x1: 
   }
   b.endObject();
   void rnd;
+}
+
+/** A lamp's reflection in wet stone: brightest at the lamp's end (the top of the texture), a long soft tail. */
+function streakTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 32;
+  c.height = 128;
+  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, 32, 128);
+  ctx.save();
+  ctx.scale(1, 7);
+  const g = ctx.createRadialGradient(16, 2, 0, 16, 2, 16);
+  for (const [at, v] of [[0, 1], [0.2, 0.7], [0.55, 0.22], [1, 0]] as const) {
+    const b = Math.round(255 * v);
+    g.addColorStop(at, `rgb(${b},${b},${b})`);
+  }
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 32, 128 / 7);
+  ctx.restore();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.NoColorSpace;
+  return t;
 }

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import data from '../../../assets/models/models.bin';
+import aoData from '../../../assets/models/models_ao.bin';
+import { NEW_LOOK, PROP_AO } from '../../config/look';
 import { MODEL_INDEX, MODEL_TOTALS } from './modelIndex';
 import type { ModelEntry } from './types';
 
@@ -40,6 +42,16 @@ function decode(): Arrays {
   return arrays;
 }
 
+let aoBytes: Uint8Array | null = null;
+/** One byte of baked occlusion per model vertex (255 open), decoded once. */
+function propAo(): Uint8Array {
+  if (aoBytes) return aoBytes;
+  const binary = atob(aoData);
+  aoBytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) aoBytes[i] = binary.charCodeAt(i);
+  return aoBytes;
+}
+
 export function modelEntry(id: ModelId): ModelEntry {
   return MODEL_INDEX[id];
 }
@@ -55,10 +67,14 @@ export function modelGeometry(id: ModelId): THREE.BufferGeometry {
   const nor = new Float32Array(n * 3);
   const col = new Float32Array(n * 3);
   const c = new THREE.Color();
+  const ao = NEW_LOOK ? propAo() : null;
   for (let i = 0; i < n; i++) {
     const s = (e.vertex + i) * 3;
     for (let k = 0; k < 3; k++) nor[i * 3 + k] = a.normals[s + k] / 127;
     c.setRGB(a.colors[s] / 255, a.colors[s + 1] / 255, a.colors[s + 2] / 255, THREE.SRGBColorSpace);
+    // Visual overhaul: the prop's own Cycles-baked occlusion (art/blender/bake_prop_ao.py), softened so a vertex
+    // sitting in a corner of its own flat-shaded faces never goes black.
+    if (ao) c.multiplyScalar(PROP_AO.floor + (1 - PROP_AO.floor) * Math.min(1, ao[e.vertex + i] / 255 * PROP_AO.gain));
     col[i * 3] = c.r;
     col[i * 3 + 1] = c.g;
     col[i * 3 + 2] = c.b;

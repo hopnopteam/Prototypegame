@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { BEVEL, NEW_LOOK } from '../config/look';
 import type { Rect } from '../core/types';
 import { inferSurface, SURFACES, type Surface, type SurfaceName } from './surfaces';
 import { packPattern, type DetailName } from './detail';
@@ -205,7 +207,11 @@ export class GeoBuilder {
 
   /** Box by centre and size. */
   box(x: number, y: number, z: number, w: number, h: number, d: number, color: string, rotY = 0, style?: PartStyle): this {
-    return this.add(new THREE.BoxGeometry(w, h, d), color, x, y, z, 0, rotY, 0, style);
+    // Visual overhaul: in the new look every box big enough on all sides has rounded edges (a bevel that catches the
+    // light, the diorama look of the references); thin slabs, overlays and floors stay sharp so nothing new overlaps.
+    const side = Math.min(w, h, d);
+    const geometry = NEW_LOOK && side >= BEVEL.minSide ? new RoundedBoxGeometry(w, h, d, 1, Math.min(BEVEL.max, side * BEVEL.share)) : new THREE.BoxGeometry(w, h, d);
+    return this.add(geometry, color, x, y, z, 0, rotY, 0, style);
   }
 
   /** Box spanning a floor rect between two heights. */

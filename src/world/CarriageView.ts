@@ -2,6 +2,7 @@ import { TrainCat } from './TrainCat';
 import { VISUALS } from '../config/visuals';
 import { ACTIVE_ROUTE } from '../config/routes';
 import * as THREE from 'three';
+import { NEW_LOOK } from '../config/look';
 import { rect, type CarriageType, type Rect, type VenueKind } from '../core/types';
 import type { ComfortKey } from '../config/content';
 import { bedMessParts, buildLitter, buildMessPiece, buildMessPillow, LITTER_KINDS, seeded, type BedMess, type MessPiece } from './Mess';
@@ -1764,8 +1765,9 @@ export class CarriageView {
   private innerFinish(s: GeoBuilder, r: Rect, y0: number, y1: number, rail: Rect): void {
     const fin = this.finish;
     const low = Math.min(y1, FLOOR_Y + WAINSCOT);
-    if (low > y0) s.slab(r, y0, low, fin.panelled ? fin.panel : fin.wallLow, 0, 0, { shade: 0.82, surface: fin.panelled ? 'varnish' : 'matte' });
-    if (y1 > low) s.slab(r, Math.max(y0, low), y1, fin.wall, 0, 0, { shade: 0.96 });
+    // Visual overhaul: the lower band reads as painted panels (raised frames) and the upper wall as soft paint.
+    if (low > y0) s.slab(r, y0, low, fin.panelled ? fin.panel : fin.wallLow, 0, 0, { shade: 0.82, surface: fin.panelled ? 'varnish' : 'matte', ...(NEW_LOOK ? { detail: 'panel' as const } : {}) });
+    if (y1 > low) s.slab(r, Math.max(y0, low), y1, fin.wall, 0, 0, { shade: NEW_LOOK ? 0.88 : 0.96 });
     if (fin.panelled && y0 <= FLOOR_Y + WAINSCOT && y1 >= FLOOR_Y + WAINSCOT) s.slab(shortenEnds(rail, END_INSET), FLOOR_Y + WAINSCOT - 0.012, FLOOR_Y + WAINSCOT + 0.018, PALETTE.brass, 0, 0, FLAT);
   }
 
@@ -1773,7 +1775,9 @@ export class CarriageView {
   private partition(s: GeoBuilder, r: Rect, h: number, alongZ: boolean): void {
     const grow = (d: number): Rect => (alongZ ? rect(r.x0 - d, r.z0, r.x1 + d, r.z1) : rect(r.x0, r.z0 - d, r.x1, r.z1 + d));
     this.innerFinish(s, r, FLOOR_Y, FLOOR_Y + h, grow(0.01));
-    s.slab(grow(0.015), FLOOR_Y + h, FLOOR_Y + h + 0.04, this.finish.cap, 0, 0, FLAT);
+    // Visual overhaul: a chunky rounded cap with a visible lip either side (the cut-away of refs 2 and 3).
+    if (NEW_LOOK) s.slab(grow(0.03), FLOOR_Y + h, FLOOR_Y + h + 0.065, this.finish.cap, 0, 0, { shade: 1, surface: 'varnish' });
+    else s.slab(grow(0.015), FLOOR_Y + h, FLOOR_Y + h + 0.04, this.finish.cap, 0, 0, FLAT);
   }
 
   /**

@@ -1,4 +1,5 @@
 import { applyTune, CAMERA_STYLE, styleTune } from './cameraStyle';
+import { NEW_LOOK, NEW_LOOK_NIGHT, NEW_LOOK_TIERS } from './look';
 /**
  * How the game looks: the camera's view of the train, the quality tiers and the night staging. Tune freely:
  * no code changes needed.
@@ -238,11 +239,27 @@ export const VISUALS = {
     ground: { tile: 3.0, strength: 0.7 },
     /** Session 51b: the station platform's stone flags (Poly Haven "patio tiles"), about 0.45 m a flag. */
     paving: { tile: 2.7, strength: 0.85 },
+    /** Visual overhaul (art/textures/build_stylized.py): stylized flags with bevelled joints, a painted panel, soft carpet. */
+    flagstone: { tile: 2.7, strength: 1.0 },
+    panel: { tile: 1.2, strength: 0.8 },
+    carpet: { tile: 0.8, strength: 0.7 },
   },
 };
 
 // Session 58: the My Perfect Hotel camera build sets its own view (config/cameraStyle.ts).
 if (CAMERA_STYLE !== 'default') applyTune(VISUALS.camera, styleTune());
+
+// Visual overhaul (config/look.ts): the new look's night, light and tiers over the classic ones, before anything reads them.
+function deepAssign(target: Record<string, unknown>, from: Record<string, unknown>): void {
+  for (const [k, v] of Object.entries(from)) {
+    if (v && typeof v === 'object' && !Array.isArray(v) && target[k] && typeof target[k] === 'object') deepAssign(target[k] as Record<string, unknown>, v as Record<string, unknown>);
+    else target[k] = v;
+  }
+}
+if (NEW_LOOK) {
+  deepAssign(VISUALS.night as unknown as Record<string, unknown>, NEW_LOOK_NIGHT);
+  deepAssign(VISUALS.quality.tiers as unknown as Record<string, unknown>, NEW_LOOK_TIERS);
+}
 
 export type Visuals = typeof VISUALS;
 /** How the moon's shadows are drawn on a tier (see `quality`). */
