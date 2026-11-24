@@ -70,8 +70,8 @@ export const LOOK_ROUTE_TIME: Record<string, number> = { countryside: 0.82, rivi
  */
 export const NEW_LOOK_NIGHT = {
   exposure: 1.08,
-  moon: { color: '#9FB0FF', intensity: 1.55 },
-  hemi: { sky: '#57538A', ground: '#2A2132', intensity: 0.85 },
+  moon: { color: '#A9AEE6', intensity: 1.45 },
+  hemi: { sky: '#5E5478', ground: '#2E2230', intensity: 0.8 },
   fill: 0.34,
   sky: { zenith: '#0E1433', horizon: '#3A4382', ground: '#120F22' },
   environment: 0.55,
@@ -79,7 +79,7 @@ export const NEW_LOOK_NIGHT = {
     interior: { color: '#FFB679', intensity: 0.5 },
     lamp: { color: '#FFAA58', intensity: 3.8, radius: 2.7 },
     spill: { color: '#FFB060', intensity: 0.7, reach: 2.6 },
-    platformLamp: { color: '#FFB070', intensity: 3.4, radius: 4.2 },
+    platformLamp: { color: '#FFB070', intensity: 3.8, radius: 5.2 },
     ao: { wall: 0.62, wallReach: 0.55, prop: 0.66, propReach: 0.45, hull: 0.62, hullReach: 1.2 },
   },
   window: { glow: 0.9 },
