@@ -1169,7 +1169,7 @@ export class CarriageView {
       texture.needsUpdate = true;
       texture.repeat.set((r.x1 - r.x0) / scale, (r.z1 - r.z0) / scale);
       const plane = new THREE.PlaneGeometry(r.x1 - r.x0, r.z1 - r.z0).rotateX(-Math.PI / 2).translate((r.x0 + r.x1) / 2, y + i * 0.004, (r.z0 + r.z1) / 2);
-      const mesh = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false, opacity: i === 0 ? 0.95 : 0.45, depthWrite: i === 0 }));
+      const mesh = new THREE.Mesh(plane, new THREE.MeshBasicMaterial({ map: texture, transparent: true, toneMapped: false, opacity: i === 0 ? 0.9 : 0.5, depthWrite: i === 0 }));
       mesh.renderOrder = 2 + i;
       mesh.userData.object = 'venue:water';
       this.poolWater.push(mesh);

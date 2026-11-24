@@ -628,7 +628,7 @@ export function poolTexture(): THREE.CanvasTexture {
   let seed = 7;
   const rand = (): number => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
   const points: [number, number][] = [];
-  for (let i = 0; i < 14; i++) points.push([rand() * n, rand() * n]);
+  for (let i = 0; i < 26; i++) points.push([rand() * n, rand() * n]);
   for (let y = 0; y < n; y++) {
     for (let x = 0; x < n; x++) {
       let d1 = Infinity;
@@ -641,13 +641,17 @@ export function poolTexture(): THREE.CanvasTexture {
         const d = Math.sqrt(dx * dx + dy * dy);
         if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
       }
-      const edge = Math.max(0, 1 - (d2 - d1) / 4.5);
-      const line = edge * edge;
+      // Visual overhaul (owner: "stylised realism"): softer caustics, a thin bright core in a wider glow, over clear
+      // water tinted aqua (the tiled floor of the basin shows through).
+      const gap = d2 - d1;
+      const core = Math.max(0, 1 - gap / 1.6);
+      const glow = Math.max(0, 1 - gap / 6);
+      const line = Math.min(1, core * core * 0.9 + glow * glow * 0.35);
       const i = (y * n + x) * 4;
-      image.data[i] = Math.round(60 + 195 * line);
-      image.data[i + 1] = Math.round(178 + 77 * line);
+      image.data[i] = Math.round(70 + 185 * line);
+      image.data[i + 1] = Math.round(190 + 65 * line);
       image.data[i + 2] = Math.round(214 + 41 * line);
-      image.data[i + 3] = Math.round(150 + 95 * line);
+      image.data[i + 3] = Math.round(70 + 150 * line);
     }
   }
   ctx.putImageData(image, 0, 0);

@@ -140,6 +140,20 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
       if (look >= 3) b.sphere(cx, Y + 0.42, cz + d * 0.18, 0.035, C.hibiscus, 0, 0.5, { shade: 1 });
       return true;
     }
+    case 'lounger': {
+      // The Pool Car: a slatted hardwood sun lounger with its back raised at the wall (art/blender/beach_kit.py), a
+      // towel laid on it; dark teak at Tiki Paradise. Fitted to the spot (its head where the classic lounger's was).
+      const out = prop.facing === 'right' ? 1 : -1;
+      const e = modelEntry('sun_lounger');
+      const sl = (w - 0.04) / (e.max[2] - e.min[2]);
+      const sw = (d - 0.04) / (e.max[0] - e.min[0]);
+      b.model('sun_lounger', cx, Y, cz, -out * Math.PI / 2, sw, 0.85, sl, {
+        recolor: [{ hue: [15, 45], sat: [0.3, 1], val: [0.2, 0.75], ref: '#A8784C', to: look >= 3 ? C.tiki : look === 2 ? C.bamboo : C.drift }],
+        shade: 0.95,
+        surface: 'wood',
+      });
+      return true;
+    }
     case 'plant':
     case 'planter': {
       // A monstera in a woven pot (a palm-leaf plant at Driftwood: the same model, smaller).
