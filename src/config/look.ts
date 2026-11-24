@@ -104,13 +104,15 @@ export const LOOK_SUN_OFFSET: Record<string, [number, number, number]> = { rivie
 
 /** The quality tiers in the new look: bloom from Medium (lamps and emissives only), the train's static sun shadow from Medium. */
 export const NEW_LOOK_TIERS = {
-  // Owner (24 Nov, the Look APK): "the player glitching… multiple different ways at the same time… popping in and out".
-  // Phones run Low or Medium; bloom on Medium put them on the post-processed path (session 15's regression) and the
-  // following shadow (High) is redrawn every frame. Phones now get neither: the static train shadow only, no post.
-  low: { shadows: 'static' as const },
-  medium: { shadows: 'static' as const },
-  high: { bloom: 0.5, shadows: 'static' as const },
-  ultra: { bloom: 0.5, shadows: 'static' as const },
+  // Owner (24 Nov, the Look APK, twice: "the player glitching… popping in and out", then a screenshot with only the
+  // conductor's shoe drawn). The shoe draws itself; the body goes through the shared character batch, whose shader on
+  // the phone tiers differs from the classic look's (which plays fine there) in one way: the static shadow map. Session
+  // 38b had turned shadow maps off on every tier for the same reason (people read murky and see-through under it). The
+  // phone tiers go back to exactly the classic look's render path: no shadow maps, no post-processing.
+  low: { shadows: 'off' as const },
+  medium: { shadows: 'off' as const },
+  high: { bloom: 0.5, shadows: 'off' as const },
+  ultra: { bloom: 0.5, shadows: 'off' as const },
 };
 
 /** Bevels: every box at least this big on all sides gets rounded edges of this radius (share of its smallest side, capped). */
@@ -149,7 +151,11 @@ export const LOOK_BOARD_TONES = {
 };
 
 /** The Riviera's sun through the windows (CarriageView.buildSunPatches): colour, brightness, height over the floor. */
-export const SUN_PATCH = { color: '#FFC27A', strength: 0.5, lift: 0.045 };
+/**
+ * The Riviera's sun through the windows (CarriageView.buildSunPatches). Off (owner, 24 Nov: "what are these weird lights
+ * all over the train? fix them"): flat patches on the floor read as floating blobs of light, not sunlight.
+ */
+export const SUN_PATCH = { enabled: false, color: '#FFC27A', strength: 0.5, lift: 0.045 };
 
 /** The countryside in the new look (owner, 24 Nov: "lush grass with flowers"): extra grass tufts and flowers a stretch, greener grass. */
 export const LUSH = { tufts: 360, flowers: 70, grass: '#4C8A38', grassLight: '#6FAA45', grassDark: '#356A2C' };

@@ -376,11 +376,6 @@ if (vNxHighlight > 0.001) {
 }
 #ifdef NX_FIGURE
 totalEmissiveRadiance += diffuseColor.rgb * ${FIGURE_LIFT.toFixed(2)};
-${NEW_LOOK ? `{
-  // Visual overhaul: a soft rim of their own colour, warmed, so figures stand out against the darker scene like soft toys under a lamp.
-  float nxFr = pow(1.0 - saturate(dot(normal, geometryViewDir)), ${FIGURE_RIM.power.toFixed(1)});
-  totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.92, 0.8) * (nxFr * ${FIGURE_RIM.strength.toFixed(2)});
-}` : ''}
 #endif
 `;
 
@@ -529,11 +524,6 @@ if (vNxHighlight > 0.001) {
 }
 #ifdef NX_FIGURE
 totalEmissiveRadiance += diffuseColor.rgb * ${FIGURE_LIFT.toFixed(2)};
-${NEW_LOOK ? `{
-  // Visual overhaul: a soft rim of their own colour, warmed, so figures stand out against the darker scene like soft toys under a lamp.
-  float nxFr = pow(1.0 - saturate(dot(normal, geometryViewDir)), ${FIGURE_RIM.power.toFixed(1)});
-  totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.92, 0.8) * (nxFr * ${FIGURE_RIM.strength.toFixed(2)});
-}` : ''}
 #endif
 `;
 

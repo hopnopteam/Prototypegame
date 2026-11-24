@@ -1746,7 +1746,7 @@ export class CarriageView {
    * first wall along the carriage it reaches. Additive decals (they can only add light), one draw a carriage.
    */
   private buildSunPatches(): void {
-    const off = NEW_LOOK ? LOOK_SUN_OFFSET[ACTIVE_ROUTE.id] : undefined;
+    const off = NEW_LOOK && SUN_PATCH.enabled ? LOOK_SUN_OFFSET[ACTIVE_ROUTE.id] : undefined;
     if (!off || off[0] >= 0) return;
     const kx = -off[0] / off[1];
     const kz = -off[2] / off[1];
