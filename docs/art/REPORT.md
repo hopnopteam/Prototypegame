@@ -5,8 +5,8 @@ Settings → five taps on the build line → Debug → "New look". The classic l
 Play link (opens in the new look): https://claude.ai/artifact/9YoKmNwJmHWG5UsYgJrpdY · Android: release
 `android-look-N` ("Night Express Look", `com.hopnop.nightexpress.look`).
 
-**Status: the foundation is in; the slice is not yet at the references' quality.** The owner's review (24 Nov) lists
-what is short: floors, lamp pools, value contrast, Riviera sun streaks, the outside. Those are the next pass (§6).
+**Status (24 Nov, second pass):** the owner's five priorities are done (§8), Route 1 is still byte-identical in the
+pacing simulator, and the Riviera revamp has begun (docs/art/RIVIERA_REVAMP.md: stage 1 and the start of stage 2).
 
 ## 1. Audit
 
@@ -110,3 +110,25 @@ looks (one bunk valance moved 1 cm in the new look only).
 - C (rare): events, critic, ceremonies, postcards: 1–2 sessions.
 - The Riviera revamp the owner asked for (new carriage line-up and upgrade lines, tropical kit, station): 4–6 sessions
   on its own, plus a new pacing pass (it changes Route 2's gameplay on purpose).
+
+## 8. Second pass (owner's review, 24 Nov)
+1. **Floors:** drawn wood grain with knots along every board (`plank`, `plankWorn` layers, art/textures/build_stylized.py)
+   and five board tones a tier; plush runners and carpets (`fabric`); station flags with a wide tone spread, a stone
+   speckle and dark wet patches. The new look swaps the layers centrally (`LOOK_DETAIL_SWAP`).
+2. **Lamp pools:** a warm pool decal under every platform lamp (additive, can only add light) on top of the bake, and a
+   brass desk lamp with its own pool on the ticket counter.
+3. **Value contrast:** a darker, less blue night (moon 0.95, hemisphere 0.62), warm lamps stronger, saturation 1.08.
+4. **Riviera sun:** every window on the sun's side throws a slanted warm patch on the floor, stopped by the first wall.
+   People keep their blob shadow on every tier.
+5. **Outside:** long-grass tufts and more flowers over every stretch, greener grass; the Riviera's sea sparkles in the sun.
+- **The end of the train:** the rear deck stays on a finished train, with deck chairs and plants (palms on the coast).
+- **Phone glitch (Look APK):** phones in the new look draw no post-processing and no per-frame shadow (bloom and the
+  following shadow were the only things the Look APK did differently); to confirm on the device.
+- **Proof:** Route 1 pacing, 2 seeds, log and csv byte-identical to the baseline. 595 tests; geometry audit 0/0 on
+  Route 1 in both looks; on the Riviera 0 clipping and **3 coplanar faces in the Seafood Diner (a chair seat, tiers 1–3),
+  new with the revamp's carriage order: to fix next.**
+- **Riviera revamp so far:** the owner's line-up (Lobby, Smoothie Bar, Pool, Beach Lounge, Sleeper, Diner, Spa, Kids,
+  Honeymoon), Driftwood → Bamboo → Tiki Paradise on every carriage (no Royal Suites), upgrades shifted with each
+  carriage's new place; a Blender-modelled tropical kit of 15 pieces (art/blender/tropical_kit.py); thatched eaves,
+  leis over the windows and tiki torches on the platforms. Next: furnish each carriage per tier with the kit (the
+  Beach Lounge's loungers and big windows first), the station, back rooms, then a Route 2 pacing pass.
