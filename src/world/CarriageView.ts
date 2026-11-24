@@ -42,6 +42,7 @@ import { smoothstep01 } from '../core/math';
 import { classOfTier, isPassengerType, type ClassDef } from '../config/classes';
 import { SURFACES } from './surfaces';
 import { buildCobwebs, floorSteps, type WindowCorner } from './Floors';
+import { buildTropicalProp, TROPICAL } from './TropicalProps';
 import { STATIC_CASTER_LAYER } from './Lighting';
 import type { LampAnchor } from './Lighting';
 import { REFLECT_LAYER } from './Water';
@@ -1061,7 +1062,7 @@ export class CarriageView {
         const prop = this.layout.props[i];
         b.object(`prop:${prop.kind}`);
         glow.object(`prop:${prop.kind}~glow`);
-        buildProp(b, glow, prop, this.theme, this.tier);
+        buildProp(b, glow, prop, this.theme, this.tier, this.layout.type);
         b.endObject();
         glow.endObject();
       }
@@ -1496,7 +1497,7 @@ export class CarriageView {
       if (prop.kind === 'rack') continue;
       s.object(`prop:${prop.kind}`);
       lamps.object(`prop:${prop.kind}~glow`);
-      buildProp(s, lamps, prop, this.theme, this.tier);
+      buildProp(s, lamps, prop, this.theme, this.tier, this.layout.type);
       s.endObject();
       lamps.endObject();
       if (++n % PROPS_PER_SLICE === 0) yield;
@@ -1862,6 +1863,14 @@ export class CarriageView {
   private innerFinish(s: GeoBuilder, r: Rect, y0: number, y1: number, rail: Rect): void {
     const fin = this.finish;
     const low = Math.min(y1, FLOOR_Y + WAINSCOT);
+    // The Riviera revamp: a wainscot of upright bamboo canes under sand-washed plaster, a cane rail between them.
+    if (TROPICAL && this.tier >= 1) {
+      const tiki = this.tier >= (isPassengerType(this.layout.type) ? 4 : 3);
+      if (low > y0) s.slab(r, y0, low, tiki ? '#8A5A32' : '#C9A65E', 0, 0, { pattern: PATTERN.wallpaper, color2: tiki ? '#6B4426' : '#A8853F', scale: 0.07, shade: 0.88, surface: 'wood' });
+      if (y1 > low) s.slab(r, Math.max(y0, low), y1, tiki ? '#F6E6C6' : '#F3E8CE', 0, 0, { shade: 0.85 });
+      if (y0 <= FLOOR_Y + WAINSCOT && y1 >= FLOOR_Y + WAINSCOT) s.slab(shortenEnds(rail, END_INSET), FLOOR_Y + WAINSCOT - 0.012, FLOOR_Y + WAINSCOT + 0.018, tiki ? '#4A2E1A' : '#9C7A3E', 0, 0, FLAT);
+      return;
+    }
     // Visual overhaul: the lower band reads as painted panels (raised frames) and the upper wall as soft paint.
     if (low > y0) s.slab(r, y0, low, fin.panelled ? fin.panel : fin.wallLow, 0, 0, { shade: 0.82, surface: fin.panelled ? 'varnish' : 'matte', ...(NEW_LOOK ? { detail: 'panel' as const } : {}) });
     if (y1 > low) s.slab(r, Math.max(y0, low), y1, fin.wall, 0, 0, { shade: NEW_LOOK ? 0.8 : 0.96 });
@@ -2063,7 +2072,7 @@ export class CarriageView {
       const bedLamps = new GeoBuilder();
       bed.object('bed');
       // Phase 1: the Family Sleeper's beds are bunks.
-      buildProp(bed, bedLamps, { kind: 'bed', rect: cabin.bed, variant: this.layout.type === 'familySleeper' ? 'bunk' : undefined }, this.theme, this.tier);
+      buildProp(bed, bedLamps, { kind: 'bed', rect: cabin.bed, variant: this.layout.type === 'familySleeper' ? 'bunk' : undefined }, this.theme, this.tier, this.layout.type);
       const bedGroup = new THREE.Group();
       const centerX = (cabin.bed.x0 + cabin.bed.x1) / 2;
       const centerZ = (cabin.bed.z0 + cabin.bed.z1) / 2;
@@ -2089,7 +2098,7 @@ export class CarriageView {
       for (const prop of this.layout.props) {
         if ((prop.kind === 'toilet' || prop.kind === 'sink' || prop.kind === 'bathtub' || prop.kind === 'washShelf' || prop.kind === 'cubicle' || prop.kind === 'shower') && rectInside(prop.rect, bath.room)) {
           builder.object(prop.kind === 'washShelf' ? 'prop:washShelf' : `fixture:${prop.kind}`);
-          buildProp(builder, bathLamps, prop, this.theme, this.tier);
+          buildProp(builder, bathLamps, prop, this.theme, this.tier, this.layout.type);
         }
       }
       const group = new THREE.Group();
@@ -2545,7 +2554,7 @@ const MODEL_FURNITURE = true;
  * A KayKit seat (couch or armchair) fitted to a prop's footprint: its back to the wall it faces away from (our props
  * face 'right' with the back at x0, 'left' with it at x1), `height` tall, the upholstery and the cushions recoloured.
  */
-export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme: CarriageTheme = CARRIAGE_THEMES.lobby, tier = 1): void {
+export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme: CarriageTheme = CARRIAGE_THEMES.lobby, tier = 1, propCarriage = ''): void {
   const r = prop.rect;
   const cx = (r.x0 + r.x1) / 2;
   const cz = (r.z0 + r.z1) / 2;
@@ -2553,6 +2562,8 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
   const d = r.z1 - r.z0;
   const y = FLOOR_Y;
   const wood = tier <= 0 ? '#9C8570' : PALETTE.walnut;
+  // The Riviera revamp: the coast furnishes its carriages from the tropical kit (world/TropicalProps.ts).
+  if (TROPICAL && buildTropicalProp(b, lamps, prop, theme, tier, propCarriage)) return;
   switch (prop.kind) {
     case 'bed': {
       if (prop.variant === 'bunk') {

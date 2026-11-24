@@ -332,6 +332,8 @@ const HOLDS: Record<string, string[]> = {
   'platform:boothPost': ['platform:ticketStand'],
   'platform:boothCanopy': ['platform:boothPost'],
   'platform:stationClock': ['platform:clockFace~glow'],
+  // The coast's tiki torch (world/TropicalProps.ts) holds its flame.
+  'prop:coatStand': ['prop:coatStand~glow'],
   'platform:fruitStall': ['platform:fruitStallGoods', 'character:keeper'],
   // Session 57: the booking office stands round its counter (and the parcels office round its own); a market umbrella's
   // canopy reaches over its barrow and keeper; the goods lie on their barrows; a letter lies on a bench.

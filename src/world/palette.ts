@@ -187,6 +187,14 @@ export const CLASS_THEMES: Record<'comfort' | 'business' | 'first' | 'royal', Ca
   first: { wall: '#EEE2CA', wallLow: '#6A3A2A', carpet: '#BFA272', deep: '#1D2D4C', blanket: '#28426E', curtain: '#E2B653' },
   royal: { wall: '#E7C3C1', wallLow: '#C99592', carpet: '#EADBD2', deep: '#6A1E2E', blanket: '#7E2436', curtain: '#E2B653' },
 };
+// The Riviera revamp: the coast's classes in island colours (Bamboo: sand over sea-green; Tiki Paradise: warm cream over
+// carved teak, coral throws), nothing navy, velvet or gilt.
+if (ACTIVE_ROUTE.id === 'riviera') {
+  CLASS_THEMES.comfort = { wall: '#F4E7CB', wallLow: '#4FB3A9', carpet: '#E9DCC0', deep: '#1F8FA6', blanket: '#2EB3B0', curtain: '#F7F1E3' };
+  CLASS_THEMES.business = CLASS_THEMES.comfort;
+  CLASS_THEMES.first = { wall: '#F6EAD2', wallLow: '#7A4A2A', carpet: '#D9B46A', deep: '#E8604C', blanket: '#F28C6B', curtain: '#F7F1E3' };
+  CLASS_THEMES.royal = CLASS_THEMES.first;
+}
 
 /** Tier names, shown on refurbishment tiles and in headlines. */
 /** Rags to riches: run-down → repaired (clean and plain) → cosy (its colours) → luxurious. */

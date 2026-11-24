@@ -8,6 +8,7 @@ import { PATTERN } from './materials';
 import { seeded } from './Mess';
 import { CLASS_THEMES, PALETTE, shadeHex, type CarriageTheme } from './palette';
 import { LOOK_BOARD_TONES, NEW_LOOK } from '../config/look';
+import { TROPICAL } from './TropicalProps';
 
 /**
  * Floors tell the rags-to-riches story at a glance, tier by tier:
@@ -49,6 +50,22 @@ const BRASS: PartStyle = { shade: 1, surface: 'brass' };
 /** Three close shades per tier (a whisper of variety, never a pattern of its own). */
 const OLD_TONES = ['#8D8476', '#918879', '#898072'];
 const REPAIRED_TONES = ['#C6A97E', '#C9AD82', '#C2A57A'];
+/** The coast's deck boards (the Riviera revamp): driftwood, sun-bleached, in five close tones. */
+const DECK_TONES = ['#D6C8AC', '#CBBC9E', '#DFD2B8', '#C4B595', '#D1C2A5'];
+/** The coast's rugs: jute with a turquoise border (Bamboo), a woven palm-leaf rug in green and straw (Tiki Paradise). */
+function tropicalRug(look: number): { color: string; inset: number; pattern?: PartStyle }[] {
+  return look >= 3
+    ? [
+      { color: '#5A3A22', inset: 0 },
+      { color: '#3E7A4A', inset: 0.05 },
+      { color: '#C9A86A', inset: 0.09, pattern: { pattern: PATTERN.diamond, color2: '#B39056', scale: 0.3, shade: 1, surface: 'fabric', detail: 'wool' } },
+    ]
+    : [
+      { color: '#1F8FA6', inset: 0 },
+      { color: '#F4EFE3', inset: 0.04, pattern: { pattern: PATTERN.stripesZ, color2: '#2EB3B0', scale: 0.08, shade: 1, surface: 'fabric' } },
+      { color: '#CBB083', inset: 0.1, pattern: WOOL },
+    ];
+}
 /** The board laid where a hole was: a shade lighter than its neighbours, so the repair reads without shouting. */
 const PATCH_TONE = '#D0B489';
 /**
@@ -182,7 +199,8 @@ function boardField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () 
   if ((globalThis as { __floorDebug?: string[] }).__floorDebug) (globalThis as { __floorDebug?: string[] }).__floorDebug!.push(`${room ? 'room' : 'open'} ${r.x0.toFixed(2)},${r.z0.toFixed(2)}-${r.x1.toFixed(2)},${r.z1.toFixed(2)} holes ${holes.map((h) => `${h.x0.toFixed(2)},${h.z0.toFixed(2)}`).join(' ')}`);
   const bottom = top - PLANK_T;
   const y = (top + bottom) / 2;
-  const tones = NEW_LOOK ? (tier <= 0 ? LOOK_BOARD_TONES.old : LOOK_BOARD_TONES.repaired) : tier <= 0 ? OLD_TONES : REPAIRED_TONES;
+  // The Riviera revamp: sun-bleached deck boards from Driftwood up.
+  const tones = TROPICAL && tier >= 1 ? DECK_TONES : NEW_LOOK ? (tier <= 0 ? LOOK_BOARD_TONES.old : LOOK_BOARD_TONES.repaired) : tier <= 0 ? OLD_TONES : REPAIRED_TONES;
   const phase = rand();
   for (let s = 0; s < strips; s++) {
     const x0 = r.x0 + s * w + seam / 2;
@@ -354,16 +372,24 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
       // A coir doormat inside the platform door: the first thing a repaired lobby offers.
       rug(f, rect(INNER - 0.62, DOOR_Z0 + 0.12, INNER - 0.08, DOOR_Z1 - 0.12), FLOOR_Y, [{ color: '#8A6B45', inset: 0 }, { color: '#A8875B', inset: 0.04 }]);
     }
-    venueCarpets(f, layout, theme);
+    venueCarpets(f, layout, theme, tier);
     return { queueBase };
   }
   // Cosy and Luxurious: one sound base of wide boards, rooms laid over it, and rugs.
   // Session 49: Luxurious carriages are laid in herringbone parquet (a photo layer), Cosy ones in polished boards.
-  const base: PartStyle = tier >= 3
+  // The coast: deck boards everywhere, pale teak at Bamboo, deep oiled teak at Tiki Paradise; jute and palm rugs.
+  const base: PartStyle = TROPICAL
+    ? { pattern: PATTERN.boards, color2: tier >= 3 ? '#5E3E24' : '#9C8562', scale: 0.3, shade: 1, detail: 'woodPolished' }
+    : tier >= 3
     ? { shade: 1, detail: 'herringbone', surface: 'varnish' }
     : { pattern: PATTERN.boards, color2: PALETTE.boardsSeam, scale: 0.3, shade: 1, detail: 'woodPolished' };
-  f.box(0, FLOOR_Y - 0.03, L / 2, HALF_WIDTH * 2 - 0.04, 0.06, L - 0.04, tier >= 3 ? PALETTE.parquet : PALETTE.boards, 0, base);
+  f.box(0, FLOOR_Y - 0.03, L / 2, HALF_WIDTH * 2 - 0.04, 0.06, L - 0.04, TROPICAL ? (tier >= 3 ? '#9A6B42' : '#D4BE96') : tier >= 3 ? PALETTE.parquet : PALETTE.boards, 0, base);
   for (const cabin of layout.cabins) {
+    if (TROPICAL) {
+      // A rug in the open floor of the room, the walls' edges left bare (as the fitted carpets' border does).
+      tropicalRoom(f, cabin.room, tier >= 3 ? 3 : 2);
+      continue;
+    }
     if (tier >= 4) suedeRoom(f, cabin.room);
     else if (tier >= 3) firstClassRoom(f, cabin.room, theme);
     else fittedRoom(f, cabin.room, theme);
@@ -387,6 +413,7 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
         ? { color: theme.deep, inset: 0.13, pattern: VELVET }
         : { color: theme.deep, inset: 0.13, pattern: { pattern: PATTERN.diamond, color2: shadeHex(theme.deep, 20), scale: 0.2, shade: 1 } },
     ];
+    if (TROPICAL) continue;
     if (sofa && table) rug(f, rect(table.rect.x0 - 0.22, sofa.rect.z0 + 0.04, sofa.rect.x1 - 0.02, sofa.rect.z1 - 0.04), base, layers(tier >= 3));
     if (dining) rug(f, rect(dining.rect.x0 - 0.06, dining.rect.z0 - 0.06, dining.rect.x1 + 0.06, dining.rect.z1 + 0.06), base, layers(true));
   }
@@ -396,7 +423,12 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
       : { pattern: PATTERN.checker, color2: '#DCE3E0', scale: 0.3, shade: 1 };
     f.slab(bath.room, FLOOR_Y, FLOOR_Y + ROOM_LIFT, '#F4F1EA', 0, 0, style);
   }
-  if (layout.type === 'lobby') {
+  if (layout.type === 'lobby' && TROPICAL) {
+    rug(f, rect(INNER - 0.62, DOOR_Z0 + 0.12, INNER - 0.08, DOOR_Z1 - 0.12), FLOOR_Y, [{ color: '#B08E62', inset: 0 }, { color: '#D9B46A', inset: 0.035, pattern: WOOL }]);
+    const xs = QUEUE_SLOTS.map((q) => q.x);
+    const zs = QUEUE_SLOTS.map((q) => q.z);
+    queueBase = rug(f, rect(Math.min(...xs) - 0.42, Math.min(...zs) - 0.42, Math.max(...xs) + 0.42, Math.max(...zs) + 0.42), FLOOR_Y, tropicalRug(tier >= 3 ? 3 : 2));
+  } else if (layout.type === 'lobby') {
     rug(f, rect(INNER - 0.62, DOOR_Z0 + 0.12, INNER - 0.08, DOOR_Z1 - 0.12), FLOOR_Y, [{ color: theme.deep, inset: 0 }, { color: '#B08E62', inset: 0.035 }]);
     // The waiting rug under the queue: the painted places sit on top of it.
     const xs = QUEUE_SLOTS.map((q) => q.x);
@@ -411,7 +443,7 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
       ])
       : rug(f, area, FLOOR_Y, [{ color: theme.deep, inset: 0 }, { color: '#EFE5D2', inset: 0.06 }]);
   }
-  venueCarpets(f, layout, theme);
+  venueCarpets(f, layout, theme, tier);
   return { queueBase };
 }
 
@@ -420,9 +452,18 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
  * the bar's chocolate mat, the picture palace's red carpet, the café's trellis carpets, the dome's powder-blue mat). Plain
  * layered slabs like every rug, the pattern only on the top one.
  */
-function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageTheme): void {
+function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageTheme, tier = 0): void {
   const venue = layout.venue;
   if (!venue) return;
+  if (TROPICAL) {
+    // The coast's venues lay no carpets: their deck boards, and from Bamboo up a rug where the classic plan has its
+    // first covering (the others would stack one over another).
+    if (tier >= 2 && venue.carpets.length && (layout.type === 'cafe' || layout.type === 'dining' || layout.type === 'dome')) {
+      const c = venue.carpets.reduce((a, x) => ((x.rect.x1 - x.rect.x0) * (x.rect.z1 - x.rect.z0) > (a.rect.x1 - a.rect.x0) * (a.rect.z1 - a.rect.z0) ? x : a));
+      rug(f, c.rect, FLOOR_Y + ROOM_LIFT + 0.001, tropicalRug(tier));
+    }
+    return;
+  }
   const floor = FLOOR_Y + ROOM_LIFT + 0.001;
   const deep = theme.deep;
   // A covering laid over another (the Persian runner on the dining car's carpet) starts on top of it, never in its
@@ -588,6 +629,28 @@ function suedeRoom(f: GeoBuilder, r: Rect): void {
  * band is its own slab at the room floor's height (nothing laid over anything, so nothing can flicker, and whatever
  * lies on the floor still lies on it).
  */
+/**
+ * A coast cabin's floor (the Riviera revamp): deck boards round the walls and a rug in the room's open floor, laid as
+ * bands at the room slab's own height (as the fitted carpets are), so nothing placed on the floor meets it.
+ */
+function tropicalRoom(f: GeoBuilder, r: Rect, look: number): void {
+  const y0 = FLOOR_Y;
+  const y1 = FLOOR_Y + ROOM_LIFT;
+  const deck: PartStyle = { pattern: PATTERN.boards, color2: look >= 3 ? '#5E3E24' : '#9C8562', scale: 0.3, shade: 1, detail: 'woodPolished' };
+  const frame = (outer: Rect, width: number, color: string, style: PartStyle): Rect => {
+    f.slab(rect(outer.x0, outer.z0, outer.x1, outer.z0 + width), y0, y1, color, 0, 0, style);
+    f.slab(rect(outer.x0, outer.z1 - width, outer.x1, outer.z1), y0, y1, color, 0, 0, style);
+    f.slab(rect(outer.x0, outer.z0 + width, outer.x0 + width, outer.z1 - width), y0, y1, color, 0, 0, style);
+    f.slab(rect(outer.x1 - width, outer.z0 + width, outer.x1, outer.z1 - width), y0, y1, color, 0, 0, style);
+    return rect(outer.x0 + width, outer.z0 + width, outer.x1 - width, outer.z1 - width);
+  };
+  const layers = tropicalRug(look);
+  let inner = frame(r, 0.18, look >= 3 ? '#9A6B42' : '#D4BE96', deck);
+  for (let i = 0; i < layers.length - 1; i++) inner = frame(inner, layers[i + 1].inset - layers[i].inset, layers[i].color, layers[i].pattern ?? FLAT);
+  const last = layers[layers.length - 1];
+  f.slab(inner, y0, y1, last.color, 0, 0, last.pattern ?? FLAT);
+}
+
 function fittedRoom(f: GeoBuilder, r: Rect, theme: CarriageTheme): void {
   const y0 = FLOOR_Y;
   const y1 = FLOOR_Y + ROOM_LIFT;
