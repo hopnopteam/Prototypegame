@@ -1,4 +1,5 @@
 import { ACTIVE_ROUTE } from '../config/routes';
+import { LUSH, NEW_LOOK } from '../config/look';
 import * as THREE from 'three';
 import { Rng } from '../core/Rng';
 import { GeoBuilder, type PartStyle } from './geo';
@@ -86,10 +87,10 @@ export const SHORE_DECK: DeckEntry<ShoreKind>[] = routeDeck(BASE_SHORE_DECK, ACT
 export const LAND_DECK: DeckEntry<LandKind>[] = routeDeck(BASE_LAND_DECK, ACTIVE_ROUTE.scenery.land);
 
 /** Instanced fill: what each slot holds (positions in chunk-local z, world x). */
-export type FillKind = 'pine' | 'spruce' | 'broadleaf' | 'bush' | 'reed' | 'rock' | 'lily' | 'flower' | 'sheep' | 'palm' | 'cypress' | 'lemon';
-export const FILL_KINDS: FillKind[] = ['pine', 'spruce', 'broadleaf', 'bush', 'reed', 'rock', 'lily', 'flower', 'sheep', 'palm', 'cypress', 'lemon'];
+export type FillKind = 'pine' | 'spruce' | 'broadleaf' | 'bush' | 'reed' | 'rock' | 'lily' | 'flower' | 'sheep' | 'palm' | 'cypress' | 'lemon' | 'tuft';
+export const FILL_KINDS: FillKind[] = ['pine', 'spruce', 'broadleaf', 'bush', 'reed', 'rock', 'lily', 'flower', 'sheep', 'palm', 'cypress', 'lemon', 'tuft'];
 /** Slots per stretch for each fill kind (a kind with none in a stretch is not drawn). */
-export const FILL_SLOTS: Record<FillKind, number> = { pine: 26, spruce: 14, broadleaf: 14, bush: 22, reed: 30, rock: 40, lily: 26, flower: 40, sheep: 8, palm: 14, cypress: 30, lemon: 18 };
+export const FILL_SLOTS: Record<FillKind, number> = { pine: 26, spruce: 14, broadleaf: 14, bush: 22, reed: 30, rock: 40, lily: 26, flower: NEW_LOOK ? 40 + LUSH.flowers : 40, sheep: 8, palm: 14, cypress: 30, lemon: 18, tuft: NEW_LOOK ? LUSH.tufts : 0 };
 /** Phase 4: the coast's fill trees' heights at scale 1 (metres). */
 export const COAST_FILL_HEIGHT = { palm: 3.6, cypress: 3.1, lemon: 1.8 };
 /**
@@ -925,6 +926,14 @@ export function* chunkSteps(s0: number, shore: ShoreKind, land: LandKind, seed: 
   // Verge flowers and the odd rock everywhere, so no stretch is bare.
   st.scatter('flower', 4, -TRACK_HALF - 1.0, -TRACK_HALF - 0.25, [0.8, 1.1], false, 0.14);
   st.scatter('rock', 2, 2.8, 3.8, [0.35, 0.6], true, 0.3);
+  // Visual overhaul (owner, 24 Nov: "lush grass with flowers"): tufts of long grass and more flowers over both verges and
+  // the land, placed last with the stretch's own random numbers, so nothing placed before moves.
+  if (NEW_LOOK) {
+    st.scatter('tuft', LUSH.tufts * 0.6, 2.9, 11, [1.4, 2.3], true, 0.1);
+    st.scatter('tuft', LUSH.tufts * 0.4, -TRACK_HALF - 1.6, -TRACK_HALF - 0.2, [1.2, 2.0], false, 0.1);
+    st.scatter('flower', LUSH.flowers * 0.7, 2.9, 10, [0.9, 1.3], true, 0.12);
+    st.scatter('flower', LUSH.flowers * 0.3, -TRACK_HALF - 1.4, -TRACK_HALF - 0.2, [0.9, 1.2], false, 0.12);
+  }
   yield;
   const terrain = buildTerrain(s0, land);
   return {
@@ -1012,6 +1021,14 @@ export function fillGeometries(): Record<FillKind, THREE.BufferGeometry> {
     flower.add(new THREE.CylinderGeometry(0.006, 0.006, h, 3), '#5E8A5A', dx, h / 2, dz, 0, 0, 0, FLAT);
     flower.add(new THREE.OctahedronGeometry(0.032, 0), petals[i % petals.length], dx, h, dz, 0, 0, 0, { shade: 1, surface: { roughness: 0.7, metalness: 0, glow: 0.05 } });
   }
+  // A tuft of long grass (new look): a few slim blades in two greens, leaning out.
+  const tuft = new GeoBuilder();
+  const tr = new Rng(19);
+  for (let i = 0; i < 7; i++) {
+    const h = tr.range(0.16, 0.32);
+    const a = (i / 7) * Math.PI * 2;
+    tuft.add(new THREE.ConeGeometry(0.018, h, 3), i % 2 ? '#5E9A3E' : '#7DB451', Math.cos(a) * 0.05, h / 2, Math.sin(a) * 0.05, Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35, { shade: 0.85, surface: 'foliage' });
+  }
   // A sheep: a woolly cream body, a dark face looking down to graze, four dark legs (about 0.75 m tall).
   const sheep = new GeoBuilder();
   sheep.add(soft(new THREE.IcosahedronGeometry(0.34, 1)).scale(1.3, 0.92, 0.9), '#EEE8DA', 0, 0.5, 0, 0, 0, 0, { shade: 0.8, surface: 'fabric' });
@@ -1039,6 +1056,7 @@ export function fillGeometries(): Record<FillKind, THREE.BufferGeometry> {
     rock: rock.build(),
     lily: lily.build(),
     flower: flower.build(),
+    tuft: tuft.build(),
   };
 }
 

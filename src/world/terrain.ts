@@ -1,3 +1,4 @@
+import { LUSH, NEW_LOOK } from '../config/look';
 import { ACTIVE_ROUTE } from '../config/routes';
 /**
  * The lakeside as continuous functions of where you are, not of which piece you are on: the shoreline, the
@@ -133,6 +134,8 @@ export const GROUND = {
   field: hex('#6F7A4E'),
   fieldDark: hex('#56603C'),
 };
+// Visual overhaul: greener, lusher grass (the route's own colours still win below).
+if (NEW_LOOK) Object.assign(GROUND, { grass: hex(LUSH.grass), grassLight: hex(LUSH.grassLight), grassDark: hex(LUSH.grassDark) });
 // Phase 4: the route's own ground colours (the coast's olive greens and warm sand).
 for (const [k, v] of Object.entries(ACTIVE_ROUTE.scenery.ground ?? {})) if (v && k in GROUND) GROUND[k as keyof typeof GROUND] = hex(v);
 

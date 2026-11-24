@@ -150,3 +150,9 @@ export const LOOK_BOARD_TONES = {
 
 /** The Riviera's sun through the windows (CarriageView.buildSunPatches): colour, brightness, height over the floor. */
 export const SUN_PATCH = { color: '#FFC27A', strength: 0.5, lift: 0.045 };
+
+/** The countryside in the new look (owner, 24 Nov: "lush grass with flowers"): extra grass tufts and flowers a stretch, greener grass. */
+export const LUSH = { tufts: 360, flowers: 70, grass: '#4C8A38', grassLight: '#6FAA45', grassDark: '#356A2C' };
+
+/** How much a route's sea sparkles in the sun (new look; Water.ts): the Riviera's turquoise glitters, the lake at night does not. */
+export const LOOK_SEA_SPARKLE: Record<string, number> = { riviera: 0.9 };

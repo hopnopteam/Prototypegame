@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LIGHT_UNIFORMS } from './materials';
 import { ACTIVE_ROUTE } from '../config/routes';
+import { LOOK_SEA_SPARKLE, NEW_LOOK } from '../config/look';
 
 /** The water's colours (Phase 4: the route may give its own, the coast's turquoise sea). */
 const WATER = { deep: '#18234E', shallow: '#2E6380', bed: '#6F7C76', foam: '#B9C6D8', haze: '#3A4178', ...ACTIVE_ROUTE.scenery.water };
@@ -34,6 +35,7 @@ uniform vec3 uBed;
 uniform vec3 uFoam;
 uniform vec3 uHaze;
 uniform float uNight;
+uniform float uSparkle;
 uniform sampler2D uReflection;
 uniform float uReflect;
 uniform sampler2D uNxLightMap;
@@ -113,7 +115,12 @@ void main() {
   float sheen = pow(facing, 24.0) * 0.22;
   float sparkle = smoothstep(0.72, 0.98, valueNoise(p * 7.0 + vec2(uTime * 1.3, 0.0), ${(WORLD_PERIOD * 7).toFixed(1)}));
   float glint = pow(facing, 160.0) * (0.4 + 2.2 * sparkle);
-  color += uNxMoonColor * (sheen + glint) * uNight;
+  color += uNxMoonColor * (sheen + glint) * max(uNight, uSparkle);
+  // Visual overhaul: a sunlit sea sparkles all over (the Riviera, new look): fine glints scattered across the waves.
+  if (uSparkle > 0.0) {
+    float s2 = smoothstep(0.86, 0.99, valueNoise(p * 13.0 + vec2(uTime * 2.1, uTime * 0.7), ${(WORLD_PERIOD * 13).toFixed(1)}));
+    color += vec3(1.0, 0.93, 0.8) * s2 * uSparkle * (0.35 + fresnel);
+  }
 
   // The train's warm windows and the platform lamps, rippling on the surface (the baked light map).
   vec2 q = vWorld.xz + g * vec2(1.6, 0.6);
@@ -157,6 +164,7 @@ export class Water {
         uFoam: { value: new THREE.Color(WATER.foam) },
         uHaze: { value: new THREE.Color(WATER.haze) },
         uNight: { value: 1 },
+        uSparkle: { value: NEW_LOOK ? LOOK_SEA_SPARKLE[ACTIVE_ROUTE.id] ?? 0 : 0 },
         uReflection: { value: null },
         uReflect: { value: 0 },
         uReflectMatrix: { value: new THREE.Matrix4() },
