@@ -39,6 +39,13 @@ export class Autopilot {
   private seed = 0x2f6b1;
   /** Income per second (an average over about a minute), from the wallet going up. */
   incomeRate = 0;
+  /**
+   * Phase 4d (owner): once the bot starts saving for a coupling it keeps saving until it buys it. With false it
+   * re-decides every frame from its recent income (the Phase 3 rule), so a stop's fares can tip it either way, like a
+   * distracted player (the pacing simulator's `--save=old`).
+   */
+  stickySave = true;
+  private savingFor: string | null = null;
   private lastCash = -1;
   private earned = 0;
   private window = 0;
@@ -114,7 +121,15 @@ export class Autopilot {
     }
     const couple = w.tiles.coupling();
     const left = couple ? w.unlocks.remaining(couple.def.id) - cash : Infinity;
-    w.guidance.botSaving = left > 0 && left <= this.incomeRate * SAVE_WITHIN;
+    const within = left > 0 && left <= this.incomeRate * SAVE_WITHIN;
+    if (!this.stickySave) {
+      w.guidance.botSaving = within;
+      return;
+    }
+    // Saving once started holds while that same coupling is on show and unpaid.
+    if (this.savingFor && (!couple || couple.def.id !== this.savingFor || left <= 0)) this.savingFor = null;
+    if (!this.savingFor && within && couple) this.savingFor = couple.def.id;
+    w.guidance.botSaving = this.savingFor !== null && left > 0;
   }
 
   /** True while the average player is taking a breather (looking around, wandering); the stick is set here. */

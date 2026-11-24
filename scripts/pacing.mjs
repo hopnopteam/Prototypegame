@@ -42,6 +42,9 @@ const IDLE = { fast: 0, average: 0.3 };
 const CLOCK_START = Date.UTC(2026, 0, 5, 9, 0, 0);
 /** The quality tier every run is forced to (it caps how many travellers a platform holds: Station LOW_TIER_BOARDERS); Low is what the headless renderer picked by itself before. */
 const QUALITY = args.quality ?? 'low';
+// Phase 4d: the bot's saving rule: 'sticky' (default: once it saves for a coupling it keeps saving) or 'old' (re-decides
+// from its 30 s income every frame, like a distracted player).
+const SAVE_RULE = args.save ?? 'sticky';
 
 /**
  * Phase 3's Route 1 targets for the "average" bot (minutes of active play), ±10%. The bot reaches the first carriages
@@ -154,8 +157,9 @@ async function run(profile, seed) {
     g.skipIntro?.();
     g.paused = true;
     g.setAutopilot(true);
-    g.autopilot.idleShare = idle;
-  }, IDLE[profile] ?? 0);
+    g.autopilot.idleShare = idle.share;
+    g.autopilot.stickySave = idle.sticky;
+  }, { share: IDLE[profile] ?? 0, sticky: SAVE_RULE !== 'old' });
 
   const lines = [];
   const log = (s) => { lines.push(s); };

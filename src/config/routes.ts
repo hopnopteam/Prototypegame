@@ -483,7 +483,8 @@ export const RIVIERA_COAST: RouteDef = {
     priceMultiplier: 2.5,
     fareMultiplier: 2,
     // The seventh coupling 6,000 → 5,100 (15,000 → 12,750 in play): two seeds saved 10–12 minutes for it (Phase 4c).
-    couplePrices: [60, 360, 220, 800, 2100, 3500, 5100, 12500],
+    // The second coupling 360 → 290 (900 → 725 in play, Phase 4d): at 900 the third carriage came at 9 or 17–22 minutes by seed.
+    couplePrices: [60, 290, 220, 800, 2100, 3500, 5100, 12500],
     // The longer route's last hour: the dearest tiles grow a little more, and First Class and the Royal Suites cost more.
     priceCurve: { from: 600, to: 6000, max: 1.25 },
     classRefit: { fromTier: 4, multiplier: 1.2 },

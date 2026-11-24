@@ -168,6 +168,72 @@ jobs:
             Installs beside the normal test build as "Night Express GOD", with its own save.
             Built from ${{ github.sha }}.
 
+  # The preview APK (Phase 4d): the owner's own copy for trying a build on the phone. Its own app id
+  # ("Night Express Preview"), so it installs beside the test build, the god build and the Play app, with its own save;
+  # built without the GameAnalytics keys, with Adjust and ads off, so playing it never shows up in the live numbers.
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      PREVIEW: '1'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the game (no analytics keys)
+        run: npm run build
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Android SDK packages
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools" > /dev/null
+
+      - name: Copy the game into the Android project
+        run: npx cap sync android
+
+      - name: Name the app on the phone
+        run: sed -i 's|<string name="app_name">Night Express</string>|<string name="app_name">Night Express Preview</string>|' android/app/src/main/res/values/strings.xml
+
+      - name: Build the APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk "night-express-preview-${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: night-express-preview-apk-${{ github.run_number }}
+          path: night-express-preview-${{ github.run_number }}.apk
+
+      - name: Publish a preview pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-preview-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Night Express Preview build ${{ github.run_number }}
+          prerelease: true
+          files: night-express-preview-${{ github.run_number }}.apk
+          body: |
+            Preview build of Night Express for trying on a phone (not for players or the Play Store).
+            Installs beside the other Night Express apps as "Night Express Preview", with its own save.
+            Sends nothing to GameAnalytics or Adjust and shows no ads.
+            On the phone: download the APK, allow installs from this source when asked, and open it.
+            Built from ${{ github.sha }}.
+
   # The Google Play bundle (session 44): the same game as the test APK with the store's app id
   # (io.heseri.night, the Play Console app's id), built as an unsigned AAB. It is signed with the owner's upload key outside the
   # repository before it goes to the Play Console (NATIVE.md); the test key never signs it.
