@@ -22,6 +22,8 @@ interface Pose {
   /** The pose the step left, held while a blended one is drawn. */
   heldP: THREE.Vector3;
   heldQ: THREE.Quaternion;
+  /** The rotation's own angles as the step left them (put back exactly: see `restore`). */
+  heldR: THREE.Euler;
   held: boolean;
 }
 
@@ -46,6 +48,7 @@ export class PoseHistory {
         step: this.stepNo,
         heldP: new THREE.Vector3(),
         heldQ: new THREE.Quaternion(),
+        heldR: new THREE.Euler(),
         held: false,
       };
       this.poses.set(object, pose);
@@ -76,6 +79,7 @@ export class PoseHistory {
     if (!object.position.equals(pose.cur)) return false;
     pose.heldP.copy(object.position);
     pose.heldQ.copy(object.quaternion);
+    pose.heldR.copy(object.rotation);
     pose.held = true;
     object.position.lerpVectors(pose.prev, pose.cur, alpha);
     object.quaternion.slerpQuaternions(pose.prevQ, pose.curQ, alpha);
@@ -87,7 +91,10 @@ export class PoseHistory {
     const pose = this.poses.get(object);
     if (!pose || !pose.held) return;
     object.position.copy(pose.heldP);
-    object.quaternion.copy(pose.heldQ);
+    // The step's own angles, not the quaternion: copying a quaternion back makes three re-derive the Euler angles,
+    // and a turn past ±90° comes back as (π, π − y, π). Code that then writes one angle (a character's sway into x)
+    // would turn the object upside down (the conductor drawn lying flat or under the floor, 25 Nov).
+    object.rotation.copy(pose.heldR);
     if (object.matrixAutoUpdate) object.updateMatrix();
     pose.held = false;
   }

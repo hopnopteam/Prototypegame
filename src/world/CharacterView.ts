@@ -393,6 +393,12 @@ export class CharacterView {
   private squash = 0;
   /** Session 38b: the walk's swing and forward lean, eased in and out. */
   private swingNow = 0;
+  /** The way the character faces (radians about y): the root's rotation is always (tilt, yaw, 0), written whole. */
+  private yaw = 0;
+  /** The train's sway, for those aboard and awake. */
+  private tilt(): number {
+    return this.pose === 'sleep' || !this.leans ? 0 : CharacterView.lean;
+  }
   private leanNow = 0;
   private blanket: THREE.Mesh | null = null;
   private eyelids: THREE.Mesh | null = null;
@@ -494,7 +500,10 @@ export class CharacterView {
   }
 
   setFacing(angle: number): void {
-    this.root.rotation.y = angle;
+    // The whole rotation, never one angle of it: an Euler read back from a quaternion (render interpolation puts poses
+    // back that way) may hold a turn as (π, π − y, π), and writing y alone into that turns the figure upside down.
+    this.yaw = angle;
+    this.root.rotation.set(this.tilt(), angle, 0);
   }
 
   setCarrying(carrying: boolean): void {
@@ -817,7 +826,7 @@ export class CharacterView {
       this.bubble.position.x = this.bubbleMood === 'angry' ? Math.sin(this.bubbleTime * 38) * 0.015 : 0;
       this.bubble.position.y = this.bubbleBaseY + Math.sin(this.bubbleTime * 2.4) * 0.025;
     }
-    this.root.rotation.x = this.pose === 'sleep' || !this.leans ? 0 : CharacterView.lean;
+    this.root.rotation.set(this.tilt(), this.yaw, 0);
     if (this.pose !== 'stand') {
       for (const leg of this.legs) leg.rotation.x = this.pose === 'sit' ? -1.3 : 0;
       this.phase += dt;
@@ -963,6 +972,7 @@ export class CharacterView {
     this.arms.forEach((arm, i) => arm.rotation.set(0, 0, (i === 0 ? -1 : 1) * 0.1));
     this.root.position.set(0, 0, 0);
     this.root.rotation.set(0, 0, 0);
+    this.yaw = 0;
     this.root.scale.setScalar(scale);
     this.root.visible = true;
     this.shadow.visible = true;
