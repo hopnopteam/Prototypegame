@@ -4,6 +4,8 @@ import { GeoBuilder, mergePlanes } from './geo';
 import { carriageOriginZ, DOOR_Z0, DOOR_Z1, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0 } from './layout';
 import { STATION_UPGRADES } from '../config/content';
 import { ACTIVE_ROUTE } from '../config/routes';
+/** The new look's night station dressing (wet flags, lamp pools) is for the routes held at night. */
+const NIGHT_STATION = ACTIVE_ROUTE.id !== 'riviera';
 import { BAYS, PLATFORM } from './platformLayout';
 import { ADD_GLOW, MATERIALS, PATTERN } from './materials';
 import { NEW_LOOK, WET_STONE } from '../config/look';
@@ -469,7 +471,9 @@ export class PlatformView {
     // Session 30: stone flags laid in running bond, in close tones (the big diamond tile read as a loud pattern).
     // Session 51b (owner: "the surface… find a better realistic [one]"): warm sandstone flags, the photo's own joints.
     // Visual overhaul: wet slate-grey flags with bevelled joints, polished so the night sky and the lamps shine in them (ref 1).
-    if (NEW_LOOK) deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, '#8C8079', 0, { shade: 1, detail: 'flagstone', surface: { roughness: 1 - WET_STONE.smoothness, metalness: 0 } });
+    if (NEW_LOOK && NIGHT_STATION) deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, '#8C8079', 0, { shade: 1, detail: 'flagstone', surface: { roughness: 1 - WET_STONE.smoothness, metalness: 0 } });
+    // The coast: dry, sun-warmed sandstone flags (matte, no wet sheen).
+    else if (NEW_LOOK) deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, '#D8C7A6', 0, { shade: 1, detail: 'flagstone', surface: 'stone' });
     else deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, PALETTE.platformTile, 0, { shade: 1, detail: 'paving' });
     deck.box(x0 + 0.2, FLOOR_Y - 0.008, zc, 0.4, 0.024, length, '#D3C9B8', 0, { shade: 1 });
     deck.box(x0 + 0.34, FLOOR_Y + 0.006, zc, 0.12, 0.004, length, PALETTE.platformEdge, 0, { shade: 1 });
@@ -625,7 +629,8 @@ export class PlatformView {
     this.deckMesh = solid(deckGeo, false);
     this.lampMesh = new THREE.Mesh(lampGeo, MATERIALS.lamps);
     this.group.add(this.lampMesh);
-    if (NEW_LOOK) this.buildWetStreaks(anchors);
+    // Wet stone and lamp pools are the night station's (ref 1); the Riviera's platforms stand in the sun.
+    if (NEW_LOOK && NIGHT_STATION) this.buildWetStreaks(anchors);
     if (supplyCarIndex !== null) {
       this.vendor = buildVendor(carriageOriginZ(supplyCarIndex));
       this.vendor.userData.object = 'platform:vendor';

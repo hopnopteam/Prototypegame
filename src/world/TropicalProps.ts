@@ -169,15 +169,6 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
       lamps.sphere(cx, Y + 1.5 - 0.06 * sc, cz, 0.045 * sc, C.flame, 0, 1.6);
       return true;
     }
-    case 'wallBoard': {
-      // A carved surfboard sign hung on the wall (the venue's name is the carriage's own; the board itself is the sign).
-      const along = w >= d;
-      const span = (along ? w : d) - 0.04;
-      const e = modelEntry('surf_sign');
-      const sc = span / (e.max[0] - e.min[0]);
-      b.model('surf_sign', cx, Y + 0.62, cz, along ? 0 : Math.PI / 2, sc, sc, Math.min(1, (along ? d : w) / (e.max[2] - e.min[2])), { shade: 1, surface: 'paint' });
-      return true;
-    }
     case 'sideboard':
     case 'trolley': {
       // A low bamboo shelf: two plank shelves on canes, coconuts and a fruit bowl on top.

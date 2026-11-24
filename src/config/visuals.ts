@@ -1,5 +1,6 @@
 import { applyTune, CAMERA_STYLE, styleTune } from './cameraStyle';
 import { NEW_LOOK, NEW_LOOK_NIGHT, NEW_LOOK_TIERS } from './look';
+import { ACTIVE_ROUTE } from './routes';
 /**
  * How the game looks: the camera's view of the train, the quality tiers and the night staging. Tune freely:
  * no code changes needed.
@@ -265,6 +266,8 @@ function deepAssign(target: Record<string, unknown>, from: Record<string, unknow
 if (NEW_LOOK) {
   deepAssign(VISUALS.night as unknown as Record<string, unknown>, NEW_LOOK_NIGHT);
   deepAssign(VISUALS.quality.tiers as unknown as Record<string, unknown>, NEW_LOOK_TIERS);
+  // The Riviera stands in golden-hour sun: its platform lamps glow faintly, they cast no warm pools on sunlit stone.
+  if (ACTIVE_ROUTE.id === 'riviera') VISUALS.night.light.platformLamp.intensity = 0.8;
 }
 
 export type Visuals = typeof VISUALS;
