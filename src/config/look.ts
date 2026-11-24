@@ -5,7 +5,7 @@
  * pacing simulator gives identical results with either look (docs/art/REPORT.md, "Proof").
  *
  * How to turn it on: `?look=new` in the address, or Settings → five taps on the build line → Debug → "New look"
- * (kept in this browser under `nightexpress.look`). `?look=classic` forces the old look.
+ * (kept in this browser under `nightexpress.look`). `?look=classic` forces the old look. Default: the new look.
  *
  * What it changes (docs/art/ART_BIBLE.md is the why):
  * - The route's light: Countryside held at deep blue night, the Riviera held at golden hour (no fade during play).
@@ -39,7 +39,9 @@ function stored(): string | null {
 declare const __LOOK__: string | undefined;
 const built = typeof __LOOK__ !== 'undefined' ? __LOOK__ : '';
 const raw = fromAddress() ?? stored() ?? (built || null);
-export const LOOK: LookId = raw === 'new' ? 'new' : 'classic';
+// The owner approved the new look for the main game (25 Nov: "craft a final build… merge in the main game"): it is the
+// default; `?look=classic` (or the Debug sheet) brings the old look back.
+export const LOOK: LookId = raw === 'classic' ? 'classic' : 'new';
 /** True while the overhaul's look is on (read at load: a change reloads the page). */
 export const NEW_LOOK = LOOK === 'new';
 
