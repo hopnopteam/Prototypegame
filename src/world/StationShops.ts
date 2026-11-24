@@ -3,6 +3,7 @@ import type { GeoBuilder } from './geo';
 import { PLATFORM_X0 } from './layout';
 import { BAYS } from './platformLayout';
 import { PATTERN } from './materials';
+import { VISUALS } from '../config/visuals';
 import { PALETTE } from './palette';
 import { modelEntry, type ModelId, type Recolor } from './models/library';
 import type { CharacterLook } from './CharacterView';
@@ -49,9 +50,13 @@ function along(id: ModelId, length: number): number {
  * train side (the ticket window the queue stands at), a small window at each end, open at the back where the clerk
  * stands so the camera sees in, under a plank roof that stops short of the clerk's head. `r` is the counter's rect.
  */
-export function buildBookingOffice(b: GeoBuilder, r: Rect, panel: string = PALETTE.navy, roof = '#4E5D7E'): void {
+export function buildBookingOffice(b: GeoBuilder, r: Rect, panel: string = PALETTE.navy, roof = '#4E5D7E', low = false): void {
   const y = FLOOR_Y;
   const cz = (r.z0 + r.z1) / 2;
+  if (low) {
+    buildTicketKiosk(b, r, panel);
+    return;
+  }
   const s = 0.45; // a 2 m by 4 m panel becomes 0.9 m by 1.8 m
   const wallX = r.x0 - 0.1;
   const depth = 0.9;
@@ -67,6 +72,47 @@ export function buildBookingOffice(b: GeoBuilder, r: Rect, panel: string = PALET
 }
 
 /**
+ * The Ticket Office as a low kiosk (owner: "Ticket kiosk hide player getting tickets… so the line is visible"): the
+ * booking office's tall walls and roof hid the queue standing along the platform edge ahead of it, and the conductor
+ * serving at its back. Now it is a waist-high booth round the counter, panelled in the office's colour with a cream rail
+ * and turned posts at the corners, open to the sky, so everyone at it stays in view. Its board stands on a post at its
+ * front end (PlatformView).
+ */
+function buildTicketKiosk(b: GeoBuilder, r: Rect, panel: string): void {
+  const y = FLOOR_Y;
+  const H = 1.04;
+  const x0 = r.x0 - 0.16;
+  const x1 = r.x1 + 0.02;
+  const z0 = r.z0 - 0.16;
+  const z1 = r.z1 + 0.16;
+  const T = 0.07;
+  const cream = PALETTE.creamBand;
+  b.object('platform:ticketKiosk');
+  // The train-side wall (the ticket window's side) and the two ends; the clerk's side stays open.
+  const walls: [number, number, number, number][] = [
+    [x0, z0, x0 + T, z1],
+    [x0 + T, z0, x1, z0 + T],
+    [x0 + T, z1 - T, x1, z1],
+  ];
+  for (const [wx0, wz0, wx1, wz1] of walls) {
+    b.slab({ x0: wx0, z0: wz0, x1: wx1, z1: wz1 }, y, y + 0.1, PALETTE.navyDark, 0, 0, { shade: 0.8, surface: 'paint' });
+    b.slab({ x0: wx0, z0: wz0, x1: wx1, z1: wz1 }, y + 0.1, y + H - 0.06, panel, 0, 0, { shade: 0.9, surface: 'paint' });
+    b.slab({ x0: wx0 - 0.02, z0: wz0 - 0.02, x1: wx1 + 0.02, z1: wz1 + 0.02 }, y + H - 0.06, y + H, cream, 0, 0, { shade: 1, surface: 'varnish' });
+  }
+  // Raised panels on the faces the camera sees (the ends) and the ticket window's ledge on the train side.
+  for (const ez of [z0 - 0.006, z1 + 0.006]) {
+    for (const dx of [0.25, 0.62]) b.box(x0 + dx, y + 0.55, ez, 0.26, 0.5, 0.012, PALETTE.navyDark, 0, { shade: 0.85, surface: 'paint' });
+  }
+  b.box(x0 - 0.06, y + H - 0.02, (r.z0 + r.z1) / 2, 0.12, 0.03, 0.9, cream, 0, { shade: 1, surface: 'varnish' });
+  // Turned corner posts with brass caps, a little taller than the walls.
+  for (const [px, pz] of [[x0 + T / 2, z0 + T / 2], [x0 + T / 2, z1 - T / 2], [x1 - 0.04, z0 + T / 2], [x1 - 0.04, z1 - T / 2]] as const) {
+    b.cylinder(px, y + 0.6, pz, 0.045, 0.05, 1.2, cream, 10, 'y', { shade: 0.95, surface: 'varnish' });
+    b.sphere(px, y + 1.24, pz, 0.055, PALETTE.brass, 0, 1, { shade: 1, surface: 'brass' });
+  }
+  b.endObject();
+}
+
+/**
  * The Train Works (session 58, owner: "make sure the train works… looks nice and does not look deformed"): a coachbuilder's
  * workshop built like the parcels office, the booking office's walls in bottle green under a dark green roof, its window
  * to the walkway; on the counter, what it fits to the train: tins of the liveries' paint with a brush across one, a roll
@@ -78,6 +124,15 @@ export function buildTrainWorks(b: GeoBuilder, r: Rect): void {
   const z = (r.z0 + r.z1) / 2;
   const cx = (r.x0 + r.x1) / 2;
   buildBookingOffice(b, r, '#2F5A47', '#3B4A40');
+  // The board's two posts on the roof (the board, turned to the camera, is a painted plane: PlatformView).
+  b.object('platform:worksSignPosts');
+  const yaw = (VISUALS.camera.trainYawDeg * Math.PI) / 180;
+  for (const side of [-0.5, 0.5]) {
+    const px = cx - 0.05 + Math.cos(yaw) * side;
+    const pz = z - Math.sin(yaw) * side;
+    b.cylinder(px, y + 1.95, pz, 0.022, 0.022, 0.3, '#2F5A47', 8, 'y', { shade: 0.9 });
+  }
+  b.endObject();
   b.object('platform:worksCounter');
   b.model('counter', cx, y, z, Math.PI / 2, 0.8, 0.98, (r.x1 - r.x0) / 1.5, { surface: 'varnish', shade: 0.85 });
   const top = y + 0.98;

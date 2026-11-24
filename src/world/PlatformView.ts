@@ -251,7 +251,7 @@ export class PlatformView {
     // The ticket stand's board on its post at the counter's front end, tilted back to face the camera.
     const tickets = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 0.3), new THREE.MeshLambertMaterial({ color: '#ffffff', map: signTexture('Tickets', PALETTE.navy, PALETTE.creamBand) }));
     tickets.position.set((PLATFORM.counter.x0 + PLATFORM.counter.x1) / 2, FLOOR_Y + 1.86, PLATFORM.counter.z0 - 0.12);
-    tickets.rotation.x = -0.55;
+    faceCamera(tickets);
     tickets.name = 'ticketSign';
     this.group.add(tickets);
     this.ticketBoard = tickets;
@@ -260,7 +260,7 @@ export class PlatformView {
     // booking office's, the painter behind the counter where the clerk stands in the booking office.
     const works = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.32), new THREE.MeshLambertMaterial({ color: '#ffffff', map: signTexture('Train Works', '#2F5A47', PALETTE.creamBand) }));
     works.position.set((WORKS.x0 + WORKS.x1) / 2 - 0.05, FLOOR_Y + 2.2, WORKS_Z);
-    works.rotation.x = -0.55;
+    faceCamera(works);
     works.name = 'worksSign';
     this.group.add(works);
     this.painter.leans = false;
@@ -338,7 +338,7 @@ export class PlatformView {
     {
       const c = PLATFORM.counter;
       const office = owned.has('booth');
-      this.ticketBoard.position.set((c.x0 + c.x1) / 2 - (office ? 0.05 : 0), FLOOR_Y + (office ? 2.2 : 1.86), office ? (c.z0 + c.z1) / 2 : c.z0 - 0.12);
+      this.ticketBoard.position.set((c.x0 + c.x1) / 2, FLOOR_Y + 1.86, c.z0 - (office ? 0.26 : 0.12));
     }
     // The Waiting Benches: two more benches in the waiting bay, either side of the one travellers already use.
     if (owned.has('benches')) {
@@ -1253,6 +1253,17 @@ function buildStall(b: GeoBuilder, x: number, z: number, w: number, d: number, t
  * "Tickets" board on a post at its front end. The Ticket Office upgrade (`office`) makes it a booth: Kenney's stall in
  * navy, its table the counter, the till on it. Low, so the traveller at the window is never hidden from the camera.
  */
+/**
+ * A shop's board turned to the camera (owner: "the signage of both train works and ticket kiosk… weirdly tilted"): the
+ * boards faced down the platform and leaned back, so from the diagonal camera they read as skewed parallelograms. Now
+ * each stands upright, turned to the camera's heading and leaning back a touch, so it reads as a straight board.
+ */
+function faceCamera(sign: THREE.Object3D): void {
+  sign.rotation.order = 'YXZ';
+  sign.rotation.y = (VISUALS.camera.trainYawDeg * Math.PI) / 180;
+  sign.rotation.x = -0.32;
+}
+
 function buildTicketStand(b: GeoBuilder, lamps: GeoBuilder, dz = 0, office = false): void {
   const c = PLATFORM.counter;
   const r = { x0: c.x0, z0: c.z0 + dz, x1: c.x1, z1: c.z1 + dz };
@@ -1269,7 +1280,7 @@ function buildTicketStand(b: GeoBuilder, lamps: GeoBuilder, dz = 0, office = fal
   b.endObject();
   // Session 57 (owner: the navy stall "looks very weird, out of place, not a level up"): the Ticket Office builds a
   // booking office round the counter (Station Picks 2, T1).
-  if (office) buildBookingOffice(b, r);
+  if (office) buildBookingOffice(b, r, PALETTE.navy, undefined, true);
   // On the counter: the till in the middle, a small rack of tickets at the front end.
   b.object('platform:till');
   {
@@ -1295,11 +1306,12 @@ function buildTicketStand(b: GeoBuilder, lamps: GeoBuilder, dz = 0, office = fal
     lamps.cylinder(lx, top + 0.33, lz, 0.06, 0.11, 0.12, PALETTE.lampShade, 12, 'y');
     lamps.endObject();
   }
-  if (office) return;
-  // The "Tickets" board's post (the board itself is a painted plane, see PlatformView).
+  // The "Tickets" board's post at the counter's front end (the board itself is a painted plane, see PlatformView); with
+  // the kiosk it stands just outside its front wall.
+  const postZ = r.z0 - (office ? 0.3 : 0.16);
   b.object('platform:ticketSignPost');
-  b.cylinder(cx, y + 1.0, r.z0 - 0.16, 0.026, 0.03, 2.0, PALETTE.navy, 8, 'y', { shade: 0.9 });
-  b.box(cx, y + 2.02, r.z0 - 0.16, 0.06, 0.04, 0.06, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
+  b.cylinder(cx, y + 1.0, postZ, 0.026, 0.03, 2.0, PALETTE.navy, 8, 'y', { shade: 0.9 });
+  b.box(cx, y + 2.02, postZ, 0.06, 0.04, 0.06, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
   b.endObject();
 }
 
