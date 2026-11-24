@@ -47,6 +47,7 @@ import { refitStep } from '../sim/refitSteps';
 import type { CarriageType } from '../core/types';
 import { Wallet } from '../sim/Wallet';
 import { CarriageView, FLOOR_Y } from '../world/CarriageView';
+import { SandPrints } from '../world/SandPrints';
 import { CharacterView } from '../world/CharacterView';
 import { beginMaskFrame, setPopupTest } from '../world/screenMask';
 import { CharacterBatch } from '../world/CharacterBatch';
@@ -170,6 +171,8 @@ export class Game implements World {
   readonly ambient = new Ambient();
   /** Fireflies over the verges and the reeds at night (session 18). */
   readonly fireflies = new Fireflies();
+  /** The Riviera revamp: footprints in the sand floors (visual only). */
+  readonly sandPrints = new SandPrints();
   readonly train: TrainState;
   readonly cash: CashPiles;
   readonly tiles: Tiles;
@@ -318,7 +321,7 @@ export class Game implements World {
     // Every character from here on draws through one batch (one draw call for the whole crowd).
     CharacterView.batch = this.characters;
     this.scene.add(this.characters.group);
-    this.scene.add(this.scenery.group, this.ambient.group, this.fireflies.points, this.particles.points, this.cashView.mesh);
+    this.scene.add(this.scenery.group, this.ambient.group, this.fireflies.points, this.particles.points, this.cashView.mesh, this.sandPrints.mesh);
     this.stage.attachParticles(this.particles);
 
     this.analytics = new MockAnalyticsService(80);
@@ -766,6 +769,7 @@ export class Game implements World {
     this.venues.update(dt);
     this.staff.update(dt);
     this.crowd.update(dt);
+    this.pressSand(dt);
     this.train.update(dt);
     this.tiles.update(dt);
     this.cash.update(dt);
@@ -811,6 +815,22 @@ export class Game implements World {
    * `alpha` (Phase 4c): how far the frame is between the last two simulation steps; what moves is drawn that far
    * along (1 draws the last step as it is, as `simulate` does).
    */
+  /** The Riviera revamp: everyone walking on a sand floor leaves footprints (world/SandPrints.ts); the sand puffs at the conductor's feet. */
+  private sandEpochSeen = -1;
+  private pressSand(dt: number): void {
+    const prints = this.sandPrints;
+    if (CarriageView.shadowEpoch !== this.sandEpochSeen) {
+      this.sandEpochSeen = CarriageView.shadowEpoch;
+      prints.setTrain(this.train.views.map((view, index) => ({ layout: view.layout, tier: view.tier, originZ: carriageOriginZ(index), index })));
+    }
+    prints.update(dt);
+    if (!prints.active) return;
+    const p = this.player.pos;
+    if (prints.track(this.player, p.x, p.z)) this.particles.emit('sand', p.x, FLOOR_Y + 0.04, p.z, 3, 0.06);
+    for (const g of this.guests.list) if (!g.inCabin) prints.track(g, g.pos.x, g.pos.z);
+    for (const m of this.staff.members) prints.track(m, m.pos.x, m.pos.z);
+  }
+
   /** Visual overhaul: the train's static shadow (Medium and up in the new look) is redrawn whenever the train changes. */
   private shadowEpochSeen = -1;
   private syncStaticShadow(): void {

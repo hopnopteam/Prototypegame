@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Rng } from '../core/Rng';
 
-export type ParticleKind = 'dust' | 'sparkle' | 'confetti' | 'smoke' | 'steam' | 'star' | 'cash' | 'heart' | 'chimney' | 'mote';
+export type ParticleKind = 'dust' | 'sparkle' | 'confetti' | 'smoke' | 'steam' | 'star' | 'cash' | 'heart' | 'chimney' | 'mote' | 'sand';
 
 interface KindSpec {
   colors: string[];
@@ -21,6 +21,8 @@ interface KindSpec {
 
 const SPECS: Record<ParticleKind, KindSpec> = {
   dust: { colors: ['#E3D3B0', '#CDB88E', '#F2E6C9'], size: [0.5, 0.9], life: [0.6, 1.0], speed: [1.5, 3.5], up: [0.5, 1.5], gravity: -0.5, drag: 3, grow: 0.8, shape: 3, alpha: 0.7 },
+  // The Riviera revamp: a little sand kicked up by a footstep, falling straight back.
+  sand: { colors: ['#E8D2A2', '#D9BF8C', '#F2E2BC'], size: [0.1, 0.2], life: [0.3, 0.5], speed: [0.4, 1.0], up: [0.7, 1.2], gravity: 7, drag: 2, grow: 0, shape: 3, alpha: 0.8 },
   sparkle: { colors: ['#FFE08A', '#FFFFFF', '#FFD35C'], size: [0.22, 0.4], life: [0.5, 0.8], speed: [0.6, 1.6], up: [1.2, 2.4], gravity: 1.5, drag: 1.5, grow: -0.2, shape: 1, alpha: 1 },
   confetti: { colors: ['#F4B8C0', '#F2B233', '#8CC4D6', '#BFE5D3', '#C0485C', '#FBF6EC', '#2C4A6E'], size: [0.08, 0.13], life: [1.1, 1.7], speed: [1.5, 3.6], up: [3, 5.5], gravity: 7, drag: 1.4, grow: 0, shape: 2, alpha: 1 },
   smoke: { colors: ['#EDEAE4', '#D8D4CC', '#FFFFFF'], size: [0.55, 0.85], life: [1.6, 2.2], speed: [0.1, 0.3], up: [1.0, 1.5], gravity: -0.2, drag: 0.6, grow: 1.2, shape: 3, alpha: 0.5 },

@@ -189,6 +189,9 @@ export function audit(root: THREE.Object3D): AuditIssue[] {
           if (gap > SEPARATION || a.n.dot(b.n) < 0.999) continue;
           const [area, point] = overlapArea(a, b);
           if (area < MIN_AREA || !point) continue;
+          // Nearly parallel planes can share an offset yet stand apart where they actually overlap (a gently tilted
+          // triangle of the Riviera's sand over the flat deck below it): measure the gap there too.
+          if (Math.abs(b.n.dot(point) - b.d) > SEPARATION && Math.abs(a.n.dot(point) - a.d) < SEPARATION) continue;
           const id = [a.label, b.label].sort().join(' × ');
           const prev = issues.get(id);
           if (prev) {

@@ -10,6 +10,7 @@ layers: a 512 px seamless tile, stored around 0.5 (the shader multiplies the par
   carpet     a soft woven fabric: fine twill and a gentle mottle (runners and bedding, refs 2 and 3).
   plank      drawn wood grain along the boards with knots and a cloudy figure (the floors of refs 2 and 3).
   plankWorn  the same, coarser, with grime and scuffs (the run-down tier).
+  sand       beach sand with wind ripples, baked in Blender (art/blender/sand_texture.py).
   fabric     a plush runner: pile, twill and mottle (refs 2 and 3's runners).
 
 Run: python3 -I art/textures/build_stylized.py   (rewrites assets/textures/detail.jpg: the photo layers stay first, in
@@ -187,6 +188,12 @@ def fabric():
     return v
 
 
+def baked(name):
+    """A layer baked in Blender (art/blender/<name>_texture.py → assets/textures/src/<name>.png)."""
+    im = Image.open(os.path.join(ROOT, 'assets', 'textures', 'src', name + '.png')).convert('L').resize((SIZE, SIZE))
+    return np.asarray(im, dtype=float) / 255.0
+
+
 def to_layer(v):
     v = v / v.mean() * 0.5
     return Image.fromarray(np.clip(v * 255, 0, 255).astype(np.uint8)).convert('RGB')
@@ -195,7 +202,7 @@ def to_layer(v):
 def main():
     sheet = Image.open(OUT).convert('RGB')
     photos = sheet.crop((0, 0, SIZE, SIZE * PHOTO_LAYERS))
-    layers = [flagstone(), panel(), carpet(), plank(), plank_worn(), fabric()]
+    layers = [flagstone(), panel(), carpet(), plank(), plank_worn(), fabric(), baked('sand')]
     out = Image.new('RGB', (SIZE, SIZE * (PHOTO_LAYERS + len(layers))))
     out.paste(photos, (0, 0))
     for i, v in enumerate(layers):

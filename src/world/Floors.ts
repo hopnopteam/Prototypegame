@@ -9,6 +9,7 @@ import { seeded } from './Mess';
 import { CLASS_THEMES, PALETTE, shadeHex, type CarriageTheme } from './palette';
 import { LOOK_BOARD_TONES, NEW_LOOK } from '../config/look';
 import { TROPICAL } from './TropicalProps';
+import { buildSand } from './Sand';
 
 /**
  * Floors tell the rags-to-riches story at a glance, tier by tier:
@@ -132,6 +133,18 @@ function clear(r: Rect, ko: ReturnType<typeof keepOuts>, relax = 1): boolean {
 }
 
 /** The floor split into rooms and the open floor around them (a clean set of non-overlapping rects). */
+/**
+ * The Riviera revamp: where a carriage's floor is sand (the Beach Lounge from Driftwood up), in its own coordinates:
+ * the whole floor but its back room. Shared by the floor and the footprints (world/SandPrints.ts).
+ */
+export function sandPatch(layout: CarriageLayout, tier: number, seed: number): { area: Rect; holes: Rect[]; seed: number } | null {
+  if (!TROPICAL || layout.type !== 'dome' || tier < 1) return null;
+  const zs = regions(layout).map((r) => r.r);
+  const area = rect(-INNER + 0.005, Math.min(...zs.map((r) => r.z0)), INNER - 0.005, Math.max(...zs.map((r) => r.z1)));
+  const holes = layout.props.filter((p) => p.kind === 'backroom').map((p) => p.rect);
+  return { area, holes, seed: seed * 0.37 };
+}
+
 function regions(layout: CarriageLayout): { room: boolean; tiled: boolean; r: Rect }[] {
   const rooms = [
     ...layout.cabins.map((c) => ({ r: c.room, tiled: false })),
@@ -356,6 +369,15 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
   const L = layout.length;
   const ko = keepOuts(layout);
   let queueBase = FLOOR_Y;
+  // The Riviera revamp: the Beach Lounge's floor is sand, banked against its walls (world/Sand.ts), laid over its boards.
+  const sand = sandPatch(layout, tier, seed);
+  if (sand) {
+    // Sand from wall to wall over a plain deck (nothing of it shows), the back room on its own boards.
+    buildSand(f, layout, sand.area, sand.holes, FLOOR_Y, sand.seed);
+    f.box(0, FLOOR_Y - 0.03, L / 2, HALF_WIDTH * 2 - 0.04, 0.06, L - 0.04, '#B89F7A', 0, { shade: 1 });
+    for (const h of sand.holes) boardField(f, h, FLOOR_Y + ROOM_LIFT, 1, seeded(seed * 17), ko, true);
+    return { queueBase };
+  }
   if (tier <= 1) {
     // Subfloor and joists: only ever seen through seams and holes.
     f.box(0, FLOOR_Y - PLANK_T - JOIST_H - 0.02, L / 2, HALF_WIDTH * 2 - 0.04, 0.04, L - 0.04, SUBFLOOR, 0, { shade: 0.75 });
@@ -458,7 +480,7 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
   if (TROPICAL) {
     // The coast's venues lay no carpets: their deck boards, and from Bamboo up a rug where the classic plan has its
     // first covering (the others would stack one over another).
-    if (tier >= 2 && venue.carpets.length && (layout.type === 'cafe' || layout.type === 'dining' || layout.type === 'dome')) {
+    if (tier >= 2 && venue.carpets.length && (layout.type === 'cafe' || layout.type === 'dining')) {
       const c = venue.carpets.reduce((a, x) => ((x.rect.x1 - x.rect.x0) * (x.rect.z1 - x.rect.z0) > (a.rect.x1 - a.rect.x0) * (a.rect.z1 - a.rect.z0) ? x : a));
       rug(f, c.rect, FLOOR_Y + ROOM_LIFT + 0.001, tropicalRug(tier));
     }

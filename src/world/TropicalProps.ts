@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import { ACTIVE_ROUTE } from '../config/routes';
 import { isPassengerType } from '../config/classes';
 import type { GeoBuilder } from './geo';
@@ -128,22 +127,17 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
       return true;
     }
     case 'domeSeat': {
-      // The Beach Lounge: a deck chair facing the sea windows, a striped sling, then a cushioned bamboo recliner.
+      // The Beach Lounge: a hardwood deck chair with a striped canvas sling (art/blender/beach_kit.py), facing the sea
+      // windows, at its true size (it leans a little past its spot front and back, as a deck chair does).
       const facing = prop.facing === 'left' ? -1 : 1;
-      const backX = facing < 0 ? r.x1 - 0.06 : r.x0 + 0.06;
-      for (const fz of [r.z0 + 0.05, r.z1 - 0.05]) {
-        b.box(cx, Y + 0.18, fz, w - 0.08, 0.04, 0.04, woodDark, 0, { shade: 0.9, surface: 'wood' });
-        b.box(cx + facing * (w / 2 - 0.1), Y + 0.12, fz, 0.04, 0.24, 0.04, woodDark, 0, { shade: 0.9 });
-        b.box(backX, Y + 0.38, fz, 0.04, 0.6, 0.04, woodDark, 0, { shade: 0.9 });
-      }
-      const sling = look >= 3 ? C.coral : look === 2 ? C.teal : '#E9E1D0';
-      b.box(cx + facing * 0.05, Y + 0.28, cz, w - 0.2, 0.05, d - 0.14, sling, 0, { shade: 0.95, surface: 'fabric' });
-      // The back, leaning away from the sea, in the same sling (stripes of white from Bamboo up).
-      b.add(new THREE.BoxGeometry(0.05, 0.5, d - 0.14), sling, backX + facing * 0.1, Y + 0.5, cz, 0, 0, facing * 0.42, { shade: 0.95, surface: 'fabric' });
-      if (look >= 2) b.add(new THREE.BoxGeometry(0.07, 0.08, d - 0.1), '#FFFFFF', backX + facing * 0.1, Y + 0.5, cz, 0, 0, facing * 0.42, { shade: 1, surface: 'fabric' });
-      // A rolled beach towel for a pillow; Tiki Paradise adds a hibiscus on it.
-      b.cylinder(backX + facing * 0.2, Y + 0.68, cz, 0.05, 0.05, d - 0.2, look >= 3 ? C.linen : C.straw, 8, 'z', { shade: 1, surface: 'fabric' });
-      if (look >= 3) b.sphere(backX + facing * 0.2, Y + 0.74, cz + d * 0.25, 0.04, C.hibiscus, 0, 0.5, { shade: 1 });
+      const e = modelEntry('deck_chair');
+      const sc = Math.min(1.05, (d - 0.02) / (e.max[0] - e.min[0]));
+      b.model('deck_chair', cx, Y + 0.006, cz, -facing * Math.PI / 2, sc, sc, sc, {
+        recolor: [{ hue: [0, 18], sat: [0.55, 1], val: [0.7, 1], ref: '#E8604C', to: look >= 3 ? C.coral : look === 2 ? C.teal : '#D9C9A4' }],
+        shade: 0.95,
+        surface: 'fabric',
+      });
+      if (look >= 3) b.sphere(cx, Y + 0.42, cz + d * 0.18, 0.035, C.hibiscus, 0, 0.5, { shade: 1 });
       return true;
     }
     case 'plant':

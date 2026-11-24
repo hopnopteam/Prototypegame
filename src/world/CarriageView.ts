@@ -7,7 +7,7 @@ import { rect, type CarriageType, type Rect, type VenueKind } from '../core/type
 import type { ComfortKey } from '../config/content';
 import { bedMessParts, buildLitter, buildMessPiece, buildMessPillow, LITTER_KINDS, seeded, type BedMess, type MessPiece } from './Mess';
 import { GeoBuilder, PaneBuilder, type PartStyle } from './geo';
-import { key, modelEntry } from './models/library';
+import { key, modelEntry, type ModelId } from './models/library';
 import { seatModel } from './models/place';
 import {
   CARRIAGE_LENGTH,
@@ -41,7 +41,8 @@ import { CARRIAGE_THEMES, CLASS_THEMES, PALETTE, shadeHex, type CarriageTheme } 
 import { smoothstep01 } from '../core/math';
 import { classOfTier, isPassengerType, type ClassDef } from '../config/classes';
 import { SURFACES } from './surfaces';
-import { buildCobwebs, floorSteps, type WindowCorner } from './Floors';
+import { buildCobwebs, floorSteps, sandPatch, type WindowCorner } from './Floors';
+import { sandHeight } from './Sand';
 import { buildTropicalProp, TROPICAL } from './TropicalProps';
 import { STATIC_CASTER_LAYER } from './Lighting';
 import type { LampAnchor } from './Lighting';
@@ -1424,6 +1425,7 @@ export class CarriageView {
     yield;
     this.buildSunPatches();
     this.buildTropicalTrim();
+    this.buildBeachDecor();
     if (this.tier <= 0) {
       const windows = this.cameraSideWindows();
       const webs = buildCobwebs(windows, this.index + 3);
@@ -1762,7 +1764,8 @@ export class CarriageView {
       if (xFar <= xNear + 0.1) continue;
       // A parallelogram: its near edge from the window's sill, its far edge from its head, each shifted along z.
       const g = new THREE.BufferGeometry();
-      const y = FLOOR_Y + SUN_PATCH.lift;
+      // Over a sand floor the light lies on the sand's crests and drifts (world/Sand.ts), not under them.
+      const y = FLOOR_Y + (sandPatch(this.layout, this.tier, this.index * 7 + this.layout.type.length) ? 0.14 : SUN_PATCH.lift);
       const tFar = (xFar - win.x) / kx;
       const pos = [
         xNear, y, win.z0 + h0 * kz,
@@ -1827,6 +1830,45 @@ export class CarriageView {
         b.endObject();
       }
     }
+    const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+    mesh.layers.enable(STATIC_CASTER_LAYER);
+    this.group.add(mesh);
+  }
+
+  /**
+   * The Riviera revamp: what the sea leaves on a sand floor (art/blender/beach_kit.py): a sandcastle, a bucket and
+   * spade, shells, a starfish, a branch of driftwood, along the drifts by the side walls wherever nothing stands and no
+   * door opens, each settled into the sand.
+   */
+  private buildBeachDecor(): void {
+    const sand = sandPatch(this.layout, this.tier, this.index * 7 + this.layout.type.length);
+    if (!sand) return;
+    const walls = this.layout.walls.map((w) => ({ x0: w.x0, z0: w.z0, x1: w.x1, z1: w.z1 }));
+    const blocked = (r: Rect): boolean =>
+      this.layout.props.some((p) => p.rect.x0 < r.x1 && p.rect.x1 > r.x0 && p.rect.z0 < r.z1 && p.rect.z1 > r.z0)
+      || this.layout.connectors.some((c) => c.rect.x0 < r.x1 + 0.3 && c.rect.x1 > r.x0 - 0.3 && c.rect.z0 < r.z1 && c.rect.z1 > r.z0)
+      || sand.holes.some((h) => h.x0 < r.x1 + 0.1 && h.x1 > r.x0 - 0.1 && h.z0 < r.z1 + 0.1 && h.z1 > r.z0 - 0.1);
+    const pieces: [ModelId, number, number][] = this.tier >= 2
+      ? [['sandcastle', 0.42, 0.3], ['shells', 0.2, 0.05], ['bucket_spade', 0.3, 0.16], ['starfish', 0.18, 0.03], ['driftwood', 0.8, 0.12]]
+      : [['shells', 0.2, 0.05], ['driftwood', 0.8, 0.12], ['starfish', 0.18, 0.03]];
+    const b = new GeoBuilder();
+    let k = this.index;
+    for (const side of [-1, 1]) {
+      const x = side * (INNER - 0.3);
+      for (let z = sand.area.z0 + 0.9; z < sand.area.z1 - 0.9; z += 1.35) {
+        const [id, size, height] = pieces[k % pieces.length];
+        const half = size / 2 + 0.05;
+        if (blocked({ x0: x - half, z0: z - half, x1: x + half, z1: z + half })) continue;
+        k++;
+        const e = modelEntry(id);
+        const sc = Math.min(size / Math.max(e.max[0] - e.min[0], e.max[2] - e.min[2]), height / (e.max[1] - e.min[1]));
+        const y = FLOOR_Y + sandHeight(walls, x, z, sand.seed) - 0.012;
+        b.object('decor:beach');
+        b.model(id, x, y, z, id === 'driftwood' ? Math.PI / 2 + side * 0.2 : (k * 1.7) % (Math.PI * 2), sc, sc, sc, { shade: 0.95, surface: id === 'shells' ? 'ceramic' : 'matte' });
+        b.endObject();
+      }
+    }
+    if (k === this.index) return;
     const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
     mesh.layers.enable(STATIC_CASTER_LAYER);
     this.group.add(mesh);

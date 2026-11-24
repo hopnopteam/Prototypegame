@@ -33,6 +33,8 @@ TROP = {
     'pistil': '#F7D24A', 'leaf': '#3E9A4A', 'leafDark': '#2C7A3A', 'appliance': '#F4F0E6', 'glass': '#CFE9EE',
     'smoothie': '#F48FA0', 'coconut': '#6B4A2E', 'coconutFlesh': '#F5EFE2', 'strawPink': '#F27BAA', 'stem': '#4E8A3E',
     'board': '#F7E3B5', 'boardStripe': '#2FA7C0',
+    'woodDark': '#6E4A2E', 'sandWet': '#D2B888', 'bucket': '#2EA7D8', 'spade': '#F7C443', 'shell': '#F4E3D0',
+    'shellPink': '#F2B6A8', 'starfish': '#E8743C', 'driftwood': '#BFB39F',
 }
 MODELS = {
     # KayKit Forest Nature Pack 1.0 (Kay Lousberg, CC0)
@@ -263,6 +265,9 @@ MODELS = {
     **{k: {'src': 'tropical-kit/' + k + '.glb', 'paint': TROP} for k in (
         'bamboo_pole', 'thatch_strip', 'tiki_torch', 'pendant_woven', 'rattan_chair', 'bamboo_table', 'lounger', 'parasol',
         'hibiscus', 'lei', 'blender', 'coconut_drink', 'monstera', 'hammock', 'surf_sign')},
+    # The beach set (art/blender/beach_kit.py): bevelled and subdivided pieces for the sand.
+    **{k: {'src': 'tropical-kit/' + k + '.glb', 'paint': TROP} for k in (
+        'deck_chair', 'sun_lounger', 'beach_parasol', 'sandcastle', 'bucket_spade', 'shells', 'starfish', 'driftwood', 'surfboard')},
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}

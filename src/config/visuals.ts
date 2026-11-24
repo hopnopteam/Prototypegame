@@ -247,6 +247,8 @@ export const VISUALS = {
     plank: { tile: 2.1, strength: 0.85 },
     plankWorn: { tile: 2.1, strength: 0.95 },
     fabric: { tile: 0.7, strength: 0.8 },
+    /** The Riviera revamp: beach sand with wind ripples (baked in Blender, art/blender/sand_texture.py). */
+    sand: { tile: 1.6, strength: 0.75 },
   },
 };
 
