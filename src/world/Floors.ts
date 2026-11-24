@@ -480,6 +480,10 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
   if (TROPICAL) {
     // The coast's venues lay no carpets: their deck boards, and from Bamboo up a rug where the classic plan has its
     // first covering (the others would stack one over another).
+    if (tier >= 2 && layout.type === 'kids') {
+      // The play car: a palm-leaf runner down its aisle, between the corners (they lay their own rugs).
+      rug(f, rect(-0.72, 1.2, 0.72, 14.6), FLOOR_Y + ROOM_LIFT + 0.001, [{ color: '#3E7A4A', inset: 0 }, { color: '#E9D3A0', inset: 0.05 }, { color: '#D9BE86', inset: 0.09, pattern: { shade: 1, surface: 'fabric', detail: 'fabric' } }]);
+    }
     if (tier >= 2 && venue.carpets.length && (layout.type === 'cafe' || layout.type === 'dining')) {
       const c = venue.carpets.reduce((a, x) => ((x.rect.x1 - x.rect.x0) * (x.rect.z1 - x.rect.z0) > (a.rect.x1 - a.rect.x0) * (a.rect.z1 - a.rect.z0) ? x : a));
       rug(f, c.rect, FLOOR_Y + ROOM_LIFT + 0.001, tropicalRug(tier));

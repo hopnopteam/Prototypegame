@@ -57,6 +57,11 @@ function fit(b: GeoBuilder, id: ModelId, cx: number, y: number, cz: number, w: n
   b.model(id, cx, y, cz, rotY, turned ? sz : sx, sy, turned ? sx : sz, { shade, surface: 'wood' });
 }
 
+/** A model's length along x (m). */
+function e0(e: { min: readonly number[]; max: readonly number[] }): number {
+  return e.max[0] - e.min[0];
+}
+
 /** A uniformly scaled kit model, its largest side no bigger than `size`, at most `h` tall. */
 function place(b: GeoBuilder, id: ModelId, cx: number, y: number, cz: number, size: number, h: number, rotY = 0): void {
   const e = modelEntry(id);
@@ -152,6 +157,80 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
         shade: 0.95,
         surface: 'wood',
       });
+      return true;
+    }
+    case 'play': {
+      // The Kids' Play car (art/blender/kids_kit.py; owner's reference image): each corner its own play place against
+      // the wall, the child's spot (its aisle side) and its way in (the rear) left open, a woven rug under it from
+      // Bamboo, and a knee-high bamboo fence with a flower garland along the front half of its aisle side.
+      const out = prop.facing === 'right' ? 1 : -1;
+      const back = out > 0 ? r.x0 : r.x1;
+      const front = out > 0 ? r.x1 : r.x0;
+      if (look >= 2) {
+        b.slab({ x0: r.x0 + 0.05, z0: r.z0 + 0.05, x1: r.x1 - 0.05, z1: r.z1 - 0.05 }, Y + 0.006, Y + 0.014, '#3E8A4A', 0, 0.0, { shade: 1, surface: 'fabric' });
+        b.slab({ x0: r.x0 + 0.1, z0: r.z0 + 0.1, x1: r.x1 - 0.1, z1: r.z1 - 0.1 }, Y + 0.014, Y + 0.02, '#D9B46A', 0, 0, { shade: 1, surface: 'fabric', detail: 'fabric' });
+      }
+      const floor = look >= 2 ? Y + 0.02 : Y;
+      switch (prop.variant) {
+        case 'ballpit': {
+          // A sandpit: a timber frame round the corner's floor, sand in it, a sandcastle and a bucket by the wall.
+          const fr = { x0: r.x0 + 0.06, z0: r.z0 + 0.06, x1: r.x1 - 0.06, z1: r.z1 - 0.06 };
+          for (const [x0, z0, x1, z1] of [[fr.x0, fr.z0, fr.x1, fr.z0 + 0.06], [fr.x0, fr.z1 - 0.06, fr.x1, fr.z1], [fr.x0, fr.z0 + 0.06, fr.x0 + 0.06, fr.z1 - 0.06], [fr.x1 - 0.06, fr.z0 + 0.06, fr.x1, fr.z1 - 0.06]]) {
+            b.slab({ x0, z0, x1, z1 }, floor, floor + 0.16, look >= 3 ? C.tiki : C.bamboo, 0, 0, { shade: 0.9, surface: 'wood' });
+          }
+          b.slab({ x0: fr.x0 + 0.06, z0: fr.z0 + 0.06, x1: fr.x1 - 0.06, z1: fr.z1 - 0.06 }, floor, floor + 0.11, '#E2CB9C', 0, 0, { shade: 1, detail: 'sand', surface: 'fabric' });
+          place(b, 'sandcastle', back + out * 0.3, floor + 0.1, r.z0 + 0.33, 0.4, 0.3);
+          place(b, 'bucket_spade', back + out * 0.26, floor + 0.1, r.z1 - 0.3, 0.32, 0.18);
+          break;
+        }
+        case 'slide': {
+          // A bamboo climbing frame and slide, running along the wall (the deck and ladder at the rear).
+          const e = modelEntry('play_slide');
+          b.model('play_slide', cx, floor, cz, 0, (w - 0.14) / (e.max[0] - e.min[0]), 1, (d - 0.08) / (e.max[2] - e.min[2]), { shade: 0.95, surface: 'wood' });
+          break;
+        }
+        case 'horse':
+          // Blocks and stacking rings on the rug, by the wall.
+          place(b, 'toy_blocks', back + out * 0.32, floor, cz - 0.1, 0.62, 0.36, out > 0 ? 0 : Math.PI);
+          break;
+        case 'blocks':
+          // A children's table along the wall with a stool each side, a drawing book and crayons.
+          place(b, 'kids_table', back + out * 0.38, floor, cz, 0.92, 0.55);
+          break;
+        case 'kitchen':
+          // A bamboo toy shelf against the wall, blocks spilled on the rug in front of it.
+          place(b, 'toy_shelf', back + out * 0.16, floor, cz, Math.min(0.85, d - 0.1), 0.9, Math.PI / 2);
+          place(b, 'toy_blocks', back + out * 0.5, floor, r.z0 + 0.25, 0.32, 0.2);
+          break;
+        case 'railway':
+          // A wooden train on its oval track, and a pouf.
+          place(b, 'toy_train', back + out * 0.42, floor, cz, Math.min(w, d) - 0.08, 0.16, Math.PI / 2);
+          break;
+        default:
+          return false;
+      }
+      // A monstera at the rear by the wall, and a ball or two left on the rug.
+      if (prop.variant !== 'slide') place(b, 'monstera', back + out * 0.2, floor, r.z1 - 0.2, 0.36, look >= 3 ? 0.95 : 0.75);
+      if (look >= 2 && prop.variant !== 'ballpit' && prop.variant !== 'slide') {
+        b.sphere(front - out * 0.28, floor + 0.07, r.z0 + 0.22, 0.07, prop.variant === 'kitchen' ? '#2E86D8' : '#E2483C', 1, 1, { shade: 1, surface: 'paint' });
+      }
+      if (look >= 2) {
+        // The fence along the front half of the aisle side (the way in at the rear stays open), a lantern post at its end.
+        const fe = modelEntry('bamboo_fence');
+        const len = d * 0.45;
+        b.model('bamboo_fence', front - out * 0.03, floor, r.z0 + 0.04 + len / 2, Math.PI / 2, len / (e0(fe)), 1, 1, { shade: 0.95, surface: 'wood' });
+        place(b, 'lantern_post', front - out * 0.05, floor, r.z0 + 0.06, 0.6, 1.25, out > 0 ? Math.PI : 0);
+      }
+      return true;
+    }
+    case 'pouf':
+      place(b, 'pouf_woven', cx, Y, cz, Math.min(w, d) - 0.02, 0.34);
+      return true;
+    case 'puppetTheatre': {
+      // A thatched bamboo puppet hut with striped curtains, its stage facing the room.
+      const out = prop.facing === 'right' ? 1 : -1;
+      const e = modelEntry('puppet_hut');
+      b.model('puppet_hut', cx, Y, cz, out > 0 ? 0 : Math.PI, (w - 0.02) / (e.max[0] - e.min[0]), 1, (d - 0.02) / (e.max[2] - e.min[2]), { shade: 0.95, surface: 'wood' });
       return true;
     }
     case 'plant':

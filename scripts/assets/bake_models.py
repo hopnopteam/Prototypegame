@@ -35,6 +35,10 @@ TROP = {
     'board': '#F7E3B5', 'boardStripe': '#2FA7C0',
     'woodDark': '#6E4A2E', 'sandWet': '#D2B888', 'bucket': '#2EA7D8', 'spade': '#F7C443', 'shell': '#F4E3D0',
     'shellPink': '#F2B6A8', 'starfish': '#E8743C', 'driftwood': '#BFB39F',
+    'bambooNode': '#9C7A3E', 'bambooDark': '#8C6A36', 'plankLight': '#D8B98A', 'woodLight': '#E2C597', 'toyRed': '#E2483C',
+    'toyBlue': '#2E86D8', 'toyYellow': '#F5C53A', 'toyGreen': '#4DB35A', 'toyDark': '#2E2A28', 'paper': '#FBF7EE',
+    'teddy': '#B8844E', 'lanternPink': '#F29BB8', 'lanternGreen': '#A9DB7A', 'stripeA': '#F7F1E3', 'stripeB': '#E8604C',
+    'curtain': '#7A3FA8',
 }
 MODELS = {
     # KayKit Forest Nature Pack 1.0 (Kay Lousberg, CC0)
@@ -268,6 +272,9 @@ MODELS = {
     # The beach set (art/blender/beach_kit.py): bevelled and subdivided pieces for the sand.
     **{k: {'src': 'tropical-kit/' + k + '.glb', 'paint': TROP} for k in (
         'deck_chair', 'sun_lounger', 'beach_parasol', 'sandcastle', 'bucket_spade', 'shells', 'starfish', 'driftwood', 'surfboard')},
+    # The Kids' Play car (art/blender/kids_kit.py).
+    **{k: {'src': 'tropical-kit/' + k + '.glb', 'paint': TROP} for k in (
+        'play_slide', 'toy_blocks', 'toy_train', 'kids_table', 'toy_shelf', 'pouf_woven', 'lantern_post', 'bamboo_fence', 'puppet_hut')},
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}
