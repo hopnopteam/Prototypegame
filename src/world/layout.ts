@@ -1034,6 +1034,15 @@ function buildCafe(tier: number): CarriageLayout {
   }
   // Fix list 4.7: the pantry at the back (beans, milk, cakes in their tins, a little fridge).
   backRoom(b, 'pantry', 'right', 0.5, 15.25);
+  if (layoutOptions().beachLounge && tier >= 1) {
+    // The Riviera's Smoothie Bar (owner, with a reference image): its sign on the front wall over the bar, a back bar
+    // of bottles and coconuts against the wall behind the counter, a chalk menu by the dresser, and from Bamboo a
+    // little stream down the aisle between the tables.
+    b.prop('barDecor', 1.5, WALL, 2.3, WALL + 0.1, 'left', false, 'sign');
+    b.prop('barDecor', INNER - 0.16, 4.35, INNER - 0.02, 5.6, 'left', false, 'backbar');
+    b.prop('barDecor', LAKE, 3.55, -1.95, 4.25, 'right', true, 'menu');
+    if (tier >= 2) b.prop('barDecor', -0.26, 8.4, 0.26, 15.0, 'left', false, 'stream');
+  }
   if (tier >= 2) {
     b.prop('planter', 1.88, 0.26, NEAR, 0.7, 'left', true, 'low');
     b.prop('trolley', LAKE, 15.15, -1.72, 16.2, 'right', true, 'cafe');

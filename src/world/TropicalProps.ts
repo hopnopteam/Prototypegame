@@ -1,6 +1,7 @@
 import { ACTIVE_ROUTE } from '../config/routes';
 import { isPassengerType } from '../config/classes';
 import type { GeoBuilder } from './geo';
+import { PATTERN } from './materials';
 import type { PropDef } from './layout';
 import { modelEntry, type ModelId } from './models/library';
 import type { CarriageTheme } from './palette';
@@ -91,6 +92,13 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
       if (look >= 2) {
         fit(b, 'bamboo_table', cx, Y, cz, w - 0.04, d - 0.04, 0.74);
         if (look >= 3) b.cylinder(cx, Y + 0.745, cz, Math.min(w, d) * 0.3, Math.min(w, d) * 0.3, 0.006, C.straw, 14, 'y', { shade: 1, surface: 'fabric' });
+        // The Smoothie Bar: a coconut drink and a fruit plate on every table (a hibiscus at Tiki Paradise).
+        if (type === 'cafe') {
+          place(b, 'coconut_drink', cx + 0.08, Y + 0.75, cz - 0.1, 0.12, 0.16);
+          b.cylinder(cx - 0.1, Y + 0.752, cz + 0.08, 0.08, 0.08, 0.008, '#F4F1E8', 14, 'y', { shade: 1, surface: 'ceramic' });
+          for (const [dx, dz, c] of [[-0.12, 0.06, '#F7A23A'], [-0.08, 0.11, '#E2483C'], [-0.13, 0.12, '#8BCB4E']] as const) b.sphere(cx + dx, Y + 0.775, cz + dz, 0.025, c, 1, 1, { shade: 1 });
+          if (look >= 3) place(b, 'hibiscus', cx + 0.02, Y + 0.752, cz + 0.12, 0.1, 0.03);
+        }
       } else {
         b.cylinder(cx, Y + 0.72, cz, Math.min(w, d) / 2 - 0.03, Math.min(w, d) / 2 - 0.03, 0.04, wood, 14, 'y', { shade: 0.95, surface: 'wood' });
         b.cylinder(cx, Y + 0.35, cz, 0.05, 0.07, 0.7, woodDark, 8, 'y', { shade: 0.85, surface: 'wood' });
@@ -351,6 +359,35 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
         const th = e.max[1] - e.min[1];
         for (let i = 0; i < segs; i++) b.model('thatch_strip', front + out * 0.01, Y + h - th * 0.8, r.z0 + d * ((i + 0.5) / segs), Math.PI / 2, d / segs / 0.96 - 0.01, 0.8, 1, { shade: 0.95, surface: 'fabric' });
       }
+      if (type === 'cafe') {
+        // The Smoothie Bar (owner's reference): its counter top busy with the bar's things between the blenders and the
+        // gelato: a juice dispenser by the serving place, fruit bowls, a row of smoothie cups, coconuts at Tiki Paradise,
+        // a flower garland along its front.
+        const top = Y + h + 0.03;
+        const back = out > 0 ? r.x0 : r.x1;
+        const mid = (front + back) / 2;
+        // Seen from the camera the bar is its top and its back: a pale bamboo top with a teal tile strip along it, and
+        // from Bamboo a low thatched hood along its back on canes, like the reference's thatched bar.
+        b.box(cx, Y + h + 0.032, cz, w - 0.06, 0.006, d - 0.04, C.bamboo, 0, { shade: 1, surface: 'wood', detail: 'wood' });
+        b.box(back - out * 0.12, Y + h + 0.037, cz, 0.1, 0.006, d - 0.1, C.teal, 0, { shade: 1, surface: 'ceramic' });
+        if (look >= 2) {
+          const hx = back - out * 0.09;
+          const segs = Math.max(1, Math.round(d / 0.95));
+          for (let i = 0; i <= segs; i++) cane(b, hx, Y + 0.62 + h / 2, r.z0 + 0.06 + (d - 0.12) * (i / segs), 0.62, 'y', C.bambooDark, 0.022);
+          const e = modelEntry('thatch_strip');
+          const th = e.max[1] - e.min[1];
+          for (let i = 0; i < segs; i++) b.model('thatch_strip', hx, Y + h + 0.62 - th * 0.6, r.z0 + d * ((i + 0.5) / segs), Math.PI / 2, d / segs / 0.96 - 0.01, 1.0, 2.2, { shade: 0.95, surface: 'fabric' });
+        }
+        fit(b, 'juice_dispenser', mid, top, r.z0 + d * 0.47, 0.2, 0.52, 0.38, Math.PI / 2);
+        place(b, 'fruit_bowl', mid, top, r.z0 + d * 0.6, 0.36, 0.26);
+        place(b, 'cup_row', mid, top, r.z0 + d * 0.88, 0.36, 0.22, Math.PI / 2);
+        if (look >= 3) {
+          place(b, 'coconut_drink', mid - out * 0.12, top, r.z0 + d * 0.36, 0.14, 0.18);
+          place(b, 'coconut_drink', mid + out * 0.1, top, r.z0 + d * 0.38, 0.14, 0.18);
+          const leis = Math.max(1, Math.floor(d / 1.1));
+          for (let i = 0; i < leis; i++) place(b, 'lei', front + out * 0.02, Y + h - 0.26, r.z0 + d * ((i + 0.5) / leis), 1.0, 0.25, Math.PI / 2);
+        }
+      }
       return true;
     }
     case 'sideTable':
@@ -361,6 +398,70 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
       const h = prop.kind === 'table' ? 0.56 : 0.52;
       fit(b, 'bamboo_table', cx, base, cz, w - 0.04, d - 0.04, h);
       place(b, 'coconut_drink', cx, base + h, cz, Math.min(w, d) * 0.4, 0.18);
+      return true;
+    }
+    case 'pastryCase': {
+      if (type !== 'cafe') return false;
+      // The Smoothie Bar's gelato: a glass-topped cabinet on the counter, tubs of colour inside.
+      const top = Y + 0.95;
+      b.box(cx, top + 0.09, cz, w - 0.12, 0.18, d - 0.06, look >= 3 ? C.tiki : look === 2 ? C.bamboo : C.drift, 0, { shade: 0.9, surface: 'wood' });
+      const tubs = Math.max(2, Math.floor((d - 0.1) / 0.2));
+      const flavours = ['#F7C8D8', '#F7E3A1', '#C9E8B0', '#F2B28C', '#B8DCEF', '#E9D2F0'];
+      for (let i = 0; i < tubs; i++) {
+        const pz = r.z0 + 0.05 + (d - 0.1) * ((i + 0.5) / tubs);
+        b.box(cx, top + 0.19, pz, (w - 0.2) * 0.8, 0.03, (d - 0.1) / tubs - 0.03, flavours[i % flavours.length], 0, { shade: 1, surface: 'fabric' });
+      }
+      b.box(cx, top + 0.24, cz, w - 0.14, 0.012, d - 0.08, '#DDEFF2', 0, { shade: 1, surface: 'glass' });
+      return true;
+    }
+    case 'pastries': {
+      if (type !== 'cafe') return false;
+      // Gelato cones and sundaes stood along the cabinet, ready to hand over.
+      const top = Y + 0.95 + 0.25;
+      const n = Math.max(2, Math.floor(d / 0.28));
+      for (let i = 0; i < n; i++) place(b, i % 2 ? 'sundae' : 'ice_cream', cx, top, r.z0 + d * ((i + 0.5) / n), 0.16, i % 2 ? 0.2 : 0.16);
+      return true;
+    }
+    case 'barDecor': {
+      // The Smoothie Bar's dressing (the owner's reference).
+      switch (prop.variant) {
+        case 'sign':
+          // Its sign on the front wall over the bar's end, turned to the camera a little.
+          place(b, 'smoothie_sign', cx, Y + 0.62, cz, Math.min(w, 0.95), 0.62);
+          break;
+        case 'menu':
+          // A chalk menu on an easel, by the lake-side dresser.
+          place(b, 'chalk_menu', cx, Y, cz, Math.min(w, d), 1.1, Math.PI / 2);
+          break;
+        case 'backbar': {
+          // A bamboo back bar against the wall behind the counter: two shelves of bottles, coconuts and fruit.
+          const h = 1.42;
+          for (const pz of [r.z0 + 0.04, r.z1 - 0.04]) cane(b, cx, Y + h / 2, pz, h, 'y', look === 1 ? C.driftDark : C.bamboo, 0.022);
+          for (const sy of [1.12, 1.38]) {
+            b.box(cx, Y + sy, cz, w, 0.025, d, wood, 0, { shade: 0.95, surface: 'wood' });
+            const n = Math.floor((d - 0.1) / 0.14);
+            for (let i = 0; i < n; i++) {
+              const pz = r.z0 + 0.07 + (d - 0.1) * ((i + 0.5) / n);
+              const kind = (i + Math.round(sy * 10)) % 4;
+              if (kind === 3) b.sphere(cx, Y + sy + 0.055, pz, 0.05, '#6B4A2E', 1, 1, { shade: 1 });
+              else b.cylinder(cx, Y + sy + 0.075, pz, 0.025, 0.025, 0.13, ['#F7A23A', '#F27BA8', '#8BCB4E'][kind], 8, 'y', { shade: 1, surface: 'glass' });
+            }
+          }
+          break;
+        }
+        case 'stream': {
+          // A little stream of clear water down the middle of the floor under glass, pebbles along its banks.
+          // Over the rug (laid at the floor's room height), so it shows.
+          const sy = Y + 0.03;
+          b.slab(r, sy, sy + 0.006, '#7FCFDC', 0, 0, { shade: 1, surface: 'glass' });
+          b.slab({ x0: r.x0 + 0.06, z0: r.z0 + 0.04, x1: r.x1 - 0.06, z1: r.z1 - 0.04 }, sy + 0.006, sy + 0.008, '#B8EBF0', 0, 0, { shade: 1, pattern: PATTERN.stripesZ, color2: '#7FCFDC', scale: 0.12, surface: 'glass' });
+          const n = Math.floor(d / 0.22);
+          for (let i = 0; i < n; i++) for (const ex of [r.x0, r.x1]) b.sphere(ex, sy + 0.012, r.z0 + (i + 0.5) * (d / n), 0.03 + (i % 3) * 0.006, i % 2 ? '#CFC7B8' : '#9F978A', 1, 0.5, { shade: 1 });
+          break;
+        }
+        default:
+          return false;
+      }
       return true;
     }
     case 'sofa': {

@@ -2544,6 +2544,25 @@ function fitModel(b: GeoBuilder, id: Parameters<GeoBuilder['model']>[0], x: numb
  */
 function counterThings(b: GeoBuilder, cx: number, top: number, cz: number, tier: number): void {
   newspaperStack(b, cx - 0.32, top, cz);
+  if (TROPICAL) {
+    // The Riviera (owner: "the place where we pick smoothie from still is using old assets, teapot etc"): a juice bar
+    // top (art/blender/riviera_kit2.py): a blender and a fruit bowl when run down, then a three-flavour juice dispenser,
+    // a row of smoothie cups and the fruit; at Tiki Paradise coconut drinks and a hibiscus too.
+    if (tier <= 1) {
+      fitModel(b, 'blender', cx, top, cz - 0.05, 0.3, 0, [], 'glass');
+      fitModel(b, 'fruit_bowl', cx + 0.24, top, cz + 0.14, 0.16, 0, [], 'matte');
+      if (tier >= 1) fitModel(b, 'cup_row', cx + 0.2, top, cz - 0.16, 0.14, Math.PI / 2, [], 'glass');
+    } else {
+      fitModel(b, 'juice_dispenser', cx + 0.02, top, cz - 0.02, 0.34, Math.PI / 2, [], 'glass');
+      fitModel(b, 'cup_row', cx + 0.25, top, cz - 0.14, 0.15, Math.PI / 2, [], 'glass');
+      fitModel(b, 'fruit_bowl', cx + 0.26, top, cz + 0.18, 0.17, 0, [], 'matte');
+      if (tier >= 3) {
+        fitModel(b, 'coconut_drink', cx - 0.15, top, cz + 0.27, 0.16, 0, [], 'matte');
+        fitModel(b, 'hibiscus', cx - 0.12, top, cz - 0.28, 0.05, 0, [], 'fabric');
+      }
+    }
+    return;
+  }
   if (tier <= 1) {
     fitModel(b, 'kettle', cx, top, cz, 0.26, Math.PI / 2, tier <= 0 ? [key('ttLight', '#9AA3A8')] : [], 'ceramic');
     fitModel(b, 'plate', cx + 0.25, top, cz - 0.13, 0.02);
