@@ -110,7 +110,7 @@ export const NEW_LOOK_TIERS = {
 };
 
 /** Bevels: every box at least this big on all sides gets rounded edges of this radius (share of its smallest side, capped). */
-export const BEVEL = { minSide: 0.045, share: 0.16, max: 0.025 };
+export const BEVEL = { minSide: 0.12, share: 0.16, max: 0.025 };
 
 /** Wet stone (ref 1): the platform's flags are polished, and each platform lamp throws a streak of reflection toward the camera. */
 export const WET_STONE = { smoothness: 0.78, streakLength: 2.6, streakWidth: 0.55, streakStrength: 0.95 };

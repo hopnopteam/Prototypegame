@@ -1,0 +1,26 @@
+[average s2] done: 222:39 played, 9 carriages, level 8, 0 tiles left
+[average s1] done: 234:29 played, 9 carriages, level 8, 0 tiles left
+
+=== average: 2 seed(s) (1, 2) ===
+milestone         median  slowest   target   real   verdict   per seed
+carriage 2           3.8      4.3        3          LATE      4.3 / 3.3
+carriage 3          10.0     12.2        9          LATE      12.2 / 7.8
+carriage 4          17.8     22.2       18          ok        13.5 / 22.2
+carriage 5          41.5     44.9       47          EARLY     44.9 / 38.2
+carriage 6          60.5     64.2       80          EARLY     64.2 / 56.8
+carriage 7         110.7    113.2      110          ok        113.2 / 108.2
+carriage 8         169.4    174.5      145          LATE      174.5 / 164.3
+carriage 9         206.3    209.4      180          LATE      203.2 / 209.4
+level 2              3.8      4.3                             4.3 / 3.3
+level 3             12.4     12.5                             12.2 / 12.5
+level 4             30.5     31.1                             31.1 / 30.0
+level 5             46.7     50.9                             50.9 / 42.4
+level 6             72.3     76.8                             76.8 / 67.9
+level 7            106.0    108.2                             108.2 / 103.8
+level 8            166.3    169.7                             169.7 / 162.9
+all refits         228.6    234.5                             234.5 / 222.7
+route complete     228.6    234.5   210–240          ok        234.5 / 222.7
+everything bought   228.6    234.5                             234.5 / 222.7
+  seed 1: stops median 59 s, p90 75 s, max 90 s, 10 hired
+  seed 2: stops median 59 s, p90 78 s, max 86 s, 10 hired
+Targets missed (median): 6
