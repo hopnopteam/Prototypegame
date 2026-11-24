@@ -152,7 +152,7 @@
  },
  {
   "id": "c0.refurb_4",
-  "price": 3070,
+  "price": 3380,
   "requires": [
    "c0.refurb_2"
   ],
@@ -176,7 +176,7 @@
  },
  {
   "id": "c0.refurb_5",
-  "price": 3930,
+  "price": 4320,
   "requires": [
    "c0.refurb_4"
   ],
@@ -405,7 +405,7 @@
  },
  {
   "id": "c2.refurb_4",
-  "price": 4475,
+  "price": 4920,
   "requires": [
    "c2.refurb_2"
   ],
@@ -421,7 +421,7 @@
  },
  {
   "id": "c2.refurb_5",
-  "price": 5165,
+  "price": 5680,
   "requires": [
    "c2.refurb_4"
   ],

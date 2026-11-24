@@ -332,7 +332,9 @@ export const COUNTRYSIDE_EXPRESS: RouteDef = {
     priceScale: { factor: 2.0, keepUnder: 30 },
     priceCurve: { from: 300, to: 4000, max: 1.0 },
     slotPrice: [0.85, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15],
-    classRefit: { fromTier: 4, multiplier: 0.7 },
+    // First Class and the Royal Suite: 0.7 in Phase 3, +10% after the fixed step (Phase 4c) brought route complete to
+    // 144.5 minutes; they are the last tiles of the route (all bought after the eighth carriage).
+    classRefit: { fromTier: 4, multiplier: 0.77 },
     staffCost: 1,
     moveSpeed: 3.15,
     shoes: { step: 0.11, prices: [60, 700, 3000] },
@@ -480,7 +482,8 @@ export const RIVIERA_COAST: RouteDef = {
     ...COUNTRYSIDE_EXPRESS.economy,
     priceMultiplier: 2.5,
     fareMultiplier: 2,
-    couplePrices: [60, 360, 220, 800, 2100, 3500, 6000, 12500],
+    // The seventh coupling 6,000 → 5,100 (15,000 → 12,750 in play): two seeds saved 10–12 minutes for it (Phase 4c).
+    couplePrices: [60, 360, 220, 800, 2100, 3500, 5100, 12500],
     // The longer route's last hour: the dearest tiles grow a little more, and First Class and the Royal Suites cost more.
     priceCurve: { from: 600, to: 6000, max: 1.25 },
     classRefit: { fromTier: 4, multiplier: 1.2 },
