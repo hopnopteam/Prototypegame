@@ -487,7 +487,8 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
       rug(f, c.rect, FLOOR_Y + ROOM_LIFT + 0.001, tropicalRug(tier));
     }
     // The Riviera, second pass: the play car lays its own beach (sand, a boardwalk, foam tiles: layout.ts buildKids).
-    if (!(tier >= 2 && layout.type === 'kids')) return;
+    // The spa too: pale stone wall to wall from Bamboo (owner: "lighten up the mood").
+    if (!(tier >= 2 && (layout.type === 'kids' || layout.type === 'spa'))) return;
   }
   const floor = FLOOR_Y + ROOM_LIFT + 0.001;
   const deep = theme.deep;

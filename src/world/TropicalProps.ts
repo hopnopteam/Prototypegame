@@ -422,6 +422,64 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
       for (let i = 0; i < n; i++) place(b, i % 2 ? 'sundae' : 'ice_cream', cx, top, r.z0 + d * ((i + 0.5) / n), 0.16, i % 2 ? 0.2 : 0.16);
       return true;
     }
+    case 'spaDecor': {
+      // The spa's dressing (owner: "way too empty… lighten up the mood"), fuller with each tier.
+      const out = prop.facing === 'right' ? 1 : -1;
+      switch (prop.variant) {
+        case 'zen': {
+          // A zen corner beside the fountain: an orchid and candles, then a bamboo screen, a stone basin and a raked
+          // tray, a palm and a lantern at Tiki.
+          const across = Math.abs(r.x1 - r.x0) / 2;
+          const wallX = out > 0 ? r.x0 : r.x1;
+          place(b, 'orchid', wallX + out * 0.26, Y, r.z0 + 0.32, 0.5, 0.75);
+          place(b, 'candles', cx + out * 0.15, Y, r.z1 - 0.35, 0.46, 0.26);
+          if (look >= 2) {
+            place(b, 'bamboo_screen', wallX + out * 0.07, Y, cz + 0.1, d - 0.3, 1.55, Math.PI / 2);
+            place(b, 'stone_basin', cx + out * 0.14, Y, cz, Math.min(across * 1.7, 0.72), 0.62);
+            place(b, 'zen_tray', cx + out * 0.26, Y, r.z0 + 0.34, 0.55, 0.16);
+          } else {
+            place(b, 'spa_plant', cx, Y, cz, 0.72, 1.0);
+          }
+          if (look >= 3) {
+            place(b, 'palm_pot', wallX + out * 0.28, Y, r.z1 - 0.26, 0.6, 1.6);
+            lamps.sphere(cx + out * 0.15, Y + 0.24, r.z1 - 0.35, 0.03, C.flame, 0, 1.4);
+          }
+          return true;
+        }
+        case 'shelf': {
+          // A bamboo shelf of rolled towels with a fern on top; a monstera beside it from Bamboo, an orchid at Tiki.
+          const h = 0.82;
+          const sw = Math.min(w - 0.1, 0.5);
+          const sx = (out > 0 ? r.x0 : r.x1) + out * (sw / 2 + 0.04);
+          for (const sy of [0.2, 0.5, h]) b.box(sx, Y + sy, r.z0 + 0.5, sw, 0.03, 0.8, wood, 0, { shade: 0.95, surface: 'wood' });
+          for (const px of [sx - sw / 2 + 0.03, sx + sw / 2 - 0.03]) for (const pz of [r.z0 + 0.13, r.z0 + 0.87]) cane(b, px, Y + h / 2, pz, h, 'y', look === 1 ? C.driftDark : C.bamboo, 0.018);
+          place(b, 'towel_stack', sx, Y + 0.215, r.z0 + 0.5, Math.min(sw, 0.7) - 0.04, 0.26);
+          place(b, 'towel_stack', sx, Y + 0.515, r.z0 + 0.5, Math.min(sw, 0.7) - 0.04, 0.26);
+          place(b, 'spa_plant', sx, Y + h + 0.015, r.z0 + 0.5, 0.3, 0.36);
+          if (look >= 2) place(b, 'monstera', cx, Y, r.z1 - 0.4, 0.78, 1.25);
+          if (look >= 3) place(b, 'orchid', sx, Y + 0.515, r.z0 + 0.82, 0.18, 0.28);
+          return true;
+        }
+        case 'path': {
+          // Pale stepping stones down the aisle, flush with the floor.
+          const sy = Y + 0.03;
+          for (let z = r.z0 + 0.35, i = 0; z < r.z1 - 0.2; z += 0.62, i++) {
+            b.cylinder(cx + (i % 2 ? 0.05 : -0.05), sy + 0.008, z, 0.2, 0.2, 0.012, look >= 3 ? '#FFFFFF' : '#F8F6F0', 14, 'y', { shade: 1.25, surface: 'stone' });
+          }
+          return true;
+        }
+        case 'lights':
+          // String lights along the window tops, as on the beach.
+          b.box(r.x0 + 0.02, Y + 1.08, cz, 0.012, 0.012, d, '#3A2A22', 0, { shade: 1 });
+          for (let z = r.z0 + 0.15; z < r.z1; z += 0.5) {
+            const sag = 0.05 * Math.sin(((z - r.z0) / 0.5) * Math.PI) ** 2;
+            lamps.sphere(r.x0 + 0.05, Y + 1.03 - sag, z, 0.028, look >= 3 ? '#FFD8E4' : '#FFE2A8', 0, 1.5);
+          }
+          return true;
+        default:
+          return false;
+      }
+    }
     case 'barDecor': {
       // The Smoothie Bar's dressing (the owner's reference).
       switch (prop.variant) {

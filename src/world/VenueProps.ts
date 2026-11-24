@@ -1534,6 +1534,39 @@ function buildWallBoard(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, tier: n
       }
       break;
     }
+    case 'spa': {
+      // A sage board with a white lotus and the treatments written under it.
+      frame(cx, w, hgt, yc);
+      b.box(cx, yc, z0 + 0.026, w - 0.06, hgt - 0.06, 0.004, tier >= 3 ? '#E9F1EA' : '#A9C3A6', 0, FLAT);
+      const ink = tier >= 3 ? '#5E8A6A' : '#FFFFFF';
+      for (let i = 0; i < 5; i++) {
+        const a = (i - 2) * 0.42;
+        b.add(new THREE.SphereGeometry(0.05, 8, 6).scale(0.5, 1.2, 0.12), ink, cx + Math.sin(a) * 0.06, yc + 0.1 + Math.cos(a) * 0.05, z0 + 0.032, 0, 0, a, FLAT);
+      }
+      for (let i = 0; i < 3; i++) b.box(cx, yc - 0.06 - i * 0.065, z0 + 0.032, (w - 0.3) * (i === 0 ? 0.8 : 0.6), 0.016, 0.004, ink, 0, FLAT);
+      break;
+    }
+    case 'kids': {
+      // A chalkboard of the children's drawings: a sun, a house, a boat on blue waves.
+      frame(cx, w, hgt, yc);
+      b.box(cx, yc, z0 + 0.026, w - 0.06, hgt - 0.06, 0.004, '#2F4A3E', 0, FLAT);
+      b.cylinder(cx - w * 0.28, yc + 0.12, z0 + 0.032, 0.06, 0.06, 0.004, '#F7C443', 12, 'z', FLAT);
+      b.box(cx + w * 0.05, yc - 0.03, z0 + 0.032, 0.16, 0.12, 0.004, '#F27BA8', 0, FLAT);
+      b.add(new THREE.CylinderGeometry(0, 0.12, 0.08, 3).rotateZ(0), '#E8604C', cx + w * 0.05, yc + 0.07, z0 + 0.032, 0, 0, 0, FLAT);
+      b.box(cx + w * 0.3, yc - 0.12, z0 + 0.032, 0.18, 0.04, 0.004, '#6FB7E8', 0, FLAT);
+      b.box(cx + w * 0.3, yc - 0.06, z0 + 0.032, 0.1, 0.06, 0.004, '#FFFFFF', 0, FLAT);
+      break;
+    }
+    case 'pool': {
+      // The pool rules under a red-and-white lifebuoy.
+      frame(cx, w, hgt, yc);
+      b.box(cx, yc, z0 + 0.026, w - 0.06, hgt - 0.06, 0.004, '#F4F1E8', 0, FLAT);
+      b.add(new THREE.TorusGeometry(0.085, 0.03, 8, 16), '#E8504C', cx - w * 0.25, yc + 0.06, z0 + 0.05, 0, 0, 0, FLAT);
+      for (let i = 0; i < 4; i++) b.box(cx - w * 0.25 + Math.cos((i * Math.PI) / 2) * 0.085, yc + 0.06 + Math.sin((i * Math.PI) / 2) * 0.085, z0 + 0.08, 0.04, 0.04, 0.012, '#FFFFFF', 0, FLAT);
+      b.box(cx + w * 0.12, yc + 0.12, z0 + 0.032, w * 0.4, 0.03, 0.004, '#2E7FA6', 0, FLAT);
+      for (let i = 0; i < 3; i++) b.box(cx + w * 0.12, yc + 0.02 - i * 0.07, z0 + 0.032, w * 0.4, 0.014, 0.004, '#6B7C86', 0, FLAT);
+      break;
+    }
     default:
       frame(cx, w, hgt, yc);
   }

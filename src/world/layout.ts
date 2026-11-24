@@ -1552,7 +1552,7 @@ function buildKids(tier: number): CarriageLayout {
   b.anchor('tile_menu', 0.6, 4.55);
   // The furnishings: crayons and a chalkboard on the front wall, a toy box, cushions; a soft play mat from the Repair,
   // a bright alphabet carpet from the Makeover.
-  b.prop('wallBoard', 0.2, WALL, 1.3, WALL + 0.05, 'rear', false, 'kids');
+  b.prop('wallBoard', 1.0, WALL, 2.1, WALL + 0.05, 'rear', false, 'kids');
   if (tier <= 0) b.prop('crates', LAKE, 14.0, -1.85, 14.9, 'right', true, 'kids');
   else b.prop('planter', LAKE, 14.2, -1.92, 14.62, 'right', true, 'kids');
   backRoom(b, 'toystore', 'right', 0.5, 15.0);
@@ -1618,7 +1618,19 @@ function buildSpa(tier: number): CarriageLayout {
   b.anchor('tile_up_masseur', -REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_menu', 1.45, 14.95);
-  b.prop('wallBoard', 0.2, WALL, 1.3, WALL + 0.05, 'rear', false, 'spa');
+  // The owner (26 Nov): "on entry walls… disfigured, wrongly put boards". The board hung across the gangway door;
+  // it sits on the solid wall beside it now (the gangway is ±GANGWAY_HALF).
+  b.prop('wallBoard', -2.2, WALL, -1.1, WALL + 0.05, 'rear', false, 'spa');
+  // The owner: "the spa area is way too empty in all the stages… lighten up the mood". The front corners dressed by
+  // tier (a zen corner by the fountain, a towel shelf by the robes), stepping stones and string lights from Bamboo.
+  if (tier >= 1) {
+    b.prop('spaDecor', -INNER, 0.32, -1.3, 2.2, 'right', true, 'zen');
+    b.prop('spaDecor', 1.3, 0.32, INNER, 2.1, 'left', true, 'shelf');
+  }
+  if (tier >= 2) {
+    b.prop('spaDecor', -0.34, 4.7, 0.34, 14.4, 'right', false, 'path');
+    b.prop('spaDecor', LAKE, 4.8, LAKE + 0.06, 14.4, 'right', false, 'lights');
+  }
   // Plants and candles between the tables (from the Repair); stones and bamboo at Luxury.
   for (const z of [7.85, 11.35]) {
     if (tier >= 1) b.prop('planter', LAKE, z - 0.2, -1.94, z + 0.2, 'right', true, 'spa');
@@ -1680,7 +1692,7 @@ function buildPool(tier: number): CarriageLayout {
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
   b.anchor('tile_menu', 1.55, 14.65);
   b.prop('lifeguardChair', 1.72, 13.2, NEAR, 13.95, 'left', true);
-  b.prop('wallBoard', -1.5, WALL, -0.4, WALL + 0.05, 'rear', false, 'pool');
+  b.prop('wallBoard', -2.2, WALL, -1.1, WALL + 0.05, 'rear', false, 'pool');
   backRoom(b, 'poolstore', 'left', -0.5, 14.95);
   // A jute runner along the deck once repaired, then teak decking wall to wall round the pool.
   if (tier === 1) v.carpets.push({ rect: rect(0.42, 4.25, 1.05, 13.95), style: 'jute' });
