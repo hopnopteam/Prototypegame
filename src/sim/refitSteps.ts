@@ -1,4 +1,6 @@
+import { isPassengerType } from '../config/classes';
 import { CARRIAGE_CATALOGUE } from '../config/content';
+import { ACTIVE_ROUTE } from '../config/routes';
 import type { CarriageType } from '../core/types';
 
 /**
@@ -11,6 +13,9 @@ export function refitStep(type: CarriageType, tier: number): number {
   const tiers = CARRIAGE_CATALOGUE[type].unlocks
     .filter((u) => u.kind === 'refurb')
     .map((u) => u.tier ?? 1)
+    // A route that stops its passenger carriages below the Royal Suite (the Riviera: Driftwood, Bamboo, Tiki Paradise)
+    // counts its own refits, so the Repair is its first tier and the debug sheet's tiers 2 and 3 are two looks.
+    .filter((t) => !isPassengerType(type) || t <= (ACTIVE_ROUTE.tiers?.maxPassengerTier ?? 5))
     .sort((a, b) => a - b);
   const steps = tiers.length > 3 ? tiers.slice(tiers.length - 3) : tiers;
   const i = steps.indexOf(tier);

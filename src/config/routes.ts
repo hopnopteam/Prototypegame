@@ -157,7 +157,7 @@ export interface RouteTiers {
   /** Passenger carriages: the refit tile's name by tier (1 Repair, 2 Comfort, 4 First Class, 5 Royal Suite). */
   passenger: Partial<Record<1 | 2 | 3 | 4 | 5, string>>;
   /** The classes' names and chips on this route. */
-  classes: Partial<Record<ClassId, { name: string; chip: string }>>;
+  classes: Partial<Record<ClassId, { name: string; chip: string; fare?: number; tip?: number; stars?: number }>>;
   /** The highest passenger tier offered (the Riviera: 4, its Tiki Paradise; Royal Suites are left out). */
   maxPassengerTier: number;
 }
@@ -186,6 +186,8 @@ export interface RouteLayout {
   diningRows?: number;
   /** The lobby's rack holds surfboards (each takes two places): the rack is drawn with board slots. */
   surfboards?: boolean;
+  /** Passenger carriages keep the Basic plan's rooms at every class (the class changes the furnishing, not the rooms). */
+  keepRooms?: boolean;
 }
 
 /** Phase 4: a class's requests on one route (weights, as in config/classes.ts). */
@@ -431,7 +433,9 @@ export const RIVIERA_COAST: RouteDef = {
     broken: 'Shipwrecked',
     refit: ['Driftwood', 'Bamboo', 'Tiki Paradise'],
     passenger: { 1: 'Driftwood', 2: 'Bamboo', 4: 'Tiki Paradise' },
-    classes: { basic: { name: 'Driftwood', chip: 'DRIFTWOOD' }, comfort: { name: 'Bamboo', chip: 'BAMBOO' }, first: { name: 'Tiki Paradise', chip: 'TIKI PARADISE' } },
+    // Tiki Paradise keeps every room (`layout.keepRooms`), so it is paid per room: about First Class's two suites'
+    // takings spread over a sleeper's six rooms (a Bamboo sleeper takes 10.8 fares a ride, Tiki Paradise 25).
+    classes: { basic: { name: 'Driftwood', chip: 'DRIFTWOOD' }, comfort: { name: 'Bamboo', chip: 'BAMBOO' }, first: { name: 'Tiki Paradise', chip: 'TIKI PARADISE', fare: 4.2, tip: 3, stars: 3 } },
     maxPassengerTier: 4,
   },
   stations: [
@@ -493,7 +497,7 @@ export const RIVIERA_COAST: RouteDef = {
       theme: { wall: '#F6E7C8', wallLow: '#E9C98E', carpet: '#EFD9AE', deep: '#2E9AA8', blanket: '#F28C6B', curtain: '#F7F4EE' } },
   },
   menu: { latte: 'smoothie', pastry: 'icecream', meal: 'seafood' },
-  layout: { lobbyRooms: 4, washrooms: ['shower', 'shower', 'shower'], diningRows: 5, surfboards: true },
+  layout: { lobbyRooms: 4, washrooms: ['shower', 'shower', 'shower'], diningRows: 5, surfboards: true, keepRooms: true },
   // Cold drinks and aloe on the coast: a welcome lemonade in the evening, aloe for the sunburnt in the morning; the
   // Sea-View Sleeper's guests have their beds turned down from Comfort up.
   requests: {

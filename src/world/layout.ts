@@ -584,9 +584,20 @@ export function setLayoutOptions(options: RouteLayout): void {
 }
 export const layoutOptions = (): RouteLayout => OPTIONS;
 
+/**
+ * The tier whose floor plan a passenger carriage uses. On a route that keeps its rooms (the Riviera: owner, "why did
+ * only ONE guest arrive?"; its Tiki Paradise had rebuilt each sleeper into two suites, so a full train held four
+ * ordinary rooms) every tier keeps the Basic plan; the class still changes the furnishing, the fares and the look.
+ */
+/** The highest refit tier that keeps the Basic floor plan (session 38: Comfort; session 40: Business too). */
+const SHARED_PLAN_TIER = 3;
+function keptTier(tier: number): number {
+  return OPTIONS.keepRooms ? Math.min(tier, SHARED_PLAN_TIER) : tier;
+}
+
 /** Rooms and their style in the lobby car at a refit tier (the route may give its Basic plan more rooms). */
 function lobbyRooms(tier: number): [number, RoomStyle] {
-  const [count, style] = LOBBY_ROOMS[Math.min(LOBBY_ROOMS.length - 1, Math.max(0, tier))];
+  const [count, style] = LOBBY_ROOMS[Math.min(LOBBY_ROOMS.length - 1, Math.max(0, keptTier(tier)))];
   return style === 'berth' && OPTIONS.lobbyRooms ? [OPTIONS.lobbyRooms, style] : [count, style];
 }
 
@@ -597,7 +608,7 @@ export function roomsAt(type: CarriageType, tier: number): number {
   if (type === 'lobby') return lobbyRooms(tier)[0];
   const table = type === 'sleeper' ? SLEEPER_ROOMS : null;
   if (!table) return 0;
-  return table[Math.min(table.length - 1, Math.max(0, tier))][0];
+  return table[Math.min(table.length - 1, Math.max(0, keptTier(tier)))][0];
 }
 
 /** The lobby rack (session 26): the short rack it starts as ends here; the upgraded rack runs on to `RACK_FULL_Z1`. */
@@ -708,7 +719,7 @@ function buildSleeper(tier: number, type: 'sleeper' | 'familySleeper' | 'honeymo
   b.node('corr_in', (-INNER + PARTITION_X0) / 2, front - 0.1);
   b.node('nook', 0, 1.05);
   b.chain('vest_front', 'nook', 'corr_in');
-  const [count, style] = family ? FAMILY_ROOMS : type === 'honeymoon' ? HONEYMOON_ROOMS : SLEEPER_ROOMS[Math.min(SLEEPER_ROOMS.length - 1, Math.max(0, tier))];
+  const [count, style] = family ? FAMILY_ROOMS : type === 'honeymoon' ? HONEYMOON_ROOMS : SLEEPER_ROOMS[Math.min(SLEEPER_ROOMS.length - 1, Math.max(0, keptTier(tier)))];
   if (family) {
     // The desk faces the platform wall: the line waits between it and that wall (in from the door, clear of everyone
     // walking through the carriage), and whoever serves works it from its camera end.
@@ -1598,15 +1609,13 @@ export const isVenueType = (type: CarriageType): boolean => VENUE_TYPES.has(type
 const cache = new Map<string, CarriageLayout>();
 
 /** Which floor plan a carriage uses at a refit tier: passenger carriages change plan with their class. */
-/** The highest refit tier that keeps the Basic floor plan (session 38: Comfort; session 40: Business too). */
-const SHARED_PLAN_TIER = 3;
 
 export function layoutKey(type: CarriageType, tier = 0): string {
   // Session 21: a venue's furnishings change with every refit (its tables, seats and pads stay where they are).
   if (isVenueType(type)) return `${type}:${Math.min(3, Math.max(0, tier))}`;
   if (type === 'familySleeper' || type === 'honeymoon') return `${type}:0`;
   if (type !== 'lobby' && type !== 'sleeper') return type;
-  const t = Math.min(5, Math.max(0, tier));
+  const t = keptTier(Math.min(5, Math.max(0, tier)));
   return `${type}:${t <= SHARED_PLAN_TIER ? 0 : t}`;
 }
 
