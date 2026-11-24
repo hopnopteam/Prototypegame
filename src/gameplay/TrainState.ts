@@ -16,6 +16,7 @@ import { ExteriorView } from '../world/ExteriorView';
 import { DEFAULT_TRAIN_NAME } from '../config/press';
 import { LocomotiveView } from '../world/LocomotiveView';
 import { buildRearDeck } from '../world/RearDeck';
+import { NEW_LOOK } from '../config/look';
 import { clipSide, MATERIALS, swapMaterials } from '../world/materials';
 import { trainLightInput } from '../world/trainLight';
 import { TIER_NAMES } from '../world/palette';
@@ -702,7 +703,7 @@ export class TrainState {
     w.particles.emit('dust', 0, FLOOR_Y + 0.3, w.map.rearZ + GANGWAY_LENGTH + 1, 14, 0.8);
     // The deck is lifted out of the way while the waiting carriage rolls up through its place, and set down again
     // behind it once it has coupled.
-    this.deck.visible = deckStays && !waiting;
+    this.deck.visible = (deckStays || NEW_LOOK) && !waiting;
     this.deck.position.z = startZ + CARRIAGE_LENGTH;
     const p = w.player.pos;
     if (p.z > w.map.rearZ - 0.2) {
@@ -1437,7 +1438,8 @@ export class TrainState {
     const w = this.w;
     const moreToCome = MAX_CARRIAGES > this.types.length;
     w.map.rebuild(this.types, w.journey.doorsOpen, moreToCome, this.tiers);
-    this.deck.visible = moreToCome;
+    // Visual overhaul: on a finished train the deck stays as its open end (not walkable: the map has no deck).
+    this.deck.visible = moreToCome || NEW_LOOK;
     this.deck.position.z = w.map.rearZ;
     if (!this.coupling) this.placeTeaser();
     CarriageView.shadowEpoch++;
