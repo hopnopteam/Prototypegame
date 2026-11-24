@@ -1171,7 +1171,7 @@ export class CarriageView {
       // The lagoon's bed: pale wet sand under clear shallow water, a band of foam round its edge.
       const bed = new GeoBuilder();
       bed.object('venue:lagoonBed');
-      bed.slab(r, FLOOR_Y, FLOOR_Y + 0.004, '#BFD9C8', 0, 0, { shade: 1, detail: 'sand' });
+      bed.slab({ x0: r.x0 + 0.01, z0: r.z0 + 0.01, x1: r.x1 - 0.01, z1: r.z1 - 0.01 }, FLOOR_Y, FLOOR_Y + 0.004, '#BFD9C8', 0, 0, { shade: 1, detail: 'sand' });
       bed.endObject();
       const m = new THREE.Mesh(bed.build(), MATERIALS.solid);
       m.receiveShadow = true;
@@ -2545,6 +2545,7 @@ function fitModel(b: GeoBuilder, id: Parameters<GeoBuilder['model']>[0], x: numb
 function counterThings(b: GeoBuilder, cx: number, top: number, cz: number, tier: number): void {
   newspaperStack(b, cx - 0.32, top, cz);
   if (TROPICAL) {
+    cz += 0.05;
     // The Riviera (owner: "the place where we pick smoothie from still is using old assets, teapot etc"): a juice bar
     // top (art/blender/riviera_kit2.py): a blender and a fruit bowl when run down, then a three-flavour juice dispenser,
     // a row of smoothie cups and the fruit; at Tiki Paradise coconut drinks and a hibiscus too.
@@ -2558,7 +2559,7 @@ function counterThings(b: GeoBuilder, cx: number, top: number, cz: number, tier:
       fitModel(b, 'fruit_bowl', cx + 0.26, top, cz + 0.18, 0.17, 0, [], 'matte');
       if (tier >= 3) {
         fitModel(b, 'coconut_drink', cx - 0.15, top, cz + 0.27, 0.16, 0, [], 'matte');
-        fitModel(b, 'hibiscus', cx - 0.12, top, cz - 0.28, 0.05, 0, [], 'fabric');
+        fitModel(b, 'hibiscus', cx - 0.12, top, cz - 0.2, 0.05, 0, [], 'fabric');
       }
     }
     return;

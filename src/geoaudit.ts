@@ -340,7 +340,13 @@ const HOLDS: Record<string, string[]> = {
   'platform:fruitStall': ['platform:fruitStallGoods', 'character:keeper'],
   // Session 57: the booking office stands round its counter (and the parcels office round its own); a market umbrella's
   // canopy reaches over its barrow and keeper; the goods lie on their barrows; a letter lies on a bench.
-  'platform:bookingOffice': ['platform:ticketStand', 'platform:till', 'platform:ticketRack', 'platform:deskLamp', 'platform:deskLamp~glow', 'platform:parcelsCounter', 'character:keeper-parcels', 'character:clerk', 'platform:worksCounter', 'character:painter'],
+  'platform:bookingOffice': ['platform:ticketStand', 'platform:till', 'platform:ticketRack', 'platform:deskLamp', 'platform:deskLamp~glow', 'platform:parcelsCounter', 'character:keeper-parcels', 'character:clerk', 'platform:worksCounter', 'character:painter', 'platform:worksSignPosts'],
+  // The Riviera: the low ticket kiosk wraps the stand and what stands on it.
+  'platform:ticketKiosk': ['platform:ticketStand', 'platform:till', 'platform:ticketRack', 'platform:deskLamp', 'platform:deskLamp~glow', 'character:clerk'],
+  // The coast's decor: candles and string lights glow inside their own pieces; an umbrella shades its loungers; a back-bar stands at the counter's back; a parent's pouf by the ship's palm; the class's champagne on ice by the ottoman.
+  'prop:spaDecor': ['prop:spaDecor~glow'],
+  'prop:beachDecor': ['prop:beachDecor~glow', 'prop:lounger'],
+  'class:ottoman': ['class:champagne'],
   'platform:fruitUmbrella': ['platform:fruitBarrow', 'platform:fruitBarrowGoods', 'character:keeper'],
   'platform:fruitBarrow': ['platform:fruitBarrowGoods', 'character:keeper'],
   'platform:coffeeCart': ['character:keeper-coffee'],
@@ -368,7 +374,7 @@ const HOLDS: Record<string, string[]> = {
   'mess:bed-duvet': ['mess:bed-corner', 'mess:bed-sheet'],
   'mess:bed-sheet': ['mess:bed-corner', 'mess:bed-pillow'],
   // The venues (session 20): what stands on the café counter, the bar's back-bar, the pass and the tables.
-  'prop:counter': ['prop:espresso', 'prop:pastryCase', 'prop:pastries', 'prop:beans'],
+  'prop:counter': ['prop:espresso', 'prop:pastryCase', 'prop:pastries', 'prop:beans', 'prop:barDecor'],
   'prop:pastryCase': ['prop:pastries'],
   'prop:bar': ['prop:bottles'],
   'prop:pass': ['venue:passPlate'],

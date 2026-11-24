@@ -347,7 +347,7 @@ function eyelidGeometryFor(skin: string): THREE.BufferGeometry {
  * Little things people do (the world reacts to them): sweeping a cabin, reading on the bed, sipping the tea
  * you brought, checking a watch in the queue, washing hands, stamping tickets, hugging a pillow.
  */
-export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'wash' | 'stamp' | 'hug' | 'wave' | 'look' | 'phone' | 'chat' | 'yawn' | 'waveTicket' | 'stomp' | 'pickup' | 'place' | 'cheer' | 'work';
+export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'wash' | 'stamp' | 'hug' | 'wave' | 'look' | 'phone' | 'chat' | 'yawn' | 'waveTicket' | 'stomp' | 'pickup' | 'place' | 'cheer' | 'work' | 'skim';
 
 /**
  * Character pass 2: the quick moves that answer what a figure just did. They restart each time they are asked for (a
@@ -356,7 +356,7 @@ export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'was
 const SNAP_ACTIONS: ReadonlySet<CharacterAction> = new Set(['pickup', 'place', 'cheer']);
 /** How long each of them lasts (s). */
 const SNAP_SECONDS: Partial<Record<CharacterAction, number>> = { pickup: 0.34, place: 0.32, cheer: 0.95 };
-type PropKind = 'broom' | 'paper' | 'cup' | 'stamp' | 'bundle' | 'phone' | 'ticket';
+type PropKind = 'broom' | 'paper' | 'cup' | 'stamp' | 'bundle' | 'phone' | 'ticket' | 'net';
 
 const propCache = new Map<PropKind, THREE.BufferGeometry>();
 /** Hand-held props, built once and shared (positioned for the body group, facing +z). */
@@ -370,6 +370,14 @@ function propGeometry(kind: PropKind): THREE.BufferGeometry {
       // Held at the hands, leaning forward so the brush sweeps just in front of the feet.
       b.cylinder(0, 0, 0, 0.018, 0.018, 0.72, '#A87A4E', 6, 'y', style);
       b.rounded(0, -0.38, 0, 0.26, 0.08, 0.07, 0.03, '#E2B653', style);
+      break;
+    case 'net':
+      // The pool's skimmer (owner, 26 Nov: "what does our player do exactly?"): a long pole held in both hands,
+      // reaching down and out over the water to a hoop of green net.
+      b.cylinder(0, -0.2, 0.5, 0.016, 0.016, 1.5, '#E9E4D8', 6, 'z', style);
+      b.cylinder(0, -0.2, -0.1, 0.022, 0.022, 0.12, '#3FA0C8', 6, 'z', style);
+      b.add(new THREE.TorusGeometry(0.17, 0.014, 6, 16).rotateX(Math.PI / 2), '#E9E4D8', 0, -0.2, 1.4, 0, 0, 0, style);
+      b.add(new THREE.SphereGeometry(0.16, 10, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2).scale(1, 0.7, 1), '#5FA86A', 0, -0.205, 1.4, 0, 0, 0, style);
       break;
     case 'paper':
       // An open newspaper held up in front of the face.
@@ -410,6 +418,7 @@ function propGeometry(kind: PropKind): THREE.BufferGeometry {
 /** Which prop goes with which action, and where it sits on the body (hand height, in front). */
 const ACTION_PROPS: Partial<Record<CharacterAction, { kind: PropKind; pos: [number, number, number]; rot: [number, number, number] }>> = {
   sweep: { kind: 'broom', pos: [0.08, 0.46, 0.26], rot: [0.75, 0, 0] },
+  skim: { kind: 'net', pos: [0.04, 0.62, 0.2], rot: [0.32, 0, 0] },
   read: { kind: 'paper', pos: [0, 0.74, 0.34], rot: [-0.25, 0, 0] },
   stamp: { kind: 'stamp', pos: [0.2, 0.6, 0.3], rot: [0, 0, 0] },
   hug: { kind: 'bundle', pos: [0, 0.58, 0.3], rot: [0, 0, 0] },
@@ -738,6 +747,16 @@ export class CharacterView {
         this.headPitch = 0.25;
         this.body.rotation.y = Math.sin(t * 7) * 0.32;
         this.body.position.y -= 0.03;
+        break;
+      case 'skim':
+        // Both hands forward on the pole, leaning over the water, drawing the net slowly from side to side.
+        aim(0, -1.0, 0.25, -0.5);
+        aim(1, -0.95, -0.2, -0.55);
+        this.kneeAim[0] = 0.22;
+        this.kneeAim[1] = 0.12;
+        this.headPitch = 0.35;
+        this.body.rotation.x += 0.12;
+        this.body.rotation.y = Math.sin(t * 2.6) * 0.42;
         break;
       case 'read':
         aim(0, -0.75, 0.35, -1.0);

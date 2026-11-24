@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { ACTIVE_ROUTE } from '../config/routes';
 import { isPassengerType } from '../config/classes';
 import type { GeoBuilder } from './geo';
@@ -190,20 +191,20 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
       switch (prop.variant) {
         case 'tower':
           // The thatched climbing tower against the wall at the rear, its slide running forward to the floor.
-          place(b, 'play_tower', cx - out * 0.02, floor, cz, Math.min(d - 0.05, (w - 0.02) * 1.96 / 1.23), 1.85, Math.PI / 2);
+          place(b, 'play_tower', cx + out * 0.02, floor, cz, Math.min(d - 0.05, (w - 0.1) * 1.96 / 1.23), 1.85, Math.PI / 2);
           if (rich) place(b, 'kid_ball', front - out * 0.25, floor, r.z0 + 0.25, 0.24, 0.24);
           break;
         case 'ballpit':
           // The ball pit in its ring of rocks at the rear; beach balls and a palm in front of it.
           place(b, 'ball_pit', cx, floor, r.z1 - 0.62, Math.min(w, 1.2) - 0.04, 0.3);
           place(b, 'kid_ball', back + out * 0.35, floor, r.z0 + 0.45, 0.26, 0.26);
-          place(b, 'palm_pot', back + out * 0.3, floor, r.z0 + 0.95, 1.5, rich ? 1.1 : 0.9);
+          place(b, 'palm_pot', back + out * 0.45, floor, r.z0 + 0.95, 0.78, rich ? 1.1 : 0.9);
           if (rich) place(b, 'kid_ball', front - out * 0.3, floor, r.z0 + 0.25, 0.2, 0.2);
           break;
         case 'ship':
           // The pirate ship along the wall, bow toward the front of the car.
           place(b, 'pirate_ship', back + out * 0.5, floor, cz - 0.15, Math.min(1.62, d - 0.4), 1.7, Math.PI);
-          if (rich) place(b, 'palm_pot', back + out * 0.32, floor, r.z1 - 0.3, 1.5, 1.0);
+          if (rich) place(b, 'palm_pot', back + out * 0.42, floor, r.z1 - 0.5, 0.72, 1.0);
           break;
         case 'sandpit': {
           // A sandpit in a timber frame with a sandcastle, a bucket and spade; a palm and a ball beside it.
@@ -214,20 +215,20 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
           b.slab({ x0: fr.x0 + 0.06, z0: fr.z0 + 0.06, x1: fr.x1 - 0.06, z1: fr.z1 - 0.06 }, floor, floor + 0.11, '#E9D3A2', 0, 0, { shade: 1, detail: 'sand', surface: 'fabric' });
           place(b, 'sandcastle', back + out * 0.35, floor + 0.11, fr.z0 + 0.38, 0.5, 0.36);
           place(b, 'bucket_spade', front - out * 0.32, floor + 0.11, fr.z1 - 0.32, 0.32, 0.18);
-          place(b, 'palm_pot', back + out * 0.3, floor, r.z0 + 0.42, 1.5, rich ? 1.1 : 0.9);
+          place(b, 'palm_pot', back + out * 0.45, floor, r.z0 + 0.42, 0.78, rich ? 1.1 : 0.9);
           if (rich) place(b, 'kid_ball', front - out * 0.28, floor, r.z0 + 0.7, 0.24, 0.24);
           break;
         }
         case 'swings':
           // Swings in a bamboo frame along the wall, leaves along the crossbar.
-          place(b, 'swing_set', back + out * 0.42, floor, cz - 0.1, Math.min(1.75, d - 0.3), 1.6, Math.PI / 2);
-          if (rich) place(b, 'palm_pot', back + out * 0.3, floor, r.z1 - 0.28, 1.5, 1.0);
+          place(b, 'swing_set', back + out * 0.47, floor, cz - 0.1, Math.min(1.75, d - 0.3), 1.6, Math.PI / 2);
+          if (rich) place(b, 'palm_pot', back + out * 0.42, floor, r.z1 - 0.4, 0.72, 1.0);
           break;
         case 'riders':
           // A dolphin and a crab on springs, a palm between them.
           place(b, 'spring_dolphin', cx, floor, r.z1 - 0.45, 0.55, 0.6, out > 0 ? -Math.PI / 2 : Math.PI / 2);
           place(b, 'spring_crab', cx, floor, r.z0 + 0.5, 0.62, 0.45, out > 0 ? -Math.PI / 2 : Math.PI / 2);
-          place(b, 'palm_pot', back + out * 0.25, floor, cz - 0.05, 1.5, rich ? 1.05 : 0.85);
+          place(b, 'palm_pot', back + out * 0.42, floor, cz - 0.05, 0.72, rich ? 1.05 : 0.85);
           if (rich) place(b, 'kid_ball', front - out * 0.2, floor, cz + 0.15, 0.2, 0.2);
           break;
         default:
@@ -246,15 +247,15 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
       switch (prop.variant) {
         case 'umbrella':
           // A rainbow umbrella over the heads of a pair of loungers, its pole by the wall.
-          place(b, 'rainbow_umbrella', cx, floor, cz, 0.85, 1.25);
+          place(b, 'rainbow_umbrella', cx - 0.32, floor, cz, 0.8, 1.25);
           break;
         case 'lagoon': {
           // Rocks round the lagoon's rim (the water is the view's), shells and a starfish on the sand by it.
-          const rim: [number, number, number][] = [[r.x1 - 0.05, r.z0 + 0.2, 0.5], [r.x1 - 0.02, r.z0 + 1.6, 0.38], [r.x1 - 0.06, r.z1 - 1.5, 0.45], [r.x1 - 0.04, r.z1 - 0.22, 0.55], [cx - 0.2, r.z0 + 0.02, 0.42], [cx + 0.1, r.z1 - 0.02, 0.48], [r.x0 + 0.1, cz - 1.1, 0.36]];
+          const rim: [number, number, number][] = [[r.x1 - 0.05, r.z0 + 0.2, 0.5], [r.x1 - 0.02, r.z0 + 1.6, 0.38], [r.x1 - 0.06, r.z1 - 1.5, 0.45], [r.x1 - 0.04, r.z1 - 0.22, 0.55], [cx - 0.2, r.z0 + 0.02, 0.42], [cx + 0.1, r.z1 - 0.02, 0.48], [r.x0 + 0.24, cz - 1.1, 0.36]];
           rim.forEach(([x, z, size], i) => place(b, 'beach_rocks', x, Y, z, size, size * 0.42, i * 1.3));
           place(b, 'starfish', r.x1 + 0.12, floor, cz - 0.6, 0.12, 0.02, 0.6);
           place(b, 'shells', r.x1 + 0.1, floor, cz + 0.9, 0.18, 0.04, 1.2);
-          if (look >= 3) place(b, 'palm_pot', r.x0 + 0.25, Y, r.z1 - 0.3, 1.5, 1.2);
+          if (look >= 3) place(b, 'palm_pot', r.x0 + 0.5, Y, r.z1 - 0.45, 0.8, 1.2);
           break;
         }
         case 'net':
@@ -273,7 +274,7 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
           const base = prop.variant === 'towel' ? '#F28C6B' : '#3FA9D8';
           const t = floor + 0.004;
           b.slab({ x0: r.x0, z0: r.z0, x1: r.x1, z1: r.z1 }, t, t + 0.006, base, 0, 0, { shade: 1, surface: 'fabric', detail: 'fabric' });
-          for (const k of [0.22, 0.5, 0.78]) b.slab({ x0: r.x0, z0: r.z0 + d * k - 0.03, x1: r.x1, z1: r.z0 + d * k + 0.03 }, t + 0.006, t + 0.007, '#FBF7EE', 0, 0, { shade: 1, surface: 'fabric' });
+          for (const k of [0.22, 0.5, 0.78]) b.slab({ x0: r.x0 + 0.01, z0: r.z0 + d * k - 0.03, x1: r.x1 - 0.01, z1: r.z0 + d * k + 0.03 }, t + 0.01, t + 0.011, '#FBF7EE', 0, 0, { shade: 1, surface: 'fabric' });
           break;
         }
         case 'lights': {
@@ -366,18 +367,9 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
         const top = Y + h + 0.03;
         const back = out > 0 ? r.x0 : r.x1;
         const mid = (front + back) / 2;
-        // Seen from the camera the bar is its top and its back: a pale bamboo top with a teal tile strip along it, and
-        // from Bamboo a low thatched hood along its back on canes, like the reference's thatched bar.
+        // Seen from the camera the bar is its top and its back: a pale bamboo top with a teal tile strip along it.
         b.box(cx, Y + h + 0.032, cz, w - 0.06, 0.006, d - 0.04, C.bamboo, 0, { shade: 1, surface: 'wood', detail: 'wood' });
-        b.box(back - out * 0.12, Y + h + 0.037, cz, 0.1, 0.006, d - 0.1, C.teal, 0, { shade: 1, surface: 'ceramic' });
-        if (look >= 2) {
-          const hx = back - out * 0.09;
-          const segs = Math.max(1, Math.round(d / 0.95));
-          for (let i = 0; i <= segs; i++) cane(b, hx, Y + 0.62 + h / 2, r.z0 + 0.06 + (d - 0.12) * (i / segs), 0.62, 'y', C.bambooDark, 0.022);
-          const e = modelEntry('thatch_strip');
-          const th = e.max[1] - e.min[1];
-          for (let i = 0; i < segs; i++) b.model('thatch_strip', hx, Y + h + 0.62 - th * 0.6, r.z0 + d * ((i + 0.5) / segs), Math.PI / 2, d / segs / 0.96 - 0.01, 1.0, 2.2, { shade: 0.95, surface: 'fabric' });
-        }
+        b.box(back + out * 0.12, Y + h + 0.037, cz, 0.1, 0.006, d - 0.1, C.teal, 0, { shade: 1, surface: 'ceramic' });
         fit(b, 'juice_dispenser', mid, top, r.z0 + d * 0.47, 0.2, 0.52, 0.38, Math.PI / 2);
         place(b, 'fruit_bowl', mid, top, r.z0 + d * 0.6, 0.36, 0.26);
         place(b, 'cup_row', mid, top, r.z0 + d * 0.88, 0.36, 0.22, Math.PI / 2);
@@ -512,7 +504,7 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
           // Over the rug (laid at the floor's room height), so it shows.
           const sy = Y + 0.03;
           b.slab(r, sy, sy + 0.006, '#7FCFDC', 0, 0, { shade: 1, surface: 'glass' });
-          b.slab({ x0: r.x0 + 0.06, z0: r.z0 + 0.04, x1: r.x1 - 0.06, z1: r.z1 - 0.04 }, sy + 0.006, sy + 0.008, '#B8EBF0', 0, 0, { shade: 1, pattern: PATTERN.stripesZ, color2: '#7FCFDC', scale: 0.12, surface: 'glass' });
+          b.slab({ x0: r.x0 + 0.06, z0: r.z0 + 0.04, x1: r.x1 - 0.06, z1: r.z1 - 0.04 }, sy + 0.009, sy + 0.011, '#B8EBF0', 0, 0, { shade: 1, pattern: PATTERN.stripesZ, color2: '#7FCFDC', scale: 0.12, surface: 'glass' });
           const n = Math.floor(d / 0.22);
           for (let i = 0; i < n; i++) for (const ex of [r.x0, r.x1]) b.sphere(ex, sy + 0.012, r.z0 + (i + 0.5) * (d / n), 0.03 + (i % 3) * 0.006, i % 2 ? '#CFC7B8' : '#9F978A', 1, 0.5, { shade: 1 });
           break;
@@ -553,8 +545,29 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
         for (const px of [r.x0 + 0.05, r.x1 - 0.05]) for (const pz of [r.z0 + 0.05, r.z1 - 0.05]) cane(b, px, (Y + top) / 2, pz, top - Y, 'y', C.bamboo, 0.025);
         for (const pz of [r.z0 + 0.05, r.z1 - 0.05]) cane(b, cx, top, pz, w - 0.1, 'x', C.bamboo, 0.022);
         for (const px of [r.x0 + 0.05, r.x1 - 0.05]) cane(b, px, top, cz, d - 0.1, 'z', C.bamboo, 0.022);
-        // Muslin gathered at each post.
-        for (const px of [r.x0 + 0.08, r.x1 - 0.08]) for (const pz of [r.z0 + 0.08, r.z1 - 0.08]) b.box(px, Y + 0.7, pz, 0.05, 0.62, 0.05, C.muslin, 0, { shade: 1, surface: 'fabric' });
+        // The owner (26 Nov): "Tiki Paradise rooms have genuinely no upgrade vibe… make them feel more upgraded and
+        // class". Muslin drapes gathered at each post with a gold tie, a valance along the canopy, paper lanterns lit
+        // at the foot posts, a throw in hibiscus and gold, a towel swan in a ring of petals, with the class's ottoman and champagne at its foot.
+        for (const px of [r.x0 + 0.08, r.x1 - 0.08]) for (const pz of [r.z0 + 0.08, r.z1 - 0.08]) {
+          b.rounded(px, Y + 0.64, pz, 0.11, 0.64, 0.11, 0.04, C.muslin, { shade: 1, surface: 'fabric' });
+          b.cylinder(px, Y + 0.6, pz, 0.068, 0.068, 0.03, '#D9B45A', 10, 'y', { shade: 1, surface: 'brass' });
+        }
+        for (const pz of [r.z0 + 0.05, r.z1 - 0.05]) b.box(cx, top - 0.085, pz, w - 0.12, 0.11, 0.018, C.muslin, 0, { shade: 1, surface: 'fabric' });
+        for (const px of [r.x0 + 0.05, r.x1 - 0.05]) b.box(px, top - 0.075, cz, 0.018, 0.1, d - 0.16, C.muslin, 0, { shade: 1, surface: 'fabric' });
+        for (const px of [r.x0 + 0.05, r.x1 - 0.05]) {
+          b.cylinder(px, top - 0.2, r.z1 - 0.05, 0.004, 0.004, 0.14, '#3A2A22', 4, 'y', { shade: 1 });
+          lamps.sphere(px, top - 0.31, r.z1 - 0.05, 0.06, '#FFD9A0', 0, 1.4);
+        }
+        b.box(cx, Y + BED_TOP + 0.02, r.z0 + d * 0.66, w - 0.05, 0.006, d * 0.56, C.hibiscus, 0, { shade: 1, pattern: PATTERN.stripesX, color2: '#F4D58A', scale: 0.16, surface: 'fabric' });
+        const sz = r.z0 + d * 0.72;
+        for (const side of [-1, 1]) {
+          b.rounded(cx + side * 0.07, Y + BED_TOP + 0.07, sz, 0.12, 0.08, 0.2, 0.04, '#FFFFFF', { shade: 1, surface: 'fabric' });
+          b.add(new THREE.TorusGeometry(0.06, 0.016, 6, 10, Math.PI).rotateY(Math.PI / 2), '#FFFFFF', cx + side * 0.035, Y + BED_TOP + 0.14, sz - 0.06, 0, 0, 0, { shade: 1, surface: 'fabric' });
+        }
+        for (let i = 0; i < 10; i++) {
+          const a = (i / 10) * Math.PI * 2;
+          b.sphere(cx + Math.cos(a) * 0.2, Y + BED_TOP + 0.03, sz + Math.sin(a) * 0.24, 0.022, i % 2 ? C.hibiscus : '#F27BAA', 0, 0.35, { shade: 1 });
+        }
         for (let i = 0; i < 5; i++) b.sphere(r.x0 + 0.1 + (w - 0.2) * (i / 4), Y + 0.25, r.z1 - 0.02, 0.035, i % 2 ? C.hibiscus : '#F27BAA', 0, 0.8, { shade: 1 });
       }
       return true;

@@ -129,6 +129,8 @@ export class Venue {
   loudSince = 0;
   /** Phase 4, the Pool Car: the leaves on the water (0–1). */
   leaves = 0;
+  /** How leafy the water was when the skimming began (the leaves come off as the skimmer's ring fills). */
+  skimFrom = 0;
 
   /**
    * The floor plan in use: a refit swaps it for its own tier's (session 21: the furnishings change, the tables, seats
@@ -1068,9 +1070,23 @@ export class Venues {
       return false;
     }
     const seconds = VENUE_TUNING.pool.skimSeconds;
+    if (zone.timer === 0) venue.skimFrom = venue.leaves;
     zone.timer += dt * actor.workMultiplier;
     zone.progress = Math.min(1, zone.timer / seconds);
-    actor.view.act('sweep', 0.3);
+    // The long net over the water, the leaves coming off as the ring fills (they used to vanish all at once).
+    actor.view.act('skim', 0.3);
+    venue.leaves = Math.max(0.05, venue.skimFrom * (1 - zone.progress));
+    // A few leaves lifting off the water as it goes (placed from the timer: no game randomness is used).
+    const pond = venue.layout.water;
+    const beat = Math.floor(zone.timer * 6);
+    if (pond && beat !== Math.floor((zone.timer - dt * actor.workMultiplier) * 6)) {
+      const f = (beat * 0.618) % 1;
+      const g = (beat * 0.381 + 0.5) % 1;
+      const wx = pond.x0 + 0.3 + f * Math.max(0.1, pond.x1 - pond.x0 - 0.6);
+      const wz = pond.z0 + 0.3 + g * Math.max(0.1, pond.z1 - pond.z0 - 0.6);
+      const p = venue.world({ x: wx, z: wz });
+      w.particles.emit('mote', p.x, FLOOR_Y + 0.1, p.z, 2, 0.4);
+    }
     if (zone.timer < seconds) return true;
     zone.timer = 0;
     zone.progress = 0;

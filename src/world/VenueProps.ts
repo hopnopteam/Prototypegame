@@ -1552,7 +1552,7 @@ function buildWallBoard(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, tier: n
       b.box(cx, yc, z0 + 0.026, w - 0.06, hgt - 0.06, 0.004, '#2F4A3E', 0, FLAT);
       b.cylinder(cx - w * 0.28, yc + 0.12, z0 + 0.032, 0.06, 0.06, 0.004, '#F7C443', 12, 'z', FLAT);
       b.box(cx + w * 0.05, yc - 0.03, z0 + 0.032, 0.16, 0.12, 0.004, '#F27BA8', 0, FLAT);
-      b.add(new THREE.CylinderGeometry(0, 0.12, 0.08, 3).rotateZ(0), '#E8604C', cx + w * 0.05, yc + 0.07, z0 + 0.032, 0, 0, 0, FLAT);
+      b.add(new THREE.BoxGeometry(0.12, 0.12, 0.004).rotateZ(Math.PI / 4), '#E8604C', cx + w * 0.05, yc + 0.03, z0 + 0.037, 0, 0, 0, FLAT);
       b.box(cx + w * 0.3, yc - 0.12, z0 + 0.032, 0.18, 0.04, 0.004, '#6FB7E8', 0, FLAT);
       b.box(cx + w * 0.3, yc - 0.06, z0 + 0.032, 0.1, 0.06, 0.004, '#FFFFFF', 0, FLAT);
       break;
