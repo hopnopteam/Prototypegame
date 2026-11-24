@@ -104,7 +104,10 @@ def main():
     pos, idx = read_bin(totals)
     out = np.full(totals['vertices'], 255, dtype=np.uint8)
     if os.path.exists(OUT) and args.only:
-        out[:] = np.frombuffer(open(OUT, 'rb').read(), dtype=np.uint8)
+        # Models are only ever added at the end (scripts/assets/bake_models.py), so the old bytes are a prefix.
+        old = np.frombuffer(open(OUT, 'rb').read(), dtype=np.uint8)
+        n = min(old.size, out.size)
+        out[:n] = old[:n]
     only = set(filter(None, args.only.split(',')))
     setup_scene(args.samples)
     t0 = time.time()

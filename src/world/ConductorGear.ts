@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { OutfitDef } from '../config/wardrobe';
+import { KNEE_Y } from './CharacterParts';
 import { SHOES_BY_SPEED } from '../config/wardrobe';
 import { CharacterView, type CharacterLook } from './CharacterView';
 import { faceDepth, LEG_LENGTH, SHOULDER_X, SHOULDER_Y } from './CharacterParts';
@@ -84,8 +85,10 @@ export class ConductorGear {
       .box(0, -LEG_LENGTH + 0.01, 0.03, 0.1, 0.02, 0.22, PALETTE.ink, 0, { shade: 1 });
     for (const z of [-0.06, 0.12]) skate.cylinder(0, -LEG_LENGTH - 0.015, z, 0.035, 0.035, 0.1, '#FFD35C', 10, 'x', { shade: 1 });
     const skateGeo = skate.build();
-    for (const pivot of view.legPivots) {
+    // On the shin (character pass 2: the knee bends), so the skate stays on the foot.
+    for (const pivot of view.kneePivots) {
       const mesh = new THREE.Mesh(skateGeo, MATERIALS.character);
+      mesh.position.y = -KNEE_Y;
       pivot.add(mesh);
       this.skates.push(mesh);
     }

@@ -365,6 +365,8 @@ export class Game implements World {
     this.zones.reach = this.econ.zones.reach;
     // Session 29: every job sounds the same way as its ring fills, a gentle soft tick each quarter, a little higher each time.
     this.zones.onPlayerWork = (_zone, before, after) => {
+      // Character pass 2: busy hands while any job's ring fills, unless the job has its own move (a sweep, a stamp).
+      if (this.player.view.currentAction === 'none' || this.player.view.currentAction === 'work') this.player.view.act('work', 0.2);
       if (Math.floor(after * 4) > Math.floor(before * 4) && after < 1) this.audio.play('fill', { pitch: 0.95 + after * 0.3 });
     };
     this.zones.badgeReach = this.econ.zones.badgeReach;

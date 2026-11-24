@@ -95,11 +95,11 @@ export const VISUALS = {
        * fewer pixels. Session 19: Low used to drop the shadow map, so an automatic Medium → Low step recompiled
        * every shader at once (a freeze of seconds on a phone); now the step only changes resolution.
        */
-      low: { label: 'Low', pixelRatio: 1.75, maxMegapixels: 1.4, lite: true, shadows: 'off' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false , strollers: 4 },
+      low: { label: 'Low', pixelRatio: 2, maxMegapixels: 2.0, lite: true, shadows: 'off' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false , strollers: 4 },
       /** Every other phone: lite shading, the train's static moon shadow, drawn at 2× (session 19: crisp on every phone). */
-      medium: { label: 'Medium', pixelRatio: 2, maxMegapixels: 2.0, lite: true, shadows: 'off' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false , strollers: 6 },
+      medium: { label: 'Medium', pixelRatio: 2.25, maxMegapixels: 2.6, lite: true, shadows: 'off' as ShadowMode, shadowMap: 1024, softShadows: false, shadowInterval: 2, bloom: 0, msaa: 0, fxaa: false, reflections: 0, ssao: false , strollers: 6 },
       /** Laptops (and phones, by choice): full shading, bloom halos, soft shadows, real lake reflections. */
-      high: { label: 'High', pixelRatio: 2, maxMegapixels: 3.2, lite: false, shadows: 'off' as ShadowMode, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.5, msaa: 0, fxaa: false, reflections: 0.4, ssao: false , strollers: 8 },
+      high: { label: 'High', pixelRatio: 2.5, maxMegapixels: 3.6, lite: false, shadows: 'off' as ShadowMode, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.5, msaa: 0, fxaa: false, reflections: 0.4, ssao: false , strollers: 8 },
       /** Desktops: sharper reflections and screen-space ambient occlusion on top. */
       ultra: { label: 'Ultra', pixelRatio: 2.5, maxMegapixels: 5.5, lite: false, shadows: 'off' as ShadowMode, shadowMap: 2048, softShadows: true, shadowInterval: 1, bloom: 0.5, msaa: 0, fxaa: false, reflections: 0.4, ssao: false , strollers: 8 },
     },

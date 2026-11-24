@@ -37,6 +37,8 @@ looks.forEach((l, i) => {
   c.setPosition((i % cols - (cols - 1) / 2) * 1.0, 0, Math.floor(i / cols) * 1.2);
   c.setFacing(Number(params.get('face') ?? '0.35'));
   if (params.get('carry') === '1' && i % 3 === 0) c.setCarrying(true);
+  if (params.get('board') === '1') c.setCarrying(false, true);
+  if (params.get('box') === '1') c.setCarrying(false, false, true);
   const pose = params.get('pose');
   if (pose === 'sleep' || pose === 'sit') c.setPose(pose);
   if (params.get('act')) c.act(params.get('act') as never, 99);
@@ -52,7 +54,11 @@ let last = performance.now();
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  for (const v of views) v.update(dt, walk ? 1.6 : 0);
+  const again = params.get('act');
+  for (const v of views) {
+    if (again && params.get('loop') === '1' && v.currentAction === 'none') v.act(again as never, 99);
+    v.update(dt, walk ? Number(params.get('speed') ?? '1.6') : 0);
+  }
   stage.rig.update(dt, camX, camZ);
   const rows = Math.ceil(looks.length / cols);
   const cz = ((rows - 1) * 1.2) / 2;

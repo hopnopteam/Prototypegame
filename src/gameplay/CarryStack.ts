@@ -5,6 +5,8 @@ import type { ItemKind } from '../core/types';
 import { createItemMesh, createTrayMesh, ITEM_HEIGHT, ON_TRAY, TRAY_TOP } from '../world/ItemMeshes';
 
 const tmp = new THREE.Vector3();
+/** A surfboard under the arm is drawn at this size. */
+const BOARD_SCALE = 0.72;
 
 /**
  * The visible pile of items an actor carries (player and staff share it). Items fly into the stack from a
@@ -23,7 +25,26 @@ export class CarryStack {
     private readonly scene: THREE.Scene,
     private readonly tweens: Tweens,
     public capacity: number,
+    /** Character pass 2: surfboards ride here (under the arm), not on the stack in front. */
+    private readonly boardAnchor: THREE.Object3D | null = null,
   ) {}
+
+  /** The anchor an item of this kind rides on. */
+  private anchorFor(kind: ItemKind): THREE.Object3D {
+    return kind === 'surfboard' && this.boardAnchor ? this.boardAnchor : this.anchor;
+  }
+
+  /** Carrying a surfboard under the arm. */
+  get board(): boolean {
+    return !!this.boardAnchor && this.items.includes('surfboard');
+  }
+
+  /** How many things are on the stack in front (boards under the arm left out). */
+  get stacked(): number {
+    let n = 0;
+    for (const k of this.items) if (k !== 'surfboard' || !this.boardAnchor) n++;
+    return n;
+  }
 
   get count(): number {
     return this.items.length;
@@ -56,21 +77,24 @@ export class CarryStack {
     if (base !== this.trayBase) this.relayout();
     const mesh = createItemMesh(kind);
     this.meshes.push(mesh);
-    this.anchor.add(mesh);
+    const anchor = this.anchorFor(kind);
+    anchor.add(mesh);
     const slot = this.slotHeight(this.meshes.length - 1);
     mesh.position.set(0, slot, 0);
+    this.placeBoard(mesh, this.meshes.length - 1);
     if (from) {
       // Start at the source in anchor space, then arc into the slot.
-      const start = this.anchor.worldToLocal(tmp.copy(from));
+      const start = anchor.worldToLocal(tmp.copy(from));
       const sx = start.x;
       const sy = start.y;
       const sz = start.z;
       mesh.position.set(sx, sy, sz);
       mesh.scale.setScalar(0.6);
+      const boardX = this.boardX(this.meshes.indexOf(mesh));
       this.tweens.run(0.28, (t) => {
         const target = this.slotHeight(this.meshes.indexOf(mesh));
-        mesh.position.set(sx * (1 - t), sy + (target - sy) * t + Math.sin(t * Math.PI) * 0.5, sz * (1 - t));
-        mesh.scale.setScalar(0.6 + 0.4 * t);
+        mesh.position.set(sx + (boardX - sx) * t, sy + (target - sy) * t + Math.sin(t * Math.PI) * 0.5, sz * (1 - t));
+        mesh.scale.setScalar((0.6 + 0.4 * t) * (boardX !== 0 || (kind === 'surfboard' && this.boardAnchor) ? BOARD_SCALE : 1));
       }, { ease: easeInOutCubic, owner: mesh });
     }
     this.wobble = 1;
@@ -94,7 +118,7 @@ export class CarryStack {
     this.relayout();
     if (to) {
       const start = mesh.getWorldPosition(new THREE.Vector3());
-      this.anchor.remove(mesh);
+      mesh.removeFromParent();
       this.scene.add(mesh);
       mesh.position.copy(start);
       this.tweens.run(0.3, (t) => {
@@ -110,7 +134,7 @@ export class CarryStack {
         },
       });
     } else {
-      this.anchor.remove(mesh);
+      mesh.removeFromParent();
       onArrive?.();
     }
     this.wobble = 0.6;
@@ -132,7 +156,8 @@ export class CarryStack {
     const sway = (moving ? 0.05 : 0.015) + this.wobble * 0.06;
     for (let i = 0; i < this.meshes.length; i++) {
       const mesh = this.meshes[i];
-      mesh.rotation.z = Math.sin(time * 6 + i * 0.7) * sway * (i / Math.max(1, this.meshes.length));
+      const board = this.items[i] === 'surfboard' && this.boardAnchor;
+      mesh.rotation.z = (board ? Math.PI / 2 : 0) + Math.sin(time * 6 + i * 0.7) * sway * (board ? 0.3 : i / Math.max(1, this.meshes.length));
     }
   }
 
@@ -151,9 +176,26 @@ export class CarryStack {
   }
 
   private slotHeight(index: number): number {
+    if (this.items[index] === 'surfboard' && this.boardAnchor) return 0;
     let y = this.trayBase;
-    for (let i = 0; i < index; i++) y += ITEM_HEIGHT[this.items[i]] ?? 0.2;
+    for (let i = 0; i < index; i++) if (this.items[i] !== 'surfboard' || !this.boardAnchor) y += ITEM_HEIGHT[this.items[i]] ?? 0.2;
     return y;
+  }
+
+  /** A board under the arm stands on its edge, each further one a little further out. */
+  private boardX(index: number): number {
+    if (this.items[index] !== 'surfboard' || !this.boardAnchor) return 0;
+    let n = 0;
+    for (let i = 0; i < index; i++) if (this.items[i] === 'surfboard') n++;
+    return -n * 0.07;
+  }
+
+  private placeBoard(mesh: THREE.Mesh, index: number): void {
+    if (this.items[index] !== 'surfboard' || !this.boardAnchor) return;
+    // At a toy figure's scale (a full-size board stood taller than the conductor), its nose lifted a touch.
+    mesh.rotation.set(-0.12, 0, Math.PI / 2);
+    mesh.scale.setScalar(BOARD_SCALE);
+    mesh.position.x = this.boardX(index);
   }
 
   private relayout(): void {
@@ -162,7 +204,7 @@ export class CarryStack {
       const target = this.slotHeight(i);
       const from = mesh.position.y;
       this.tweens.run(0.15, (t) => (mesh.position.y = from + (target - from) * t), { owner: mesh });
-      mesh.position.x = 0;
+      mesh.position.x = this.boardX(i);
       mesh.position.z = 0;
     }
   }

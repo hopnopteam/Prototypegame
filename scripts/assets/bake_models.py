@@ -40,6 +40,8 @@ TROP = {
     'teddy': '#B8844E', 'lanternPink': '#F29BB8', 'lanternGreen': '#A9DB7A', 'stripeA': '#F7F1E3', 'stripeB': '#E8604C',
     'curtain': '#7A3FA8',
 }
+# The figure kit's role keys (world/CharacterParts.ts FIG_KEYS): pure hues, recoloured to each look's colours.
+FIG = {'skin': '#FF2A2A', 'shoe': '#2AFF2A', 'sole': '#2A2AFF', 'lace': '#FFFF2A'}
 MODELS = {
     # KayKit Forest Nature Pack 1.0 (Kay Lousberg, CC0)
     'tree_round': 'kaykit-forest/Tree_1_A_Color1.gltf',
@@ -275,6 +277,10 @@ MODELS = {
     # The Kids' Play car (art/blender/kids_kit.py).
     **{k: {'src': 'tropical-kit/' + k + '.glb', 'paint': TROP} for k in (
         'play_slide', 'toy_blocks', 'toy_train', 'kids_table', 'toy_shelf', 'pouf_woven', 'lantern_post', 'bamboo_fence', 'puppet_hut')},
+    # New models go at the end, so the vertices before them keep their places in models_ao.bin (bake only the new ones
+    # with `bake_prop_ao.py --only`).
+    # The people's hands and shoes (art/blender/figure_kit.py), painted in role keys the game recolours per look.
+    **{k: {'src': 'figure-kit/' + k + '.glb', 'paint': FIG} for k in ('fig_hand_r', 'fig_hand_l', 'fig_sneaker', 'fig_smart')},
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}

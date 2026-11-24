@@ -600,6 +600,8 @@ export class Tiles {
     this.removeEntry(def.id, entry);
     // One cue per purchase (session 29): a hire has its own friendly chime instead of the unlock's.
     w.audio.play(def.kind === 'hire' ? 'staff' : 'unlock');
+    // Character pass 2: the conductor cheers a purchase.
+    w.player.view.act('cheer');
     w.haptics.success();
     w.particles.emit('sparkle', entry.pos.x, FLOOR_Y + 0.4, entry.pos.z, 24, 0.6);
     w.particles.emit('star', entry.pos.x, FLOOR_Y + 0.6, entry.pos.z, 10, 0.4);

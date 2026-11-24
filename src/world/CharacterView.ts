@@ -7,7 +7,7 @@ import { MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, moodBubbleTexture, type BubbleStyle, type Mood } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
-import { addHead, addTorso, armGeometry, eyelidGeometry, faceDepth, HAND_Y, HEAD_TOP, HEAD_Y, HIP_Y, LEG_LENGTH, legGeometry, SHOULDER_X, SHOULDER_Y, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
+import { addHead, addTorso, ELBOW_Y, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, SHOULDER_X, SHOULDER_Y, shinGeometry, thighGeometry, upperArmGeometry, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
 import { underPopup } from './screenMask';
 import type { CharacterBatch } from './CharacterBatch';
 
@@ -48,7 +48,8 @@ export interface CharacterLook {
   sock?: string;
 }
 
-export const STACK_BASE_Y = 0.74;
+/** Character pass 2: the stack sits on the forearms, held out level in front (they were straight arms at shoulder height). */
+export const STACK_BASE_Y = 0.665;
 const SHOE = '#2A2433';
 /** Session 38b: the mood bubble's world size (its canvas is square), how fast a bubble pops in, and how much higher it hangs. */
 const MOOD_BUBBLE_SIZE = 1.0;
@@ -90,13 +91,18 @@ function figureOf(look: CharacterLook): FigureSpec & { long: boolean } {
 }
 
 /** Merged body: torso, head with a face and hair, a hat, and the accessory that tells you who they are. */
-function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
-  const key = JSON.stringify(look);
-  const cached = bodyCache.get(key);
+const headCache = new Map<string, THREE.BufferGeometry>();
+
+/**
+ * The head, face, hair and hat, about the neck pivot (character pass 2: the head is its own part, so a figure can turn
+ * to look, nod as it pays and tilt its head as it waits).
+ */
+function headGeometry(look: CharacterLook): THREE.BufferGeometry {
+  const key = JSON.stringify([look.skin, look.hair, look.hairStyle, look.longHair, look.hat, look.hatColor, look.bandColor, look.accent, look.body, look.moustache, look.glasses, look.accessory === 'furcoat', look.outfit, look.arms]);
+  const cached = headCache.get(key);
   if (cached) return cached;
   const b = new GeoBuilder();
   const f = figureOf(look);
-  addTorso(b, f);
   addHead(b, f);
   const T = HEAD_TOP;
   const flat = { shade: 1 };
@@ -155,7 +161,22 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
     default:
       break;
   }
+  const head = b.build();
+  head.translate(0, -NECK_Y, 0);
+  const welds = welded(head);
+  headCache.set(key, welds);
+  return welds;
+}
 
+/** The body: the torso and what is worn on it (the head is its own part, `headGeometry`). */
+function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
+  const key = JSON.stringify(look);
+  const cached = bodyCache.get(key);
+  if (cached) return cached;
+  const b = new GeoBuilder();
+  const f = figureOf(look);
+  addTorso(b, f);
+  const flat = { shade: 1 };
   const front = (y: number): number => faceDepth(y);
   switch (look.accessory) {
     case 'backpack':
@@ -246,29 +267,44 @@ function apronGeometry(): THREE.BufferGeometry {
   return g.build();
 }
 
-function legGeometryFor(look: CharacterLook): THREE.BufferGeometry {
-  const f = figureOf(look);
-  const bare = f.outfit === 'dress' || f.outfit === 'gown';
-  const key = `leg:${f.pants}:${look.shoe}:${bare}:${look.skin}:${look.sock}`;
+/** A limb part, built once per look and kept (welded, so the batch draws fewer vertices). */
+function limb(key: string, build: () => THREE.BufferGeometry): THREE.BufferGeometry {
   let g = limbCache.get(key);
   if (!g) {
-    g = welded(legGeometry(f.pants, look.shoe ?? SHOE, bare, look.skin, look.sock ?? '#F4F1EA'));
+    g = welded(build());
     limbCache.set(key, g);
   }
   return g;
 }
 
-function armGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
+/** Smart shoes for uniforms, coats, jackets and gowns; sneakers for everyone in a tee or a shirt. */
+function smartShoes(f: FigureSpec): boolean {
+  return f.outfit === 'jacket' || f.outfit === 'coat' || f.outfit === 'gown';
+}
+
+function thighGeometryFor(look: CharacterLook): THREE.BufferGeometry {
+  const f = figureOf(look);
+  const bare = f.outfit === 'dress' || f.outfit === 'gown';
+  return limb(`thigh:${f.pants}:${bare}:${look.skin}`, () => thighGeometry(f.pants, bare, look.skin));
+}
+
+function shinGeometryFor(look: CharacterLook): THREE.BufferGeometry {
+  const f = figureOf(look);
+  const bare = f.outfit === 'dress' || f.outfit === 'gown';
+  const smart = smartShoes(f);
+  return limb(`shin:${f.pants}:${look.shoe}:${bare}:${look.skin}:${look.sock}:${smart}`, () => shinGeometry(f.pants, look.shoe ?? SHOE, bare, look.skin, look.sock ?? '#F4F1EA', smart));
+}
+
+function upperArmGeometryFor(look: CharacterLook): THREE.BufferGeometry {
+  const f = figureOf(look);
+  return limb(`upper:${look.body}:${look.skin}:${f.long}`, () => upperArmGeometry(look.body, look.skin, f.long));
+}
+
+function forearmGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
   const carried = look.accessory === 'briefcase' || look.accessory === 'handbag' ? look.accessory : null;
   const cuff = f.outfit === 'jacket' && look.accent !== look.body ? look.accent : undefined;
-  const key = `arm:${look.body}:${look.skin}:${f.long}:${carried}:${side}:${cuff}`;
-  let g = limbCache.get(key);
-  if (!g) {
-    g = welded(armGeometry(look.body, look.skin, f.long, side, carried, cuff));
-    limbCache.set(key, g);
-  }
-  return g;
+  return limb(`fore:${look.body}:${look.skin}:${f.long}:${carried}:${side}:${cuff}`, () => forearmGeometry(look.body, look.skin, f.long, side, carried, cuff));
 }
 
 function shadeOf(hex: string): string {
@@ -308,7 +344,15 @@ function eyelidGeometryFor(skin: string): THREE.BufferGeometry {
  * Little things people do (the world reacts to them): sweeping a cabin, reading on the bed, sipping the tea
  * you brought, checking a watch in the queue, washing hands, stamping tickets, hugging a pillow.
  */
-export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'wash' | 'stamp' | 'hug' | 'wave' | 'look' | 'phone' | 'chat' | 'yawn' | 'waveTicket' | 'stomp';
+export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'wash' | 'stamp' | 'hug' | 'wave' | 'look' | 'phone' | 'chat' | 'yawn' | 'waveTicket' | 'stomp' | 'pickup' | 'place' | 'cheer' | 'work';
+
+/**
+ * Character pass 2: the quick moves that answer what a figure just did. They restart each time they are asked for (a
+ * pickup per item taken, a reach per thing handed over), so picking up three towels reads as three quick dips.
+ */
+const SNAP_ACTIONS: ReadonlySet<CharacterAction> = new Set(['pickup', 'place', 'cheer']);
+/** How long each of them lasts (s). */
+const SNAP_SECONDS: Partial<Record<CharacterAction, number>> = { pickup: 0.34, place: 0.32, cheer: 0.95 };
 type PropKind = 'broom' | 'paper' | 'cup' | 'stamp' | 'bundle' | 'phone' | 'ticket';
 
 const propCache = new Map<PropKind, THREE.BufferGeometry>();
@@ -376,6 +420,8 @@ export class CharacterView {
   readonly root = new THREE.Group();
   readonly body = new THREE.Group();
   readonly stackAnchor = new THREE.Object3D();
+  /** Where a carried surfboard rides: on its edge under the left arm, pointing the way they walk. */
+  readonly boardAnchor = new THREE.Object3D();
   private readonly legs: THREE.Object3D[] = [];
   private readonly arms: THREE.Object3D[] = [];
   private readonly shadow: THREE.Mesh;
@@ -416,36 +462,63 @@ export class CharacterView {
   static batch: CharacterBatch | null = null;
 
   private readonly bodyMesh: THREE.Mesh;
-  private readonly legMeshes: THREE.Mesh[] = [];
-  private readonly armMeshes: THREE.Mesh[] = [];
+  private readonly headMesh: THREE.Mesh;
+  /** Character pass 2: the neck, knees and elbows (each a pivot below its hip, shoulder or the body). */
+  private readonly head = new THREE.Object3D();
+  private readonly knees: THREE.Object3D[] = [];
+  private readonly elbows: THREE.Object3D[] = [];
+  private readonly thighMeshes: THREE.Mesh[] = [];
+  private readonly shinMeshes: THREE.Mesh[] = [];
+  private readonly upperMeshes: THREE.Mesh[] = [];
+  private readonly foreMeshes: THREE.Mesh[] = [];
 
   constructor(public look: CharacterLook, scale = 1) {
     this.root.add(this.body);
     for (const side of [-1, 1] as const) {
       const pivot = new THREE.Object3D();
       pivot.position.set(side * 0.078, HIP_Y, 0);
-      const leg = castsShadow(new THREE.Mesh(legGeometryFor(look), MATERIALS.character));
-      pivot.add(leg);
+      const thigh = castsShadow(new THREE.Mesh(thighGeometryFor(look), MATERIALS.character));
+      pivot.add(thigh);
+      const knee = new THREE.Object3D();
+      knee.position.y = KNEE_Y;
+      const shin = castsShadow(new THREE.Mesh(shinGeometryFor(look), MATERIALS.character));
+      knee.add(shin);
+      pivot.add(knee);
       this.body.add(pivot);
       this.legs.push(pivot);
-      this.legMeshes.push(leg);
+      this.knees.push(knee);
+      this.thighMeshes.push(thigh);
+      this.shinMeshes.push(shin);
     }
     this.bodyMesh = castsShadow(new THREE.Mesh(bodyGeometry(look), MATERIALS.character));
     this.body.add(this.bodyMesh);
+    this.head.position.y = NECK_Y;
+    this.headMesh = castsShadow(new THREE.Mesh(headGeometry(look), MATERIALS.character));
+    this.head.add(this.headMesh);
+    this.body.add(this.head);
 
     for (const side of [-1, 1] as const) {
       const pivot = new THREE.Object3D();
       pivot.position.set(side * SHOULDER_X, SHOULDER_Y, 0);
-      const arm = castsShadow(new THREE.Mesh(armGeometryFor(look, side), MATERIALS.character));
-      pivot.add(arm);
+      const upper = castsShadow(new THREE.Mesh(upperArmGeometryFor(look), MATERIALS.character));
+      pivot.add(upper);
+      const elbow = new THREE.Object3D();
+      elbow.position.y = ELBOW_Y;
+      const fore = castsShadow(new THREE.Mesh(forearmGeometryFor(look, side), MATERIALS.character));
+      elbow.add(fore);
+      pivot.add(elbow);
       pivot.rotation.z = side * 0.1;
       this.body.add(pivot);
       this.arms.push(pivot);
-      this.armMeshes.push(arm);
+      this.elbows.push(elbow);
+      this.upperMeshes.push(upper);
+      this.foreMeshes.push(fore);
     }
 
-    this.stackAnchor.position.set(0, STACK_BASE_Y, 0.3);
+    this.stackAnchor.position.set(0, STACK_BASE_Y, 0.29);
     this.body.add(this.stackAnchor);
+    this.boardAnchor.position.set(-0.27, 0.43, 0.04);
+    this.body.add(this.boardAnchor);
 
     this.shadow = new THREE.Mesh(SHADOW_GEOMETRY, MATERIALS.shadow);
     this.shadow.position.y = 0.012;
@@ -458,13 +531,21 @@ export class CharacterView {
   setLook(look: CharacterLook): void {
     this.look = look;
     this.bodyMesh.geometry = bodyGeometry(look);
-    this.legMeshes.forEach((m) => (m.geometry = legGeometryFor(look)));
-    this.armMeshes.forEach((m, i) => (m.geometry = armGeometryFor(look, i === 0 ? -1 : 1)));
+    this.headMesh.geometry = headGeometry(look);
+    this.thighMeshes.forEach((m) => (m.geometry = thighGeometryFor(look)));
+    this.shinMeshes.forEach((m) => (m.geometry = shinGeometryFor(look)));
+    this.upperMeshes.forEach((m) => (m.geometry = upperArmGeometryFor(look)));
+    this.foreMeshes.forEach((m, i) => (m.geometry = forearmGeometryFor(look, i === 0 ? -1 : 1)));
   }
 
   /** Leg pivots (for footwear attachments) and the body group (for chest and shoulder gear). */
   get legPivots(): readonly THREE.Object3D[] {
     return this.legs;
+  }
+
+  /** The knees (footwear rides on the shin: its sole is `LEG_LENGTH + KNEE_Y` below the knee). */
+  get kneePivots(): readonly THREE.Object3D[] {
+    return this.knees;
   }
 
   private lastStrideSide = true;
@@ -491,8 +572,8 @@ export class CharacterView {
 
   /** Puts something in the right hand (a flag, a balloon); it follows the arm, waving included. */
   holdInRightHand(object: THREE.Object3D): void {
-    object.position.y += HAND_Y;
-    this.arms[1].add(object);
+    object.position.y += HAND_Y - ELBOW_Y;
+    this.elbows[1].add(object);
   }
 
   setPosition(x: number, y: number, z: number): void {
@@ -506,9 +587,26 @@ export class CharacterView {
     this.root.rotation.set(this.tilt(), angle, 0);
   }
 
-  setCarrying(carrying: boolean): void {
+  /**
+   * What the figure is carrying, which sets the arms (character pass 2): a stack held out in front on bent arms (the
+   * forearms under it), a surfboard tucked under the left arm, a box on the right shoulder steadied by the right hand.
+   */
+  setCarrying(carrying: boolean, board = false, box = false): void {
     this.carrying = carrying;
+    this.carryBoard = board;
+    this.carryBox = box;
   }
+  private carryBoard = false;
+  private carryBox = false;
+  /** How many things are on the stack (a tall one makes the figure lean back to balance it). */
+  stackCount = 0;
+  /** Eased joint targets (knees and elbows), so every pose change is quick but never a snap. */
+  private readonly kneeNow = [0, 0];
+  private readonly elbowNow = [-0.12, -0.12];
+  private readonly kneeAim = [0, 0];
+  private readonly elbowAim = [-0.12, -0.12];
+  private headYaw = 0;
+  private headPitch = 0;
 
   /**
    * Do something for a moment (`seconds`), or keep doing it by calling every frame: the cleaner sweeps
@@ -516,6 +614,16 @@ export class CharacterView {
    */
   act(action: CharacterAction, seconds = 0.25): void {
     const same = action === this.action;
+    if (SNAP_ACTIONS.has(action)) {
+      // A snap move starts over each time (a dip per item), unless it has only just begun.
+      const length = SNAP_SECONDS[action] ?? seconds;
+      if (!same || this.actionClock > length * 0.45) this.actionClock = 0;
+      this.action = action;
+      this.actionTime = length - this.actionClock;
+      return;
+    }
+    // A snap move in progress finishes before an ordinary action takes the arms.
+    if (SNAP_ACTIONS.has(this.action) && this.actionTime > 0) return;
     if (!same) this.actionClock = 0;
     this.action = action;
     this.actionTime = Math.max(same ? this.actionTime : 0, seconds);
@@ -544,8 +652,8 @@ export class CharacterView {
     if (kind && !this.inHand.has(kind)) {
       const mesh = new THREE.Mesh(propGeometry(kind), MATERIALS.character);
       mesh.userData.shared = true;
-      mesh.position.set(0, HAND_Y + (kind === 'phone' ? -0.03 : kind === 'ticket' ? -0.08 : -0.03), kind === 'phone' ? 0.03 : 0.06);
-      this.arms[1].add(mesh);
+      mesh.position.set(0, HAND_Y - ELBOW_Y + (kind === 'phone' ? -0.03 : kind === 'ticket' ? -0.08 : -0.03), kind === 'phone' ? 0.03 : 0.06);
+      this.elbows[1].add(mesh);
       this.inHand.set(kind, mesh);
     }
     for (const [k, mesh] of this.inHand) mesh.visible = k === kind;
@@ -564,61 +672,119 @@ export class CharacterView {
     this.showInHand(a === 'sip' ? 'cup' : a === 'phone' ? 'phone' : a === 'waveTicket' ? 'ticket' : null);
     if (a === 'none') return;
     const t = this.actionClock;
-    const ease = Math.min(1, dt * 12);
-    const aim = (i: number, x: number, z: number): void => {
+    const ease = Math.min(1, dt * 16);
+    const aim = (i: number, x: number, z: number, elbow = -0.35): void => {
       this.arms[i].rotation.x += (x - this.arms[i].rotation.x) * ease;
       this.arms[i].rotation.z += (z - this.arms[i].rotation.z) * ease;
+      this.elbowAim[i] = elbow;
     };
     switch (a) {
+      case 'pickup': {
+        // A quick dip to take something: knees bend, the body tips forward, both hands reach down and in, then up again.
+        const k = Math.sin(Math.min(1, t / (SNAP_SECONDS.pickup ?? 0.34)) * Math.PI);
+        const still = this.swingNow < 0.2 ? 1 : 0.45;
+        aim(0, -0.75 * k, 0.12, -0.55 * k - 0.1);
+        aim(1, -0.75 * k, -0.12, -0.55 * k - 0.1);
+        this.kneeAim[0] = Math.max(this.kneeAim[0], 0.75 * k * still);
+        this.kneeAim[1] = Math.max(this.kneeAim[1], 0.75 * k * still);
+        this.legs[0].rotation.x -= 0.38 * k * still;
+        this.legs[1].rotation.x -= 0.38 * k * still;
+        this.body.position.y -= 0.075 * k * still;
+        this.body.rotation.x += 0.32 * k;
+        this.headPitch = 0.22 * k;
+        break;
+      }
+      case 'place': {
+        // Handing over or setting down: a step of the body forward and both hands out, palms up, then back.
+        const k = Math.sin(Math.min(1, t / (SNAP_SECONDS.place ?? 0.32)) * Math.PI);
+        aim(0, -1.25 * k, 0.15 * k, -0.25 - 0.2 * (1 - k));
+        aim(1, -1.25 * k, -0.15 * k, -0.25 - 0.2 * (1 - k));
+        this.body.rotation.x += 0.16 * k;
+        this.body.position.y -= 0.02 * k;
+        this.headPitch = 0.12 * k;
+        break;
+      }
+      case 'cheer': {
+        // A little celebration: arms flung up and a hop or two.
+        const d = SNAP_SECONDS.cheer ?? 0.95;
+        const up = Math.min(1, t / 0.12) * Math.min(1, (d - t) / 0.18 + 0.2);
+        aim(0, -2.85 * up, 0.42 * up, -0.25);
+        aim(1, -2.85 * up, -0.42 * up, -0.25);
+        const hop = Math.max(0, Math.sin(t * 13)) * Math.max(0, 1 - t / d);
+        this.body.position.y += hop * 0.07;
+        this.kneeAim[0] = Math.max(this.kneeAim[0], (1 - hop) * 0.25 * up);
+        this.kneeAim[1] = Math.max(this.kneeAim[1], (1 - hop) * 0.25 * up);
+        this.headPitch = -0.18 * up;
+        break;
+      }
+      case 'work': {
+        // Busy hands at a counter (making a drink, writing a ticket): both forearms forward at waist height, working.
+        const w1 = Math.sin(t * 9);
+        aim(0, -0.55 + w1 * 0.08, 0.12, -1.05 - w1 * 0.12);
+        aim(1, -0.55 - w1 * 0.08, -0.12, -1.05 + w1 * 0.12);
+        this.body.rotation.x += 0.08;
+        this.headPitch = 0.2;
+        break;
+      }
       case 'sweep':
         // Both hands on the broom, a side-to-side sweep from the hips.
-        aim(0, -0.8, 0.45);
-        aim(1, -0.7, -0.35);
+        aim(0, -0.55, 0.45, -0.55);
+        aim(1, -0.45, -0.35, -0.6);
+        this.kneeAim[0] = 0.18;
+        this.kneeAim[1] = 0.18;
+        this.headPitch = 0.25;
         this.body.rotation.y = Math.sin(t * 7) * 0.32;
         this.body.position.y -= 0.03;
         break;
       case 'read':
-        aim(0, -1.25, 0.4);
-        aim(1, -1.25, -0.4);
+        aim(0, -0.75, 0.35, -1.0);
+        aim(1, -0.75, -0.35, -1.0);
+        this.headPitch = 0.22;
         this.body.rotation.x += Math.sin(t * 1.3) * 0.03;
         break;
       case 'sip': {
         // Lift, sip, lower, on a slow loop.
         const cycle = t % 2.2;
         const up = cycle < 0.35 ? cycle / 0.35 : cycle < 1.1 ? 1 : cycle < 1.45 ? 1 - (cycle - 1.1) / 0.35 : 0;
-        aim(1, -0.6 - up * 1.7, -0.25 * up);
+        aim(1, -0.5 - up * 0.55, -0.3 * up, -0.6 - up * 1.55);
+        this.headPitch = -0.12 * up;
         break;
       }
       case 'watch': {
         const raised = t % 3.6 < 1.4;
-        aim(0, raised ? -1.5 : 0, raised ? 0.7 : 0.1);
-        if (raised) this.body.rotation.x += 0.1;
+        aim(0, raised ? -0.9 : 0, raised ? 0.55 : 0.1, raised ? -1.35 : -0.15);
+        if (raised) this.body.rotation.x += 0.06;
+        this.headPitch = raised ? 0.35 : 0;
         break;
       }
       case 'wash':
-        aim(0, -1.0 + Math.sin(t * 11) * 0.15, 0.3);
-        aim(1, -1.0 - Math.sin(t * 11) * 0.15, -0.3);
+        aim(0, -0.7 + Math.sin(t * 11) * 0.12, 0.3, -0.75);
+        aim(1, -0.7 - Math.sin(t * 11) * 0.12, -0.3, -0.75);
+        this.headPitch = 0.3;
         break;
       case 'stamp': {
         const down = Math.max(0, Math.sin(t * 9));
-        aim(1, -1.3 + down * 0.8, -0.2);
+        aim(1, -0.9 + down * 0.5, -0.2, -0.7 + down * 0.3);
+        this.headPitch = 0.25;
         const stamp = this.props.get('stamp');
         if (stamp) stamp.position.y = 0.6 - down * 0.12;
         break;
       }
       case 'hug':
-        aim(0, -1.05, 0.55);
-        aim(1, -1.05, -0.55);
+        aim(0, -0.8, 0.5, -1.1);
+        aim(1, -0.8, -0.5, -1.1);
+        this.headPitch = 0.15;
         this.body.rotation.z = Math.sin(t * 2.5) * 0.06;
         break;
       case 'wave':
-        aim(1, -2.75, 0.25 + Math.sin(t * 9) * 0.4);
+        aim(1, -2.75, 0.25 + Math.sin(t * 9) * 0.25, -0.35 + Math.sin(t * 9) * 0.35);
         break;
       case 'stomp': {
         // Fix list 4.1: missed the train and storming off: fists low and pumping, leaning into each heavy step.
         const beat = Math.sin(t * 10);
-        aim(0, beat * 0.7, 0.18);
-        aim(1, -beat * 0.7, -0.18);
+        aim(0, beat * 0.7, 0.18, -1.2);
+        aim(1, -beat * 0.7, -0.18, -1.2);
+        this.headPitch = 0.25;
         this.body.position.y += Math.abs(beat) * 0.07;
         this.body.rotation.x += 0.2;
         this.body.rotation.z = beat * 0.07;
@@ -626,37 +792,41 @@ export class CharacterView {
       }
       case 'waveTicket':
         // Waving the ticket overhead, a little hop now and then: "wait for me!"
-        aim(1, -2.85, 0.2 + Math.sin(t * 10) * 0.45);
+        aim(1, -2.85, 0.2 + Math.sin(t * 10) * 0.3, -0.3 + Math.sin(t * 10) * 0.3);
         this.body.position.y += Math.max(0, Math.sin(t * 5)) * 0.04;
         break;
       case 'look': {
         // Looking about: a slow turn one way, a pause, then the other (hands behind the back).
-        aim(0, 0.35, 0.05);
-        aim(1, 0.35, -0.05);
+        aim(0, 0.35, 0.05, -0.6);
+        aim(1, 0.35, -0.05, -0.6);
         const k = t % 5;
         const side = k < 1.2 ? Math.sin((k / 1.2) * Math.PI * 0.5) : k < 2.4 ? 1 : k < 3.6 ? Math.cos(((k - 2.4) / 1.2) * Math.PI) : -1 + Math.min(1, (k - 3.6) / 1.4);
-        this.body.rotation.y = side * 0.55;
+        this.body.rotation.y = side * 0.25;
+        this.headYaw = side * 0.55;
         break;
       }
       case 'phone':
         // On the phone: the hand at the ear, the other on the hip, a nod now and then.
-        aim(1, -2.35, -0.55);
-        aim(0, 0.2, 0.45);
+        aim(1, -0.35, -0.4, -2.35);
+        aim(0, 0.15, 0.4, -1.2);
+        this.headYaw = -0.15;
         this.body.rotation.x += Math.max(0, Math.sin(t * 2.2)) * 0.06;
         break;
       case 'chat': {
         // Talking with their hands: one gesture, then the other, a little bob.
         const g = Math.sin(t * 4.2);
-        aim(0, -0.7 - Math.max(0, g) * 0.6, 0.35);
-        aim(1, -0.7 - Math.max(0, -g) * 0.6, -0.35);
+        aim(0, -0.45 - Math.max(0, g) * 0.4, 0.35, -0.8 - Math.max(0, g) * 0.5);
+        aim(1, -0.45 - Math.max(0, -g) * 0.4, -0.35, -0.8 - Math.max(0, -g) * 0.5);
+        this.headYaw = Math.sin(t * 0.9) * 0.2;
         this.body.position.y += Math.abs(Math.sin(t * 4.2)) * 0.015;
         break;
       }
       case 'yawn': {
         // A big stretch: both arms up overhead, leaning back, then down again.
         const k = Math.min(1, t / 0.5) * (t > 1.6 ? Math.max(0, 1 - (t - 1.6) / 0.5) : 1);
-        aim(0, -2.9 * k, 0.35 * k);
-        aim(1, -2.9 * k, -0.35 * k);
+        aim(0, -2.9 * k, 0.35 * k, -0.3 * k);
+        aim(1, -2.9 * k, -0.35 * k, -0.3 * k);
+        this.headPitch = -0.3 * k;
         this.body.rotation.x -= 0.12 * k;
         break;
       }
@@ -680,6 +850,8 @@ export class CharacterView {
     this.legs[0].rotation.x = -Math.max(0, Math.sin(beat)) * 0.28;
     this.legs[1].rotation.x = 0;
     const [left, right] = this.arms;
+    this.elbows[0].rotation.x = kind === 'drum' ? -0.6 : -1.2;
+    this.elbows[1].rotation.x = kind === 'drum' ? -0.6 : -1.1;
     if (kind === 'trumpet') {
       // Four-beat phrases: the bell rises through the phrase, then a breath.
       const phrase = (t % 4) / 4;
@@ -732,7 +904,8 @@ export class CharacterView {
       if (!this.eyelids) {
         this.eyelids = new THREE.Mesh(eyelidGeometryFor(this.look.skin), MATERIALS.character);
         this.eyelids.userData.shared = true;
-        this.body.add(this.eyelids);
+        this.eyelids.position.y = -NECK_Y;
+        this.head.add(this.eyelids);
       }
     } else if (pose === 'sit') {
       this.body.position.y = -SIT_DROP;
@@ -827,23 +1000,41 @@ export class CharacterView {
       this.bubble.position.y = this.bubbleBaseY + Math.sin(this.bubbleTime * 2.4) * 0.025;
     }
     this.root.rotation.set(this.tilt(), this.yaw, 0);
+    this.kneeAim[0] = this.kneeAim[1] = 0.03;
+    this.headYaw = 0;
+    this.headPitch = 0;
     if (this.pose !== 'stand') {
-      for (const leg of this.legs) leg.rotation.x = this.pose === 'sit' ? -1.3 : 0;
+      // Sitting: thighs forward along the seat, shins straight down from the knee (pass 2: the knee bends).
+      for (const leg of this.legs) leg.rotation.x = this.pose === 'sit' ? -1.42 : 0;
+      this.kneeAim[0] = this.kneeAim[1] = this.pose === 'sit' ? 1.42 : 0;
       this.phase += dt;
       // Slow breathing: the blanket rises and falls.
       if (this.pose === 'sleep' && this.blanket) this.blanket.scale.y = 1 + Math.sin(this.phase * 1.6) * 0.06;
       if (this.pose === 'sit') {
         this.body.position.y = -SIT_DROP;
         this.body.rotation.set(0, 0, 0);
+        // Seated hands rest on the lap, elbows bent; an action takes them.
+        if (this.action === 'none') for (let i = 0; i < 2; i++) {
+          const arm = this.arms[i];
+          arm.rotation.x += (-0.45 - arm.rotation.x) * Math.min(1, dt * 12);
+          this.elbowAim[i] = -0.75;
+        }
+        this.headYaw = Math.sin(this.phase * 0.35) * 0.18;
         this.applyAction(dt);
+      } else {
+        for (let i = 0; i < 2; i++) this.elbowAim[i] = -0.1;
       }
+      this.applyJoints(dt, this.pose === 'sit' ? 30 : 12);
       return;
     }
 
     if (this.riding) {
       this.animateRide(dt, speed);
+      for (let i = 0; i < 2; i++) this.elbowAim[i] = -0.45;
+      this.kneeAim[0] = 0.25;
       this.applyAction(dt);
       this.body.scale.set(1, 1, 1);
+      this.applyJoints(dt, 18);
       return;
     }
     for (const leg of this.legs) leg.scale.y = 1;
@@ -859,32 +1050,70 @@ export class CharacterView {
     const side = Math.cos(this.phase) >= 0;
     if (moving && side !== this.lastStrideSide) this.footfall = true;
     this.lastStrideSide = side;
+    const c = Math.cos(this.phase);
     this.legs[0].rotation.x = s * swing;
     this.legs[1].rotation.x = -s * swing;
-    // A step's bob while walking, a slow breath while standing; the forward lean eases with the pace.
-    const walkBob = Math.abs(Math.cos(this.phase)) * 0.06 * (swing / 0.75);
+    // Pass 2: the knee folds as its leg swings through (the foot clears the floor) and straightens to land.
+    this.kneeAim[0] = 0.04 + Math.max(0, -c) * swing * 1.3 + Math.max(0, s) * swing * 0.25;
+    this.kneeAim[1] = 0.04 + Math.max(0, c) * swing * 1.3 + Math.max(0, -s) * swing * 0.25;
+    // A step's bob while walking, a slow breath while standing; the forward lean eases with the pace. A tall stack
+    // makes the walker lean back to balance it.
+    const walkBob = Math.abs(c) * 0.06 * (swing / 0.75);
     this.body.position.y = walkBob + (1 - Math.min(1, swing / 0.3)) * Math.sin(this.phase) * 0.008;
-    this.leanNow += ((moving ? 0.08 : 0) - this.leanNow) * Math.min(1, dt * 10);
+    const balance = this.carrying ? -Math.min(0.09, Math.max(0, this.stackCount - 2) * 0.02) : 0;
+    this.leanNow += ((moving ? 0.08 : 0) + balance - this.leanNow) * Math.min(1, dt * 10);
     this.body.rotation.x = this.leanNow;
+    // Standing still, the weight shifts from one foot to the other now and then, and the head looks about.
+    const idle = 1 - Math.min(1, swing / 0.2);
+    this.body.position.x = Math.sin(this.phase * 0.55) * 0.012 * idle;
+    this.headYaw = Math.sin(this.phase * 0.42) * 0.22 * idle - s * 0.06 * (1 - idle);
 
     // An action owns the arms while it runs; otherwise they swing with the walk (or carry, or wave).
     if (this.action === 'none') {
       for (let i = 0; i < 2; i++) {
         const arm = this.arms[i];
-        const target = this.waving && i === 1 ? -2.75 : this.carrying ? -1.35 : (i === 0 ? -s : s) * swing * 0.8;
-        arm.rotation.x += (target - arm.rotation.x) * Math.min(1, dt * 14);
-        const rest = i === 0 ? -0.1 : 0.1;
-        if (!(this.waving && i === 1)) arm.rotation.z += (rest - arm.rotation.z) * Math.min(1, dt * 14);
+        const side = i === 0 ? -1 : 1;
+        let x = (i === 0 ? -s : s) * swing * 0.85;
+        let z = side * 0.1;
+        // The elbow bends more as the arm swings forward, and a little all the time (a relaxed arm is never straight).
+        let elbow = -0.18 - Math.max(0, -x) * 0.75;
+        if (this.carrying) {
+          // Holding the stack out in front: upper arms forward, forearms level under it, hands in toward the middle.
+          x = -0.5 + Math.sin(this.phase * 2) * 0.03 * swing;
+          z = -side * 0.22;
+          elbow = -1.1;
+        }
+        if (this.carryBoard && i === 0) {
+          // A surfboard under the left arm: the arm out round it, the forearm along it, the hand under its rail.
+          x = -0.15;
+          z = side * 0.42;
+          elbow = -0.6;
+        }
+        if (this.carryBox && i === 1) {
+          // A box on the right shoulder: the arm raised and the hand steadying it from the side.
+          x = -2.25;
+          z = side * 0.3;
+          elbow = -1.25;
+        }
+        if (this.waving && i === 1) {
+          x = -2.75;
+          elbow = -0.35;
+        }
+        arm.rotation.x += (x - arm.rotation.x) * Math.min(1, dt * 16);
+        if (!(this.waving && i === 1)) arm.rotation.z += (z - arm.rotation.z) * Math.min(1, dt * 16);
+        this.elbowAim[i] = elbow;
       }
       if (this.waving) {
         this.waveTime += dt;
         this.arms[1].rotation.z = 0.25 + Math.sin(this.waveTime * 9) * 0.4;
+        this.elbowAim[1] = -0.35 + Math.sin(this.waveTime * 9) * 0.3;
       }
     }
 
     this.body.rotation.y = 0;
     this.body.rotation.z = 0;
     this.applyAction(dt);
+    this.applyJoints(dt, 20);
 
     if (this.squash > 0) {
       this.squash = Math.max(0, this.squash - dt * 4);
@@ -895,6 +1124,20 @@ export class CharacterView {
       const breath = moving ? 0 : Math.sin(this.phase * 1.3) * 0.012;
       this.body.scale.set(1, 1 + breath, 1);
     }
+  }
+
+  /** Eases the knees, elbows and head toward their targets (quick: crisp but never a snap). */
+  private applyJoints(dt: number, rate: number): void {
+    const k = Math.min(1, dt * rate);
+    for (let i = 0; i < 2; i++) {
+      this.kneeNow[i] += (this.kneeAim[i] - this.kneeNow[i]) * k;
+      this.elbowNow[i] += (this.elbowAim[i] - this.elbowNow[i]) * k;
+      this.knees[i].rotation.x = this.kneeNow[i];
+      this.elbows[i].rotation.x = this.elbowNow[i];
+    }
+    const h = Math.min(1, dt * 8);
+    this.head.rotation.y += (this.headYaw - this.head.rotation.y) * h;
+    this.head.rotation.x += (this.headPitch - this.head.rotation.x) * h;
   }
 
   /**
@@ -970,6 +1213,16 @@ export class CharacterView {
       leg.scale.set(1, 1, 1);
     }
     this.arms.forEach((arm, i) => arm.rotation.set(0, 0, (i === 0 ? -1 : 1) * 0.1));
+    for (let i = 0; i < 2; i++) {
+      this.kneeNow[i] = this.kneeAim[i] = 0;
+      this.elbowNow[i] = this.elbowAim[i] = -0.12;
+      this.knees[i].rotation.set(0, 0, 0);
+      this.elbows[i].rotation.set(0, 0, 0);
+    }
+    this.head.rotation.set(0, 0, 0);
+    this.carryBoard = false;
+    this.carryBox = false;
+    this.stackCount = 0;
     this.root.position.set(0, 0, 0);
     this.root.rotation.set(0, 0, 0);
     this.yaw = 0;

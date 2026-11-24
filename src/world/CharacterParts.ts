@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GeoBuilder, type PartStyle } from './geo';
+import { modelEntry, type ModelId, type Recolor } from './models/library';
 
 /**
  * The people's art direction (session 30, owner: "the player model and NPC models… have no proper form and actual art
@@ -33,6 +34,14 @@ const TORSO_DEPTH = 0.8;
 export const HAND_Y = -0.335;
 /** The leg's length below the hip pivot, to the sole. */
 export const LEG_LENGTH = HIP_Y;
+/**
+ * Character pass 2 (owner, 26 Nov: "far better character models with better limbs and animations"): arms bend at the
+ * elbow and legs at the knee. The elbow sits this far below the shoulder pivot, the knee this far below the hip pivot.
+ */
+export const ELBOW_Y = -0.165;
+export const KNEE_Y = -0.205;
+/** The neck pivot: the head turns and nods about it (it is its own part since pass 2). */
+export const NECK_Y = 0.835;
 
 import type { HairStyle, Outfit } from '../config/crowd';
 export type { HairStyle, Outfit };
@@ -349,5 +358,102 @@ export function eyelidGeometry(skin: string): THREE.BufferGeometry {
     b.add(new THREE.SphereGeometry(0.032, 10, 8).scale(1, 1.15, 0.5), skin, x, HEAD_Y - 0.005, faceZ(x, -0.005) + 0.002, 0, 0, 0, FLAT);
     b.box(x, HEAD_Y - 0.02, faceZ(x, -0.02) + 0.014, 0.05, 0.01, 0.008, EYE, 0, FLAT);
   }
+  return b.build();
+}
+
+/**
+ * The figure kit's role keys (art/blender/figure_kit.py paints the hands and shoes in pure hues; each is recoloured to
+ * the look's own colour here).
+ */
+const FIG_BAND = { sat: [0.6, 1] as [number, number], val: [0.2, 1] as [number, number] };
+function figKeys(skin: string, shoe: string, sole: string, lace: string): Recolor[] {
+  return [
+    { hue: [345, 15], ...FIG_BAND, ref: '#FF2A2A', to: skin },
+    { hue: [105, 135], ...FIG_BAND, ref: '#2AFF2A', to: shoe },
+    { hue: [225, 255], ...FIG_BAND, ref: '#2A2AFF', to: sole },
+    { hue: [45, 75], ...FIG_BAND, ref: '#FFFF2A', to: lace },
+  ];
+}
+
+/** A kit model placed with its top centre at (x, top, z), scaled uniformly. */
+function kitAt(b: GeoBuilder, id: ModelId, x: number, top: number, z: number, scale: number, keys: Recolor[]): void {
+  const e = modelEntry(id);
+  b.model(id, x, top - (e.max[1] - e.min[1]) * scale, z, 0, scale, scale, scale, { recolor: keys, shade: 0.92, surface: 'matte' });
+}
+
+/** A rounded rod down the y axis from `y0` to `y1` (y1 < y0), its ends capped with balls (a limb segment). */
+function rod(b: GeoBuilder, y0: number, y1: number, r0: number, r1: number, color: string, style: PartStyle = SOFT): void {
+  b.cylinder(0, (y0 + y1) / 2, 0, r0, r1, y0 - y1, color, 12, 'y', style);
+  b.sphere(0, y0, 0, r0, color, 1, 1, style);
+  b.sphere(0, y1, 0, r1, color, 1, 1, style);
+}
+
+/** The upper arm, from the shoulder pivot to the elbow: a puffed short sleeve over a bare arm, or a long sleeve. */
+export function upperArmGeometry(sleeve: string, skin: string, long: boolean): THREE.BufferGeometry {
+  const b = new GeoBuilder();
+  if (long) {
+    b.add(lathe([[0, 0.03], [0.046, 0.024], [0.048, -0.04], [0.043, ELBOW_Y + 0.02], [0.04, ELBOW_Y - 0.005], [0, ELBOW_Y - 0.03]].reverse() as [number, number][], 14, 1), sleeve, 0, 0, 0, 0, 0, 0, SOFT);
+  } else {
+    b.add(lathe([[0, 0.03], [0.047, 0.024], [0.053, -0.035], [0.048, -0.1], [0.036, -0.112], [0, -0.112]].reverse() as [number, number][], 14, 1), sleeve, 0, 0, 0, 0, 0, 0, SOFT);
+    // A cuffed hem round the sleeve's edge.
+    b.add(new THREE.TorusGeometry(0.045, 0.008, 6, 14), shade(sleeve, 0.86), 0, -0.1, 0, Math.PI / 2, 0, 0, SOFT);
+    rod(b, -0.09, ELBOW_Y, 0.031, 0.029, skin);
+  }
+  return b.build();
+}
+
+/**
+ * The forearm and hand, from the elbow pivot: the sleeve or bare arm down to the wrist, a cuff on a long sleeve, and the
+ * sculpted mitten hand (figure kit) with its thumb toward the body's middle.
+ */
+export function forearmGeometry(sleeve: string, skin: string, long: boolean, side: 1 | -1, carry: 'briefcase' | 'handbag' | null, cuff?: string): THREE.BufferGeometry {
+  const b = new GeoBuilder();
+  const wrist = HAND_Y - ELBOW_Y + 0.05;
+  if (long) {
+    b.add(lathe([[0, 0.035], [0.04, 0.02], [0.041, -0.01], [0.038, wrist + 0.04], [0.039, wrist + 0.012], [0, wrist + 0.01]].reverse() as [number, number][], 14, 1), sleeve, 0, 0, 0, 0, 0, 0, SOFT);
+    b.cylinder(0, wrist + 0.018, 0, 0.042, 0.042, 0.024, cuff ?? shade(sleeve, 0.86), 14, 'y', FLAT);
+  } else {
+    rod(b, 0.01, wrist + 0.01, 0.029, 0.026, skin);
+  }
+  // Side −1 is the figure's right (x < 0): its thumb points toward +x; the kit's right hand has its thumb toward −x.
+  kitAt(b, side === 1 ? 'fig_hand_r' : 'fig_hand_l', 0, wrist + 0.02, 0.004, 0.8, figKeys(skin, skin, skin, skin));
+  if (carry === 'briefcase' && side === 1) {
+    b.rounded(0, HAND_Y - ELBOW_Y - 0.1, 0.02, 0.07, 0.18, 0.26, 0.03, '#6B4430', SOFT);
+    b.box(0, HAND_Y - ELBOW_Y - 0.005, 0.02, 0.02, 0.03, 0.08, '#4A2E20', 0, FLAT);
+  }
+  if (carry === 'handbag' && side === -1) b.rounded(0, HAND_Y - ELBOW_Y - 0.08, 0, 0.08, 0.13, 0.19, 0.04, '#C94F6D', SOFT);
+  return b.build();
+}
+
+/** The thigh, from the hip pivot to the knee: trousers, or a bare leg under a skirt. */
+export function thighGeometry(color: string, bare: boolean, skin: string): THREE.BufferGeometry {
+  const b = new GeoBuilder();
+  if (bare) rod(b, -0.06, KNEE_Y, 0.036, 0.033, skin);
+  else rod(b, -0.02, KNEE_Y, 0.064, 0.058, color);
+  return b.build();
+}
+
+/**
+ * The shin and shoe, from the knee pivot: the trouser leg with a turned hem (or a bare leg and a sock), and the
+ * figure kit's chunky sneaker, or a smart shoe for uniforms, coats and gowns.
+ */
+export function shinGeometry(color: string, shoe: string, bare: boolean, skin: string, sock: string, smart: boolean): THREE.BufferGeometry {
+  const b = new GeoBuilder();
+  const foot = -(LEG_LENGTH + KNEE_Y);
+  const shoeTop = foot + (smart ? 0.06 : 0.085);
+  if (bare) {
+    rod(b, 0, shoeTop + 0.02, 0.033, 0.029, skin);
+    b.cylinder(0, shoeTop + 0.005, 0, 0.034, 0.034, 0.05, sock, 12, 'y', SOFT);
+  } else {
+    rod(b, 0.02, shoeTop + 0.03, 0.058, 0.053, color);
+    b.cylinder(0, shoeTop + 0.03, 0, 0.057, 0.057, 0.03, shade(color, 0.82), 14, 'y', SOFT);
+    b.cylinder(0, shoeTop + 0.005, 0, 0.034, 0.034, 0.03, sock, 10, 'y', SOFT);
+  }
+  const keys = smart ? figKeys(skin, shoe, '#2A221E', shade(shoe, 0.7)) : figKeys(skin, shoe, SOLE, '#F7F4EC');
+  const id: ModelId = smart ? 'fig_smart' : 'fig_sneaker';
+  const e = modelEntry(id);
+  const sc = smart ? 1.08 : 1.02;
+  b.model(id, 0, foot, 0.035, 0, sc, sc, sc, { recolor: keys, shade: 0.92, surface: smart ? 'leather' : 'matte' });
+  void e;
   return b.build();
 }
