@@ -285,7 +285,9 @@ export interface VenueLayout {
  */
 export type CarpetStyle = 'jute' | 'runner' | 'persian' | 'theatre' | 'checker' | 'kitchen' | 'wine' | 'claret' | 'terracotta' | 'forest' | 'moss' | 'tobacco' | 'dove'
   // Phase 4: the Kids' Play Car's soft play mat, the spa's pale stone, the pool deck's teak.
-  | 'playmat' | 'stone' | 'deck';
+  | 'playmat' | 'stone' | 'deck'
+  // The Riviera, second pass: the play car's sand floor, its boardwalk and soft foam tiles (and the beach's own sand).
+  | 'sandfloor' | 'boardwalk' | 'foam' | 'foamCool';
 
 export interface VenueCarpet {
   rect: Rect;
@@ -1405,6 +1407,8 @@ function buildCinema(tier: number): CarriageLayout {
  * cabins next door), and the puppet show quietens them and pays a ticket a child. Gelato for anyone who asks.
  */
 const KIDS_CORNERS = [6.2, 9.2, 12.2];
+/** Each corner's play piece, front to back, lake side first (the tall ones on the lake side). */
+const KIDS_VARIANTS = ['tower', 'ballpit', 'ship', 'sandpit', 'swings', 'riders'];
 function buildKids(tier: number): CarriageLayout {
   const b = new LayoutBuilder('kids');
   const v = newVenue('kids');
@@ -1435,7 +1439,11 @@ function buildKids(tier: number): CarriageLayout {
       // a toy railway), the parent's pouf on its aisle side at the rear, where the camera sees the child at play.
       const wx0 = side < 0 ? -INNER : 1.3;
       const wx1 = side < 0 ? -1.3 : INNER;
-      const toy = b.prop('play', wx0, c - 0.7, wx1, c + 0.55, side < 0 ? 'right' : 'left', true, ['ballpit', 'slide', 'horse', 'blocks', 'kitchen', 'railway'][group]);
+      // The Riviera, second pass (owner, with a reference image): each corner its own big play piece, the tall ones on
+      // the lake side where they hide nothing from the camera: a climbing tower and slide, a ball pit, a pirate ship, a
+      // sandpit, swings, spring riders. Each corner runs 2 m along the wall (it was 1.25).
+      const variant = KIDS_VARIANTS[group];
+      const toy = b.prop('play', wx0, c - 1.45, wx1, c + 0.55, side < 0 ? 'right' : 'left', true, variant);
       const px = side * 1.0;
       const pouf = b.prop('pouf', px - 0.2, c + 0.78, px + 0.2, c + 1.18, undefined, true);
       const node = b.node(`corner_${group}`, side * 0.48, c + 0.95);
@@ -1444,7 +1452,8 @@ function buildKids(tier: number): CarriageLayout {
       v.seats.push({
         index: v.seats.length, group, sit: { x: px, z: c + 0.98 }, facing: side < 0 ? FACE.left : FACE.right,
         serve: { x: side * 0.42, z: c + 0.98 }, node, top: 0.36,
-        play: { x: side * 1.55, z: c - 0.05 },
+        // The child plays at the foot of the slide, on the ship's far side, in the pit, at the swings.
+        play: variant === 'tower' ? { x: side * 1.62, z: c - 1.15 } : variant === 'ship' ? { x: side * 1.45, z: c + 0.25 } : { x: side * 1.55, z: c - 0.05 },
       });
       group++;
     }
@@ -1463,7 +1472,21 @@ function buildKids(tier: number): CarriageLayout {
   backRoom(b, 'toystore', 'right', 0.5, 15.0);
   // A jute runner once repaired, then a soft play mat wall to wall.
   if (tier === 1) v.carpets.push({ rect: rect(-0.62, 5.6, 0.62, 13.9), style: 'jute' });
-  if (tier >= 2) v.carpets.push({ rect: rect(-INNER + 0.08, 0.3, INNER - 0.08, 14.85), style: 'playmat' });
+  if (tier >= 2 && layoutOptions().keepRooms) {
+    // The Riviera's play beach: warm sand wall to wall, a boardwalk down the middle, soft foam tiles under the low
+    // corners (all of them at Tiki Paradise).
+    v.carpets.push({ rect: rect(-INNER + 0.08, 0.3, INNER - 0.08, 14.85), style: 'sandfloor' });
+    v.carpets.push({ rect: rect(-0.58, 2.4, 0.58, 14.4), style: 'boardwalk' });
+    KIDS_CORNERS.forEach((c, row) => {
+      for (const side of [-1, 1]) {
+        const variant = KIDS_VARIANTS[row * 2 + (side < 0 ? 0 : 1)];
+        if (tier < 3 && variant !== 'ballpit' && variant !== 'riders') continue;
+        const x0 = side < 0 ? -INNER + 0.12 : 1.25;
+        const x1 = side < 0 ? -1.25 : INNER - 0.12;
+        v.carpets.push({ rect: rect(x0, c - 1.4, x1, c + 0.5), style: (row + (side < 0 ? 0 : 1)) % 2 ? 'foamCool' : 'foam' });
+      }
+    });
+  } else if (tier >= 2) v.carpets.push({ rect: rect(-INNER + 0.08, 0.3, INNER - 0.08, 14.85), style: 'playmat' });
   return b.layout;
 }
 

@@ -57,10 +57,6 @@ function fit(b: GeoBuilder, id: ModelId, cx: number, y: number, cz: number, w: n
   b.model(id, cx, y, cz, rotY, turned ? sz : sx, sy, turned ? sx : sz, { shade, surface: 'wood' });
 }
 
-/** A model's length along x (m). */
-function e0(e: { min: readonly number[]; max: readonly number[] }): number {
-  return e.max[0] - e.min[0];
-}
 
 /** A uniformly scaled kit model, its largest side no bigger than `size`, at most `h` tall. */
 function place(b: GeoBuilder, id: ModelId, cx: number, y: number, cz: number, size: number, h: number, rotY = 0): void {
@@ -160,66 +156,79 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
       return true;
     }
     case 'play': {
-      // The Kids' Play car (art/blender/kids_kit.py; owner's reference image): each corner its own play place against
-      // the wall, the child's spot (its aisle side) and its way in (the rear) left open, a woven rug under it from
-      // Bamboo, and a knee-high bamboo fence with a flower garland along the front half of its aisle side.
+      // The Kids' Play car (owner, 26 Nov, with a reference image: "make it exactly like that… make better models"):
+      // each corner its own big play piece along the wall (art/blender/riviera_kit2.py), on soft foam or sand. Driftwood
+      // keeps the first kit's simple wooden toys; Bamboo brings the big pieces; Tiki Paradise dresses them (lanterns,
+      // palms, balls everywhere).
       const out = prop.facing === 'right' ? 1 : -1;
       const back = out > 0 ? r.x0 : r.x1;
       const front = out > 0 ? r.x1 : r.x0;
-      if (look >= 2) {
-        b.slab({ x0: r.x0 + 0.05, z0: r.z0 + 0.05, x1: r.x1 - 0.05, z1: r.z1 - 0.05 }, Y + 0.006, Y + 0.014, '#3E8A4A', 0, 0.0, { shade: 1, surface: 'fabric' });
-        b.slab({ x0: r.x0 + 0.1, z0: r.z0 + 0.1, x1: r.x1 - 0.1, z1: r.z1 - 0.1 }, Y + 0.014, Y + 0.02, '#D9B46A', 0, 0, { shade: 1, surface: 'fabric', detail: 'fabric' });
+      const floor = Y + (look >= 2 ? 0.012 : 0);
+      if (look === 1) {
+        // Driftwood: the old toys, one to a corner, at the rear of it (where the child plays).
+        const pz = r.z1 - 0.62;
+        switch (prop.variant) {
+          case 'tower': place(b, 'play_slide', cx, floor, pz, Math.min(w, 1.2) - 0.08, 1.0); break;
+          case 'ballpit': place(b, 'toy_blocks', back + out * 0.35, floor, pz, 0.62, 0.36); break;
+          case 'ship': place(b, 'toy_train', back + out * 0.45, floor, pz, Math.min(w, d) - 0.08, 0.16, Math.PI / 2); break;
+          case 'sandpit': place(b, 'kids_table', back + out * 0.4, floor, pz, 0.92, 0.55); break;
+          case 'swings': place(b, 'toy_shelf', back + out * 0.3, floor, pz, 0.85, 0.9, Math.PI / 2); break;
+          case 'riders': place(b, 'pouf_woven', back + out * 0.4, floor, pz, 0.4, 0.34); break;
+          default: return false;
+        }
+        return true;
       }
-      const floor = look >= 2 ? Y + 0.02 : Y;
+      const rich = look >= 3;
       switch (prop.variant) {
-        case 'ballpit': {
-          // A sandpit: a timber frame round the corner's floor, sand in it, a sandcastle and a bucket by the wall.
-          const fr = { x0: r.x0 + 0.06, z0: r.z0 + 0.06, x1: r.x1 - 0.06, z1: r.z1 - 0.06 };
+        case 'tower':
+          // The thatched climbing tower against the wall at the rear, its slide running forward to the floor.
+          place(b, 'play_tower', cx - out * 0.02, floor, cz, Math.min(d - 0.05, (w - 0.02) * 1.96 / 1.23), 1.85, Math.PI / 2);
+          if (rich) place(b, 'kid_ball', front - out * 0.25, floor, r.z0 + 0.25, 0.24, 0.24);
+          break;
+        case 'ballpit':
+          // The ball pit in its ring of rocks at the rear; beach balls and a palm in front of it.
+          place(b, 'ball_pit', cx, floor, r.z1 - 0.62, Math.min(w, 1.2) - 0.04, 0.3);
+          place(b, 'kid_ball', back + out * 0.35, floor, r.z0 + 0.45, 0.26, 0.26);
+          place(b, 'palm_pot', back + out * 0.3, floor, r.z0 + 0.95, 1.5, rich ? 1.1 : 0.9);
+          if (rich) place(b, 'kid_ball', front - out * 0.3, floor, r.z0 + 0.25, 0.2, 0.2);
+          break;
+        case 'ship':
+          // The pirate ship along the wall, bow toward the front of the car.
+          place(b, 'pirate_ship', back + out * 0.5, floor, cz - 0.15, Math.min(1.62, d - 0.4), 1.7, Math.PI);
+          if (rich) place(b, 'palm_pot', back + out * 0.32, floor, r.z1 - 0.3, 1.5, 1.0);
+          break;
+        case 'sandpit': {
+          // A sandpit in a timber frame with a sandcastle, a bucket and spade; a palm and a ball beside it.
+          const fr = { x0: r.x0 + 0.06, z0: r.z1 - 1.18, x1: r.x1 - 0.06, z1: r.z1 - 0.06 };
           for (const [x0, z0, x1, z1] of [[fr.x0, fr.z0, fr.x1, fr.z0 + 0.06], [fr.x0, fr.z1 - 0.06, fr.x1, fr.z1], [fr.x0, fr.z0 + 0.06, fr.x0 + 0.06, fr.z1 - 0.06], [fr.x1 - 0.06, fr.z0 + 0.06, fr.x1, fr.z1 - 0.06]]) {
-            b.slab({ x0, z0, x1, z1 }, floor, floor + 0.16, look >= 3 ? C.tiki : C.bamboo, 0, 0, { shade: 0.9, surface: 'wood' });
+            b.slab({ x0, z0, x1, z1 }, floor, floor + 0.16, rich ? C.tiki : C.bamboo, 0, 0, { shade: 0.9, surface: 'wood' });
           }
-          b.slab({ x0: fr.x0 + 0.06, z0: fr.z0 + 0.06, x1: fr.x1 - 0.06, z1: fr.z1 - 0.06 }, floor, floor + 0.11, '#E2CB9C', 0, 0, { shade: 1, detail: 'sand', surface: 'fabric' });
-          place(b, 'sandcastle', back + out * 0.3, floor + 0.1, r.z0 + 0.33, 0.4, 0.3);
-          place(b, 'bucket_spade', back + out * 0.26, floor + 0.1, r.z1 - 0.3, 0.32, 0.18);
+          b.slab({ x0: fr.x0 + 0.06, z0: fr.z0 + 0.06, x1: fr.x1 - 0.06, z1: fr.z1 - 0.06 }, floor, floor + 0.11, '#E9D3A2', 0, 0, { shade: 1, detail: 'sand', surface: 'fabric' });
+          place(b, 'sandcastle', back + out * 0.35, floor + 0.11, fr.z0 + 0.38, 0.5, 0.36);
+          place(b, 'bucket_spade', front - out * 0.32, floor + 0.11, fr.z1 - 0.32, 0.32, 0.18);
+          place(b, 'palm_pot', back + out * 0.3, floor, r.z0 + 0.42, 1.5, rich ? 1.1 : 0.9);
+          if (rich) place(b, 'kid_ball', front - out * 0.28, floor, r.z0 + 0.7, 0.24, 0.24);
           break;
         }
-        case 'slide': {
-          // A bamboo climbing frame and slide, running along the wall (the deck and ladder at the rear).
-          const e = modelEntry('play_slide');
-          b.model('play_slide', cx, floor, cz, 0, (w - 0.14) / (e.max[0] - e.min[0]), 1, (d - 0.08) / (e.max[2] - e.min[2]), { shade: 0.95, surface: 'wood' });
+        case 'swings':
+          // Swings in a bamboo frame along the wall, leaves along the crossbar.
+          place(b, 'swing_set', back + out * 0.42, floor, cz - 0.1, Math.min(1.75, d - 0.3), 1.6, Math.PI / 2);
+          if (rich) place(b, 'palm_pot', back + out * 0.3, floor, r.z1 - 0.28, 1.5, 1.0);
           break;
-        }
-        case 'horse':
-          // Blocks and stacking rings on the rug, by the wall.
-          place(b, 'toy_blocks', back + out * 0.32, floor, cz - 0.1, 0.62, 0.36, out > 0 ? 0 : Math.PI);
-          break;
-        case 'blocks':
-          // A children's table along the wall with a stool each side, a drawing book and crayons.
-          place(b, 'kids_table', back + out * 0.38, floor, cz, 0.92, 0.55);
-          break;
-        case 'kitchen':
-          // A bamboo toy shelf against the wall, blocks spilled on the rug in front of it.
-          place(b, 'toy_shelf', back + out * 0.3, floor, cz, Math.min(0.85, d - 0.1), 0.9, Math.PI / 2);
-          place(b, 'toy_blocks', back + out * 0.62, floor, r.z0 + 0.25, 0.32, 0.2);
-          break;
-        case 'railway':
-          // A wooden train on its oval track, and a pouf.
-          place(b, 'toy_train', back + out * 0.42, floor, cz, Math.min(w, d) - 0.08, 0.16, Math.PI / 2);
+        case 'riders':
+          // A dolphin and a crab on springs, a palm between them.
+          place(b, 'spring_dolphin', cx, floor, r.z1 - 0.45, 0.55, 0.6, out > 0 ? -Math.PI / 2 : Math.PI / 2);
+          place(b, 'spring_crab', cx, floor, r.z0 + 0.5, 0.62, 0.45, out > 0 ? -Math.PI / 2 : Math.PI / 2);
+          place(b, 'palm_pot', back + out * 0.25, floor, cz - 0.05, 1.5, rich ? 1.05 : 0.85);
+          if (rich) place(b, 'kid_ball', front - out * 0.2, floor, cz + 0.15, 0.2, 0.2);
           break;
         default:
           return false;
       }
-      // A monstera at the rear by the wall, and a ball or two left on the rug.
-      if (prop.variant !== 'slide') place(b, 'monstera', back + out * 0.2, floor, r.z1 - 0.2, 0.36, look >= 3 ? 0.95 : 0.75);
-      if (look >= 2 && prop.variant !== 'ballpit' && prop.variant !== 'slide') {
-        b.sphere(front - out * 0.28, floor + 0.07, r.z0 + 0.22, 0.07, prop.variant === 'kitchen' ? '#2E86D8' : '#E2483C', 1, 1, { shade: 1, surface: 'paint' });
-      }
-      if (look >= 2) {
-        // The fence along the front half of the aisle side (the way in at the rear stays open), a lantern post at its end.
-        const fe = modelEntry('bamboo_fence');
-        const len = d * 0.45;
-        b.model('bamboo_fence', front - out * 0.03, floor, r.z0 + 0.04 + len / 2, Math.PI / 2, len / (e0(fe)), 1, 1, { shade: 0.95, surface: 'wood' });
-        place(b, 'lantern_post', front - out * 0.05, floor, r.z0 + 0.06, 0.6, 1.25, out > 0 ? Math.PI : 0);
+      if (rich && out > 0) {
+        // Tiki Paradise: a lantern post at the corner's front on the lake side (on the near side it would stand
+        // between the camera and the floor).
+        place(b, 'lantern_post', front - out * 0.08, floor, r.z0 + 0.08, 0.6, 1.25, Math.PI);
       }
       return true;
     }

@@ -480,15 +480,12 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
   if (TROPICAL) {
     // The coast's venues lay no carpets: their deck boards, and from Bamboo up a rug where the classic plan has its
     // first covering (the others would stack one over another).
-    if (tier >= 2 && layout.type === 'kids') {
-      // The play car: a palm-leaf runner down its aisle, between the corners (they lay their own rugs).
-      rug(f, rect(-0.72, 1.2, 0.72, 14.6), FLOOR_Y + ROOM_LIFT + 0.001, [{ color: '#3E7A4A', inset: 0 }, { color: '#E9D3A0', inset: 0.05 }, { color: '#D9BE86', inset: 0.09, pattern: { shade: 1, surface: 'fabric', detail: 'fabric' } }]);
-    }
     if (tier >= 2 && venue.carpets.length && (layout.type === 'cafe' || layout.type === 'dining')) {
       const c = venue.carpets.reduce((a, x) => ((x.rect.x1 - x.rect.x0) * (x.rect.z1 - x.rect.z0) > (a.rect.x1 - a.rect.x0) * (a.rect.z1 - a.rect.z0) ? x : a));
       rug(f, c.rect, FLOOR_Y + ROOM_LIFT + 0.001, tropicalRug(tier));
     }
-    return;
+    // The Riviera, second pass: the play car lays its own beach (sand, a boardwalk, foam tiles: layout.ts buildKids).
+    if (!(tier >= 2 && layout.type === 'kids')) return;
   }
   const floor = FLOOR_Y + ROOM_LIFT + 0.001;
   const deep = theme.deep;
@@ -615,6 +612,22 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
           { color: '#9A9283', inset: 0 },
           { color: '#E2DBCB', inset: 0.06, pattern: { pattern: PATTERN.none, shade: 1, surface: 'stone', detail: 'paving' } },
         ]);
+        break;
+      case 'sandfloor':
+        // The Riviera, second pass: the play car's beach, warm sand wall to wall.
+        lay([{ color: '#E6CF9E', inset: 0, pattern: { pattern: PATTERN.none, shade: 1, surface: 'fabric', detail: 'sand' } }]);
+        break;
+      case 'boardwalk':
+        // Weathered boards across the sand, their seams across the walk.
+        lay([{ color: '#B48A5E', inset: 0, pattern: { pattern: PATTERN.boards, color2: '#8C6644', scale: 0.16, shade: 1, surface: 'wood', detail: 'wood' } }]);
+        break;
+      case 'foam':
+        // Soft foam play tiles in big squares: coral and sunshine.
+        lay([{ color: '#F28C6B', inset: 0, pattern: { pattern: PATTERN.checker, color2: '#F7C443', scale: 0.5, shade: 1, surface: 'fabric' } }]);
+        break;
+      case 'foamCool':
+        // Mint and sky.
+        lay([{ color: '#7FD3B6', inset: 0, pattern: { pattern: PATTERN.checker, color2: '#6FB7E8', scale: 0.5, shade: 1, surface: 'fabric' } }]);
         break;
       case 'deck':
         // The pool deck: teak boards with their dark seams.

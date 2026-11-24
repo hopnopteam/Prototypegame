@@ -39,6 +39,11 @@ TROP = {
     'toyBlue': '#2E86D8', 'toyYellow': '#F5C53A', 'toyGreen': '#4DB35A', 'toyDark': '#2E2A28', 'paper': '#FBF7EE',
     'teddy': '#B8844E', 'lanternPink': '#F29BB8', 'lanternGreen': '#A9DB7A', 'stripeA': '#F7F1E3', 'stripeB': '#E8604C',
     'curtain': '#7A3FA8',
+    # The second Riviera kit (art/blender/riviera_kit2.py).
+    'rock': '#B9AE9C', 'rockDark': '#8F8676', 'ballTeal': '#3FC6C9', 'ballBlue': '#4A90E2', 'ballMint': '#9FE3D2',
+    'dolphin': '#6FB7E8', 'crab': '#F0603E', 'spring': '#C9CED6', 'net': '#F4F1E8', 'rope': '#C9A877',
+    'juiceOrange': '#F7A23A', 'juicePink': '#F27BA8', 'juiceGreen': '#8BCB4E', 'chalk': '#2F3A36', 'stone': '#CFC7B8',
+    'water': '#7FD3E0',
 }
 # The figure kit's role keys (world/CharacterParts.ts FIG_KEYS): pure hues, recoloured to each look's colours.
 FIG = {'skin': '#FF2A2A', 'shoe': '#2AFF2A', 'sole': '#2A2AFF', 'lace': '#FFFF2A'}
@@ -281,6 +286,11 @@ MODELS = {
     # with `bake_prop_ao.py --only`).
     # The people's hands and shoes (art/blender/figure_kit.py), painted in role keys the game recolours per look.
     **{k: {'src': 'figure-kit/' + k + '.glb', 'paint': FIG} for k in ('fig_hand_r', 'fig_hand_l', 'fig_sneaker', 'fig_smart')},
+    # The second Riviera kit (art/blender/riviera_kit2.py): Kids' Play, the Beach Lounge, the Smoothie Bar, the Spa.
+    **{k: {'src': 'tropical-kit/' + k + '.glb', 'paint': TROP} for k in (
+        'play_tower', 'pirate_ship', 'ball_pit', 'swing_set', 'spring_dolphin', 'spring_crab', 'kid_ball', 'palm_pot',
+        'rainbow_umbrella', 'volley_net', 'beach_rocks', 'tiki_bar', 'juice_dispenser', 'fruit_bowl', 'cup_row', 'chalk_menu',
+        'smoothie_sign', 'bamboo_screen', 'stone_basin', 'candles', 'orchid', 'towel_stack', 'zen_tray')},
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}
