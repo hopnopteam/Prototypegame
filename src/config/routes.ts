@@ -135,6 +135,31 @@ export interface RouteDef {
   locomotive?: 'steam' | 'streamliner';
   /** Phase 4: the colours of the train's bought dressing on this route (window-box flowers, the trim line, the carpet). */
   exterior?: { flowers?: string[]; trim?: string; carpet?: string; carpetEdge?: string };
+  /**
+   * Visual overhaul, the Riviera revamp (owner, 24 Nov: "a different upgrade line… not luxurious First/Comfort/Royal"):
+   * the route's own names for the refits and classes, and the highest refit tier its passenger carriages reach (tiles
+   * above it are left out). Left out, the classic names and all five passenger tiers.
+   */
+  tiers?: RouteTiers;
+  /**
+   * The Riviera revamp: a carriage's upgrades that wait on a coupling ("@couple_N" in the catalogue) move by this many
+   * couplings, because the route brings that carriage earlier or later than the catalogue was written for (clamped to
+   * the route's couplings).
+   */
+  couplingShift?: Partial<Record<CarriageType, number>>;
+}
+
+/** A route's names for the refit tiers (1, 2, 3 on every carriage) and its classes. */
+export interface RouteTiers {
+  /** Refit names by tier on service cars and venues: [tier 1, tier 2, tier 3], and the name of tier 0. */
+  refit: [string, string, string];
+  broken: string;
+  /** Passenger carriages: the refit tile's name by tier (1 Repair, 2 Comfort, 4 First Class, 5 Royal Suite). */
+  passenger: Partial<Record<1 | 2 | 3 | 4 | 5, string>>;
+  /** The classes' names and chips on this route. */
+  classes: Partial<Record<ClassId, { name: string; chip: string }>>;
+  /** The highest passenger tier offered (the Riviera: 4, its Tiki Paradise; Royal Suites are left out). */
+  maxPassengerTier: number;
 }
 
 /** Phase 4: a carriage type's name and lines on one route. */
@@ -395,8 +420,20 @@ export const RIVIERA_COAST: RouteDef = {
   name: 'Riviera Coast Line',
   // Phase 4: nine carriages. The lobby, café, sleeper, washrooms and diner are Route 1's types dressed for the coast
   // (`dress`, `menu`, `layout`); the Kids' Play Car, the Spa Car, the Honeymoon Suites and the Pool Car are new types.
-  carriageOrder: ['lobby', 'cafe', 'sleeper', 'bathroom', 'dining', 'kids', 'spa', 'honeymoon', 'pool'],
+  // The revamp (owner, 24 Nov: "exciting carriages first"; the Washroom Car becomes the Beach Lounge, the Observation
+  // Dome's mechanic in beach dress): the Pool Car third, the lounge fourth, then the sleeper and the rest.
+  carriageOrder: ['lobby', 'cafe', 'pool', 'dome', 'sleeper', 'dining', 'spa', 'kids', 'honeymoon'],
   maxCarriages: 9,
+  // Their upgrades wait on couplings counted from where the catalogue's order had them (docs/art/RIVIERA_REVAMP.md).
+  couplingShift: { pool: -6, dome: -2, sleeper: 2, dining: 1, kids: 2, honeymoon: 1 },
+  // Owner, 24 Nov: "Driftwood → Bamboo → Tiki Paradise" on every carriage.
+  tiers: {
+    broken: 'Shipwrecked',
+    refit: ['Driftwood', 'Bamboo', 'Tiki Paradise'],
+    passenger: { 1: 'Driftwood', 2: 'Bamboo', 4: 'Tiki Paradise' },
+    classes: { basic: { name: 'Driftwood', chip: 'DRIFTWOOD' }, comfort: { name: 'Bamboo', chip: 'BAMBOO' }, first: { name: 'Tiki Paradise', chip: 'TIKI PARADISE' } },
+    maxPassengerTier: 4,
+  },
   stations: [
     { art: 'porto-sole', name: 'Porto Sole' },
     { art: 'lemon-cove', name: 'Lemon Cove' },
@@ -405,7 +442,7 @@ export const RIVIERA_COAST: RouteDef = {
     { art: 'coral-beach', name: 'Coral Beach' },
     { art: 'bellavista', name: 'Bellavista' },
   ],
-  classLadder: ['basic', 'comfort', 'first', 'royal'],
+  classLadder: ['basic', 'comfort', 'first'],
   guestLooks: [
     // Sunburnt tourists: pink in the face, a straw hat, a camera (they ask for aloe and cold drinks: `sunbather`).
     { id: 'daytripper', archetype: 'tourist', share: 0.5, body: '#F4F0E4', accent: '#3E8FC2', outfit: 'shirt', pants: '#E9D7AE', hat: 'boater', hatColor: '#E9CF8C', hairStyle: 'side' },
@@ -450,6 +487,10 @@ export const RIVIERA_COAST: RouteDef = {
         { wall: '#E6EEF2', wallLow: '#2E6F9A', curtain: '#F7F4EE' },
         { wall: '#F4F2EA', wallLow: '#1E3A5C', panel: '#1E3A5C', cap: '#E2B653', curtain: '#F7F4EE' },
       ] },
+    // The revamp: the Observation Dome's mechanic as a chill car of loungers facing the sea (show guests in, every sunset
+    // view pays everyone lounging, a beach towel for anyone who asks).
+    dome: { name: 'Beach Lounge', pitch: 'Sunset views', inside: 'Loungers facing the sea, big windows, beach towels',
+      theme: { wall: '#F6E7C8', wallLow: '#E9C98E', carpet: '#EFD9AE', deep: '#2E9AA8', blanket: '#F28C6B', curtain: '#F7F4EE' } },
   },
   menu: { latte: 'smoothie', pastry: 'icecream', meal: 'seafood' },
   layout: { lobbyRooms: 4, washrooms: ['shower', 'shower', 'shower'], diningRows: 5, surfboards: true },
@@ -507,6 +548,7 @@ export const RIVIERA_COAST: RouteDef = {
       'spa.hire_masseur': { spa: 4 },
       'honeymoon.hire_attendant': { rooms: 6 },
       'pool.hire_lifeguard': { pool: 5 },
+      'dome.hire_host': { dome: 6 },
     },
     couplings: [['c0.refurb_1'], ['couple_1'], ['couple_2', 'c0.hire_attendant'], ['couple_3'], ['couple_4'], ['couple_5'], ['couple_6'], ['couple_7']],
   },

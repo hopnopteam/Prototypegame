@@ -93,6 +93,12 @@ export const CLASSES: ClassDef[] = [
   },
 ];
 
+// The revamp: the route's own class names (the Riviera's Driftwood, Bamboo, Tiki Paradise).
+for (const c of CLASSES) {
+  const n = ACTIVE_ROUTE.tiers?.classes[c.id];
+  if (n) Object.assign(c, n);
+}
+
 // Phase 4: what each class asks for on the active route (the Riviera's welcome lemonade, aloe for the sunburnt).
 for (const c of CLASSES) {
   const r = ACTIVE_ROUTE.requests?.[c.id];

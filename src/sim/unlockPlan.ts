@@ -67,16 +67,28 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
     // Phase 4: the plan's own number of rooms (the route's layout may give a lobby four; a tile for a room the plan
     // does not have is left out).
     const rooms = isPassengerType(type) ? roomsAt(type, 0) : entry.cabins;
+    const tiers = ACTIVE_ROUTE.tiers;
+    const shift = ACTIVE_ROUTE.couplingShift?.[type] ?? 0;
+    const lastCouple = ACTIVE_ROUTE.maxCarriages - 1;
+    const requirement = (r: string): string => {
+      if (r === 'couple') return `couple_${index}`;
+      if (!r.startsWith('@')) return tileId(index, r);
+      const m = shift ? /^@couple_(\d+)$/.exec(r) : null;
+      return m ? `couple_${Math.max(1, Math.min(lastCouple, Number(m[1]) + shift))}` : r.slice(1);
+    };
     for (const t of entry.unlocks) {
       if (t.kind === 'cabin' && t.cabin !== undefined && t.cabin >= rooms) continue;
+      // The revamp: a route may stop its passenger carriages below the Royal Suite (the Riviera's Tiki Paradise).
+      if (tiers && t.kind === 'refurb' && isPassengerType(type) && (t.tier ?? 0) > tiers.maxPassengerTier) continue;
+      const routeLabel = tiers && t.kind === 'refurb' && t.tier ? (isPassengerType(type) ? tiers.passenger[t.tier as 1 | 2 | 3 | 4 | 5] : tiers.refit[t.tier - 1]) : undefined;
       defs.push({
         id: tileId(index, t.key),
         kind: t.kind,
-        label: t.label.replace('{n}', String(cabinsBefore + (t.cabin ?? 0) + 1)),
+        label: routeLabel ?? t.label.replace('{n}', String(cabinsBefore + (t.cabin ?? 0) + 1)),
         price: tilePrice(t, type, index),
         stars: t.stars,
         carriage: index,
-        requires: t.requires.map((r) => (r === 'couple' ? `couple_${index}` : r.startsWith('@') ? r.slice(1) : tileId(index, r))),
+        requires: t.requires.map(requirement),
         flags: t.flags,
         // Phase 4: the hand work a hire asks is the route's (`hires.work`), not the catalogue's.
         work: t.kind === 'hire' ? ACTIVE_ROUTE.hires.work[`${type}.${t.key}`] as UnlockDef['work'] : t.work,

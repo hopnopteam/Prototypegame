@@ -190,7 +190,7 @@ export const CLASS_THEMES: Record<'comfort' | 'business' | 'first' | 'royal', Ca
 
 /** Tier names, shown on refurbishment tiles and in headlines. */
 /** Rags to riches: run-down → repaired (clean and plain) → cosy (its colours) → luxurious. */
-export const TIER_NAMES = ['Run-down', 'Repaired', 'Cosy', 'Luxury'];
+export const TIER_NAMES = ACTIVE_ROUTE.tiers ? [ACTIVE_ROUTE.tiers.broken, ...ACTIVE_ROUTE.tiers.refit] : ['Run-down', 'Repaired', 'Cosy', 'Luxury'];
 
 /**
  * The train's paint job. Earned liveries follow its reputation (it looks as famous as it is); premium ones
