@@ -104,9 +104,13 @@ export const LOOK_SUN_OFFSET: Record<string, [number, number, number]> = { rivie
 
 /** The quality tiers in the new look: bloom from Medium (lamps and emissives only), the train's static sun shadow from Medium. */
 export const NEW_LOOK_TIERS = {
-  medium: { bloom: 0.45, shadows: 'static' as const },
-  high: { bloom: 0.6, shadows: 'follow' as const },
-  ultra: { bloom: 0.6, shadows: 'static' as const },
+  // Owner (24 Nov, the Look APK): "the player glitching… multiple different ways at the same time… popping in and out".
+  // Phones run Low or Medium; bloom on Medium put them on the post-processed path (session 15's regression) and the
+  // following shadow (High) is redrawn every frame. Phones now get neither: the static train shadow only, no post.
+  low: { shadows: 'static' as const },
+  medium: { shadows: 'static' as const },
+  high: { bloom: 0.5, shadows: 'static' as const },
+  ultra: { bloom: 0.5, shadows: 'static' as const },
 };
 
 /** Bevels: every box at least this big on all sides gets rounded edges of this radius (share of its smallest side, capped). */
@@ -122,4 +126,4 @@ export const WET_STONE = { smoothness: 0.78, streakLength: 2.6, streakWidth: 0.5
 export const PROP_AO = { floor: 0.38, gain: 1.35 };
 
 /** The figures in the new look: a little more of their own colour as light, and a soft warm rim (materials.ts, NX_FIGURE). */
-export const FIGURE_RIM = { lift: 0.2, strength: 0.45, power: 2.6 };
+export const FIGURE_RIM = { lift: 0.18, strength: 0.2, power: 3.2 };
