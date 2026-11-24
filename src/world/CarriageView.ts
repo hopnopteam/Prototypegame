@@ -2,7 +2,7 @@ import { TrainCat } from './TrainCat';
 import { VISUALS } from '../config/visuals';
 import { ACTIVE_ROUTE } from '../config/routes';
 import * as THREE from 'three';
-import { NEW_LOOK } from '../config/look';
+import { LOOK_SUN_OFFSET, NEW_LOOK, SUN_PATCH } from '../config/look';
 import { rect, type CarriageType, type Rect, type VenueKind } from '../core/types';
 import type { ComfortKey } from '../config/content';
 import { bedMessParts, buildLitter, buildMessPiece, buildMessPillow, LITTER_KINDS, seeded, type BedMess, type MessPiece } from './Mess';
@@ -35,7 +35,8 @@ import {
   type PropDef,
   type WallBox,
 } from './layout';
-import { litMaterial, MATERIALS, PATTERN } from './materials';
+import { ADD_GLOW, glowTexture, litMaterial, MATERIALS, PATTERN } from './materials';
+import { mergePlanes } from './geo';
 import { CARRIAGE_THEMES, CLASS_THEMES, PALETTE, shadeHex, type CarriageTheme } from './palette';
 import { smoothstep01 } from '../core/math';
 import { classOfTier, isPassengerType, type ClassDef } from '../config/classes';
@@ -1420,6 +1421,7 @@ export class CarriageView {
     yield;
     yield* floorSteps(f, this.layout, floorTier, this.theme, this.index * 7 + this.layout.type.length);
     yield;
+    this.buildSunPatches();
     if (this.tier <= 0) {
       const windows = this.cameraSideWindows();
       const webs = buildCobwebs(windows, this.index + 3);
@@ -1733,6 +1735,60 @@ export class CarriageView {
       f.endObject();
     });
   }
+
+  /**
+   * Visual overhaul (owner, 24 Nov: "Riviera sun streaks through the windows", ref 2): where the route's low sun stands on
+   * the windows' side, each window throws a warm patch onto the floor, slanted the way the sun comes in, stopped by the
+   * first wall along the carriage it reaches. Additive decals (they can only add light), one draw a carriage.
+   */
+  private buildSunPatches(): void {
+    const off = NEW_LOOK ? LOOK_SUN_OFFSET[ACTIVE_ROUTE.id] : undefined;
+    if (!off || off[0] >= 0) return;
+    const kx = -off[0] / off[1];
+    const kz = -off[2] / off[1];
+    const [h0, h1] = this.layout.windowBand;
+    const planes: THREE.BufferGeometry[] = [];
+    for (const win of this.cameraSideWindows()) {
+      let xFar = win.x + h1 * kx;
+      // The first wall along the carriage between the window and the patch's far end stops the light there.
+      for (const wall of this.layout.walls) {
+        if (wall.kind !== 'interior' || wall.z1 - wall.z0 < wall.x1 - wall.x0) continue;
+        if (wall.z1 < win.z0 + h0 * kz || wall.z0 > win.z1 + h1 * kz) continue;
+        if (wall.x0 > win.x + 0.05) xFar = Math.min(xFar, wall.x0);
+      }
+      const xNear = win.x + h0 * kx;
+      if (xFar <= xNear + 0.1) continue;
+      // A parallelogram: its near edge from the window's sill, its far edge from its head, each shifted along z.
+      const g = new THREE.BufferGeometry();
+      const y = FLOOR_Y + SUN_PATCH.lift;
+      const tFar = (xFar - win.x) / kx;
+      const pos = [
+        xNear, y, win.z0 + h0 * kz,
+        xNear, y, win.z1 + h0 * kz,
+        xFar, y, win.z1 + tFar * kz,
+        xFar, y, win.z0 + tFar * kz,
+      ];
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+      g.setIndex([0, 1, 2, 0, 2, 3]);
+      planes.push(g);
+    }
+    if (!planes.length) return;
+    const material = (CarriageView.sunMaterial ??= new THREE.MeshBasicMaterial({
+      map: glowTexture(64, 64, 32, 32, 0, 40, [[0, 1], [0.4, 0.85], [0.75, 0.35], [1, 0]]),
+      color: new THREE.Color(SUN_PATCH.color).multiplyScalar(SUN_PATCH.strength),
+      ...ADD_GLOW,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
+    }));
+    const mesh = new THREE.Mesh(mergePlanes(planes), material);
+    mesh.renderOrder = 1;
+    mesh.userData.object = 'decor:sunPatch~glow';
+    this.group.add(mesh);
+  }
+  private static sunMaterial: THREE.MeshBasicMaterial | undefined;
 
   private cameraSideWindows(): WindowCorner[] {
     const out: WindowCorner[] = [];

@@ -1,4 +1,5 @@
 import { VISUALS } from '../config/visuals';
+import { LOOK_DETAIL_SWAP, NEW_LOOK } from '../config/look';
 
 /**
  * Session 49: the photo detail layers (floor grain, carpet wool, grass), in the order they are stacked in
@@ -6,7 +7,7 @@ import { VISUALS } from '../config/visuals';
  * pattern attribute (`DETAIL_STRIDE` × (layer + 1) added to the pattern id) and the lit shader multiplies the part's own
  * colour by the layer's texel (see materials.ts).
  */
-export const DETAIL_LAYERS = ['woodWorn', 'wood', 'woodPolished', 'herringbone', 'wool', 'grass', 'ground', 'paving', 'flagstone', 'panel', 'carpet'] as const;
+export const DETAIL_LAYERS = ['woodWorn', 'wood', 'woodPolished', 'herringbone', 'wool', 'grass', 'ground', 'paving', 'flagstone', 'panel', 'carpet', 'plank', 'plankWorn', 'fabric'] as const;
 export type DetailName = (typeof DETAIL_LAYERS)[number];
 
 /** Pattern ids stay below this; the detail layer rides above it in the same float. */
@@ -18,6 +19,8 @@ export function detailIndex(name: DetailName): number {
 
 /** The pattern attribute's first value for a pattern id and an optional detail layer. */
 export function packPattern(type: number, detail?: DetailName): number {
+  // The new look draws its own wood grain and fabric over the photo layers' (config/look.ts).
+  if (detail && NEW_LOOK) detail = (LOOK_DETAIL_SWAP as Partial<Record<DetailName, DetailName>>)[detail] ?? detail;
   return detail ? type + DETAIL_STRIDE * (detailIndex(detail) + 1) : type;
 }
 

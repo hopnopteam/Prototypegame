@@ -70,8 +70,8 @@ export const LOOK_ROUTE_TIME: Record<string, number> = { countryside: 0.82, rivi
  */
 export const NEW_LOOK_NIGHT = {
   exposure: 1.08,
-  moon: { color: '#A9AEE6', intensity: 1.45 },
-  hemi: { sky: '#5E5478', ground: '#2E2230', intensity: 0.8 },
+  moon: { color: '#9EA0D2', intensity: 0.95 },
+  hemi: { sky: '#4A4266', ground: '#2A1E26', intensity: 0.62 },
   fill: 0.34,
   sky: { zenith: '#0E1433', horizon: '#3A4382', ground: '#120F22' },
   environment: 0.55,
@@ -79,14 +79,14 @@ export const NEW_LOOK_NIGHT = {
     interior: { color: '#FFB679', intensity: 0.5 },
     lamp: { color: '#FFAA58', intensity: 3.8, radius: 2.7 },
     spill: { color: '#FFB060', intensity: 0.7, reach: 2.6 },
-    platformLamp: { color: '#FFB070', intensity: 3.8, radius: 5.2 },
+    platformLamp: { color: '#FFAE62', intensity: 4.6, radius: 4.6 },
     ao: { wall: 0.62, wallReach: 0.55, prop: 0.66, propReach: 0.45, hull: 0.62, hullReach: 1.2 },
   },
   window: { glow: 0.9 },
   lampGlow: 4.2,
   fog: { color: '#141A3A', density: 0.0095 },
   bloom: { strength: 0.62, radius: 0.55, threshold: 1.0 },
-  grade: { shadows: '#14204A', shadowAmount: 0.06, highlights: '#FFD09A', highlightAmount: 0.1, contrast: 1.16, saturation: 1.22, vignette: 0.36, grain: 0.02 },
+  grade: { shadows: '#1A1E3E', shadowAmount: 0.05, highlights: '#FFD09A', highlightAmount: 0.1, contrast: 1.2, saturation: 1.08, vignette: 0.36, grain: 0.02 },
 };
 
 /**
@@ -117,7 +117,15 @@ export const NEW_LOOK_TIERS = {
 export const BEVEL = { minSide: 0.12, share: 0.16, max: 0.025 };
 
 /** Wet stone (ref 1): the platform's flags are polished, and each platform lamp throws a streak of reflection toward the camera. */
-export const WET_STONE = { smoothness: 0.78, streakLength: 2.6, streakWidth: 0.55, streakStrength: 0.95 };
+export const WET_STONE = {
+  smoothness: 0.78,
+  streakLength: 2.6,
+  streakWidth: 0.55,
+  streakStrength: 0.95,
+  /** Each lamp's pool of light on the flags (owner, 24 Nov: "real lamp pools… strong, warm"): radius, then brightness by distance. */
+  poolRadius: 2.6,
+  poolStops: [[0, 0.85], [0.3, 0.55], [0.65, 0.16], [1, 0]] as [number, number][],
+};
 
 /**
  * The props' baked occlusion (art/blender/bake_prop_ao.py): brightness = floor + (1 − floor) × min(1, ao × gain). The
@@ -127,3 +135,18 @@ export const PROP_AO = { floor: 0.38, gain: 1.35 };
 
 /** The figures in the new look: a little more of their own colour as light, and a soft warm rim (materials.ts, NX_FIGURE). */
 export const FIGURE_RIM = { lift: 0.18, strength: 0.2, power: 3.2 };
+
+/**
+ * Floors (owner, 24 Nov: "real wood planks with grain and per-plank tone variation, like ref 2… carpet runners with a
+ * soft fabric feel"): the new look swaps the photo grain for drawn layers (art/textures/build_stylized.py) and spreads
+ * each board's tone wider (world/Floors.ts).
+ */
+export const LOOK_DETAIL_SWAP = { wood: 'plank', woodWorn: 'plankWorn', woodPolished: 'plank', wool: 'fabric' } as const;
+/** Board tones in the new look: five per tier, a wider spread than the classic three (darker and lighter boards side by side). */
+export const LOOK_BOARD_TONES = {
+  old: ['#7E7464', '#8F8574', '#857A69', '#968B79', '#7A705F'],
+  repaired: ['#B88E5E', '#C9A274', '#A97F52', '#D1AE80', '#BF955F'],
+};
+
+/** The Riviera's sun through the windows (CarriageView.buildSunPatches): colour, brightness, height over the floor. */
+export const SUN_PATCH = { color: '#FFC27A', strength: 0.5, lift: 0.045 };

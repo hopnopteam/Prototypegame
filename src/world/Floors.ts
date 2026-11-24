@@ -7,6 +7,7 @@ import type { DetailName } from './detail';
 import { PATTERN } from './materials';
 import { seeded } from './Mess';
 import { CLASS_THEMES, PALETTE, shadeHex, type CarriageTheme } from './palette';
+import { LOOK_BOARD_TONES, NEW_LOOK } from '../config/look';
 
 /**
  * Floors tell the rags-to-riches story at a glance, tier by tier:
@@ -181,7 +182,7 @@ function boardField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () 
   if ((globalThis as { __floorDebug?: string[] }).__floorDebug) (globalThis as { __floorDebug?: string[] }).__floorDebug!.push(`${room ? 'room' : 'open'} ${r.x0.toFixed(2)},${r.z0.toFixed(2)}-${r.x1.toFixed(2)},${r.z1.toFixed(2)} holes ${holes.map((h) => `${h.x0.toFixed(2)},${h.z0.toFixed(2)}`).join(' ')}`);
   const bottom = top - PLANK_T;
   const y = (top + bottom) / 2;
-  const tones = tier <= 0 ? OLD_TONES : REPAIRED_TONES;
+  const tones = NEW_LOOK ? (tier <= 0 ? LOOK_BOARD_TONES.old : LOOK_BOARD_TONES.repaired) : tier <= 0 ? OLD_TONES : REPAIRED_TONES;
   const phase = rand();
   for (let s = 0; s < strips; s++) {
     const x0 = r.x0 + s * w + seam / 2;
@@ -197,7 +198,7 @@ function boardField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () 
       const a = Math.max(r.z0, z) + (z > r.z0 ? seam / 2 : 0);
       const b = Math.min(r.z1, z + len) - (z + len < r.z1 ? seam / 2 : 0);
       z += len;
-      const board = tones[(s * 2 + k) % tones.length];
+      const board = tones[NEW_LOOK ? (s * 3 + k * 2 + (s * k) % 3) % tones.length : (s * 2 + k) % tones.length];
       // Session 51b (owner: "broken… cracks… not placed properly, but not glitched"): run down, now and then a board is
       // split along its length (a real gap down to the subfloor) or has worked loose (lifted and knocked a little
       // askew). A fixed pattern, so the random sequence that places the holes is untouched.

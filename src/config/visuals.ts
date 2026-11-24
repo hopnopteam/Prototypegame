@@ -243,6 +243,10 @@ export const VISUALS = {
     flagstone: { tile: 2.7, strength: 1.0 },
     panel: { tile: 1.2, strength: 0.8 },
     carpet: { tile: 0.8, strength: 0.7 },
+    /** Visual overhaul: drawn wood grain along the boards (new look), worn, and a plush runner. */
+    plank: { tile: 2.1, strength: 0.85 },
+    plankWorn: { tile: 2.1, strength: 0.95 },
+    fabric: { tile: 0.7, strength: 0.8 },
   },
 };
 

@@ -173,6 +173,22 @@ export class PlatformView {
       polygonOffsetFactor: -2,
       polygonOffsetUnits: -2,
     }));
+    // Owner (24 Nov): "real lamp pools… strong, warm, like ref 1": a soft warm disc on the flags round each lamp's foot,
+    // added over the baked light (which fades out at the deck's own height), drawn in the same merged mesh.
+    const R = WET_STONE.poolRadius;
+    for (const a of anchors) {
+      const g = new THREE.PlaneGeometry(R * 2 * a.strength, R * 2 * a.strength);
+      g.rotateX(-Math.PI / 2);
+      g.translate(a.x + 0.35, FLOOR_Y + 0.007, a.z);
+      // The pool's uvs point at the right-hand half of the texture (the streak uses the left half).
+      const uv = g.getAttribute('uv') as THREE.BufferAttribute;
+      for (let i = 0; i < uv.count; i++) uv.setX(i, 0.5 + uv.getX(i) * 0.5);
+      planes.push(g);
+    }
+    for (const g of planes.slice(0, anchors.length)) {
+      const uv = g.getAttribute('uv') as THREE.BufferAttribute;
+      for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * 0.5);
+    }
     this.wetMesh = new THREE.Mesh(mergePlanes(planes), material);
     this.wetMesh.renderOrder = 1;
     this.group.add(this.wetMesh);
@@ -453,7 +469,7 @@ export class PlatformView {
     // Session 30: stone flags laid in running bond, in close tones (the big diamond tile read as a loud pattern).
     // Session 51b (owner: "the surface… find a better realistic [one]"): warm sandstone flags, the photo's own joints.
     // Visual overhaul: wet slate-grey flags with bevelled joints, polished so the night sky and the lamps shine in them (ref 1).
-    if (NEW_LOOK) deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, '#A39390', 0, { shade: 1, detail: 'flagstone', surface: { roughness: 1 - WET_STONE.smoothness, metalness: 0 } });
+    if (NEW_LOOK) deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, '#8C8079', 0, { shade: 1, detail: 'flagstone', surface: { roughness: 1 - WET_STONE.smoothness, metalness: 0 } });
     else deck.box((x0 + x1) / 2 + 0.2, FLOOR_Y - 0.01, zc, x1 - x0 - 0.4, 0.02, length, PALETTE.platformTile, 0, { shade: 1, detail: 'paving' });
     deck.box(x0 + 0.2, FLOOR_Y - 0.008, zc, 0.4, 0.024, length, '#D3C9B8', 0, { shade: 1 });
     deck.box(x0 + 0.34, FLOOR_Y + 0.006, zc, 0.12, 0.004, length, PALETTE.platformEdge, 0, { shade: 1 });
@@ -527,6 +543,8 @@ export class PlatformView {
     buildLampPost(props, lamps, standLamp.x, standLamp.z);
     block(standLamp.x, standLamp.z, LAMP_FOOT);
     anchors.push({ x: standLamp.x - 0.6, y: FLOOR_Y + 2.1, z: standLamp.z + 0.6, strength: 1 });
+    // The desk lamp on the counter (new look): its own small pool round the stand.
+    if (NEW_LOOK) anchors.push({ x: (PLATFORM.counter.x0 + PLATFORM.counter.x1) / 2 - 0.12, y: FLOOR_Y + 1.3, z: PLATFORM.counter.z1 - 0.2, strength: 0.4 });
     // Session 55: no lamp by the barrow any more (it stood between the camera and the bags, then in the walkway);
     // the railing's lamps and the ticket stand's light the work lane.
     props.endObject();
@@ -1259,7 +1277,19 @@ function buildTicketStand(b: GeoBuilder, lamps: GeoBuilder, dz = 0, office = fal
   const colors = ['#F4EBD6', '#F2B8B0', '#BFD8B5', '#F4EBD6', '#C9D6EA', '#F2D58C'];
   colors.forEach((col, i) => b.box(cx + (i % 2) * 0.1, top + 0.16, r.z0 + 0.17 + Math.floor(i / 2) * 0.08, 0.08, 0.04, 0.06, col, 0, { shade: 1 }));
   b.endObject();
-  void lamps;
+  // Visual overhaul (owner, 24 Nov: "add the lamp on the ticket booth", ref 1): a brass desk lamp at the counter's back
+  // end, its shade lit, so the stand glows in its own pool.
+  if (NEW_LOOK) {
+    const lx = cx - 0.12;
+    const lz = r.z1 - 0.2;
+    b.object('platform:deskLamp');
+    b.cylinder(lx, top + 0.015, lz, 0.07, 0.08, 0.03, PALETTE.brass, 12, 'y', { shade: 1, surface: 'brass' });
+    b.cylinder(lx, top + 0.17, lz, 0.012, 0.012, 0.3, PALETTE.brass, 8, 'y', { shade: 1, surface: 'brass' });
+    b.endObject();
+    lamps.object('platform:deskLamp~glow');
+    lamps.cylinder(lx, top + 0.33, lz, 0.06, 0.11, 0.12, PALETTE.lampShade, 12, 'y');
+    lamps.endObject();
+  }
   if (office) return;
   // The "Tickets" board's post (the board itself is a painted plane, see PlatformView).
   b.object('platform:ticketSignPost');
@@ -1547,14 +1577,15 @@ function buildForecourt(flat: GeoBuilder, b: GeoBuilder, lamps: GeoBuilder, x1: 
 
 /** A lamp's reflection in wet stone: brightest at the lamp's end (the top of the texture), a long soft tail. */
 function streakTexture(): THREE.CanvasTexture {
+  // Left half: a lamp's streak on wet stone (bright at the lamp, long toward the camera). Right half: its pool of light.
   const c = document.createElement('canvas');
-  c.width = 32;
+  c.width = 256;
   c.height = 128;
   const ctx = c.getContext('2d') as CanvasRenderingContext2D;
   ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, 32, 128);
+  ctx.fillRect(0, 0, 256, 128);
   ctx.save();
-  ctx.scale(1, 7);
+  ctx.scale(4, 7);
   const g = ctx.createRadialGradient(16, 2, 0, 16, 2, 16);
   for (const [at, v] of [[0, 1], [0.2, 0.7], [0.55, 0.22], [1, 0]] as const) {
     const b = Math.round(255 * v);
@@ -1563,6 +1594,13 @@ function streakTexture(): THREE.CanvasTexture {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 32, 128 / 7);
   ctx.restore();
+  const p = ctx.createRadialGradient(192, 64, 0, 192, 64, 62);
+  for (const [at, v] of WET_STONE.poolStops) {
+    const b = Math.round(255 * v);
+    p.addColorStop(at, `rgb(${b},${b},${b})`);
+  }
+  ctx.fillStyle = p;
+  ctx.fillRect(128, 0, 128, 128);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.NoColorSpace;
   return t;

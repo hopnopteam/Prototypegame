@@ -335,7 +335,7 @@ const HOLDS: Record<string, string[]> = {
   'platform:fruitStall': ['platform:fruitStallGoods', 'character:keeper'],
   // Session 57: the booking office stands round its counter (and the parcels office round its own); a market umbrella's
   // canopy reaches over its barrow and keeper; the goods lie on their barrows; a letter lies on a bench.
-  'platform:bookingOffice': ['platform:ticketStand', 'platform:till', 'platform:ticketRack', 'platform:parcelsCounter', 'character:keeper-parcels', 'character:clerk', 'platform:worksCounter', 'character:painter'],
+  'platform:bookingOffice': ['platform:ticketStand', 'platform:till', 'platform:ticketRack', 'platform:deskLamp', 'platform:deskLamp~glow', 'platform:parcelsCounter', 'character:keeper-parcels', 'character:clerk', 'platform:worksCounter', 'character:painter'],
   'platform:fruitUmbrella': ['platform:fruitBarrow', 'platform:fruitBarrowGoods', 'character:keeper'],
   'platform:fruitBarrow': ['platform:fruitBarrowGoods', 'character:keeper'],
   'platform:coffeeCart': ['character:keeper-coffee'],
@@ -372,7 +372,7 @@ const HOLDS: Record<string, string[]> = {
   'prop:concession': ['prop:popcornMachine'],
   // Session 23, the platform: what stands on the ticket stand, the station house's lit windows and lanterns on its
   // face, a lamp post's lanterns.
-  'platform:ticketStand': ['platform:ticketRack', 'platform:till', 'platform:ticketSignPost'],
+  'platform:ticketStand': ['platform:ticketRack', 'platform:till', 'platform:ticketSignPost', 'platform:deskLamp', 'platform:deskLamp~glow'],
   'platform:stationHouse': ['platform:houseWindow~glow', 'platform:doorLantern~glow'],
   'platform:lampPost': ['platform:lampPost~glow'],
   'forecourt:lamp': ['forecourt:lamp~glow'],
