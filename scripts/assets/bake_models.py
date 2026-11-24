@@ -24,6 +24,16 @@ OUT_TS = os.path.join(ROOT, 'src', 'world', 'models', 'modelIndex.ts')
 # the game recolours each part by its hue band (world/models/library.ts `KEY`, `paint`).
 WOOD, COVER, CUSHION, METAL, LINEN, BLANKET, DARK = '#8A4A37', '#FBB856', '#68A8D4', '#7A7A7A', '#F2F2F2', '#4E8DBA', '#3A2A22'
 QH = 'quaternius-house/'
+# The tropical kit's colours by material role (sRGB).
+TROP = {
+    'bamboo': '#C9A65E', 'node': '#9C7A3E', 'straw': '#D9B46A', 'strawDark': '#B8904A', 'rattan': '#B9874E',
+    'rattanDark': '#7E5A34', 'flame': '#FFB347', 'bulb': '#FFE2A8', 'cord': '#3A2A22', 'cushion': '#2EB3B0',
+    'wood': '#A8784C', 'towel': '#F4F1E8', 'towelStripe': '#2FA7C0', 'pole': '#EDE6D6', 'canvasA': '#F7F1E3',
+    'canvasB': '#E8604C', 'petal': '#E2304F', 'petalPink': '#F27BAA', 'petalYellow': '#F7C443', 'petalWhite': '#FBF5EE',
+    'pistil': '#F7D24A', 'leaf': '#3E9A4A', 'leafDark': '#2C7A3A', 'appliance': '#F4F0E6', 'glass': '#CFE9EE',
+    'smoothie': '#F48FA0', 'coconut': '#6B4A2E', 'coconutFlesh': '#F5EFE2', 'strawPink': '#F27BAA', 'stem': '#4E8A3E',
+    'board': '#F7E3B5', 'boardStripe': '#2FA7C0',
+}
 MODELS = {
     # KayKit Forest Nature Pack 1.0 (Kay Lousberg, CC0)
     'tree_round': 'kaykit-forest/Tree_1_A_Color1.gltf',
@@ -249,6 +259,10 @@ MODELS = {
     'petal': {"src": "quaternius-stylized/Petal_1.gltf", "hue": [{"h": [0, 360], "s": [0.2, 1], "to": "#C8243A"}]},
     'rose': {"src": "kenney-nature/flower_redA.glb", "paint": {"grass": "#4E8A3A", "colorRed": "#C8243A"}},
     'present': "kaykit-holiday/present_A_red.gltf",
+    # The Riviera revamp's tropical kit (art/blender/tropical_kit.py, our own, CC0): bamboo, thatch, rattan and flowers.
+    **{k: {'src': 'tropical-kit/' + k + '.glb', 'paint': TROP} for k in (
+        'bamboo_pole', 'thatch_strip', 'tiki_torch', 'pendant_woven', 'rattan_chair', 'bamboo_table', 'lounger', 'parasol',
+        'hibiscus', 'lei', 'blender', 'coconut_drink', 'monstera', 'hammock', 'surf_sign')},
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}

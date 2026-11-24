@@ -1422,6 +1422,7 @@ export class CarriageView {
     yield* floorSteps(f, this.layout, floorTier, this.theme, this.index * 7 + this.layout.type.length);
     yield;
     this.buildSunPatches();
+    this.buildTropicalTrim();
     if (this.tier <= 0) {
       const windows = this.cameraSideWindows();
       const webs = buildCobwebs(windows, this.index + 3);
@@ -1789,6 +1790,46 @@ export class CarriageView {
     this.group.add(mesh);
   }
   private static sunMaterial: THREE.MeshBasicMaterial | undefined;
+
+  /**
+   * The Riviera revamp (new look; art/blender/tropical_kit.py): thatched eaves along both outer walls from Driftwood
+   * up, a flower lei over every window on the far wall from Bamboo up. Hung outside the walls' faces, never over a room.
+   */
+  private buildTropicalTrim(): void {
+    if (!NEW_LOOK || ACTIVE_ROUTE.id !== 'riviera' || this.tier < 1) return;
+    const b = new GeoBuilder();
+    const top = FLOOR_Y + EXTERIOR_WALL_HEIGHT;
+    const thatch = modelEntry('thatch_strip');
+    const th = thatch.max[1] - thatch.min[1];
+    for (const wall of this.layout.walls) {
+      if (wall.kind !== 'exterior' || wall.z1 - wall.z0 < wall.x1 - wall.x0) continue;
+      const outside = wall.x1 <= 0 ? wall.x0 - 0.04 : wall.x1 + 0.04;
+      const n = Math.max(1, Math.round((wall.z1 - wall.z0 - 0.3) / 0.95));
+      const step = (wall.z1 - wall.z0 - 0.3) / n;
+      b.object('decor:thatch');
+      for (let i = 0; i < n; i++) b.model('thatch_strip', outside, top - th + 0.05, wall.z0 + 0.15 + step * (i + 0.5), Math.PI / 2, step / 0.96, 1, 1, { shade: 0.95, surface: 'fabric' });
+      b.endObject();
+    }
+    if (this.tier >= 2) {
+      const lei = modelEntry('lei');
+      const lh = lei.max[1] - lei.min[1];
+      // Only over a window with nothing standing against the wall beside it (a shelf, a sideboard, a partition's end).
+      const clearAt = (win: WindowCorner): boolean => {
+        const r = { x0: win.x, z0: win.z0 - 0.12, x1: win.x + 0.35, z1: win.z1 + 0.12 };
+        const hit = (q: Rect): boolean => q.x0 < r.x1 && q.x1 > r.x0 && q.z0 < r.z1 && q.z1 > r.z0;
+        return !this.layout.props.some((p) => hit(p.rect)) && !this.layout.walls.some((w) => w.kind === 'interior' && hit(w));
+      };
+      for (const win of this.cameraSideWindows()) {
+        if (!clearAt(win)) continue;
+        b.object('decor:lei');
+        b.model('lei', win.x + 0.07, top - 0.03 - lh, (win.z0 + win.z1) / 2, Math.PI / 2, (win.z1 - win.z0 + 0.1) / 1.0, 1, 1, { shade: 1, surface: 'fabric' });
+        b.endObject();
+      }
+    }
+    const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
+    mesh.layers.enable(STATIC_CASTER_LAYER);
+    this.group.add(mesh);
+  }
 
   private cameraSideWindows(): WindowCorner[] {
     const out: WindowCorner[] = [];

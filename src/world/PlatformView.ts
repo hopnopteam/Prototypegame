@@ -1356,6 +1356,17 @@ const shadeNavy = '#3C4A70';
 function buildLampPost(b: GeoBuilder, lamps: GeoBuilder, x: number, z: number): void {
   const y = FLOOR_Y;
   b.object('platform:lampPost');
+  // The Riviera revamp (new look): a tall tiki torch with a lit flame instead of the iron lantern.
+  if (NEW_LOOK && ACTIVE_ROUTE.id === 'riviera') {
+    const e = modelEntry('tiki_torch');
+    const sc = 2.3 / (e.max[1] - e.min[1]);
+    b.model('tiki_torch', x, y, z, 0, sc * 1.3, sc, sc * 1.3, { shade: 0.95, surface: 'wood' });
+    b.endObject();
+    lamps.object('platform:lampPost~glow');
+    lamps.sphere(x, y + 2.3 - 0.09 * sc, z, 0.075 * sc, '#FFB347', 1, 1.5);
+    lamps.endObject();
+    return;
+  }
   {
     // Session 51: Tiny Treats' street lantern in the station's navy iron, its glass lit.
     const e = modelEntry('street_lamp');
