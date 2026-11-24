@@ -1,0 +1,90 @@
+# Visual overhaul (Phase V1): an Android test build of the new look, separate from the live builds. Built on every
+# push to the visual-overhaul branch (and on demand). It opens in the new look (LOOK_DEFAULT=new; the Debug sheet can
+# switch back to the classic look), installs beside every other Night Express app as "Night Express Look"
+# (com.hopnop.nightexpress.look, its own save), sends nothing to GameAnalytics or Adjust and shows no ads.
+name: Android look build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [visual-overhaul]
+    paths:
+      - 'src/**'
+      - 'assets/**'
+      - 'android/**'
+      - 'scripts/build.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/android-look.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-look
+  cancel-in-progress: true
+
+jobs:
+  look:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      LOOK_DEFAULT: 'new'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the game (no analytics keys, new look by default)
+        run: npm run build
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Android SDK packages
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools" > /dev/null
+
+      - name: Copy the game into the Android project
+        run: npx cap sync android
+
+      - name: Name the app on the phone
+        run: sed -i 's|<string name="app_name">Night Express</string>|<string name="app_name">Night Express Look</string>|' android/app/src/main/res/values/strings.xml
+
+      - name: Build the APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Name the APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk "night-express-look-${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: night-express-look-apk-${{ github.run_number }}
+          path: night-express-look-${{ github.run_number }}.apk
+
+      - name: Publish a look pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-look-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Night Express Look build ${{ github.run_number }}
+          prerelease: true
+          files: night-express-look-${{ github.run_number }}.apk
+          body: |
+            Visual overhaul (Phase V1) test build: the new look, for judging the look and the frame rate on a phone.
+            Installs beside the other Night Express apps as "Night Express Look", with its own save.
+            Opens in the new look; Settings, five taps on the build line, Debug, "Back to the classic look" compares.
+            Sends nothing to GameAnalytics or Adjust and shows no ads.
+            On the phone: download the APK, allow installs from this source when asked, and open it.
+            Built from ${{ github.sha }}.

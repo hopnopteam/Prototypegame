@@ -35,7 +35,10 @@ function stored(): string | null {
   }
 }
 
-const raw = fromAddress() ?? stored();
+/** A build made with LOOK_DEFAULT=new (the visual-overhaul Android build) opens in the new look. */
+declare const __LOOK__: string | undefined;
+const built = typeof __LOOK__ !== 'undefined' ? __LOOK__ : '';
+const raw = fromAddress() ?? stored() ?? (built || null);
 export const LOOK: LookId = raw === 'new' ? 'new' : 'classic';
 /** True while the overhaul's look is on (read at load: a change reloads the page). */
 export const NEW_LOOK = LOOK === 'new';
@@ -69,12 +72,12 @@ export const NEW_LOOK_NIGHT = {
   exposure: 1.08,
   moon: { color: '#9FB0FF', intensity: 1.55 },
   hemi: { sky: '#57538A', ground: '#2A2132', intensity: 0.85 },
-  fill: 0.42,
+  fill: 0.34,
   sky: { zenith: '#0E1433', horizon: '#3A4382', ground: '#120F22' },
   environment: 0.55,
   light: {
-    interior: { color: '#FFB679', intensity: 0.62 },
-    lamp: { color: '#FFAA58', intensity: 3.0, radius: 2.9 },
+    interior: { color: '#FFB679', intensity: 0.5 },
+    lamp: { color: '#FFAA58', intensity: 3.8, radius: 2.7 },
     spill: { color: '#FFB060', intensity: 0.7, reach: 2.6 },
     platformLamp: { color: '#FFB070', intensity: 3.4, radius: 4.2 },
     ao: { wall: 0.62, wallReach: 0.55, prop: 0.66, propReach: 0.45, hull: 0.62, hullReach: 1.2 },
@@ -82,7 +85,7 @@ export const NEW_LOOK_NIGHT = {
   window: { glow: 0.9 },
   lampGlow: 4.2,
   fog: { color: '#141A3A', density: 0.0095 },
-  bloom: { strength: 0.62, radius: 0.55, threshold: 0.95 },
+  bloom: { strength: 0.62, radius: 0.55, threshold: 1.0 },
   grade: { shadows: '#14204A', shadowAmount: 0.06, highlights: '#FFD09A', highlightAmount: 0.1, contrast: 1.16, saturation: 1.22, vignette: 0.36, grain: 0.02 },
 };
 
@@ -117,3 +120,6 @@ export const WET_STONE = { smoothness: 0.78, streakLength: 2.6, streakWidth: 0.5
  * gain lifts the bake (a vertex at the corner of flat-shaded faces sees half its hemisphere blocked by its neighbours).
  */
 export const PROP_AO = { floor: 0.38, gain: 1.35 };
+
+/** The figures in the new look: a little more of their own colour as light, and a soft warm rim (materials.ts, NX_FIGURE). */
+export const FIGURE_RIM = { lift: 0.2, strength: 0.45, power: 2.6 };

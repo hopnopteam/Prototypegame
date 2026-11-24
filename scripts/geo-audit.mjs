@@ -12,7 +12,9 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 // The audit runs while the page loads (several minutes under SwiftShader), so don't wait for 'load' here.
 // Phase 4: GEO_ROUTE=riviera audits that route's train (its own carriages and layout knobs).
-await page.goto(`file://${resolve('dist/geoaudit.html')}${process.env.GEO_ROUTE ? `?route=${process.env.GEO_ROUTE}` : ''}`, { waitUntil: 'commit' });
+// Visual overhaul: GEO_LOOK=new audits the new look's geometry (bevelled boxes, the chunkier wall caps).
+const geoQuery = [process.env.GEO_ROUTE ? `route=${process.env.GEO_ROUTE}` : '', process.env.GEO_LOOK ? `look=${process.env.GEO_LOOK}` : ''].filter(Boolean).join('&');
+await page.goto(`file://${resolve('dist/geoaudit.html')}${geoQuery ? `?${geoQuery}` : ''}`, { waitUntil: 'commit' });
 await page.waitForFunction(() => document.body.dataset.done === '1' || window.__failed, null, { timeout: 900000 }).catch(() => undefined);
 const results = await page.evaluate(() => window.geoAudit);
 const clips = await page.evaluate(() => window.clipAudit);

@@ -1767,7 +1767,7 @@ export class CarriageView {
     const low = Math.min(y1, FLOOR_Y + WAINSCOT);
     // Visual overhaul: the lower band reads as painted panels (raised frames) and the upper wall as soft paint.
     if (low > y0) s.slab(r, y0, low, fin.panelled ? fin.panel : fin.wallLow, 0, 0, { shade: 0.82, surface: fin.panelled ? 'varnish' : 'matte', ...(NEW_LOOK ? { detail: 'panel' as const } : {}) });
-    if (y1 > low) s.slab(r, Math.max(y0, low), y1, fin.wall, 0, 0, { shade: NEW_LOOK ? 0.88 : 0.96 });
+    if (y1 > low) s.slab(r, Math.max(y0, low), y1, fin.wall, 0, 0, { shade: NEW_LOOK ? 0.8 : 0.96 });
     if (fin.panelled && y0 <= FLOOR_Y + WAINSCOT && y1 >= FLOOR_Y + WAINSCOT) s.slab(shortenEnds(rail, END_INSET), FLOOR_Y + WAINSCOT - 0.012, FLOOR_Y + WAINSCOT + 0.018, PALETTE.brass, 0, 0, FLAT);
   }
 
@@ -1776,7 +1776,7 @@ export class CarriageView {
     const grow = (d: number): Rect => (alongZ ? rect(r.x0 - d, r.z0, r.x1 + d, r.z1) : rect(r.x0, r.z0 - d, r.x1, r.z1 + d));
     this.innerFinish(s, r, FLOOR_Y, FLOOR_Y + h, grow(0.01));
     // Visual overhaul: a chunky rounded cap with a visible lip either side (the cut-away of refs 2 and 3).
-    if (NEW_LOOK) s.slab(grow(0.03), FLOOR_Y + h, FLOOR_Y + h + 0.065, this.finish.cap, 0, 0, { shade: 1, surface: 'varnish' });
+    if (NEW_LOOK) s.slab(grow(0.03), FLOOR_Y + h, FLOOR_Y + h + 0.068, this.finish.cap, 0, 0, { shade: 1, surface: 'varnish' });
     else s.slab(grow(0.015), FLOOR_Y + h, FLOOR_Y + h + 0.04, this.finish.cap, 0, 0, FLAT);
   }
 
@@ -3567,5 +3567,5 @@ function buildBunk(b: GeoBuilder, r: Rect, theme: CarriageTheme, tier: number): 
   const lz = r.z1 - inset;
   for (const lx of [r.x0 + 0.12, r.x0 + 0.38]) b.box(lx, (y + top) / 2, lz + 0.02, 0.03, top - y, 0.03, frame, 0, FLAT);
   for (let i = 1; i <= 3; i++) b.box(r.x0 + 0.25, y + (top - y) * (i / 4), lz + 0.02, 0.28, 0.025, 0.03, frame, 0, FLAT);
-  if (tier >= 2) b.box(cx, top - 0.095, r.z1 - inset, w - 0.1, 0.05, 0.02, theme.deep, 0, FLAT);
+  if (tier >= 2) b.box(cx, top - (NEW_LOOK ? 0.105 : 0.095), r.z1 - inset, w - 0.1, 0.05, 0.02, theme.deep, 0, FLAT);
 }

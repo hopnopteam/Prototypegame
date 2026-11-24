@@ -6,7 +6,7 @@
 //        node scripts/pacing.mjs 900          (the old form: the first 900 seconds, fast profile)
 // Each run is seeded (the game's random and Math.random), so a seed replays the same game. Runs go in parallel
 // (--parallel=6). Writes <out>-<profile>-s<seed>.csv/.log per run and <out>-summary.log (median and slowest by profile).
-// PAGE=dist/god.html etc. picks another build; SHOTS=60,120 with --shots=dir takes screenshots.
+// PAGE=dist/god.html etc. picks another build; LOOK=new plays the visual overhaul's look (gameplay must be identical); SHOTS=60,120 with --shots=dir takes screenshots.
 //
 // Repeatable whatever the machine's load: the page runs on Playwright's fake clock, paused once the game has loaded
 // (`?sim=1` keeps it paused and in lockstep, `Game.lockstep`), and the clock is advanced by exactly the simulated
@@ -143,7 +143,7 @@ async function run(profile, seed) {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }, seed * 7919 + 13);
-  await page.goto(`file://${resolve(process.env.PAGE ?? 'dist/index.html')}?seed=${seed}&sim=1&quality=${QUALITY}${ROUTE === 'countryside' ? '' : `&route=${ROUTE}`}`);
+  await page.goto(`file://${resolve(process.env.PAGE ?? 'dist/index.html')}?seed=${seed}&sim=1&quality=${QUALITY}${ROUTE === 'countryside' ? '' : `&route=${ROUTE}`}${process.env.LOOK ? `&look=${process.env.LOOK}` : ''}`);
   await page.waitForTimeout(600);
   await page.mouse.click(195, 700);
   await page.waitForFunction(() => window.nightExpress?.booted, null, { timeout: 600000 });

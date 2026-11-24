@@ -15,7 +15,8 @@ android {
         // The preview build (PREVIEW=1, Phase 4d) is the owner's own test copy: beside the others, nothing reported.
         applicationId System.getenv("STORE") == "1" ? "io.heseri.night"
             : System.getenv("GOD_MODE") == "1" ? "com.hopnop.nightexpress.god"
-            : System.getenv("PREVIEW") == "1" ? "com.hopnop.nightexpress.preview" : "com.hopnop.nightexpress"
+            : System.getenv("PREVIEW") == "1" ? "com.hopnop.nightexpress.preview"
+            : System.getenv("LOOK_DEFAULT") == "new" ? "com.hopnop.nightexpress.look" : "com.hopnop.nightexpress"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Test builds from CI count up, so each new APK installs over the last one.
@@ -27,10 +28,10 @@ android {
         // so test installs never mix with real players; the god-mode build for recording videos sends nothing.
         buildConfigField "String", "ADJUST_APP_TOKEN", '"sgueyly4m60w"'
         buildConfigField "String", "ADJUST_ENVIRONMENT", System.getenv("STORE") == "1" ? '"production"'
-            : (System.getenv("GOD_MODE") == "1" || System.getenv("PREVIEW") == "1") ? '"off"' : '"sandbox"'
+            : (System.getenv("GOD_MODE") == "1" || System.getenv("PREVIEW") == "1" || System.getenv("LOOK_DEFAULT") == "new") ? '"off"' : '"sandbox"'
         // AppLovin MAX (session 46): interstitials only, ad revenue reported to Adjust (MaxAdsPlugin.java). The SDK key
         // and the interstitial ad unit are set at the top of this file; the god build shows no ads.
-        buildConfigField "boolean", "MAX_ENABLED", (System.getenv("GOD_MODE") == "1" || System.getenv("PREVIEW") == "1") ? "false" : "true"
+        buildConfigField "boolean", "MAX_ENABLED", (System.getenv("GOD_MODE") == "1" || System.getenv("PREVIEW") == "1" || System.getenv("LOOK_DEFAULT") == "new") ? "false" : "true"
         buildConfigField "String", "MAX_SDK_KEY", '"' + (System.getenv("MAX_SDK_KEY") ?: maxSdkKey) + '"'
         buildConfigField "String", "MAX_INTERSTITIAL_ID", '"' + (System.getenv("MAX_INTERSTITIAL_ID") ?: maxInterstitialAdUnit) + '"'
         buildConfigField "boolean", "MAX_VERBOSE", System.getenv("STORE") == "1" ? "false" : "true"

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FIGURE_RIM, NEW_LOOK } from '../config/look';
 import { VISUALS } from '../config/visuals';
 import { PALETTE } from './palette';
 import { SURFACES, type Surface } from './surfaces';
@@ -320,7 +321,7 @@ const HIGHLIGHT_EDGE_POWER = 6.0;
 const HIGHLIGHT_RIM = 0.1;
 const HIGHLIGHT_FILL = 0.08;
 /** How much of their own colour people give off (session 38, owner: "a weird opacity issue with the player and character models"): at night they were lit like the floor and their edges melted into it. */
-const FIGURE_LIFT = 0.16;
+const FIGURE_LIFT = NEW_LOOK ? FIGURE_RIM.lift : 0.16;
 /** The brightest a specular highlight may get (linear), kept under the bloom threshold. */
 const SPECULAR_MAX = Math.min(0.9, VISUALS.night.bloom.threshold * 0.9);
 
@@ -375,6 +376,11 @@ if (vNxHighlight > 0.001) {
 }
 #ifdef NX_FIGURE
 totalEmissiveRadiance += diffuseColor.rgb * ${FIGURE_LIFT.toFixed(2)};
+${NEW_LOOK ? `{
+  // Visual overhaul: a soft rim of their own colour, warmed, so figures stand out against the darker scene like soft toys under a lamp.
+  float nxFr = pow(1.0 - saturate(dot(normal, geometryViewDir)), ${FIGURE_RIM.power.toFixed(1)});
+  totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.92, 0.8) * (nxFr * ${FIGURE_RIM.strength.toFixed(2)});
+}` : ''}
 #endif
 `;
 
@@ -523,6 +529,11 @@ if (vNxHighlight > 0.001) {
 }
 #ifdef NX_FIGURE
 totalEmissiveRadiance += diffuseColor.rgb * ${FIGURE_LIFT.toFixed(2)};
+${NEW_LOOK ? `{
+  // Visual overhaul: a soft rim of their own colour, warmed, so figures stand out against the darker scene like soft toys under a lamp.
+  float nxFr = pow(1.0 - saturate(dot(normal, geometryViewDir)), ${FIGURE_RIM.power.toFixed(1)});
+  totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.92, 0.8) * (nxFr * ${FIGURE_RIM.strength.toFixed(2)});
+}` : ''}
 #endif
 `;
 

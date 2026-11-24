@@ -156,6 +156,9 @@ try {
       await advance(page, 60);
       await page.evaluate(() => { const g = window.nightExpress; const i = g.train.types.indexOf('honeymoon'); window.__s.clean(true); window.__s.calm(true); window.__s.look(0, window.__s.carriageZ(Math.max(0, i)) + 7, 0.95); });
       await shot(page, 'slice-honeymoon-t3', 2000);
+      // The lobby car at tier 3 (the Royal Suite) is the carriage ref 2 actually shows: red runner, brass bed, the tub.
+      await page.evaluate(() => window.__s.look(0, window.__s.carriageZ(0) + 7, 0.95));
+      await shot(page, 'slice-riviera-lobby-t3', 2000);
       await page.close();
     }
   }
