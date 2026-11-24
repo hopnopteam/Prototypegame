@@ -208,6 +208,8 @@ interface Finish {
  */
 /** Phase 4, the Pool Car: the water's height over the floor (the basin is raised; VenueProps builds it to this), and its leaves. */
 export const POOL_WATER_Y = 0.36;
+/** The Beach Lounge's lagoon: the water's height over the boards, just under the sand round it. */
+const LAGOON_WATER_Y = 0.035;
 const POOL_LEAVES = 16;
 
 const VENUE_WALLS: Record<VenueKind, { wall: string; wallLow: string; panel?: string; cap?: string; curtain?: string }[]> = {
@@ -1101,6 +1103,7 @@ export class CarriageView {
     }
     if (venue.kind === 'cinema') this.buildFilm();
     if (venue.water) this.buildPoolWater(venue.water);
+    if (venue.lagoon) this.buildPoolWater(venue.lagoon, LAGOON_WATER_Y, false);
     if (venue.kind === 'kids') this.buildPuppets();
     const bar = this.layout.props.find((p) => p.kind === 'bar');
     if (bar) {
@@ -1162,8 +1165,18 @@ export class CarriageView {
    * Phase 4, the Pool Car's water: two planes of the caustic tile (`poolTexture`) sliding over each other, lit from
    * below like a pool at night; the leaves that blow in float on it (shown a few at a time as they gather).
    */
-  private buildPoolWater(r: Rect): void {
-    const y = FLOOR_Y + POOL_WATER_Y;
+  private buildPoolWater(r: Rect, waterY = POOL_WATER_Y, leaves = true): void {
+    const y = FLOOR_Y + waterY;
+    if (!leaves) {
+      // The lagoon's bed: pale wet sand under clear shallow water, a band of foam round its edge.
+      const bed = new GeoBuilder();
+      bed.object('venue:lagoonBed');
+      bed.slab(r, FLOOR_Y, FLOOR_Y + 0.004, '#BFD9C8', 0, 0, { shade: 1, detail: 'sand' });
+      bed.endObject();
+      const m = new THREE.Mesh(bed.build(), MATERIALS.solid);
+      m.receiveShadow = true;
+      this.group.add(m);
+    }
     for (const [i, scale] of [[0, 1.6], [1, 2.3]] as const) {
       const texture = poolTexture().clone();
       texture.needsUpdate = true;
@@ -1175,6 +1188,7 @@ export class CarriageView {
       this.poolWater.push(mesh);
       this.group.add(mesh);
     }
+    if (!leaves) return;
     const b = new GeoBuilder();
     b.object('venue:leaves');
     let seed = 11;

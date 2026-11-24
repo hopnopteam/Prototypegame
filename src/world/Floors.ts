@@ -142,6 +142,8 @@ export function sandPatch(layout: CarriageLayout, tier: number, seed: number): {
   const zs = regions(layout).map((r) => r.r);
   const area = rect(-INNER + 0.005, Math.min(...zs.map((r) => r.z0)), INNER - 0.005, Math.max(...zs.map((r) => r.z1)));
   const holes = layout.props.filter((p) => p.kind === 'backroom').map((p) => p.rect);
+  // The lagoon's water lies in a hollow of its own (CarriageView draws it).
+  if (layout.venue?.lagoon) holes.push(layout.venue.lagoon);
   return { area, holes, seed: seed * 0.37 };
 }
 

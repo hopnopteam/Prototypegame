@@ -1118,7 +1118,12 @@ export class Guests {
         // Sat at a venue's table, stool or dome seat.
         const seat = guest.outing.seat;
         const rest = seat.stage === 'towel' ? seat.layout.rest : undefined;
-        if (seat.layout.lie) {
+        if (seat.layout.lounge) {
+          // The Riviera's Beach Lounge: stretched out on a sun lounger, hands behind the head, looking out to sea.
+          guest.view.setPose('lounge');
+          guest.view.setPosition(seat.sit.x, y + seat.layout.top, seat.sit.z);
+          guest.view.setFacing(seat.layout.facing);
+        } else if (seat.layout.lie) {
           // Phase 4, the spa: lying on the massage table under a white towel.
           guest.view.setPose('sleep', '#F8F4EC');
           guest.view.setPosition(seat.sit.x, y + seat.layout.top, seat.sit.z - 0.55);

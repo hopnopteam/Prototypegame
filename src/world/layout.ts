@@ -132,6 +132,8 @@ export type PropKind =
   // poufs for the parents), the Spa Car (massage tables, the robe rack, a little fountain) and the Pool Car (the pool,
   // loungers, the skimmer's rack, the towel cart, the lifeguard's chair).
   | 'puppetTheatre' | 'freezer' | 'play' | 'pouf' | 'massageTable' | 'robeRack' | 'fountain' | 'pool' | 'lounger' | 'skimmer'
+  // The Riviera, second pass: the Beach Lounge's dressing, the Spa's and the Smoothie Bar's (variant says which).
+  | 'beachDecor' | 'spaDecor' | 'barDecor'
   | 'towelCart' | 'lifeguardChair';
 
 export interface PropDef {
@@ -235,6 +237,8 @@ export interface VenueSeatLayout {
   play?: Vec2;
   /** Phase 4, the Pool Car: the lounger the swimmer climbs out onto (they swim at `sit`, then wait for a towel here). */
   rest?: Vec2;
+  /** The Riviera, second pass: stretched out on a sun lounger (the Beach Lounge), not sat upright. */
+  lounge?: boolean;
 }
 
 export interface VenueGroupLayout {
@@ -274,6 +278,8 @@ export interface VenueLayout {
   skim: Vec2 | null;
   /** Phase 4, the Pool Car: the water's rect (the view draws it, animated). */
   water: Rect | null;
+  /** The Riviera, second pass: the Beach Lounge's shallow lagoon (drawn at the sand's level, animated). */
+  lagoon?: Rect | null;
   /** Rugs, runners and carpets this refit lays (Floors.ts draws them). */
   carpets: VenueCarpet[];
 }
@@ -940,7 +946,7 @@ function backRoom(b: LayoutBuilder, variant: string, side: 'left' | 'right', inn
 }
 
 function newVenue(kind: VenueKind): VenueLayout {
-  return { kind, seats: [], groups: [], stations: [], counter: null, pass: null, cash: null, openGroups: 1, sign: null, extras: [], projector: null, skim: null, water: null, carpets: [] };
+  return { kind, seats: [], groups: [], stations: [], counter: null, pass: null, cash: null, openGroups: 1, sign: null, extras: [], projector: null, skim: null, water: null, lagoon: null, carpets: [] };
 }
 
 /**
@@ -1226,6 +1232,7 @@ function buildBar(tier: number): CarriageLayout {
  * to be shown in. The blanket basket stands at the back.
  */
 function buildDome(tier: number): CarriageLayout {
+  if (layoutOptions().beachLounge) return buildBeachLounge(tier);
   const b = new LayoutBuilder('dome');
   const v = newVenue('dome');
   b.layout.venue = v;
@@ -1285,6 +1292,76 @@ function buildDome(tier: number): CarriageLayout {
   }
   // Session 36 (owner: "too dark… lighter… fewer patterns"): a powder-blue mat in ivory and gold, plain.
   if (tier >= 3) v.carpets.push({ rect: rect(-INNER + 0.1, 4.15, INNER - 0.1, 14.3), style: 'dove' });
+  return b.layout;
+}
+
+/**
+ * The Riviera's Beach Lounge (owner, 26 Nov, with a reference image: "basically where there's a lot of sand and it's
+ * basically a beach… simulate an entire beach and how people would feel… no chairs… a better full glass window"):
+ * the dome's mechanic on a beach. Guests wait at the rope and are shown to a sun lounger (two to a row, heads to the
+ * platform wall, looking out at the sea through tall glass), where they stretch out and every scenic view pays them.
+ * Along the lake side a shallow lagoon with rocks round it, a volleyball net, surfboards by the door and, from Bamboo,
+ * a thatched tiki bar at the back; striped towels on the sand, umbrellas over every other row, string lights along the
+ * windows. The rope, the usher's pad, the blanket basket and every seat's serve spot are where the dome has them.
+ */
+function buildBeachLounge(tier: number): CarriageLayout {
+  const b = new LayoutBuilder('dome');
+  const v = newVenue('dome');
+  b.layout.venue = v;
+  const front = 2.0;
+  venueShell(b, front);
+  // Tall glass, sill to roof line, on both sides.
+  b.layout.windowBand = [0.16, 1.06];
+  b.prop('rope', 0.35, 3.62, INNER - 0.05, 3.78, 'rear');
+  v.counter = { pad: { x: -0.22, z: 3.3 }, queue: [{ x: -1.0, z: 3.3 }, { x: -1.6, z: 2.6 }, { x: -1.6, z: 1.8 }, { x: -1.0, z: 1.2 }], facing: FACE.right };
+  b.prop('basket', 1.58, 15.3, 2.28, 15.9, 'left');
+  v.stations.push({ item: 'blanket', pad: { x: 1.15, z: 14.6 } });
+  v.cash = { x: -0.25, z: 14.8 };
+  v.sign = { x: 0.8, z: 9.0 };
+  b.node('dome_front', 0.3, 2.4);
+  b.node('rope', -0.9, 4.2);
+  b.chain('vest_front', 'dome_front', 'rope');
+  let previous = 'rope';
+  let group = 0;
+  for (const z of [5.0, 6.7, 8.4, 10.1, 11.8, 13.5]) {
+    const node = b.node(`row_${group}`, -0.6, z);
+    b.edge(previous, node);
+    previous = node;
+    const l0 = b.prop('lounger', 0.3, z - 0.68, 1.98, z - 0.1, 'left');
+    const l1 = b.prop('lounger', 0.3, z + 0.1, 1.98, z + 0.68, 'left');
+    v.groups.push({ index: group, tile: { x: 1.12, z }, props: [l0, l1], cash: null });
+    for (const dz of [-0.39, 0.39]) {
+      v.seats.push({ index: v.seats.length, group, sit: { x: 1.08, z: z + dz }, facing: FACE.left, serve: { x: -0.24, z }, node, top: 0.3, lounge: true });
+    }
+    // An umbrella over every other row, its pole by the wall between the two loungers.
+    if (tier >= 1 && group % 2 === 1) b.prop('beachDecor', 2.0, z - 0.08, 2.24, z + 0.08, 'left', false, 'umbrella');
+    group++;
+  }
+  b.node('basket', 0.4, 14.9);
+  b.edge(previous, 'basket');
+  b.chain('basket', 'corr_end', 'vest_rear');
+  v.openGroups = 1;
+  b.anchor('home_host', 0.5, 2.5);
+  b.anchor('tile_up_host', -REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);
+  b.anchor('tile_menu', -0.8, 10.45);
+  b.prop('wallBoard', 1.0, WALL, 2.1, WALL + 0.05, 'rear', false, 'dome');
+  if (tier <= 0) b.prop('crates', 1.5, 0.3, NEAR, 1.3, 'left', true, 'dome');
+  else b.prop('sideboard', 1.88, 0.3, NEAR, 1.9, 'left', true, 'dome');
+  backRoom(b, 'store', 'left', -0.5, 15.0);
+  if (tier >= 1) {
+    // The lagoon along the lake side: shallow water inside a ring of rocks.
+    const lagoon = rect(-INNER + 0.06, 5.3, -1.25, 10.2);
+    b.prop('beachDecor', lagoon.x0, lagoon.z0, lagoon.x1, lagoon.z1, 'right', true, 'lagoon');
+    v.lagoon = rect(lagoon.x0 + 0.12, lagoon.z0 + 0.14, lagoon.x1 - 0.14, lagoon.z1 - 0.14);
+    b.prop('beachDecor', -2.2, 10.75, -1.32, 13.0, 'right', true, 'net');
+    b.prop('beachDecor', -2.25, 3.95, -1.9, 4.75, 'right', true, 'surfboards');
+    // Towels on the sand by the water, string lights along the windows.
+    b.prop('beachDecor', -1.18, 5.7, -0.7, 6.6, 'right', false, 'towel');
+    b.prop('beachDecor', -1.18, 8.2, -0.7, 9.1, 'right', false, 'towelB');
+    b.prop('beachDecor', LAKE, 4.3, LAKE + 0.04, 14.5, 'right', false, 'lights');
+  }
+  if (tier >= 2) b.prop('beachDecor', -2.25, 13.35, -1.15, 14.75, 'right', true, 'tikibar');
   return b.layout;
 }
 

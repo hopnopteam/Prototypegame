@@ -188,6 +188,8 @@ export interface RouteLayout {
   surfboards?: boolean;
   /** Passenger carriages keep the Basic plan's rooms at every class (the class changes the furnishing, not the rooms). */
   keepRooms?: boolean;
+  /** The dome is a beach: loungers on sand, a lagoon, a volleyball net (the Riviera's Beach Lounge). */
+  beachLounge?: boolean;
 }
 
 /** Phase 4: a class's requests on one route (weights, as in config/classes.ts). */
@@ -497,7 +499,7 @@ export const RIVIERA_COAST: RouteDef = {
       theme: { wall: '#F6E7C8', wallLow: '#E9C98E', carpet: '#EFD9AE', deep: '#2E9AA8', blanket: '#F28C6B', curtain: '#F7F4EE' } },
   },
   menu: { latte: 'smoothie', pastry: 'icecream', meal: 'seafood' },
-  layout: { lobbyRooms: 4, washrooms: ['shower', 'shower', 'shower'], diningRows: 5, surfboards: true, keepRooms: true },
+  layout: { lobbyRooms: 4, washrooms: ['shower', 'shower', 'shower'], diningRows: 5, surfboards: true, keepRooms: true, beachLounge: true },
   // Cold drinks and aloe on the coast: a welcome lemonade in the evening, aloe for the sunburnt in the morning; the
   // Sea-View Sleeper's guests have their beds turned down from Comfort up.
   requests: {

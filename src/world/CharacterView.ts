@@ -57,6 +57,9 @@ const BUBBLE_POP_RATE = 4.5;
 const MOOD_BUBBLE_LIFT = 0.08;
 /** World size of a guest's request bubble (fix list 3.4: smaller, was 0.9). */
 const BUBBLE_SIZE = 0.74;
+/** Lounging (the Beach Lounge): how far the body tips back, and the hip's height over the root (the lounger's top). */
+const LOUNGE_TILT = 1.05;
+const LOUNGE_HIP = 0.06;
 /** How far the body drops to sit (hips onto a seat about 0.24 m up). */
 const SIT_DROP = HIP_Y - 0.26;
 /** The share of a scooter kick cycle the back foot is down pushing; the rest is coasting. */
@@ -429,7 +432,7 @@ export class CharacterView {
   private bubbleKey = '';
   private phase = Math.random() * 10;
   private carrying = false;
-  private pose: 'stand' | 'sleep' | 'sit' = 'stand';
+  private pose: 'stand' | 'sleep' | 'sit' | 'lounge' = 'stand';
   private bubbleTime = 0;
   private bubbleBaseY = 1.85;
   private bubbleZ = 0;
@@ -880,7 +883,7 @@ export class CharacterView {
    * `sleep` lays the character on their back with the head toward local −z (put the root at the foot end
    * of the pillow + 1 m), closes their eyes and tucks them under a blanket of `blanketColor`.
    */
-  setPose(pose: 'stand' | 'sleep' | 'sit', blanketColor = PALETTE.greyWool): void {
+  setPose(pose: 'stand' | 'sleep' | 'sit' | 'lounge', blanketColor = PALETTE.greyWool): void {
     if (pose === this.pose && (pose !== 'sleep' || this.blanket?.userData.color === blanketColor)) return;
     this.pose = pose;
     this.body.rotation.set(0, 0, 0);
@@ -909,6 +912,11 @@ export class CharacterView {
       }
     } else if (pose === 'sit') {
       this.body.position.y = -SIT_DROP;
+    } else if (pose === 'lounge') {
+      // Reclined on a lounger: the body tipped back about the hip, which rests on the lounger (the root's height).
+      const a = LOUNGE_TILT;
+      this.body.rotation.x = -a;
+      this.body.position.set(0, LOUNGE_HIP - HIP_Y * Math.cos(a), HIP_Y * Math.sin(a));
     }
     if (this.blanket) this.blanket.visible = pose === 'sleep';
     if (this.eyelids) this.eyelids.visible = pose === 'sleep';
@@ -1004,9 +1012,23 @@ export class CharacterView {
     this.headYaw = 0;
     this.headPitch = 0;
     if (this.pose !== 'stand') {
-      // Sitting: thighs forward along the seat, shins straight down from the knee (pass 2: the knee bends).
-      for (const leg of this.legs) leg.rotation.x = this.pose === 'sit' ? -1.42 : 0;
-      this.kneeAim[0] = this.kneeAim[1] = this.pose === 'sit' ? 1.42 : 0;
+      // Sitting: thighs forward along the seat, shins straight down from the knee (pass 2: the knee bends). Lounging:
+      // legs out straight along the lounger, one knee up.
+      const lounge = this.pose === 'lounge';
+      this.legs[0].rotation.x = this.pose === 'sit' ? -1.42 : lounge ? -(Math.PI / 2 - LOUNGE_TILT) - 0.35 : 0;
+      this.legs[1].rotation.x = this.pose === 'sit' ? -1.42 : lounge ? -(Math.PI / 2 - LOUNGE_TILT) : 0;
+      this.kneeAim[0] = this.pose === 'sit' ? 1.42 : lounge ? 0.7 : 0;
+      this.kneeAim[1] = this.pose === 'sit' ? 1.42 : 0;
+      if (lounge) {
+        // Hands behind the head, the head lifted to look out.
+        for (let i = 0; i < 2; i++) {
+          this.arms[i].rotation.x = -2.7;
+          this.arms[i].rotation.z = (i === 0 ? -1 : 1) * 0.55;
+          this.elbowAim[i] = -2.1;
+        }
+        this.headPitch = 0.45;
+        this.headYaw = Math.sin(this.phase * 0.3) * 0.15;
+      }
       this.phase += dt;
       // Slow breathing: the blanket rises and falls.
       if (this.pose === 'sleep' && this.blanket) this.blanket.scale.y = 1 + Math.sin(this.phase * 1.6) * 0.06;
@@ -1021,7 +1043,7 @@ export class CharacterView {
         }
         this.headYaw = Math.sin(this.phase * 0.35) * 0.18;
         this.applyAction(dt);
-      } else {
+      } else if (!lounge) {
         for (let i = 0; i < 2; i++) this.elbowAim[i] = -0.1;
       }
       this.applyJoints(dt, this.pose === 'sit' ? 30 : 12);

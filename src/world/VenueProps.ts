@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TROPICAL } from './TropicalProps';
 import { rect, type Rect } from '../core/types';
 import type { GeoBuilder, PartStyle } from './geo';
 import type { PropDef } from './layout';
@@ -1626,9 +1627,12 @@ export function buildPassPlate(b: GeoBuilder, x: number, z: number, tier: number
  * Only on the lake side (the far side from the camera), so it never hides the room.
  */
 export function buildDomeCanopy(b: GeoBuilder, wallX: number, wallTop: number, z0: number, z1: number, tier: number): void {
-  const rib = tier >= 2 ? PALETTE.brass : tier <= 0 ? PALETTE.iron : '#E8E4DA';
-  const ribSurface = tier >= 2 ? 'brass' : 'paint';
-  const glass = tier >= 3 ? '#6E80A8' : '#7E93B8';
+  // The Riviera's Beach Lounge (owner: "a better full glass window"): clear sea-blue glass on slim white ribs, so the
+  // canopy reads as glass over the tall windows, not a grey band.
+  const beach = TROPICAL && tier >= 1;
+  const rib = beach ? '#F4F1E8' : tier >= 2 ? PALETTE.brass : tier <= 0 ? PALETTE.iron : '#E8E4DA';
+  const ribSurface = beach ? 'paint' : tier >= 2 ? 'brass' : 'paint';
+  const glass = beach ? '#BEE6EE' : tier >= 3 ? '#6E80A8' : '#7E93B8';
   const reach = 1.25;
   const rise = 1.0;
   const segments = 6;
@@ -1643,7 +1647,7 @@ export function buildDomeCanopy(b: GeoBuilder, wallX: number, wallTop: number, z
     const len = Math.hypot(xb - xa, yb - ya);
     const angle = Math.atan2(yb - ya, xb - xa);
     b.add(new THREE.BoxGeometry(len, 0.012, z1 - z0 - 0.04), glass, (xa + xb) / 2, (ya + yb) / 2, (z0 + z1) / 2, 0, 0, angle, { shade: 1, surface: 'glass' });
-    if (tier >= 3) {
+    if (tier >= 3 && !beach) {
       // Gold stars painted on the glass (little diamonds lying on it).
       const nx = -Math.sin(angle);
       const ny = Math.cos(angle);

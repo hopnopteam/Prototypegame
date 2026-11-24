@@ -232,6 +232,61 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
       }
       return true;
     }
+    case 'beachDecor': {
+      // The Beach Lounge (owner's reference: a whole beach in a carriage): what stands on the sand round the loungers.
+      const floor = Y + 0.02;
+      switch (prop.variant) {
+        case 'umbrella':
+          // A rainbow umbrella over the heads of a pair of loungers, its pole by the wall.
+          place(b, 'rainbow_umbrella', cx, floor, cz, 0.85, 1.25);
+          break;
+        case 'lagoon': {
+          // Rocks round the lagoon's rim (the water is the view's), shells and a starfish on the sand by it.
+          const rim: [number, number, number][] = [[r.x1 - 0.05, r.z0 + 0.2, 0.5], [r.x1 - 0.02, r.z0 + 1.6, 0.38], [r.x1 - 0.06, r.z1 - 1.5, 0.45], [r.x1 - 0.04, r.z1 - 0.22, 0.55], [cx - 0.2, r.z0 + 0.02, 0.42], [cx + 0.1, r.z1 - 0.02, 0.48], [r.x0 + 0.1, cz - 1.1, 0.36]];
+          rim.forEach(([x, z, size], i) => place(b, 'beach_rocks', x, Y, z, size, size * 0.42, i * 1.3));
+          place(b, 'starfish', r.x1 + 0.12, floor, cz - 0.6, 0.12, 0.02, 0.6);
+          place(b, 'shells', r.x1 + 0.1, floor, cz + 0.9, 0.18, 0.04, 1.2);
+          if (look >= 3) place(b, 'palm_pot', r.x0 + 0.25, Y, r.z1 - 0.3, 1.5, 1.2);
+          break;
+        }
+        case 'net':
+          // A volleyball net down the lake side, a ball on the sand by it.
+          place(b, 'volley_net', cx, floor, cz, d - 0.05, 1.05, Math.PI / 2);
+          place(b, 'kid_ball', r.x1 - 0.12, floor, r.z0 + 0.3, 0.2, 0.2);
+          break;
+        case 'surfboards':
+          // Two boards stood against the wall by the door.
+          place(b, 'surfboard', cx - 0.02, floor, r.z0 + 0.22, 1.2, 1.25, Math.PI / 2);
+          place(b, 'surfboard', cx + 0.03, floor, r.z1 - 0.22, 1.2, 1.15, Math.PI / 2 + 0.2);
+          break;
+        case 'towel':
+        case 'towelB': {
+          // A beach towel laid out flat: a colour with white stripes across it, a pair of flip-flops by it.
+          const base = prop.variant === 'towel' ? '#F28C6B' : '#3FA9D8';
+          const t = floor + 0.004;
+          b.slab({ x0: r.x0, z0: r.z0, x1: r.x1, z1: r.z1 }, t, t + 0.006, base, 0, 0, { shade: 1, surface: 'fabric', detail: 'fabric' });
+          for (const k of [0.22, 0.5, 0.78]) b.slab({ x0: r.x0, z0: r.z0 + d * k - 0.03, x1: r.x1, z1: r.z0 + d * k + 0.03 }, t + 0.006, t + 0.007, '#FBF7EE', 0, 0, { shade: 1, surface: 'fabric' });
+          break;
+        }
+        case 'lights': {
+          // String lights along the window tops: a dark cord and warm bulbs every half metre.
+          const x = r.x0 + 0.02;
+          b.box(x, Y + 1.08, cz, 0.012, 0.012, d, '#3A2A22', 0, { shade: 1 });
+          for (let z = r.z0 + 0.15; z < r.z1; z += 0.5) {
+            const sag = 0.05 * Math.sin(((z - r.z0) / 0.5) * Math.PI) ** 2;
+            lamps.sphere(x + 0.03, Y + 1.03 - sag, z, 0.028, '#FFE2A8', 0, 1.5);
+          }
+          break;
+        }
+        case 'tikibar':
+          // A thatched tiki bar at the back of the beach.
+          place(b, 'tiki_bar', cx, Y, cz, Math.min(w, d) - 0.02, 1.6, Math.PI / 2);
+          break;
+        default:
+          return false;
+      }
+      return true;
+    }
     case 'pouf':
       place(b, 'pouf_woven', cx, Y, cz, Math.min(w, d) - 0.02, 0.34);
       return true;
