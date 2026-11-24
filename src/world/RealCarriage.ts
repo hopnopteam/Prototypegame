@@ -3,6 +3,8 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { VISUALS } from '../config/visuals';
 import type { CarriageView } from './CarriageView';
+import { CARRIAGE_LENGTH, INNER } from './layout';
+import { buildGrass, carriageInverse, cutAtShore, buildSea, buildTrim, paintWalls, setLookChunk, STYLE, styleFor, UV01 } from './RealStyle';
 
 /**
  * Graphics experiment (branch `graphics-experiment`): the lobby carriage, and the station and sea round it, drawn
@@ -28,14 +30,32 @@ const BASE = 'real/';
 /** Models are published as `.glb.wasm`: the artifact host serves `.wasm` as binary, untouched, and not `.glb`. */
 export const MODEL_EXT = '.glb.wasm';
 /** Exposure into the AgX curve (the Cycles renders used 0 EV); `?ev=` to try another. */
-const EXPOSURE = Number(query?.get('ev')) || 1.25;
+const EXPOSURE = Number(query?.get('ev')) || (STYLE ? 1.05 : 1.25);
+/** The stylized afternoon: a low warm sun from the sea side (up and to the left on screen), its shadows long and soft. */
+const SUN_ELEV = (Number(query?.get('sunel')) || 36) * Math.PI / 180;
+const SUN_AZ = (Number(query?.get('sunaz')) || 25) * Math.PI / 180;
+const SUN_COLOR = [1.0, 0.8, 0.56] as const;
+const SUN_POWER = Number(query?.get('sun')) || 5.2;
+/** Shadowed parts lean cool, as in the reference: the baked sky and bounce light, tinted. */
+const SHADE_TINT = [0.9, 0.95, 1.1] as const;
+const BOUNCE_GAIN = Number(query?.get('bounce')) || 1.5;
 /** The references' framing: closer than the game's (7.8 m across). */
-const VIEW_WIDTH = 5.6;
+const VIEW_WIDTH = STYLE ? 7.2 : 5.6;
 /** The sun's shadow: a square this many metres across round the view, this many texels. */
 const SHADOW_SPAN = 16;
 const SHADOW_SIZE = 4096;
 
 if (REAL_CARRIAGE) VISUALS.camera.minVisibleWidth = VIEW_WIDTH;
+/** The carriage frame the Blender scene was built in: the floor's height, the walls' inner face, the length. */
+const wallFloor = 0.55;
+const wallInner = INNER;
+const wallLength = CARRIAGE_LENGTH;
+/** The ground beside the track and the sea's level and shoreline (from game_export.py's bank and beach). */
+const GROUND_Y = wallFloor - 0.9;
+const SEA_Y = GROUND_Y + 0.48;
+const SHORE_X = -6.7;
+const GRASS_BLADES = Number(query?.get('grass')) || 26000;
+const animated: ((t: number) => void)[] = [];
 
 interface Spec {
   kind: 'pbr' | 'flat' | 'emit';
@@ -89,6 +109,8 @@ world.matrixAutoUpdate = false;
 realScene.add(world);
 const sun = new THREE.DirectionalLight();
 realScene.add(sun, sun.target);
+/** The stylized look's warm fill: shade stays creamy and colourful instead of going grey. */
+if (STYLE) realScene.add(new THREE.HemisphereLight(0xfff1dc, 0xe0a070, Number(query?.get('fill')) || 0.55));
 const toSunDir = new THREE.Vector3(0, 1, 0);
 let anchor: THREE.Object3D | null = null;
 let ready = false;
@@ -146,6 +168,11 @@ async function load(): Promise<void> {
   toSunDir.set(...light.sun.direction).normalize();
   sun.color.setRGB(...light.sun.color);
   sun.intensity = light.sun.strength;
+  if (STYLE) {
+    toSunDir.set(-Math.cos(SUN_ELEV) * Math.cos(SUN_AZ), Math.sin(SUN_ELEV), Math.cos(SUN_ELEV) * Math.sin(SUN_AZ));
+    sun.color.setRGB(...SUN_COLOR);
+    sun.intensity = SUN_POWER;
+  }
   sun.castShadow = true;
   sun.shadow.mapSize.set(SHADOW_SIZE, SHADOW_SIZE);
   const sc = sun.shadow.camera;
@@ -156,6 +183,13 @@ async function load(): Promise<void> {
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.02;
   sun.shadow.radius = 3;
+  if (STYLE) {
+    // soft, painterly shadows
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.radius = 9;
+    sun.shadow.blurSamples = 16;
+    sun.shadow.bias = -0.0006;
+  }
 
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
@@ -170,7 +204,12 @@ async function load(): Promise<void> {
     }
     return p;
   };
-  const build = async (s: Spec, name: string, baked: boolean): Promise<THREE.Material> => {
+  const build = async (s0: Spec, name: string, baked: boolean): Promise<THREE.Material> => {
+    const st = styleFor(name);
+    const s: Spec = st ? { ...s0, kind: s0.kind === 'emit' ? 'emit' : 'flat', map: undefined, roughnessMap: undefined,
+      normalMap: st.relief ? s0.normalMap : undefined, nstrength: st.relief ?? s0.nstrength,
+      color: st.color ? [...st.color] : s0.color, rough: st.rough ?? s0.rough, metal: st.metal ?? 0,
+      coat: st.coat ?? 0, Coat_Weight: 0, sheen: st.sheen ?? 0, Sheen_Weight: 0, Anisotropic: 0 } : s0;
     const coat = s.coat ?? s.Coat_Weight ?? 0;
     const sheen = s.sheen ?? s.Sheen_Weight ?? 0;
     const glass = /^(glass|bottle|crystal)/.test(name) || (s.Transmission_Weight ?? 0) > 0.5;
@@ -191,6 +230,18 @@ async function load(): Promise<void> {
     if (s.map) {
       m.map = await tiled(s.map, true);
       m.color.setRGB(1, 1, 1);
+    }
+    if (st?.paint) {
+      const t = st.paint().clone();
+      const k = UV01.test(name) ? 1 : 1 / (st.scale ?? 1);
+      t.repeat.set(k, k);
+      t.needsUpdate = true;
+      m.map = t;
+      m.color.setRGB(1, 1, 1);
+    }
+    if (st?.emit) {
+      m.emissive.setRGB(...(st.color ?? [1, 0.9, 0.7]));
+      m.emissiveIntensity = st.emit;
     }
     if (s.normalMap) {
       m.normalMap = await tiled(s.normalMap, false);
@@ -240,6 +291,8 @@ async function load(): Promise<void> {
     } else {
       applyLook(m);
     }
+    if (STYLE && /^crimson paint/.test(name)) paintWalls(m, wallInner, wallFloor, wallLength);
+    if (STYLE && /^(lawn|sand)/.test(name)) cutAtShore(m, SHORE_X);
     return m;
   };
 
@@ -258,6 +311,7 @@ async function load(): Promise<void> {
     }));
   });
   await Promise.all(meshes);
+  if (STYLE) addStyled();
   ready = true;
   for (const v of waiting.splice(0)) dress(v);
 }
@@ -271,14 +325,15 @@ const LOOK = /* glsl */ `
   gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );
   {
     vec3 d = pow( max( gl_FragColor.rgb, 0.0 ), vec3( 1.0 / 2.2 ) );
-    d = mix( d, d * d * ( 3.0 - 2.0 * d ), 0.42 );
+    d = mix( d, d * d * ( 3.0 - 2.0 * d ), ${STYLE ? '0.22' : '0.42'} );
     float l = dot( d, vec3( 0.2126, 0.7152, 0.0722 ) );
-    d = mix( vec3( l ), d, 1.14 );
+    d = mix( vec3( l ), d, ${STYLE ? '1.3' : '1.14'} );
     gl_FragColor.rgb = pow( clamp( d, 0.0, 1.0 ), vec3( 2.2 ) );
   }
 #endif
 `;
 const look = (src: string): string => src.replace('#include <tonemapping_fragment>', LOOK);
+setLookChunk(LOOK);
 
 /** Gives any material in the photoreal scene the renders' look (the conductor's too). */
 export function applyLook(m: THREE.Material): void {
@@ -293,7 +348,7 @@ const LIGHTS_MAPS_NO_SKY_DIFFUSE = /* glsl */ `
 #if defined( RE_IndirectDiffuse )
   #ifdef USE_LIGHTMAP
     vec4 lightMapTexel = texture2D( lightMap, vLightMapUv );
-    vec3 lightMapIrradiance = lightMapTexel.rgb * lightMapIntensity;
+    vec3 lightMapIrradiance = lightMapTexel.rgb * lightMapIntensity${STYLE ? ` * vec3(${SHADE_TINT.join(', ')}) * ${BOUNCE_GAIN.toFixed(3)}` : ''};
     irradiance += lightMapIrradiance;
   #endif
 #endif
@@ -320,6 +375,25 @@ export function dressRealCarriage(view: CarriageView, index: number): void {
   dress(view);
 }
 
+/** The stylized extras: the sea and the grass (the trim waits for the floor plan, in `dress`). */
+function addStyled(): void {
+  const sea = buildSea(SHORE_X, SEA_Y);
+  world.add(sea.mesh);
+  animated.push(sea.update);
+  let lawn: THREE.Mesh | null = null;
+  world.traverse((o) => {
+    if (lawn || !(o instanceof THREE.Mesh)) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    if (mats.length === 1 && /^lawn/.test(mats[0].name)) lawn = o;
+  });
+  if (lawn) {
+    const l = lawn as THREE.Mesh;
+    const grass = buildGrass(l, 0, GRASS_BLADES, SHORE_X);
+    world.add(grass.group);
+    animated.push(grass.update);
+  }
+}
+
 function hide(o: THREE.Object3D): void {
   o.traverse((c) => c.layers.disableAll());
 }
@@ -334,6 +408,17 @@ function dress(view: CarriageView): void {
     if (plain || beds.has(child) || (stock && stock.startsWith('stock:luggage'))) hide(child);
   }
   anchor = view.group;
+  if (STYLE) {
+    const trim = buildTrim(view.layout.walls, wallFloor, wallInner, view.layout.windowBand);
+    const done = new Set<THREE.Material>();
+    trim.traverse((o) => {
+      if (o instanceof THREE.Mesh && o.material instanceof THREE.MeshStandardMaterial && !done.has(o.material)) {
+        done.add(o.material);
+        applyLook(o.material);
+      }
+    });
+    world.add(trim);
+  }
 }
 
 /**
@@ -342,10 +427,13 @@ function dress(view: CarriageView): void {
  */
 export function renderRealScene(renderer: THREE.WebGLRenderer, camera: THREE.Camera, focus: THREE.Vector3): void {
   if (!REAL_CARRIAGE || !ready) return;
+  const now = performance.now() / 1000;
+  for (const f of animated) f(now);
   if (anchor) {
     anchor.updateWorldMatrix(true, false);
     world.matrix.copy(anchor.matrixWorld);
     world.matrixWorldNeedsUpdate = true;
+    carriageInverse.value.copy(world.matrix).invert();
   }
   // texel-snapped, so the soft edges do not shimmer as the view moves
   const texel = SHADOW_SPAN / SHADOW_SIZE;
@@ -361,7 +449,7 @@ export function renderRealScene(renderer: THREE.WebGLRenderer, camera: THREE.Cam
   renderer.toneMappingExposure = EXPOSURE;
   renderer.autoClear = false;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = STYLE && query?.get('shadow') !== 'pcf' ? THREE.VSMShadowMap : THREE.PCFSoftShadowMap;
   renderer.shadowMap.autoUpdate = true;
   renderer.render(realScene, camera);
   renderer.toneMapping = tm;
