@@ -689,7 +689,7 @@ Multiplayer, chat, gacha/loot boxes, energy timers, fail states, long dialogue, 
 - Android: `.github/workflows/android-look.yml` builds "Night Express Look" (`com.hopnop.nightexpress.look`, `LOOK_DEFAULT=new`) on pushes to `visual-overhaul`, release `android-look-N`.
 
 ## The Fable Experiment (branch `graphics-experiment-2`; a separate version, not merged)
-- Its own play link, https://claude.ai/artifact/FABLE_LINK (republish a copy of `dist/night-express.html` built on that branch as `dist/fable.html`, its `<title>` set to "Fable Experiment"), its own save (`nightexpress.save.fable`); `?fable=0` shows the game it started from.
+- Its own play link, https://claude.ai/artifact/Piz4JQhjGh8sp427rW3kaU (republish a copy of `dist/night-express.html` built on that branch as `dist/fable.html`, its `<title>` set to "Fable Experiment"), its own save (`nightexpress.save.fable`); `?fable=0` shows the game it started from.
 - Everything it changes, with reasons: `src/config/fable.ts` and `docs/FABLE_EXPERIMENT.md`. The sky is the ride's clock (`FABLE_SKY`, `FABLE_CLOCK`, `Game.fableClock`: afternoon stations, sunset, a short night, sunrise, in step with ride progress), sun shadows on High and Ultra (`FABLE_TIERS`), the route line drawn as the ride's sky (`body.fable .journey`), sunrise tips (`gameplay/Sunrise.ts`), visible review stars (`Guests.review`). Pacing not re-measured.
 
 ## Progress Log (update at the end of every session)
