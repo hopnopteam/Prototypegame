@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import type { Vec2 } from '../core/types';
 import { FLOOR_Y } from '../world/CarriageView';
 import type { World } from './World';
+import { WORLD_UI_LAYER } from '../world/CameraRig';
+import { bubbleTexture, makeSprite } from '../world/sprites';
+import { underPopup } from '../world/screenMask';
 
 /** Major pentatonic steps: a stream of bills plays a little rising tune instead of one repeated tick. */
 const SCALE = [1, 1.125, 1.25, 1.5, 1.667, 2, 2.25, 2.5, 3, 3.333];
@@ -12,7 +15,16 @@ export interface CashPile {
   x: number;
   z: number;
   value: number;
+  /** Session 64: a room's tips: standing anywhere in it scoops them (the walls hide the floor, not the room). */
+  area?: { x0: number; x1: number; z0: number; z1: number };
+  /** Session 64: a green cash badge floating over a room's tips, drawn over its walls, while there is money in it. */
+  badge?: THREE.Sprite;
+  /** Its pop when a tip lands (0…1). */
+  pop?: number;
 }
+
+/** Session 64 (owner: "because of the walls, I cannot see cash given by customers"): the room's cash badge. */
+const TIP_BADGE = { size: 0.62, height: 1.75, bob: 0.06, bobRate: 2.4, popScale: 0.35, popDecay: 3 };
 
 /**
  * Money you can see and touch (MPH pillar #3): cash stacks where it was earned, and walking near a pile
@@ -27,11 +39,20 @@ export class CashPiles {
 
   constructor(private readonly w: World) {}
 
-  create(id: string, x: number, z: number): CashPile {
+  create(id: string, x: number, z: number, area?: CashPile['area']): CashPile {
     const existing = this.piles.get(id);
     if (existing) return existing;
     this.w.cashView.createPile(id, x, FLOOR_Y, z);
-    const pile: CashPile = { id, x, z, value: 0 };
+    const pile: CashPile = { id, x, z, value: 0, area };
+    if (area) {
+      const badge = makeSprite(bubbleTexture('cash', 'cash'), TIP_BADGE.size);
+      badge.layers.set(WORLD_UI_LAYER);
+      badge.visible = false;
+      badge.position.set(x, FLOOR_Y + TIP_BADGE.height, z);
+      this.w.scene.add(badge);
+      pile.badge = badge;
+      pile.pop = 0;
+    }
     this.piles.set(id, pile);
     return pile;
   }
@@ -41,11 +62,17 @@ export class CashPiles {
     if (!pile) return;
     pile.x = x;
     pile.z = z;
+    pile.badge?.position.set(x, FLOOR_Y + TIP_BADGE.height, z);
     this.w.cashView.movePile(id, x, FLOOR_Y, z);
   }
 
   remove(id: string): void {
-    if (!this.piles.has(id)) return;
+    const pile = this.piles.get(id);
+    if (!pile) return;
+    if (pile.badge) {
+      this.w.scene.remove(pile.badge);
+      pile.badge.material.dispose();
+    }
     this.w.cashView.removePile(id);
     this.piles.delete(id);
   }
@@ -61,6 +88,7 @@ export class CashPiles {
     const bills = this.w.econ.money.bills;
     const before = billsFor(pile.value, bills.value);
     pile.value += amount;
+    if (pile.badge) pile.pop = 1;
     const after = billsFor(pile.value, bills.value);
     const newBills = after - before;
     if (from && newBills > 0) {
@@ -94,11 +122,14 @@ export class CashPiles {
     const reach = this.w.econ.money.magnetRadius;
     this.streakTimer -= dt;
     if (this.streakTimer <= 0) this.streak = 0;
+    this.badgeClock += dt;
     for (const pile of this.piles.values()) {
+      if (pile.badge) this.updateBadge(pile, dt);
       if (pile.value < 1) continue;
       const dx = pile.x - player.x;
       const dz = pile.z - player.z;
-      if (dx * dx + dz * dz <= reach * reach) {
+      const a = pile.area;
+      if (dx * dx + dz * dz <= reach * reach || (a && player.x > a.x0 && player.x < a.x1 && player.z > a.z0 && player.z < a.z1)) {
         this.collect(pile.id);
         continue;
       }
@@ -106,6 +137,21 @@ export class CashPiles {
         this.w.particles.emit('sparkle', pile.x + (Math.random() - 0.5) * 0.3, FLOOR_Y + 0.15 + Math.min(0.4, pile.value * 0.004), pile.z, 1, 0.1);
       }
     }
+  }
+
+  private badgeClock = 0;
+
+  /** A room's cash badge: up while it holds money, bobbing, popping as each tip lands; out of the way of pop-ups. */
+  private updateBadge(pile: CashPile, dt: number): void {
+    const badge = pile.badge!;
+    const y = FLOOR_Y + TIP_BADGE.height;
+    badge.visible = pile.value >= 1 && !underPopup(pile.x, y, pile.z);
+    if (!badge.visible) return;
+    pile.pop = Math.max(0, (pile.pop ?? 0) - dt * TIP_BADGE.popDecay);
+    const p = pile.pop;
+    const scale = TIP_BADGE.size * (1 + TIP_BADGE.popScale * Math.sin(p * Math.PI) * p);
+    badge.scale.set(scale, scale, 1);
+    badge.position.y = y + Math.sin(this.badgeClock * TIP_BADGE.bobRate + pile.x * 3 + pile.z) * TIP_BADGE.bob;
   }
 
   collect(id: string): void {

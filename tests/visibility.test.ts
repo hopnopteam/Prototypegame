@@ -156,3 +156,25 @@ describe('visibility: pads in view over the furniture too', () => {
     });
   }
 });
+
+/**
+ * Session 64 (owner: "because of the walls, I cannot see cash given by customers"): a guest's tips lie where the
+ * camera sees the floor over the room's walls and furniture.
+ */
+const TIPS_IN_VIEW = 0.7;
+describe('visibility: tips left in a room are in view', () => {
+  for (const { name, layout } of VARIANTS) {
+    if (!layout.cabins.length) continue;
+    const boxes: WallBox[] = [];
+    for (const p of layout.props) {
+      const h = p.variant === 'bunk' ? 1.08 : OCCLUDER_HEIGHT[p.kind];
+      if (h) boxes.push({ ...p.rect, ...(p.variant === 'bunk' ? { z0: p.rect.z0 + 0.5 } : {}), height: h, kind: 'interior' });
+    }
+    it(`${name}: every room's tips`, () => {
+      for (const f of footprints(layout)) {
+        if (f.kind !== 'pile' || !f.id.startsWith('tips_')) continue;
+        expect(visibleShare(layout, f, boxes), `${name}.${f.id} at (${f.x.toFixed(2)}, ${f.z.toFixed(2)})`).toBeGreaterThanOrEqual(TIPS_IN_VIEW);
+      }
+    });
+  }
+});

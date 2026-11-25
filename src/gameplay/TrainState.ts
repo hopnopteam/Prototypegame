@@ -1529,7 +1529,7 @@ export class TrainState {
 
   private createCabinZones(cabin: Cabin): void {
     const w = this.w;
-    w.cash.create(cabin.pileId, cabin.tipPile.x, cabin.tipPile.z);
+    w.cash.create(cabin.pileId, cabin.tipPile.x, cabin.tipPile.z, cabin.room);
     cabin.requestZone = w.zones.add(new Zone({
       id: `req:${cabin.id}`,
       kind: 'drop',

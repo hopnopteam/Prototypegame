@@ -12,6 +12,11 @@ import { rect, type CarriageType, type ItemKind, type Rect, type Vec2, type Venu
  * Session 20 (owner: "no single train is this wide… the train feeling so wide just feels off"): carriages are
  * 18 m long and 5 m wide (were 14 m by 6.4 m). About the same floor to walk on, in a train's proportions.
  */
+/** Session 64: where a small room's tips lie, from its front wall and beside the bed (in the camera's view). */
+const TIP_FROM_FRONT = 0.42;
+/** …and clear of the room's own pad (a short room brings the two together: the tips then go nearer the bed). */
+const TIP_HEART_CLEAR = 0.66;
+const TIP_BESIDE_BED = 0.62;
 export const CARRIAGE_LENGTH = 18;
 export const GANGWAY_LENGTH = 1.2;
 export const CARRIAGE_PITCH = CARRIAGE_LENGTH + GANGWAY_LENGTH;
@@ -547,8 +552,10 @@ class LayoutBuilder {
       // front), and the pad must stay clear of the strip of floor that wall hides (tests/visibility).
       const heartZ = len > 4 ? doorZ : cz0 + len * 0.45;
       const heart = { x: Math.min((openX0 + openX1) / 2, PARTITION_X1 + 1.1), z: heartZ };
-      // Tips: the far corner of a small room; in a suite, by the head of the bed (the heart is at the door).
-      const tipZ = style === 'berth' ? cz1 - 0.38 : len > 4 ? bed.z0 + 0.62 : cz1 - 0.42;
+      // Tips: by the head of the bed, near the room's front wall, where the camera sees the floor over the walls
+      // (session 64, owner: "because of the walls, I cannot see cash given by customers"; they used to lie in the far
+      // corner, behind the back wall). In a suite, a little further along the bed (the heart is at the door).
+      const tipZ = len > 4 ? bed.z0 + 0.62 : cz0 + TIP_FROM_FRONT;
       this.layout.cabins.push({
         index: c,
         style,
@@ -559,7 +566,7 @@ class LayoutBuilder {
         spots: [{ ...heart }],
         center: { ...heart },
         bedPose: { x: (bed.x0 + bed.x1) / 2, z: (bed.z0 + bed.z1) / 2 },
-        tipPile: { x: len > 4 ? bed.x0 - 0.36 : Math.max(openX0 + 0.1, Math.min(openX1, bed.x0 - 0.42)), z: tipZ },
+        tipPile: { x: len > 4 ? bed.x0 - 0.36 : tipX(heart, tipZ, openX0, openX1, bed.x0), z: tipZ },
         corridorNode,
         node: cabinNode,
       });
@@ -570,6 +577,12 @@ class LayoutBuilder {
     this.node('corr_end', (-INNER + PARTITION_X0) / 2, CARRIAGE_LENGTH - REAR_VESTIBULE + 0.35);
     this.chain(previousCorridor, 'corr_end', 'vest_rear');
   }
+}
+
+/** Session 64: a small room's tips beside the bed, nearer it when the room's pad would be too close. */
+function tipX(heart: Vec2, z: number, x0: number, x1: number, bedX0: number): number {
+  const x = Math.max(x0 + 0.1, Math.min(x1, bedX0 - TIP_BESIDE_BED));
+  return Math.hypot(x - heart.x, z - heart.z) < TIP_HEART_CLEAR ? x1 : x;
 }
 
 /** Rooms per passenger carriage and their style, by class (refit tier 0–1 Basic … 5 Royal Suite). */
