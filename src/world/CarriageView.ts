@@ -3226,7 +3226,7 @@ function buildCover(room: Rect): THREE.Group {
 /** Rope ties across the canvas, along the carriage (session 23). */
 const TARP_TIES = [1.6, 4.9, 8.2, 11.5, 14.8];
 /** The canvas's cross-section, from the lake side's hem over the ridge to the platform side's hem. */
-function tarpProfile(): { x: number; y: number }[] {
+export function tarpProfile(): { x: number; y: number }[] {
   const ye = FLOOR_Y + EXTERIOR_WALL_HEIGHT + 0.06;
   const hw = HALF_WIDTH;
   const half = [

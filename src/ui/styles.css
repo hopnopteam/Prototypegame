@@ -1017,7 +1017,8 @@ ul.perks li::before { content: ''; width: 10px; height: 10px; border-radius: 50%
 
 /* Phase 1: the Debug sheet's pickers (Settings, five taps on the build line). */
 .debug-pick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.debug-pick .btn { min-width: 0; padding: 8px 4px; }
+.debug-pick .btn { min-width: 0; padding: 8px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.debug-pick.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* Phase 2: a held stop shows who is still to board, then the bell (no clock). */
 .journey .wait, .journey .bellcue { flex: none; display: flex; align-items: center; gap: 3px; height: 22px; padding: 0 8px 0 5px; border-radius: 11px; border: 2px solid var(--ink); box-sizing: border-box; color: #FFFFFF; font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; text-shadow: var(--outline-thin); box-shadow: 0 2px 0 var(--ink), inset 0 2px 0 rgba(255, 255, 255, 0.35); }

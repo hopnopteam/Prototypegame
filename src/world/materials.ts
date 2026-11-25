@@ -653,6 +653,10 @@ export function isLiteShading(): boolean {
 const PULL_DEFINES = { USE_BATCHING: '', NX_PULL: '' };
 const PULL_VERTEX_PARS = /* glsl */ `
 attribute float aNxInst;
+#ifdef NX_SKIN
+attribute float aNxInst2;
+attribute vec4 aNxSkin;
+#endif
 uniform highp sampler2D uNxInstTex;
 float nxInstHl;
 mat4 nxInstMatrix(const in float instance) {
@@ -671,6 +675,24 @@ mat4 nxInstMatrix(const in float instance) {
 }
 `;
 
+/**
+ * Session 64: a limb is one surface skinned on two bones (world/Skin.ts). A blended vertex (aNxSkin.w > 0) also reads
+ * its partner bone's matrix (aNxInst2), moved by the limb's offset in that bone's frame (aNxSkin.xyz), and the two are
+ * mixed (linear blend skinning); every other vertex reads its one matrix, as before.
+ */
+const PULL_BATCHING_VERTEX = /* glsl */ `
+mat4 batchingMatrix = nxInstMatrix(aNxInst);
+#ifdef NX_SKIN
+if (aNxSkin.w > 0.0) {
+  float nxHl0 = nxInstHl;
+  mat4 nxM2 = nxInstMatrix(aNxInst2);
+  nxInstHl = nxHl0;
+  nxM2[3].xyz += mat3(nxM2) * aNxSkin.xyz;
+  batchingMatrix = batchingMatrix * (1.0 - aNxSkin.w) + nxM2 * aNxSkin.w;
+}
+#endif
+`;
+
 /** The texture of instance matrices a pull material reads (set by CharacterBatch). */
 export function pullTexture(material: THREE.Material): { value: THREE.Texture | null } {
   const ud = material.userData as { nxInst?: { value: THREE.Texture | null } };
@@ -681,7 +703,7 @@ function pullShader(material: THREE.Material, shader: THREE.WebGLProgramParamete
   shader.uniforms.uNxInstTex = pullTexture(material);
   shader.vertexShader = shader.vertexShader
     .replace('#include <batching_pars_vertex>', PULL_VERTEX_PARS)
-    .replace('#include <batching_vertex>', 'mat4 batchingMatrix = nxInstMatrix(aNxInst);');
+    .replace('#include <batching_vertex>', PULL_BATCHING_VERTEX);
 }
 
 /**
@@ -707,6 +729,7 @@ function patchLit(material: THREE.MeshStandardMaterial, options: LitOptions): vo
   if (options.light) defines.NX_LIGHT = '';
   if (options.pull) Object.assign(defines, PULL_DEFINES);
   if (options.figure) defines.NX_FIGURE = '';
+  if (options.figure && options.pull) defines.NX_SKIN = '';
   material.defines = { ...(material.defines ?? {}), ...defines };
   shaded.add(material);
   material.onBeforeCompile = (shader) => {

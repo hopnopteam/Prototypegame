@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GeoBuilder, type PartStyle } from './geo';
+import { addSkin, armWeight, legWeight } from './Skin';
 import { modelEntry, type ModelId, type Recolor } from './models/library';
 
 /**
@@ -162,10 +163,6 @@ function tube(b: GeoBuilder, y0: number, y1: number, r0: number, r1: number, col
   b.add(new THREE.CylinderGeometry(r0, r1, y0 - y1, segments, 1, true), color, 0, (y0 + y1) / 2, 0, 0, 0, 0, style);
 }
 
-/** A joint cap: a sphere of the tube's radius at a pivot, so a bend stays a continuous round outline. */
-function joint(b: GeoBuilder, y: number, r: number, color: string, style: PartStyle = SOFT): void {
-  b.add(new THREE.SphereGeometry(r, 16, 10), color, 0, y, 0, 0, 0, 0, style);
-}
 
 export interface FigureSpec {
   skin: string;
@@ -650,37 +647,75 @@ function kitAt(b: GeoBuilder, id: ModelId, x: number, top: number, z: number, sc
   b.model(id, x, top - (e.max[1] - e.min[1]) * scale, z, 0, scale, scale, scale, { recolor: keys, shade: 0.94, surface: 'matte' });
 }
 
-/** The upper arm, from the shoulder pivot to the elbow: a long sleeve, or a puffed short sleeve with a rolled cuff. */
-export function upperArmGeometry(sleeve: string, skin: string, long: boolean, build: Build = 'regular', side: 1 | -1 = 1): THREE.BufferGeometry {
-  const b = new GeoBuilder();
-  // The shoulder: a ball of the sleeve's radius at the pivot, so the arm swings out of a round shoulder.
-  joint(b, 0, SLEEVE_R, sleeve);
-  if (long) {
-    tube(b, 0, ELBOW_Y, SLEEVE_R, FORE_SLEEVE_R, sleeve);
-    joint(b, ELBOW_Y, FORE_SLEEVE_R, sleeve);
-  } else {
-    tube(b, 0, -0.105, SLEEVE_R, SLEEVE_R * 1.04, sleeve);
-    roll(b, -0.105, SLEEVE_R * 0.94, 0.016, shade(sleeve, 0.92));
-    b.add(new THREE.CircleGeometry(SLEEVE_R * 0.96, 16), shade(sleeve, 0.6), 0, -0.106, 0, Math.PI / 2, 0, 0, FLAT);
-    tube(b, -0.09, ELBOW_Y, ARM_R, ARM_R * 0.98, skin, SKIN);
-    joint(b, ELBOW_Y, ARM_R * 0.98, skin, SKIN);
+/**
+ * Session 64: a limb's outline as one smooth lathe profile, bottom to top: the radius eased between `stations`
+ * ([y, r], top first), a row every `LIMB_ROW` (dense enough to bend smoothly at the joint), and a rounded top (a
+ * quarter circle of the top radius, so the shoulder or hip is round where it meets the body, with no ball).
+ */
+const LIMB_ROW = 0.012;
+const LIMB_SIDES = 16;
+function limbProfile(stations: [number, number][], domeRows = 6): [number, number][] {
+  const out: [number, number][] = [];
+  const bottom = stations[stations.length - 1][0];
+  const top = stations[0][0];
+  const radiusAt = (y: number): number => {
+    for (let i = 1; i < stations.length; i++) {
+      const [y0, r0] = stations[i - 1];
+      const [y1, r1] = stations[i];
+      if (y <= y0 && y >= y1) {
+        const t = (y0 - y) / Math.max(1e-6, y0 - y1);
+        return r0 + (r1 - r0) * (t * t * (3 - 2 * t));
+      }
+    }
+    return stations[0][1];
+  };
+  const rows = Math.max(2, Math.ceil((top - bottom) / LIMB_ROW));
+  for (let i = 0; i <= rows; i++) {
+    const y = bottom + ((top - bottom) * i) / rows;
+    out.push([radiusAt(y), y]);
   }
-  return occlude(b.build(), build, [side * shoulderX(build), SHOULDER_Y, 0], (p) => p.x * side > 0 && Math.abs(p.x) > 0.1);
+  const rTop = stations[0][1];
+  for (let k = 1; k <= domeRows; k++) {
+    const a = (k / domeRows) * (Math.PI / 2);
+    out.push([k === domeRows ? 0 : rTop * Math.cos(a), top + rTop * Math.sin(a)]);
+  }
+  return out;
 }
 
 /**
- * The forearm and hand, from the elbow pivot: the sleeve or bare arm down to the wrist, a rolled cuff on a sleeve, and
- * the sculpted mitten hand (figure kit) with its thumb toward the body's middle.
+ * The arm's sleeve or bare skin, from the shoulder to the wrist, as one surface (session 64): it bends at the elbow by
+ * skinning (`armWeight`), its top rounds into the shoulder. A short sleeve is puffed, ends in a soft rolled hem, and
+ * the bare arm runs on from inside it. The cuff and the hand ride on the forearm (`forearmGeometry`).
+ */
+export function upperArmGeometry(sleeve: string, skin: string, long: boolean, build: Build = 'regular', side: 1 | -1 = 1): THREE.BufferGeometry {
+  const b = new GeoBuilder();
+  const wrist = ELBOW_Y + WRIST_Y;
+  if (long) {
+    b.add(lathe(limbProfile([[0, SLEEVE_R], [ELBOW_Y + 0.05, FORE_SLEEVE_R * 1.01], [ELBOW_Y, FORE_SLEEVE_R], [wrist + 0.02, FORE_SLEEVE_R * 0.96]]), LIMB_SIDES, 1), sleeve, 0, 0, 0, 0, 0, 0, SOFT);
+  } else {
+    // The sleeve: round over the shoulder, a little fuller to its hem, a slim rolled hem with its dark inside.
+    const hem = -0.105;
+    b.add(lathe(limbProfile([[0, SLEEVE_R], [hem, SLEEVE_R * 1.04]]), LIMB_SIDES, 1), sleeve, 0, 0, 0, 0, 0, 0, SOFT);
+    roll(b, hem, SLEEVE_R * 0.98, 0.011, shade(sleeve, 0.92));
+    b.add(new THREE.CircleGeometry(SLEEVE_R * 0.98, 16), shade(sleeve, 0.6), 0, hem - 0.001, 0, Math.PI / 2, 0, 0, FLAT);
+    // The bare arm, from inside the sleeve down to the wrist, tapering gently (no elbow knob).
+    const arm = lathe(limbProfile([[hem + 0.03, ARM_R], [ELBOW_Y, ARM_R * 0.97], [wrist + 0.01, ARM_R * 0.88]], 0), LIMB_SIDES, 1);
+    b.add(arm, skin, 0, 0, 0, 0, 0, 0, SKIN);
+  }
+  const g = occlude(b.build(), build, [side * shoulderX(build), SHOULDER_Y, 0], (p) => p.x * side > 0 && Math.abs(p.x) > 0.1);
+  return addSkin(g, armWeight(ELBOW_Y));
+}
+
+/**
+ * The cuff and the hand, from the elbow pivot (the forearm's sleeve is the arm's own surface, `upperArmGeometry`): a
+ * rolled cuff on a sleeve, and the sculpted mitten hand (figure kit) with its thumb toward the body's middle. It turns
+ * with the palm (the wrist's twist); the sleeve bends with the elbow and does not twist.
  */
 export function forearmGeometry(sleeve: string, skin: string, long: boolean, side: 1 | -1, carry: 'briefcase' | 'handbag' | 'surfboard' | null, cuff?: string, build: Build = 'regular'): THREE.BufferGeometry {
   const b = new GeoBuilder();
-  // The elbow's ball is the upper arm's (a sphere looks the same however the forearm turns about its centre).
   if (long) {
-    tube(b, 0, WRIST_Y + 0.02, FORE_SLEEVE_R, FORE_SLEEVE_R * 0.96, sleeve);
-    roll(b, WRIST_Y + 0.025, FORE_SLEEVE_R * 0.92, 0.018, cuff ?? shade(sleeve, 0.92));
+    roll(b, WRIST_Y + 0.025, FORE_SLEEVE_R * 0.93, 0.013, cuff ?? shade(sleeve, 0.92));
     b.add(new THREE.CircleGeometry(FORE_SLEEVE_R * 0.95, 16), shade(sleeve, 0.55), 0, WRIST_Y + 0.012, 0, Math.PI / 2, 0, 0, FLAT);
-  } else {
-    tube(b, 0, WRIST_Y + 0.01, ARM_R * 0.98, ARM_R * 0.9, skin, SKIN);
   }
   // Side −1 is the figure's right (x < 0): its thumb points toward +x; the kit's right hand has its thumb toward −x.
   kitAt(b, side === 1 ? 'ch_hand_r' : 'ch_hand_l', 0, WRIST_Y + 0.035, 0.004, HAND_SCALE, figKeys(skin, skin, skin, skin));
@@ -701,45 +736,49 @@ export function forearmGeometry(sleeve: string, skin: string, long: boolean, sid
   return occlude(b.build(), build, [side * shoulderX(build), SHOULDER_Y + ELBOW_Y, 0], (p) => p.x * side > 0 && Math.abs(p.x) > 0.1);
 }
 
-/** A trouser leg's outside seam: a fine raised line down the side, a shade darker than the cloth. */
-function seam(b: GeoBuilder, side: 1 | -1, y0: number, y1: number, r0: number, r1: number, color: string): void {
-  const pts = [new THREE.Vector3(side * (r0 + 0.001), y0, 0), new THREE.Vector3(side * (r1 + 0.001), y1, 0)];
-  b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 2, 0.0045, 4, false), shade(color, 0.8), 0, 0, 0, 0, 0, 0, FLAT);
-}
 
-/** The thigh, from the hip pivot to the knee: trousers, or a bare leg under a skirt. */
-export function thighGeometry(color: string, bare: boolean, skin: string, build: Build = 'regular', side: 1 | -1 = 1): THREE.BufferGeometry {
-  const b = new GeoBuilder();
-  if (bare) {
-    tube(b, -0.04, KNEE_Y, BARE_LEG_R, BARE_LEG_R * 0.96, skin, SKIN);
-    joint(b, KNEE_Y, BARE_LEG_R * 0.96, skin, SKIN);
-  } else {
-    joint(b, -0.03, TROUSER_R, color);
-    tube(b, -0.03, KNEE_Y, TROUSER_R, SHIN_R, color);
-    joint(b, KNEE_Y, SHIN_R, color);
-    seam(b, side, -0.04, KNEE_Y, TROUSER_R, SHIN_R, color);
-  }
-  return occlude(b.build(), build, [side * hipX(build), HIP_Y, 0], (p) => near(p, side * hipX(build), 0.2) || p.y < 0.3);
+/** A seam laid along a limb's side, following its outline (many points, so it bends with the skin). */
+function limbSeam(b: GeoBuilder, side: 1 | -1, profile: [number, number][], y0: number, y1: number, color: string): void {
+  const pts = profile.filter(([, y]) => y <= y0 && y >= y1).map(([r, y]) => new THREE.Vector3(side * (r + 0.001), y, 0));
+  if (pts.length < 2) return;
+  b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 2, 0.0045, 4, false), shade(color, 0.8), 0, 0, 0, 0, 0, 0, FLAT);
 }
 
 /**
- * The shin and shoe, from the knee pivot: the trouser leg ending in a rolled cuff over a sock band (or a bare leg and a
- * sock), and the chunky clay shoe on its paler sole, or a sneaker under a tee.
+ * The leg, from the hip to the ankle, as one surface (session 64): the trouser leg down to its turned-up hem (or a
+ * bare leg under a skirt, down to the sock), bending at the knee by skinning (`legWeight`), its top rounded under the
+ * hips. The hem, the sock and the shoe ride on the shin (`shinGeometry`).
+ */
+export function thighGeometry(color: string, bare: boolean, skin: string, build: Build = 'regular', side: 1 | -1 = 1): THREE.BufferGeometry {
+  const b = new GeoBuilder();
+  const foot = -(LEG_LENGTH + KNEE_Y);
+  const shoeTop = foot + 0.085;
+  if (bare) {
+    b.add(lathe(limbProfile([[-0.04, BARE_LEG_R], [KNEE_Y, BARE_LEG_R * 0.96], [KNEE_Y + shoeTop + 0.03, BARE_LEG_R * 0.86]]), LIMB_SIDES, 1), skin, 0, 0, 0, 0, 0, 0, SKIN);
+  } else {
+    const cuff = KNEE_Y + shoeTop + 0.045;
+    const prof = limbProfile([[-0.03, TROUSER_R], [KNEE_Y, SHIN_R], [cuff, SHIN_R * 0.97]]);
+    b.add(lathe(prof, LIMB_SIDES, 1), color, 0, 0, 0, 0, 0, 0, SOFT);
+    limbSeam(b, side, prof, -0.04, cuff + 0.02, color);
+  }
+  const g = occlude(b.build(), build, [side * hipX(build), HIP_Y, 0], (p) => near(p, side * hipX(build), 0.2) || p.y < 0.3);
+  return addSkin(g, legWeight(KNEE_Y));
+}
+
+/**
+ * The ankle, from the knee pivot (the shin's trouser or skin is the leg's own surface, `thighGeometry`): the turned-up
+ * hem over a sock band (or the sock on a bare leg), and the chunky clay shoe on its paler sole, or a sneaker under a tee.
  */
 export function shinGeometry(color: string, shoe: string, bare: boolean, skin: string, sock: string, smart: boolean, build: Build = 'regular', side: 1 | -1 = 1): THREE.BufferGeometry {
   const b = new GeoBuilder();
   const foot = -(LEG_LENGTH + KNEE_Y);
   const shoeTop = foot + 0.085;
-  // The knee's ball is the thigh's.
   if (bare) {
-    tube(b, 0, shoeTop + 0.03, BARE_LEG_R * 0.96, BARE_LEG_R * 0.86, skin, SKIN);
     tube(b, shoeTop + 0.04, shoeTop - 0.005, BARE_LEG_R * 1.06, BARE_LEG_R * 1.06, sock, { ...SOFT, detail: 'knit' });
   } else {
     const cuff = shoeTop + 0.045;
-    tube(b, 0, cuff, SHIN_R, SHIN_R * 0.97, color);
-    seam(b, side, 0, cuff + 0.02, SHIN_R, SHIN_R * 0.97, color);
-    // The turned-up hem: a roll a touch wider than the leg, its inside dark, the sock band showing under it.
-    roll(b, cuff, SHIN_R * 0.95, 0.024, shade(color, 1.08));
+    // The turned-up hem: a slim roll a touch wider than the leg, its inside dark, the sock band showing under it.
+    roll(b, cuff, SHIN_R * 0.95, 0.018, shade(color, 1.08));
     b.add(new THREE.CircleGeometry(SHIN_R * 0.95, 16), shade(color, 0.5), 0, cuff - 0.02, 0, Math.PI / 2, 0, 0, FLAT);
     tube(b, cuff - 0.01, shoeTop - 0.005, 0.045, 0.045, sock, { ...SOFT, detail: 'knit' }, 16);
   }

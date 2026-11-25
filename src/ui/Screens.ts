@@ -26,7 +26,14 @@ interface SheetOptions {
   center?: boolean;
   onClose?: () => void;
   className?: string;
+  /**
+   * Session 64: taps are ignored for this long after the sheet opens (the Debug sheet opens on the fifth of a quick
+   * run of taps, and the next one used to land on whatever button was under the finger).
+   */
+  guardMs?: number;
 }
+/** Session 64: how long the Debug sheet ignores taps after it opens. */
+const DEBUG_GUARD_MS = 900;
 
 /** Every modal sheet. Opening one pauses the simulation; closing the last one resumes it. */
 /** Taps on Settings' build line that open the Debug sheet (Phase 1). */
@@ -114,6 +121,10 @@ export class Screens {
     );
     const body = h('div.content');
     for (const node of content) if (node) body.appendChild(node);
+    if (options.guardMs) {
+      body.style.pointerEvents = 'none';
+      setTimeout(() => (body.style.pointerEvents = ''), options.guardMs);
+    }
     const sheet = h(`div.sheet${options.className ? `.${options.className}` : ''}` as 'div', { role: 'dialog', 'aria-label': title }, header, body);
     const scrim = h(`div.scrim${options.center ? '.center' : ''}` as 'div', {
       onclick: (e: Event) => {
@@ -862,13 +873,15 @@ export class Screens {
    * refit tiers), optionally staffed, on its own save (config/debugJump.ts); "Back to my game" returns to the real save.
    */
   private debugSheet(): void {
+    // Session 64: the route buttons sat in quarter-width cells and their full names ran out of them.
+    const routeShort = (id: string): string => (ROUTES.find((r) => r.id === id)?.name ?? id).split(' ')[0];
     const current = DEBUG_JUMP;
     let carriages = current?.carriages ?? CARRIAGE_ORDER.length;
     let tier = current?.tier ?? 0;
     let staffed = current?.staffed ?? false;
     let route = current?.route ?? ACTIVE_ROUTE.id;
-    const pick = <T,>(values: T[], label: (v: T) => string, get: () => T, set: (v: T) => void): HTMLElement => {
-      const row = h('div.debug-pick');
+    const pick = <T,>(values: T[], label: (v: T) => string, get: () => T, set: (v: T) => void, cls = 'debug-pick'): HTMLElement => {
+      const row = h(`div.${cls}` as 'div');
       const buttons = values.map((v) => {
         const b = h('button.btn', { onclick: () => { set(v); paint(); } }, label(v)) as HTMLButtonElement;
         row.appendChild(b);
@@ -894,7 +907,7 @@ export class Screens {
     this.sheet('Debug', 'wrench', [
       // Phase 4: which route to open it on (each on its own save; a fresh one starts as if the route before was done).
       h('div.section-title', { text: 'Route' }),
-      pick(ROUTES.map((r) => r.id), (v) => ROUTES.find((r) => r.id === v)?.name ?? v, () => route, (v) => (route = v)),
+      pick(ROUTES.map((r) => r.id), (v) => routeShort(v), () => route, (v) => (route = v), 'debug-pick.two'),
       h('div.section-title', { text: 'Carriages' }),
       pick(CARRIAGE_ORDER.map((_, i) => i + 1), (v) => String(v), () => carriages, (v) => { carriages = v; showList(); }),
       listEl,
@@ -904,13 +917,17 @@ export class Screens {
       h('button.btn.primary', { onclick: () => setDebugJump({ carriages, tier, staffed, ...(route !== ROUTES[0].id ? { route } : {}) }) }, 'Open'),
       current ? h('button.btn', { onclick: () => setDebugJump(null) }, 'Back to my game') : null,
       h('p', { style: { fontSize: '12px', opacity: '0.6' }, text: 'Plays on its own save; your progress is never touched.' }),
-      // Visual overhaul (config/look.ts): compare the classic and the new look; reloads the page.
-      h('div.section-title', { text: 'Look (visual overhaul)' }),
-      h('button.btn', { onclick: () => setLook(NEW_LOOK ? 'classic' : 'new') }, NEW_LOOK ? 'Back to the classic look' : 'New look'),
       h('div.section-title', { text: 'Pacing (Phase 3)' }),
       h('button.btn', { onclick: () => this.economySheet() }, 'Economy values'),
       h('button.btn', { onclick: () => this.carryOverSheet() }, 'Carry-over test'),
-    ]);
+      // Visual overhaul (config/look.ts), last on the sheet (session 64: it sat where the fifth tap's finger was, so a
+      // quick tap flipped the game into the classic look): the current look is lit, the other reloads into it.
+      h('div.section-title', { text: 'Look' }),
+      h('div.debug-pick.two', {},
+        h(`button.btn${NEW_LOOK ? '.primary' : ''}` as 'button', { onclick: () => { if (!NEW_LOOK) setLook('new'); } }, 'New look'),
+        h(`button.btn${NEW_LOOK ? '' : '.primary'}` as 'button', { onclick: () => { if (NEW_LOOK) setLook('classic'); } }, 'Classic look'),
+      ),
+    ], { guardMs: DEBUG_GUARD_MS });
   }
 
   /**

@@ -22,8 +22,8 @@ import { forgetSave, mirrorSave, platform as nativePlatform } from '../services/
 import { ANALYTICS } from '../config/analytics';
 import { GameAnalyticsService, gameAnalyticsWanted } from '../services/gameAnalytics';
 import { GOD, GOD_MODE, GOD_WORK } from '../config/god';
-import { DEBUG_JUMP, type DebugJump } from '../config/debugJump';
-import { ROUTE_PARAM, SAVE_KEY } from '../config/saveKey';
+import { DEBUG_JUMP, DEBUG_JUMP_KEY, type DebugJump } from '../config/debugJump';
+import { REAL_SAVE_KEY, ROUTE_PARAM, SAVE_KEY } from '../config/saveKey';
 import { CARRIAGE_ORDER } from '../config/content';
 import { SaveSystem } from '../save/SaveSystem';
 import { MockAdService, type AdService } from '../services/ads';
@@ -141,6 +141,9 @@ function urlSeed(): number | null {
   return Number.isFinite(n) ? n * 2654435761 + 1 : null;
 }
 
+/** Session 64: how much further past the train's end the view may reach while the next carriage waits there. */
+const TEASER_VIEW_REACH = 3.2;
+
 export class Game implements World {
   readonly econ: Economy;
   readonly events = new EventBus<GameEvents>();
@@ -254,6 +257,7 @@ export class Game implements World {
     const storage = new BrowserSaveStorage();
     storage.onWrite = (key, contents) => mirrorSave(key, contents);
     storage.onRemove = (key) => forgetSave(key);
+    this.saveStorage = storage;
     this.save = new SaveSystem(storage, {
       key: SAVE_KEY,
       now: () => Date.now(),
@@ -861,7 +865,8 @@ export class Game implements World {
     // Session 38b (after the ad playable): inside the train the view stays over its floor (never drifting over the lake).
     rig.clampX = this.journey.doorsOpen ? [-HALF_WIDTH, PLATFORM_X0 + PLATFORM_WIDTH - 1] : [-INNER + this.econ.camera.clampInset, INNER - this.econ.camera.clampInset];
     rig.clampZ[0] = -GANGWAY_LENGTH - LOCOMOTIVE_LENGTH + VISUALS.camera.endMargin;
-    rig.clampZ[1] = this.map.rearZ + REAR_DECK_LENGTH - VISUALS.camera.endMargin * 0.5;
+    // Session 64: while the next carriage waits behind the train, the view may reach past the end to show it.
+    rig.clampZ[1] = this.map.rearZ + REAR_DECK_LENGTH - VISUALS.camera.endMargin * 0.5 + (this.train.teaserWaiting ? TEASER_VIEW_REACH : 0);
     this.frameCamera(realDt);
     this.updateCinematic(realDt);
     if (VISUALS.camera.roomView) rig.setRoomView(this.roomAround(this.player.pos.x, this.player.pos.z));
@@ -1403,11 +1408,37 @@ export class Game implements World {
     this.addStars(amount, 'dev');
   }
 
+  private saveStorage!: BrowserSaveStorage;
+
   resetProgress(): void {
     // The old game's floor cash must not be written into the fresh save (the reload saves on its way out).
     this.save.beforeWrite = null;
+    // Session 64 (owner: "start over doesn't start over from the very beginning… confused between debug menu and start
+    // over"): starting over is always the player's own game from its first minute: the debug jump is cleared (it
+    // rebuilt its own save on every load), the real save (not the jump's or a test route's) is written fresh on the
+    // first route of the line (a Riviera save used to start over on the Riviera), and the address loses `?jump=` and
+    // `?route=`, which would open the test saves again.
     this.save.reset();
-    location.reload();
+    this.save.data.route.id = ROUTES[0].id;
+    this.save.saveNow();
+    if (SAVE_KEY !== REAL_SAVE_KEY) {
+      const real = new SaveSystem(this.saveStorage, { key: REAL_SAVE_KEY, now: () => Date.now(), newId: () => this.data.profile.installId });
+      real.load();
+      real.reset();
+      real.data.route.id = ROUTES[0].id;
+      real.saveNow();
+    }
+    try {
+      localStorage.removeItem(DEBUG_JUMP_KEY);
+      sessionStorage.removeItem('nightexpress.routeReload');
+    } catch {
+      // Without storage nothing outlives the reload anyway.
+    }
+    const url = new URL(location.href);
+    url.searchParams.delete('jump');
+    url.searchParams.delete('route');
+    if (url.href === location.href) location.reload();
+    else location.replace(url.href);
   }
 
   get catalogue(): typeof CARRIAGE_CATALOGUE {

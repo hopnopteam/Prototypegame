@@ -11,7 +11,11 @@ import { WORLD_UI_LAYER } from './CameraRig';
 import { GRIP, TORSO_DEPTH, torsoRadius, addApron, pantsCloth, topCloth, wearing, addHat, addHead, addStrap, addTorso, apronFlapGeometry, coatHalfGeometry, COAT_PIVOT_Y, hairPieceGeometry, HAIR_PIVOT, skirtGeometry, WAIST_Y, warmSkin, type FeltHat, ELBOW_Y, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, hipX, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, occludeBody, occludeHead, shinGeometry, shoulderX, SHOULDER_Y, thighGeometry, upperArmGeometry, type Build, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
 import { underPopup } from './screenMask';
 import { ON_TRAY } from './ItemMeshes';
-import type { CharacterBatch } from './CharacterBatch';
+import { BONE_GEOMETRY, type CharacterBatch } from './CharacterBatch';
+import { armWeight, legWeight, skinPoint, type SkinDef } from './Skin';
+
+const skinShin = new THREE.Matrix4();
+const IDENTITY = new THREE.Matrix4();
 
 export type HatKind = 'conductor' | 'boater' | 'bowler' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'toque' | 'none';
 export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'sash' | 'basket' | 'hymnbook' | 'cane' | 'surfboard' | 'partner' | 'whistle' | 'none';
@@ -77,6 +81,8 @@ const RIDE_ARM = -1.05;
  */
 const WALK = { stride: 0.45, knee: 0.62, arm: 0.78, elbow: 0.4, bob: 0.035, sway: 0.06, twist: 0.1, lean: 0.06 };
 const RUN = { stride: 0.8, knee: 1.1, arm: 0.88, elbow: 1.2, bob: 0.07, sway: 0.04, twist: 0.14, lean: 0.16 };
+/** Session 64: the quickest walking cadence (phase radians a second) when the figure may not run. */
+const WALK_MAX_PACE = 11.5;
 /** How quickly a turn eases round (rad/s of the remaining angle): quick, never a snap. */
 const TURN_RATE = 16;
 function smooth01(x: number): number {
@@ -442,7 +448,6 @@ const contain = { scale: 1, swing: 0 };
 /** The swings a skirt or coat tries (radians about its pivot's x, forward negative) to keep the legs inside it. */
 const SWING_TRIES = [0, 0, -0.12, 0.12, -0.25, 0.25, -0.4, 0.4, -0.55, 0.55, -0.7, 0.7];
 const cq = new THREE.Quaternion();
-const cm = new THREE.Matrix4();
 
 function limb(key: string, build: () => THREE.BufferGeometry): THREE.BufferGeometry {
   let g = limbCache.get(key);
@@ -841,6 +846,8 @@ export class CharacterView {
   private readonly head = new THREE.Object3D();
   private readonly knees: THREE.Object3D[] = [];
   private readonly elbows: THREE.Object3D[] = [];
+  /** Session 64: under each elbow, the wrist: the palm's twist (the sleeve does not twist with it). */
+  private readonly wrists: THREE.Object3D[] = [];
   private readonly thighMeshes: THREE.Mesh[] = [];
   private readonly shinMeshes: THREE.Mesh[] = [];
   private readonly upperMeshes: THREE.Mesh[] = [];
@@ -866,6 +873,11 @@ export class CharacterView {
     }
     this.bodyMesh = castsShadow(new THREE.Mesh(bodyGeometry(look), MATERIALS.character));
     this.body.add(this.bodyMesh);
+    // Session 64: each trouser leg (or bare leg) is one surface from the hip to the ankle, bending with the shin and
+    // easing into the hips at its top (world/Skin.ts).
+    for (let i = 0; i < 2; i++) {
+      this.thighMeshes[i].userData.skin = { weight: legWeight(KNEE_Y), partners: [{ object: this.bodyMesh, offset: this.legs[i].position }, { object: this.shinMeshes[i], offset: new THREE.Vector3(0, -KNEE_Y, 0) }] } satisfies SkinDef;
+    }
     this.head.position.y = NECK_Y;
     this.headMesh = castsShadow(new THREE.Mesh(headGeometry(look), MATERIALS.character));
     this.head.add(this.headMesh);
@@ -878,9 +890,18 @@ export class CharacterView {
       pivot.add(upper);
       const elbow = new THREE.Object3D();
       elbow.position.y = ELBOW_Y;
+      // Session 64: the hand and the cuff turn with the palm (the wrist's twist); the sleeve bends with the elbow's
+      // bone and blends into the shoulder (world/Skin.ts), one surface from the shoulder to the cuff.
+      const wrist = new THREE.Object3D();
       const fore = castsShadow(new THREE.Mesh(forearmGeometryFor(look, side), MATERIALS.character));
-      elbow.add(fore);
+      wrist.add(fore);
+      elbow.add(wrist);
+      const bone = new THREE.Mesh(BONE_GEOMETRY, MATERIALS.character);
+      bone.userData.noAudit = true;
+      elbow.add(bone);
       pivot.add(elbow);
+      upper.userData.skin = { weight: armWeight(ELBOW_Y), partners: [{ object: this.bodyMesh, offset: pivot.position }, { object: bone, offset: new THREE.Vector3(0, -ELBOW_Y, 0) }] } satisfies SkinDef;
+      this.wrists.push(wrist);
       pivot.rotation.z = side * 0.1;
       this.body.add(pivot);
       this.arms.push(pivot);
@@ -1089,12 +1110,14 @@ export class CharacterView {
       const leg = this.legs[i];
       leg.updateMatrix();
       this.knees[i].updateMatrix();
-      for (const [mesh, m] of [[this.thighMeshes[i], cm.copy(leg.matrix)], [this.shinMeshes[i], null]] as [THREE.Mesh, THREE.Matrix4 | null][]) {
-        const mat = m ?? cm.copy(leg.matrix).multiply(this.knees[i].matrix);
+      const shinM = skinShin.copy(leg.matrix).multiply(this.knees[i].matrix);
+      for (const [mesh, m] of [[this.thighMeshes[i], leg.matrix], [this.shinMeshes[i], shinM]] as [THREE.Mesh, THREE.Matrix4][]) {
+        // The trouser leg runs down past the knee, bending with the shin (world/Skin.ts): sampled where it is drawn.
+        const def = mesh.userData.skin as SkinDef | undefined;
         const pts = surfacePoints(mesh.geometry);
         for (let k = 0; k < pts.length; k += 3) {
           if (!out[n]) out[n] = { p: new THREE.Vector3(), r: 0 };
-          out[n].p.set(pts[k], pts[k + 1], pts[k + 2]).applyMatrix4(mat);
+          skinPoint(def, pts[k], pts[k + 1], pts[k + 2], m, (code) => (code === 1 ? IDENTITY : shinM), out[n].p);
           out[n].r = 0;
           n++;
         }
@@ -1197,7 +1220,7 @@ export class CharacterView {
   /** Puts something in the right hand (a flag, a balloon); it follows the arm, waving included. */
   holdInRightHand(object: THREE.Object3D): void {
     object.position.y += HAND_Y - ELBOW_Y;
-    this.elbows[1].add(object);
+    this.wrists[1].add(object);
   }
 
   setPosition(x: number, y: number, z: number): void {
@@ -1498,7 +1521,7 @@ export class CharacterView {
       if (w <= 0) {
         // No hold: the forearm's roll and the arm's twist come back to rest.
         arm.rotation.y += (0 - arm.rotation.y) * Math.min(1, dt * 12);
-        elbow.rotation.y += (0 - elbow.rotation.y) * Math.min(1, dt * 12);
+        this.wrists[i].rotation.y += (0 - this.wrists[i].rotation.y) * Math.min(1, dt * 12);
         continue;
       }
       const chain = this.chains[i];
@@ -1529,15 +1552,17 @@ export class CharacterView {
       }
       if (w >= 0.999) {
         arm.quaternion.copy(sol.shoulder);
-        elbow.rotation.set(sol.bend, twist, 0);
+        elbow.rotation.set(sol.bend, 0, 0);
+        this.wrists[i].rotation.set(0, twist, 0);
       } else {
         arm.quaternion.slerp(sol.shoulder, w);
-        elbow.rotation.set(elbow.rotation.x + (sol.bend - elbow.rotation.x) * w, twist * w, 0);
+        elbow.rotation.set(elbow.rotation.x + (sol.bend - elbow.rotation.x) * w, 0, 0);
+        this.wrists[i].rotation.set(0, twist * w, 0);
       }
       this.elbowNow[i] = elbow.rotation.x;
       // The bag hangs from the hand: its anchor on the grip, swinging a little behind the hand's motion.
       const a = this.handAnchors[i];
-      gripOf(chain, arm.quaternion, elbow.rotation.x, elbow.rotation.y, GRIP_V, a.position);
+      gripOf(chain, arm.quaternion, elbow.rotation.x, this.wrists[i].rotation.y, GRIP_V, a.position);
       const vz = (a.position.z - this.lastHandZ[i]) / Math.max(dt, 1e-3);
       this.lastHandZ[i] = a.position.z;
       const aim = Math.max(-0.35, Math.min(0.35, vz * 0.35 - this.body.rotation.x));
@@ -1676,6 +1701,11 @@ export class CharacterView {
   private carryBox = false;
   /** How many things are on the stack (a tall one makes the figure lean back to balance it). */
   stackCount = 0;
+  /**
+   * Session 64: how much of the run this figure may show at pace (1 for everyone; 0 for the conductor until a movement
+   * upgrade): 0 keeps a walk however fast they go, the cadence capped at a brisk walk.
+   */
+  runGait = 1;
   /** Eased joint targets (knees and elbows), so every pose change is quick but never a snap. */
   private readonly kneeNow = [0, 0];
   private readonly elbowNow = [-0.12, -0.12];
@@ -1734,12 +1764,12 @@ export class CharacterView {
   private showInHand(kind: PropKind | null): void {
     // In the free hand (the other one may hold a briefcase or a handbag of its own).
     const hand = this.heldIn(1) && !this.heldIn(0) ? 0 : 1;
-    for (const mesh of this.inHand.values()) if (mesh.parent !== this.elbows[hand]) this.elbows[hand].add(mesh);
+    for (const mesh of this.inHand.values()) if (mesh.parent !== this.wrists[hand]) this.wrists[hand].add(mesh);
     if (kind && !this.inHand.has(kind)) {
       const mesh = new THREE.Mesh(propGeometry(kind), MATERIALS.character);
       mesh.userData.shared = true;
       mesh.position.set(0, HAND_Y - ELBOW_Y + (kind === 'phone' ? -0.03 : kind === 'ticket' ? -0.08 : -0.03), kind === 'phone' ? 0.03 : 0.06);
-      this.elbows[hand].add(mesh);
+      this.wrists[hand].add(mesh);
       this.inHand.set(kind, mesh);
     }
     for (const [k, mesh] of this.inHand) mesh.visible = k === kind;
@@ -2204,8 +2234,9 @@ export class CharacterView {
     // The clay toy's walk (CHARACTER_SPEC §8): quick bouncy steps, the body rolling over the stance foot, the hips
     // twisting with the stride and the shoulders countering; a run is a longer, bouncier stride with a deeper lean and
     // pumping arms. `run` blends the walk into the run with the pace.
-    const run = smooth01((speed - 2.4) / 2);
-    this.phase += dt * (moving ? 3.4 + speed * 2.3 : 1.6);
+    const run = smooth01((speed - 2.4) / 2) * this.runGait;
+    const pace = 3.4 + speed * 2.3;
+    this.phase += dt * (moving ? (this.runGait >= 1 ? pace : Math.min(pace, WALK_MAX_PACE)) : 1.6);
     // Session 38b (after the ad playable): the swing and the forward lean ease in and out, so starting and stopping
     // never snap the legs.
     // Session 63: long clothes shorten the step (a gown most, then a dress, a coat, an apron), as they do: a stride never
@@ -2404,6 +2435,7 @@ export class CharacterView {
       this.elbowNow[i] = this.elbowAim[i] = -0.12;
       this.knees[i].rotation.set(0, 0, 0);
       this.elbows[i].rotation.set(0, 0, 0);
+      this.wrists[i].rotation.set(0, 0, 0);
     }
     this.head.rotation.set(0, 0, 0);
     this.carryBoard = false;

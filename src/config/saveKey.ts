@@ -9,6 +9,9 @@ const URL_ROUTE: string | null = typeof location === 'undefined' ? null : new UR
 /** The route forced for testing: the address's, or the Debug sheet's jump (which plays on the jump's own save). */
 export const ROUTE_PARAM: string | null = URL_ROUTE ?? DEBUG_JUMP?.route ?? null;
 
+/** Session 64: the player's own save, whatever test save this page plays (Start over always writes this one). */
+export const REAL_SAVE_KEY = 'nightexpress.save' + (GOD_MODE ? GOD.saveSuffix : '');
+
 /** Where the save lives (localStorage, mirrored into the app's own storage on iOS and Android). */
 export const SAVE_KEY = 'nightexpress.save' + (GOD_MODE ? GOD.saveSuffix : '') + (DEBUG_JUMP ? '.jump' : '') + (URL_ROUTE ? `.route-${URL_ROUTE}` : '');
 

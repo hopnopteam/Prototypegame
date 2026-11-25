@@ -6,6 +6,13 @@ import { CarryStack } from '../src/gameplay/CarryStack';
 import { guestLook } from '../src/gameplay/guestLook';
 import { CharacterView, CONDUCTOR_LOOK, STAFF_LOOKS, type CharacterLook } from '../src/world/CharacterView';
 import { torsoRadius, TORSO_DEPTH, type Build } from '../src/world/CharacterParts';
+import { skinnedWorld, type SkinDef } from '../src/world/Skin';
+
+/** A skinned limb's partner bones must be current before its vertices are read where they are drawn. */
+function updateSkin(mesh: THREE.Mesh): void {
+  const def = mesh.userData.skin as SkinDef | undefined;
+  if (def) for (const p of def.partners) p?.object.updateWorldMatrix(true, false);
+}
 
 /**
  * Session 63 (owner: "make sure none of the clothing is actually clipping in any place, and I mean truly not in a single
@@ -124,11 +131,12 @@ function clipOf(part: Part, vol: Volume): number {
   part.mesh.updateWorldMatrix(true, false);
   vol.object.updateWorldMatrix(true, false);
   inv.copy(vol.object.matrixWorld).invert();
+  updateSkin(part.mesh);
   const p = part.mesh.geometry.getAttribute('position');
   let worst = 0;
   for (let i = 0; i < p.count; i++) {
     if (part.maxY !== undefined && p.getY(i) > part.maxY) continue;
-    v.fromBufferAttribute(p, i).applyMatrix4(part.mesh.matrixWorld).applyMatrix4(inv);
+    skinnedWorld(part.mesh, i, v).applyMatrix4(inv);
     if (vol.skipNear && v.length() < vol.skipNear) continue;
     let d = 0;
     if (vol.torso) d = torsoRadius(vol.torso, v.y) - Math.hypot(v.x, v.z / TORSO_DEPTH);
@@ -284,12 +292,13 @@ function clipNearPivot(part: Part, vol: Volume, near: number): number {
   part.mesh.updateWorldMatrix(true, false);
   vol.object.updateWorldMatrix(true, false);
   inv.copy(vol.object.matrixWorld).invert();
+  updateSkin(part.mesh);
   const p = part.mesh.geometry.getAttribute('position');
   let worst = 0;
   for (let i = 0; i < p.count; i++) {
     v.fromBufferAttribute(p, i);
     if (v.y > -near) continue;
-    w.copy(v).applyMatrix4(part.mesh.matrixWorld).applyMatrix4(inv);
+    skinnedWorld(part.mesh, i, w).applyMatrix4(inv);
     const d = (vol.torso ? torsoRadius(vol.torso, w.y) - Math.hypot(w.x, w.z / TORSO_DEPTH) : vol.radial!.depth(w.x, w.y, w.z)) - vol.tol;
     if (d > worst) worst = d;
   }
@@ -302,10 +311,11 @@ function legThroughCloth(leg: THREE.Mesh, cloth: THREE.Mesh): number {
   leg.updateWorldMatrix(true, false);
   cloth.updateWorldMatrix(true, false);
   inv.copy(cloth.matrixWorld).invert();
+  updateSkin(leg);
   const p = leg.geometry.getAttribute('position');
   let worst = 0;
   for (let i = 0; i < p.count; i++) {
-    v.fromBufferAttribute(p, i).applyMatrix4(leg.matrixWorld).applyMatrix4(inv);
+    skinnedWorld(leg, i, v).applyMatrix4(inv);
     const d = r.depth(v.x, v.y, v.z);
     // Inside the cloth's reach is fine; up to 3 cm beyond it (above its hem) means the leg pokes through it.
     if (d < -TOL && d > -0.03) {

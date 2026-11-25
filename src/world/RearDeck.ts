@@ -29,7 +29,7 @@ const SHADOW = new THREE.MeshBasicMaterial({ color: '#0E0B12', transparent: true
  * and a coupling at the back, steps down at each rear corner, an ornate railing with a round tail sign and red tail
  * lamps.
  */
-export function buildRearDeck(): THREE.Group {
+export function buildRearDeck(end = true, gap = 0.6): THREE.Group {
   const b = new GeoBuilder();
   const under = new GeoBuilder();
   const y = FLOOR_Y;
@@ -79,6 +79,17 @@ export function buildRearDeck(): THREE.Group {
     for (const z of [z0 + 0.05, sideZ1]) b.cylinder(x, y + 0.34, z, 0.035, 0.035, 0.66, PALETTE.brass, 8, 'y', { shade: 1, surface: 'brass' });
     for (const z of [z1 - 0.06]) b.cylinder(x, y + 0.34, z, 0.035, 0.035, 0.66, PALETTE.brass, 8, 'y', { shade: 1, surface: 'brass' });
   }
+  if (!end) {
+    // Session 64: the coupling platform. Its back stays open to the carriage waiting behind (no rail across it, no
+    // tail sign or tail lamps: this is not the end of the train yet), and a coupling chain hangs across the gap to it.
+    for (let i = 0, n = 7; i < n; i++) {
+      const t = (i + 0.5) / n;
+      const z = z1 + 0.17 + t * (gap - 0.17);
+      const sag = 0.06 * Math.sin(t * Math.PI);
+      under.add(new THREE.TorusGeometry(0.035, 0.012, 6, 10), PALETTE.wheel, 0, 0.34 - sag, z, 0, i % 2 ? Math.PI / 2 : 0, 0, { shade: 0.9, surface: 'iron' });
+    }
+    return finish(b, under, liv, y, z1, zc, w, false);
+  }
   b.box(0, y + 0.62, z1 - 0.06, RAIL_X * 2, 0.05, 0.05, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
   b.box(0, y + 0.08, z1 - 0.06, RAIL_X * 2, 0.04, 0.04, PALETTE.brass, 0, { shade: 0.9, surface: 'brass' });
   for (let x = -RAIL_X + 0.2; x <= RAIL_X - 0.19; x += 0.26) if (Math.abs(x) > 0.36) b.box(x, y + 0.34, z1 - 0.06, 0.025, 0.52, 0.025, PALETTE.brass, 0, { shade: 0.85, surface: 'brass' });
@@ -91,6 +102,11 @@ export function buildRearDeck(): THREE.Group {
   // Visual overhaul (owner, 24 Nov: "the train abruptly ends… an end car with a standing area and a railing"): the deck
   // stays on a finished train and is furnished as a place to stand and watch the line go by.
   if (NEW_LOOK) dressDeck(b, y, z0, z1);
+  return finish(b, under, liv, y, z1, zc, w, true);
+}
+
+/** The deck's meshes, its lamps (the post lamp and the red tail lamps only at the end of the train) and its shadow. */
+function finish(b: GeoBuilder, under: GeoBuilder, liv: GeoBuilder, y: number, z1: number, zc: number, w: number, end: boolean): THREE.Group {
   const group = new THREE.Group();
   const mesh = new THREE.Mesh(b.build(), MATERIALS.solid);
   mesh.castShadow = true;
@@ -99,14 +115,16 @@ export function buildRearDeck(): THREE.Group {
   const underMesh = new THREE.Mesh(under.build(), MATERIALS.solid);
   underMesh.layers.enable(STATIC_CASTER_LAYER);
   group.add(mesh, underMesh, new THREE.Mesh(liv.build(), MATERIALS.livery));
-  const lamps = new GeoBuilder().cylinder(1.2, y + 1.42, z1 - 0.1, 0.07, 0.1, 0.18, PALETTE.lampShade, 10, 'y', { shade: 0.9 });
-  // The red tail lamps at the back corners: the end of the train.
-  for (const x of [-1, 1]) {
-    lamps.object(`deck:tailLamp${x > 0 ? 1 : 0}~glow`);
-    lamps.sphere(x * (DECK_HALF - 0.14), 0.47, z1 + 0.04, 0.06, '#FF3B30', 0, 1, { shade: 1 });
-    lamps.endObject();
+  if (end) {
+    const lamps = new GeoBuilder().cylinder(1.2, y + 1.42, z1 - 0.1, 0.07, 0.1, 0.18, PALETTE.lampShade, 10, 'y', { shade: 0.9 });
+    // The red tail lamps at the back corners: the end of the train.
+    for (const x of [-1, 1]) {
+      lamps.object(`deck:tailLamp${x > 0 ? 1 : 0}~glow`);
+      lamps.sphere(x * (DECK_HALF - 0.14), 0.47, z1 + 0.04, 0.06, '#FF3B30', 0, 1, { shade: 1 });
+      lamps.endObject();
+    }
+    group.add(new THREE.Mesh(lamps.build(), MATERIALS.lamps));
   }
-  group.add(new THREE.Mesh(lamps.build(), MATERIALS.lamps));
   // The open space under the deck in shadow on the ballast, soft at its edges (the deck stands on its bogie, 45 cm over
   // the track; without it the deck read as lying on the ground).
   for (let i = 0; i < SHADOW_LAYERS; i++) {

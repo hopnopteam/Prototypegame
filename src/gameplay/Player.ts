@@ -201,6 +201,9 @@ export class Player implements Actor {
     this.view.setCarrying(this.stack.stacked > 0, this.stack.board, w.station.supplyInHand);
     this.view.stackCount = this.stack.stacked;
     // Session 63: each take and hand-over plays its own move, started by the stack itself (CarryStack → startMotion).
+    // Session 64 (owner: "walk only, no running animations until we get the upgrade for movement"): the conductor walks
+    // until a pair of shoes or a speed level is bought; the pace itself is unchanged.
+    this.view.runGait = this.shoesLevel() + w.data.conductor.speed > 0 ? 1 : 0;
     this.view.update(dt, this.speedNow);
     const m = w.data.monetization;
     this.gear.update(dt, {

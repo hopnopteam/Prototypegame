@@ -213,8 +213,14 @@ export class TrainState {
   private doorAmount = 0;
   private smokeTimer = 0;
   private jolt = 0;
-  /** The open observation deck behind the last carriage, where the coupling tile sits. */
+  /** The open observation deck behind a finished train: the end of the line, furnished to stand and watch from. */
   private readonly deck: THREE.Group;
+  /**
+   * Session 64 (owner: "not the patio (that's for the end of the train)"): while more carriages are to come, the platform
+   * behind the last carriage is a plain coupling platform where the coupling tile sits, its back open to the waiting
+   * carriage and its coupling chain hooked on to it; the furnished patio arrives with the last carriage.
+   */
+  private readonly bridge: THREE.Group;
   /** The class chip over every passenger carriage. */
   private readonly chips = new ClassChips();
   /** Phase 1: the next carriage, hitched behind the deck under its tarp (a sliver in view, never walkable). */
@@ -224,14 +230,29 @@ export class TrainState {
     this.group.add(this.loco.group);
     this.group.add(this.exterior.group);
     this.group.add(this.chips.group);
-    this.deck = buildRearDeck();
-    this.group.add(this.deck);
+    this.deck = buildRearDeck(true);
+    this.bridge = buildRearDeck(false, TEASER_GAP);
+    this.bridge.visible = false;
+    this.group.add(this.deck, this.bridge);
     this.group.add(this.teaser.group);
   }
 
   /** Where the waiting carriage stands: behind the rear deck, a coupling's gap back. */
   private teaserZ(): number {
     return this.w.map.rearZ + GANGWAY_LENGTH + REAR_DECK_LENGTH + TEASER_GAP;
+  }
+
+  /** Session 64: the next carriage is waiting behind the train (the camera may look past the end at it). */
+  get teaserWaiting(): boolean {
+    return this.teaser.group.visible;
+  }
+
+  /** Session 64: the next coupling is on offer and paid for or affordable (the teaser quickens). */
+  private couplingReady(): boolean {
+    const w = this.w;
+    if (this.coupling || !this.teaser.group.visible) return false;
+    const def = w.unlocks.defs.find((d) => d.kind === 'couple' && d.carriage === this.types.length);
+    return !!def && w.unlocks.isAvailable(def.id) && w.wallet.get('cash') >= w.unlocks.remaining(def.id);
   }
 
   /** The next carriage waits behind the train while there is one to come (Phase 1). */
@@ -703,8 +724,10 @@ export class TrainState {
     w.particles.emit('dust', 0, FLOOR_Y + 0.3, w.map.rearZ + GANGWAY_LENGTH + 1, 14, 0.8);
     // The deck is lifted out of the way while the waiting carriage rolls up through its place, and set down again
     // behind it once it has coupled.
-    this.deck.visible = (deckStays || NEW_LOOK) && !waiting;
-    this.deck.position.z = startZ + CARRIAGE_LENGTH;
+    const rear = deckStays ? this.bridge : this.deck;
+    (deckStays ? this.deck : this.bridge).visible = false;
+    rear.visible = (deckStays || NEW_LOOK) && !waiting;
+    rear.position.z = startZ + CARRIAGE_LENGTH;
     const p = w.player.pos;
     if (p.z > w.map.rearZ - 0.2) {
       p.x = 0;
@@ -715,7 +738,7 @@ export class TrainState {
     w.audio.play('door', { pitch: 0.7 });
     w.tweens.run(2.3, (t) => {
       view.group.position.z = startZ + (targetZ - startZ) * t;
-      this.deck.position.z = view.group.position.z + CARRIAGE_LENGTH;
+      rear.position.z = view.group.position.z + CARRIAGE_LENGTH;
       // The static moon shadow follows the carriage in.
       CarriageView.shadowEpoch++;
     }, {
@@ -728,9 +751,10 @@ export class TrainState {
         this.rebuildMap();
         // The next carriage stays out of sight until this one has been unveiled.
         this.teaser.group.visible = false;
-        if (waiting && deckStays) {
-          this.deck.scale.set(1, 0.01, 1);
-          w.tweens.run(0.35, (t) => this.deck.scale.set(1, 0.01 + 0.99 * easeOutCubic(t), 1), { complete: () => this.deck.scale.set(1, 1, 1) });
+        if (waiting && (deckStays || NEW_LOOK)) {
+          rear.visible = true;
+          rear.scale.set(1, 0.01, 1);
+          w.tweens.run(0.35, (t) => rear.scale.set(1, 0.01 + 0.99 * easeOutCubic(t), 1), { complete: () => rear.scale.set(1, 1, 1) });
         }
         this.rebuildExterior(true);
         w.audio.play('clunk');
@@ -834,6 +858,7 @@ export class TrainState {
     this.loco.setNight(w.stage.lighting.night);
 
     for (const view of this.views) view.animate(dt);
+    this.teaser.update(dt, this.couplingReady(), w.particles);
     this.tidyShoes();
     this.publishLamps();
     this.publishShadows();
@@ -1439,8 +1464,12 @@ export class TrainState {
     const moreToCome = MAX_CARRIAGES > this.types.length;
     w.map.rebuild(this.types, w.journey.doorsOpen, moreToCome, this.tiers);
     // Visual overhaul: on a finished train the deck stays as its open end (not walkable: the map has no deck).
-    this.deck.visible = moreToCome || NEW_LOOK;
-    this.deck.position.z = w.map.rearZ;
+    // Session 64: until then it is the coupling platform.
+    if (!this.coupling) {
+      this.bridge.visible = moreToCome;
+      this.deck.visible = !moreToCome && NEW_LOOK;
+    }
+    this.bridge.position.z = this.deck.position.z = w.map.rearZ;
     if (!this.coupling) this.placeTeaser();
     CarriageView.shadowEpoch++;
     w.station?.onTrainChanged();

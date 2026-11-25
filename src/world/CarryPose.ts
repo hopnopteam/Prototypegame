@@ -106,11 +106,12 @@ export class Clearance {
   }
 
   /** Adds a mesh's vertices (in its own space) moved by `matrix` into body space. */
-  add(geometry: THREE.BufferGeometry, matrix: THREE.Matrix4, front = true, wide = true): this {
+  add(geometry: THREE.BufferGeometry, matrix: THREE.Matrix4, front = true, wide = true, skip?: (v: THREE.Vector3) => boolean): this {
     const p = geometry.getAttribute('position');
     const v = new THREE.Vector3();
     for (let i = 0; i < p.count; i++) {
       v.fromBufferAttribute(p, i).applyMatrix4(matrix);
+      if (skip?.(v)) continue;
       const b = Math.floor(v.y / CLEAR_BIN);
       if (b < 0 || b >= BINS) continue;
       if (front && v.z > this.front[b]) this.front[b] = v.z;
