@@ -8,7 +8,7 @@ import { LIGHT_UNIFORMS, MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, moodBubbleTexture, type BubbleStyle, type Mood } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
-import { GRIP, TORSO_DEPTH, torsoRadius, addApron, pantsCloth, topCloth, wearing, addHat, addHead, addStrap, addTorso, apronFlapGeometry, coatHalfGeometry, COAT_PIVOT_Y, hairPieceGeometry, HAIR_PIVOT, skirtGeometry, WAIST_Y, warmSkin, type FeltHat, ELBOW_Y, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, hipX, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, occludeBody, occludeHead, shinGeometry, shoulderX, SHOULDER_Y, thighGeometry, upperArmGeometry, type Build, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
+import { FIGURE_SHAPE, headPoint, narrowBody, GRIP, TORSO_DEPTH, torsoRadius, addApron, pantsCloth, topCloth, wearing, addHat, addHead, addStrap, addTorso, apronFlapGeometry, coatHalfGeometry, COAT_PIVOT_Y, hairPieceGeometry, HAIR_PIVOT, skirtGeometry, WAIST_Y, warmSkin, type FeltHat, ELBOW_Y, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, hipX, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, occludeBody, occludeHead, shinGeometry, shoulderX, SHOULDER_Y, thighGeometry, upperArmGeometry, type Build, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
 import { underPopup } from './screenMask';
 import { ON_TRAY } from './ItemMeshes';
 import { BONE_GEOMETRY, type CharacterBatch } from './CharacterBatch';
@@ -79,8 +79,10 @@ const RIDE_ARM = -1.05;
  * The toy walk and run (CHARACTER_SPEC §8): thigh swing each way, the passing knee's fold, the arm swing and the
  * elbow's bend, the bob, the roll over the stance foot, the hip twist and the forward lean.
  */
-const WALK = { stride: 0.45, knee: 0.62, arm: 0.78, elbow: 0.4, bob: 0.035, sway: 0.06, twist: 0.1, lean: 0.06 };
-const RUN = { stride: 0.8, knee: 1.1, arm: 0.88, elbow: 1.2, bob: 0.07, sway: 0.04, twist: 0.14, lean: 0.16 };
+// Session 65 (owner: "too cute… more highly polished"): an adult's calm walk, not a toy's bounce: a shorter arm swing,
+// a small bob without a kink, less roll and twist.
+const WALK = { stride: 0.42, knee: 0.56, arm: 0.6, elbow: 0.32, bob: 0.02, sway: 0.032, twist: 0.07, lean: 0.045 };
+const RUN = { stride: 0.76, knee: 1.05, arm: 0.82, elbow: 1.15, bob: 0.05, sway: 0.03, twist: 0.11, lean: 0.14 };
 /** Session 64: the quickest walking cadence (phase radians a second) when the figure may not run. */
 const WALK_MAX_PACE = 11.5;
 /** How quickly a turn eases round (rad/s of the remaining angle): quick, never a snap. */
@@ -187,6 +189,8 @@ function headGeometry(look: CharacterLook): THREE.BufferGeometry {
   }
   const head = b.build();
   head.translate(0, -NECK_Y, 0);
+  // Session 65: the head smaller about the neck (FIGURE_SHAPE.head), the figure about 3.5 heads tall.
+  head.scale(FIGURE_SHAPE.head, FIGURE_SHAPE.head, FIGURE_SHAPE.head);
   const welds = welded(occludeHead(head, figureOf(look).build));
   headCache.set(key, welds);
   return welds;
@@ -263,7 +267,8 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
     default:
       break;
   }
-  const geometry = welded(occludeBody(b.build(), f.build));
+  // Session 65: the body and everything worn on it narrowed (FIGURE_SHAPE.body); heights as built.
+  const geometry = welded(narrowBody(occludeBody(b.build(), f.build)));
   bodyCache.set(key, geometry);
   return geometry;
 }
@@ -290,6 +295,9 @@ function clothPieces(look: CharacterLook): ClothSpec[] {
     let g = clothCache.get(key);
     if (!g) {
       g = welded(make());
+      // Session 65: the pieces hung from the waist narrowed like the body, the hair made smaller like the head.
+      if (key.startsWith('hair:')) g.scale(FIGURE_SHAPE.head, FIGURE_SHAPE.head, FIGURE_SHAPE.head);
+      else narrowBody(g, key.startsWith('coat:') ? COAT_PIVOT_Y : WAIST_Y, CLOTH_FLOOR);
       clothCache.set(key, g);
     }
     return g;
@@ -309,7 +317,8 @@ function clothPieces(look: CharacterLook): ClothSpec[] {
     const g = cached(`hair:${hair}:${f.hair}:${f.skin}:${f.top}`, () => hairPieceGeometry(f)!);
     const p = HAIR_PIVOT[hair];
     // Head space is the neck pivot's: the head's centre sits HEAD_Y − NECK_Y above it.
-    out.push({ kind: 'hair', at: [p[0], p[1] + HEAD_Y - NECK_Y, p[2]], side: 0, geometry: g });
+    const k = FIGURE_SHAPE.head;
+    out.push({ kind: 'hair', at: [p[0] * k, (p[1] + HEAD_Y - NECK_Y) * k, p[2] * k], side: 0, geometry: g });
   }
   return out;
 }
@@ -442,6 +451,8 @@ const DRESS_STRIDE = { walk: 0.82, run: 0.58, kick: 0.45 };
 const COAT_STRIDE = { walk: 0.9, run: 0.62, kick: 0.5 };
 const APRON_STRIDE = { walk: 0.95, run: 0.82, kick: 0.65 };
 const MAX_FLARE = 1.3;
+/** Session 65: hanging cloth narrows no further than this (the legs narrow by about the limbs' factor). */
+const CLOTH_FLOOR = 0.8;
 const cv = new THREE.Vector3();
 /** What `containLegs` found this frame. */
 const contain = { scale: 1, swing: 0 };
@@ -618,16 +629,20 @@ const MOTION_SECONDS: Record<Motion, { pickup: number; place: number }> = {
 const HOLD_Y = 0.66;
 const STACK_GAP = 0.014;
 /** The grip below the stack's bottom (a palm-up mitten's half-thickness) and in from its back edge. */
-const PALM_UNDER = 0.047;
-const GRIP_IN = 0.07;
+const PALM_UNDER = 0.05;
+const GRIP_IN = 0.028;
 const GRIP_SPREAD = 0.15;
 /** Beyond this from the shoulder the stack is lifted closer (an arm a little short of straight). */
-const REACH = 0.285;
+/** Session 65: the arm's full reach from the shoulder pivot to the grip (shorter with the smaller hand). */
+const ARM_REACH = -ELBOW_Y + Math.hypot(GRIP[1], GRIP[2]);
+/** The old figure's reach (0.298), against which the heights below were tuned. */
+const REACH_SHORTER = 0.298 - ARM_REACH;
+const REACH = ARM_REACH - 0.013;
 /** A stack whose top rises past here is in front of the face: it steps out and the head peeks round it. */
 const PEEK_Y = 0.84;
 const PEEK_YAW = 0.52;
 /** A bag hangs from the hand at this height, this clear of whatever is beside it (legs, a skirt, a coat). */
-const BAG_GRIP_Y = 0.47;
+const BAG_GRIP_Y = 0.47 + REACH_SHORTER;
 const BAG_GAP = 0.016;
 const BAG_MIN_X = 0.29;
 /** The hand on a box on the shoulder (Station's SUPPLY_BOX_AT): against its front face. */
@@ -636,8 +651,8 @@ const POLE_FRONT = [new THREE.Vector3(-0.75, -0.5, -0.45), new THREE.Vector3(0.7
 const POLE_BAG = [new THREE.Vector3(-0.25, 0.1, -1), new THREE.Vector3(0.25, 0.1, -1)];
 const POLE_BOX = new THREE.Vector3(0.6, -0.8, -0.2);
 /** Where a cup is drunk from and a phone is held (body space): the mouth's and the ear's height, how far out of them. */
-const MOUTH_Y = HEAD_Y - 0.11;
-const EAR_Y = HEAD_Y - 0.01;
+const MOUTH_Y = headPoint(HEAD_Y - 0.11);
+const EAR_Y = headPoint(HEAD_Y - 0.01);
 const CUP_OUT = 0.075;
 const PHONE_OUT = 0.05;
 const SIP_POLE = new THREE.Vector3(0.7, -0.7, -0.1);
@@ -952,6 +967,7 @@ export class CharacterView {
       }
       c.spec = spec;
       c.mesh.geometry = spec.geometry;
+      c.mesh.visible = spec.kind === 'hair' || this.pose !== 'sleep';
       c.pivot.position.set(...spec.at);
       (spec.kind === 'hair' ? this.head : this.body).add(c.pivot);
     });
@@ -1674,12 +1690,13 @@ export class CharacterView {
     const sx = this.arms[1].position.x;
     const swinging = this.cloth.some((cl) => cl.spec.kind !== 'hair');
     // How thick the sleeve is below the shoulder ball (a puffed short sleeve and its roll are thicker than a long one).
-    let upperR = 0.058;
+    let upperR = 0.058 * FIGURE_SHAPE.limb;
     const up = this.upperMeshes[1].geometry.getAttribute('position');
     for (let i = 0; i < up.count; i++) if (up.getY(i) < -0.07) upperR = Math.max(upperR, Math.hypot(up.getX(i), up.getZ(i)));
     this.upperR = upperR;
     // The arm down from the shoulder: the sleeve, the forearm, then the mitten (its thumb toward the body).
-    const parts: [number, number, number][] = [[0.11, 0.165, upperR], [0.165, 0.23, 0.054], [0.23, 0.335, 0.061]];
+    const L = FIGURE_SHAPE.limb;
+    const parts: [number, number, number][] = [[0.11, 0.165, upperR], [0.165, 0.23, 0.054 * L], [0.23, -HAND_Y, 0.061 * FIGURE_SHAPE.hand]];
     for (let a = 0.08; a <= 0.6; a += 0.01) {
       let ok = true;
       for (const [l0, l1, r] of parts) {
@@ -2054,7 +2071,8 @@ export class CharacterView {
       if (!this.eyelids) {
         this.eyelids = new THREE.Mesh(eyelidGeometryFor(skinOf(this.look)), MATERIALS.character);
         this.eyelids.userData.shared = true;
-        this.eyelids.position.y = -NECK_Y;
+        this.eyelids.position.y = -NECK_Y * FIGURE_SHAPE.head;
+        this.eyelids.scale.setScalar(FIGURE_SHAPE.head);
         this.head.add(this.eyelids);
       }
     } else if (pose === 'sit') {
@@ -2066,6 +2084,8 @@ export class CharacterView {
       this.body.position.set(0, LOUNGE_HIP - HIP_Y * Math.cos(a), HIP_Y * Math.sin(a));
     }
     if (this.blanket) this.blanket.visible = pose === 'sleep';
+    // Under the blanket a skirt, coat tail or apron would poke through it: it is not drawn there.
+    for (const c of this.cloth) if (c.spec.kind !== 'hair') c.mesh.visible = pose !== 'sleep';
     if (this.eyelids) this.eyelids.visible = pose === 'sleep';
     if (this.bubble) this.bubble.position.z = this.bubbleZ;
   }
@@ -2266,7 +2286,7 @@ export class CharacterView {
     // The bounce: up as the legs pass (twice a cycle), a slow breath while standing. A tall stack makes the walker
     // lean back to balance it.
     const bob = (WALK.bob + (RUN.bob - WALK.bob) * run) * amount;
-    this.body.position.y = Math.abs(c) * bob + (1 - Math.min(1, swing / 0.2)) * Math.sin(this.phase) * 0.006;
+    this.body.position.y = c * c * bob + (1 - Math.min(1, swing / 0.2)) * Math.sin(this.phase) * 0.006;
     const balance = this.carrying ? -Math.min(0.09, Math.max(0, this.stackCount - 2) * 0.02) : 0;
     const lean = moving ? WALK.lean + (RUN.lean - WALK.lean) * run : 0;
     this.leanNow += (lean + balance - this.leanNow) * Math.min(1, dt * 8);

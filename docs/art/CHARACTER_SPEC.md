@@ -286,3 +286,35 @@ test passes with zero clips. Visual only: the pacing simulator is unchanged by i
 Walking speed (session 64, owner: "no running animations until we get the upgrade for movement"): the conductor walks
 at every speed until a pair of shoes or a Rail Miles speed level is bought (`CharacterView.runGait`, the stride rate
 capped at `WALK_MAX_PACE`).
+
+## 15. Session 65: slim, less cute, calmer
+
+Owner: "looks extremely AI generated… weirdly fat and they are too cute. Make them better, more highly polished"; the
+style chosen: slim stylised, about 3.5 heads (My Perfect Hotel's people, not toys). Every height stays as it was
+(bubbles, stacks, seats, beds and the scooter keep their places): the parts are still built where §1–14 put them, then
+reshaped (`FIGURE_SHAPE` in `CharacterParts.ts`):
+
+| | Before | Now |
+|---|---|---|
+| Head (scaled about the neck) | 1 | 0.82 |
+| Body width, waist (y ≤ 0.5) | 1 | 0.68 |
+| Body width, shoulders (y ≥ 0.72) | 1 | 0.82 (a smoothstep between: the torso tapers) |
+| Limb radii, rolls, socks | 1 | 0.75 |
+| Hands | 1 | 0.76 |
+| Shoes | 1 | 0.8 |
+| Hanging cloth (skirt, coat tails, apron) | 1 | the body's width, never under 0.8 (`CLOTH_FLOOR`: the legs narrow less) |
+
+- `narrowBody(geometry, y0, floor)` narrows x and z by `bodyWidth(y)` (normals by the inverse); the torso, the cloth
+  pieces and the conductor's chest charms go through it, the head through `headPoint`.
+- The face is plain: no blush, small dark eyes (`EYE_R` 0.022, set a little closer, `EYE_X` 0.074), slim brows a
+  shade of the hair, a small nose (0.027), a small mouth close to the skin, thin dark spectacle frames.
+- The shoulders: the arm sits 3.6 cm × limb out of the narrowed torso and its cap is half a dome (`SHOULDER_DOME`
+  0.5), so the sleeve meets the shoulder instead of standing up beside it.
+- Carrying with the smaller hand: the palm 5 cm under the stack (`PALM_UNDER`) and 2.8 cm in from its back edge
+  (`GRIP_IN`, was 7 cm), so the forearm leaves the tray or bag at once; the arm's reach is measured from the new hand
+  (`ARM_REACH`, `REACH`, `BAG_GRIP_Y`).
+- The walk is an adult's (`WALK`, `RUN`): an arm swing of 0.6 (was 0.78), a 2 cm bob (3.5) that rises smoothly as the
+  legs pass (`c²`, no kink at the bottom), less roll (0.032) and twist (0.07), a little less lean.
+- Asleep, a skirt, coat tail or apron is not drawn under the blanket (it poked through it).
+
+The clip test passes with zero clips (quick and full). Visual only: the pacing simulator is byte-identical.

@@ -170,6 +170,25 @@ const turn = params.get('turn') === '1';
 const fixed = Number(params.get('dt') ?? '0');
 /** Captures step the figures themselves (`__step`), one call per video frame; the page only draws. */
 const manual = params.get('manual') === '1';
+/**
+ * Session 65, a proportion mock for the owner (`?prop=head,body,limb,leg`): the head scaled about the neck, the torso
+ * and the upper limbs thinned, the legs lengthened (the figure lifted to keep its feet on the floor). Studio only.
+ */
+const prop = (params.get('prop') ?? '').split(',').map(Number);
+function mockProportions(): void {
+  if (prop.length < 4 || prop.some((n) => !Number.isFinite(n))) return;
+  const [hs, bw, lw, ll] = prop;
+  for (const v of views) {
+    const a = v as unknown as { head: THREE.Object3D; bodyMesh: THREE.Mesh; legs: THREE.Object3D[]; upperMeshes: THREE.Mesh[]; thighMeshes: THREE.Mesh[]; foreMeshes: THREE.Mesh[]; shinMeshes: THREE.Mesh[]; cloth?: { pivot: THREE.Object3D }[] };
+    a.head.scale.setScalar(hs);
+    a.bodyMesh.scale.set(bw, 1, bw);
+    for (const m of [...a.upperMeshes, ...a.thighMeshes]) m.scale.set(lw, 1, lw);
+    for (const m of a.foreMeshes) m.scale.set(Math.min(1, lw * 1.08), 1, Math.min(1, lw * 1.08));
+    for (const leg of a.legs) leg.scale.set(1, ll, 1);
+    v.root.position.y = (ll - 1) * 0.42;
+  }
+}
+
 function frame(now: number): void {
   const dt = fixed || Math.min(0.05, (now - last) / 1000);
   last = now;
@@ -193,6 +212,7 @@ function frame(now: number): void {
   const dist = (span / (2 * Math.tan((fov * Math.PI) / 360))) / zoom;
   cam.position.set(Math.sin(yaw) * Math.cos(pitch) * dist, 0.62 + Math.sin(pitch) * dist, Math.cos(yaw) * Math.cos(pitch) * dist);
   cam.lookAt(0, 0.62, 0);
+  mockProportions();
   batch?.recordPoses();
   batch?.sync(cam, 1);
   stage.render(dt);
