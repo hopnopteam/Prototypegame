@@ -293,8 +293,10 @@ vec3 nxSky(vec3 r, float rough) {
   vec3 sky = mix(uNxSkyHorizon, uNxSkyZenith, smoothstep(0.05, 0.85, up));
   sky = mix(uNxSkyGround, sky, smoothstep(-0.25, 0.04, up));
   vec3 avg = (uNxSkyZenith + uNxSkyHorizon * 2.0 + uNxSkyGround) * 0.25;
-  float shine = mix(900.0, 6.0, rough);
-  float glint = pow(max(dot(r, uNxMoonDir), 0.0), shine) * (shine + 2.0) * 0.012;
+  // Owner (25 Nov: "reflecting stuff for no reason sometimes"): a pin-sharp glint (exponent 900) on a small polished
+  // face lit a pixel or two that popped on and off as the camera moved (no MSAA on any tier). A broader, softer lobe.
+  float shine = mix(140.0, 6.0, rough);
+  float glint = pow(max(dot(r, uNxMoonDir), 0.0), shine) * (shine + 2.0) * 0.008;
   return mix(sky, avg, rough * rough) + uNxMoonColor * glint;
 }
 vec4 nxSurface() {
@@ -323,6 +325,12 @@ const HIGHLIGHT_FILL = 0.08;
 /** How much of their own colour people give off (session 38, owner: "a weird opacity issue with the player and character models"): at night they were lit like the floor and their edges melted into it. */
 const FIGURE_LIFT = NEW_LOOK ? FIGURE_RIM.lift : 0.16;
 /** The brightest a specular highlight may get (linear), kept under the bloom threshold. */
+/**
+ * The smoothest any surface is lit (owner, 25 Nov: "flickering… they keep reflecting stuff"): glass, marble and ceramic
+ * at their own roughness (0.06–0.2) made pin-point sun highlights that sparkled on and off as the camera moved. Window
+ * panes have their own material and keep their gleam.
+ */
+const MIN_ROUGHNESS = 0.32;
 const SPECULAR_MAX = Math.min(0.9, VISUALS.night.bloom.threshold * 0.9);
 
 const LIT_LIGHTS = /* glsl */ `
@@ -418,7 +426,7 @@ const LITE_VERTEX_BODY = /* glsl */ `
   #else
   vec4 nxSurf = uNxFixedSurface;
   #endif
-  float nxRough = 1.0 - nxSurf.x;
+  float nxRough = max(1.0 - nxSurf.x, ${MIN_ROUGHNESS.toFixed(2)});
   vec3 nxNv = normalize(transformedNormal);
   vec3 nxMoon = vec3(0.0);
   float nxSpec = 0.0;
@@ -453,7 +461,7 @@ const LITE_VERTEX_BODY = /* glsl */ `
   vNxRest = nxRest;
   // The night sky the surface reflects (fresnel-weighted; tinted by F0 per pixel).
   float nxFres = pow(1.0 - max(dot(nxNw, nxVw), 0.0), 5.0);
-  vNxEnv = nxSkyV(reflect(-nxVw, nxNw), nxRough) * uNxSkyAmount * (nxSurf.x * nxSurf.x) * (0.25 + 0.75 * nxFres + nxSurf.y);
+  vNxEnv = nxSkyV(reflect(-nxVw, nxNw), nxRough) * uNxSkyAmount * ((1.0 - nxRough) * (1.0 - nxRough)) * (0.25 + 0.75 * nxFres + nxSurf.y);
 }
 `;
 
@@ -630,7 +638,7 @@ function patchLit(material: THREE.MeshStandardMaterial, options: LitOptions): vo
       fs = PATTERN_FRAGMENT_HEAD + fs.replace('#include <color_fragment>', PATTERN_FRAGMENT_BODY);
     }
     fs = fs
-      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = 1.0 - nxSurface().x;')
+      .replace('#include <roughnessmap_fragment>', `float roughnessFactor = max(1.0 - nxSurface().x, ${MIN_ROUGHNESS.toFixed(2)});`)
       .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = nxSurface().y;')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * nxSurface().z * uNxGlow;');
     if (lite) {

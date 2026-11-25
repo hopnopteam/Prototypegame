@@ -208,6 +208,12 @@ export const VISUALS = {
    * room's light, through the room dimmer: one small texture upload), and dust motes hang in the air round the conductor.
    */
   broken: {
+    /**
+     * Whether the room's light dips now and then (owner, 25 Nov: "lighting and flickering issues in spa and pool…
+     * fix that glitch": a Broken carriage's whole floor dimming read as a rendering fault, not a faulty bulb). Off; the
+     * dust motes, peeling paint and cracked panes still tell the story.
+     */
+    flicker: false,
     /** Seconds between flickers (a random pick in this range per carriage). */
     flickerEvery: [3, 8] as [number, number],
     /** The light's level at the bottom of each dip (1 is full). */

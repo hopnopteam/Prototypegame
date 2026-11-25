@@ -1,5 +1,6 @@
 import { iconFor } from '../config/itemIcons';
 import * as THREE from 'three';
+import { VENUES } from '../config/venues';
 import { ARCHETYPES, CARRIAGE_CATALOGUE, COMMON_MESS, FAMILY_REQUESTS, HONEYMOON_REQUESTS, ROUTE_ARCHETYPES, type ArchetypeDef, type ArchetypeId, type MessPiece } from '../config/content';
 import { CLASS_BY_ID, isDwellNeed, type ClassId, type ServiceNeed } from '../config/classes';
 import { CROWD, IDLES, type IdleAction } from '../config/crowd';
@@ -72,6 +73,10 @@ const WALKING_STATES: ReadonlySet<GuestState> = new Set<GuestState>(['boarding',
 const LOST_WALK_SECONDS = 4;
 /** A routine wash is skipped (a venue instead) once the least busy washroom has this many using or waiting. */
 const ROUTINE_WASH_QUEUE = 2;
+/** With a Kids' Play Car aboard: how much a family weighs in a class it does not normally book (a family archetype's own weight times this). */
+const FAMILY_ANY_CLASS = 0.8;
+/** With a free corner in the play car: the share of day riders who come as a family. */
+const DAY_RIDER_FAMILY = 0.35;
 
 /** Longest a missed traveller stomps toward the station house before slipping away (fix list 4.1). */
 const STORM_OFF_SECONDS = 7;
@@ -392,7 +397,11 @@ export class Guests {
   spawnDayRider(cls: ClassId): Guest {
     const w = this.w;
     const start = PLATFORM.houseDoor;
-    const guest = this.create(this.pickArchetype(cls), start.x, start.z);
+    // Owner (25 Nov): some day riders are families out for the day, bound for the play car while it has a free corner.
+    const play = w.venues.list.find((v) => VENUES[v.kind].families && v.freeSeat());
+    const families = ROUTE_ARCHETYPES.filter((a) => a.accessory === 'child' && a.weight > 0);
+    const family = play && families.length && w.rng.chance(DAY_RIDER_FAMILY) ? w.rng.pick(families).id : undefined;
+    const guest = this.create(this.pickArchetype(cls, family), start.x, start.z);
     guest.cls = cls;
     guest.dayRider = true;
     guest.outside = true;
@@ -2185,9 +2194,18 @@ export class Guests {
     const vipBoost = (1 + this.w.stationPerks().vip) * ratingEffect(this.w.trainRating(), r.low, r.high);
     // Phase 4: who travels on this route (`ROUTE_ARCHETYPES`: the Riviera's surfers and sunbathers).
     for (const a of ROUTE_ARCHETYPES) if (a.cls === cls && a.weight > 0) weights[a.id] = a.id === 'vip' || a.id === 'celebrity' ? a.weight * vipBoost : a.weight;
+    // Owner (25 Nov: "I never see any kids playing in the play area"): families only travelled Basic and Comfort, and
+    // the Kids' Play Car comes late, when most rooms are a grander class, so it had nobody to play in it. Once the
+    // train has a play car, families book every class.
+    if (this.playCarAboard()) for (const a of ROUTE_ARCHETYPES) if (a.accessory === 'child' && a.weight > 0 && !(a.id in weights)) weights[a.id] = a.weight * FAMILY_ANY_CLASS;
     if (Object.keys(weights).length === 0) for (const a of ARCHETYPES) if (a.cls === cls) weights[a.id] = a.weight;
     const id = this.w.rng.weighted(weights);
     return ARCHETYPES.find((a) => a.id === id) ?? ARCHETYPES[0];
+  }
+
+  /** Whether the train has a Kids' Play Car (families then travel in every class, and some day riders bring a child). */
+  private playCarAboard(): boolean {
+    return !!this.w.venues?.list.some((v) => VENUES[v.kind].families);
   }
 
   private create(archetype: ArchetypeDef, x: number, z: number): Guest {

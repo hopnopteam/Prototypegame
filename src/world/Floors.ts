@@ -613,7 +613,8 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
         // The spa's pale stone flags in a darker border.
         lay([
           { color: '#9A9283', inset: 0 },
-          { color: '#E2DBCB', inset: 0.06, pattern: { pattern: PATTERN.none, shade: 1, surface: 'stone', detail: 'paving' } },
+          // Clean flags in close tones (owner, 25 Nov: the paving photo's stains read as dark smudges of light).
+          { color: '#E6DFD0', inset: 0.06, pattern: { pattern: PATTERN.checker, color2: '#DDD5C4', scale: 0.55, shade: 1, surface: 'stone' } },
         ]);
         break;
       case 'sandfloor':

@@ -2,9 +2,20 @@ import { VISUALS } from '../config/visuals';
 import { windowSpacing } from './CarriageView';
 import type { LampAnchor } from './Lighting';
 import type { BakeInput, BakeOccluder, BakeRect, BakeRoom, BakeSpill, Rgb } from './lightBake';
-import { CARRIAGE_LENGTH, GANGWAY_HALF, GANGWAY_LENGTH, HALF_WIDTH, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0, REAR_DECK_LENGTH, type CarriageLayout } from './layout';
+import { CARRIAGE_LENGTH, GANGWAY_HALF, GANGWAY_LENGTH, HALF_WIDTH, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0, REAR_DECK_LENGTH, type CarriageLayout, type PropDef } from './layout';
 
 /** A carriage as the light bake needs it. */
+/**
+ * Pieces that lie flat on the floor or hang on a wall cast no contact shading (owner, 25 Nov: "lighting issues in spa
+ * and pool": the Spa's stepping-stone path, a strip down the aisle, shaded the floor either side of it into two dark
+ * bands). Rugs, paths, towels on the sand, string lights, signs and boards.
+ */
+const FLAT_DECOR = new Set(['path', 'lights', 'towel', 'towelB', 'stream', 'sign', 'menu']);
+function flatDecor(p: PropDef): boolean {
+  if (p.kind === 'wallBoard') return true;
+  return (p.kind === 'spaDecor' || p.kind === 'beachDecor' || p.kind === 'barDecor') && FLAT_DECOR.has(p.variant ?? '');
+}
+
 export interface LitCarriage {
   layout: CarriageLayout;
   originZ: number;
@@ -56,7 +67,7 @@ export function trainLightInput(cars: readonly LitCarriage[]): BakeInput {
       lamps.push({ x: lamp.x, z: lamp.z, strength: lamp.strength * L.lamp.intensity * tierK * (mood?.lampK ?? 1), radius: lamp.radius ?? L.lamp.radius, color: linearColor(lampColor) });
     }
     for (const w of car.layout.walls) occluders.push({ rect: offset(w, car.originZ), strength: ao.wall, reach: ao.wallReach });
-    for (const p of car.layout.props) occluders.push({ rect: offset(p.rect, car.originZ), strength: ao.prop, reach: ao.propReach });
+    for (const p of car.layout.props) if (!flatDecor(p)) occluders.push({ rect: offset(p.rect, car.originZ), strength: ao.prop, reach: ao.propReach });
     // The hull shades the ground and platform edge outside it.
     occluders.push({ rect: { x0: -HALF_WIDTH, z0: car.originZ, x1: HALF_WIDTH, z1: car.originZ + CARRIAGE_LENGTH }, strength: ao.hull, reach: ao.hullReach });
     // The gangway to the next carriage (or the rear deck).
@@ -89,7 +100,7 @@ export function trainLightInput(cars: readonly LitCarriage[]): BakeInput {
   occluders.push({ rect: { x0: -1.55, z0: frontZ, x1: 1.55, z1: -GANGWAY_LENGTH }, strength: ao.hull, reach: ao.hullReach });
   if (cars.length > 0) {
     const deckZ = cars[cars.length - 1].originZ + CARRIAGE_LENGTH + GANGWAY_LENGTH * 0;
-    occluders.push({ rect: { x0: -1.3, z0: deckZ, x1: 1.3, z1: deckZ + REAR_DECK_LENGTH }, strength: ao.hull * 0.8, reach: ao.hullReach * 0.7 });
+    occluders.push({ rect: { x0: -HALF_WIDTH + 0.04, z0: deckZ, x1: HALF_WIDTH - 0.04, z1: deckZ + REAR_DECK_LENGTH }, strength: ao.hull * 0.8, reach: ao.hullReach * 0.7 });
   }
   return {
     box: { x0: -HALF_WIDTH - LAKE_REACH, z0: frontZ - 1.5, x1: HALF_WIDTH + PLATFORM_REACH, z1: rearZ + 1.5 },

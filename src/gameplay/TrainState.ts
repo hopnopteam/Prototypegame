@@ -795,7 +795,7 @@ export class TrainState {
       let level = 1;
       const t = now - (this.flickerAt[i] ?? -99);
       const [a, b, c] = cfg.flickerPattern;
-      if (t >= 0 && (t < a || (t >= a + b && t < a + b + c))) level = cfg.flickerDip;
+      if (cfg.flicker && t >= 0 && (t < a || (t >= a + b && t < a + b + c))) level = cfg.flickerDip;
       const oz = carriageOriginZ(i);
       w.stage?.dimmer.set(key, -HALF_WIDTH, oz, HALF_WIDTH, oz + CARRIAGE_LENGTH, level);
     }
