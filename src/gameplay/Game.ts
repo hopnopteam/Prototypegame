@@ -1011,7 +1011,9 @@ export class Game implements World {
     let t = this.dayCycleOverride ?? (holdNight ? NIGHT_TIME : ((j.legsCompleted + fraction) / legs + 0.08) % 1);
     // Phase 1, the route's lighting preset: the Countryside Express opens each session at golden hour and fades into the
     // blue night over its first minutes of play, the lamps on the train coming on as it darkens (`setNightAmount`).
-    if (this.dayCycleOverride === null && NEW_LOOK) t = LOOK_ROUTE_TIME[ACTIVE_ROUTE.id] ?? NIGHT_TIME;
+    // The new look holds a route at a point of the day only where it says so (the Riviera's golden hour).
+    const held = NEW_LOOK ? LOOK_ROUTE_TIME[ACTIVE_ROUTE.id] : undefined;
+    if (this.dayCycleOverride === null && held !== undefined) t = held;
     else if (this.dayCycleOverride === null && holdNight && ACTIVE_ROUTE.lighting !== 'night') {
       const [from, to] = LIGHTING_SPAN[ACTIVE_ROUTE.lighting];
       const f = Math.min(1, this.sessionSeconds / Math.max(1, ACTIVE_ROUTE.duskSeconds));

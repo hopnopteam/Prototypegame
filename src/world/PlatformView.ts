@@ -7,7 +7,7 @@ import { ACTIVE_ROUTE } from '../config/routes';
 /** The new look's night station dressing (wet flags, lamp pools) is for the routes held at night. */
 const NIGHT_STATION = ACTIVE_ROUTE.id !== 'riviera';
 import { BAYS, PLATFORM } from './platformLayout';
-import { ADD_GLOW, MATERIALS, PATTERN } from './materials';
+import { MATERIALS, PATTERN } from './materials';
 import { NEW_LOOK, WET_STONE } from '../config/look';
 import { VISUALS } from '../config/visuals';
 import { PALETTE } from './palette';
@@ -139,63 +139,6 @@ export class PlatformView {
   private propsMesh: THREE.Mesh | null = null;
   private deckMesh: THREE.Mesh | null = null;
   private lampMesh: THREE.Mesh | null = null;
-  /** Visual overhaul: each lamp's reflection on the wet flags, a soft streak running toward the camera. */
-  private wetMesh: THREE.Mesh | null = null;
-
-  /**
-   * Wet stone without real-time reflections (ART_BIBLE.md, "Fake the expensive things"): a lamp seen in wet stone shows
-   * as a soft vertical streak below it on screen. On the ground that streak runs from the lamp's foot toward the camera,
-   * so each lamp gets one additive decal laid along the camera's ground direction. One draw, no shader of its own.
-   */
-  private buildWetStreaks(anchors: readonly LampAnchor[]): void {
-    if (this.wetMesh) {
-      this.group.remove(this.wetMesh);
-      this.wetMesh.geometry.dispose();
-      this.wetMesh = null;
-    }
-    if (!anchors.length) return;
-    const yaw = (VISUALS.camera.trainYawDeg * Math.PI) / 180;
-    // Toward the camera along the ground (the camera stands on the +x, +z side of the train).
-    const dx = Math.sin(yaw);
-    const dz = Math.cos(yaw);
-    const L = WET_STONE.streakLength;
-    const planes: THREE.BufferGeometry[] = [];
-    for (const a of anchors) {
-      const g = new THREE.PlaneGeometry(WET_STONE.streakWidth, L);
-      g.rotateX(-Math.PI / 2);
-      g.rotateY(Math.atan2(dx, dz));
-      g.translate(a.x + 0.7 + dx * (L / 2 - 0.15), FLOOR_Y + 0.004, a.z + dz * (L / 2 - 0.15));
-      planes.push(g);
-    }
-    const material = (PlatformView.wetMaterial ??= new THREE.MeshBasicMaterial({
-      map: streakTexture(),
-      color: new THREE.Color('#FFB868').multiplyScalar(WET_STONE.streakStrength),
-      ...ADD_GLOW,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
-    }));
-    // Owner (24 Nov): "real lamp pools… strong, warm, like ref 1": a soft warm disc on the flags round each lamp's foot,
-    // added over the baked light (which fades out at the deck's own height), drawn in the same merged mesh.
-    const R = WET_STONE.poolRadius;
-    for (const a of anchors) {
-      const g = new THREE.PlaneGeometry(R * 2 * a.strength, R * 2 * a.strength);
-      g.rotateX(-Math.PI / 2);
-      g.translate(a.x + 0.35, FLOOR_Y + 0.007, a.z);
-      // The pool's uvs point at the right-hand half of the texture (the streak uses the left half).
-      const uv = g.getAttribute('uv') as THREE.BufferAttribute;
-      for (let i = 0; i < uv.count; i++) uv.setX(i, 0.5 + uv.getX(i) * 0.5);
-      planes.push(g);
-    }
-    for (const g of planes.slice(0, anchors.length)) {
-      const uv = g.getAttribute('uv') as THREE.BufferAttribute;
-      for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * 0.5);
-    }
-    this.wetMesh = new THREE.Mesh(mergePlanes(planes), material);
-    this.wetMesh.renderOrder = 1;
-    this.group.add(this.wetMesh);
-  }
-  private static wetMaterial: THREE.MeshBasicMaterial | undefined;
   private vendor: THREE.Group | null = null;
   private posters: THREE.Group | null = null;
   private readonly posterMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
@@ -549,7 +492,7 @@ export class PlatformView {
     block(standLamp.x, standLamp.z, LAMP_FOOT);
     anchors.push({ x: standLamp.x - 0.6, y: FLOOR_Y + 2.1, z: standLamp.z + 0.6, strength: 1 });
     // The desk lamp on the counter (new look): its own small pool round the stand.
-    if (NEW_LOOK) anchors.push({ x: (PLATFORM.counter.x0 + PLATFORM.counter.x1) / 2 - 0.12, y: FLOOR_Y + 1.3, z: PLATFORM.counter.z1 - 0.2, strength: 0.4 });
+    if (NEW_LOOK) anchors.push({ x: (PLATFORM.counter.x0 + PLATFORM.counter.x1) / 2 - 0.12, y: FLOOR_Y + 1.3, z: PLATFORM.counter.z1 - 0.2, strength: 0.18 });
     // Session 55: no lamp by the barrow any more (it stood between the camera and the bags, then in the walkway);
     // the railing's lamps and the ticket stand's light the work lane.
     props.endObject();
@@ -631,7 +574,6 @@ export class PlatformView {
     this.lampMesh = new THREE.Mesh(lampGeo, MATERIALS.lamps);
     this.group.add(this.lampMesh);
     // Wet stone and lamp pools are the night station's (ref 1); the Riviera's platforms stand in the sun.
-    if (NEW_LOOK && NIGHT_STATION) this.buildWetStreaks(anchors);
     if (supplyCarIndex !== null) {
       this.vendor = buildVendor(carriageOriginZ(supplyCarIndex));
       this.vendor.userData.object = 'platform:vendor';
@@ -1304,7 +1246,9 @@ function buildTicketStand(b: GeoBuilder, lamps: GeoBuilder, dz = 0, office = fal
     b.cylinder(lx, top + 0.17, lz, 0.012, 0.012, 0.3, PALETTE.brass, 8, 'y', { shade: 1, surface: 'brass' });
     b.endObject();
     lamps.object('platform:deskLamp~glow');
-    lamps.cylinder(lx, top + 0.33, lz, 0.06, 0.11, 0.12, PALETTE.lampShade, 12, 'y');
+    // Session 62: a smaller shade in a dimmer cream (on High and Ultra the full lamp glow bloomed into a white blot
+    // over the guests at the window).
+    lamps.cylinder(lx, top + 0.32, lz, 0.045, 0.085, 0.1, '#B98E62', 12, 'y');
     lamps.endObject();
   }
   // The "Tickets" board's post at the counter's front end (the board itself is a painted plane, see PlatformView); with
@@ -1605,32 +1549,3 @@ function buildForecourt(flat: GeoBuilder, b: GeoBuilder, lamps: GeoBuilder, x1: 
 }
 
 /** A lamp's reflection in wet stone: brightest at the lamp's end (the top of the texture), a long soft tail. */
-function streakTexture(): THREE.CanvasTexture {
-  // Left half: a lamp's streak on wet stone (bright at the lamp, long toward the camera). Right half: its pool of light.
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 128;
-  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, 256, 128);
-  ctx.save();
-  ctx.scale(4, 7);
-  const g = ctx.createRadialGradient(16, 2, 0, 16, 2, 16);
-  for (const [at, v] of [[0, 1], [0.2, 0.7], [0.55, 0.22], [1, 0]] as const) {
-    const b = Math.round(255 * v);
-    g.addColorStop(at, `rgb(${b},${b},${b})`);
-  }
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 32, 128 / 7);
-  ctx.restore();
-  const p = ctx.createRadialGradient(192, 64, 0, 192, 64, 62);
-  for (const [at, v] of WET_STONE.poolStops) {
-    const b = Math.round(255 * v);
-    p.addColorStop(at, `rgb(${b},${b},${b})`);
-  }
-  ctx.fillStyle = p;
-  ctx.fillRect(128, 0, 128, 128);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.NoColorSpace;
-  return t;
-}
