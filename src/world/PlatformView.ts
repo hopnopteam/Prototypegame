@@ -15,7 +15,7 @@ import { key, modelEntry, type Recolor } from './models/library';
 import { CharacterView, type CharacterAction, type CharacterLook } from './CharacterView';
 import { headlineTexture, posterTexture, signTexture } from './sprites';
 import { Strollers } from './Strollers';
-import { buildBookingOffice, buildFruitBarrow, buildShops, buildStationLife, buildTrainWorks, type Shop } from './StationShops';
+import { buildBookingOffice, buildFruitBarrow, buildShops, buildStationLife, buildTrainWorks, WORKS_SIGN_OUT, WORKS_SIGN_Y, type Shop } from './StationShops';
 import type { Rect } from '../core/types';
 import type { LampAnchor } from './Lighting';
 
@@ -94,6 +94,8 @@ const PERSON_FOOT = 0.22;
  * Session 56 (owner: "a shop, you stand on it, and it gives you train upgrades… it shows up on the train"): the Train
  * Works, a coachbuilder's workbench against the railing in the Smarten the Train bay, its tile in front of it.
  */
+/** Session 65: the Train Works board's width (its letters as big as the Tickets board's). */
+const WORKS_SIGN_WIDTH = 1.2;
 const WORKS_Z = (BAYS.smarten[0] + BAYS.smarten[1]) / 2;
 /**
  * Session 58 (owner: "make sure the train works… actually looks nice and does not look deformed… the name plate being
@@ -201,8 +203,9 @@ export class PlatformView {
 
     // Session 56: the Train Works' board, and its painter. Session 58: the board sits on the workshop's roof like the
     // booking office's, the painter behind the counter where the clerk stands in the booking office.
-    const works = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.32), new THREE.MeshLambertMaterial({ color: '#ffffff', map: signTexture('Train Works', '#2F5A47', PALETTE.creamBand) }));
-    works.position.set((WORKS.x0 + WORKS.x1) / 2 - 0.05, FLOOR_Y + 2.2, WORKS_Z);
+    // Session 65: the same board as "Tickets" (letters the same size, 0.3 m tall), on its post at the front end.
+    const works = new THREE.Mesh(new THREE.PlaneGeometry(WORKS_SIGN_WIDTH, 0.3), new THREE.MeshLambertMaterial({ color: '#ffffff', map: signTexture('Train Works', '#2F5A47', PALETTE.creamBand, Math.round((512 * WORKS_SIGN_WIDTH) / 0.92), 128) }));
+    works.position.set((WORKS.x0 + WORKS.x1) / 2, FLOOR_Y + WORKS_SIGN_Y, WORKS.z0 - WORKS_SIGN_OUT);
     faceCamera(works);
     works.name = 'worksSign';
     this.group.add(works);

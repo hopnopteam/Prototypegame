@@ -3,7 +3,6 @@ import type { GeoBuilder } from './geo';
 import { PLATFORM_X0 } from './layout';
 import { BAYS } from './platformLayout';
 import { PATTERN } from './materials';
-import { VISUALS } from '../config/visuals';
 import { PALETTE } from './palette';
 import { modelEntry, type ModelId, type Recolor } from './models/library';
 import type { CharacterLook } from './CharacterView';
@@ -119,19 +118,22 @@ function buildTicketKiosk(b: GeoBuilder, r: Rect, panel: string): void {
  * of gold lining, a sample window box in flower and a brass carriage lamp. Its painter stands behind the counter and its
  * board sits on the roof (PlatformView). `r` is the counter's rect.
  */
+/** How far in front of the workshop's front wall its board's post stands (the booking office's is 0.3). */
+export const WORKS_SIGN_OUT = 0.3;
+/** The board's centre over the floor: above the workshop's roof (taller than the booking office's), so the camera sees it. */
+export const WORKS_SIGN_Y = 2.3;
+
 export function buildTrainWorks(b: GeoBuilder, r: Rect): void {
   const y = FLOOR_Y;
   const z = (r.z0 + r.z1) / 2;
   const cx = (r.x0 + r.x1) / 2;
   buildBookingOffice(b, r, '#2F5A47', '#3B4A40');
-  // The board's two posts on the roof (the board, turned to the camera, is a painted plane: PlatformView).
-  b.object('platform:worksSignPosts');
-  const yaw = (VISUALS.camera.trainYawDeg * Math.PI) / 180;
-  for (const side of [-0.5, 0.5]) {
-    const px = cx - 0.05 + Math.cos(yaw) * side;
-    const pz = z - Math.sin(yaw) * side;
-    b.cylinder(px, y + 1.95, pz, 0.022, 0.022, 0.3, '#2F5A47', 8, 'y', { shade: 0.9 });
-  }
+  // Session 65 (owner: "the way 'train works' is written is still super off, make it look like Tickets"): the board
+  // stands on one slim post at the workshop's front end, as the booking office's "Tickets" does (the board itself is a
+  // painted plane turned to the camera: PlatformView).
+  b.object('platform:worksSignPost');
+  b.cylinder(cx, y + WORKS_SIGN_Y / 2 + 0.08, r.z0 - WORKS_SIGN_OUT, 0.026, 0.03, WORKS_SIGN_Y + 0.16, '#2F5A47', 8, 'y', { shade: 0.9 });
+  b.box(cx, y + WORKS_SIGN_Y + 0.18, r.z0 - WORKS_SIGN_OUT, 0.06, 0.04, 0.06, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
   b.endObject();
   b.object('platform:worksCounter');
   b.model('counter', cx, y, z, Math.PI / 2, 0.8, 0.98, (r.x1 - r.x0) / 1.5, { surface: 'varnish', shade: 0.85 });
