@@ -107,6 +107,7 @@ const FRAME_WORK_MS = 2.5;
 const LOADING_WORK_MS = 40;
 export { SAVE_KEY } from '../config/saveKey';
 import { FABLE, FABLE_CLOCK } from '../config/fable';
+import { Sunrise } from './Sunrise';
 export { SIM_STEP } from '../sim/stepClock';
 /** Where in the day cycle the held night sits (the middle of the night key). */
 const NIGHT_TIME = 0.82;
@@ -193,6 +194,7 @@ export class Game implements World {
   /** Phase 4: moving along the line (the route completed, the next one opened). */
   readonly routeLine: RouteLine;
   readonly rush: Rush;
+  readonly sunrise: Sunrise;
   readonly handWork: HandWork;
   readonly objectives: Objectives;
   readonly feedback: Feedback;
@@ -388,6 +390,7 @@ export class Game implements World {
     this.press = new Press(this, ui);
     this.routeLine = new RouteLine(this);
     this.rush = new Rush(this);
+    this.sunrise = new Sunrise(this);
     this.handWork = new HandWork(this);
     this.objectives = new Objectives(this);
     this.feedback = new Feedback(this);
@@ -785,6 +788,7 @@ export class Game implements World {
     this.press.update(dt);
     this.routeLine.update(dt);
     this.rush.update(dt);
+    this.sunrise.update();
     this.objectives.update(dt);
     this.feedback.update(dt);
     this.save.update(dt);

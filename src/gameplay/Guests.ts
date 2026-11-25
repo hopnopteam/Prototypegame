@@ -21,6 +21,7 @@ import type { Zone } from './Zones';
 import type { Outing } from './Venues';
 import type { VenueKind } from '../core/types';
 import { guestReview, ratingEffect } from '../sim/stationResult';
+import { FABLE, FABLE_PLAY } from '../config/fable';
 import { guestLook, routeLook } from './guestLook';
 
 /** Phase 4: the archetypes whose rooms are their own (a family's cabin, a honeymoon couple's suite). */
@@ -2050,6 +2051,11 @@ export class Guests {
     const stars = guestReview(guest.unmet, guest.grumpy, guest.lateServed, w.econ.rating.review);
     w.addReview(stars);
     w.events.emit('guest.reviewed', { stars, guest: guest.id });
+    // The Fable Experiment: the review is shown as it is left (the first star is the float's own icon).
+    if (FABLE && FABLE_PLAY.reviewStars) {
+      const shown = Math.max(1, Math.min(5, Math.round(stars)));
+      w.ui.floatText('★'.repeat(shown - 1) + '☆'.repeat(5 - shown), guest.pos.x, FLOOR_Y + 2.3, guest.pos.z, stars >= 3 ? 'star' : 'miss');
+    }
   }
 
   /** Their stop has come and the doors are open. */

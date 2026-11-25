@@ -1147,3 +1147,10 @@ body.look-new .trainmap .car { background: linear-gradient(#FFE58A, var(--nl-gol
 body.look-new .trainmap .car.here { box-shadow: 0 3px 0 #9A6A16, inset 0 0 0 2.5px #FFFFFF, inset 0 2px 0 rgba(255, 255, 255, 0.7); }
 body.look-new .trainmap { background: linear-gradient(rgba(29, 47, 82, 0.92), rgba(19, 31, 58, 0.95)); border-color: #0E1730; box-shadow: 0 4px 10px rgba(5, 8, 20, 0.45), inset 0 0 0 1.5px rgba(242, 193, 78, 0.35); }
 body.look-new .sheet h2, body.look-new .celebrate .card .name, body.look-new .banner { font-family: 'Fredoka', 'Jost', sans-serif; }
+
+/* ── The Fable Experiment: the route line is the ride's sky (config/fable.ts). On the move, the track shows the whole
+   ride ahead: golden hour, sunset, the night (guests asleep), sunrise, morning, so "serve before dark" and "sunrise
+   is coming" can be read at a glance. The train's own marker rides along it. ── */
+body.fable .journey:not(.stop) .track { height: 10px; background: linear-gradient(90deg, #FFD98A 0%, #FFB45E 12%, #F08A5A 22%, #6A5A96 31%, #23284F 36%, #23284F 56%, #7C6CA8 63%, #F6B49C 74%, #FFE7B8 84%, #BFE3F2 92%, #BFE3F2 100%); box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35); }
+/* The bar's own fill would hide the sky: what has been travelled is marked by the train on it. */
+body.fable .journey:not(.stop) .fill { background: none; box-shadow: none; }

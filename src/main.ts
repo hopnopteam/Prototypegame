@@ -1,3 +1,4 @@
+import { FABLE } from './config/fable';
 import { Game, RouteReload, SAVE_KEY } from './gameplay/Game';
 import { ACTIVE_ROUTE } from './config/routes';
 import { TUNNEL_KEY } from './gameplay/RouteLine';
@@ -7,6 +8,12 @@ import { NEW_LOOK } from './config/look';
 
 // Visual overhaul (config/look.ts): the restyled HUD hangs off this class.
 if (NEW_LOOK) document.body.classList.add('look-new');
+if (FABLE) {
+  document.body.classList.add('fable');
+  document.title = 'Night Express: Fable Experiment';
+  const credit = document.querySelector('.loader-credit');
+  if (credit) credit.textContent = 'Fable Experiment';
+}
 import { connectNative, restoreSave } from './services/native';
 import { h } from './ui/dom';
 import { Loader, nextPaint } from './ui/Loader';
