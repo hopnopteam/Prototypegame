@@ -47,6 +47,8 @@ TROP = {
 }
 # The figure kit's role keys (world/CharacterParts.ts FIG_KEYS): pure hues, recoloured to each look's colours.
 FIG = {'skin': '#FF2A2A', 'shoe': '#2AFF2A', 'sole': '#2A2AFF', 'lace': '#FFFF2A'}
+# The clay figures' heads and shoes (art/blender/characters/char_kit.py): the same role keys, hair in the lace key.
+CH = {'skin': '#FF2A2A', 'hair': '#FFFF2A', 'shoe': '#2AFF2A', 'sole': '#2A2AFF'}
 MODELS = {
     # KayKit Forest Nature Pack 1.0 (Kay Lousberg, CC0)
     'tree_round': 'kaykit-forest/Tree_1_A_Color1.gltf',
@@ -291,6 +293,10 @@ MODELS = {
         'play_tower', 'pirate_ship', 'ball_pit', 'swing_set', 'spring_dolphin', 'spring_crab', 'kid_ball', 'palm_pot',
         'rainbow_umbrella', 'volley_net', 'beach_rocks', 'tiki_bar', 'juice_dispenser', 'fruit_bowl', 'cup_row', 'chalk_menu',
         'smoothie_sign', 'bamboo_screen', 'stone_basin', 'candles', 'orchid', 'towel_stack', 'zen_tray')},
+    # The clay figures (art/blender/characters/char_kit.py, docs/art/CHARACTER_SPEC.md): a head with its hair per hairdo.
+    **{k: {'src': 'char-kit/' + k + '.glb', 'paint': CH} for k in (
+        'ch_head_short', 'ch_head_side', 'ch_head_quiff', 'ch_head_curly', 'ch_head_bob', 'ch_head_long', 'ch_head_bun',
+        'ch_head_bald', 'ch_head_hat', 'ch_shoe', 'ch_hand_r', 'ch_hand_l')},
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}

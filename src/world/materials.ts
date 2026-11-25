@@ -324,6 +324,21 @@ const HIGHLIGHT_RIM = 0.1;
 const HIGHLIGHT_FILL = 0.08;
 /** How much of their own colour people give off (session 38, owner: "a weird opacity issue with the player and character models"): at night they were lit like the floor and their edges melted into it. */
 const FIGURE_LIFT = NEW_LOOK ? FIGURE_RIM.lift : 0.16;
+/**
+ * The clay figures (docs/art/CHARACTER_SPEC.md §6): light wraps a quarter of the way round past the terminator (soft
+ * clay, never a hard edge), a warm saturated band lives in the shadow side just past it (subsurface warmth: the
+ * reference's skin goes #DEB385 → #A27F61, warmer, not greyer), a broad soft sheen at grazing angles, and a little
+ * hemispheric fill (cool from above, a warm bounce from the floor below). Per vertex on the phone tiers, per pixel on
+ * High and Ultra.
+ */
+const FIG_WRAP = 0.5;
+const FIG_WARM = '1.0, 0.46, 0.26';
+const FIG_SSS = 0.42;
+const FIG_SHEEN = 0.55;
+const FIG_SKY = '0.94, 0.99, 1.1';
+const FIG_BOUNCE = '1.14, 1.0, 0.86';
+/** With the wrap and the fill lighting the shadow side, the old flat lift can be smaller. */
+const FIGURE_LIFT_CLAY = FIGURE_LIFT * 0.45;
 /** The brightest a specular highlight may get (linear), kept under the bloom threshold. */
 /**
  * The smoothest any surface is lit (owner, 25 Nov: "flickering… they keep reflecting stuff"): glass, marble and ceramic
@@ -383,7 +398,23 @@ if (vNxHighlight > 0.001) {
   totalEmissiveRadiance += vNxHighlight * (uNxHighlight * (nxEdge * ${HIGHLIGHT_RIM.toFixed(2)}) + diffuseColor.rgb * ${HIGHLIGHT_FILL.toFixed(2)});
 }
 #ifdef NX_FIGURE
-totalEmissiveRadiance += diffuseColor.rgb * ${FIGURE_LIFT.toFixed(2)};
+#if NUM_DIR_LIGHTS > 0
+{
+  float nxNd = dot(normal, directionalLights[0].direction);
+  float nxWrap = max((nxNd + ${FIG_WRAP.toFixed(2)}) / ${(1 + FIG_WRAP).toFixed(2)}, 0.0) - max(nxNd, 0.0);
+  float nxBand = smoothstep(-0.5, 0.0, nxNd) * (1.0 - smoothstep(0.0, 0.55, nxNd));
+  vec3 nxKey = directionalLights[0].color;
+  reflectedLight.directDiffuse += diffuseColor.rgb * RECIPROCAL_PI * nxKey * (nxWrap + nxBand * ${FIG_SSS.toFixed(2)} * vec3(${FIG_WARM}));
+}
+#endif
+{
+  vec3 nxNw = inverseTransformDirection(normal, viewMatrix);
+  float nxRimF = pow(1.0 - saturate(dot(normal, geometryViewDir)), 2.5);
+  vec3 nxTint = mix(vec3(${FIG_BOUNCE}), vec3(${FIG_SKY}), nxNw.y * 0.5 + 0.5);
+  reflectedLight.indirectDiffuse *= nxTint * (1.0 + nxRimF * ${FIG_SHEEN.toFixed(2)});
+  reflectedLight.directDiffuse *= 1.0 + nxRimF * ${(FIG_SHEEN * 0.5).toFixed(2)};
+}
+totalEmissiveRadiance += diffuseColor.rgb * ${FIGURE_LIFT_CLAY.toFixed(3)};
 #endif
 `;
 
@@ -407,6 +438,9 @@ uniform float uNxSkyAmount;
 varying vec4 vNxMoon;
 varying vec3 vNxRest;
 varying vec3 vNxEnv;
+#ifdef NX_FIGURE
+varying vec3 vNxFigWarm;
+#endif
 vec3 nxSkyV(vec3 r, float rough) {
   float up = r.y;
   vec3 sky = mix(uNxSkyHorizon, uNxSkyZenith, smoothstep(0.05, 0.85, up));
@@ -431,6 +465,9 @@ const LITE_VERTEX_BODY = /* glsl */ `
   vec3 nxMoon = vec3(0.0);
   float nxSpec = 0.0;
   vec3 nxRest = getAmbientLightIrradiance(ambientLightColor);
+  #ifdef NX_FIGURE
+  vNxFigWarm = vec3(0.0);
+  #endif
   vec3 nxViewV = normalize(-(modelViewMatrix * vec4(transformed, 1.0)).xyz);
   #if NUM_DIR_LIGHTS > 0
   for (int i = 0; i < NUM_DIR_LIGHTS; i++) {
@@ -443,6 +480,14 @@ const LITE_VERTEX_BODY = /* glsl */ `
       // face whenever one corner caught it, then dropped, so a varnished counter top flashed as the camera moved. Per
       // vertex only a broad lobe interpolates smoothly; crisp glints are the per-pixel (High, Ultra) path's.
       nxMoon = directionalLights[i].color * d;
+      #ifdef NX_FIGURE
+      {
+        // Clay: the key light wraps past the terminator, and a warm band glows just inside the shadow side.
+        float nd = dot(nxNv, l);
+        nxMoon = directionalLights[i].color * max((nd + ${FIG_WRAP.toFixed(2)}) / ${(1 + FIG_WRAP).toFixed(2)}, 0.0);
+        vNxFigWarm = directionalLights[i].color * (smoothstep(-0.5, 0.0, nd) * (1.0 - smoothstep(0.0, 0.55, nd)) * ${FIG_SSS.toFixed(2)}) * vec3(${FIG_WARM});
+      }
+      #endif
       float shine = mix(${LITE_SHINE_MAX.toFixed(1)}, 4.0, nxRough);
       vec3 h = normalize(l + nxViewV);
       nxSpec = pow(max(dot(nxNv, h), 0.0), shine) * (shine + 8.0) * 0.04 * d;
@@ -466,6 +511,9 @@ const LITE_VERTEX_BODY = /* glsl */ `
 `;
 
 const LITE_FRAGMENT_HEAD = /* glsl */ `
+#ifdef NX_FIGURE
+varying vec3 vNxFigWarm;
+#endif
 varying vec4 vNxMoon;
 varying vec3 vNxRest;
 varying vec3 vNxEnv;
@@ -531,7 +579,15 @@ if (vNxHighlight > 0.001) {
   totalEmissiveRadiance += vNxHighlight * (uNxHighlight * (nxEdge * ${HIGHLIGHT_RIM.toFixed(2)}) + diffuseColor.rgb * ${HIGHLIGHT_FILL.toFixed(2)});
 }
 #ifdef NX_FIGURE
-totalEmissiveRadiance += diffuseColor.rgb * ${FIGURE_LIFT.toFixed(2)};
+reflectedLight.directDiffuse += nxDiffuse * vNxFigWarm;
+{
+  vec3 nxNw = inverseTransformDirection(normal, viewMatrix);
+  float nxRimF = pow(1.0 - saturate(dot(normal, geometryViewDir)), 2.5);
+  vec3 nxTint = mix(vec3(${FIG_BOUNCE}), vec3(${FIG_SKY}), nxNw.y * 0.5 + 0.5);
+  reflectedLight.indirectDiffuse *= nxTint * (1.0 + nxRimF * ${FIG_SHEEN.toFixed(2)});
+  reflectedLight.directDiffuse *= 1.0 + nxRimF * ${(FIG_SHEEN * 0.5).toFixed(2)};
+}
+totalEmissiveRadiance += diffuseColor.rgb * ${FIGURE_LIFT_CLAY.toFixed(3)};
 #endif
 `;
 
@@ -817,7 +873,7 @@ export const MATERIALS = {
   lamps: build({ kind: 'glow', params: { vertexColors: true, emissive: new THREE.Color('#FFD68A'), emissiveIntensity: 0.05 }, options: {} }),
   lamp: new THREE.MeshBasicMaterial({ color: PALETTE.lampGlow }) as THREE.Material,
   character: lit({ vertexColors: true }, { surface: 'vertex', light: true }),
-  shadow: new THREE.MeshBasicMaterial({ color: '#1A1420', transparent: true, opacity: 0.24, depthWrite: false }) as THREE.Material,
+  shadow: new THREE.MeshBasicMaterial({ color: '#1E2434', transparent: true, opacity: 0.34, depthWrite: false, vertexColors: true }) as THREE.Material,
   lockedOverlay: new THREE.MeshBasicMaterial({ color: '#3C4A63', transparent: true, opacity: 0.32, depthWrite: false }) as THREE.Material,
 };
 
@@ -855,7 +911,41 @@ function applyNight(): void {
 }
 
 /** Soft round contact shadow under characters (the sun shadow does the rest). */
-export const SHADOW_GEOMETRY = new THREE.CircleGeometry(0.3, 20).rotateX(-Math.PI / 2);
+/**
+ * The figures' contact shadow (CHARACTER_SPEC §6): a soft cool blob, darkest under the feet and feathered out over
+ * about the figure's own width, its alpha in the vertex colours (the old disc had a hard edge). Rings of a fan, so the
+ * falloff is smooth with few triangles.
+ */
+export const SHADOW_GEOMETRY = ((): THREE.BufferGeometry => {
+  const rings = [0, 0.1, 0.19, 0.27, 0.34, 0.4];
+  const alpha = [1, 0.92, 0.66, 0.36, 0.13, 0];
+  const seg = 20;
+  const pos: number[] = [];
+  const col: number[] = [];
+  const idx: number[] = [];
+  for (let r = 0; r < rings.length; r++) {
+    for (let i = 0; i < seg; i++) {
+      const a = (i / seg) * Math.PI * 2;
+      pos.push(Math.cos(a) * rings[r], 0, Math.sin(a) * rings[r] * 0.88);
+      col.push(1, 1, 1, alpha[r]);
+    }
+  }
+  for (let r = 0; r < rings.length - 1; r++) {
+    for (let i = 0; i < seg; i++) {
+      const a = r * seg + i;
+      const b = r * seg + ((i + 1) % seg);
+      const c = (r + 1) * seg + i;
+      const d = (r + 1) * seg + ((i + 1) % seg);
+      idx.push(a, b, c, b, d, c);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(new Array((pos.length / 3) * 3).fill(0).map((_, k) => (k % 3 === 1 ? 1 : 0)), 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+  g.setIndex(idx);
+  return g;
+})();
 
 /**
  * The ring round a job's badge as the job is done (session 27): the badge's own sprite shader with one step added, a

@@ -7,7 +7,7 @@ import { MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, moodBubbleTexture, type BubbleStyle, type Mood } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
-import { addHead, addTorso, ELBOW_Y, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, SHOULDER_X, SHOULDER_Y, shinGeometry, thighGeometry, upperArmGeometry, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
+import { addApron, addHead, addStrap, addTorso, ELBOW_Y, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, hipX, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, occludeBody, occludeHead, shinGeometry, shoulderX, SHOULDER_Y, thighGeometry, upperArmGeometry, type Build, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
 import { underPopup } from './screenMask';
 import type { CharacterBatch } from './CharacterBatch';
 
@@ -46,6 +46,8 @@ export interface CharacterLook {
   sleeves?: 'short' | 'long';
   belt?: boolean;
   sock?: string;
+  /** The clay figures' build (CHARACTER_SPEC §2): torso width against the head's. */
+  build?: Build;
 }
 
 /** Character pass 2: the stack sits on the forearms, held out level in front (they were straight arms at shoulder height). */
@@ -66,6 +68,19 @@ const SIT_DROP = HIP_Y - 0.26;
 const RIDE_PUSH = 0.45;
 /** The arms' reach forward to the scooter's handlebar. */
 const RIDE_ARM = -1.05;
+
+/**
+ * The toy walk and run (CHARACTER_SPEC §8): thigh swing each way, the passing knee's fold, the arm swing and the
+ * elbow's bend, the bob, the roll over the stance foot, the hip twist and the forward lean.
+ */
+const WALK = { stride: 0.45, knee: 0.62, arm: 0.78, elbow: 0.4, bob: 0.035, sway: 0.06, twist: 0.1, lean: 0.06 };
+const RUN = { stride: 0.8, knee: 1.1, arm: 0.88, elbow: 1.2, bob: 0.07, sway: 0.04, twist: 0.14, lean: 0.16 };
+/** How quickly a turn eases round (rad/s of the remaining angle): quick, never a snap. */
+const TURN_RATE = 16;
+function smooth01(x: number): number {
+  const t = Math.max(0, Math.min(1, x));
+  return t * t * (3 - 2 * t);
+}
 
 const bodyCache = new Map<string, THREE.BufferGeometry>();
 const limbCache = new Map<string, THREE.BufferGeometry>();
@@ -88,7 +103,8 @@ function figureOf(look: CharacterLook): FigureSpec & { long: boolean } {
     fur: fur ? look.accent : undefined,
     moustache: look.moustache,
     glasses: look.glasses,
-    hatted: look.hat !== undefined && look.hat !== 'none' && look.hat !== 'bun',
+    hatted: look.hat !== undefined && look.hat !== 'none' && look.hat !== 'bun' && look.hat !== 'pillbox' && look.hat !== 'crown',
+    build: look.build ?? 'regular',
     long: look.sleeves ? look.sleeves === 'long' : outfit === 'jacket' || outfit === 'coat' || outfit === 'shirt' || outfit === 'gown',
   };
 }
@@ -101,7 +117,7 @@ const headCache = new Map<string, THREE.BufferGeometry>();
  * to look, nod as it pays and tilt its head as it waits).
  */
 function headGeometry(look: CharacterLook): THREE.BufferGeometry {
-  const key = JSON.stringify([look.skin, look.hair, look.hairStyle, look.longHair, look.hat, look.hatColor, look.bandColor, look.accent, look.body, look.moustache, look.glasses, look.accessory === 'furcoat', look.outfit, look.arms]);
+  const key = JSON.stringify([look.skin, look.hair, look.hairStyle, look.longHair, look.hat, look.hatColor, look.bandColor, look.accent, look.body, look.moustache, look.glasses, look.accessory === 'furcoat', look.outfit, look.arms, look.build]);
   const cached = headCache.get(key);
   if (cached) return cached;
   const b = new GeoBuilder();
@@ -134,9 +150,10 @@ function headGeometry(look: CharacterLook): THREE.BufferGeometry {
       break;
     case 'cap':
       // A baseball cap: a soft crown over the hair and a peak forward.
-      b.add(dome(0.236, 0.74, 0.56), look.hatColor ?? look.accent, 0, HEAD_Y + 0.045, -0.005, 0, 0, 0, { shade: 0.9 });
-      b.add(new THREE.CylinderGeometry(0.15, 0.15, 0.022, 16, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 1.15), shadeOf(look.hatColor ?? look.accent), 0, HEAD_Y + 0.085, 0.17, 0.12, 0, 0, flat);
-      b.sphere(0, HEAD_Y + 0.215, -0.005, 0.022, shadeOf(look.hatColor ?? look.accent), 0, 1, flat);
+      // A baseball cap sitting on the crown, its peak over the brow (the eyes show under it from the game's camera).
+      b.add(dome(0.234, 0.82, 0.56), look.hatColor ?? look.accent, 0, HEAD_Y + 0.05, -0.02, -0.28, 0, 0, { shade: 0.9, surface: 'fabric' });
+      b.add(new THREE.CylinderGeometry(0.12, 0.12, 0.02, 16, 1, false, -Math.PI / 2, Math.PI).scale(1.1, 1, 1.1), shadeOf(look.hatColor ?? look.accent), 0, HEAD_Y + 0.085, 0.19, 0.2, 0, 0, flat);
+      b.sphere(0, HEAD_Y + 0.25, -0.01, 0.02, shadeOf(look.hatColor ?? look.accent), 0, 1, flat);
       break;
     case 'beanie':
       b.add(dome(0.234, 0.85, 0.52), look.accent, 0, HEAD_Y + 0.06, -0.01, 0, 0, 0, { shade: 0.9 });
@@ -166,7 +183,7 @@ function headGeometry(look: CharacterLook): THREE.BufferGeometry {
   }
   const head = b.build();
   head.translate(0, -NECK_Y, 0);
-  const welds = welded(head);
+  const welds = welded(occludeHead(head, figureOf(look).build));
   headCache.set(key, welds);
   return welds;
 }
@@ -180,23 +197,22 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
   const f = figureOf(look);
   addTorso(b, f);
   const flat = { shade: 1 };
-  const front = (y: number): number => faceDepth(y);
+  const front = (y: number): number => faceDepth(y, f.build);
+  /** How much deeper the clay torso is at the back than the old one (backpacks, boards sit out on it). */
+  const back = faceDepth(0.6, f.build) - 0.124;
   switch (look.accessory) {
     case 'backpack':
-      b.rounded(0, 0.6, -0.2, 0.28, 0.34, 0.15, 0.06, look.accent, { shade: 0.82 });
-      b.rounded(0, 0.53, -0.285, 0.2, 0.12, 0.04, 0.02, shadeOf(look.accent), flat);
-      // Session 32: straps that run from the front up over each shoulder to the pack (they were flat bars on the chest).
-      for (const s of [-1, 1]) {
-        b.add(new THREE.TorusGeometry(0.1, 0.014, 6, 12, Math.PI).scale(1, 0.75, 1.35), '#5A3A26', s * 0.088, 0.72, -0.02, 0, Math.PI / 2, 0, flat);
-        b.box(s * 0.088, 0.62, front(0.62) + 0.004, 0.032, 0.2, 0.012, '#5A3A26', 0, flat);
-      }
+      b.rounded(0, 0.6, -0.2 - back, 0.3, 0.36, 0.15, 0.06, look.accent, { shade: 0.82, surface: 'fabric' });
+      b.rounded(0, 0.53, -0.285 - back, 0.22, 0.12, 0.04, 0.02, shadeOf(look.accent), flat);
+      // Straps that hug the round chest from the belly up over each shoulder to the pack.
+      for (const sx of [-1, 1]) addStrap(b, sx * 0.1, '#5A3A26', f.build);
       break;
     case 'flower':
       b.sphere(0.08, 0.68, front(0.68) + 0.01, 0.038, look.accent, 1);
       b.sphere(0.08, 0.68, front(0.68) + 0.035, 0.018, PALETTE.mustard, 1);
       break;
     case 'apron':
-      b.add(apronGeometry(), PALETTE.linen, 0, 0, 0, 0, 0, 0, { shade: 1 });
+      addApron(b, PALETTE.linen, f.build, f.outfit === 'dress' || f.outfit === 'gown');
       break;
     case 'camera':
       b.rounded(0, 0.6, front(0.6) + 0.04, 0.14, 0.09, 0.06, 0.02, '#2B2B33', flat);
@@ -250,7 +266,7 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
     default:
       break;
   }
-  const geometry = welded(b.build());
+  const geometry = welded(occludeBody(b.build(), f.build));
   bodyCache.set(key, geometry);
   return geometry;
 }
@@ -260,14 +276,6 @@ function dome(radius: number, sy: number, frac: number): THREE.BufferGeometry {
   const g = new THREE.SphereGeometry(radius, 22, 12, 0, Math.PI * 2, 0, Math.PI * frac);
   g.scale(1, sy, 1);
   return g;
-}
-
-/** An apron's bib and skirt over the front of the torso. */
-function apronGeometry(): THREE.BufferGeometry {
-  const g = new GeoBuilder();
-  g.rounded(0, 0.56, faceDepth(0.56) + 0.006, 0.18, 0.26, 0.012, 0.02, PALETTE.linen, { shade: 1 });
-  g.rounded(0, 0.37, faceDepth(0.44) + 0.012, 0.26, 0.2, 0.012, 0.02, PALETTE.linen, { shade: 1 });
-  return g.build();
 }
 
 /** A limb part, built once per look and kept (welded, so the batch draws fewer vertices). */
@@ -285,29 +293,29 @@ function smartShoes(f: FigureSpec): boolean {
   return f.outfit === 'jacket' || f.outfit === 'coat' || f.outfit === 'gown';
 }
 
-function thighGeometryFor(look: CharacterLook): THREE.BufferGeometry {
+function thighGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
   const bare = f.outfit === 'dress' || f.outfit === 'gown';
-  return limb(`thigh:${f.pants}:${bare}:${look.skin}`, () => thighGeometry(f.pants, bare, look.skin));
+  return limb(`thigh:${f.pants}:${bare}:${look.skin}:${f.build}:${side}`, () => thighGeometry(f.pants, bare, look.skin, f.build, side));
 }
 
-function shinGeometryFor(look: CharacterLook): THREE.BufferGeometry {
+function shinGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
   const bare = f.outfit === 'dress' || f.outfit === 'gown';
   const smart = smartShoes(f);
-  return limb(`shin:${f.pants}:${look.shoe}:${bare}:${look.skin}:${look.sock}:${smart}`, () => shinGeometry(f.pants, look.shoe ?? SHOE, bare, look.skin, look.sock ?? '#F4F1EA', smart));
+  return limb(`shin:${f.pants}:${look.shoe}:${bare}:${look.skin}:${look.sock}:${smart}:${f.build}:${side}`, () => shinGeometry(f.pants, look.shoe ?? SHOE, bare, look.skin, look.sock ?? '#F4F1EA', smart, f.build, side));
 }
 
-function upperArmGeometryFor(look: CharacterLook): THREE.BufferGeometry {
+function upperArmGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
-  return limb(`upper:${look.body}:${look.skin}:${f.long}`, () => upperArmGeometry(look.body, look.skin, f.long));
+  return limb(`upper:${look.body}:${look.skin}:${f.long}:${f.build}:${side}`, () => upperArmGeometry(look.body, look.skin, f.long, f.build, side));
 }
 
 function forearmGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
   const carried = look.accessory === 'briefcase' || look.accessory === 'handbag' ? look.accessory : null;
   const cuff = f.outfit === 'jacket' && look.accent !== look.body ? look.accent : undefined;
-  return limb(`fore:${look.body}:${look.skin}:${f.long}:${carried}:${side}:${cuff}`, () => forearmGeometry(look.body, look.skin, f.long, side, carried, cuff));
+  return limb(`fore:${look.body}:${look.skin}:${f.long}:${carried}:${side}:${cuff}:${f.build}`, () => forearmGeometry(look.body, look.skin, f.long, side, carried, cuff, f.build));
 }
 
 function shadeOf(hex: string): string {
@@ -458,6 +466,11 @@ export class CharacterView {
     return this.pose === 'sleep' || !this.leans ? 0 : CharacterView.lean;
   }
   private leanNow = 0;
+  /** The walk's roll over the stance foot and the hips' twist (CHARACTER_SPEC §8). */
+  private swayZ = 0;
+  private twistY = 0;
+  /** Eased turns: the way the figure is asked to face, and the way it faces now (radians about y). */
+  private yawTarget = 0;
   private blanket: THREE.Mesh | null = null;
   private eyelids: THREE.Mesh | null = null;
   /** The current action and how much longer it lasts (callers refresh it while it goes on). */
@@ -488,12 +501,12 @@ export class CharacterView {
     this.root.add(this.body);
     for (const side of [-1, 1] as const) {
       const pivot = new THREE.Object3D();
-      pivot.position.set(side * 0.078, HIP_Y, 0);
-      const thigh = castsShadow(new THREE.Mesh(thighGeometryFor(look), MATERIALS.character));
+      pivot.position.set(side * hipX(figureOf(look).build), HIP_Y, 0);
+      const thigh = castsShadow(new THREE.Mesh(thighGeometryFor(look, side), MATERIALS.character));
       pivot.add(thigh);
       const knee = new THREE.Object3D();
       knee.position.y = KNEE_Y;
-      const shin = castsShadow(new THREE.Mesh(shinGeometryFor(look), MATERIALS.character));
+      const shin = castsShadow(new THREE.Mesh(shinGeometryFor(look, side), MATERIALS.character));
       knee.add(shin);
       pivot.add(knee);
       this.body.add(pivot);
@@ -511,8 +524,8 @@ export class CharacterView {
 
     for (const side of [-1, 1] as const) {
       const pivot = new THREE.Object3D();
-      pivot.position.set(side * SHOULDER_X, SHOULDER_Y, 0);
-      const upper = castsShadow(new THREE.Mesh(upperArmGeometryFor(look), MATERIALS.character));
+      pivot.position.set(side * shoulderX(figureOf(look).build), SHOULDER_Y, 0);
+      const upper = castsShadow(new THREE.Mesh(upperArmGeometryFor(look, side), MATERIALS.character));
       pivot.add(upper);
       const elbow = new THREE.Object3D();
       elbow.position.y = ELBOW_Y;
@@ -544,9 +557,12 @@ export class CharacterView {
     this.look = look;
     this.bodyMesh.geometry = bodyGeometry(look);
     this.headMesh.geometry = headGeometry(look);
-    this.thighMeshes.forEach((m) => (m.geometry = thighGeometryFor(look)));
-    this.shinMeshes.forEach((m) => (m.geometry = shinGeometryFor(look)));
-    this.upperMeshes.forEach((m) => (m.geometry = upperArmGeometryFor(look)));
+    const build = figureOf(look).build;
+    this.thighMeshes.forEach((m, i) => (m.geometry = thighGeometryFor(look, i === 0 ? -1 : 1)));
+    this.shinMeshes.forEach((m, i) => (m.geometry = shinGeometryFor(look, i === 0 ? -1 : 1)));
+    this.upperMeshes.forEach((m, i) => (m.geometry = upperArmGeometryFor(look, i === 0 ? -1 : 1)));
+    this.legs.forEach((p, i) => (p.position.x = (i === 0 ? -1 : 1) * hipX(build)));
+    this.arms.forEach((p, i) => (p.position.x = (i === 0 ? -1 : 1) * shoulderX(build)));
     this.foreMeshes.forEach((m, i) => (m.geometry = forearmGeometryFor(look, i === 0 ? -1 : 1)));
   }
 
@@ -595,6 +611,15 @@ export class CharacterView {
   setFacing(angle: number): void {
     // The whole rotation, never one angle of it: an Euler read back from a quaternion (render interpolation puts poses
     // back that way) may hold a turn as (π, π − y, π), and writing y alone into that turns the figure upside down.
+    // The clay toys turn with an ease (CHARACTER_SPEC §8): the figure is asked to face `angle` and swings round to it in
+    // `update` (visual only: nothing in play reads the figure's yaw).
+    this.yawTarget = angle;
+    this.root.rotation.set(this.tilt(), this.yaw, 0);
+  }
+
+  /** Faces `angle` at once (a figure placed, not walking: pooled guests, poses). */
+  snapFacing(angle: number): void {
+    this.yawTarget = angle;
     this.yaw = angle;
     this.root.rotation.set(this.tilt(), angle, 0);
   }
@@ -1026,6 +1051,11 @@ export class CharacterView {
       this.bubble.position.x = this.bubbleMood === 'angry' ? Math.sin(this.bubbleTime * 38) * 0.015 : 0;
       this.bubble.position.y = this.bubbleBaseY + Math.sin(this.bubbleTime * 2.4) * 0.025;
     }
+    {
+      let d = this.yawTarget - this.yaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      this.yaw += d * Math.min(1, dt * TURN_RATE);
+    }
     this.root.rotation.set(this.tilt(), this.yaw, 0);
     this.kneeAim[0] = this.kneeAim[1] = 0.03;
     this.headYaw = 0;
@@ -1080,12 +1110,17 @@ export class CharacterView {
     }
     for (const leg of this.legs) leg.scale.y = 1;
     const moving = speed > 0.2;
-    this.phase += dt * (moving ? 3 + speed * 2.2 : 1.6);
+    // The clay toy's walk (CHARACTER_SPEC §8): quick bouncy steps, the body rolling over the stance foot, the hips
+    // twisting with the stride and the shoulders countering; a run is a longer, bouncier stride with a deeper lean and
+    // pumping arms. `run` blends the walk into the run with the pace.
+    const run = smooth01((speed - 2.4) / 2);
+    this.phase += dt * (moving ? 3.4 + speed * 2.3 : 1.6);
     // Session 38b (after the ad playable): the swing and the forward lean ease in and out, so starting and stopping
     // never snap the legs.
-    const swingTarget = moving ? Math.min(0.75, 0.25 + speed * 0.12) : 0;
-    this.swingNow += (swingTarget - this.swingNow) * Math.min(1, dt * (moving ? 14 : 10));
+    const swingTarget = moving ? (WALK.stride + (RUN.stride - WALK.stride) * run) * Math.min(1, 0.45 + speed * 0.35) : 0;
+    this.swingNow += (swingTarget - this.swingNow) * Math.min(1, dt * (moving ? 12 : 9));
     const swing = this.swingNow;
+    const amount = Math.min(1, swing / WALK.stride);
     const s = Math.sin(this.phase);
     // A foot lands at each end of the stride (the swing turns), twice a cycle.
     const side = Math.cos(this.phase) >= 0;
@@ -1094,30 +1129,38 @@ export class CharacterView {
     const c = Math.cos(this.phase);
     this.legs[0].rotation.x = s * swing;
     this.legs[1].rotation.x = -s * swing;
-    // Pass 2: the knee folds as its leg swings through (the foot clears the floor) and straightens to land.
-    this.kneeAim[0] = 0.04 + Math.max(0, -c) * swing * 1.3 + Math.max(0, s) * swing * 0.25;
-    this.kneeAim[1] = 0.04 + Math.max(0, c) * swing * 1.3 + Math.max(0, -s) * swing * 0.25;
-    // A step's bob while walking, a slow breath while standing; the forward lean eases with the pace. A tall stack
-    // makes the walker lean back to balance it.
-    const walkBob = Math.abs(c) * 0.06 * (swing / 0.75);
-    this.body.position.y = walkBob + (1 - Math.min(1, swing / 0.3)) * Math.sin(this.phase) * 0.008;
+    // The passing leg folds at the knee (the foot clears the floor) and straightens to land.
+    const fold = WALK.knee + (RUN.knee - WALK.knee) * run;
+    this.kneeAim[0] = 0.05 + Math.max(0, -c) * fold * amount + Math.max(0, s) * swing * 0.3;
+    this.kneeAim[1] = 0.05 + Math.max(0, c) * fold * amount + Math.max(0, -s) * swing * 0.3;
+    // The bounce: up as the legs pass (twice a cycle), a slow breath while standing. A tall stack makes the walker
+    // lean back to balance it.
+    const bob = (WALK.bob + (RUN.bob - WALK.bob) * run) * amount;
+    this.body.position.y = Math.abs(c) * bob + (1 - Math.min(1, swing / 0.2)) * Math.sin(this.phase) * 0.006;
     const balance = this.carrying ? -Math.min(0.09, Math.max(0, this.stackCount - 2) * 0.02) : 0;
-    this.leanNow += ((moving ? 0.08 : 0) + balance - this.leanNow) * Math.min(1, dt * 10);
+    const lean = moving ? WALK.lean + (RUN.lean - WALK.lean) * run : 0;
+    this.leanNow += (lean + balance - this.leanNow) * Math.min(1, dt * 8);
     this.body.rotation.x = this.leanNow;
     // Standing still, the weight shifts from one foot to the other now and then, and the head looks about.
     const idle = 1 - Math.min(1, swing / 0.2);
     this.body.position.x = Math.sin(this.phase * 0.55) * 0.012 * idle;
-    this.headYaw = Math.sin(this.phase * 0.42) * 0.22 * idle - s * 0.06 * (1 - idle);
+    // Rolling over the stance foot and twisting with the stride; the head counters the twist so the face stays on.
+    const sway = (WALK.sway + (RUN.sway - WALK.sway) * run) * amount;
+    const twist = (WALK.twist + (RUN.twist - WALK.twist) * run) * amount;
+    this.swayZ = -s * sway + Math.sin(this.phase * 0.55) * 0.02 * idle;
+    this.twistY = s * twist;
+    this.headYaw = Math.sin(this.phase * 0.42) * 0.22 * idle - s * twist * 0.8;
 
     // An action owns the arms while it runs; otherwise they swing with the walk (or carry, or wave).
     if (this.action === 'none') {
       for (let i = 0; i < 2; i++) {
         const arm = this.arms[i];
         const side = i === 0 ? -1 : 1;
-        let x = (i === 0 ? -s : s) * swing * 0.85;
-        let z = side * 0.1;
-        // The elbow bends more as the arm swings forward, and a little all the time (a relaxed arm is never straight).
-        let elbow = -0.18 - Math.max(0, -x) * 0.75;
+        let x = (i === 0 ? -s : s) * swing * (WALK.arm + (RUN.arm - WALK.arm) * run);
+        let z = side * 0.12;
+        // The elbow bends more as the arm swings forward, and a little all the time (a relaxed arm is never straight);
+        // running, the arms pump bent.
+        let elbow = -(WALK.elbow + (RUN.elbow - WALK.elbow) * run) * (0.5 + 0.5 * amount) - Math.max(0, -x) * 0.6;
         if (this.carrying) {
           // Holding the stack out in front: upper arms forward, forearms level under it, hands in toward the middle.
           x = -0.5 + Math.sin(this.phase * 2) * 0.03 * swing;
@@ -1151,8 +1194,8 @@ export class CharacterView {
       }
     }
 
-    this.body.rotation.y = 0;
-    this.body.rotation.z = 0;
+    this.body.rotation.y = this.twistY;
+    this.body.rotation.z = this.swayZ;
     this.applyAction(dt);
     this.applyJoints(dt, 20);
 
@@ -1162,8 +1205,9 @@ export class CharacterView {
       this.body.scale.set(1 + k, 1 - k, 1 + k);
     } else {
       // Standing still, a slow breath (barely there: it only keeps a waiting figure from looking frozen).
-      const breath = moving ? 0 : Math.sin(this.phase * 1.3) * 0.012;
-      this.body.scale.set(1, 1 + breath, 1);
+      // Standing still, a slow breath (about 0.25 Hz): the chest swells a touch, so a waiting figure never looks frozen.
+      const breath = moving ? 0 : Math.sin(this.phase * 1.0) * 0.015;
+      this.body.scale.set(1 + breath * 0.4, 1 + breath, 1 + breath * 0.4);
     }
   }
 
@@ -1267,6 +1311,9 @@ export class CharacterView {
     this.root.position.set(0, 0, 0);
     this.root.rotation.set(0, 0, 0);
     this.yaw = 0;
+    this.yawTarget = 0;
+    this.swayZ = 0;
+    this.twistY = 0;
     this.root.scale.setScalar(scale);
     this.root.visible = true;
     this.shadow.visible = true;

@@ -8,6 +8,8 @@
 /** Session 30: the hairdos and outfits of the new figures (world/CharacterParts.ts builds them). */
 export type HairStyle = 'short' | 'side' | 'quiff' | 'curly' | 'bob' | 'long' | 'bun' | 'bald';
 export type Outfit = 'tee' | 'shirt' | 'jacket' | 'coat' | 'dress' | 'gown';
+/** The clay figures' builds (docs/art/CHARACTER_SPEC.md §2): torso width against the head's, 0.82, 0.95, 1.12. */
+export type Build = 'slim' | 'regular' | 'stout';
 
 /** What a guest type wears beyond its colours: the clothes, the hair, stripes, shoes. */
 export interface Figure {
@@ -22,6 +24,7 @@ export interface Figure {
   shoe?: string;
   moustache?: boolean;
   glasses?: boolean;
+  build?: Build;
 }
 
 /** What someone standing about does (CharacterView actions). */

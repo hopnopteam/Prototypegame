@@ -288,7 +288,7 @@ export function buildShops(b: GeoBuilder, zMax: number, block: (r: Rect) => void
     fit(b, 'tin_grey', GOODS_X - 0.22, y, z - 0.62, 0.07);
     b.endObject();
     solid(z - 0.6, z + 0.6, X + 6.15);
-    shops.push({ id: 'shoeshine', z0: BAYS.shoeshine[0], z1: BAYS.shoeshine[1], keeper: { look: SHOESHINE, x: GOODS_X - 0.6, z: z - 1.0, idles: ['look', 'wave'] } });
+    shops.push({ id: 'shoeshine', z0: BAYS.shoeshine[0], z1: BAYS.shoeshine[1], keeper: { look: SHOESHINE, x: GOODS_X - 0.6, z: z - 1.04, idles: ['look', 'wave'] } });
   }
 
   // The parcels office: the booking office's walls in chocolate and cream, its window to the walkway, a pair of scales

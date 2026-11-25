@@ -385,7 +385,8 @@ export class PlatformView {
     this.keeperView.root.visible = keeper;
     if (keeper) {
       const p = at('kiosk');
-      this.keeperView.setPosition(p.x + 0.97, FLOOR_Y, p.z);
+      // Behind the barrow with room for the clay figure's round shoulders (they are wider than the old figures').
+      this.keeperView.setPosition(p.x + 1.06, FLOOR_Y, p.z);
       this.keeperView.setFacing(-Math.PI / 2);
     }
   }
