@@ -106,6 +106,7 @@ const FRAME_WORK_MS = 2.5;
 /** Behind the loading screen nobody sees a slow frame: queued work (bakes, scenery, rebuilds) gets this much a frame. */
 const LOADING_WORK_MS = 40;
 export { SAVE_KEY } from '../config/saveKey';
+import { FABLE, FABLE_CLOCK } from '../config/fable';
 export { SIM_STEP } from '../sim/stepClock';
 /** Where in the day cycle the held night sits (the middle of the night key). */
 const NIGHT_TIME = 0.82;
@@ -850,7 +851,7 @@ export class Game implements World {
       if (this.poses.apply(this.station.view.group, alpha)) blended.push(this.station.view.group);
       for (const view of this.train.views) if (this.poses.apply(view.group, alpha)) blended.push(view.group);
     }
-    const night = this.updateDayCycle();
+    const night = this.updateDayCycle(realDt);
     this.audio.setTrainSpeed(this.journey.speed / this.econ.journey.cruiseSpeed);
     this.audio.setNight(night);
     this.audio.update(realDt);
@@ -995,7 +996,29 @@ export class Game implements World {
     this.dayCycleOverride = t;
   }
 
-  private updateDayCycle(): number {
+  /** The Fable Experiment's ride clock (config/fable.ts): where the sky is now, eased toward where the journey puts it. */
+  private rideClock = -1;
+
+  /**
+   * The Fable Experiment: the sky is the ride's clock. A stop stands in the afternoon, the run goes through sunset,
+   * night and sunrise in step with the guests' own trip (ride progress), and the light eases, never jumps.
+   */
+  private fableClock(dt: number): number {
+    const j = this.journey;
+    const c = FABLE_CLOCK;
+    let target: number;
+    if (j.phase === 'stationStop') target = c.stop + c.stopDrift * Math.min(1, j.stopTime / c.stopDriftSeconds);
+    else if (j.phase === 'departing') target = c.rideFrom;
+    else if (j.phase === 'onTheMove') target = c.rideFrom + (c.rideTo - c.rideFrom) * j.travelShare;
+    else target = c.rideTo + (1 - c.rideTo) * Math.min(1, j.time / Math.max(0.1, j.duration));
+    if (this.rideClock < 0) this.rideClock = target;
+    // Forward round the clock by the shorter way, so arriving (…1.0) runs on into the stop (0.0…).
+    const delta = ((target - this.rideClock + 1.5) % 1) - 0.5;
+    this.rideClock = (this.rideClock + delta * (1 - Math.exp(-c.ease * dt)) + 1) % 1;
+    return this.rideClock;
+  }
+
+  private updateDayCycle(dt = 0): number {
     const j = this.journey;
     const legs = this.econ.journey.legsPerDayCycle;
     let fraction = 0;
@@ -1009,7 +1032,8 @@ export class Game implements World {
     let t = this.dayCycleOverride ?? (holdNight ? NIGHT_TIME : ((j.legsCompleted + fraction) / legs + 0.08) % 1);
     // Phase 1, the route's lighting preset: the Countryside Express opens each session at golden hour and fades into the
     // blue night over its first minutes of play, the lamps on the train coming on as it darkens (`setNightAmount`).
-    if (this.dayCycleOverride === null && NEW_LOOK) t = LOOK_ROUTE_TIME[ACTIVE_ROUTE.id] ?? NIGHT_TIME;
+    if (this.dayCycleOverride === null && FABLE) t = this.fableClock(dt);
+    else if (this.dayCycleOverride === null && NEW_LOOK) t = LOOK_ROUTE_TIME[ACTIVE_ROUTE.id] ?? NIGHT_TIME;
     else if (this.dayCycleOverride === null && holdNight && ACTIVE_ROUTE.lighting !== 'night') {
       const [from, to] = LIGHTING_SPAN[ACTIVE_ROUTE.lighting];
       const f = Math.min(1, this.sessionSeconds / Math.max(1, ACTIVE_ROUTE.duskSeconds));

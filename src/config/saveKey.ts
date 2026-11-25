@@ -1,5 +1,6 @@
 import { DEBUG_JUMP } from './debugJump';
 import { GOD, GOD_MODE } from './god';
+import { FABLE } from './fable';
 
 /**
  * Phase 4, debug: `?route=<id>` plays that route on a save of its own (a fresh one starts as if the route before it had
@@ -10,7 +11,7 @@ const URL_ROUTE: string | null = typeof location === 'undefined' ? null : new UR
 export const ROUTE_PARAM: string | null = URL_ROUTE ?? DEBUG_JUMP?.route ?? null;
 
 /** Where the save lives (localStorage, mirrored into the app's own storage on iOS and Android). */
-export const SAVE_KEY = 'nightexpress.save' + (GOD_MODE ? GOD.saveSuffix : '') + (DEBUG_JUMP ? '.jump' : '') + (URL_ROUTE ? `.route-${URL_ROUTE}` : '');
+export const SAVE_KEY = 'nightexpress.save' + (FABLE ? '.fable' : '') + (GOD_MODE ? GOD.saveSuffix : '') + (DEBUG_JUMP ? '.jump' : '') + (URL_ROUTE ? `.route-${URL_ROUTE}` : '');
 
 /**
  * Phase 4: the route the save is on, read before anything else loads (the route decides the carriages, the stations,

@@ -4,6 +4,7 @@ import { clamp01, lerp } from '../core/math';
 import { LIGHT_UNIFORMS, setNightAmount } from './materials';
 import { LOOK_SUN_OFFSET, NEW_LOOK, NEW_LOOK_GOLDEN } from '../config/look';
 import { ACTIVE_ROUTE } from '../config/routes';
+import { FABLE, FABLE_SKY } from '../config/fable';
 
 interface Key {
   t: number;
@@ -28,7 +29,7 @@ const DAY_KEY = { sky: '#DCE6EE', hemiSky: '#FFF8EC', hemiGround: '#8C9A78', hem
  * Day → golden hour → dusk → night → dawn across a journey (VISUALS.time.mode 'cycle'). The default holds
  * the night key: the moonlit hero look.
  */
-const KEYS: Key[] = [
+const KEYS: Key[] = FABLE ? FABLE_SKY : [
   { t: 0.0, ...DAY_KEY },
   { t: 0.5, ...DAY_KEY },
   NEW_LOOK ? { t: 0.6, ...NEW_LOOK_GOLDEN } : { t: 0.6, sky: '#F1D6BC', hemiSky: '#FFF0DC', hemiGround: '#948B78', hemi: 1.7, sun: '#FFD8AC', sunIntensity: 2.2, night: 0.05, env: 0.8, fog: 0.007 },
