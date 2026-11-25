@@ -258,3 +258,31 @@ game randomness: the pacing simulator stays byte-identical.
 
 **Measured** (the full Riviera train at a stop, Low tier): 10,398 triangles a person (8,108 before this session; the
 new hands, rounder limbs and weave details), draw calls 78 (78), 253k triangles drawn (240k).
+
+## 14. Session 64: limbs in one piece
+
+The owner: "the limbs of the players are far too disconnected… why are there so many circular round things in
+character that connects these? I need human anatomy naturally to flow without so many interruptions".
+
+A rigid part per bone needed a ball at every joint to hide the gap when it bent: the shoulder, elbow, hip and knee
+balls read as beads on a string. They are gone. Each sleeve is now one surface from the shoulder to the cuff, and each
+trouser leg (or bare leg) one surface from the hip to its hem, bent by **two-bone linear blend skinning** in the
+character pull batch (`world/Skin.ts`):
+
+- every vertex of a limb carries a code and a weight (`aSkin`) as a function of its height along the limb: near the
+  elbow or knee it blends toward the child bone (the forearm, the shin) over ±4.5 cm and ±5 cm; at the top it blends a
+  little (35% for the arm, 40% for the leg) toward the body, so the shoulder rolls and the hip eases into the trousers;
+- the batch turns that into a second matrix and a weight per vertex (`aNxInst2`, `aNxSkin`; `NX_SKIN` on the lit
+  character material only) and blends the two matrices in the vertex shader: still one draw per material, no new
+  texture reads beyond the second matrix;
+- the hand twists at the wrist, a group of its own under the elbow (`wrists`), and the sleeve follows an untwisted
+  elbow "bone" (a mesh of one degenerate triangle, `BONE_GEOMETRY`), so turning the palm never wraps the sleeve;
+- the profiles are dense (a ring every 1.2 cm, 16 sides) and their radii ease from station to station, so the bend is
+  a curve, not a crease; a short sleeve ends in its rolled hem with the bare arm running on to the wrist.
+
+The CPU tools read the same numbers (`skinPoint`, `skinnedWorld`): the cloth's leg containment, the clip test. The clip
+test passes with zero clips. Visual only: the pacing simulator is unchanged by it.
+
+Walking speed (session 64, owner: "no running animations until we get the upgrade for movement"): the conductor walks
+at every speed until a pair of shoes or a Rail Miles speed level is bought (`CharacterView.runGait`, the stride rate
+capped at `WALK_MAX_PACE`).

@@ -106,6 +106,9 @@ function keepOuts(layout: CarriageLayout): { rects: Rect[]; circles: { x: number
     // The mess slots round the cleaning spot, the tip pile, where a new guest stands by the bed.
     for (const o of [[-0.38, -0.82], [0.4, -0.82], [-0.38, 0.82]]) circles.push({ x: heart.x + o[0], z: heart.z + o[1], r: 0.3 });
     circles.push({ x: c.tipPile.x, z: c.tipPile.z, r: 0.3 });
+    // Session 64 moved the tips to the room's front (in view); the far corner where they lay stays clear too, so the
+    // run-down floors keep the damage they had (it was placed round that spot).
+    if (c.oldTip) circles.push({ x: c.oldTip.x, z: c.oldTip.z, r: 0.3 });
     circles.push({ x: c.bed.x0 - 0.24, z: (c.bed.z0 + c.bed.z1) / 2, r: 0.3 });
     // Session 51: the class pieces at the bed's ends (a stool, a bench, an ottoman) are not props: keep their room.
     rects.push(rect(c.bed.x0 - 0.1, c.bed.z0 - 0.55, c.bed.x1 + 0.1, c.bed.z1 + 0.55));

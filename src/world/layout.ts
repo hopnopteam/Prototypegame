@@ -184,6 +184,8 @@ export interface CabinLayout {
   center: Vec2;
   bedPose: Vec2;
   tipPile: Vec2;
+  /** Session 64: where the tips lay before they moved into view (the run-down floor keeps its damage clear of it). */
+  oldTip?: Vec2;
   corridorNode: string;
   node: string;
 }
@@ -567,6 +569,7 @@ class LayoutBuilder {
         center: { ...heart },
         bedPose: { x: (bed.x0 + bed.x1) / 2, z: (bed.z0 + bed.z1) / 2 },
         tipPile: { x: len > 4 ? bed.x0 - 0.36 : tipX(heart, tipZ, openX0, openX1, bed.x0), z: tipZ },
+        oldTip: len > 4 ? undefined : { x: Math.max(openX0 + 0.1, Math.min(openX1, bed.x0 - 0.42)), z: style === 'berth' ? cz1 - 0.38 : cz1 - 0.42 },
         corridorNode,
         node: cabinNode,
       });
