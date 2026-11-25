@@ -86,7 +86,9 @@ def hair_cover(style, ux, uy, uz):
     line += (fringe - line) * smoothstep(0.18, 0.62, uz)
     if style == 'hat':
         # Under a hat only the sides and back show below the brim: the crown is the hat's.
-        return smoothstep(line - 0.04, line + 0.04, uy) * (1 - smoothstep(0.35, 0.5, uy))
+        # Session 62: up to under the crown all round (the soft hats sit higher than the old cylinders, and skin showed
+        # between the hair and the brim at the back).
+        return smoothstep(line - 0.04, line + 0.04, uy) * (1 - smoothstep(0.72, 0.86, uy))
     return smoothstep(line - 0.04, line + 0.04, uy)
 
 
@@ -163,7 +165,7 @@ def export(o, name):
 
 
 def hair_shell(style, target=620):
-    target = 900 if style == 'curly' else target
+    target = 900 if style == 'curly' else 980 if style in ('bob', 'long') else target
     """The helmet: a shell over the covered skull, cut on a fine mesh along the hairline and the cut relaxed (a clean
     curve, never a sawtooth), solidified inward so its rim is a rounded roll, subdivided, then reduced to `target`
     triangles."""
@@ -211,8 +213,8 @@ def extra_hair(style):
     if style == 'bun':
         bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=8, radius=0.085, location=(0, 0.15, 0.16))
         parts.append(smooth(tag(active(), 'hair')))
-    if style == 'long':
-        # One slab down the back to between the shoulder blades, rounded all round (CHARACTER_SPEC §4).
+    if style == 'long' and False:
+        # Session 62: the slab is its own piece now (`ch_hair_long`, it swings from the head).
         bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0.13, -0.2))
         o = active()
         o.scale = (0.4, 0.13, 0.3)
@@ -307,8 +309,225 @@ def hand(side):
     export(o, 'ch_hand_' + ('r' if side > 0 else 'l'))
 
 
-hand(1)
-hand(-1)
-for s in ('short', 'side', 'quiff', 'curly', 'bob', 'long', 'bun', 'bald', 'hat'):
-    head(s)
-shoe()
+
+# ── Hats (session 62, "flat hat crowns": soft felt instead of hard cylinders) ─────────────────────────────────────────
+# Each hat is built about the head's centre (its origin, like the heads), resting on the hair helmet pressed flat under
+# it (`ch_head_hat`, the crown at about z 0.2). Keys: crown felt green (`shoe`), band blue (`sole`), peak or brim
+# yellow (`hair`), badge or pompom magenta (`trim`). Every shape is bevelled and subdivided once, so its edges are
+# rolled like felt, never cut.
+
+def soft(o, width=0.012, segments=2, sub=1, target=None):
+    bev = o.modifiers.new('bev', 'BEVEL')
+    bev.width = width
+    bev.segments = segments
+    bev.limit_method = 'ANGLE'
+    if sub:
+        s = o.modifiers.new('sub', 'SUBSURF')
+        s.levels = sub
+    apply_all(o)
+    if target:
+        tris = sum(len(p.vertices) - 2 for p in o.data.polygons)
+        if tris > target:
+            d = o.modifiers.new('dec', 'DECIMATE')
+            d.ratio = target / tris
+            apply_all(o)
+    return smooth(o)
+
+
+def cyl(r0, r1, depth, z, verts=20, y=0.0, name='shoe'):
+    bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r0, radius2=r1, depth=depth, location=(0, y, z))
+    return tag(active(), name)
+
+
+def ball(r, z, sx=1.0, sy=1.0, sz=1.0, y=0.0, segs=16, rings=10, name='shoe'):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=segs, ring_count=rings, radius=r, location=(0, y, z))
+    o = active()
+    o.scale = (sx, sy, sz)
+    bpy.ops.object.transform_apply(scale=True)
+    return smooth(tag(o, name))
+
+
+def ring(r, tube, z, sy=1.0, y=0.0, name='sole', major=20, minor=6):
+    bpy.ops.mesh.primitive_torus_add(major_radius=r, minor_radius=tube, major_segments=major, minor_segments=minor, location=(0, y, z))
+    o = active()
+    o.scale = (1, sy, 1)
+    bpy.ops.object.transform_apply(scale=True)
+    return smooth(tag(o, name))
+
+
+def peak(r, z, y, tilt, depth=0.02, name='hair', sx=1.0):
+    """A cap's peak: a half disc out in front, its edge rolled, dipping over the brow."""
+    bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=r, depth=depth, location=(0, 0, 0))
+    o = active()
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.y > 0.001], context='VERTS')
+    bmesh.ops.holes_fill(bm, edges=bm.edges)
+    bm.to_mesh(o.data)
+    bm.free()
+    o.scale = (sx, 0.78, 1)
+    bpy.ops.object.transform_apply(scale=True)
+    o.rotation_euler = (math.radians(tilt), 0, 0)
+    o.location = (0, y, z)
+    bpy.ops.object.transform_apply(location=True, rotation=True)
+    return soft(tag(o, name), width=0.008, segments=2, sub=1, target=180)
+
+
+def hat_conductor():
+    crown = cyl(0.205, 0.232, 0.13, 0.235, y=0.012)
+    # The crown's top bows up a touch and its rim rolls: a soft stiffened cap, not a tin.
+    for v in crown.data.vertices:
+        if v.co.z > 0.26:
+            v.co.z += 0.012 * (1 - (v.co.x ** 2 + (v.co.y - 0.012) ** 2) / 0.054)
+    crown = soft(crown, width=0.03, segments=3, sub=1, target=420)
+    band = soft(cyl(0.214, 0.214, 0.05, 0.188, y=0.012, name='sole'), width=0.01, segments=2, sub=0)
+    visor = peak(0.17, 0.158, -0.13, -14, name='hair')
+    badge = ball(0.03, 0.218, sy=0.45, y=-0.212, name='trim', segs=10, rings=6)
+    export(join([crown, band, visor, badge]), 'ch_hat_conductor')
+
+
+def hat_bowler():
+    crown = ball(0.212, 0.2, sz=0.84, y=0.01, segs=20, rings=12)
+    bm = bmesh.new()
+    bm.from_mesh(crown.data)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z < 0.17], context='VERTS')
+    bm.to_mesh(crown.data)
+    bm.free()
+    band = soft(cyl(0.214, 0.21, 0.045, 0.192, y=0.01, name='sole'), width=0.008, segments=2, sub=0)
+    brim = ring(0.24, 0.028, 0.172, y=0.01, name='hair', major=24, minor=8)
+    # The brim curls up at the sides.
+    for v in brim.data.vertices:
+        v.co.z += 0.03 * (v.co.x / 0.27) ** 2
+    disc = cyl(0.25, 0.25, 0.012, 0.17, verts=24, y=0.01, name='hair')
+    for v in disc.data.vertices:
+        v.co.z += 0.03 * (v.co.x / 0.27) ** 2
+    export(join([crown, band, brim, soft(disc, width=0.004, segments=1, sub=0)]), 'ch_hat_bowler')
+
+
+def hat_boater():
+    crown = soft(cyl(0.2, 0.19, 0.12, 0.25, y=0.01), width=0.018, segments=2, sub=1, target=300)
+    band = soft(cyl(0.204, 0.198, 0.05, 0.22, y=0.01, name='sole'), width=0.008, segments=2, sub=0)
+    brim = soft(cyl(0.34, 0.34, 0.018, 0.192, verts=28, y=0.01, name='hair'), width=0.008, segments=2, sub=1, target=260)
+    export(join([crown, band, brim]), 'ch_hat_boater')
+
+
+def hat_pillbox():
+    box = soft(cyl(0.14, 0.135, 0.11, 0.245, y=0.0), width=0.022, segments=3, sub=1, target=300)
+    band = soft(cyl(0.143, 0.143, 0.026, 0.198, y=0.0, name='trim'), width=0.006, segments=2, sub=0)
+    export(join([box, band]), 'ch_hat_pillbox')
+
+
+def hat_beanie():
+    crown = ball(0.236, 0.205, sz=0.86, y=0.01, segs=20, rings=12)
+    bm = bmesh.new()
+    bm.from_mesh(crown.data)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z < 0.15], context='VERTS')
+    bm.to_mesh(crown.data)
+    bm.free()
+    # Knit ribs: shallow vertical grooves round the crown.
+    for v in crown.data.vertices:
+        a = math.atan2(v.co.y, v.co.x)
+        k = 1 + 0.018 * math.cos(a * 16)
+        v.co.x *= k
+        v.co.y *= k
+    cuff = ring(0.236, 0.036, 0.165, y=0.01, name='sole', major=24, minor=8)
+    pom = ball(0.058, 0.43, y=0.02, name='trim', segs=12, rings=8)
+    export(join([crown, cuff, pom]), 'ch_hat_beanie')
+
+
+def hat_tophat():
+    tube_ = soft(cyl(0.17, 0.185, 0.29, 0.35, y=0.01), width=0.016, segments=2, sub=1, target=320)
+    band = soft(cyl(0.186, 0.181, 0.05, 0.235, y=0.01, name='sole'), width=0.008, segments=2, sub=0)
+    brim = cyl(0.27, 0.27, 0.018, 0.2, verts=26, y=0.01, name='hair')
+    for v in brim.data.vertices:
+        v.co.z += 0.032 * (v.co.x / 0.27) ** 2
+    export(join([tube_, band, soft(brim, width=0.006, segments=2, sub=0)]), 'ch_hat_tophat')
+
+
+def hat_toque():
+    band = cyl(0.2, 0.205, 0.1, 0.215, verts=24, y=0.01)
+    for v in band.data.vertices:
+        a = math.atan2(v.co.y - 0.01, v.co.x)
+        k = 1 + 0.03 * math.cos(a * 12)
+        v.co.x *= k
+        v.co.y = 0.01 + (v.co.y - 0.01) * k
+    band = soft(band, width=0.01, segments=2, sub=1, target=320)
+    puff = ball(0.235, 0.35, sz=0.7, y=0.01, segs=20, rings=12)
+    for v in puff.data.vertices:
+        a = math.atan2(v.co.y - 0.01, v.co.x)
+        v.co.x *= 1 + 0.06 * math.cos(a * 6)
+        v.co.y = 0.01 + (v.co.y - 0.01) * (1 + 0.06 * math.cos(a * 6))
+    export(join([band, puff]), 'ch_hat_toque')
+
+
+def hat_cap():
+    # A baseball cap: six soft panels (shallow seams), a button on top, the peak forward over the brow.
+    crown = ball(0.226, 0.2, sz=0.74, y=0.02, segs=24, rings=12)
+    bm = bmesh.new()
+    bm.from_mesh(crown.data)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z < 0.16], context='VERTS')
+    bm.to_mesh(crown.data)
+    bm.free()
+    for v in crown.data.vertices:
+        a = math.atan2(v.co.y - 0.02, v.co.x)
+        k = 1 - 0.012 * max(0.0, math.cos(a * 6)) ** 8
+        v.co.x *= k
+        v.co.y = 0.02 + (v.co.y - 0.02) * k
+    button = ball(0.02, 0.37, y=0.02, segs=10, rings=6, name='trim')
+    visor = peak(0.15, 0.175, -0.17, -6, name='hair', sx=1.05)
+    export(join([crown, button, visor]), 'ch_hat_cap')
+
+
+def hair_long():
+    """Long hair down the back as its own piece (it swings from the head): a slab rounded all round, tapering to a soft
+    curved tip, a little wave across it. Its origin is the head's centre, like the heads."""
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0.15, -0.2))
+    o = active()
+    o.scale = (0.4, 0.13, 0.42)
+    bpy.ops.object.transform_apply(scale=True)
+    sub = o.modifiers.new('sub', 'SUBSURF')
+    sub.levels = 3
+    apply_all(o)
+    for v in o.data.vertices:
+        t = max(0.0, min(1.0, (-0.0 - v.co.z) / 0.42))
+        # Narrower and thinner toward the tip, curving out from the back at the ends, a soft wave across.
+        v.co.x *= 1 - 0.18 * t
+        v.co.y = 0.15 + (v.co.y - 0.15) * (1 - 0.35 * t) + 0.04 * t * t
+        v.co.z += 0.012 * math.sin(v.co.x * 28)
+    smooth(tag(o, 'hair'))
+    d = o.modifiers.new('dec', 'DECIMATE')
+    d.ratio = 320 / max(1, sum(len(p.vertices) - 2 for p in o.data.polygons))
+    apply_all(o)
+    export(smooth(o), 'ch_hair_long')
+
+
+def ponytail():
+    """A ponytail for the bun's younger cousin: a soft tapered lock from a tie at the back of the crown."""
+    tie = ring(0.04, 0.016, 0.0, name='trim', major=12, minor=5)
+    tie.rotation_euler = (math.radians(70), 0, 0)
+    tie.location = (0, 0.2, 0.07)
+    bpy.ops.object.transform_apply(location=True, rotation=True)
+    lock = ball(0.06, 0.0, sx=0.9, sy=0.8, sz=2.2, segs=12, rings=10, name='hair')
+    for v in lock.data.vertices:
+        t = (0.13 - v.co.z) / 0.26
+        k = 1 - 0.5 * max(0.0, min(1.0, t))
+        v.co.x *= k
+        v.co.y *= k
+        v.co.y += 0.05 * max(0.0, t) ** 2
+    lock.location = (0, 0.25, -0.06)
+    bpy.ops.object.transform_apply(location=True)
+    export(join([tie, lock]), 'ch_hair_tail')
+
+
+# ONLY=ch_hat_cap,ch_hair_long builds just those (the rest stay as they are).
+ONLY = [n for n in os.environ.get('ONLY', '').split(',') if n]
+JOBS = [('ch_hand_r', lambda: hand(1)), ('ch_hand_l', lambda: hand(-1))]
+JOBS += [('ch_head_' + s, (lambda s=s: head(s))) for s in ('short', 'side', 'quiff', 'curly', 'bob', 'long', 'bun', 'bald', 'hat')]
+JOBS += [('ch_shoe', shoe)]
+JOBS += [('ch_' + fn.__name__, fn) for fn in (hat_conductor, hat_bowler, hat_boater, hat_pillbox, hat_beanie, hat_tophat, hat_toque, hat_cap)]
+JOBS += [('ch_hair_long', hair_long), ('ch_hair_tail', ponytail)]
+for name, fn in JOBS:
+    if ONLY and name not in ONLY:
+        continue
+    clear()
+    fn()

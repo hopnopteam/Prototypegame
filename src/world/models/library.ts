@@ -4,6 +4,7 @@ import aoData from '../../../assets/models/models_ao.bin';
 import { NEW_LOOK, PROP_AO } from '../../config/look';
 import { MODEL_INDEX, MODEL_TOTALS } from './modelIndex';
 import type { ModelEntry } from './types';
+import type { Surface } from '../surfaces';
 
 /**
  * Session 49: the CC0 models baked by scripts/assets/bake_models.py (vertex-coloured, no textures), decoded once from
@@ -103,6 +104,8 @@ export interface Recolor {
   ref: string;
   /** Our colour (sRGB hex). */
   to: string;
+  /** Session 62: the surface for what this rule recolours (the hair's gloss on a head), when it differs from the model's. */
+  surface?: Surface;
 }
 
 const hsv = { h: 0, s: 0, v: 0 };
@@ -131,7 +134,7 @@ function inBand(h: number, band: [number, number]): boolean {
 const tmpA = new THREE.Color();
 const tmpB = new THREE.Color();
 /** Recolours linear vertex colours in place (bands are judged in sRGB, as the artist painted them). */
-export function recolor(colors: Float32Array, rules: readonly Recolor[]): void {
+export function recolor(colors: Float32Array, rules: readonly Recolor[], hits?: Int8Array): void {
   if (!rules.length) return;
   const refs = rules.map((r) => {
     tmpA.set(r.ref);
@@ -151,6 +154,7 @@ export function recolor(colors: Float32Array, rules: readonly Recolor[]): void {
       colors[i] = Math.min(1, refs[k].to.r * ratio);
       colors[i + 1] = Math.min(1, refs[k].to.g * ratio);
       colors[i + 2] = Math.min(1, refs[k].to.b * ratio);
+      if (hits) hits[i / 3] = k;
       break;
     }
   }

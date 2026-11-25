@@ -36,6 +36,13 @@ if (batch) {
 
 function lookOf(name: string): { look: CharacterLook; scale: number } {
   if (name === 'conductor') return { look: CONDUCTOR_LOOK, scale: 1.1 };
+  // A family's child (as Guests makes them), and figures with a given hairdo for checking hair (e.g. `vip.ponytail`).
+  if (name === 'child') return { look: { body: '#F2C94C', accent: '#E26D8C', skin: '#E3AE87', hair: '#2F2520', hat: 'none', outfit: 'dress', pants: '#E26D8C', hairStyle: 'bob', shoe: '#D64B6A' }, scale: 0.62 };
+  if (name.includes('.')) {
+    const [base, hair] = name.split('.');
+    const r = lookOf(base);
+    return { look: { ...r.look, hairStyle: hair as CharacterLook['hairStyle'], hat: 'none' }, scale: r.scale };
+  }
   if (name in STAFF_LOOKS) return { look: STAFF_LOOKS[name as keyof typeof STAFF_LOOKS], scale: 1 };
   const [id, v] = name.split(':');
   const a = ARCHETYPES.find((x) => x.id === id) ?? ARCHETYPES[0];
@@ -70,6 +77,41 @@ const zoom = Number(params.get('zoom') ?? '1');
 let last = performance.now();
 let clock = 0;
 const walk = params.get('walk') === '1';
+/**
+ * `?move=1` (session 62, the moving clothes): each figure really travels, pacing up and down the screen: it sets off,
+ * walks 1.3 m, stops, turns round and comes back, so skirts, coat tails and hair show their inertia (walking in place
+ * has none).
+ */
+const move = params.get('move') === '1';
+const moveSpeed = Number(params.get('speed') ?? '1.6');
+const home = views.map((v) => ({ x: v.root.position.x, z: 0 }));
+function pace(v: CharacterView, i: number, t: number, dt: number): number {
+  // A cycle: walk out (1.3 m), stop 0.9 s, turn, walk back, stop 0.9 s; each figure a little out of step.
+  const walkT = 1.3 / moveSpeed;
+  const cycle = 2 * (walkT + 0.9);
+  const u = (t + i * 0.37) % cycle;
+  let z = 0;
+  let speed = 0;
+  let facing = Math.PI;
+  if (u < walkT) {
+    z = -1.3 * (u / walkT);
+    speed = moveSpeed;
+    facing = Math.PI;
+  } else if (u < walkT + 0.9) {
+    z = -1.3;
+    facing = u < walkT + 0.35 ? Math.PI : 0;
+  } else if (u < 2 * walkT + 0.9) {
+    z = -1.3 + 1.3 * ((u - walkT - 0.9) / walkT);
+    speed = moveSpeed;
+    facing = 0;
+  } else {
+    facing = u < 2 * walkT + 0.9 + 0.35 ? 0 : Math.PI;
+  }
+  v.setPosition(home[i].x, 0, z + 0.65);
+  v.setFacing(facing + face * 0.3);
+  void dt;
+  return speed;
+}
 const turn = params.get('turn') === '1';
 const fixed = Number(params.get('dt') ?? '0');
 /** Captures step the figures themselves (`__step`), one call per video frame; the page only draws. */
@@ -81,7 +123,8 @@ function frame(now: number): void {
     clock += dt;
     for (const v of views) {
       if (turn) v.setFacing(face + clock * 0.9);
-      v.update(dt, walk ? Number(params.get('speed') ?? '1.6') : 0);
+      const sp = move ? pace(v, views.indexOf(v), clock, dt) : walk ? Number(params.get('speed') ?? '1.6') : 0;
+      v.update(dt, sp);
     }
   }
   cam.fov = fov;
@@ -131,9 +174,9 @@ async function exportFigure(i: number, keepFacing = false): Promise<string> {
 /** Steps every figure by `dt` seconds (a fixed-step capture: one call per video frame). */
 function step(dt: number): void {
   clock += dt;
-  for (const v of views) {
+  views.forEach((v, i) => {
     if (turn) v.setFacing(face + clock * 0.9);
-    v.update(dt, walk ? Number(params.get('speed') ?? '1.6') : 0);
-  }
+    v.update(dt, move ? pace(v, i, clock, dt) : walk ? Number(params.get('speed') ?? '1.6') : 0);
+  });
 }
 Object.assign(window, { __ready: true, __export: exportFigure, __views: views, __step: step });

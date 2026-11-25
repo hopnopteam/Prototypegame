@@ -259,7 +259,13 @@ export function groupAudit(group: THREE.Object3D, walls: ObjBox[] = []): ClipIss
     if (!o.visible) return;
     // A tagged group (a character, a kiosk) is one object, whatever it is made of.
     if (typeof o.userData.object === 'string' && !(o as THREE.Mesh).isMesh) {
-      objects.push({ label: o.userData.object, box: new THREE.Box3().setFromObject(o) });
+      // Shadows on the floor (a figure's blob and its long cast shadow) are not solid: left out of its box.
+      const box = new THREE.Box3();
+      o.traverse((c) => {
+        const cm = c as THREE.Mesh;
+        if (cm.isMesh && !cm.userData.noAudit && visibleInTree(cm)) box.union(new THREE.Box3().setFromObject(cm));
+      });
+      objects.push({ label: o.userData.object, box });
       return;
     }
     visit(o);

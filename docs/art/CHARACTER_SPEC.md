@@ -169,3 +169,45 @@ are 900–1,550 triangles, the mitten 284 and the clay shoe 416.
 
 Figures beyond 12 m from the camera use the Low set on every tier. Stage A measures the High set; the LODs land in
 Stage B.
+
+## 12. Session 62: clothes that move, details, and the Stage A gaps closed
+
+**Clothes that move** (owner: "make sure their clothing actually genuinely behaves somewhat like clothing"). Skirts,
+coat tails, an apron's skirt, long hair and ponytails are their own pieces, each hung from a pivot (the waist at
+0.47 m, the coat's at 0.5 m, the back of the head) and swung by a damped spring (`CLOTH_SPRING` in
+`world/CharacterView.ts`, about 1.5–2 Hz, lightly damped so it overshoots and settles). Each piece's angle is simulated
+in the world's frame and shown relative to its parent, so:
+
+| What the figure does | What the cloth does |
+|---|---|
+| sets off | trails back (inertia), then hangs a little back at speed (air) |
+| stops | swings forward past the legs and settles |
+| turns | flicks out to the outside of the turn |
+| each footfall | a small bounce back and a sway toward the landing foot; a skirt's hem flares and settles |
+| leans, sways, twists (the walk) | lags behind the body and catches up |
+| walks in a long coat | each half (open at the front, vented at the back) is pushed by its own leg |
+| walks in an apron | the apron's skirt is pushed by whichever leg leads |
+| sits | the skirt drapes forward over the lap; coat halves follow the thighs |
+
+Hems carry soft vertical folds (a lathe whose radius ripples round it toward the hem) and a coloured lining, which
+shows as the cloth swings. No game randomness, no gameplay effect: the pacing simulator stays byte-identical.
+
+**Details** (owner: "too flat… add some important details"): eyebrows in the hair's colour, a blush painted into the
+cheeks, lapels, a placket, pocket flaps (jackets, coats; a breast pocket on shirts), a ribbed tee neckline, a dress's
+sash with a bow at the back and a round collar, a coat's self belt and double row of buttons, trouser side seams, laces
+on the shoes.
+
+**The gaps, closed:**
+
+| Gap | Fix |
+|---|---|
+| no long cast shadow | each figure lays a soft stretched shadow from its feet away from the key light (the moon, or the low sun), as long as the light is low (0.35–1.5 m); one more fan in the shadows' batch |
+| flat hat crowns | soft felt hats from Blender (`ch_hat_conductor`, `bowler`, `boater`, `pillbox`, `beanie`, `tophat`, `toque`, `cap`): bevelled, rolled edges, knit ribs on the beanie, panels on the cap, pleats on the toque |
+| hair has no gloss | hair takes a smoother surface (per-key surfaces on a recoloured model) and the figure shading adds a broad highlight, gentler on light hair (per pixel on High/Ultra, per vertex on Low/Medium) |
+| smaller noses | 0.043 m (men) and 0.035 m (was 0.036 and 0.028) |
+| pale skin | every skin warmed toward the reference's peach (hue toward 28°, a little more saturation, same lightness: `warmSkin`) |
+| no children | a figure drawn under 0.8 scale is a child: its head ×1.25, so 2.4 heads tall |
+
+**Measured** (the full Riviera train at a stop, Low tier, the same autopilot run): 8,112 triangles a person (Stage A
+6,546 in this scene; the figures before the overhaul 9,772), sync 3.0 ms (3.0), draw calls 78 (77). The LOD sets of §11
+were not needed to stay under the old figures' cost; they remain the next step if a phone needs it.

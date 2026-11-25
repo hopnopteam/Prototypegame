@@ -332,6 +332,9 @@ const FIGURE_LIFT = NEW_LOOK ? FIGURE_RIM.lift : 0.16;
  * High and Ultra.
  */
 const FIG_WRAP = 0.5;
+/** Glossy hair (session 62): surfaces at least this smooth get a broad highlight of this strength. */
+const FIG_GLOSS_FROM = 0.55;
+const FIG_GLOSS = 0.22;
 const FIG_WARM = '1.0, 0.46, 0.26';
 const FIG_SSS = 0.42;
 const FIG_SHEEN = 0.55;
@@ -405,6 +408,15 @@ if (vNxHighlight > 0.001) {
   float nxBand = smoothstep(-0.5, 0.0, nxNd) * (1.0 - smoothstep(0.0, 0.55, nxNd));
   vec3 nxKey = directionalLights[0].color;
   reflectedLight.directDiffuse += diffuseColor.rgb * RECIPROCAL_PI * nxKey * (nxWrap + nxBand * ${FIG_SSS.toFixed(2)} * vec3(${FIG_WARM}));
+  // Session 62: glossy hair (and anything as smooth): a broad soft highlight, never a pin-point.
+  vec4 nxSf = nxSurface();
+  float nxGloss = smoothstep(${FIG_GLOSS_FROM.toFixed(2)}, ${(FIG_GLOSS_FROM + 0.07).toFixed(2)}, nxSf.x) * (1.0 - nxSf.y);
+  if (nxGloss > 0.0) {
+    vec3 nxHv = normalize(directionalLights[0].direction + geometryViewDir);
+    // Light hair (grey, blonde) already catches the light: its gloss is gentler, never a white blot.
+    float nxLuma = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
+    totalEmissiveRadiance += nxKey * (pow(max(dot(normal, nxHv), 0.0), 22.0) * ${FIG_GLOSS.toFixed(2)} * nxGloss * (1.0 - 0.8 * nxLuma));
+  }
 }
 #endif
 {
@@ -440,6 +452,7 @@ varying vec3 vNxRest;
 varying vec3 vNxEnv;
 #ifdef NX_FIGURE
 varying vec3 vNxFigWarm;
+varying vec3 vNxFigGloss;
 #endif
 vec3 nxSkyV(vec3 r, float rough) {
   float up = r.y;
@@ -467,6 +480,7 @@ const LITE_VERTEX_BODY = /* glsl */ `
   vec3 nxRest = getAmbientLightIrradiance(ambientLightColor);
   #ifdef NX_FIGURE
   vNxFigWarm = vec3(0.0);
+  vNxFigGloss = vec3(0.0);
   #endif
   vec3 nxViewV = normalize(-(modelViewMatrix * vec4(transformed, 1.0)).xyz);
   #if NUM_DIR_LIGHTS > 0
@@ -486,6 +500,8 @@ const LITE_VERTEX_BODY = /* glsl */ `
         float nd = dot(nxNv, l);
         nxMoon = directionalLights[i].color * max((nd + ${FIG_WRAP.toFixed(2)}) / ${(1 + FIG_WRAP).toFixed(2)}, 0.0);
         vNxFigWarm = directionalLights[i].color * (smoothstep(-0.5, 0.0, nd) * (1.0 - smoothstep(0.0, 0.55, nd)) * ${FIG_SSS.toFixed(2)}) * vec3(${FIG_WARM});
+        float gl = smoothstep(${FIG_GLOSS_FROM.toFixed(2)}, ${(FIG_GLOSS_FROM + 0.07).toFixed(2)}, nxSurf.x) * (1.0 - nxSurf.y);
+        vNxFigGloss = directionalLights[i].color * (pow(max(dot(nxNv, normalize(l + nxViewV)), 0.0), 6.0) * ${(FIG_GLOSS * 0.55).toFixed(2)} * gl);
       }
       #endif
       float shine = mix(${LITE_SHINE_MAX.toFixed(1)}, 4.0, nxRough);
@@ -513,6 +529,7 @@ const LITE_VERTEX_BODY = /* glsl */ `
 const LITE_FRAGMENT_HEAD = /* glsl */ `
 #ifdef NX_FIGURE
 varying vec3 vNxFigWarm;
+varying vec3 vNxFigGloss;
 #endif
 varying vec4 vNxMoon;
 varying vec3 vNxRest;
@@ -580,6 +597,7 @@ if (vNxHighlight > 0.001) {
 }
 #ifdef NX_FIGURE
 reflectedLight.directDiffuse += nxDiffuse * vNxFigWarm;
+totalEmissiveRadiance += vNxFigGloss * (1.0 - 0.8 * dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)));
 {
   vec3 nxNw = inverseTransformDirection(normal, viewMatrix);
   float nxRimF = pow(1.0 - saturate(dot(normal, geometryViewDir)), 2.5);

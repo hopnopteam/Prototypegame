@@ -79,6 +79,11 @@ function shade(hex: string, k: number): string {
   return `#${c.getHexString()}`;
 }
 
+function mixHex(a: string, b2: string, t: number): string {
+  const c = new THREE.Color(a).lerp(new THREE.Color(b2), t);
+  return `#${c.getHexString()}`;
+}
+
 function smoothstep(e0: number, e1: number, x: number): number {
   const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
   return t * t * (3 - 2 * t);
@@ -208,15 +213,37 @@ const near = (p: Proxy, x: number, y: number): boolean => Math.abs(p.x - x) < 0.
 
 // ── The head ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Session 62 ("hair has no gloss"): the reference's hair carries a soft highlight a little glossier than the skin. The
+ * hair's vertices take this surface (smoothness 0.62), which the figure shading turns into a broad sheen on every tier.
+ */
+export const HAIR_SURFACE = { roughness: 0.38, metalness: 0, sheen: 0.12 };
 const HEAD_KEYS = (skin: string, hair: string): Recolor[] => [
   { hue: [345, 15], sat: [0.6, 1], val: [0.2, 1], ref: '#FF2A2A', to: skin },
-  { hue: [45, 75], sat: [0.6, 1], val: [0.2, 1], ref: '#FFFF2A', to: hair },
+  { hue: [45, 75], sat: [0.6, 1], val: [0.2, 1], ref: '#FFFF2A', to: hair, surface: HAIR_SURFACE },
 ];
+
+/**
+ * Session 62: the reference's skin is a warm peach (#DEB385), ours read pale and pink under daylight. Every skin is
+ * moved toward that warmth (hue toward 28°, a little more saturation), keeping its own lightness, so the range of
+ * tones stays as it is.
+ */
+export function warmSkin(hex: string): string {
+  const c = new THREE.Color(hex);
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl);
+  const target = 28 / 360;
+  hsl.h += (target - hsl.h) * 0.45;
+  hsl.s = Math.min(0.62, hsl.s * 1.12 + 0.03);
+  c.setHSL(hsl.h, hsl.s, hsl.l * 0.985);
+  return `#${c.getHexString()}`;
+}
 
 /** Which Blender head: the hairdo's own helmet, or hair pressed flat under a hat that covers the crown. */
 function headModel(f: FigureSpec): ModelId {
-  const flat = f.hatted && (f.hairStyle === 'short' || f.hairStyle === 'side' || f.hairStyle === 'quiff' || f.hairStyle === 'curly');
-  return (flat ? 'ch_head_hat' : `ch_head_${f.hairStyle}`) as ModelId;
+  const flat = f.hatted && (f.hairStyle === 'short' || f.hairStyle === 'side' || f.hairStyle === 'quiff' || f.hairStyle === 'curly' || f.hairStyle === 'ponytail');
+  // A ponytail is short hair swept back with a tail of its own (the tail swings: `hairPieceGeometry`).
+  return (flat ? 'ch_head_hat' : f.hairStyle === 'ponytail' ? 'ch_head_side' : `ch_head_${f.hairStyle}`) as ModelId;
 }
 
 /** A kit model placed with its own origin at (x, y, z) (GeoBuilder.model places by the bounding box's foot). */
@@ -229,16 +256,28 @@ function atOrigin(b: GeoBuilder, id: ModelId, x: number, y: number, z: number, s
 
 /** Whether the face is a man's (a moustache), for the size of the nose. */
 function noseRadius(f: FigureSpec): number {
-  return f.moustache ? 0.036 : 0.028;
+  // Session 62 ("smaller noses"): in three-quarter view the reference's bulb noses read bigger than ours did.
+  return f.moustache ? 0.043 : 0.035;
 }
 
 /** The head, its hair helmet and ears (Blender), and the face. */
 export function addHead(b: GeoBuilder, f: FigureSpec): void {
   atOrigin(b, headModel(f), 0, HEAD_Y, 0, 1, HEAD_KEYS(f.skin, f.hair), 0.97);
+  // Session 62 ("the characters are too flat… add some important details"): a warm blush on the cheeks, painted into the
+  // head's own skin (no extra surface to flicker), just below and outside the eyes.
+  const blush = mixHex(f.skin, '#EE7468', 0.7);
+  b.blendLast(blush, (x, y, z) => {
+    if (z < 0.06) return 0;
+    const d = Math.hypot(Math.abs(x) - 0.118, (y - HEAD_Y) + 0.056, (z - faceZ(0.118, -0.056)) * 0.5);
+    return 0.8 * (1 - smoothstep(0.012, 0.062, d));
+  });
   // The face (CHARACTER_SPEC §3): wide-set blue ovals at the head's middle, a bulb nose, a small red mouth.
   const ey = -0.012;
   for (const x of [-0.08, 0.08]) {
     b.add(new THREE.SphereGeometry(0.028, 8, 6).scale(0.9, 1.35, 0.42), EYE, x, HEAD_Y + ey, faceZ(x, ey) - 0.003, 0, 0, 0, FLAT);
+    // Session 62: soft brows in the hair's colour (a shade darker), tilted a touch, so the face has expression.
+    const by = ey + 0.06;
+    b.add(new THREE.SphereGeometry(0.03, 8, 5).scale(1.25, 0.3, 0.36), shade(f.hair, 0.82), x * 1.04, HEAD_Y + by, faceZ(x, by) - 0.002, 0, 0, x > 0 ? -0.16 : 0.16, FLAT);
   }
   const nr = noseRadius(f);
   const ny = -0.062;
@@ -331,40 +370,55 @@ export function addTorso(b: GeoBuilder, f: FigureSpec): void {
   switch (f.outfit) {
     case 'dress':
     case 'gown': {
-      // One smooth bell from the waist to the knee (or the ankle), its hem a soft roll.
-      const hem = f.outfit === 'dress' ? 0.21 : 0.07;
-      const flare = f.outfit === 'dress' ? 1.32 : 1.38;
-      b.add(lathe([[R * 0.97, 0.47], [R * 1.05, 0.4], [R * 1.2, 0.3], [R * flare, hem + 0.02], [0, hem]].reverse() as [number, number][], 22), f.pants, 0, 0, 0, 0, 0, 0, SOFT);
-      roll(b, hem + 0.012, R * flare * 0.99, 0.016, shade(f.pants, 0.92), TORSO_DEPTH);
+      // Session 62: the bell is its own piece that swings from the waist (`skirtGeometry`). Here: a sash at the waist
+      // with a bow at the back, and a soft round collar at the neck.
+      b.add(lathe([[R * 1.0, 0.448], [R * 1.035, 0.468], [R * 1.0, 0.49]], 22), shade(f.trim ?? f.pants, 0.95), 0, 0, 0, 0, 0, 0, SOFT);
+      const bz = -faceDepth(0.47, build) - 0.012;
+      for (const s2 of [-1, 1]) b.add(new THREE.SphereGeometry(0.045, 10, 7).scale(1.2, 0.62, 0.42), shade(f.trim ?? f.pants, 0.95), s2 * 0.045, 0.475, bz, 0, 0, s2 * 0.35, SOFT);
+      b.sphere(0, 0.47, bz - 0.006, 0.022, shade(f.trim ?? f.pants, 0.85), 1, 1, SOFT);
+      roundCollar(b, f.outfit === 'gown' ? shade(f.top, 1.12) : '#F6F1E6', build);
       break;
     }
     case 'coat': {
-      // A long coat to the knee over the trousers, its hem a roll; a collar (or a fur stole) and two buttons.
-      b.add(lathe([[0, 0.24], [R * 1.12, 0.24], [R * 1.08, 0.33], [R * 1.02, 0.44], [R, 0.5]], 22), f.top, 0, 0, 0, 0, 0, 0, SOFT);
-      roll(b, 0.25, R * 1.11, 0.016, shade(f.top, 0.9), TORSO_DEPTH);
+      // A long coat: its skirts are two pieces that swing with the legs (`coatHalfGeometry`), open at the front with a
+      // vent at the back. Here: a self belt with a buckle, lapels, a collar (or a fur stole), two rows of buttons.
       hips(b, f);
+      b.add(lathe([[R * 1.02, 0.455], [R * 1.045, 0.475], [R * 1.02, 0.495]], 22), shade(f.top, 0.85), 0, 0, 0, 0, 0, 0, SOFT);
+      b.rounded(0, 0.475, faceDepth(0.475, build) + 0.02, 0.05, 0.036, 0.012, 0.006, shade(f.trim ?? f.top, 1), { shade: 1, surface: 'steel' });
       const trim = f.fur ?? f.trim ?? f.top;
       if (f.fur) b.add(new THREE.TorusGeometry(R * 0.62, 0.055, 10, 22).scale(1, 0.84, 1), f.fur, 0, 0.8, 0, Math.PI / 2, 0, 0, { shade: 0.92, surface: 'fabric' });
-      else collar(b, trim, build);
-      for (const y of [0.62, 0.52]) b.sphere(0, y, faceDepth(y, build) + 0.004, 0.018, trim, 1, 1, FLAT);
+      else {
+        collar(b, trim, build);
+        lapels(b, shade(f.top, 0.9), build);
+      }
+      for (const y of [0.64, 0.55]) for (const x of [-0.05, 0.05]) onFront(b, x, y, build, (z, ry) => b.add(new THREE.SphereGeometry(0.016, 8, 6).scale(1, 1, 0.6), trim, x, y, z + 0.004, 0, ry, 0, FLAT));
       break;
     }
     case 'jacket': {
-      // A uniform jacket: a hem band just over the hips, a row of buttons, a soft collar.
+      // A uniform jacket: a hem band just over the hips, a placket with a row of buttons, lapels under a soft collar,
+      // two pocket flaps at the hips (session 62: the details that keep a uniform from reading as a flat tube).
       roll(b, 0.39, R * 0.98, 0.02, shade(f.top, 0.9), TORSO_DEPTH);
       hips(b, f);
-      if (f.trim) for (const y of [0.7, 0.61, 0.52]) b.sphere(0, y, faceDepth(y, build) + 0.004, 0.019, f.trim, 1, 1, FLAT);
+      placket(b, shade(f.top, 0.86), build, 0.41, 0.76);
+      if (f.trim) for (const y of [0.7, 0.61, 0.52]) b.sphere(0, y, faceDepth(y, build) + 0.008, 0.019, f.trim, 1, 1, FLAT);
       collar(b, shade(f.top, 0.92), build);
+      lapels(b, shade(f.top, 0.84), build);
+      for (const x of [-0.105, 0.105]) pocketFlap(b, x, 0.445, shade(f.top, 0.86), build, f.trim);
       break;
     }
     case 'shirt':
       roll(b, 0.39, R * 0.97, 0.018, shade(f.top, 0.92), TORSO_DEPTH);
       hips(b, f);
       collar(b, f.trim && f.trim !== f.top ? f.trim : shade(f.top, 0.95), build);
+      // A button placket and a breast pocket.
+      placket(b, shade(f.top, 0.9), build, 0.4, 0.76);
+      for (const y of [0.69, 0.6, 0.51]) b.sphere(0, y, faceDepth(y, build) + 0.007, 0.011, '#F4F1EA', 1, 1, FLAT);
+      pocketFlap(b, 0.095, 0.66, shade(f.top, 0.9), build, undefined, true);
       break;
     default:
-      // A tee: its hem band over the trousers' waist.
+      // A tee: its hem band over the trousers' waist and a ribbed neckline.
       roll(b, 0.385, R * 0.95, 0.018, shade(f.top, 0.9), TORSO_DEPTH);
+      roll(b, 0.815, R * 0.6, 0.016, shade(f.trim && f.stripes ? f.trim : f.top, 0.88), TORSO_DEPTH);
       hips(b, f);
       break;
   }
@@ -374,7 +428,7 @@ export function addTorso(b: GeoBuilder, f: FigureSpec): void {
  * An apron that follows the body (it was a flat card in front of it): a bib curved round the chest and a skirt curved
  * round the hips or the dress's bell, a hair's breadth proud of what it covers, the front third of the way round.
  */
-export function addApron(b: GeoBuilder, color: string, build: Build = 'regular', dress = false): void {
+export function addApron(b: GeoBuilder, color: string, build: Build = 'regular', dress = false, part: 'bib' | 'skirt' | 'all' = 'all'): void {
   const R = TORSO_R[build];
   const chest = chestProfile(build);
   const at = (p: [number, number][], y: number): number => {
@@ -393,12 +447,87 @@ export function addApron(b: GeoBuilder, color: string, build: Build = 'regular',
   };
   const bib: [number, number][] = [];
   for (let y = 0.5; y <= 0.721; y += 0.044) bib.push([at(chest, y) + 0.008, y]);
-  b.add(panel(bib, 0.6), color, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric' });
+  if (part !== 'skirt') {
+    b.add(panel(bib, 0.6), color, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric' });
+    // Its waistband ties round outside whatever the waist wears (a dress's sash, a belt).
+    roll(b, 0.475, R * (dress ? 1.06 : 0.98), 0.012, shade(color, 0.92), TORSO_DEPTH);
+  }
+  if (part === 'bib') return;
   const skirt: [number, number][] = dress
     ? [[R * 1.32 + 0.012, 0.25], [R * 1.2 + 0.012, 0.3], [R * 1.05 + 0.012, 0.4], [R * 0.97 + 0.012, 0.47]]
     : [[R * 0.98, 0.26], [R * 0.95, 0.36], [R * 0.95, 0.47]];
   b.add(panel(skirt, 0.75), color, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric' });
-  roll(b, 0.475, R * 0.98, 0.012, shade(color, 0.92), TORSO_DEPTH);
+  // Its hem, a soft roll along the bottom edge.
+  const hemR = skirt[0][0];
+  const hemY = skirt[0][1];
+  const pts: THREE.Vector3[] = [];
+  for (let i = 0; i <= 10; i++) {
+    const a = -0.75 + (1.5 * i) / 10;
+    pts.push(new THREE.Vector3(hemR * Math.sin(a), hemY, hemR * Math.cos(a) * TORSO_DEPTH));
+  }
+  b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.01, 5, false), shade(color, 0.92), 0, 0, 0, 0, 0, 0, SOFT);
+}
+
+/** The chest's radius at a height (the lathe's profile), for things laid on its surface. */
+function chestRadius(build: Build, y: number): number {
+  const prof = chestProfile(build);
+  for (let i = 1; i < prof.length; i++) {
+    const [r0, a] = prof[i - 1];
+    const [r1, c] = prof[i];
+    if (y >= a && y <= c) return r0 + ((y - a) / (c - a)) * (r1 - r0);
+  }
+  return TORSO_R[build];
+}
+
+/** Lays something on the chest's front at (x, y): the surface's depth there and the turn that follows its curve. */
+function onFront(b: GeoBuilder, x: number, y: number, build: Build, place: (z: number, rotY: number) => void): void {
+  const r = chestRadius(build, y);
+  const z = TORSO_DEPTH * Math.sqrt(Math.max(0, r * r - x * x));
+  place(z, Math.atan2(x / Math.max(1e-3, r), z / Math.max(1e-3, r * TORSO_DEPTH)) * 0.9);
+  void b;
+}
+
+/** A jacket's or coat's lapels: two soft tapered tabs from under the collar down to the first button. */
+function lapels(b: GeoBuilder, color: string, build: Build): void {
+  // A soft tapered strip from the collar's point down and in to the top button, laid on the chest.
+  for (const s of [-1, 1]) {
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= 6; i++) {
+      const t = i / 6;
+      const y = 0.79 - t * 0.17;
+      const x = s * (0.085 - t * 0.065);
+      const r = chestRadius(build, y);
+      pts.push(new THREE.Vector3(x, y, TORSO_DEPTH * Math.sqrt(Math.max(0, r * r - x * x)) + 0.004));
+    }
+    const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.016, 5, false);
+    // Flatten it against the chest: thinner toward the body than across.
+    g.scale(1, 1, 1);
+    b.add(g, color, 0, 0, 0, 0, 0, 0, SOFT);
+  }
+}
+
+/** A placket: a narrow raised band down the front where the garment buttons. */
+function placket(b: GeoBuilder, color: string, build: Build, y0: number, y1: number): void {
+  const pts: THREE.Vector3[] = [];
+  for (let y = y0; y <= y1 + 1e-6; y += (y1 - y0) / 8) pts.push(new THREE.Vector3(0, y, faceDepth(y, build) + 0.003));
+  b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, 0.011, 5, false).scale(1.5, 1, 0.5), color, 0, 0, 0, 0, 0, 0, SOFT);
+}
+
+/** A pocket flap (or, `patch`, a breast pocket): a soft rounded tab on the front, a button on it when given. */
+function pocketFlap(b: GeoBuilder, x: number, y: number, color: string, build: Build, button?: string, patch = false): void {
+  onFront(b, x, y, build, (z, ry) => {
+    if (patch) b.rounded(x, y - 0.02, z + 0.004, 0.07, 0.07, 0.012, 0.012, shade(color, 1.04), { shade: 1, surface: 'fabric' });
+    b.rounded(x, y, z + 0.008, 0.085, 0.03, 0.014, 0.008, color, { shade: 1, surface: 'fabric' });
+    if (button) b.sphere(x, y - 0.006, z + 0.016, 0.01, button, 1, 1, FLAT);
+    void ry;
+  });
+}
+
+/** A dress's round collar: two soft half discs either side of the throat. */
+function roundCollar(b: GeoBuilder, color: string, build: Build): void {
+  const y = 0.8;
+  const z = faceDepth(y, build) - 0.016;
+  for (const s of [-1, 1]) b.add(new THREE.SphereGeometry(0.055, 12, 7).scale(1.1, 0.34, 0.6), color, s * 0.056, y, z, 0.3, 0, s * 0.3, SOFT);
 }
 
 /** Two soft collar points under the chin, either side of the front. */
@@ -504,6 +633,12 @@ export function forearmGeometry(sleeve: string, skin: string, long: boolean, sid
   return occlude(b.build(), build, [side * shoulderX(build), SHOULDER_Y + ELBOW_Y, 0], (p) => p.x * side > 0 && Math.abs(p.x) > 0.1);
 }
 
+/** A trouser leg's outside seam: a fine raised line down the side, a shade darker than the cloth. */
+function seam(b: GeoBuilder, side: 1 | -1, y0: number, y1: number, r0: number, r1: number, color: string): void {
+  const pts = [new THREE.Vector3(side * (r0 + 0.001), y0, 0), new THREE.Vector3(side * (r1 + 0.001), y1, 0)];
+  b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 2, 0.0045, 4, false), shade(color, 0.8), 0, 0, 0, 0, 0, 0, FLAT);
+}
+
 /** The thigh, from the hip pivot to the knee: trousers, or a bare leg under a skirt. */
 export function thighGeometry(color: string, bare: boolean, skin: string, build: Build = 'regular', side: 1 | -1 = 1): THREE.BufferGeometry {
   const b = new GeoBuilder();
@@ -514,6 +649,7 @@ export function thighGeometry(color: string, bare: boolean, skin: string, build:
     joint(b, -0.03, TROUSER_R, color);
     tube(b, -0.03, KNEE_Y, TROUSER_R, SHIN_R, color);
     joint(b, KNEE_Y, SHIN_R, color);
+    seam(b, side, -0.04, KNEE_Y, TROUSER_R, SHIN_R, color);
   }
   return occlude(b.build(), build, [side * hipX(build), HIP_Y, 0], (p) => near(p, side * hipX(build), 0.2) || p.y < 0.3);
 }
@@ -533,6 +669,7 @@ export function shinGeometry(color: string, shoe: string, bare: boolean, skin: s
   } else {
     const cuff = shoeTop + 0.045;
     tube(b, 0, cuff, SHIN_R, SHIN_R * 0.97, color);
+    seam(b, side, 0, cuff + 0.02, SHIN_R, SHIN_R * 0.97, color);
     // The turned-up hem: a roll a touch wider than the leg, its inside dark, the sock band showing under it.
     roll(b, cuff, SHIN_R * 0.95, 0.024, shade(color, 1.08));
     b.add(new THREE.CircleGeometry(SHIN_R * 0.95, 12), shade(color, 0.5), 0, cuff - 0.02, 0, Math.PI / 2, 0, 0, FLAT);
@@ -542,5 +679,171 @@ export function shinGeometry(color: string, shoe: string, bare: boolean, skin: s
   // and gowns, the look's own colour on a pale sole for everyone else.
   const s = smart ? 1.08 : 1.1;
   b.model('ch_shoe', 0, foot, 0.03, 0, s, s, s, { recolor: figKeys(skin, shoe, smart ? SMART_SOLE : SOLE, shoe), shade: 0.94, surface: smart ? 'leather' : 'matte' });
+  // Session 62: laces across the instep (pale on everyday shoes, the shoe's own darker shade on smart ones), laid on the
+  // upper's dome (art/blender/characters/char_kit.py: centre 0.044 up and 0.022 forward, radii 0.042 up, 0.114 long).
+  for (const dz of [0.03, 0.058]) {
+    const h = 0.044 + 0.042 * Math.sqrt(1 - (dz / 0.114) ** 2);
+    b.add(new THREE.CapsuleGeometry(0.0065, 0.04, 3, 6), smart ? shade(shoe, 0.7) : '#F4F1EA', 0, foot + h * s - 0.001, 0.03 + (0.022 + dz) * s, 0, 0, Math.PI / 2, FLAT);
+  }
   return occlude(b.build(), build, [side * hipX(build), HIP_Y + KNEE_Y, 0], (p) => Math.abs(p.x - side * hipX(build)) < 0.02 || p.y > 0.4);
+}
+
+
+// ── Clothes that move (session 62, owner: "make sure their clothing actually genuinely behaves somewhat like clothing") ──
+//
+// Skirts, coat tails, an apron's skirt and long hair are their own pieces, each hung from a pivot (the waist, the back of
+// the head) and swung by a damped spring in CharacterView: they trail as the figure sets off, swing past as it stops,
+// flick out on a turn, bounce with each step, and the coat's two halves are pushed by the legs. Each piece is built in
+// figure space with soft folds and a lining, then moved so its pivot is its origin.
+
+/** Where a skirt or a coat's tails hang from (figure space). */
+export const WAIST_Y = 0.47;
+export const COAT_PIVOT_Y = 0.5;
+
+/** A lathe whose radius ripples round its circumference toward the hem: soft vertical folds, like hanging cloth. */
+function foldedLathe(profile: [number, number][], folds: number, depth: number, top: number, bottom: number, phiStart = 0, phiLength = Math.PI * 2, segments = 28): THREE.BufferGeometry {
+  const g = new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), segments, phiStart, phiLength);
+  const pos = g.getAttribute('position');
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const phi = Math.atan2(x, z);
+    const t = Math.max(0, Math.min(1, (top - y) / Math.max(1e-3, top - bottom)));
+    const k = 1 + depth * t * t * Math.cos(phi * folds);
+    pos.setXYZ(i, x * k, y, z * k);
+  }
+  g.scale(1, 1, TORSO_DEPTH);
+  g.deleteAttribute('uv');
+  g.computeVertexNormals();
+  return g;
+}
+
+/** The same surface seen from inside: a lining (the winding and normals reversed). */
+function inside(g: THREE.BufferGeometry, shrink = 0.985): THREE.BufferGeometry {
+  const h = g.clone();
+  h.scale(shrink, 1, shrink);
+  const index = h.getIndex();
+  if (index) {
+    const a = index.array as Uint16Array | Uint32Array;
+    for (let i = 0; i < a.length; i += 3) {
+      const t = a[i + 1];
+      a[i + 1] = a[i + 2];
+      a[i + 2] = t;
+    }
+    index.needsUpdate = true;
+  }
+  const n = h.getAttribute('normal');
+  for (let i = 0; i < n.count; i++) n.setXYZ(i, -n.getX(i), -n.getY(i), -n.getZ(i));
+  return h;
+}
+
+/** A soft roll along an arc of the hem (phi from a0 to a1, 0 is the front), at height y and radius r. */
+function hemArc(b: GeoBuilder, y: number, r: number, a0: number, a1: number, color: string, tube = 0.016): void {
+  const pts: THREE.Vector3[] = [];
+  const n = 16;
+  for (let i = 0; i <= n; i++) {
+    const a = a0 + ((a1 - a0) * i) / n;
+    pts.push(new THREE.Vector3(r * Math.sin(a), y, r * Math.cos(a) * TORSO_DEPTH));
+  }
+  b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, tube, 5, a1 - a0 >= Math.PI * 2 - 1e-3), color, 0, 0, 0, 0, 0, 0, SOFT);
+}
+
+/** A dress's or a gown's bell (and an apron's skirt over it), hung from the waist. */
+export function skirtGeometry(f: FigureSpec, apron: string | null): THREE.BufferGeometry {
+  const build = f.build ?? 'regular';
+  const R = TORSO_R[build];
+  const b = new GeoBuilder();
+  const hem = f.outfit === 'dress' ? 0.21 : 0.07;
+  const flare = f.outfit === 'dress' ? 1.32 : 1.38;
+  const prof: [number, number][] = [[R * flare, hem + 0.012], [R * flare * 0.98, hem + 0.05], [R * 1.2, 0.3], [R * 1.05, 0.4], [R * 0.97, WAIST_Y + 0.005]];
+  const bell = foldedLathe(prof, 9, 0.045, WAIST_Y, hem);
+  b.add(bell, f.pants, 0, 0, 0, 0, 0, 0, SOFT);
+  b.add(inside(bell), shade(f.pants, 0.62), 0, 0, 0, 0, 0, 0, SOFT);
+  hemArc(b, hem + 0.012, R * flare * 0.995, 0, Math.PI * 2, shade(f.pants, 0.92));
+  if (apron) {
+    // The apron over the front of the bell, a hair proud of it and folded with it, shorter than the dress.
+    const radiusAt = (y: number): number => {
+      for (let i = 1; i < prof.length; i++) {
+        const [r0, a] = prof[i - 1];
+        const [r1, c] = prof[i];
+        if (y >= a && y <= c) return r0 + ((y - a) / (c - a)) * (r1 - r0);
+      }
+      return R;
+    };
+    const top = WAIST_Y - 0.005;
+    const low = hem + 0.06;
+    const ap: [number, number][] = [];
+    for (let i = 0; i <= 5; i++) {
+      const y = low + ((top - low) * i) / 5;
+      ap.push([radiusAt(y) + 0.012, y]);
+    }
+    b.add(foldedLathe(ap, 9, 0.045, WAIST_Y, hem, -0.75, 1.5, 14), apron, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric' });
+    hemArc(b, low + 0.004, radiusAt(low) + 0.012, -0.75, 0.75, shade(apron, 0.92), 0.01);
+  }
+  const g = occlude(b.build(), build, [0, 0, 0], (p) => p.x === 0 && p.y !== HEAD_Y);
+  g.translate(0, -WAIST_Y, 0);
+  return g;
+}
+
+/** One half of a long coat's skirts (side +1 is +x), open at the front, vented at the back, lined, hung at the waist. */
+export function coatHalfGeometry(f: FigureSpec, side: 1 | -1, lining: string): THREE.BufferGeometry {
+  const build = f.build ?? 'regular';
+  const R = TORSO_R[build];
+  const b = new GeoBuilder();
+  const gap = 0.07;
+  const phi0 = side > 0 ? gap : Math.PI + 0.01;
+  const len = Math.PI - gap - 0.01;
+  const hem = 0.24;
+  const prof: [number, number][] = [[R * 1.12, hem], [R * 1.1, 0.3], [R * 1.05, 0.4], [R * 1.01, 0.47], [R * 0.99, COAT_PIVOT_Y + 0.01]];
+  const shell = foldedLathe(prof, 7, 0.035, COAT_PIVOT_Y, hem, phi0, len, 16);
+  b.add(shell, f.top, 0, 0, 0, 0, 0, 0, SOFT);
+  b.add(inside(shell), lining, 0, 0, 0, 0, 0, 0, SOFT);
+  hemArc(b, hem + 0.004, R * 1.115, phi0, phi0 + len, shade(f.top, 0.9));
+  // A pocket flap low on the front of each half.
+  const a = side > 0 ? 0.62 : -0.62;
+  const r = R * 1.07;
+  b.add(new THREE.BoxGeometry(0.085, 0.028, 0.012), shade(f.top, 0.86), r * Math.sin(a), 0.36, r * Math.cos(a) * TORSO_DEPTH + 0.008, 0, a * 0.85, 0, { shade: 1, surface: 'fabric' });
+  const g = occlude(b.build(), build, [0, 0, 0], (p) => p.x === 0 && p.y !== HEAD_Y);
+  g.translate(0, -COAT_PIVOT_Y, 0);
+  return g;
+}
+
+/** An apron's skirt over trousers, hung from the waistband (the bib stays on the body). */
+export function apronFlapGeometry(color: string, build: Build = 'regular'): THREE.BufferGeometry {
+  const b = new GeoBuilder();
+  addApron(b, color, build, false, 'skirt');
+  const g = b.build();
+  g.translate(0, -WAIST_Y, 0);
+  return g;
+}
+
+/** The pivot (head-centre space) a swinging hair piece hangs from: the back of the head, a little below its middle. */
+export const HAIR_PIVOT: Record<'long' | 'ponytail', [number, number, number]> = { long: [0, -0.02, -0.14], ponytail: [0, 0.06, -0.2] };
+
+/** Long hair or a ponytail as its own piece (head-centre space, moved so its pivot is the origin); null otherwise. */
+export function hairPieceGeometry(f: FigureSpec): THREE.BufferGeometry | null {
+  const kind = f.hairStyle === 'long' ? 'long' : f.hairStyle === 'ponytail' && !f.hatted ? 'ponytail' : null;
+  if (!kind) return null;
+  const b = new GeoBuilder();
+  atOrigin(b, kind === 'long' ? 'ch_hair_long' : 'ch_hair_tail', 0, 0, 0, 1, [
+    ...HEAD_KEYS(f.skin, f.hair),
+    { hue: [285, 315], sat: [0.6, 1], val: [0.2, 1], ref: '#FF2AFF', to: shade(f.top, 1) },
+  ], 0.97);
+  const g = b.build();
+  const p = HAIR_PIVOT[kind];
+  g.translate(-p[0], -p[1], -p[2]);
+  return g;
+}
+
+/** The soft felt hats (art/blender/characters/char_kit.py), placed on the head (head-centre at HEAD_Y). */
+export type FeltHat = 'conductor' | 'bowler' | 'boater' | 'pillbox' | 'beanie' | 'tophat' | 'toque' | 'cap';
+export function addHat(b: GeoBuilder, kind: FeltHat, c: { crown: string; band: string; peak: string; trim: string }): void {
+  const keys: Recolor[] = [
+    { hue: [105, 135], sat: [0.6, 1], val: [0.2, 1], ref: '#2AFF2A', to: c.crown },
+    { hue: [225, 255], sat: [0.6, 1], val: [0.2, 1], ref: '#2A2AFF', to: c.band },
+    { hue: [45, 75], sat: [0.6, 1], val: [0.2, 1], ref: '#FFFF2A', to: c.peak },
+    { hue: [285, 315], sat: [0.6, 1], val: [0.2, 1], ref: '#FF2AFF', to: c.trim, surface: { roughness: 0.32, metalness: kind === 'conductor' || kind === 'pillbox' ? 1 : 0 } },
+  ];
+  atOrigin(b, `ch_hat_${kind}` as ModelId, 0, HEAD_Y, 0, 1, keys, 0.95, 'fabric');
 }

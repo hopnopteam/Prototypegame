@@ -3,11 +3,11 @@ import * as THREE from 'three';
 import type { StaffRole } from '../core/types';
 import type { IconName } from '../ui/icons';
 import { GeoBuilder } from './geo';
-import { MATERIALS, SHADOW_GEOMETRY } from './materials';
+import { LIGHT_UNIFORMS, MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, moodBubbleTexture, type BubbleStyle, type Mood } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
-import { addApron, addHead, addStrap, addTorso, ELBOW_Y, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, hipX, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, occludeBody, occludeHead, shinGeometry, shoulderX, SHOULDER_Y, thighGeometry, upperArmGeometry, type Build, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
+import { addApron, addHat, addHead, addStrap, addTorso, apronFlapGeometry, coatHalfGeometry, COAT_PIVOT_Y, hairPieceGeometry, HAIR_PIVOT, skirtGeometry, WAIST_Y, warmSkin, type FeltHat, ELBOW_Y, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, hipX, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, occludeBody, occludeHead, shinGeometry, shoulderX, SHOULDER_Y, thighGeometry, upperArmGeometry, type Build, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
 import { underPopup } from './screenMask';
 import type { CharacterBatch } from './CharacterBatch';
 
@@ -86,12 +86,23 @@ const bodyCache = new Map<string, THREE.BufferGeometry>();
 const limbCache = new Map<string, THREE.BufferGeometry>();
 
 /** The look's figure: the outfit, sleeves and hairdo it implies when it does not say. */
+const skinCache = new Map<string, string>();
+/** The look's skin, warmed toward the reference's peach (CharacterParts `warmSkin`), cached per colour. */
+function skinOf(look: CharacterLook): string {
+  let k = skinCache.get(look.skin);
+  if (!k) {
+    k = warmSkin(look.skin);
+    skinCache.set(look.skin, k);
+  }
+  return k;
+}
+
 function figureOf(look: CharacterLook): FigureSpec & { long: boolean } {
   const fur = look.accessory === 'furcoat';
   const outfit: Outfit = fur ? 'coat' : look.outfit ?? (look.arms ? 'jacket' : 'tee');
   const hairStyle: HairStyle = look.hairStyle ?? (look.longHair ? 'long' : look.hat === 'bun' ? 'bun' : 'short');
   return {
-    skin: look.skin,
+    skin: skinOf(look),
     hair: look.hair,
     hairStyle,
     outfit,
@@ -124,41 +135,35 @@ function headGeometry(look: CharacterLook): THREE.BufferGeometry {
   const f = figureOf(look);
   addHead(b, f);
   const T = HEAD_TOP;
-  const flat = { shade: 1 };
+  // Session 62 ("flat hat crowns"): every hat but the crown is a soft felt model (art/blender/characters/char_kit.py),
+  // its crown, band, peak and badge in the look's colours.
+  const felt = (kind: FeltHat, crown: string, band: string, peak = crown, trim = PALETTE.gold): void => addHat(b, kind, { crown, band, peak, trim });
   switch (look.hat) {
     case 'conductor': {
       const crown = look.hatColor ?? PALETTE.navy;
-      b.cylinder(0, T + 0.02, -0.01, 0.235, 0.215, 0.13, crown, 20, 'y', { shade: 0.86 });
-      b.cylinder(0, T - 0.03, -0.01, 0.22, 0.22, 0.05, look.bandColor ?? PALETTE.locoRed, 20, 'y', flat);
-      b.add(new THREE.CylinderGeometry(0.17, 0.17, 0.022, 16, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 0.72), shadeOf(crown), 0, T - 0.055, 0.12, 0.25, 0, 0, flat);
-      b.sphere(0, T + 0.01, 0.215, 0.032, PALETTE.gold, 1, 1, flat);
+      felt('conductor', crown, look.bandColor ?? PALETTE.locoRed, shadeOf(crown), PALETTE.gold);
       break;
     }
     case 'boater':
-      b.cylinder(0, T - 0.02, -0.01, 0.34, 0.34, 0.026, look.hatColor ?? '#E8D29A', 22, 'y', { shade: 0.95 });
-      b.cylinder(0, T + 0.05, -0.01, 0.19, 0.2, 0.13, look.hatColor ?? '#E8D29A', 20, 'y', { shade: 0.9 });
-      b.cylinder(0, T + 0.015, -0.01, 0.204, 0.204, 0.05, look.bandColor ?? PALETTE.raspberry, 20, 'y', flat);
+      felt('boater', look.hatColor ?? '#E8D29A', look.bandColor ?? PALETTE.raspberry);
       break;
     case 'bowler':
-      b.cylinder(0, T - 0.03, -0.01, 0.29, 0.29, 0.024, look.hatColor ?? '#2B2A30', 22, 'y', { shade: 0.95 });
-      b.sphere(0, T - 0.02, -0.01, 0.215, look.hatColor ?? '#2B2A30', 2, 0.82, { shade: 0.86 });
-      b.cylinder(0, T - 0.005, -0.01, 0.214, 0.214, 0.04, look.bandColor ?? '#4A3A36', 20, 'y', flat);
+      felt('bowler', look.hatColor ?? '#2B2A30', look.bandColor ?? '#4A3A36');
       break;
     case 'pillbox':
-      b.cylinder(0, T + 0.04, 0, 0.14, 0.14, 0.12, look.hatColor ?? look.body, 18, 'y', { shade: 0.9 });
-      b.cylinder(0, T - 0.01, 0, 0.144, 0.144, 0.026, PALETTE.gold, 18, 'y', flat);
+      felt('pillbox', look.hatColor ?? look.body, look.hatColor ?? look.body, look.hatColor ?? look.body, PALETTE.gold);
       break;
     case 'cap':
-      // A baseball cap: a soft crown over the hair and a peak forward.
-      // A baseball cap sitting on the crown, its peak over the brow (the eyes show under it from the game's camera).
-      b.add(dome(0.234, 0.82, 0.56), look.hatColor ?? look.accent, 0, HEAD_Y + 0.05, -0.02, -0.28, 0, 0, { shade: 0.9, surface: 'fabric' });
-      b.add(new THREE.CylinderGeometry(0.12, 0.12, 0.02, 16, 1, false, -Math.PI / 2, Math.PI).scale(1.1, 1, 1.1), shadeOf(look.hatColor ?? look.accent), 0, HEAD_Y + 0.085, 0.19, 0.2, 0, 0, flat);
-      b.sphere(0, HEAD_Y + 0.25, -0.01, 0.02, shadeOf(look.hatColor ?? look.accent), 0, 1, flat);
+      felt('cap', look.hatColor ?? look.accent, look.hatColor ?? look.accent, shadeOf(look.hatColor ?? look.accent), shadeOf(look.hatColor ?? look.accent));
       break;
     case 'beanie':
-      b.add(dome(0.234, 0.85, 0.52), look.accent, 0, HEAD_Y + 0.06, -0.01, 0, 0, 0, { shade: 0.9 });
-      b.cylinder(0, HEAD_Y + 0.07, -0.01, 0.238, 0.238, 0.06, shadeOf(look.accent), 20, 'y', flat);
-      b.sphere(0, HEAD_Y + 0.27, -0.02, 0.055, PALETTE.linen, 1, 1, flat);
+      felt('beanie', look.hatColor ?? look.accent, shadeOf(look.hatColor ?? look.accent), look.hatColor ?? look.accent, PALETTE.linen);
+      break;
+    case 'tophat':
+      felt('tophat', look.hatColor ?? '#1E1B24', look.bandColor ?? PALETTE.gold);
+      break;
+    case 'toque':
+      felt('toque', PALETTE.linen, PALETTE.linen);
       break;
     case 'crown': {
       b.cylinder(0, T + 0.06, -0.02, 0.14, 0.13, 0.07, PALETTE.gold, 16, 'y', { shade: 0.9, surface: 'brass' });
@@ -169,15 +174,6 @@ function headGeometry(look: CharacterLook): THREE.BufferGeometry {
       b.sphere(0, T + 0.06, 0.115, 0.022, PALETTE.raspberry, 0, 1, { shade: 1, surface: 'crystal' });
       break;
     }
-    case 'tophat':
-      b.cylinder(0, T - 0.02, -0.01, 0.28, 0.28, 0.026, look.hatColor ?? '#1E1B24', 22, 'y', { shade: 0.95, surface: 'leather' });
-      b.cylinder(0, T + 0.13, -0.01, 0.17, 0.18, 0.29, look.hatColor ?? '#1E1B24', 20, 'y', { shade: 0.9, surface: 'leather' });
-      b.cylinder(0, T + 0.03, -0.01, 0.182, 0.182, 0.05, look.bandColor ?? PALETTE.gold, 20, 'y', flat);
-      break;
-    case 'toque':
-      b.cylinder(0, T + 0.02, -0.01, 0.2, 0.2, 0.1, PALETTE.linen, 18, 'y', { shade: 0.95 });
-      b.sphere(0, T + 0.16, -0.01, 0.23, PALETTE.linen, 2, 0.72, { shade: 0.9 });
-      break;
     default:
       break;
   }
@@ -212,7 +208,8 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
       b.sphere(0.08, 0.68, front(0.68) + 0.035, 0.018, PALETTE.mustard, 1);
       break;
     case 'apron':
-      addApron(b, PALETTE.linen, f.build, f.outfit === 'dress' || f.outfit === 'gown');
+      // Session 62: the apron's skirt swings with the legs (a piece of its own, or part of the dress's bell).
+      addApron(b, PALETTE.linen, f.build, f.outfit === 'dress' || f.outfit === 'gown', 'bib');
       break;
     case 'camera':
       b.rounded(0, 0.6, front(0.6) + 0.04, 0.14, 0.09, 0.06, 0.02, '#2B2B33', flat);
@@ -272,13 +269,75 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
 }
 
 /** The crown of a soft hat: the top `frac` of a sphere of `radius`, squashed to `sy`, open underneath. */
-function dome(radius: number, sy: number, frac: number): THREE.BufferGeometry {
-  const g = new THREE.SphereGeometry(radius, 22, 12, 0, Math.PI * 2, 0, Math.PI * frac);
-  g.scale(1, sy, 1);
-  return g;
+/** A limb part, built once per look and kept (welded, so the batch draws fewer vertices). */
+/**
+ * Session 62 (owner: "make sure their clothing actually genuinely behaves somewhat like clothing… everything is way too
+ * stiff"): the pieces that hang and swing. Each is a mesh on its own pivot, swung by a damped spring (`Cloth`).
+ */
+type ClothKind = 'skirt' | 'coat' | 'apron' | 'hair';
+interface ClothSpec {
+  kind: ClothKind;
+  /** Pivot in body space (hair: head space). */
+  at: [number, number, number];
+  side: 1 | -1 | 0;
+  geometry: THREE.BufferGeometry;
+}
+const clothCache = new Map<string, THREE.BufferGeometry>();
+function clothPieces(look: CharacterLook): ClothSpec[] {
+  const f = figureOf(look);
+  const out: ClothSpec[] = [];
+  const cached = (key: string, make: () => THREE.BufferGeometry): THREE.BufferGeometry => {
+    let g = clothCache.get(key);
+    if (!g) {
+      g = welded(make());
+      clothCache.set(key, g);
+    }
+    return g;
+  };
+  const apron = look.accessory === 'apron' ? PALETTE.linen : null;
+  if (f.outfit === 'dress' || f.outfit === 'gown') {
+    out.push({ kind: 'skirt', at: [0, WAIST_Y, 0], side: 0, geometry: cached(`skirt:${f.outfit}:${f.pants}:${f.build}:${apron}`, () => skirtGeometry(f, apron)) });
+  } else if (apron) {
+    out.push({ kind: 'apron', at: [0, WAIST_Y, 0], side: 0, geometry: cached(`apron:${apron}:${f.build}`, () => apronFlapGeometry(apron, f.build)) });
+  }
+  if (f.outfit === 'coat') {
+    const lining = f.fur ?? (look.trim && look.trim !== look.body ? look.trim : shadeOf(look.body));
+    for (const side of [-1, 1] as const) out.push({ kind: 'coat', at: [0, COAT_PIVOT_Y, 0], side, geometry: cached(`coat:${f.top}:${lining}:${f.build}:${side}`, () => coatHalfGeometry(f, side, lining)) });
+  }
+  const hair = f.hairStyle === 'long' ? 'long' : f.hairStyle === 'ponytail' && !f.hatted ? 'ponytail' : null;
+  if (hair) {
+    const g = cached(`hair:${hair}:${f.hair}:${f.skin}:${f.top}`, () => hairPieceGeometry(f)!);
+    const p = HAIR_PIVOT[hair];
+    // Head space is the neck pivot's: the head's centre sits HEAD_Y − NECK_Y above it.
+    out.push({ kind: 'hair', at: [p[0], p[1] + HEAD_Y - NECK_Y, p[2]], side: 0, geometry: g });
+  }
+  return out;
 }
 
-/** A limb part, built once per look and kept (welded, so the batch draws fewer vertices). */
+/** How each kind of piece swings: stiffness, damping (per second²/second), how far it may swing (radians). */
+const CLOTH_SPRING: Record<ClothKind, { k: number; c: number; max: number; drag: number; accel: number }> = {
+  skirt: { k: 95, c: 6.5, max: 0.5, drag: 0.035, accel: 0.03 },
+  coat: { k: 120, c: 7.5, max: 0.6, drag: 0.045, accel: 0.035 },
+  apron: { k: 140, c: 8, max: 0.6, drag: 0.05, accel: 0.04 },
+  hair: { k: 70, c: 5, max: 0.7, drag: 0.06, accel: 0.04 },
+};
+
+interface Cloth {
+  spec: ClothSpec;
+  pivot: THREE.Object3D;
+  mesh: THREE.Mesh;
+  /** Swing about x (forward-back), z (side to side) and y (twist), in the parent's frame plus the parent's own motion. */
+  wx: number;
+  vx: number;
+  wz: number;
+  vz: number;
+  wy: number;
+  vy: number;
+  /** The hem's flare (a scale of its spread), bouncing with the steps. */
+  flare: number;
+  vf: number;
+}
+
 function limb(key: string, build: () => THREE.BufferGeometry): THREE.BufferGeometry {
   let g = limbCache.get(key);
   if (!g) {
@@ -296,26 +355,26 @@ function smartShoes(f: FigureSpec): boolean {
 function thighGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
   const bare = f.outfit === 'dress' || f.outfit === 'gown';
-  return limb(`thigh:${f.pants}:${bare}:${look.skin}:${f.build}:${side}`, () => thighGeometry(f.pants, bare, look.skin, f.build, side));
+  return limb(`thigh:${f.pants}:${bare}:${f.skin}:${f.build}:${side}`, () => thighGeometry(f.pants, bare, f.skin, f.build, side));
 }
 
 function shinGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
   const bare = f.outfit === 'dress' || f.outfit === 'gown';
   const smart = smartShoes(f);
-  return limb(`shin:${f.pants}:${look.shoe}:${bare}:${look.skin}:${look.sock}:${smart}:${f.build}:${side}`, () => shinGeometry(f.pants, look.shoe ?? SHOE, bare, look.skin, look.sock ?? '#F4F1EA', smart, f.build, side));
+  return limb(`shin:${f.pants}:${look.shoe}:${bare}:${f.skin}:${look.sock}:${smart}:${f.build}:${side}`, () => shinGeometry(f.pants, look.shoe ?? SHOE, bare, f.skin, look.sock ?? '#F4F1EA', smart, f.build, side));
 }
 
 function upperArmGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
-  return limb(`upper:${look.body}:${look.skin}:${f.long}:${f.build}:${side}`, () => upperArmGeometry(look.body, look.skin, f.long, f.build, side));
+  return limb(`upper:${look.body}:${f.skin}:${f.long}:${f.build}:${side}`, () => upperArmGeometry(look.body, f.skin, f.long, f.build, side));
 }
 
 function forearmGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
   const carried = look.accessory === 'briefcase' || look.accessory === 'handbag' ? look.accessory : null;
   const cuff = f.outfit === 'jacket' && look.accent !== look.body ? look.accent : undefined;
-  return limb(`fore:${look.body}:${look.skin}:${f.long}:${carried}:${side}:${cuff}:${f.build}`, () => forearmGeometry(look.body, look.skin, f.long, side, carried, cuff, f.build));
+  return limb(`fore:${look.body}:${f.skin}:${f.long}:${carried}:${side}:${cuff}:${f.build}`, () => forearmGeometry(look.body, f.skin, f.long, side, carried, cuff, f.build));
 }
 
 function shadeOf(hex: string): string {
@@ -323,6 +382,51 @@ function shadeOf(hex: string): string {
   const c = (v: number): number => Math.max(0, Math.min(255, v - 28));
   return `#${((c((n >> 16) & 255) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
 }
+
+/**
+ * Session 62 ("no long cast shadow"): the reference's figures throw a long soft shadow away from the key light. Shadow
+ * maps are off on every tier, so each figure lays a soft stretched blob from its feet away from the light (the moon at
+ * night, the low sun at golden hour), as long as the light is low. One more quad fan per person, in the shadows' batch.
+ */
+const CAST_GEOMETRY = ((): THREE.BufferGeometry => {
+  const rings = [0, 0.25, 0.5, 0.75, 1];
+  const alpha = [0.7, 0.62, 0.42, 0.18, 0];
+  const seg = 18;
+  const pos: number[] = [];
+  const col: number[] = [];
+  const idx: number[] = [];
+  for (let r = 0; r < rings.length; r++) {
+    for (let i = 0; i < seg; i++) {
+      const a = (i / seg) * Math.PI * 2;
+      // An egg from the feet outward: centred half a length out, narrow near the feet, fuller at the far end.
+      const z = 0.5 + Math.sin(a) * 0.5 * rings[r];
+      const w = 0.24 + 0.08 * Math.max(0, Math.sin(a));
+      pos.push(Math.cos(a) * w * rings[r], 0, z);
+      col.push(1, 1, 1, alpha[r]);
+    }
+  }
+  for (let r = 0; r < rings.length - 1; r++) {
+    for (let i = 0; i < seg; i++) {
+      const a = r * seg + i;
+      const b = r * seg + ((i + 1) % seg);
+      const c = (r + 1) * seg + i;
+      const d = (r + 1) * seg + ((i + 1) % seg);
+      idx.push(a, b, c, b, d, c);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(pos.length).fill(0).map((_, k) => (k % 3 === 1 ? 1 : 0)), 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+  g.setIndex(idx);
+  return g;
+})();
+/** The cast shadow's length for a light this high (metres for a 1.2 m figure), and its limits. */
+const CAST_MIN = 0.35;
+const CAST_MAX = 1.5;
+/** Children (a figure drawn at under this scale) have a bigger head for their body: 2.4 heads tall (CHARACTER_SPEC §2). */
+const CHILD_SCALE = 0.8;
+const CHILD_HEAD = 1.25;
 
 /** Sleepers lie on their back: the body's back rests this far above the root (on the mattress). */
 const SLEEP_LIFT = 0.2;
@@ -445,6 +549,19 @@ export class CharacterView {
   private readonly legs: THREE.Object3D[] = [];
   private readonly arms: THREE.Object3D[] = [];
   private readonly shadow: THREE.Mesh;
+  /** The long soft shadow away from the key light (session 62). */
+  private readonly cast: THREE.Mesh;
+  /** The swinging pieces (skirts, coat tails, an apron, long hair) and their springs. */
+  private readonly cloth: Cloth[] = [];
+  /** Where the root was last frame and how fast it moved (world, per second), for the cloth's inertia. */
+  private lastPos = new THREE.Vector3(Number.NaN, 0, 0);
+  private velX = 0;
+  private velZ = 0;
+  private accX = 0;
+  private accZ = 0;
+  private lastYawSeen = 0;
+  private lastBodyY = 0;
+  private bodyVy = 0;
   private bubble: THREE.Sprite | null = null;
   private bubbleKey = '';
   private phase = Math.random() * 10;
@@ -548,8 +665,156 @@ export class CharacterView {
     this.shadow = new THREE.Mesh(SHADOW_GEOMETRY, MATERIALS.shadow);
     this.shadow.position.y = 0.012;
     this.root.add(this.shadow);
+    this.cast = new THREE.Mesh(CAST_GEOMETRY, MATERIALS.shadow);
+    this.cast.position.y = 0.01;
+    this.root.add(this.cast);
+    // Shadows on the floor are not solid (the clipping audit leaves them out).
+    this.shadow.userData.noAudit = true;
+    this.cast.userData.noAudit = true;
+    this.buildCloth();
     this.root.scale.setScalar(scale);
+    this.head.scale.setScalar(scale < CHILD_SCALE ? CHILD_HEAD : 1);
     CharacterView.batch?.register(this.root);
+  }
+
+  /** The look's swinging pieces, made again when the look changes (meshes reused where they can be). */
+  private buildCloth(): void {
+    const specs = clothPieces(this.look);
+    while (this.cloth.length > specs.length) {
+      const c = this.cloth.pop()!;
+      c.pivot.removeFromParent();
+    }
+    specs.forEach((spec, i) => {
+      let c = this.cloth[i];
+      if (!c) {
+        const pivot = new THREE.Object3D();
+        const mesh = castsShadow(new THREE.Mesh(spec.geometry, MATERIALS.character));
+        pivot.add(mesh);
+        c = { spec, pivot, mesh, wx: 0, vx: 0, wz: 0, vz: 0, wy: 0, vy: 0, flare: 0, vf: 0 };
+        this.cloth.push(c);
+      }
+      c.spec = spec;
+      c.mesh.geometry = spec.geometry;
+      c.pivot.position.set(...spec.at);
+      (spec.kind === 'hair' ? this.head : this.body).add(c.pivot);
+    });
+    this.settleCloth();
+  }
+
+  /** Puts every piece at rest (a teleport, a pose change, a new look). */
+  private settleCloth(): void {
+    for (const c of this.cloth) {
+      c.wx = c.vx = c.wz = c.vz = c.wy = c.vy = c.flare = c.vf = 0;
+      c.pivot.rotation.set(0, 0, 0);
+      c.pivot.scale.set(1, 1, 1);
+    }
+    this.lastPos.x = Number.NaN;
+    this.velX = this.velZ = this.accX = this.accZ = 0;
+    this.bodyVy = 0;
+  }
+
+  /**
+   * The cloth's springs (session 62). Each piece's angle is simulated in the world's frame and shown relative to its
+   * parent, so when the body leans, sways or twists the cloth lags behind and catches up; on top of that it trails as
+   * the figure sets off (inertia) and with speed (air), swings out on a turn, bounces at each footfall, the coat's
+   * halves and the apron are pushed by the legs, and a skirt drapes over the lap when its wearer sits.
+   */
+  private stepCloth(dt: number, footfall: boolean, stepSide: boolean): void {
+    if (!this.cloth.length) return;
+    // The root's motion: velocity and acceleration in the world, turned into the figure's frame (z forward, x side).
+    const p = this.root.position;
+    if (Number.isNaN(this.lastPos.x) || dt <= 0) {
+      this.lastPos.copy(p);
+      this.lastYawSeen = this.yaw;
+      this.lastBodyY = this.body.position.y;
+    }
+    const inv = 1 / Math.max(dt, 1e-3);
+    let vx = (p.x - this.lastPos.x) * inv;
+    let vz = (p.z - this.lastPos.z) * inv;
+    // A jump (a teleport, a seat, a lift into bed) is not motion: start again from rest.
+    if (vx * vx + vz * vz > 100) {
+      vx = vz = 0;
+      this.velX = this.velZ = 0;
+    }
+    const ax = (vx - this.velX) * inv;
+    const az = (vz - this.velZ) * inv;
+    this.accX += (ax - this.accX) * Math.min(1, dt * 14);
+    this.accZ += (az - this.accZ) * Math.min(1, dt * 14);
+    this.velX = vx;
+    this.velZ = vz;
+    this.lastPos.copy(p);
+    const sy = Math.sin(this.yaw);
+    const cy = Math.cos(this.yaw);
+    const fwdV = vx * sy + vz * cy;
+    const fwdA = this.accX * sy + this.accZ * cy;
+    const sideA = this.accX * cy - this.accZ * sy;
+    let yawRate = this.yaw - this.lastYawSeen;
+    yawRate = Math.atan2(Math.sin(yawRate), Math.cos(yawRate)) * inv;
+    this.lastYawSeen = this.yaw;
+    const by = this.body.position.y;
+    this.bodyVy += ((by - this.lastBodyY) * inv - this.bodyVy) * Math.min(1, dt * 20);
+    this.lastBodyY = by;
+    const seated = this.pose === 'sit' || this.pose === 'lounge';
+    const steps = Math.max(1, Math.ceil(dt / (1 / 60)));
+    const h = dt / steps;
+    for (const c of this.cloth) {
+      const k = CLOTH_SPRING[c.spec.kind];
+      const onHead = c.spec.kind === 'hair';
+      // The parent's own angles (the body's lean, sway and twist; for hair, the head's on top).
+      const px = this.body.rotation.x + (onHead ? this.head.rotation.x : 0);
+      const pz = this.body.rotation.z;
+      const pyaw = this.yaw + this.body.rotation.y + (onHead ? this.head.rotation.y : 0);
+      // What the piece wants relative to its parent.
+      const air = Math.min(0.32, Math.max(-0.1, fwdV * k.drag));
+      let tx = air + fwdA * k.accel;
+      let tz = -sideA * k.accel * 0.8 - yawRate * Math.max(0, fwdV) * 0.03;
+      const l0 = this.legs[0].rotation.x;
+      const l1 = this.legs[1].rotation.x;
+      if (c.spec.kind === 'coat') {
+        const leg = c.spec.side < 0 ? l0 : l1;
+        tx += seated ? leg * 0.85 : leg * 0.55;
+        tz += c.spec.side * Math.max(0, -leg) * 0.12;
+      } else if (c.spec.kind === 'apron') {
+        tx += Math.min(0, l0, l1) * (seated ? 0.9 : 0.7);
+      } else if (c.spec.kind === 'skirt') {
+        tx += seated ? -0.62 : Math.min(0, l0, l1) * 0.22;
+        tz += (l0 - l1) * 0.05;
+      } else if (onHead && this.pose === 'sleep') {
+        tx = 0;
+        tz = 0;
+      }
+      tx = Math.max(-k.max, Math.min(k.max, tx));
+      tz = Math.max(-k.max * 0.6, Math.min(k.max * 0.6, tz));
+      if (footfall && !seated) {
+        // Each step: a little bounce back and a sway toward the foot that landed.
+        c.vx += onHead ? 0.9 : 0.35;
+        c.vz += (stepSide ? 1 : -1) * (onHead ? 0.5 : 0.7);
+        c.vf += c.spec.kind === 'skirt' ? 0.45 : 0.2;
+      }
+      for (let i = 0; i < steps; i++) {
+        c.vx += (k.k * (px + tx - c.wx) - k.c * c.vx) * h;
+        c.wx += c.vx * h;
+        c.vz += (k.k * (pz + tz - c.wz) - k.c * c.vz) * h;
+        c.wz += c.vz * h;
+        let dy = pyaw - c.wy;
+        dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+        c.vy += (k.k * 0.8 * dy - k.c * c.vy) * h;
+        c.wy += c.vy * h;
+        c.vf += (-160 * c.flare - 9 * c.vf - this.bodyVy * 6) * h;
+        c.flare += c.vf * h;
+      }
+      // Never more than the piece's reach from its parent (so a fast spin or a teleport cannot fling it).
+      const lx = Math.max(-k.max, Math.min(k.max, c.wx - px));
+      const lz = Math.max(-k.max * 0.6, Math.min(k.max * 0.6, c.wz - pz));
+      let ly = c.wy - pyaw;
+      ly = Math.max(-0.5, Math.min(0.5, Math.atan2(Math.sin(ly), Math.cos(ly))));
+      c.wx = px + lx;
+      c.wz = pz + lz;
+      c.wy = pyaw + ly;
+      c.pivot.rotation.set(lx, onHead ? 0 : ly * 0.7, lz);
+      const f = Math.max(-0.06, Math.min(0.1, c.flare));
+      if (!onHead) c.pivot.scale.set(1 + f, 1 - f * 0.4, 1 + f);
+    }
   }
 
   /** Changes outfit in place (geometry is cached per look, so this is cheap after the first time). */
@@ -564,6 +829,7 @@ export class CharacterView {
     this.legs.forEach((p, i) => (p.position.x = (i === 0 ? -1 : 1) * hipX(build)));
     this.arms.forEach((p, i) => (p.position.x = (i === 0 ? -1 : 1) * shoulderX(build)));
     this.foreMeshes.forEach((m, i) => (m.geometry = forearmGeometryFor(look, i === 0 ? -1 : 1)));
+    this.buildCloth();
   }
 
   /** Leg pivots (for footwear attachments) and the body group (for chest and shoulder gear). */
@@ -934,6 +1200,8 @@ export class CharacterView {
     this.body.position.set(0, 0, 0);
     this.body.scale.set(1, 1, 1);
     this.shadow.visible = pose === 'stand';
+    this.cast.visible = pose === 'stand';
+    this.settleCloth();
     this.bubbleZ = 0;
     if (pose === 'sleep') {
       this.body.rotation.x = -Math.PI / 2;
@@ -949,7 +1217,7 @@ export class CharacterView {
         this.root.add(this.blanket);
       }
       if (!this.eyelids) {
-        this.eyelids = new THREE.Mesh(eyelidGeometryFor(this.look.skin), MATERIALS.character);
+        this.eyelids = new THREE.Mesh(eyelidGeometryFor(skinOf(this.look)), MATERIALS.character);
         this.eyelids.userData.shared = true;
         this.eyelids.position.y = -NECK_Y;
         this.head.add(this.eyelids);
@@ -1036,6 +1304,23 @@ export class CharacterView {
 
   /** `speed` is the current ground speed in m/s; drives walk cycle amplitude and rate. */
   update(dt: number, speed: number): void {
+    this.updatePose(dt, speed);
+    this.stepCloth(dt, this.clothStep, this.lastStrideSide);
+    this.clothStep = false;
+    if (this.cast.visible) {
+      // The long shadow lies away from the key light (the moon, or the low sun), longer the lower the light.
+      const d = LIGHT_UNIFORMS.uNxMoonDir.value;
+      const flat = Math.hypot(d.x, d.z);
+      const len = Math.max(CAST_MIN, Math.min(CAST_MAX, (0.9 * flat) / Math.max(0.05, d.y)));
+      this.cast.rotation.set(0, Math.atan2(-d.x, -d.z) - this.yaw, 0);
+      this.cast.scale.set(1, 1, len);
+    }
+  }
+
+  /** A footfall since the cloth last stepped (each step bounces the hems and the hair). */
+  private clothStep = false;
+
+  private updatePose(dt: number, speed: number): void {
     this.bubbleTime += dt;
     if (this.bubble?.visible) {
       // Pop in with a small overshoot, then bob gently so requests catch the eye. Fix list 6.3: shrunk away while a
@@ -1124,7 +1409,10 @@ export class CharacterView {
     const s = Math.sin(this.phase);
     // A foot lands at each end of the stride (the swing turns), twice a cycle.
     const side = Math.cos(this.phase) >= 0;
-    if (moving && side !== this.lastStrideSide) this.footfall = true;
+    if (moving && side !== this.lastStrideSide) {
+      this.footfall = true;
+      this.clothStep = true;
+    }
     this.lastStrideSide = side;
     const c = Math.cos(this.phase);
     this.legs[0].rotation.x = s * swing;
@@ -1267,7 +1555,7 @@ export class CharacterView {
    */
   reset(look: CharacterLook, scale: number): void {
     this.setLook(look);
-    if (this.eyelids) this.eyelids.geometry = eyelidGeometryFor(look.skin);
+    if (this.eyelids) this.eyelids.geometry = eyelidGeometryFor(skinOf(look));
     this.setPose('stand');
     this.showBubble(null);
     this.bubbleTime = 0;
@@ -1315,8 +1603,11 @@ export class CharacterView {
     this.swayZ = 0;
     this.twistY = 0;
     this.root.scale.setScalar(scale);
+    this.head.scale.setScalar(scale < CHILD_SCALE ? CHILD_HEAD : 1);
     this.root.visible = true;
     this.shadow.visible = true;
+    this.cast.visible = true;
+    this.settleCloth();
     CharacterView.batch?.register(this.root);
   }
 

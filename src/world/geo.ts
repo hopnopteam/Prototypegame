@@ -142,7 +142,8 @@ export class GeoBuilder {
     g.applyMatrix4(tmpMatrix);
     const colorAttr = g.getAttribute('color') as THREE.BufferAttribute;
     const colors = colorAttr.array as Float32Array;
-    if (opts.recolor) recolor(colors, opts.recolor);
+    const keyed = opts.recolor?.some((r) => r.surface) ? new Int8Array(colors.length / 3).fill(-1) : undefined;
+    if (opts.recolor) recolor(colors, opts.recolor, keyed);
     const tone = opts.tone ?? 1;
     const position = g.getAttribute('position');
     const count = position.count;
@@ -165,10 +166,11 @@ export class GeoBuilder {
       colors[i * 3 + 1] *= k;
       colors[i * 3 + 2] *= k;
       pattern[i * 2 + 1] = 1;
-      surfaceAttr[i * 4] = 1 - surface.roughness;
-      surfaceAttr[i * 4 + 1] = surface.metalness;
-      surfaceAttr[i * 4 + 2] = surface.glow ?? 0;
-      surfaceAttr[i * 4 + 3] = 1 - (surface.sheen ?? 0);
+      const own = keyed && keyed[i] >= 0 ? opts.recolor![keyed[i]].surface ?? surface : surface;
+      surfaceAttr[i * 4] = 1 - own.roughness;
+      surfaceAttr[i * 4 + 1] = own.metalness;
+      surfaceAttr[i * 4 + 2] = own.glow ?? 0;
+      surfaceAttr[i * 4 + 3] = 1 - (own.sheen ?? 0);
     }
     colorAttr.needsUpdate = true;
     g.setAttribute('aColor2', new THREE.BufferAttribute(colors.slice(), 3));

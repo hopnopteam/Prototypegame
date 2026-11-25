@@ -48,7 +48,7 @@ TROP = {
 # The figure kit's role keys (world/CharacterParts.ts FIG_KEYS): pure hues, recoloured to each look's colours.
 FIG = {'skin': '#FF2A2A', 'shoe': '#2AFF2A', 'sole': '#2A2AFF', 'lace': '#FFFF2A'}
 # The clay figures' heads and shoes (art/blender/characters/char_kit.py): the same role keys, hair in the lace key.
-CH = {'skin': '#FF2A2A', 'hair': '#FFFF2A', 'shoe': '#2AFF2A', 'sole': '#2A2AFF'}
+CH = {'skin': '#FF2A2A', 'hair': '#FFFF2A', 'shoe': '#2AFF2A', 'sole': '#2A2AFF', 'trim': '#FF2AFF'}
 MODELS = {
     # KayKit Forest Nature Pack 1.0 (Kay Lousberg, CC0)
     'tree_round': 'kaykit-forest/Tree_1_A_Color1.gltf',
@@ -297,6 +297,10 @@ MODELS = {
     **{k: {'src': 'char-kit/' + k + '.glb', 'paint': CH} for k in (
         'ch_head_short', 'ch_head_side', 'ch_head_quiff', 'ch_head_curly', 'ch_head_bob', 'ch_head_long', 'ch_head_bun',
         'ch_head_bald', 'ch_head_hat', 'ch_shoe', 'ch_hand_r', 'ch_hand_l')},
+    # Session 62: soft felt hats (crown, band, peak or brim, badge), and long hair and a ponytail that swing on their own.
+    **{k: {'src': 'char-kit/' + k + '.glb', 'paint': CH} for k in (
+        'ch_hat_conductor', 'ch_hat_bowler', 'ch_hat_boater', 'ch_hat_pillbox', 'ch_hat_beanie', 'ch_hat_tophat',
+        'ch_hat_toque', 'ch_hat_cap', 'ch_hair_long', 'ch_hair_tail')},
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}
