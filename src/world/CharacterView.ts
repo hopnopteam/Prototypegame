@@ -1,14 +1,16 @@
 import { welded } from './weld';
 import * as THREE from 'three';
-import type { StaffRole } from '../core/types';
+import type { ItemKind, StaffRole } from '../core/types';
+import { Clearance, gripOf, layoutStack, solveArm, type ArmChain, type ArmSolution, type StackItem } from './CarryPose';
 import type { IconName } from '../ui/icons';
 import { GeoBuilder } from './geo';
 import { LIGHT_UNIFORMS, MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, moodBubbleTexture, type BubbleStyle, type Mood } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
-import { addApron, addHat, addHead, addStrap, addTorso, apronFlapGeometry, coatHalfGeometry, COAT_PIVOT_Y, hairPieceGeometry, HAIR_PIVOT, skirtGeometry, WAIST_Y, warmSkin, type FeltHat, ELBOW_Y, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, hipX, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, occludeBody, occludeHead, shinGeometry, shoulderX, SHOULDER_Y, thighGeometry, upperArmGeometry, type Build, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
+import { GRIP, TORSO_DEPTH, torsoRadius, addApron, pantsCloth, topCloth, wearing, addHat, addHead, addStrap, addTorso, apronFlapGeometry, coatHalfGeometry, COAT_PIVOT_Y, hairPieceGeometry, HAIR_PIVOT, skirtGeometry, WAIST_Y, warmSkin, type FeltHat, ELBOW_Y, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, hipX, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, occludeBody, occludeHead, shinGeometry, shoulderX, SHOULDER_Y, thighGeometry, upperArmGeometry, type Build, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
 import { underPopup } from './screenMask';
+import { ON_TRAY } from './ItemMeshes';
 import type { CharacterBatch } from './CharacterBatch';
 
 export type HatKind = 'conductor' | 'boater' | 'bowler' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'toque' | 'none';
@@ -198,7 +200,7 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
   const back = faceDepth(0.6, f.build) - 0.124;
   switch (look.accessory) {
     case 'backpack':
-      b.rounded(0, 0.6, -0.2 - back, 0.3, 0.36, 0.15, 0.06, look.accent, { shade: 0.82, surface: 'fabric' });
+      b.rounded(0, 0.6, -0.2 - back, 0.3, 0.36, 0.15, 0.06, look.accent, { shade: 0.82, surface: 'fabric', detail: 'oxford' });
       b.rounded(0, 0.53, -0.285 - back, 0.22, 0.12, 0.04, 0.02, shadeOf(look.accent), flat);
       // Straps that hug the round chest from the belly up over each shoulder to the pack.
       for (const sx of [-1, 1]) addStrap(b, sx * 0.1, '#5A3A26', f.build);
@@ -226,7 +228,7 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
       const bx = 0.2;
       const by = 0.46;
       const bz = front(0.46) - 0.02;
-      b.rounded(bx, by, bz, 0.16, 0.1, 0.13, 0.03, '#B98A4E', { shade: 0.85, surface: 'fabric' });
+      b.rounded(bx, by, bz, 0.16, 0.1, 0.13, 0.03, '#B98A4E', { shade: 0.85, surface: 'fabric', detail: 'straw' });
       b.add(new THREE.TorusGeometry(0.065, 0.01, 6, 12, Math.PI), '#8C6438', bx, by + 0.05, bz, 0, Math.PI / 2, 0, flat);
       b.sphere(bx - 0.035, by + 0.06, bz + 0.02, 0.032, '#C0392B', 1);
       b.sphere(bx + 0.03, by + 0.065, bz - 0.01, 0.038, '#7FA34E', 1);
@@ -246,15 +248,7 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
     case 'handbag':
       for (let i = 0; i < 5; i++) b.sphere(-0.08 + i * 0.04, 0.79 - Math.abs(i - 2) * 0.012, front(0.79) + 0.01, 0.018, PALETTE.linen, 0, 1, flat);
       break;
-    // Phase 4, the Riviera. A surfer's board stood on its tail at their side, under the arm: blue with a white stripe.
-    case 'surfboard': {
-      const sx = 0.3;
-      const board = new THREE.SphereGeometry(0.5, 16, 10).scale(0.26, 1, 0.05);
-      b.add(board, '#4FA8E0', sx, 0.55, -0.04, 0, 0, 0.08, { shade: 0.95, surface: 'varnish' });
-      b.box(sx - 0.002, 0.55, -0.012, 0.03, 0.86, 0.006, '#FFFFFF', 0.08, flat);
-      b.box(sx, 0.62, -0.012, 0.12, 0.03, 0.006, '#F28C2E', 0.08, flat);
-      break;
-    }
+    // Phase 4, the Riviera: a surfer's board is held in the hand (forearmGeometry, session 63).
     // The lifeguard's whistle on a red cord.
     case 'whistle':
       b.add(new THREE.TorusGeometry(0.1, 0.008, 5, 14, Math.PI).scale(1, 1.4, 1), '#C0283A', 0, 0.72, front(0.68) - 0.02, Math.PI, 0, 0, flat);
@@ -336,7 +330,119 @@ interface Cloth {
   /** The hem's flare (a scale of its spread), bouncing with the steps. */
   flare: number;
   vf: number;
+  /** Session 63: the flare and swing that keep the legs inside it (eased out, never in). */
+  keepFlare: number;
+  keepSwing: number;
 }
+
+/**
+ * Session 63 ("zero clip ins"): a swinging piece's outline round its own axis (its pivot's y), the furthest its surface
+ * reaches in each direction at each height, measured from its mesh. A leg inside it must stay inside it: where a stride
+ * would take a knee or a shoe through it, the piece flares out just enough (`containLegs`).
+ */
+class ClothShape {
+  static readonly DY = 0.02;
+  static readonly AB = 24;
+  readonly y0: number;
+  readonly rows: number;
+  readonly r: Float32Array;
+  constructor(g: THREE.BufferGeometry) {
+    const p = g.getAttribute('position');
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let i = 0; i < p.count; i++) {
+      lo = Math.min(lo, p.getY(i));
+      hi = Math.max(hi, p.getY(i));
+    }
+    this.y0 = lo;
+    this.rows = Math.max(1, Math.ceil((hi - lo) / ClothShape.DY) + 1);
+    const r = new Float32Array(this.rows * ClothShape.AB).fill(-1);
+    for (let i = 0; i < p.count; i++) {
+      const row = Math.floor((p.getY(i) - lo) / ClothShape.DY);
+      const a = ClothShape.bin(p.getX(i), p.getZ(i));
+      const k = row * ClothShape.AB + a;
+      r[k] = Math.max(r[k], Math.hypot(p.getX(i), p.getZ(i)));
+    }
+    // A lathe has vertices only on its profile's rings: between two rings the surface runs straight, so fill the rows
+    // between them (in each direction it covers) by interpolation.
+    for (let a = 0; a < ClothShape.AB; a++) {
+      let last = -1;
+      for (let row = 0; row < this.rows; row++) {
+        if (r[row * ClothShape.AB + a] < 0) continue;
+        if (last >= 0 && row - last > 1) {
+          const r0 = r[last * ClothShape.AB + a];
+          const r1 = r[row * ClothShape.AB + a];
+          for (let k = last + 1; k < row; k++) r[k * ClothShape.AB + a] = r0 + ((r1 - r0) * (k - last)) / (row - last);
+        }
+        last = row;
+      }
+    }
+    this.r = r;
+  }
+  static bin(x: number, z: number): number {
+    return Math.floor(((Math.atan2(z, x) + Math.PI) / (Math.PI * 2)) * ClothShape.AB) % ClothShape.AB;
+  }
+  /** The piece's reach at a height and direction (−1 where it does not hang: a coat's open front). */
+  at(y: number, x: number, z: number): number {
+    const row = Math.floor((y - this.y0) / ClothShape.DY);
+    if (row < 1 || row >= this.rows - 1) return -1;
+    const a = ClothShape.bin(x, z);
+    let best = -1;
+    // The smallest of its own bin and its neighbours (the surface between a lathe's segments, never beyond its edge).
+    for (const dr of [0, -1, 1]) {
+      const v = this.r[(row + dr) * ClothShape.AB + a];
+      if (v < 0) return -1;
+      best = best < 0 ? v : Math.min(best, v);
+    }
+    return best;
+  }
+}
+const clothShapes = new WeakMap<THREE.BufferGeometry, ClothShape>();
+function clothShape(g: THREE.BufferGeometry): ClothShape {
+  let s = clothShapes.get(g);
+  if (!s) {
+    s = new ClothShape(g);
+    clothShapes.set(g, s);
+  }
+  return s;
+}
+/** A part's surface thinned to one point per cell (what a skirt must keep inside it), cached per geometry. */
+const SURFACE_CELL = 0.022;
+const surfaceCache = new WeakMap<THREE.BufferGeometry, Float32Array>();
+function surfacePoints(g: THREE.BufferGeometry): Float32Array {
+  let pts = surfaceCache.get(g);
+  if (!pts) {
+    const p = g.getAttribute('position');
+    const seen = new Map<string, number[]>();
+    for (let i = 0; i < p.count; i++) {
+      const key = `${Math.round(p.getX(i) / SURFACE_CELL)},${Math.round(p.getY(i) / SURFACE_CELL)},${Math.round(p.getZ(i) / SURFACE_CELL)}`;
+      if (!seen.has(key)) seen.set(key, [p.getX(i), p.getY(i), p.getZ(i)]);
+    }
+    pts = new Float32Array([...seen.values()].flat());
+    surfaceCache.set(g, pts);
+  }
+  return pts;
+}
+
+/** How far clear of a leg a skirt or coat stays, and how far out it may flare to keep it in. */
+const LEG_ROOM = 0.032;
+/** How far a skirt or coat may swing sideways (radians): a bag beside it or a hanging hand keeps clear of it. */
+const SIDE_SWING = 0.07;
+/** Session 63: how far out (radians) an arm raised overhead goes: clear of the wide clay head, a cheer's Y. */
+const ARMS_UP_OUT = 0.78;
+const FREE_STRIDE = { walk: 1, run: 1, kick: 1 };
+const GOWN_STRIDE = { walk: 0.58, run: 0.4, kick: 0.33 };
+const DRESS_STRIDE = { walk: 0.82, run: 0.58, kick: 0.45 };
+const COAT_STRIDE = { walk: 0.9, run: 0.62, kick: 0.5 };
+const APRON_STRIDE = { walk: 0.95, run: 0.82, kick: 0.65 };
+const MAX_FLARE = 1.3;
+const cv = new THREE.Vector3();
+/** What `containLegs` found this frame. */
+const contain = { scale: 1, swing: 0 };
+/** The swings a skirt or coat tries (radians about its pivot's x, forward negative) to keep the legs inside it. */
+const SWING_TRIES = [0, 0, -0.12, 0.12, -0.25, 0.25, -0.4, 0.4, -0.55, 0.55, -0.7, 0.7];
+const cq = new THREE.Quaternion();
+const cm = new THREE.Matrix4();
 
 function limb(key: string, build: () => THREE.BufferGeometry): THREE.BufferGeometry {
   let g = limbCache.get(key);
@@ -355,26 +461,30 @@ function smartShoes(f: FigureSpec): boolean {
 function thighGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
   const bare = f.outfit === 'dress' || f.outfit === 'gown';
-  return limb(`thigh:${f.pants}:${bare}:${f.skin}:${f.build}:${side}`, () => thighGeometry(f.pants, bare, f.skin, f.build, side));
+  const cloth = pantsCloth(f);
+  return limb(`thigh:${f.pants}:${bare}:${f.skin}:${f.build}:${side}:${cloth}`, () => wearing(cloth, () => thighGeometry(f.pants, bare, f.skin, f.build, side)));
 }
 
 function shinGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
   const bare = f.outfit === 'dress' || f.outfit === 'gown';
   const smart = smartShoes(f);
-  return limb(`shin:${f.pants}:${look.shoe}:${bare}:${f.skin}:${look.sock}:${smart}:${f.build}:${side}`, () => shinGeometry(f.pants, look.shoe ?? SHOE, bare, f.skin, look.sock ?? '#F4F1EA', smart, f.build, side));
+  const cloth = pantsCloth(f);
+  return limb(`shin:${f.pants}:${look.shoe}:${bare}:${f.skin}:${look.sock}:${smart}:${f.build}:${side}:${cloth}`, () => wearing(cloth, () => shinGeometry(f.pants, look.shoe ?? SHOE, bare, f.skin, look.sock ?? '#F4F1EA', smart, f.build, side)));
 }
 
 function upperArmGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
-  return limb(`upper:${look.body}:${f.skin}:${f.long}:${f.build}:${side}`, () => upperArmGeometry(look.body, f.skin, f.long, f.build, side));
+  const cloth = topCloth(f);
+  return limb(`upper:${look.body}:${f.skin}:${f.long}:${f.build}:${side}:${cloth}`, () => wearing(cloth, () => upperArmGeometry(look.body, f.skin, f.long, f.build, side)));
 }
 
 function forearmGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
-  const carried = look.accessory === 'briefcase' || look.accessory === 'handbag' ? look.accessory : null;
+  const carried = look.accessory === 'briefcase' || look.accessory === 'handbag' || look.accessory === 'surfboard' ? look.accessory : null;
   const cuff = f.outfit === 'jacket' && look.accent !== look.body ? look.accent : undefined;
-  return limb(`fore:${look.body}:${f.skin}:${f.long}:${carried}:${side}:${cuff}:${f.build}`, () => forearmGeometry(look.body, f.skin, f.long, side, carried, cuff, f.build));
+  const cloth = topCloth(f);
+  return limb(`fore:${look.body}:${f.skin}:${f.long}:${carried}:${side}:${cuff}:${f.build}:${cloth}`, () => wearing(cloth, () => forearmGeometry(look.body, f.skin, f.long, side, carried, cuff, f.build)));
 }
 
 function shadeOf(hex: string): string {
@@ -465,6 +575,90 @@ export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'was
  * Character pass 2: the quick moves that answer what a figure just did. They restart each time they are asked for (a
  * pickup per item taken, a reach per thing handed over), so picking up three towels reads as three quick dips.
  */
+
+/**
+ * Session 63 (owner: "individual detailed animation… picking up the bags, holding the bags, and picking up everything
+ * else… zero clip ins"): what a figure carries and how. Every load has its own hold, solved by IK so the hands are
+ * really on it (`CarryPose`):
+ *  - a tray (food and drink): palms up under its back corners, elbows tucked;
+ *  - linen (towels, blankets, pillows, rolls, robes): an armful on the forearms, hands under it;
+ *  - a crate: low and close, the body leaning back against its weight;
+ *  - luggage: one or two bags by their handles, hanging at the sides clear of the legs (more go in front, stacked);
+ * and its own take and hand-over moves (`MOTION`): a tray offered forward to receive and to serve, an armful reached
+ * for and hugged in, a crate squatted for, a bag picked up with a bend toward its side and set down the same way.
+ * A stack in front is placed clear of the figure at every height (its belly, its collar, its nose, its hat), measured
+ * from its own meshes (`Clearance`); a tall one steps out where the face is and the head turns to peek round it.
+ */
+export type CarryKind = 'tray' | 'linen' | 'crate' | 'luggage';
+export interface CarryLoad {
+  /** The stack in front, bottom first (a tray, when there is one, is its bottom item), at its carried size. */
+  front: readonly StackItem[];
+  frontKind: CarryKind;
+  /** A bag in each hand (index as the arms: 0 is −x), its footprint as carried, turned so its depth is across x. */
+  hands: readonly (StackItem | null)[];
+}
+export const EMPTY_LOAD: CarryLoad = { front: [], frontKind: 'linen', hands: [null, null] };
+type Motion = 'none' | CarryKind | 'bag' | 'board';
+/** How long each take and hand-over move lasts (seconds). */
+const MOTION_SECONDS: Record<Motion, { pickup: number; place: number }> = {
+  none: { pickup: 0.34, place: 0.32 },
+  tray: { pickup: 0.42, place: 0.44 },
+  linen: { pickup: 0.44, place: 0.42 },
+  crate: { pickup: 0.62, place: 0.56 },
+  luggage: { pickup: 0.54, place: 0.5 },
+  bag: { pickup: 0.52, place: 0.46 },
+  board: { pickup: 0.45, place: 0.4 },
+};
+/** The front stack's bottom (body space) and how clear of the figure it stands. */
+const HOLD_Y = 0.66;
+const STACK_GAP = 0.014;
+/** The grip below the stack's bottom (a palm-up mitten's half-thickness) and in from its back edge. */
+const PALM_UNDER = 0.047;
+const GRIP_IN = 0.07;
+const GRIP_SPREAD = 0.15;
+/** Beyond this from the shoulder the stack is lifted closer (an arm a little short of straight). */
+const REACH = 0.285;
+/** A stack whose top rises past here is in front of the face: it steps out and the head peeks round it. */
+const PEEK_Y = 0.84;
+const PEEK_YAW = 0.52;
+/** A bag hangs from the hand at this height, this clear of whatever is beside it (legs, a skirt, a coat). */
+const BAG_GRIP_Y = 0.47;
+const BAG_GAP = 0.016;
+const BAG_MIN_X = 0.29;
+/** The hand on a box on the shoulder (Station's SUPPLY_BOX_AT): against its front face. */
+const BOX_HAND = new THREE.Vector3(0.34, 0.86, 0.16);
+const POLE_FRONT = [new THREE.Vector3(-0.75, -0.5, -0.45), new THREE.Vector3(0.75, -0.5, -0.45)];
+const POLE_BAG = [new THREE.Vector3(-0.25, 0.1, -1), new THREE.Vector3(0.25, 0.1, -1)];
+const POLE_BOX = new THREE.Vector3(0.6, -0.8, -0.2);
+/** Where a cup is drunk from and a phone is held (body space): the mouth's and the ear's height, how far out of them. */
+const MOUTH_Y = HEAD_Y - 0.11;
+const EAR_Y = HEAD_Y - 0.01;
+const CUP_OUT = 0.075;
+const PHONE_OUT = 0.05;
+const SIP_POLE = new THREE.Vector3(0.7, -0.7, -0.1);
+const PHONE_POLE = new THREE.Vector3(0.8, -0.5, -0.2);
+const UP = new THREE.Vector3(0, 1, 0);
+const BACK = new THREE.Vector3(0, 0, -1);
+const IN = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0)];
+const GRIP_V = new THREE.Vector3(...GRIP);
+const hv = new THREE.Vector3();
+const hv2 = new THREE.Vector3();
+const hq = new THREE.Quaternion();
+const hE = new THREE.Euler();
+const hM = new THREE.Matrix4();
+const hTargets = [new THREE.Vector3(), new THREE.Vector3()];
+const armTip = new THREE.Vector3();
+/** How clear of the torso an arm reaching round it keeps (metres). */
+const ARM_ROOM = 0.004;
+const hPalm: (THREE.Vector3 | null)[] = [null, null];
+const hPole: THREE.Vector3[] = [POLE_FRONT[0], POLE_FRONT[1]];
+
+/** A smooth rise to 1 at `peak` and back to 0 at 1. */
+function envelope(p: number, peak: number): number {
+  if (p <= 0 || p >= 1) return 0;
+  return p < peak ? smooth01(p / peak) : smooth01((1 - p) / (1 - peak));
+}
+
 const SNAP_ACTIONS: ReadonlySet<CharacterAction> = new Set(['pickup', 'place', 'cheer']);
 /** How long each of them lasts (s). */
 const SNAP_SECONDS: Partial<Record<CharacterAction, number>> = { pickup: 0.34, place: 0.32, cheer: 0.95 };
@@ -546,6 +740,44 @@ export class CharacterView {
   readonly stackAnchor = new THREE.Object3D();
   /** Where a carried surfboard rides: on its edge under the left arm, pointing the way they walk. */
   readonly boardAnchor = new THREE.Object3D();
+  /**
+   * Session 63: a bag hangs from each of these (body space, placed on the hand's grip point every frame, swinging
+   * with the walk), index as the arms (0 is −x).
+   */
+  readonly handAnchors: readonly THREE.Object3D[] = [new THREE.Object3D(), new THREE.Object3D()];
+  /** Each stacked item's centre z relative to the stack anchor (clear of the figure), bottom first. */
+  readonly stackZ: number[] = [];
+  private load: CarryLoad = EMPTY_LOAD;
+  /** What was last held in front (the hands finish handing it over after it has gone). */
+  private ghost: StackItem[] = [];
+  private ghostKind: CarryKind = 'linen';
+  private readonly clearRest = new Clearance();
+  private readonly clearPeek = new Clearance();
+  private clearKey = -1;
+  private readonly chains: ArmChain[] = [];
+  /** How much each arm follows its IK hold (eased, so taking hold and letting go never snap). */
+  private readonly ikWeight = [0, 0];
+  private readonly ikSolved: ArmSolution[] = [{ shoulder: new THREE.Quaternion(), bend: 0, reached: true }, { shoulder: new THREE.Quaternion(), bend: 0, reached: true }];
+  /** The kind of take or hand-over move under way, which hand it is for, and how long it lasts. */
+  private motion: Motion = 'none';
+  private motionHand = 1;
+  private motionPlace = false;
+  private motionLength = 0.34;
+  private motionArmed = false;
+  /** The take or hand-over's reach this frame (set by the move, read by the hold). */
+  private reachDy = 0;
+  private reachDz = 0;
+  private bagDy = 0;
+  private bagDz = 0;
+  private bagDx = 0;
+  private walkS = 0;
+  private lookStamp = 0;
+  /** A carried bag's swing (radians about x) and its rate, and the hand's last body-space z (for its velocity). */
+  private readonly bagSwing = [0, 0];
+  private readonly bagRate = [0, 0];
+  private readonly lastHandZ = [0, 0];
+  /** The front stack's bottom-centre z and base height, eased (the hands and the items follow it together). */
+  private stackBaseZ = 0.3;
   private readonly legs: THREE.Object3D[] = [];
   private readonly arms: THREE.Object3D[] = [];
   private readonly shadow: THREE.Mesh;
@@ -661,6 +893,8 @@ export class CharacterView {
     this.body.add(this.stackAnchor);
     this.boardAnchor.position.set(-0.27, 0.43, 0.04);
     this.body.add(this.boardAnchor);
+    for (const a of this.handAnchors) this.body.add(a);
+    for (let i = 0; i < 2; i++) this.chains.push({ shoulder: new THREE.Vector3(), upper: -ELBOW_Y, fore: Math.hypot(GRIP[1], GRIP[2]), side: i === 0 ? -1 : 1 });
 
     this.shadow = new THREE.Mesh(SHADOW_GEOMETRY, MATERIALS.shadow);
     this.shadow.position.y = 0.012;
@@ -672,6 +906,8 @@ export class CharacterView {
     this.shadow.userData.noAudit = true;
     this.cast.userData.noAudit = true;
     this.buildCloth();
+    this.measureRestArm();
+    this.arms.forEach((arm, i) => (arm.rotation.z = (i === 0 ? -1 : 1) * this.restAbduct));
     this.root.scale.setScalar(scale);
     this.head.scale.setScalar(scale < CHILD_SCALE ? CHILD_HEAD : 1);
     CharacterView.batch?.register(this.root);
@@ -690,7 +926,7 @@ export class CharacterView {
         const pivot = new THREE.Object3D();
         const mesh = castsShadow(new THREE.Mesh(spec.geometry, MATERIALS.character));
         pivot.add(mesh);
-        c = { spec, pivot, mesh, wx: 0, vx: 0, wz: 0, vz: 0, wy: 0, vy: 0, flare: 0, vf: 0 };
+        c = { spec, pivot, mesh, wx: 0, vx: 0, wz: 0, vz: 0, wy: 0, vy: 0, flare: 0, vf: 0, keepFlare: 1, keepSwing: 0 };
         this.cloth.push(c);
       }
       c.spec = spec;
@@ -705,6 +941,8 @@ export class CharacterView {
   private settleCloth(): void {
     for (const c of this.cloth) {
       c.wx = c.vx = c.wz = c.vz = c.wy = c.vy = c.flare = c.vf = 0;
+      c.keepFlare = 1;
+      c.keepSwing = 0;
       c.pivot.rotation.set(0, 0, 0);
       c.pivot.scale.set(1, 1, 1);
     }
@@ -719,7 +957,10 @@ export class CharacterView {
    * the figure sets off (inertia) and with speed (air), swings out on a turn, bounces at each footfall, the coat's
    * halves and the apron are pushed by the legs, and a skirt drapes over the lap when its wearer sits.
    */
+  private lastDt = 1 / 60;
+
   private stepCloth(dt: number, footfall: boolean, stepSide: boolean): void {
+    this.lastDt = dt;
     if (!this.cloth.length) return;
     // The root's motion: velocity and acceleration in the world, turned into the figure's frame (z forward, x side).
     const p = this.root.position;
@@ -772,7 +1013,7 @@ export class CharacterView {
       const l1 = this.legs[1].rotation.x;
       if (c.spec.kind === 'coat') {
         const leg = c.spec.side < 0 ? l0 : l1;
-        tx += seated ? leg * 0.85 : leg * 0.55;
+        tx += seated ? leg * 0.85 : leg * 0.9;
         tz += c.spec.side * Math.max(0, -leg) * 0.12;
       } else if (c.spec.kind === 'apron') {
         tx += Math.min(0, l0, l1) * (seated ? 0.9 : 0.7);
@@ -783,8 +1024,10 @@ export class CharacterView {
         tx = 0;
         tz = 0;
       }
-      tx = Math.max(-k.max, Math.min(k.max, tx));
-      tz = Math.max(-k.max * 0.6, Math.min(k.max * 0.6, tz));
+      // Seated, a coat's tails lie forward over the lap (as far as the thighs go).
+      const kmax = seated && c.spec.kind === 'coat' ? 1.45 : k.max;
+      tx = Math.max(-kmax, Math.min(kmax, tx));
+      tz = Math.max(onHead ? -0.18 : -SIDE_SWING, Math.min(onHead ? 0.18 : SIDE_SWING, tz));
       if (footfall && !seated) {
         // Each step: a little bounce back and a sway toward the foot that landed.
         c.vx += onHead ? 0.9 : 0.35;
@@ -804,22 +1047,108 @@ export class CharacterView {
         c.flare += c.vf * h;
       }
       // Never more than the piece's reach from its parent (so a fast spin or a teleport cannot fling it).
-      const lx = Math.max(-k.max, Math.min(k.max, c.wx - px));
-      const lz = Math.max(-k.max * 0.6, Math.min(k.max * 0.6, c.wz - pz));
+      // Long hair swings out behind and a little to the sides, never forward into the back or the shoulders.
+      // Hair never swings forward of hanging straight down behind the head, wherever the head tips (a yawn throws it
+      // back toward the shoulders).
+      const lx = Math.max(onHead ? -0.03 - Math.min(0, this.head.rotation.x) * 1.15 : -kmax, Math.min(kmax, c.wx - px));
+      // A skirt or coat swings fore and aft freely but only a little to the sides (a hand or a bag hangs there).
+      const side = onHead ? 0.18 : SIDE_SWING;
+      const lz = Math.max(-side, Math.min(side, c.wz - pz));
       let ly = c.wy - pyaw;
-      ly = Math.max(-0.5, Math.min(0.5, Math.atan2(Math.sin(ly), Math.cos(ly))));
+      // A coat's tails lag a turn only a little (twisted further, a leg comes through its side).
+      const twist = c.spec.kind === 'coat' ? 0.2 : 0.5;
+      ly = Math.max(-twist, Math.min(twist, Math.atan2(Math.sin(ly), Math.cos(ly))));
       c.wx = px + lx;
       c.wz = pz + lz;
       c.wy = pyaw + ly;
       c.pivot.rotation.set(lx, onHead ? 0 : ly * 0.7, lz);
       const f = Math.max(-0.06, Math.min(0.1, c.flare));
-      if (!onHead) c.pivot.scale.set(1 + f, 1 - f * 0.4, 1 + f);
+      if (!onHead) {
+        // Session 63: a leg never goes through it. A skirt flares (both legs are inside it); an apron or a coat's half
+        // swings out of the leg's way (forward for a knee coming through, back for a heel); either eases back after.
+        this.containLegs(c);
+        const up = Math.min(1, dt * 40);
+        const down = Math.min(1, dt * 6);
+        c.keepFlare += (contain.scale - c.keepFlare) * (contain.scale > c.keepFlare ? 1 : down);
+        // Exactly the swing that was found to keep the legs in (its own easing back was the first one tried).
+        c.keepSwing = contain.swing;
+        void up;
+        c.pivot.rotation.x += c.keepSwing;
+        c.pivot.scale.set(Math.max(1 + f, c.keepFlare), 1 - f * 0.4, Math.max(1 + f, c.keepFlare));
+      }
     }
+  }
+
+  /** Leg surface points (body space), refreshed each frame for `containLegs`. */
+  private readonly legSamples: { p: THREE.Vector3; r: number }[] = [];
+
+  private sampleLegs(): void {
+    const out = this.legSamples;
+    let n = 0;
+    for (let i = 0; i < 2; i++) {
+      const leg = this.legs[i];
+      leg.updateMatrix();
+      this.knees[i].updateMatrix();
+      for (const [mesh, m] of [[this.thighMeshes[i], cm.copy(leg.matrix)], [this.shinMeshes[i], null]] as [THREE.Mesh, THREE.Matrix4 | null][]) {
+        const mat = m ?? cm.copy(leg.matrix).multiply(this.knees[i].matrix);
+        const pts = surfacePoints(mesh.geometry);
+        for (let k = 0; k < pts.length; k += 3) {
+          if (!out[n]) out[n] = { p: new THREE.Vector3(), r: 0 };
+          out[n].p.set(pts[k], pts[k + 1], pts[k + 2]).applyMatrix4(mat);
+          out[n].r = 0;
+          n++;
+        }
+      }
+    }
+    out.length = n;
+  }
+
+  /**
+   * What a skirt, coat half or apron must do this frame to keep both legs inside it (`contain`): flare (a scale of its
+   * spread; a skirt, closed all round) or swing (radians about its pivot's x: an apron or a coat half, open pieces).
+   */
+  private containLegs(c: Cloth): void {
+    contain.scale = 1;
+    // Its last push eases off (the legs at rest are inside it wherever it settles from there).
+    contain.swing = c.keepSwing * (1 - Math.min(1, this.lastDt * 6));
+    if (c.spec.kind === 'hair' || this.pose === 'sleep') return;
+    // Standing still (legs at rest, no take or hand-over) nothing moves the legs through it, so nothing is measured.
+    if (this.pose === 'stand' && this.swingNow < 0.02 && this.kneeNow[0] < 0.12 && this.kneeNow[1] < 0.12) return;
+    if (c === this.cloth.find((x) => x.spec.kind !== 'hair')) this.sampleLegs();
+    const shape = clothShape(c.mesh.geometry);
+    // Each candidate swing (nearest to how the spring hangs it first): the flare it would still need; the first that
+    // needs none is taken, otherwise the one needing least, flared by the rest.
+    const rx = c.pivot.rotation.x;
+    let bestSwing = 0;
+    let bestNeed = Infinity;
+    // First where it is heading anyway (its last push easing off), so it settles smoothly whenever that fits.
+    SWING_TRIES[0] = c.keepSwing * (1 - Math.min(1, this.lastDt * 6));
+    for (const sw of SWING_TRIES) {
+      cq.setFromEuler(hE.set(rx + sw, c.pivot.rotation.y, c.pivot.rotation.z)).invert();
+      let need = 1;
+      for (const s of this.legSamples) {
+        cv.copy(s.p).sub(c.pivot.position).applyQuaternion(cq);
+        if (cv.y > -0.02) continue;
+        const reach = shape.at(cv.y, cv.x, cv.z);
+        if (reach <= 0) continue;
+        const out = Math.hypot(cv.x, cv.z) + s.r + LEG_ROOM;
+        if (out > reach * need) need = out / reach;
+        if (need >= bestNeed) break;
+      }
+      if (need < bestNeed) {
+        bestNeed = need;
+        bestSwing = sw;
+      }
+      if (need <= 1) break;
+    }
+    contain.swing = bestSwing;
+    contain.scale = Math.min(MAX_FLARE, bestNeed);
   }
 
   /** Changes outfit in place (geometry is cached per look, so this is cheap after the first time). */
   setLook(look: CharacterLook): void {
     this.look = look;
+    this.lookStamp++;
     this.bodyMesh.geometry = bodyGeometry(look);
     this.headMesh.geometry = headGeometry(look);
     const build = figureOf(look).build;
@@ -830,6 +1159,7 @@ export class CharacterView {
     this.arms.forEach((p, i) => (p.position.x = (i === 0 ? -1 : 1) * shoulderX(build)));
     this.foreMeshes.forEach((m, i) => (m.geometry = forearmGeometryFor(look, i === 0 ? -1 : 1)));
     this.buildCloth();
+    this.measureRestArm();
   }
 
   /** Leg pivots (for footwear attachments) and the body group (for chest and shoulder gear). */
@@ -899,6 +1229,449 @@ export class CharacterView {
     this.carryBoard = board;
     this.carryBox = box;
   }
+
+  /** Session 63: what the figure carries now (CarryStack tells it on every change). */
+  setLoad(load: CarryLoad): void {
+    if (this.load.front.length > 0 && load.front.length === 0) {
+      this.ghost = this.load.front.slice();
+      this.ghostKind = this.load.frontKind;
+    }
+    this.load = load;
+  }
+
+  /** Whether a hand is free to carry a bag (the surfboard takes the left arm, the box on the shoulder the right). */
+  handFree(i: number): boolean {
+    return !(i === 0 && this.carryBoard) && !(i === 1 && this.carryBox);
+  }
+
+  /**
+   * The take (or the hand-over) of one thing: `kind` the item, `hand` the hand a bag goes into or comes from (null for
+   * the stack in front). Each kind has its own move (`MOTION_SECONDS`, `motionPose`).
+   */
+  startMotion(kind: ItemKind | 'box', place: boolean, hand: number | null): void {
+    const m: Motion = hand !== null ? 'bag' : kind === 'surfboard' ? 'board' : kind === 'box' || kind === 'crate' ? 'crate' : kind === 'luggage' ? 'luggage' : ON_TRAY.has(kind) ? 'tray' : 'linen';
+    this.motion = m;
+    this.motionHand = hand ?? 1;
+    this.motionPlace = place;
+    this.motionLength = MOTION_SECONDS[m][place ? 'place' : 'pickup'];
+    this.motionArmed = true;
+    this.act(place ? 'place' : 'pickup');
+  }
+
+  /** The take or hand-over move's body, knees and head, and how far it reaches (the hold follows the reach). */
+  private motionPose(t: number): boolean {
+    const m = this.motion;
+    this.reachDy = this.reachDz = this.bagDy = this.bagDz = this.bagDx = 0;
+    if (m === 'none') return false;
+    const p = Math.min(1, t / this.motionLength);
+    const place = this.motionPlace;
+    const still = this.swingNow < 0.2 ? 1 : 0.5;
+    let knee = 0;
+    let thigh = 0;
+    let dip = 0;
+    let tilt = 0;
+    let nod = 0;
+    let lean = 0;
+    switch (m) {
+      case 'tray': {
+        // Taking: the tray offered forward and a touch lower to meet the cup; serving: carried out and up to them
+        // with a small bow, then back in to the chest.
+        const k = envelope(p, place ? 0.5 : 0.42);
+        this.reachDz = (place ? 0.09 : 0.06) * k;
+        this.reachDy = (place ? 0.025 : -0.03) * k;
+        tilt = (place ? 0.11 : 0.06) * k;
+        nod = (place ? 0.14 : 0.2) * k;
+        knee = 0.14 * k;
+        break;
+      }
+      case 'linen': {
+        // Reaching out for the folded pile, then hugging it in (a little squeeze at the end); handing it over, held out
+        // and a touch lower.
+        const k = envelope(p, place ? 0.5 : 0.38);
+        const hug = place ? 0 : envelope(p, 0.82) * 0.4;
+        this.reachDz = (place ? 0.08 : 0.07) * k - 0.012 * hug;
+        this.reachDy = (place ? -0.03 : 0.04) * k;
+        tilt = (place ? 0.14 : 0.1) * k;
+        nod = 0.2 * k;
+        knee = 0.2 * k;
+        break;
+      }
+      case 'luggage':
+      case 'crate': {
+        // A weight from low down: a real squat (knees and hips), the back tipping forward, the load brought up close;
+        // set down the same way. A crate goes lower and slower than a bag.
+        const heavy = m === 'crate' ? 1 : 0.65;
+        const k = envelope(p, place ? 0.55 : 0.42);
+        this.reachDy = -0.17 * heavy * k;
+        this.reachDz = 0.03 * k;
+        knee = 0.95 * heavy * k;
+        thigh = 0.5 * heavy * k;
+        dip = 0.1 * heavy * k;
+        tilt = 0.3 * heavy * k;
+        nod = 0.3 * k;
+        break;
+      }
+      case 'bag': {
+        // One bag by its handle: a bend at the knees toward its side, the hand reaching down and out for the handle,
+        // then up straight with it hanging; set down, the hand swings it forward and down.
+        const k = envelope(p, place ? 0.5 : 0.4);
+        this.bagDy = -0.19 * k;
+        this.bagDz = (place ? 0.14 : 0.09) * k;
+        this.bagDx = 0.035 * k;
+        knee = 0.62 * k;
+        thigh = 0.32 * k;
+        dip = 0.065 * k;
+        tilt = 0.2 * k;
+        nod = 0.22 * k;
+        lean = (this.motionHand === 0 ? 1 : -1) * 0.12 * k;
+        break;
+      }
+      case 'board': {
+        const k = envelope(p, 0.45);
+        knee = 0.25 * k;
+        dip = 0.025 * k;
+        nod = 0.15 * k;
+        break;
+      }
+    }
+    this.kneeAim[0] = Math.max(this.kneeAim[0], knee * still);
+    this.kneeAim[1] = Math.max(this.kneeAim[1], knee * still);
+    this.legs[0].rotation.x -= thigh * still;
+    this.legs[1].rotation.x -= thigh * still;
+    this.body.position.y -= dip * still;
+    this.body.rotation.x += tilt;
+    this.body.rotation.z += lean;
+    this.headPitch = Math.max(this.headPitch, nod);
+    return true;
+  }
+
+  /** How far forward and how wide the figure is at each height (from its own meshes; again when they change). */
+  private ensureClearance(): void {
+    let key = this.lookStamp * 7919 + (this.cloth.length + 1) * 31;
+    this.body.children.forEach((c, i) => {
+      if (c.visible && (c as THREE.Mesh).isMesh && !c.userData.carried && !c.userData.prop) key += (i + 1) * 131;
+    });
+    if (key === this.clearKey) return;
+    this.clearKey = key;
+    const rest = this.clearRest.clear();
+    const peek = this.clearPeek.clear();
+    const add = (g: THREE.BufferGeometry, m: THREE.Matrix4, front = true): void => {
+      rest.add(g, m, front);
+      peek.add(g, m, front);
+    };
+    for (const c of this.body.children) {
+      if (!(c as THREE.Mesh).isMesh || !c.visible || c.userData.carried || c.userData.prop) continue;
+      c.updateMatrix();
+      add((c as THREE.Mesh).geometry, c.matrix);
+    }
+    // The head turns and nods: everywhere it can be while carrying (and, peeking, turned round the stack).
+    const hs = this.head.scale.x;
+    const headAt = (yaw: number, pitch: number, into: Clearance): void => {
+      hM.compose(hv.set(0, NECK_Y, 0), hq.setFromEuler(hE.set(pitch, yaw, 0)), hv2.setScalar(hs));
+      into.add(this.headMesh.geometry, hM, true, true);
+    };
+    for (const yaw of [-0.34, 0, 0.34]) for (const pitch of [-0.24, 0, 0.32]) headAt(yaw, pitch, rest);
+    for (const yaw of [PEEK_YAW - 0.08, PEEK_YAW + 0.08]) for (const pitch of [-0.12, 0.14]) headAt(yaw, pitch, peek);
+    // The legs and what hangs at the waist, standing (for a bag beside them; the stack in front is far above them).
+    for (let i = 0; i < 2; i++) {
+      hM.makeTranslation(this.legs[i].position.x, this.legs[i].position.y, this.legs[i].position.z);
+      add(this.thighMeshes[i].geometry, hM, false);
+      hM.makeTranslation(this.legs[i].position.x, this.legs[i].position.y + KNEE_Y, this.legs[i].position.z);
+      add(this.shinMeshes[i].geometry, hM, false);
+    }
+    for (const c of this.cloth) {
+      hM.makeTranslation(c.pivot.position.x, c.pivot.position.y, c.pivot.position.z);
+      // Hair hangs from the head (its pivot is in head space): it only matters for the width beside the shoulders.
+      if (c.spec.kind === 'hair') hM.premultiply(new THREE.Matrix4().makeTranslation(0, NECK_Y, 0));
+      add(c.mesh.geometry, hM, c.spec.kind !== 'hair');
+    }
+  }
+
+  /**
+   * Session 63: the hands on what is carried. Solves each arm that holds something (IK onto its grip), blends it with
+   * the walk's own swing as a hold begins or ends, and places the stack and the bags so they meet the hands.
+   */
+  private applyHold(dt: number): void {
+    const L = this.load;
+    const placing = this.action === 'place' && this.actionTime > 0;
+    // Handing over the last of a stack, the hands finish the move as if it were still there (not while bags hang from them).
+    const front = L.front.length > 0 ? L.front : placing && this.motion !== 'bag' && this.ghost.length > 0 && !L.hands[0] && !L.hands[1] ? this.ghost : null;
+    const kind = L.front.length > 0 ? L.frontKind : this.ghostKind;
+    const anyBag = !!(L.hands[0] || L.hands[1]) || (placing && this.motion === 'bag');
+    const want = [false, false];
+    hPalm[0] = hPalm[1] = null;
+    if (front || anyBag || this.carryBox) this.ensureClearance();
+    for (let i = 0; i < 2; i++) this.chains[i].shoulder.copy(this.arms[i].position);
+
+    let peekTarget = 0;
+    if (front) {
+      let top = 0;
+      for (const it of front) top += it.h;
+      const peeking = HOLD_Y + top > PEEK_Y;
+      const clear = peeking ? this.clearPeek : this.clearRest;
+      peekTarget = peeking ? PEEK_YAW : 0;
+      const kindY = kind === 'tray' ? 0.03 : kind === 'crate' ? -0.03 : 0;
+      let baseY = HOLD_Y + kindY + this.reachDy;
+      const hands = [0, 1].filter((i) => this.handFree(i));
+      let z0 = 0;
+      let gx = 0;
+      let gz = 0;
+      // Lift the stack closer to the shoulders until the hands reach it (a deep stack, or one stepped out round a face).
+      for (let lift = 0; lift <= 0.12; lift += 0.02) {
+        z0 = layoutStack(front, baseY + lift, clear, STACK_GAP, this.stackZ);
+        const b = front[0];
+        gz = z0 - b.d / 2 + Math.min(GRIP_IN, b.d * 0.4);
+        // One hand free (the other on a box or a board): it holds the stack from under its own side.
+        gx = hands.length === 2 ? Math.min(GRIP_SPREAD, b.w / 2 - 0.03) : Math.min(0.1, b.w / 2 - 0.02);
+        const sx = shoulderX(figureOf(this.look).build);
+        const reach = Math.hypot(sx - gx, SHOULDER_Y - (baseY + lift - PALM_UNDER), gz);
+        if (reach <= REACH || lift >= 0.12) {
+          baseY += lift;
+          break;
+        }
+      }
+      this.stackBaseZ = z0 + this.reachDz;
+      const shift = hands.length === 1 ? (hands[0] === 0 ? -1 : 1) * 0.03 : 0;
+      this.stackAnchor.position.set(shift, baseY, this.stackBaseZ);
+      for (let i = 0; i < this.stackZ.length; i++) this.stackZ[i] -= z0;
+      for (const i of hands) {
+        const side = i === 0 ? -1 : 1;
+        hTargets[i].set(side * gx + shift, baseY - PALM_UNDER - (hands.length === 1 ? 0.03 : 0), gz + this.reachDz);
+        hPole[i] = POLE_FRONT[i];
+        hPalm[i] = UP;
+        want[i] = true;
+      }
+    }
+    for (let i = 0; i < 2; i++) {
+      const bag = L.hands[i] ?? (placing && this.motion === 'bag' && this.motionHand === i ? { w: 0.19, d: 0.19, h: 0.18 } : null);
+      if (!bag || want[i]) continue;
+      const side = i === 0 ? -1 : 1;
+      const mine = this.motionHand === i ? 1 : 0;
+      const gy = BAG_GRIP_Y + this.bagDy * mine;
+      // Clear of the legs and anything at the waist beside the bag's whole height (it hangs below the hand).
+      const swinging = this.cloth.some((c) => c.spec.kind !== 'hair') ? 0.06 : 0;
+      const x = Math.max(BAG_MIN_X, this.clearRest.widest(gy - bag.h - 0.02, gy) + bag.w / 2 + BAG_GAP + swinging) + this.bagDx * mine;
+      // The hand swings a little against the leg on its side as they walk.
+      const swing = (i === 0 ? -this.walkS : this.walkS) * this.swingNow * 0.12;
+      hTargets[i].set(side * x, gy, 0.02 + swing + this.bagDz * mine);
+      hPole[i] = POLE_BAG[i];
+      hPalm[i] = IN[i];
+      want[i] = true;
+    }
+    if (this.gestureHand >= 0 && !want[this.gestureHand]) {
+      const i = this.gestureHand;
+      hTargets[i].copy(this.gestureTarget);
+      hPole[i] = this.gesturePole;
+      hPalm[i] = this.gesturePalm;
+      want[i] = true;
+    }
+    if (this.carryBox && !want[1]) {
+      hTargets[1].copy(BOX_HAND);
+      hPole[1] = POLE_BOX;
+      hPalm[1] = BACK;
+      want[1] = true;
+    }
+
+    // The head peeks round a tall stack.
+    if (peekTarget !== 0 || this.peekNow !== 0) {
+      this.peekNow += (peekTarget - this.peekNow) * Math.min(1, dt * 7);
+      if (Math.abs(this.peekNow) < 1e-3 && peekTarget === 0) this.peekNow = 0;
+      this.head.rotation.y = this.peekNow + (this.head.rotation.y - this.peekNow) * (1 - Math.min(1, Math.abs(this.peekNow) / PEEK_YAW));
+    }
+    if (front || anyBag) {
+      // Held: the head keeps to where the clearance was measured.
+      this.head.rotation.x = Math.max(-0.22, Math.min(0.3, this.head.rotation.x));
+      if (this.peekNow === 0) this.head.rotation.y = Math.max(-0.32, Math.min(0.32, this.head.rotation.y));
+    }
+
+    for (let i = 0; i < 2; i++) {
+      const arm = this.arms[i];
+      const elbow = this.elbows[i];
+      const target = want[i] ? 1 : 0;
+      this.ikWeight[i] += (target - this.ikWeight[i]) * Math.min(1, dt * (target ? 14 : this.lastGesture === i ? 24 : 9));
+      // A gesture's own timing (the cup lifted and lowered) sets how far the hand is on its point.
+      if (i === this.gestureHand && want[i]) this.ikWeight[i] = Math.min(this.ikWeight[i], this.gestureBlend);
+      if (i === this.gestureHand) this.lastGesture = i;
+      else if (this.lastGesture === i && this.ikWeight[i] === 0) this.lastGesture = -1;
+      if (!want[i] && this.ikWeight[i] < 0.002) this.ikWeight[i] = 0;
+      const w = this.ikWeight[i];
+      if (w <= 0) {
+        // No hold: the forearm's roll and the arm's twist come back to rest.
+        arm.rotation.y += (0 - arm.rotation.y) * Math.min(1, dt * 12);
+        elbow.rotation.y += (0 - elbow.rotation.y) * Math.min(1, dt * 12);
+        continue;
+      }
+      const chain = this.chains[i];
+      let sol = solveArm(chain, hTargets[i], hPole[i], this.ikSolved[i]);
+      // The arm itself must not pass through the body on its way to the grip (reaching under a narrow pile, or round a
+      // stack held close): swing the elbow wider, then, if it still would, bring the hand a little out to its side.
+      const build = figureOf(this.look).build ?? 'regular';
+      for (let tries = 0; tries < 8 && this.armHitsTorso(chain, sol, build); tries++) {
+        if (tries < 4) {
+          hv.copy(hPole[i]);
+          hv.x += chain.side * 0.6 * (tries + 1);
+          hv.y -= 0.15 * (tries + 1);
+          sol = solveArm(chain, hTargets[i], hv.normalize(), this.ikSolved[i]);
+        } else {
+          hTargets[i].x += chain.side * 0.025;
+          sol = solveArm(chain, hTargets[i], hv, this.ikSolved[i]);
+        }
+      }
+      // The forearm rolls so the palm faces where it should (up under a tray, in round a handle, back against a box).
+      let twist = 0;
+      const palm = hPalm[i];
+      if (palm) {
+        const sd = chain.side;
+        hq.setFromEuler(hE.set(sol.bend, 0, 0, 'XYZ')).premultiply(sol.shoulder);
+        const ad = hv.set(1, 0, 0).applyQuaternion(hq).dot(palm);
+        const cd = hv2.set(0, 0, 1).applyQuaternion(hq).dot(palm);
+        twist = Math.max(-2, Math.min(2, Math.atan2(sd * cd, -sd * ad)));
+      }
+      if (w >= 0.999) {
+        arm.quaternion.copy(sol.shoulder);
+        elbow.rotation.set(sol.bend, twist, 0);
+      } else {
+        arm.quaternion.slerp(sol.shoulder, w);
+        elbow.rotation.set(elbow.rotation.x + (sol.bend - elbow.rotation.x) * w, twist * w, 0);
+      }
+      this.elbowNow[i] = elbow.rotation.x;
+      // The bag hangs from the hand: its anchor on the grip, swinging a little behind the hand's motion.
+      const a = this.handAnchors[i];
+      gripOf(chain, arm.quaternion, elbow.rotation.x, elbow.rotation.y, GRIP_V, a.position);
+      const vz = (a.position.z - this.lastHandZ[i]) / Math.max(dt, 1e-3);
+      this.lastHandZ[i] = a.position.z;
+      const aim = Math.max(-0.35, Math.min(0.35, vz * 0.35 - this.body.rotation.x));
+      this.bagRate[i] += ((aim - this.bagSwing[i]) * 60 - this.bagRate[i] * 7) * Math.min(dt, 0.05);
+      this.bagSwing[i] += this.bagRate[i] * Math.min(dt, 0.05);
+      a.rotation.set(this.bagSwing[i], 0, 0);
+    }
+  }
+  private peekNow = 0;
+
+  /** How much further out the hands must hang while a skirt or coat flares (radians). */
+  private clothSpread(): number {
+    let f = 0;
+    for (const c of this.cloth) if (c.spec.kind !== 'hair') f = Math.max(f, c.pivot.scale.x - 1);
+    return f * 1.1;
+  }
+  /** A gesture's hand on a point (the cup at the lips, the phone at the ear): which hand, how far there, where. */
+  private gestureHand = -1;
+  private lastGesture = -1;
+  private gestureBlend = 0;
+  private readonly gestureTarget = new THREE.Vector3();
+  private gesturePole = SIP_POLE;
+  private gesturePalm = IN[1];
+
+  /** Whether a hand holds something that is part of the figure (a briefcase, a handbag, a surfboard). */
+  private heldIn(i: number): boolean {
+    const a = this.look.accessory;
+    return i === 1 ? a === 'briefcase' || a === 'surfboard' : a === 'handbag';
+  }
+
+  private gestureAt(i: number, blend: number, x: number, y: number, z: number, pole: THREE.Vector3, palm: THREE.Vector3): void {
+    // The free hand does it when this one holds something.
+    if (this.heldIn(i) && !this.heldIn(1 - i)) {
+      i = 1 - i;
+      pole = new THREE.Vector3(-pole.x, pole.y, pole.z);
+      palm = IN[i];
+    }
+    this.gestureHand = i;
+    this.gestureBlend = blend;
+    const t = this.gestureTarget.set((i === 0 ? -1 : 1) * x, y, z);
+    // Short clay arms: within reach of the shoulder (a cup comes up to the chin and the head bows to it), and never
+    // inside the face on the way (lower until it is clear of it).
+    const sh = this.arms[i].position;
+    hv.subVectors(t, sh);
+    if (hv.length() > REACH) t.copy(sh).addScaledVector(hv.normalize(), REACH);
+    for (let k = 0; k < 8 && Math.abs(t.x) < this.clearRest.widest(t.y - 0.03, t.y + 0.03) && t.z < this.clearRest.between(t.y - 0.03, t.y + 0.03) + 0.05; k++) t.y -= 0.025;
+    this.gesturePole = pole;
+    this.gesturePalm = palm;
+  }
+
+  /** How much of the usual stride (walking, running) and of the running back-kick long clothes allow. */
+  private strideScale(): { walk: number; run: number; kick: number } {
+    const o = figureOf(this.look).outfit;
+    if (o === 'gown') return GOWN_STRIDE;
+    if (o === 'dress') return DRESS_STRIDE;
+    if (this.cloth.some((c) => c.spec.kind === 'coat')) return COAT_STRIDE;
+    if (this.cloth.some((c) => c.spec.kind === 'apron')) return APRON_STRIDE;
+    return FREE_STRIDE;
+  }
+
+  /** Whether an arm pose passes through the torso (its lathe, by build), below the shoulder ball. */
+  private armHitsTorso(chain: ArmChain, sol: ArmSolution, build: Build): boolean {
+    const e = hv2.set(0, -chain.upper, 0).applyQuaternion(sol.shoulder).add(chain.shoulder);
+    const ex = e.x;
+    const ey = e.y;
+    const ez = e.z;
+    gripOf(chain, sol.shoulder, sol.bend, 0, GRIP_V, armTip);
+    const clear = this.clearKey >= 0 ? this.clearRest : null;
+    const check = (x: number, y: number, z: number, r: number): boolean => {
+      if (torsoRadius(build, y) + r + ARM_ROOM > Math.hypot(x, z / TORSO_DEPTH)) return true;
+      // The head (and its hair and hat), from the figure's own measured outline at that height.
+      if (clear && y > NECK_Y - 0.05) {
+        const wide = clear.widest(y - 0.02, y + 0.02);
+        const front = clear.between(y - 0.02, y + 0.02);
+        if (wide > 0 && Math.abs(x) - r < wide - 0.01 && z - r < front && z + r > -wide) return true;
+      }
+      return false;
+    };
+    for (let k = 1; k <= 6; k++) {
+      const t = k / 6;
+      // The upper arm below the shoulder ball (its top two thirds sit at the shoulder by design).
+      if (t > 0.55 && check(chain.shoulder.x + (ex - chain.shoulder.x) * t, chain.shoulder.y + (ey - chain.shoulder.y) * t, chain.shoulder.z + (ez - chain.shoulder.z) * t, this.upperR)) return true;
+      if (check(ex + (armTip.x - ex) * t, ey + (armTip.y - ey) * t, ez + (armTip.z - ez) * t, t > 0.8 ? 0.045 : 0.054)) return true;
+    }
+    return false;
+  }
+  /**
+   * Session 63 ("zero clip ins"): how far out each arm hangs at rest (radians from straight down), measured for this
+   * figure from what it wears: just clear of its torso, belt, sash, apron, skirt or coat tails and hips, so a hanging
+   * hand never sinks into its clothes (it was 0.12 for everyone: a dress's bell or a coat's tails took the hand).
+   */
+  private restAbduct = 0.14;
+  /** The sleeve's radius below the shoulder ball (measured: a puffed short sleeve is thicker). */
+  private upperR = 0.058;
+
+  private measureRestArm(): void {
+    const c = new Clearance();
+    this.bodyMesh.updateMatrix();
+    c.add(this.bodyMesh.geometry, this.bodyMesh.matrix, false);
+    for (let i = 0; i < 2; i++) {
+      hM.makeTranslation(this.legs[i].position.x, this.legs[i].position.y, 0);
+      c.add(this.thighMeshes[i].geometry, hM, false);
+    }
+    for (const cl of this.cloth) {
+      if (cl.spec.kind === 'hair') continue;
+      hM.makeTranslation(cl.pivot.position.x, cl.pivot.position.y, cl.pivot.position.z);
+      c.add(cl.mesh.geometry, hM, false);
+    }
+    const sx = this.arms[1].position.x;
+    const swinging = this.cloth.some((cl) => cl.spec.kind !== 'hair');
+    // How thick the sleeve is below the shoulder ball (a puffed short sleeve and its roll are thicker than a long one).
+    let upperR = 0.058;
+    const up = this.upperMeshes[1].geometry.getAttribute('position');
+    for (let i = 0; i < up.count; i++) if (up.getY(i) < -0.07) upperR = Math.max(upperR, Math.hypot(up.getX(i), up.getZ(i)));
+    this.upperR = upperR;
+    // The arm down from the shoulder: the sleeve, the forearm, then the mitten (its thumb toward the body).
+    const parts: [number, number, number][] = [[0.11, 0.165, upperR], [0.165, 0.23, 0.054], [0.23, 0.335, 0.061]];
+    for (let a = 0.08; a <= 0.6; a += 0.01) {
+      let ok = true;
+      for (const [l0, l1, r] of parts) {
+        for (let l = l0; l <= l1 && ok; l += 0.01) {
+          const x = sx + l * Math.sin(a) - r;
+          const y = SHOULDER_Y - l * Math.cos(a);
+          if (x < c.widest(y - r, y + r) + (swinging ? 0.025 : 0.012)) ok = false;
+        }
+      }
+      if (ok) {
+        this.restAbduct = a;
+        return;
+      }
+    }
+    this.restAbduct = 0.6;
+  }
+
   private carryBoard = false;
   private carryBox = false;
   /** How many things are on the stack (a tall one makes the figure lean back to balance it). */
@@ -917,9 +1690,15 @@ export class CharacterView {
    */
   act(action: CharacterAction, seconds = 0.25): void {
     const same = action === this.action;
+    if ((action === 'pickup' || action === 'place') && !this.motionArmed) {
+      // Called directly (not through `startMotion`): the plain dip.
+      this.motion = 'none';
+      this.motionLength = MOTION_SECONDS.none[action];
+    }
+    this.motionArmed = false;
     if (SNAP_ACTIONS.has(action)) {
       // A snap move starts over each time (a dip per item), unless it has only just begun.
-      const length = SNAP_SECONDS[action] ?? seconds;
+      const length = action === 'pickup' || action === 'place' ? this.motionLength : SNAP_SECONDS[action] ?? seconds;
       if (!same || this.actionClock > length * 0.45) this.actionClock = 0;
       this.action = action;
       this.actionTime = length - this.actionClock;
@@ -946,17 +1725,21 @@ export class CharacterView {
     mesh.castShadow = true;
     mesh.position.set(...spec.pos);
     mesh.rotation.set(...spec.rot);
+    mesh.userData.prop = true;
     this.body.add(mesh);
     this.props.set(kind, mesh);
   }
 
   /** The tea cup and the phone ride in the right hand (they follow the arm up to the mouth or the ear). */
   private showInHand(kind: PropKind | null): void {
+    // In the free hand (the other one may hold a briefcase or a handbag of its own).
+    const hand = this.heldIn(1) && !this.heldIn(0) ? 0 : 1;
+    for (const mesh of this.inHand.values()) if (mesh.parent !== this.elbows[hand]) this.elbows[hand].add(mesh);
     if (kind && !this.inHand.has(kind)) {
       const mesh = new THREE.Mesh(propGeometry(kind), MATERIALS.character);
       mesh.userData.shared = true;
       mesh.position.set(0, HAND_Y - ELBOW_Y + (kind === 'phone' ? -0.03 : kind === 'ticket' ? -0.08 : -0.03), kind === 'phone' ? 0.03 : 0.06);
-      this.elbows[1].add(mesh);
+      this.elbows[hand].add(mesh);
       this.inHand.set(kind, mesh);
     }
     for (const [k, mesh] of this.inHand) mesh.visible = k === kind;
@@ -973,16 +1756,30 @@ export class CharacterView {
     const spec = ACTION_PROPS[a];
     this.showProp(spec ? spec.kind : null);
     this.showInHand(a === 'sip' ? 'cup' : a === 'phone' ? 'phone' : a === 'waveTicket' ? 'ticket' : null);
+    this.gestureHand = -1;
+    if (a !== 'pickup' && a !== 'place') this.reachDy = this.reachDz = this.bagDy = this.bagDz = this.bagDx = 0;
     if (a === 'none') return;
     const t = this.actionClock;
     const ease = Math.min(1, dt * 16);
     const aim = (i: number, x: number, z: number, elbow = -0.35): void => {
+      // Session 63 ("zero clip ins"): an arm never swings in toward the body further than the figure's own clearance
+      // (its torso, skirt, coat or apron): a hand on the hip, hands behind the back or pumping fists used to go into it.
+      const side = i === 0 ? -1 : 1;
+      if (x > -1.6 && z * side < this.restAbduct + this.clothSpread()) z = side * (this.restAbduct + this.clothSpread());
+      // A hand holding something of its own (a briefcase, a handbag, a surfboard) stays low: lifted, it would swing it
+      // up over the head.
+      if (this.heldIn(i)) {
+        x = Math.max(x, -0.45);
+        elbow = Math.max(elbow, -0.5);
+      }
       this.arms[i].rotation.x += (x - this.arms[i].rotation.x) * ease;
       this.arms[i].rotation.z += (z - this.arms[i].rotation.z) * ease;
       this.elbowAim[i] = elbow;
     };
     switch (a) {
       case 'pickup': {
+        // Session 63: each kind of thing has its own take (`motionPose`); the plain dip is for anyone holding nothing.
+        if (this.motionPose(t)) break;
         // A quick dip to take something: knees bend, the body tips forward, both hands reach down and in, then up again.
         const k = Math.sin(Math.min(1, t / (SNAP_SECONDS.pickup ?? 0.34)) * Math.PI);
         const still = this.swingNow < 0.2 ? 1 : 0.45;
@@ -998,6 +1795,7 @@ export class CharacterView {
         break;
       }
       case 'place': {
+        if (this.motionPose(t)) break;
         // Handing over or setting down: a step of the body forward and both hands out, palms up, then back.
         const k = Math.sin(Math.min(1, t / (SNAP_SECONDS.place ?? 0.32)) * Math.PI);
         aim(0, -1.25 * k, 0.15 * k, -0.25 - 0.2 * (1 - k));
@@ -1011,8 +1809,8 @@ export class CharacterView {
         // A little celebration: arms flung up and a hop or two.
         const d = SNAP_SECONDS.cheer ?? 0.95;
         const up = Math.min(1, t / 0.12) * Math.min(1, (d - t) / 0.18 + 0.2);
-        aim(0, -2.85 * up, 0.42 * up, -0.25);
-        aim(1, -2.85 * up, -0.42 * up, -0.25);
+        aim(0, -2.6 * up, -ARMS_UP_OUT * up, -0.25);
+        aim(1, -2.6 * up, ARMS_UP_OUT * up, -0.25);
         const hop = Math.max(0, Math.sin(t * 13)) * Math.max(0, 1 - t / d);
         this.body.position.y += hop * 0.07;
         this.kneeAim[0] = Math.max(this.kneeAim[0], (1 - hop) * 0.25 * up);
@@ -1059,8 +1857,11 @@ export class CharacterView {
         // Lift, sip, lower, on a slow loop.
         const cycle = t % 2.2;
         const up = cycle < 0.35 ? cycle / 0.35 : cycle < 1.1 ? 1 : cycle < 1.45 ? 1 - (cycle - 1.1) / 0.35 : 0;
-        aim(1, -0.5 - up * 0.55, -0.3 * up, -0.6 - up * 1.55);
-        this.headPitch = -0.12 * up;
+        aim(1, -0.5, 0, -0.6);
+        // Session 63: the cup to the lips (IK onto a point just in front of this figure's own mouth, never into it).
+        this.ensureClearance();
+        this.gestureAt(1, smooth01(up), 0.06, MOUTH_Y, this.clearRest.between(MOUTH_Y - 0.05, MOUTH_Y + 0.08) + CUP_OUT, SIP_POLE, IN[1]);
+        this.headPitch = 0.16 * up;
         break;
       }
       case 'watch': {
@@ -1090,7 +1891,7 @@ export class CharacterView {
         this.body.rotation.z = Math.sin(t * 2.5) * 0.06;
         break;
       case 'wave':
-        aim(1, -2.75, 0.25 + Math.sin(t * 9) * 0.25, -0.35 + Math.sin(t * 9) * 0.35);
+        aim(1, -2.6, ARMS_UP_OUT + 0.1 + Math.sin(t * 9) * 0.22, -0.35 + Math.sin(t * 9) * 0.35);
         break;
       case 'stomp': {
         // Fix list 4.1: missed the train and storming off: fists low and pumping, leaning into each heavy step.
@@ -1105,7 +1906,7 @@ export class CharacterView {
       }
       case 'waveTicket':
         // Waving the ticket overhead, a little hop now and then: "wait for me!"
-        aim(1, -2.85, 0.2 + Math.sin(t * 10) * 0.3, -0.3 + Math.sin(t * 10) * 0.3);
+        aim(1, -2.6, ARMS_UP_OUT + 0.1 + Math.sin(t * 10) * 0.22, -0.3 + Math.sin(t * 10) * 0.3);
         this.body.position.y += Math.max(0, Math.sin(t * 5)) * 0.04;
         break;
       case 'look': {
@@ -1120,8 +1921,11 @@ export class CharacterView {
       }
       case 'phone':
         // On the phone: the hand at the ear, the other on the hip, a nod now and then.
-        aim(1, -0.35, -0.4, -2.35);
-        aim(0, 0.15, 0.4, -1.2);
+        aim(1, -0.35, 0, -1.6);
+        aim(0, 0.05, 0, -0.25);
+        // Session 63: the phone at the ear, outside this figure's own hair (IK); the other hand hangs.
+        this.ensureClearance();
+        this.gestureAt(1, 1, this.clearRest.widest(EAR_Y - 0.04, EAR_Y + 0.04) + PHONE_OUT, EAR_Y, 0.01, PHONE_POLE, IN[1]);
         this.headYaw = -0.15;
         this.body.rotation.x += Math.max(0, Math.sin(t * 2.2)) * 0.06;
         break;
@@ -1137,8 +1941,9 @@ export class CharacterView {
       case 'yawn': {
         // A big stretch: both arms up overhead, leaning back, then down again.
         const k = Math.min(1, t / 0.5) * (t > 1.6 ? Math.max(0, 1 - (t - 1.6) / 0.5) : 1);
-        aim(0, -2.9 * k, 0.35 * k, -0.3 * k);
-        aim(1, -2.9 * k, -0.35 * k, -0.3 * k);
+        // Session 63: up and out in a wide Y (the clay head is as wide as the shoulders: straight up went through it).
+        aim(0, -2.85 * k, -ARMS_UP_OUT * k, -0.3 * k);
+        aim(1, -2.85 * k, ARMS_UP_OUT * k, -0.3 * k);
         this.headPitch = -0.3 * k;
         this.body.rotation.x -= 0.12 * k;
         break;
@@ -1391,6 +2196,7 @@ export class CharacterView {
       this.applyAction(dt);
       this.body.scale.set(1, 1, 1);
       this.applyJoints(dt, 18);
+      this.applyHold(dt);
       return;
     }
     for (const leg of this.legs) leg.scale.y = 1;
@@ -1402,7 +2208,10 @@ export class CharacterView {
     this.phase += dt * (moving ? 3.4 + speed * 2.3 : 1.6);
     // Session 38b (after the ad playable): the swing and the forward lean ease in and out, so starting and stopping
     // never snap the legs.
-    const swingTarget = moving ? (WALK.stride + (RUN.stride - WALK.stride) * run) * Math.min(1, 0.45 + speed * 0.35) : 0;
+    // Session 63: long clothes shorten the step (a gown most, then a dress, a coat, an apron), as they do: a stride never
+    // takes a knee or a heel through the hem.
+    const hobble = this.strideScale();
+    const swingTarget = moving ? (WALK.stride * hobble.walk + (RUN.stride * hobble.run - WALK.stride * hobble.walk) * run) * Math.min(1, 0.45 + speed * 0.35) : 0;
     this.swingNow += (swingTarget - this.swingNow) * Math.min(1, dt * (moving ? 12 : 9));
     const swing = this.swingNow;
     const amount = Math.min(1, swing / WALK.stride);
@@ -1415,10 +2224,12 @@ export class CharacterView {
     }
     this.lastStrideSide = side;
     const c = Math.cos(this.phase);
+    this.walkS = s;
     this.legs[0].rotation.x = s * swing;
     this.legs[1].rotation.x = -s * swing;
     // The passing leg folds at the knee (the foot clears the floor) and straightens to land.
-    const fold = WALK.knee + (RUN.knee - WALK.knee) * run;
+    // In a long skirt, a coat or an apron the run is shorter-stepped and the back foot kicks up less (as people do).
+    const fold = (WALK.knee + (RUN.knee - WALK.knee) * run) * (hobble.walk + (hobble.kick - hobble.walk) * run);
     this.kneeAim[0] = 0.05 + Math.max(0, -c) * fold * amount + Math.max(0, s) * swing * 0.3;
     this.kneeAim[1] = 0.05 + Math.max(0, c) * fold * amount + Math.max(0, -s) * swing * 0.3;
     // The bounce: up as the legs pass (twice a cycle), a slow breath while standing. A tall stack makes the walker
@@ -1445,7 +2256,8 @@ export class CharacterView {
         const arm = this.arms[i];
         const side = i === 0 ? -1 : 1;
         let x = (i === 0 ? -s : s) * swing * (WALK.arm + (RUN.arm - WALK.arm) * run);
-        let z = side * 0.12;
+        // A skirt or coat flaring round the legs takes the hanging hands out with it.
+        let z = side * (this.restAbduct + this.clothSpread());
         // The elbow bends more as the arm swings forward, and a little all the time (a relaxed arm is never straight);
         // running, the arms pump bent.
         let elbow = -(WALK.elbow + (RUN.elbow - WALK.elbow) * run) * (0.5 + 0.5 * amount) - Math.max(0, -x) * 0.6;
@@ -1468,7 +2280,7 @@ export class CharacterView {
           elbow = -1.25;
         }
         if (this.waving && i === 1) {
-          x = -2.75;
+          x = -2.6;
           elbow = -0.35;
         }
         arm.rotation.x += (x - arm.rotation.x) * Math.min(1, dt * 16);
@@ -1477,7 +2289,7 @@ export class CharacterView {
       }
       if (this.waving) {
         this.waveTime += dt;
-        this.arms[1].rotation.z = 0.25 + Math.sin(this.waveTime * 9) * 0.4;
+        this.arms[1].rotation.z = ARMS_UP_OUT + 0.1 + Math.sin(this.waveTime * 9) * 0.22;
         this.elbowAim[1] = -0.35 + Math.sin(this.waveTime * 9) * 0.3;
       }
     }
@@ -1486,6 +2298,7 @@ export class CharacterView {
     this.body.rotation.z = this.swayZ;
     this.applyAction(dt);
     this.applyJoints(dt, 20);
+    this.applyHold(dt);
 
     if (this.squash > 0) {
       this.squash = Math.max(0, this.squash - dt * 4);
@@ -1542,7 +2355,7 @@ export class CharacterView {
       for (let i = 0; i < 2; i++) {
         const arm = this.arms[i];
         arm.rotation.x += (RIDE_ARM - lean - arm.rotation.x) * Math.min(1, dt * 14);
-        const rest = i === 0 ? -0.06 : 0.06;
+        const rest = (i === 0 ? -1 : 1) * this.restAbduct;
         arm.rotation.z += (rest - arm.rotation.z) * Math.min(1, dt * 14);
       }
     }
@@ -1585,7 +2398,7 @@ export class CharacterView {
       leg.rotation.set(0, 0, 0);
       leg.scale.set(1, 1, 1);
     }
-    this.arms.forEach((arm, i) => arm.rotation.set(0, 0, (i === 0 ? -1 : 1) * 0.1));
+    this.arms.forEach((arm, i) => arm.rotation.set(0, 0, (i === 0 ? -1 : 1) * this.restAbduct));
     for (let i = 0; i < 2; i++) {
       this.kneeNow[i] = this.kneeAim[i] = 0;
       this.elbowNow[i] = this.elbowAim[i] = -0.12;

@@ -40,13 +40,16 @@ export const KNEE_Y = -0.205;
 export const NECK_Y = 0.835;
 
 import type { Build, HairStyle, Outfit } from '../config/crowd';
+import type { DetailName } from './detail';
 export type { Build, HairStyle, Outfit };
 
 /** Torso radius at the belly by build (CHARACTER_SPEC §2: 0.82, 0.95 and 1.12 of the head's 0.42 m width). */
 const TORSO_R: Record<Build, number> = { slim: 0.172, regular: 0.2, stout: 0.235 };
 /** The shoulder pivots stand just inside the torso's side, the hips under its round. */
 export function shoulderX(build: Build = 'regular'): number {
-  return TORSO_R[build] + 0.008;
+  // Session 63 ("zero clip ins"): far enough out that a hanging sleeve clears the torso (it sat inside its edge, so
+  // an arm hanging down went into the body); the shoulder ball still meets the torso's top as a rounded shoulder.
+  return TORSO_R[build] + 0.046;
 }
 export const SHOULDER_X = shoulderX();
 export function hipX(build: Build = 'regular'): number {
@@ -63,8 +66,52 @@ const BARE_LEG_R = 0.043;
 /** The mitten hand's scale over the figure kit's model, and where the wrist sits below the elbow. */
 const HAND_SCALE = 1.45;
 const WRIST_Y = HAND_Y - ELBOW_Y + 0.07;
+/** Session 63: the middle of the mitten in the forearm's frame (from the elbow pivot): where a hand grips. */
+export const GRIP: readonly [number, number, number] = [0, WRIST_Y - 0.033, 0.009];
 
-const SOFT: PartStyle = { shade: 0.9, surface: 'fabric' };
+/**
+ * The cloth being built (session 63): its detail layer (suiting twill, jersey, denim, tweed, shirting, felt…) is set by
+ * `wearing` round each garment, so every tube, roll and lathe of that garment carries its weave.
+ */
+const SOFT: PartStyle = { shade: 0.9, surface: 'fabric', detail: undefined };
+
+/** Builds `make` with `cloth` as the weave of everything soft in it. */
+export function wearing<T>(cloth: DetailName | undefined, make: () => T): T {
+  const was = SOFT.detail;
+  SOFT.detail = cloth;
+  try {
+    return make();
+  } finally {
+    SOFT.detail = was;
+  }
+}
+
+/** The weave of a figure's top (session 63, owner: "no realism to their clothes"). */
+export function topCloth(f: Pick<FigureSpec, 'outfit'>): DetailName {
+  switch (f.outfit) {
+    case 'jacket':
+      return 'twill';
+    case 'coat':
+      return 'tweed';
+    case 'shirt':
+    case 'dress':
+      return 'oxford';
+    case 'gown':
+      return 'felt';
+    default:
+      return 'knit';
+  }
+}
+
+/** The weave of a figure's trousers: denim for blue trousers under a tee or a shirt, suiting otherwise. */
+export function pantsCloth(f: Pick<FigureSpec, 'outfit' | 'pants'>): DetailName {
+  if (f.outfit === 'tee' || f.outfit === 'shirt') {
+    const hsl = { h: 0, s: 0, l: 0 };
+    new THREE.Color(f.pants).getHSL(hsl);
+    if (hsl.h > 0.52 && hsl.h < 0.72 && hsl.s > 0.15) return 'denim';
+  }
+  return 'twill';
+}
 const SKIN: PartStyle = { shade: 0.94, surface: 'matte' };
 const FLAT: PartStyle = { shade: 1, surface: 'matte' };
 const EYE = '#24348E';
@@ -107,17 +154,17 @@ function lathe(profile: [number, number][], segments = 18, depth = TORSO_DEPTH):
 
 /** A soft roll round a tube (a cuff, a hem, a turned-up trouser leg): a torus of the given tube radius. */
 function roll(b: GeoBuilder, y: number, r: number, tube: number, color: string, depth = 1, z = 0): void {
-  b.add(new THREE.TorusGeometry(r, tube, 5, 16).scale(1, depth, 1), color, 0, y, z, Math.PI / 2, 0, 0, SOFT);
+  b.add(new THREE.TorusGeometry(r, tube, 6, 20).scale(1, depth, 1), color, 0, y, z, Math.PI / 2, 0, 0, SOFT);
 }
 
 /** A tube down the y axis from `y0` to `y1` (y1 < y0), open-ended (caps are the joints' spheres). */
-function tube(b: GeoBuilder, y0: number, y1: number, r0: number, r1: number, color: string, style: PartStyle = SOFT, segments = 12): void {
+function tube(b: GeoBuilder, y0: number, y1: number, r0: number, r1: number, color: string, style: PartStyle = SOFT, segments = 16): void {
   b.add(new THREE.CylinderGeometry(r0, r1, y0 - y1, segments, 1, true), color, 0, (y0 + y1) / 2, 0, 0, 0, 0, style);
 }
 
 /** A joint cap: a sphere of the tube's radius at a pivot, so a bend stays a continuous round outline. */
 function joint(b: GeoBuilder, y: number, r: number, color: string, style: PartStyle = SOFT): void {
-  b.add(new THREE.SphereGeometry(r, 12, 7), color, 0, y, 0, 0, 0, 0, style);
+  b.add(new THREE.SphereGeometry(r, 16, 10), color, 0, y, 0, 0, 0, 0, style);
 }
 
 export interface FigureSpec {
@@ -220,7 +267,7 @@ const near = (p: Proxy, x: number, y: number): boolean => Math.abs(p.x - x) < 0.
 export const HAIR_SURFACE = { roughness: 0.38, metalness: 0, sheen: 0.12 };
 const HEAD_KEYS = (skin: string, hair: string): Recolor[] => [
   { hue: [345, 15], sat: [0.6, 1], val: [0.2, 1], ref: '#FF2A2A', to: skin },
-  { hue: [45, 75], sat: [0.6, 1], val: [0.2, 1], ref: '#FFFF2A', to: hair, surface: HAIR_SURFACE },
+  { hue: [45, 75], sat: [0.6, 1], val: [0.2, 1], ref: '#FFFF2A', to: hair, surface: HAIR_SURFACE, detail: 'hair' },
 ];
 
 /**
@@ -274,22 +321,22 @@ export function addHead(b: GeoBuilder, f: FigureSpec): void {
   // The face (CHARACTER_SPEC §3): wide-set blue ovals at the head's middle, a bulb nose, a small red mouth.
   const ey = -0.012;
   for (const x of [-0.08, 0.08]) {
-    b.add(new THREE.SphereGeometry(0.028, 8, 6).scale(0.9, 1.35, 0.42), EYE, x, HEAD_Y + ey, faceZ(x, ey) - 0.003, 0, 0, 0, FLAT);
+    b.add(new THREE.SphereGeometry(0.028, 10, 7).scale(0.9, 1.35, 0.42), EYE, x, HEAD_Y + ey, faceZ(x, ey) - 0.003, 0, 0, 0, FLAT);
     // Session 62: soft brows in the hair's colour (a shade darker), tilted a touch, so the face has expression.
     const by = ey + 0.06;
-    b.add(new THREE.SphereGeometry(0.03, 8, 5).scale(1.25, 0.3, 0.36), shade(f.hair, 0.82), x * 1.04, HEAD_Y + by, faceZ(x, by) - 0.002, 0, 0, x > 0 ? -0.16 : 0.16, FLAT);
+    b.add(new THREE.SphereGeometry(0.03, 10, 5).scale(1.25, 0.3, 0.36), shade(f.hair, 0.82), x * 1.04, HEAD_Y + by, faceZ(x, by) - 0.002, 0, 0, x > 0 ? -0.16 : 0.16, FLAT);
   }
   const nr = noseRadius(f);
   const ny = -0.062;
-  b.add(new THREE.SphereGeometry(nr, 10, 7).scale(1, 0.92, 0.9), f.skin, 0, HEAD_Y + ny, faceZ(0, ny) + nr * 0.12, 0, 0, 0, SKIN);
+  b.add(new THREE.SphereGeometry(nr, 12, 8).scale(1, 0.92, 0.9), f.skin, 0, HEAD_Y + ny, faceZ(0, ny) + nr * 0.12, 0, 0, 0, SKIN);
   const my = f.moustache ? -0.128 : -0.112;
-  b.add(new THREE.SphereGeometry(0.03, 8, 5).scale(1.1, 0.42, 0.4), LIPS, 0, HEAD_Y + my, faceZ(0, my) - 0.002, 0, 0, 0, FLAT);
+  b.add(new THREE.SphereGeometry(0.03, 10, 6).scale(1.1, 0.42, 0.4), LIPS, 0, HEAD_Y + my, faceZ(0, my) - 0.002, 0, 0, 0, FLAT);
   if (f.moustache) {
     // A soft dark bar under the nose: two lobes meeting in the middle, tips turned down.
-    for (const s of [-1, 1]) b.add(new THREE.SphereGeometry(0.042, 8, 6).scale(1.25, 0.52, 0.62), f.hair, s * 0.036, HEAD_Y - 0.094, faceZ(s * 0.036, -0.094) + 0.006, 0, 0, s * -0.28, FLAT);
+    for (const s of [-1, 1]) b.add(new THREE.SphereGeometry(0.042, 10, 7).scale(1.25, 0.52, 0.62), f.hair, s * 0.036, HEAD_Y - 0.094, faceZ(s * 0.036, -0.094) + 0.006, 0, 0, s * -0.28, FLAT);
   }
   if (f.glasses) {
-    for (const x of [-0.08, 0.08]) b.add(new THREE.TorusGeometry(0.05, 0.009, 6, 18), '#3A3F8C', x, HEAD_Y + ey, faceZ(x, ey) + 0.016, 0, 0, 0, FLAT);
+    for (const x of [-0.08, 0.08]) b.add(new THREE.TorusGeometry(0.05, 0.009, 6, 24), '#3A3F8C', x, HEAD_Y + ey, faceZ(x, ey) + 0.016, 0, 0, 0, FLAT);
     b.box(0, HEAD_Y + ey + 0.008, faceZ(0, ey) + 0.022, 0.06, 0.012, 0.012, '#3A3F8C', 0, FLAT);
   }
 }
@@ -318,6 +365,14 @@ function chestProfile(build: Build): [number, number][] {
   const belly = build === 'stout' ? 1.05 : 1;
   return [[0, 0.37], [R * 0.84, 0.37], [R * 0.97, 0.41], [R * belly, 0.48], [R * 1.02 * belly, 0.56], [R, 0.65], [R * 0.95, 0.72], [R * 0.84, 0.78], [R * 0.64, 0.826], [R * 0.34, 0.852], [0, 0.858]];
 }
+
+/** Session 63: the torso's own radius (its chest and its hips, before anything worn on them) at a height, by build. */
+export function torsoRadius(build: Build, y: number): number {
+  const R = TORSO_R[build];
+  const hips: [number, number][] = [[0, 0.3], [R * 0.72, 0.3], [R * 0.86, 0.34], [R * 0.92, 0.4], [R * 0.9, 0.44], [0, 0.45]];
+  return Math.max(profileAt(chestProfile(build), y), profileAt(hips, y));
+}
+export { TORSO_DEPTH };
 
 /** How far the torso's front stands out at a height (for buttons and badges). */
 export function faceDepth(y: number, build: Build = 'regular'): number {
@@ -357,6 +412,10 @@ export function addStrap(b: GeoBuilder, x: number, color: string, build: Build =
 
 /** The torso, its hem, and whatever covers the hips (trousers, a skirt, a coat's tails). */
 export function addTorso(b: GeoBuilder, f: FigureSpec): void {
+  wearing(topCloth(f), () => torso(b, f));
+}
+
+function torso(b: GeoBuilder, f: FigureSpec): void {
   const build = f.build ?? 'regular';
   const R = TORSO_R[build];
   const chest = chestProfile(build);
@@ -374,7 +433,7 @@ export function addTorso(b: GeoBuilder, f: FigureSpec): void {
       // with a bow at the back, and a soft round collar at the neck.
       b.add(lathe([[R * 1.0, 0.448], [R * 1.035, 0.468], [R * 1.0, 0.49]], 22), shade(f.trim ?? f.pants, 0.95), 0, 0, 0, 0, 0, 0, SOFT);
       const bz = -faceDepth(0.47, build) - 0.012;
-      for (const s2 of [-1, 1]) b.add(new THREE.SphereGeometry(0.045, 10, 7).scale(1.2, 0.62, 0.42), shade(f.trim ?? f.pants, 0.95), s2 * 0.045, 0.475, bz, 0, 0, s2 * 0.35, SOFT);
+      for (const s2 of [-1, 1]) b.add(new THREE.SphereGeometry(0.045, 12, 8).scale(1.2, 0.62, 0.42), shade(f.trim ?? f.pants, 0.95), s2 * 0.045, 0.475, bz, 0, 0, s2 * 0.35, SOFT);
       b.sphere(0, 0.47, bz - 0.006, 0.022, shade(f.trim ?? f.pants, 0.85), 1, 1, SOFT);
       roundCollar(b, f.outfit === 'gown' ? shade(f.top, 1.12) : '#F6F1E6', build);
       break;
@@ -448,7 +507,7 @@ export function addApron(b: GeoBuilder, color: string, build: Build = 'regular',
   const bib: [number, number][] = [];
   for (let y = 0.5; y <= 0.721; y += 0.044) bib.push([at(chest, y) + 0.008, y]);
   if (part !== 'skirt') {
-    b.add(panel(bib, 0.6), color, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric' });
+    b.add(panel(bib, 0.6), color, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric', detail: 'oxford' });
     // Its waistband ties round outside whatever the waist wears (a dress's sash, a belt).
     roll(b, 0.475, R * (dress ? 1.06 : 0.98), 0.012, shade(color, 0.92), TORSO_DEPTH);
   }
@@ -456,7 +515,7 @@ export function addApron(b: GeoBuilder, color: string, build: Build = 'regular',
   const skirt: [number, number][] = dress
     ? [[R * 1.32 + 0.012, 0.25], [R * 1.2 + 0.012, 0.3], [R * 1.05 + 0.012, 0.4], [R * 0.97 + 0.012, 0.47]]
     : [[R * 0.98, 0.26], [R * 0.95, 0.36], [R * 0.95, 0.47]];
-  b.add(panel(skirt, 0.75), color, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric' });
+  b.add(panel(skirt, 0.75), color, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric', detail: 'oxford' });
   // Its hem, a soft roll along the bottom edge.
   const hemR = skirt[0][0];
   const hemY = skirt[0][1];
@@ -534,16 +593,16 @@ function roundCollar(b: GeoBuilder, color: string, build: Build): void {
 function collar(b: GeoBuilder, color: string, build: Build): void {
   const y = 0.79;
   const z = faceDepth(y, build) - 0.012;
-  for (const s of [-1, 1]) b.add(new THREE.SphereGeometry(0.05, 10, 7).scale(1, 0.42, 0.3), color, s * 0.055, y, z, 0.35, 0, s * 0.55, SOFT);
+  for (const s of [-1, 1]) b.add(new THREE.SphereGeometry(0.05, 12, 8).scale(1, 0.42, 0.3), color, s * 0.055, y, z, 0.35, 0, s * 0.55, SOFT);
 }
 
 /** The trousers' seat (the legs hang from the hip pivots under it) and, if worn, a belt with a buckle. */
 function hips(b: GeoBuilder, f: FigureSpec): void {
   const build = f.build ?? 'regular';
   const R = TORSO_R[build];
-  b.add(lathe([[0, 0.3], [R * 0.72, 0.3], [R * 0.86, 0.34], [R * 0.92, 0.4], [R * 0.9, 0.44], [0, 0.45]], 20), f.pants, 0, 0, 0, 0, 0, 0, SOFT);
+  b.add(lathe([[0, 0.3], [R * 0.72, 0.3], [R * 0.86, 0.34], [R * 0.92, 0.4], [R * 0.9, 0.44], [0, 0.45]], 20), f.pants, 0, 0, 0, 0, 0, 0, { ...SOFT, detail: pantsCloth(f) });
   if (f.belt) {
-    b.add(lathe([[R * 0.95, 0.405], [R * 0.975, 0.42], [R * 0.95, 0.435]], 22), BELT, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'leather' });
+    b.add(lathe([[R * 0.95, 0.405], [R * 0.975, 0.42], [R * 0.95, 0.435]], 22), BELT, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'leather', detail: 'leather' });
     b.rounded(0, 0.42, faceDepth(0.42, build) + 0.016, 0.045, 0.034, 0.012, 0.006, BUCKLE, { shade: 1, surface: 'steel' });
   }
 }
@@ -602,7 +661,7 @@ export function upperArmGeometry(sleeve: string, skin: string, long: boolean, bu
   } else {
     tube(b, 0, -0.105, SLEEVE_R, SLEEVE_R * 1.04, sleeve);
     roll(b, -0.105, SLEEVE_R * 0.94, 0.016, shade(sleeve, 0.92));
-    b.add(new THREE.CircleGeometry(SLEEVE_R * 0.96, 12), shade(sleeve, 0.6), 0, -0.106, 0, Math.PI / 2, 0, 0, FLAT);
+    b.add(new THREE.CircleGeometry(SLEEVE_R * 0.96, 16), shade(sleeve, 0.6), 0, -0.106, 0, Math.PI / 2, 0, 0, FLAT);
     tube(b, -0.09, ELBOW_Y, ARM_R, ARM_R * 0.98, skin, SKIN);
     joint(b, ELBOW_Y, ARM_R * 0.98, skin, SKIN);
   }
@@ -613,23 +672,32 @@ export function upperArmGeometry(sleeve: string, skin: string, long: boolean, bu
  * The forearm and hand, from the elbow pivot: the sleeve or bare arm down to the wrist, a rolled cuff on a sleeve, and
  * the sculpted mitten hand (figure kit) with its thumb toward the body's middle.
  */
-export function forearmGeometry(sleeve: string, skin: string, long: boolean, side: 1 | -1, carry: 'briefcase' | 'handbag' | null, cuff?: string, build: Build = 'regular'): THREE.BufferGeometry {
+export function forearmGeometry(sleeve: string, skin: string, long: boolean, side: 1 | -1, carry: 'briefcase' | 'handbag' | 'surfboard' | null, cuff?: string, build: Build = 'regular'): THREE.BufferGeometry {
   const b = new GeoBuilder();
   // The elbow's ball is the upper arm's (a sphere looks the same however the forearm turns about its centre).
   if (long) {
     tube(b, 0, WRIST_Y + 0.02, FORE_SLEEVE_R, FORE_SLEEVE_R * 0.96, sleeve);
     roll(b, WRIST_Y + 0.025, FORE_SLEEVE_R * 0.92, 0.018, cuff ?? shade(sleeve, 0.92));
-    b.add(new THREE.CircleGeometry(FORE_SLEEVE_R * 0.95, 12), shade(sleeve, 0.55), 0, WRIST_Y + 0.012, 0, Math.PI / 2, 0, 0, FLAT);
+    b.add(new THREE.CircleGeometry(FORE_SLEEVE_R * 0.95, 16), shade(sleeve, 0.55), 0, WRIST_Y + 0.012, 0, Math.PI / 2, 0, 0, FLAT);
   } else {
     tube(b, 0, WRIST_Y + 0.01, ARM_R * 0.98, ARM_R * 0.9, skin, SKIN);
   }
   // Side −1 is the figure's right (x < 0): its thumb points toward +x; the kit's right hand has its thumb toward −x.
   kitAt(b, side === 1 ? 'ch_hand_r' : 'ch_hand_l', 0, WRIST_Y + 0.035, 0.004, HAND_SCALE, figKeys(skin, skin, skin, skin));
   if (carry === 'briefcase' && side === 1) {
-    b.rounded(0, HAND_Y - ELBOW_Y - 0.12, 0.02, 0.08, 0.19, 0.28, 0.035, '#6B4430', { shade: 0.9, surface: 'leather' });
+    b.rounded(0, HAND_Y - ELBOW_Y - 0.12, 0.02, 0.08, 0.19, 0.28, 0.035, '#6B4430', { shade: 0.9, surface: 'leather', detail: 'leather' });
     b.box(0, HAND_Y - ELBOW_Y - 0.015, 0.02, 0.024, 0.034, 0.09, '#4A2E20', 0, FLAT);
   }
-  if (carry === 'handbag' && side === -1) b.rounded(0, HAND_Y - ELBOW_Y - 0.1, 0, 0.09, 0.14, 0.2, 0.045, '#C94F6D', { shade: 0.9, surface: 'leather' });
+  if (carry === 'surfboard' && side === 1) {
+    // Session 63: a surfer's board held by its rail, stood on its tail beside them, its flat side to the body, clear of
+    // the hand (it was part of the body, where the hanging arm went through it).
+    const gy = GRIP[1];
+    const bx = 0.095;
+    b.add(new THREE.SphereGeometry(0.5, 20, 12).scale(0.05, 0.64, 0.22), '#4FA8E0', bx, gy - 0.05, 0, 0, 0, 0, { shade: 0.95, surface: 'varnish' });
+    b.box(bx + 0.026, gy - 0.05, 0, 0.006, 0.54, 0.03, '#FFFFFF', 0, FLAT);
+    b.box(bx + 0.026, gy + 0.0, 0, 0.006, 0.03, 0.1, '#F28C2E', 0, FLAT);
+  }
+  if (carry === 'handbag' && side === -1) b.rounded(0, HAND_Y - ELBOW_Y - 0.1, 0, 0.09, 0.14, 0.2, 0.045, '#C94F6D', { shade: 0.9, surface: 'leather', detail: 'leather' });
   return occlude(b.build(), build, [side * shoulderX(build), SHOULDER_Y + ELBOW_Y, 0], (p) => p.x * side > 0 && Math.abs(p.x) > 0.1);
 }
 
@@ -665,20 +733,22 @@ export function shinGeometry(color: string, shoe: string, bare: boolean, skin: s
   // The knee's ball is the thigh's.
   if (bare) {
     tube(b, 0, shoeTop + 0.03, BARE_LEG_R * 0.96, BARE_LEG_R * 0.86, skin, SKIN);
-    tube(b, shoeTop + 0.04, shoeTop - 0.005, BARE_LEG_R * 1.06, BARE_LEG_R * 1.06, sock, SOFT);
+    tube(b, shoeTop + 0.04, shoeTop - 0.005, BARE_LEG_R * 1.06, BARE_LEG_R * 1.06, sock, { ...SOFT, detail: 'knit' });
   } else {
     const cuff = shoeTop + 0.045;
     tube(b, 0, cuff, SHIN_R, SHIN_R * 0.97, color);
     seam(b, side, 0, cuff + 0.02, SHIN_R, SHIN_R * 0.97, color);
     // The turned-up hem: a roll a touch wider than the leg, its inside dark, the sock band showing under it.
     roll(b, cuff, SHIN_R * 0.95, 0.024, shade(color, 1.08));
-    b.add(new THREE.CircleGeometry(SHIN_R * 0.95, 12), shade(color, 0.5), 0, cuff - 0.02, 0, Math.PI / 2, 0, 0, FLAT);
-    tube(b, cuff - 0.01, shoeTop - 0.005, 0.045, 0.045, sock, SOFT, 12);
+    b.add(new THREE.CircleGeometry(SHIN_R * 0.95, 16), shade(color, 0.5), 0, cuff - 0.02, 0, Math.PI / 2, 0, 0, FLAT);
+    tube(b, cuff - 0.01, shoeTop - 0.005, 0.045, 0.045, sock, { ...SOFT, detail: 'knit' }, 16);
   }
   // The clay shoe (CHARACTER_SPEC §2): a domed bean on a paler sole; dark leather on a mid sole for uniforms, coats
   // and gowns, the look's own colour on a pale sole for everyone else.
   const s = smart ? 1.08 : 1.1;
-  b.model('ch_shoe', 0, foot, 0.03, 0, s, s, s, { recolor: figKeys(skin, shoe, smart ? SMART_SOLE : SOLE, shoe), shade: 0.94, surface: smart ? 'leather' : 'matte' });
+  const keys = figKeys(skin, shoe, smart ? SMART_SOLE : SOLE, shoe);
+  keys[1].detail = smart ? 'leather' : 'oxford';
+  b.model('ch_shoe', 0, foot, 0.03, 0, s, s, s, { recolor: keys, shade: 0.94, surface: smart ? 'leather' : 'matte' });
   // Session 62: laces across the instep (pale on everyday shoes, the shoe's own darker shade on smart ones), laid on the
   // upper's dome (art/blender/characters/char_kit.py: centre 0.044 up and 0.022 forward, radii 0.042 up, 0.114 long).
   for (const dz of [0.03, 0.058]) {
@@ -751,11 +821,16 @@ function hemArc(b: GeoBuilder, y: number, r: number, a0: number, a1: number, col
 
 /** A dress's or a gown's bell (and an apron's skirt over it), hung from the waist. */
 export function skirtGeometry(f: FigureSpec, apron: string | null): THREE.BufferGeometry {
+  return wearing(topCloth(f), () => skirt(f, apron));
+}
+
+function skirt(f: FigureSpec, apron: string | null): THREE.BufferGeometry {
   const build = f.build ?? 'regular';
   const R = TORSO_R[build];
   const b = new GeoBuilder();
   const hem = f.outfit === 'dress' ? 0.21 : 0.07;
-  const flare = f.outfit === 'dress' ? 1.32 : 1.38;
+  // Session 63: a gown is a full skirt (a walking stride stays inside its hem).
+  const flare = f.outfit === 'dress' ? 1.32 : 1.52;
   const prof: [number, number][] = [[R * flare, hem + 0.012], [R * flare * 0.98, hem + 0.05], [R * 1.2, 0.3], [R * 1.05, 0.4], [R * 0.97, WAIST_Y + 0.005]];
   const bell = foldedLathe(prof, 9, 0.045, WAIST_Y, hem);
   b.add(bell, f.pants, 0, 0, 0, 0, 0, 0, SOFT);
@@ -778,7 +853,7 @@ export function skirtGeometry(f: FigureSpec, apron: string | null): THREE.Buffer
       const y = low + ((top - low) * i) / 5;
       ap.push([radiusAt(y) + 0.012, y]);
     }
-    b.add(foldedLathe(ap, 9, 0.045, WAIST_Y, hem, -0.75, 1.5, 14), apron, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric' });
+    b.add(foldedLathe(ap, 9, 0.045, WAIST_Y, hem, -0.75, 1.5, 14), apron, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric', detail: 'oxford' });
     hemArc(b, low + 0.004, radiusAt(low) + 0.012, -0.75, 0.75, shade(apron, 0.92), 0.01);
   }
   const g = occlude(b.build(), build, [0, 0, 0], (p) => p.x === 0 && p.y !== HEAD_Y);
@@ -788,22 +863,27 @@ export function skirtGeometry(f: FigureSpec, apron: string | null): THREE.Buffer
 
 /** One half of a long coat's skirts (side +1 is +x), open at the front, vented at the back, lined, hung at the waist. */
 export function coatHalfGeometry(f: FigureSpec, side: 1 | -1, lining: string): THREE.BufferGeometry {
+  return wearing(topCloth(f), () => coatHalf(f, side, lining));
+}
+
+function coatHalf(f: FigureSpec, side: 1 | -1, lining: string): THREE.BufferGeometry {
   const build = f.build ?? 'regular';
   const R = TORSO_R[build];
   const b = new GeoBuilder();
   const gap = 0.07;
   const phi0 = side > 0 ? gap : Math.PI + 0.01;
   const len = Math.PI - gap - 0.01;
-  const hem = 0.24;
-  const prof: [number, number][] = [[R * 1.12, hem], [R * 1.1, 0.3], [R * 1.05, 0.4], [R * 1.01, 0.47], [R * 0.99, COAT_PIVOT_Y + 0.01]];
+  // Session 63: the hem just above the knee (a running heel swept through the lowest few centimetres of a longer one).
+  const hem = 0.27;
+  const prof: [number, number][] = [[R * 1.2, hem], [R * 1.15, 0.31], [R * 1.06, 0.4], [R * 1.01, 0.47], [R * 0.99, COAT_PIVOT_Y + 0.01]];
   const shell = foldedLathe(prof, 7, 0.035, COAT_PIVOT_Y, hem, phi0, len, 16);
   b.add(shell, f.top, 0, 0, 0, 0, 0, 0, SOFT);
   b.add(inside(shell), lining, 0, 0, 0, 0, 0, 0, SOFT);
-  hemArc(b, hem + 0.004, R * 1.115, phi0, phi0 + len, shade(f.top, 0.9));
+  hemArc(b, hem + 0.004, R * 1.215, phi0, phi0 + len, shade(f.top, 0.9));
   // A pocket flap low on the front of each half.
   const a = side > 0 ? 0.62 : -0.62;
   const r = R * 1.07;
-  b.add(new THREE.BoxGeometry(0.085, 0.028, 0.012), shade(f.top, 0.86), r * Math.sin(a), 0.36, r * Math.cos(a) * TORSO_DEPTH + 0.008, 0, a * 0.85, 0, { shade: 1, surface: 'fabric' });
+  b.add(new THREE.BoxGeometry(0.085, 0.028, 0.012), shade(f.top, 0.86), r * Math.sin(a), 0.36, r * Math.cos(a) * TORSO_DEPTH + 0.008, 0, a * 0.85, 0, SOFT);
   const g = occlude(b.build(), build, [0, 0, 0], (p) => p.x === 0 && p.y !== HEAD_Y);
   g.translate(0, -COAT_PIVOT_Y, 0);
   return g;
@@ -812,7 +892,7 @@ export function coatHalfGeometry(f: FigureSpec, side: 1 | -1, lining: string): T
 /** An apron's skirt over trousers, hung from the waistband (the bib stays on the body). */
 export function apronFlapGeometry(color: string, build: Build = 'regular'): THREE.BufferGeometry {
   const b = new GeoBuilder();
-  addApron(b, color, build, false, 'skirt');
+  wearing('oxford', () => addApron(b, color, build, false, 'skirt'));
   const g = b.build();
   g.translate(0, -WAIST_Y, 0);
   return g;
@@ -831,18 +911,49 @@ export function hairPieceGeometry(f: FigureSpec): THREE.BufferGeometry | null {
     { hue: [285, 315], sat: [0.6, 1], val: [0.2, 1], ref: '#FF2AFF', to: shade(f.top, 1) },
   ], 0.97);
   const g = b.build();
+  // Session 63 ("zero clip ins"): where the hair falls past the collar it lies on the back and shoulders, never in them:
+  // any part of it inside the torso (plus a finger's breadth) is lifted straight out from the body's axis.
+  const chest = chestProfile(f.build ?? 'regular');
+  const pos = g.getAttribute('position');
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i) + HEAD_Y;
+    if (y > chest[chest.length - 1][1]) continue;
+    const r = profileAt(chest, y) + HAIR_LIE;
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const e = Math.hypot(x, z / TORSO_DEPTH);
+    if (e < r && e > 1e-4) pos.setXYZ(i, (x * r) / e, pos.getY(i), (z * r) / e);
+  }
+  pos.needsUpdate = true;
+  g.computeVertexNormals();
   const p = HAIR_PIVOT[kind];
   g.translate(-p[0], -p[1], -p[2]);
   return g;
 }
 
+/** How far clear of the torso long hair lies (it swings out from there, never in: CharacterView's hair spring). */
+const HAIR_LIE = 0.022;
+
+/** A lathe profile's radius at a height (straight lines between its points). */
+function profileAt(p: [number, number][], y: number): number {
+  for (let i = 1; i < p.length; i++) {
+    const [r0, a] = p[i - 1];
+    const [r1, c] = p[i];
+    if (y >= a && y <= c) return c === a ? Math.max(r0, r1) : r0 + ((y - a) / (c - a)) * (r1 - r0);
+  }
+  return 0;
+}
+
 /** The soft felt hats (art/blender/characters/char_kit.py), placed on the head (head-centre at HEAD_Y). */
 export type FeltHat = 'conductor' | 'bowler' | 'boater' | 'pillbox' | 'beanie' | 'tophat' | 'toque' | 'cap';
+const HAT_CLOTH: Record<FeltHat, DetailName> = { conductor: 'felt', bowler: 'felt', boater: 'straw', pillbox: 'felt', beanie: 'knit', tophat: 'felt', toque: 'oxford', cap: 'twill' };
+
 export function addHat(b: GeoBuilder, kind: FeltHat, c: { crown: string; band: string; peak: string; trim: string }): void {
   const keys: Recolor[] = [
-    { hue: [105, 135], sat: [0.6, 1], val: [0.2, 1], ref: '#2AFF2A', to: c.crown },
-    { hue: [225, 255], sat: [0.6, 1], val: [0.2, 1], ref: '#2A2AFF', to: c.band },
-    { hue: [45, 75], sat: [0.6, 1], val: [0.2, 1], ref: '#FFFF2A', to: c.peak },
+    // Session 63: felt crowns (a knitted beanie, a straw boater, a cotton cap and toque), a ribbon band, a felt brim.
+    { hue: [105, 135], sat: [0.6, 1], val: [0.2, 1], ref: '#2AFF2A', to: c.crown, detail: HAT_CLOTH[kind] },
+    { hue: [225, 255], sat: [0.6, 1], val: [0.2, 1], ref: '#2A2AFF', to: c.band, detail: kind === 'beanie' ? 'knit' : 'oxford' },
+    { hue: [45, 75], sat: [0.6, 1], val: [0.2, 1], ref: '#FFFF2A', to: c.peak, detail: kind === 'boater' ? 'straw' : kind === 'conductor' || kind === 'cap' ? 'leather' : HAT_CLOTH[kind] },
     { hue: [285, 315], sat: [0.6, 1], val: [0.2, 1], ref: '#FF2AFF', to: c.trim, surface: { roughness: 0.32, metalness: kind === 'conductor' || kind === 'pillbox' ? 1 : 0 } },
   ];
   atOrigin(b, `ch_hat_${kind}` as ModelId, 0, HEAD_Y, 0, 1, keys, 0.95, 'fabric');

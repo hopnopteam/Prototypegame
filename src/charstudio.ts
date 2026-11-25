@@ -12,8 +12,15 @@ import { MATERIALS, SHADOW_GEOMETRY } from './world/materials';
 import { CharacterBatch } from './world/CharacterBatch';
 import { Stage } from './world/Stage';
 import { guestLook } from './gameplay/guestLook';
+import { loadDetailTextures } from './world/detailTextures';
+import { CarryStack } from './gameplay/CarryStack';
+import { Tweens } from './core/Tween';
+import type { ItemKind } from './core/types';
+import { createItemMesh } from './world/ItemMeshes';
 
 document.getElementById('loader')?.remove();
+// Session 63: the cloth, leather, felt and hair detail layers, as the game loads them (`__ready` waits for them).
+const detailReady = loadDetailTextures();
 // A full-window canvas (the game page holds it to a phone's width).
 const wide = document.createElement('style');
 wide.textContent = '* { max-width: none !important; }';
@@ -67,6 +74,53 @@ who.forEach((name, i) => {
   stage.scene.add(c.root);
   views.push(c);
 });
+
+/**
+ * Session 63, carrying: `?carry=tea,latte` (or `luggage`, `luggage,luggage`, `towel,blanket`, `crate`) gives each
+ * figure a real CarryStack with those things; `?box=1` the supply box on the shoulder; `?cycle=3` takes the things one
+ * by one from a counter in front and hands them back, over and over (each take and hand-over with its own move);
+ * `?src=x,y,z` where they are taken from (figure space).
+ */
+const tweens = new Tweens();
+const stacks: CarryStack[] = [];
+const carried = (params.get('carry') ?? '').split(',').filter((k) => k && k !== '1') as ItemKind[];
+const src = (params.get('src') ?? '0.15,0.75,0.75').split(',').map(Number);
+const cycle = Number(params.get('cycle') ?? '0');
+if (carried.length > 0 || params.get('box') === '1') {
+  views.forEach((v) => {
+    const st = new CarryStack(v.stackAnchor, stage.scene, tweens, 8, v.boardAnchor, v);
+    stacks.push(st);
+    if (params.get('box') === '1') {
+      const box = createItemMesh('crate');
+      box.scale.setScalar(0.5);
+      box.position.set(0.36, 0.815, -0.03);
+      box.rotation.set(0, 0, -0.08);
+      box.userData.carried = true;
+      v.body.add(box);
+      v.setCarrying(false, false, true);
+    }
+    if (!cycle) for (const k of carried) st.add(k);
+  });
+}
+function sourceOf(v: CharacterView): THREE.Vector3 {
+  return v.root.localToWorld(new THREE.Vector3(src[0], src[1], src[2]));
+}
+let cycleClock = 0;
+let cycleStep = 0;
+function stepCycle(dt: number): void {
+  if (!cycle || carried.length === 0) return;
+  cycleClock += dt;
+  if (cycleClock < cycle / (carried.length * 2)) return;
+  cycleClock = 0;
+  const n = carried.length;
+  const k = cycleStep % (2 * n);
+  views.forEach((v, i) => {
+    const st = stacks[i];
+    if (k < n) st.add(carried[k], sourceOf(v));
+    else st.remove(carried[2 * n - 1 - k], () => sourceOf(v));
+  });
+  cycleStep++;
+}
 
 const cam = stage.rig.camera;
 const pitch = (Number(params.get('pitch') ?? '40') * Math.PI) / 180;
@@ -126,6 +180,9 @@ function frame(now: number): void {
       const sp = move ? pace(v, views.indexOf(v), clock, dt) : walk ? Number(params.get('speed') ?? '1.6') : 0;
       v.update(dt, sp);
     }
+    stepCycle(dt);
+    tweens.update(dt);
+    stacks.forEach((st, i) => st.update(dt, walk || move, clock + i));
   }
   cam.fov = fov;
   cam.near = 0.5;
@@ -178,5 +235,9 @@ function step(dt: number): void {
     if (turn) v.setFacing(face + clock * 0.9);
     v.update(dt, move ? pace(v, i, clock, dt) : walk ? Number(params.get('speed') ?? '1.6') : 0);
   });
+  stepCycle(dt);
+  tweens.update(dt);
+  stacks.forEach((st, i) => st.update(dt, walk || move, clock + i));
 }
-Object.assign(window, { __ready: true, __export: exportFigure, __views: views, __step: step });
+void detailReady.then(() => Object.assign(window, { __ready: true }));
+Object.assign(window, { __export: exportFigure, __views: views, __step: step, __stacks: stacks });

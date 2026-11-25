@@ -4,6 +4,7 @@
  */
 import { ICON_NAMES, drawIcon, type IconName } from './ui/icons';
 import { bubbleTexture } from './world/sprites';
+import { loadIconImages } from './ui/iconImages';
 
 document.body.innerHTML = '';
 document.documentElement.style.cssText = 'overflow:auto;height:auto;background:#3a4258';
@@ -13,6 +14,8 @@ document.body.style.cssText = 'margin:0;background:#3a4258;font:12px sans-serif;
 const grid = document.createElement('div');
 grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;padding:8px';
 document.body.appendChild(grid);
+// Session 63: the icons as the game draws them (rendered from models, assets/icons/items.png; drawn ones otherwise).
+void loadIconImages().then(() => {
 for (const name of all) {
   const cell = document.createElement('div');
   cell.style.cssText = 'width:300px;display:flex;align-items:center;gap:4px;background:#556;padding:4px;border-radius:6px';
@@ -30,3 +33,4 @@ for (const name of all) {
   cell.appendChild(label);
   grid.appendChild(cell);
 }
+});

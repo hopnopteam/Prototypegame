@@ -20,9 +20,10 @@ export { welded };
  */
 
 /** The vertex attributes the batched character material reads (GeoBuilder also writes pattern data). */
-const LIT_ATTRIBUTES = ['position', 'normal', 'color', 'aSurface'];
+// Session 63: the people's parts carry a detail layer (cloth, leather, felt, hair) in aPattern.
+const LIT_ATTRIBUTES = ['position', 'normal', 'color', 'aSurface', 'aColor2', 'aPattern'];
 /** Carried items (towels, trays, luggage) use the patterned material. */
-const SOLID_ATTRIBUTES = [...LIT_ATTRIBUTES, 'aColor2', 'aPattern'];
+const SOLID_ATTRIBUTES = LIT_ATTRIBUTES;
 const INITIAL_VERTICES = 60_000;
 /** A character whose bounding sphere (this radius round a point this high, metres) is off screen is not drawn. */
 const CULL_RADIUS = 1.4;

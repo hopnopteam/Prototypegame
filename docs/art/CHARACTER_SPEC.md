@@ -211,3 +211,50 @@ on the shoes.
 **Measured** (the full Riviera train at a stop, Low tier, the same autopilot run): 8,112 triangles a person (Stage A
 6,546 in this scene; the figures before the overhaul 9,772), sync 3.0 ms (3.0), draw calls 78 (77). The LOD sets of §11
 were not needed to stay under the old figures' cost; they remain the next step if a phone needs it.
+
+## 13. Session 63: cloth you can feel, nothing clips, a move for every item
+
+Owner: "very plasticy… no realism to their clothes, or their props… none of the clothing is actually clipping in any
+place… individual detailed animation… when he picks up the bags, when he is holding the bags… zero clip ins".
+
+**Cloth you can see.** Every garment carries a weave from the detail texture sheet, sampled in the figure's own space
+(a blended three-way projection under `NX_FIGURE`, so a texture never smears down a tube or a lathe) and multiplied over
+its colour: twill on jackets and trousers, tweed (a soft herringbone) on long coats, oxford on shirts, dresses and
+aprons, knit on tees and socks, denim on blue trousers worn with a tee or shirt, felt on gowns and hats, leather on
+belts, smart shoes and bags, straw on boaters, fine strands on hair. Nine drawn layers (`build_stylized.py`: `twill`,
+`knit`, `denim`, `tweed`, `oxford`, `felt`, `leather`, `straw`, `hair`; strengths and repeats in `VISUALS.detail`).
+Silhouettes are rounder (limb tubes and joints 16 sides), the mitten hands are one remeshed Blender piece (palm, thumb
+and wrist joined, no seam at the cuff).
+
+**Nothing clips** (`tests/clip.test.ts`, `tests/clipkit.ts`; `npm run audit:clip` runs everything, about 5 minutes).
+The test measures every body part, garment, hat and held item as a volume (the torso exactly, lathes as radial
+outlines with their rings interpolated, items as boxes) and samples every frame: every guest look walking, running,
+stopping and turning from three stride starts; every gesture standing and seated; every carrier (conductor and each
+helper) taking and handing over every load (a tray stack, bags, linen, towels, a crate, a surfboard); the supply box on
+the shoulder with a tray in front. Fixes it drove:
+
+| Was clipping | Fix |
+|---|---|
+| legs through skirts, gowns and coats | the cloth keeps an outline the legs cannot leave: each frame the hem's swing is searched for a pose clear of both legs (the eased swing first) and the flare opens up to ×1.3 where it must; strides shorten in long clothes (gown walk ×0.58, dress ×0.82, coat ×0.9, apron ×0.95) |
+| arms through hips, skirts and coats | the shoulder sits 4.6 cm further out; each figure's resting arm angle is measured from its own body, thighs, cloth and sleeve width; arms follow a flaring skirt |
+| arms-up gestures through the head | cheer, wave, yawn and the ticket wave lift the arms wide of the head |
+| long hair into the back | hair is pushed out of the torso and its swing follows the head's tilt |
+| a cup or phone in the face | sipping and phoning are reached by the arm to a point clear of the face, with the free hand |
+
+**A move for every item** (`world/CarryPose.ts`, `CharacterView.setLoad`/`startMotion`/`applyHold`,
+`gameplay/CarryStack.ts`). The arms are solved, not posed: a two-bone solve puts each hand exactly on its grip (under a
+tray's back corners, round a suitcase handle, against the box on the shoulder) and turns the palm to face it.
+
+| Item | Take (s) | Hold | Hand over (s) |
+|---|---|---|---|
+| tray of food and drink | 0.42: the tray offered forward and a touch lower to meet the cup, a small knee give | on a walnut tray just clear of the belly, chin and hat (measured from the figure); a tall stack is lifted and the head peeks round it | 0.44: carried out and up to the guest with a small bow, then back in |
+| linen, towels, pillows, blankets | 0.44: a reach for the folded pile, then hugged in with a little squeeze | in front, against the chest | 0.42: held out and a touch lower |
+| one or two bags | 0.52: a bend at the knees toward that side, the hand down and out for the handle | one in each hand at the side, clear of the hips and coat, swinging with the walk | 0.46: swung forward and down |
+| more bags, crates | 0.54/0.62: a real squat, the back tipping forward, the load brought up close (a crate lower and slower) | stacked in front like the tray | 0.5/0.56: set down the same way |
+| surfboard | 0.45: a small dip, under the arm | under the arm, clear of the hair | 0.4 |
+| supply box | a lift to the shoulder | on the shoulder, one hand steadying it; the tray still works in front | swung down |
+Items fly in and out on a short arc (0.28 s); the game's timing (the 0.3 s hand-over) is unchanged, and none of it uses
+game randomness: the pacing simulator stays byte-identical.
+
+**Measured** (the full Riviera train at a stop, Low tier): 10,398 triangles a person (8,108 before this session; the
+new hands, rounder limbs and weave details), draw calls 78 (78), 253k triangles drawn (240k).

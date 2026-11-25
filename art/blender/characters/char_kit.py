@@ -285,29 +285,43 @@ def shoe():
 
 
 def hand(side):
-    """A mitten (CHARACTER_SPEC §2): a soft rounded paddle, a plump thumb on its inner front, a short wrist; light
-    enough for a crowd (the figure kit's hand was 688 triangles)."""
+    """A mitten (CHARACTER_SPEC §2): a soft rounded paddle, a plump thumb on its inner front, a short wrist. Session 63
+    (owner: "low res"): the three shapes are fused into one surface (a voxel remesh, then relaxed), so the thumb grows
+    out of the palm in a smooth curve instead of two spheres cutting through each other, then reduced for a crowd."""
     clear()
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=8, radius=1, location=(0, -0.004, -0.052))
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=20, radius=1, location=(0, -0.004, -0.052))
     palm = active()
-    palm.scale = (0.03, 0.036, 0.047)
+    palm.scale = (0.03, 0.035, 0.047)
     bpy.ops.object.transform_apply(scale=True)
-    tag(palm, 'skin')
-    smooth(palm)
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=8, ring_count=6, radius=1, location=(-0.026 * side, -0.02, -0.04))
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=16, radius=1, location=(-0.025 * side, -0.019, -0.042))
     thumb = active()
-    thumb.scale = (0.013, 0.016, 0.024)
+    thumb.scale = (0.0135, 0.0165, 0.025)
     thumb.rotation_euler = (math.radians(20), math.radians(-30 * side), 0)
     bpy.ops.object.transform_apply(scale=True, rotation=True)
-    tag(thumb, 'skin')
-    smooth(thumb)
-    bpy.ops.mesh.primitive_cylinder_add(vertices=10, radius=0.021, depth=0.03, location=(0, 0, -0.012))
+    bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=0.021, depth=0.03, location=(0, 0, -0.012))
     wrist = active()
-    tag(wrist, 'skin')
-    smooth(wrist)
     o = join([palm, thumb, wrist])
+    rm = o.modifiers.new('remesh', 'REMESH')
+    rm.mode = 'VOXEL'
+    rm.voxel_size = 0.0018
+    sm = o.modifiers.new('relax', 'SMOOTH')
+    sm.factor = 0.6
+    sm.iterations = 6
+    apply_all(o)
+    # The wrist's top stays open and flat where the sleeve or the forearm covers it.
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    top = [v for v in bm.verts if v.co.z > -0.004]
+    bmesh.ops.delete(bm, geom=top, context='VERTS')
+    bm.to_mesh(o.data)
+    bm.free()
+    tris = sum(len(p.vertices) - 2 for p in o.data.polygons)
+    d = o.modifiers.new('dec', 'DECIMATE')
+    d.ratio = min(1.0, 520 / max(1, tris))
+    apply_all(o)
+    tag(o, 'skin')
+    smooth(o)
     export(o, 'ch_hand_' + ('r' if side > 0 else 'l'))
-
 
 
 # ── Hats (session 62, "flat hat crowns": soft felt instead of hard cylinders) ─────────────────────────────────────────

@@ -256,6 +256,19 @@ export const VISUALS = {
     fabric: { tile: 0.7, strength: 0.8 },
     /** The Riviera revamp: beach sand with wind ripples (baked in Blender, art/blender/sand_texture.py). */
     sand: { tile: 1.6, strength: 0.75 },
+    /**
+     * Session 63: the people's materials (art/textures/build_stylized.py), at a toy's scale: suiting twill, jersey
+     * knit, denim, herringbone tweed, shirting, felt, pebbled leather, plaited straw and hair strands.
+     */
+    twill: { tile: 0.22, strength: 0.75 },
+    knit: { tile: 0.15, strength: 0.8 },
+    denim: { tile: 0.2, strength: 0.85 },
+    tweed: { tile: 0.3, strength: 0.8 },
+    oxford: { tile: 0.1, strength: 0.6 },
+    felt: { tile: 0.2, strength: 0.6 },
+    leather: { tile: 0.16, strength: 0.75 },
+    straw: { tile: 0.2, strength: 0.9 },
+    hair: { tile: 0.26, strength: 0.7 },
   },
 };
 

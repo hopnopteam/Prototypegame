@@ -50,11 +50,10 @@ export class Player implements Actor {
   private dashTrail = 0;
   private readonly ground = { x: 0, y: 0 };
   /** What was carried last frame (a change plays a pickup or a hand-over). */
-  private lastCount = 0;
 
   constructor(private readonly w: World, private readonly input: Input, spawn: Vec2) {
     this.pos = { x: spawn.x, z: spawn.z };
-    this.stack = new CarryStack(this.view.stackAnchor, w.scene, w.tweens, this.capacity(), this.view.boardAnchor);
+    this.stack = new CarryStack(this.view.stackAnchor, w.scene, w.tweens, this.capacity(), this.view.boardAnchor, this.view);
     this.travel = new PathFollower(w);
     this.gear = new ConductorGear(this.view, CONDUCTOR_LOOK);
     w.scene.add(this.view.root);
@@ -201,9 +200,7 @@ export class Player implements Actor {
     // Character pass 2: what is carried sets the arms, and every item taken or handed over gets its own quick move.
     this.view.setCarrying(this.stack.stacked > 0, this.stack.board, w.station.supplyInHand);
     this.view.stackCount = this.stack.stacked;
-    if (this.stack.count > this.lastCount) this.view.act('pickup');
-    else if (this.stack.count < this.lastCount) this.view.act('place');
-    this.lastCount = this.stack.count;
+    // Session 63: each take and hand-over plays its own move, started by the stack itself (CarryStack → startMotion).
     this.view.update(dt, this.speedNow);
     const m = w.data.monetization;
     this.gear.update(dt, {

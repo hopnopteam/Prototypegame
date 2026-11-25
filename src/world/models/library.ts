@@ -5,6 +5,7 @@ import { NEW_LOOK, PROP_AO } from '../../config/look';
 import { MODEL_INDEX, MODEL_TOTALS } from './modelIndex';
 import type { ModelEntry } from './types';
 import type { Surface } from '../surfaces';
+import type { DetailName } from '../detail';
 
 /**
  * Session 49: the CC0 models baked by scripts/assets/bake_models.py (vertex-coloured, no textures), decoded once from
@@ -106,6 +107,8 @@ export interface Recolor {
   to: string;
   /** Session 62: the surface for what this rule recolours (the hair's gloss on a head), when it differs from the model's. */
   surface?: Surface;
+  /** Session 63: a detail layer for what this rule recolours (hair strands, shoe leather, hat felt). */
+  detail?: DetailName;
 }
 
 const hsv = { h: 0, s: 0, v: 0 };

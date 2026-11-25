@@ -151,8 +151,19 @@ if (nxLayer > -0.5) {
   // The photo divided by its own average (stored at half scale): grain and natural variation over our own colour.
   vec2 nxK = uNxDetailK[int(nxLayer + 0.5)];
   vec3 nxAn = abs(vObjNormal);
+#ifdef NX_FIGURE
+  // Session 63: the people's cloth, leather, felt and hair, in each part's own space (so it never swims as they
+  // move), blended over three axes so a round sleeve or skull shows no seam where the projection turns.
+  vec3 nxW = nxAn * nxAn;
+  nxW *= nxW;
+  nxW /= max(nxW.x + nxW.y + nxW.z, 1e-4);
+  vec3 nxD = (texture(uNxDetail, vec3(vObjPos.zy / nxK.x, nxLayer)).rgb * nxW.x
+    + texture(uNxDetail, vec3(vObjPos.xz / nxK.x, nxLayer)).rgb * nxW.y
+    + texture(uNxDetail, vec3(vObjPos.xy / nxK.x, nxLayer)).rgb * nxW.z) * 2.0;
+#else
   vec2 nxP = (nxAn.y >= nxAn.x && nxAn.y >= nxAn.z ? vObjPos.xz : (nxAn.x >= nxAn.z ? vObjPos.zy : vObjPos.xy)) / nxK.x;
   vec3 nxD = texture(uNxDetail, vec3(nxP, nxLayer)).rgb * 2.0;
+#endif
   diffuseColor.rgb *= mix(vec3(1.0), nxD, nxK.y);
 }
 `;
@@ -890,7 +901,7 @@ export const MATERIALS = {
   /** Lamp shades and bulbs: lit from within at night. */
   lamps: build({ kind: 'glow', params: { vertexColors: true, emissive: new THREE.Color('#FFD68A'), emissiveIntensity: 0.05 }, options: {} }),
   lamp: new THREE.MeshBasicMaterial({ color: PALETTE.lampGlow }) as THREE.Material,
-  character: lit({ vertexColors: true }, { surface: 'vertex', light: true }),
+  character: lit({ vertexColors: true }, { pattern: true, surface: 'vertex', light: true }),
   shadow: new THREE.MeshBasicMaterial({ color: '#1E2434', transparent: true, opacity: 0.34, depthWrite: false, vertexColors: true }) as THREE.Material,
   lockedOverlay: new THREE.MeshBasicMaterial({ color: '#3C4A63', transparent: true, opacity: 0.32, depthWrite: false }) as THREE.Material,
 };
