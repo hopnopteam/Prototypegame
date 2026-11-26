@@ -105,6 +105,9 @@ function iconOf(def: UnlockDef, type: string | undefined): IconName {
  * Unlock tiles on the floor (§4 "Unlock"): stand on one and cash streams from the conductor into it; when it
  * fills, the thing it unlocks pops into existence. The chain reveals the next tiles as each completes.
  */
+
+/** One hand-work requirement on a hire's close-up label: what to do, how many done, how many needed. */
+export interface TagWork { verb: string; done: number; need: number }
 export class Tiles {
   private readonly entries = new Map<string, TileEntry>();
   /** The next carriage, shown locked on the rear deck from the start: the big goal is always in view. */
@@ -453,7 +456,7 @@ export class Tiles {
     this.taggedId = null;
   }
 
-  nearTag(p: Vec2, range: number): { label: string; effect: string; x: number; z: number; locked: boolean } | null {
+  nearTag(p: Vec2, range: number): { label: string; effect: string; work: TagWork[] | null; x: number; z: number; locked: boolean } | null {
     this.taggedId = null;
     let best: TileEntry | null = null;
     let bestD = range * range;
@@ -472,9 +475,12 @@ export class Tiles {
     // so the frame the label first showed used to draw both (a double label on a slow phone frame).
     if (best) best.view.marker.sprite.visible = false;
     if (best) {
-      // Help still being earned says what is left to do by hand: "Tidy 7/12 · Serve 3/8".
-      const work = best.def.work && this.w.unlocks.workShort(best.def) ? Object.entries(best.def.work).map(([m, need]) => `${WORK_VERB[m as keyof typeof WORK_VERB]} ${Math.min(need ?? 0, this.w.unlocks.workCount(m))}/${need}`).join(' · ') : null;
-      return { label: best.def.label, effect: work ?? best.def.effect, x: best.pos.x, z: best.pos.z, locked: work !== null };
+      // Help still being earned says what is left to do by hand, one line and one bar per requirement
+      // (De-Slop B2: it was one line joined by "·", which read as a dangling separator).
+      const work = best.def.work && this.w.unlocks.workShort(best.def)
+        ? Object.entries(best.def.work).map(([m, need]) => ({ verb: WORK_VERB[m as keyof typeof WORK_VERB], done: Math.min(need ?? 0, this.w.unlocks.workCount(m)), need: need ?? 0 }))
+        : null;
+      return { label: best.def.label, effect: work ? '' : best.def.effect, work, x: best.pos.x, z: best.pos.z, locked: work !== null };
     }
     if (this.preview) {
       const pos = this.w.map.rearDeck().tile;
@@ -482,7 +488,7 @@ export class Tiles {
         const defs = this.w.unlocks.defs;
         const def = defs.find((u) => u.id === this.preview!.id);
         const waiting = def?.requires.map((id) => defs.find((u) => u.id === id)).find((u) => u && !this.w.unlocks.isUnlocked(u.id));
-        if (def) return { label: def.label, effect: waiting ? `After ${waiting.label}` : def.effect, x: pos.x, z: pos.z, locked: true };
+        if (def) return { label: def.label, effect: waiting ? `After ${waiting.label}` : def.effect, work: null, x: pos.x, z: pos.z, locked: true };
       }
     }
     return null;

@@ -400,17 +400,24 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 .has-card .guide, .has-card .tile-tag, .has-card .rush { opacity: 0 !important; }
 /* Rush: the streak under the conductor's feet, a mustard pill with a draining bar. */
 .rush { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 2px; padding: 2px 9px 5px 5px; border-radius: 999px; background: var(--mustard); color: var(--ink); border: 2px solid var(--ink); box-shadow: 0 2px 0 var(--ink); pointer-events: none; will-change: transform; }
+.rush .rush-word { font-size: 13px; font-weight: 800; margin-right: 3px; }
 .rush b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .rush .bar { position: absolute; left: 8px; right: 8px; bottom: 2px; height: 3px; border-radius: 2px; background: rgba(0,0,0,0.18); overflow: hidden; }
 .rush .bar i { display: block; height: 100%; background: var(--ink); transform-origin: left center; }
-.rush.tick b { animation: bump 240ms ease-out; display: inline-block; }
+.rush.tick { animation: rushGrow 260ms cubic-bezier(.3,1.6,.5,1); }
+@keyframes rushGrow { 0% { scale: 0.82; } 100% { scale: 1; } }
 .rush.milestone { animation: rushFlash 520ms ease-out; }
 @keyframes rushFlash { 0% { background: var(--cream); } 35% { background: #FFF6D6; box-shadow: 0 0 0 6px rgba(242, 178, 51, 0.45), 0 2px 0 var(--ink); } 100% { background: var(--mustard); } }
-.tile-tag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; max-width: 180px; padding: 4px 10px 5px; border-radius: 10px; background: var(--ink); color: var(--cream); text-align: center; line-height: 1.15; will-change: transform; pointer-events: none; }
-.tile-tag::after { content: ''; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: var(--ink); }
-.tile-tag b { font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
-.tile-tag span { font-size: 12px; font-weight: 600; color: #FFE39A; text-wrap: balance; }
-.tile-tag.locked span { color: var(--powder); }
+.tile-tag { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; max-width: 190px; padding: 5px 11px 6px; border-radius: 14px; background: linear-gradient(#FFFBF1, #F1E3C6); color: var(--ink); border: 3px solid var(--ink); box-shadow: inset 0 0 0 2px #9FCB9A; text-align: center; line-height: 1.15; will-change: transform; pointer-events: none; }
+.tile-tag::after { content: ''; position: absolute; left: 50%; bottom: -9px; margin-left: -8px; border: 8px solid transparent; border-bottom: 0; border-top-color: var(--ink); }
+.tile-tag b { font-size: 13px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; color: #6B5B4B; }
+.tile-tag > span { font-size: 12px; font-weight: 700; color: #3F7D45; text-wrap: balance; display: flex; flex-direction: column; align-items: stretch; gap: 3px; }
+.tile-tag.locked > span { color: var(--ink); margin-top: 2px; }
+/* De-Slop B2: a hire's requirements, one a line, each with its own small bar. */
+.tile-tag .req { display: flex; flex-direction: column; gap: 2px; min-width: 128px; }
+.tile-tag .req em { font-style: normal; font-size: 12px; font-weight: 800; white-space: nowrap; }
+.tile-tag .req-bar { display: block; height: 6px; border-radius: 3px; background: rgba(60, 45, 35, 0.18); border: 1.5px solid var(--ink); overflow: hidden; }
+.tile-tag .req-bar i { display: block; height: 100%; background: #5DB86A; transform-origin: left center; }
 /* Session 26: a lighter train map (a glass strip, not a card), so the left edge of the play area stays open. */
 /* Fix list 5.8: the need badge sits on the corner, so the carriage's emblem always shows. */
 @keyframes needPulse { 50% { transform: scale(1.06); } }

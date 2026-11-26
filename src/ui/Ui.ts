@@ -67,7 +67,9 @@ const STAR_FLY_DELAY = 0.45;
 /** Share of a level's stars at which the next level's reward is teased. */
 const LEVEL_TEASE_AT = 0.75;
 /** The Rush chip sits this far below the conductor's feet (px). */
-const RUSH_CHIP_OFFSET = 14;
+const RUSH_CHIP_OFFSET = 6;
+/** Where the Rush chip hangs over the conductor (metres above the floor: just over the cap). */
+const RUSH_HEAD_HEIGHT = 1.62;
 /** The head counter waits this long after the last bill before sending the total to the counter. */
 const BURST_HOLD_SECONDS = 0.35;
 /** Tile labels show for the nearest tile within this many metres, floating this high above it. */
@@ -280,7 +282,7 @@ export class Ui implements GameUi {
     this.trainMap = new TrainMapUi(() => this.game);
     const rushCount = h('b', { text: '' });
     const rushBar = h('i');
-    this.rushChip = { el: h('div.rush', { hidden: true, 'aria-hidden': 'true' }, icon('bolt', 18), rushCount, h('div.bar', {}, rushBar)), count: rushCount, bar: rushBar, streak: 0 };
+    this.rushChip = { el: h('div.rush', { hidden: true, 'aria-hidden': 'true' }, icon('bolt', 18), h('span.rush-word', { text: 'Rush' }), rushCount, h('div.bar', {}, rushBar)), count: rushCount, bar: rushBar, streak: 0 };
     const objIcon = h('span.obj-icon');
     const objText = h('span.obj-text');
     const objFill = h('i');
@@ -899,13 +901,21 @@ export class Ui implements GameUi {
     const tag = this.hidden || guideOn ? null : g.tiles.nearTag(g.player.pos, TILE_TAG_RANGE);
     if (this.hidden || guideOn) g.tiles.clearTag();
     const t = this.tileTag;
-    const key = tag ? `${tag.label}|${tag.effect}` : '';
+    const work = tag?.work ? tag.work.map((w) => `${w.verb} ${w.done}/${w.need}`).join('|') : '';
+    const key = tag ? `${tag.label}|${tag.effect}|${work}` : '';
     if (key !== t.key) {
       t.key = key;
       setVisible(t.el, !!tag);
       if (tag) {
         t.name.textContent = tag.label;
-        t.effect.textContent = tag.effect;
+        if (tag.work) {
+          // One requirement a line, each with its own small bar (De-Slop B2).
+          t.effect.replaceChildren(...tag.work.map((w) => {
+            const fill = h('i');
+            fill.style.transform = `scaleX(${(w.need > 0 ? Math.min(1, w.done / w.need) : 1).toFixed(3)})`;
+            return h('span.req', {}, h('em', { text: `${w.verb} ${w.done}/${w.need}` }), h('i.req-bar', {}, fill));
+          }));
+        } else t.effect.textContent = tag.effect;
         t.el.classList.toggle('locked', tag.locked);
       }
     }
@@ -1010,7 +1020,7 @@ export class Ui implements GameUi {
     this.pendingHud += cash;
   }
 
-  /** The Rush chip under the conductor: the streak count and a bar draining toward the lapse. */
+  /** The Rush chip over the conductor's head (De-Slop B2: it lay on the floor as a bare "×2"): "Rush ×2" with the bolt, popping as it grows, a bar draining toward the lapse. */
   private updateRush(): void {
     const g = this.game;
     const rush = g.rush;
@@ -1030,9 +1040,9 @@ export class Ui implements GameUi {
     }
     chip.bar.style.transform = `scaleX(${rush.fraction.toFixed(3)})`;
     const p = g.player.pos;
-    this.tmp.set(p.x, 0, p.z);
+    this.tmp.set(p.x, RUSH_HEAD_HEIGHT, p.z);
     const r = this.rect;
-    // Only under the conductor, inside the play area: never parked at a corner or over the HUD.
+    // Only over the conductor, inside the play area: never parked at a corner or over the HUD.
     if (!g.stage.project(this.tmp, this.screen) || this.screen.y < r.top || this.screen.y > r.bottom) {
       chip.el.style.opacity = '0';
       return;
@@ -1040,7 +1050,7 @@ export class Ui implements GameUi {
     const size = sizeOf(chip.el);
     const half = size.w / 2;
     const x = Math.min(Math.max(this.screen.x, r.left + half), r.right - half);
-    const y = Math.min(this.screen.y + RUSH_CHIP_OFFSET, r.bottom - size.h);
+    const y = Math.max(this.screen.y - RUSH_CHIP_OFFSET - size.h, r.top);
     // The tile label wins if they would touch (it is what the player is deciding about).
     const tag = this.tileTagBox;
     const clash = !!tag && x + half > tag.x0 && x - half < tag.x1 && y + size.h > tag.y0 && y < tag.y1;
