@@ -56,6 +56,9 @@ export const TILE_FONT = '"Jost", "Futura", "Century Gothic", "Trebuchet MS", sa
 /** Steps the tip ring is drawn in (must match the gameplay side). */
 const RING_STEPS = 12;
 
+/** A tile's price is repainted at most this often while it counts down. */
+const PRICE_REPAINT_MS = 33;
+
 /**
  * Speech-bubble texture with an icon, cached per icon + style + ring step. The ring is the generous-tip
  * window on a request: a gold arc that shrinks as it runs out.
@@ -377,12 +380,63 @@ export function makeSprite(texture: THREE.Texture, size: number): THREE.Sprite {
  * Unlock tile face: icon, price and fill progress painted on one canvas lying on the floor. Redrawn only
  * when the numbers change, so tiles cost nothing while idle.
  */
+/** The rounded card every tile face is cut to (inset 10 of 256, corner 30), as a canvas path. */
+function tilePath(ctx: CanvasRenderingContext2D, inset: number, r = 30): void {
+  const x = inset;
+  const y = inset;
+  const size = 256 - inset * 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + size, y, x + size, y + size, r);
+  ctx.arcTo(x + size, y + size, x, y + size, r);
+  ctx.arcTo(x, y + size, x, y, r);
+  ctx.arcTo(x, y, x + size, y, r);
+  ctx.closePath();
+}
+
+let fillMask: THREE.CanvasTexture | null = null;
+let edgeMask: THREE.CanvasTexture | null = null;
+
+/**
+ * The paying fill and its bright rising edge (owner: "money load animation butter smooth"): drawn once, cut to the
+ * card's shape, and shown cropped to the level by each tile's own texture transform (a clone shares the image, so it
+ * uploads once). The level then moves every frame with no redraw at all; it used to be repainted in 1/24 steps.
+ */
+export function tileFillTextures(): [THREE.CanvasTexture, THREE.CanvasTexture] {
+  if (!fillMask || !edgeMask) {
+    const [f, fx] = canvas(256);
+    tilePath(fx, 10);
+    const g = fx.createLinearGradient(0, 10, 0, 246);
+    g.addColorStop(0, '#9ADB86');
+    g.addColorStop(1, '#4FAE5F');
+    fx.fillStyle = g;
+    fx.fill();
+    fillMask = finishTexture(f);
+    const [e, ex] = canvas(256);
+    tilePath(ex, 10);
+    ex.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ex.fill();
+    edgeMask = finishTexture(e);
+  }
+  return [fillMask, edgeMask];
+}
+
 export class TileFace {
+  /** The card under the fill: its enamel and the "you can afford it" wash. */
+  readonly base: THREE.CanvasTexture;
+  /** Over the fill: the rim, the icon and the price. */
   readonly texture: THREE.CanvasTexture;
+  private readonly baseCtx: CanvasRenderingContext2D;
   private readonly ctx: CanvasRenderingContext2D;
+  private lastBase = '';
   private last = '';
+  private lastShape = '';
+  private lastPriceAt = 0;
 
   constructor() {
+    const [b, bctx] = canvas(256);
+    this.baseCtx = bctx;
+    this.base = finishTexture(b);
     const [c, ctx] = canvas(256);
     this.ctx = ctx;
     this.texture = finishTexture(c);
@@ -391,64 +445,51 @@ export class TileFace {
   /**
    * `locked`: a preview of something not yet available (greyed, with a padlock). The face is a little
    * title card: cream card, a double border in the state colour, the icon, and the price in bold caps.
+   * The fill itself is the TileView's (`progress` only decides the wash here).
    */
   draw(icon: IconName, remaining: number, progress: number, affordable: boolean, highlight: boolean, locked = false): void {
-    const key = `${icon}|${Math.ceil(remaining)}|${progress.toFixed(2)}|${affordable}|${highlight}|${locked}`;
+    const wash = affordable && !highlight && progress <= 0 && !locked;
+    const baseKey = `${wash}|${locked}`;
+    if (baseKey !== this.lastBase) {
+      this.lastBase = baseKey;
+      const ctx = this.baseCtx;
+      ctx.clearRect(0, 0, 256, 256);
+      const face = locked ? ['#E4DCCD', '#CFC5B4'] : ['#FFFBF1', '#F1E3C6'];
+      tilePath(ctx, 10);
+      const gradient = ctx.createLinearGradient(0, 10, 0, 246);
+      gradient.addColorStop(0, face[0]);
+      gradient.addColorStop(1, face[1]);
+      ctx.fillStyle = gradient;
+      ctx.globalAlpha = locked ? 0.7 : 1;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      if (wash) {
+        // Ready to buy: a soft green wash so it reads from across the carriage.
+        tilePath(ctx, 10);
+        ctx.fillStyle = 'rgba(111, 194, 90, 0.28)';
+        ctx.fill();
+      }
+      this.base.needsUpdate = true;
+    }
+    const shape = `${icon}|${affordable}|${highlight}|${locked}`;
+    const key = `${shape}|${Math.ceil(remaining)}`;
     if (key === this.last) return;
+    // While paying the price counts down every frame: repaint it at most 30 times a second (each repaint is a
+    // texture upload), but at once when anything else about the face changes.
+    const now = performance.now();
+    if (shape === this.lastShape && now - this.lastPriceAt < PRICE_REPAINT_MS) return;
     this.last = key;
+    this.lastShape = shape;
+    this.lastPriceAt = now;
     const ctx = this.ctx;
     ctx.clearRect(0, 0, 256, 256);
-    const path = (inset: number, r = 30): void => {
-      const x = inset;
-      const y = inset;
-      const size = 256 - inset * 2;
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.arcTo(x + size, y, x + size, y + size, r);
-      ctx.arcTo(x + size, y + size, x, y + size, r);
-      ctx.arcTo(x, y + size, x, y, r);
-      ctx.arcTo(x, y, x + size, y, r);
-      ctx.closePath();
-    };
-    // A cream enamel face whose rim says the state (green: you can afford it, gold: paying, sand: saving
-    // up). While you pay, a green fill rises from the bottom: the money going in, clearly visible.
-    const face = locked ? ['#E4DCCD', '#CFC5B4'] : ['#FFFBF1', '#F1E3C6'];
     const rim = locked ? 'rgba(90, 80, 70, 0.5)' : highlight ? '#E0A020' : affordable ? '#3E9A56' : '#B98D5C';
-    path(10);
-    const gradient = ctx.createLinearGradient(0, 10, 0, 246);
-    gradient.addColorStop(0, face[0]);
-    gradient.addColorStop(1, face[1]);
-    ctx.fillStyle = gradient;
-    ctx.globalAlpha = locked ? 0.7 : 1;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    if (affordable && !highlight && progress <= 0 && !locked) {
-      // Ready to buy: a soft green wash so it reads from across the carriage.
-      path(10);
-      ctx.fillStyle = 'rgba(111, 194, 90, 0.28)';
-      ctx.fill();
-    }
-    if (progress > 0) {
-      ctx.save();
-      path(10);
-      ctx.clip();
-      const h = 236 * Math.min(1, progress);
-      const fill = ctx.createLinearGradient(0, 246 - h, 0, 246);
-      fill.addColorStop(0, '#8FD57E');
-      fill.addColorStop(1, '#4FAE5F');
-      ctx.fillStyle = fill;
-      ctx.fillRect(10, 246 - h, 236, h);
-      // The rising edge: a bright line so the level reads at a glance.
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-      ctx.fillRect(10, 246 - h - 3, 236, 6);
-      ctx.restore();
-    }
     // A light top edge inside the rim: the enamel catches the light.
-    path(22, 22);
+    tilePath(ctx, 22, 22);
     ctx.lineWidth = 5;
     ctx.strokeStyle = locked ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 255, 255, 0.55)';
     ctx.stroke();
-    path(10);
+    tilePath(ctx, 10);
     ctx.lineWidth = 14;
     ctx.strokeStyle = rim;
     ctx.stroke();
@@ -473,9 +514,12 @@ export class TileFace {
   /** Forces a redraw (e.g. once web fonts have loaded). */
   invalidate(): void {
     this.last = '';
+    this.lastShape = '';
+    this.lastBase = '';
   }
 
   dispose(): void {
+    this.base.dispose();
     this.texture.dispose();
   }
 }

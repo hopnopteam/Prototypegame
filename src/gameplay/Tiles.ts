@@ -18,8 +18,6 @@ const DWELL_SECONDS = 0.3;
 const UNLOCK_PUNCH = 0.05;
 /** Seconds after a purchase before the next tile pops up: its own beat, never in the purchase's frame. */
 const NEXT_TILE_DELAY = 0.45;
-/** The plate's fill is redrawn in steps of this fraction (each redraw is a texture upload). */
-const FILL_STEP = 1 / 24;
 /** Station upgrades live on the platform and only while the train is in. */
 const isStation = (def: UnlockDef): boolean => def.kind === 'exterior' || def.kind === 'marketing' || def.kind === 'platform';
 /** Phase 2: each station upgrade's own icon on its tile. */
@@ -345,7 +343,8 @@ export class Tiles {
       }
       if (entry.earning) this.earned(entry);
       const remaining = w.unlocks.remaining(entry.def.id);
-      const progress = Math.floor((1 - remaining / entry.def.price) / FILL_STEP) * FILL_STEP;
+      const progress = 1 - remaining / entry.def.price;
+      entry.view.setFill(progress);
       const affordable = cash >= remaining;
       const active = entry.zone.playerInside;
       if (active && remaining > 0 && cash <= 0 && entry.stand > DWELL_SECONDS) {
@@ -584,6 +583,7 @@ export class Tiles {
         () => this.to.set(entry.pos.x, FLOOR_Y + 0.1, entry.pos.z),
         1,
         0,
+        () => entry.view.bump(),
       );
       w.audio.play('drip', { pitch: 0.9 + (1 - remaining / entry.def.price) * 0.6 });
       w.events.emit('tile.draining', { x: entry.pos.x, z: entry.pos.z });

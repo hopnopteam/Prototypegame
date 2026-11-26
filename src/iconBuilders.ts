@@ -89,78 +89,57 @@ export const ICON_BUILDERS: Record<string, Builder> = {
     return group(bow, shaft, bit1, bit2, tag);
   },
   ticket: () => {
-    // Session 63 (owner: "better logos for ticket sign"): a proper railway ticket. A cream card and a mustard stub
-    // with notches where they tear apart along a row of perforations, a red band across the top, a gold rule round the
-    // card, a little steam engine printed in navy in the middle and a punched hole in the stub.
-    const W = 1.36;
-    const H = 0.76;
-    const R = 0.08;
-    const tear = 0.36;
-    const notch = 0.075;
-    const depth = 0.05;
-    const extrude = (shape: THREE.Shape, color: string, z = 0, d = depth): THREE.Mesh => {
-      const g = new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: true, bevelThickness: 0.018, bevelSize: 0.018, bevelSegments: 3, curveSegments: 16 });
-      g.translate(0, 0, z - d / 2);
-      return new THREE.Mesh(g, mat(color, 0.6));
-    };
-    /** A card from x0 to x1 (rounded outer corners), with half notches cut on the tear side. */
-    const piece = (x0: number, x1: number, tearAt: number): THREE.Shape => {
-      const s = new THREE.Shape();
-      const left = tearAt === x0;
-      const y0 = -H / 2;
-      const y1 = H / 2;
-      s.moveTo(x0 + (left ? 0 : R), y0);
-      if (left) {
-        s.absarc(x0, y0, notch, 0, Math.PI / 2, false);
-        s.lineTo(x0, y1 - notch);
-        s.absarc(x0, y1, notch, -Math.PI / 2, 0, false);
-        s.lineTo(x1 - R, y1);
-        s.quadraticCurveTo(x1, y1, x1, y1 - R);
-        s.lineTo(x1, y0 + R);
-        s.quadraticCurveTo(x1, y0, x1 - R, y0);
-        s.lineTo(x0 + notch, y0);
-      } else {
-        s.lineTo(x1 - notch, y0);
-        s.absarc(x1, y0, notch, Math.PI, Math.PI / 2, true);
-        s.lineTo(x1, y1 - notch);
-        s.absarc(x1, y1, notch, -Math.PI / 2, -Math.PI, true);
-        s.lineTo(x0 + R, y1);
-        s.quadraticCurveTo(x0, y1, x0, y1 - R);
-        s.lineTo(x0, y0 + R);
-        s.quadraticCurveTo(x0, y0, x0 + R, y0);
-      }
-      return s;
-    };
-    const split = W / 2 - tear;
-    const card = extrude(piece(-W / 2, split - 0.008, split - 0.008), '#F6D88E');
-    const stub = extrude(piece(split + 0.008, W / 2, split + 0.008), '#E9783E');
-    const top = depth / 2 + 0.02;
-    const band = rbox(split + W / 2 - 0.12, 0.16, 0.02, 0.03, '#C8453A', (-W / 2 + split) / 2, H / 2 - 0.15, top);
-    const rule = new THREE.Group();
-    const rw = split + W / 2 - 0.12;
-    for (const [w, h, x, y] of [[rw, 0.025, 0, -H / 2 + 0.07], [0.025, H - 0.3, -rw / 2, -0.06], [0.025, H - 0.3, rw / 2, -0.06]] as [number, number, number, number][]) rule.add(rbox(w, h, 0.012, 0.006, GOLD, x, y, top - 0.004));
-    rule.position.x = (-W / 2 + split) / 2;
-    // The engine: a boiler, a cab with a window, a chimney with a puff, two wheels, all in navy relief.
-    const navy = '#2E3F6E';
-    const ex = (-W / 2 + split) / 2;
-    const engine = group(
-      at(cyl(0.085, 0.085, 0.34, navy), ex - 0.03, -0.05, top, 0, 0, Math.PI / 2),
-      rbox(0.16, 0.22, 0.03, 0.03, navy, ex + 0.17, -0.0, top),
-      rbox(0.07, 0.07, 0.035, 0.015, CREAM, ex + 0.17, 0.03, top + 0.005),
-      cyl(0.04, 0.03, 0.12, navy, ex - 0.13, 0.08, top),
-      sphere(0.06, '#9AA7C2', ex - 0.17, 0.2, top),
-      sphere(0.045, '#9AA7C2', ex - 0.26, 0.24, top),
-      at(cyl(0.065, 0.065, 0.035, navy), ex - 0.09, -0.17, top, Math.PI / 2, 0, 0),
-      at(cyl(0.065, 0.065, 0.035, navy), ex + 0.1, -0.17, top, Math.PI / 2, 0, 0),
-      rbox(0.5, 0.03, 0.025, 0.01, navy, ex, -0.245, top),
-    );
-    // The perforations and the punched hole.
+    // Owner (twice: "the train ticket logo is a little weird"): one plain, bold shape that reads at a glance. A golden
+    // ticket cut in one piece, a semicircle bitten out of each long edge where the stub tears off, a dotted tear line
+    // between the bites, a big red star on the ticket and a single red bar on the stub. Nothing small to decode.
+    const W = 1.42;
+    const H = 0.8;
+    const R = 0.1;
+    const bite = 0.11;
+    const split = W / 2 - 0.4;
+    const depth = 0.07;
+    const s = new THREE.Shape();
+    const x0 = -W / 2;
+    const x1 = W / 2;
+    const y0 = -H / 2;
+    const y1 = H / 2;
+    s.moveTo(x0 + R, y0);
+    s.lineTo(split - bite, y0);
+    s.absarc(split, y0, bite, Math.PI, 0, true);
+    s.lineTo(x1 - R, y0);
+    s.quadraticCurveTo(x1, y0, x1, y0 + R);
+    s.lineTo(x1, y1 - R);
+    s.quadraticCurveTo(x1, y1, x1 - R, y1);
+    s.lineTo(split + bite, y1);
+    s.absarc(split, y1, bite, 0, Math.PI, true);
+    s.lineTo(x0 + R, y1);
+    s.quadraticCurveTo(x0, y1, x0, y1 - R);
+    s.lineTo(x0, y0 + R);
+    s.quadraticCurveTo(x0, y0, x0 + R, y0);
+    const g = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.025, bevelSegments: 4, curveSegments: 20 });
+    g.translate(0, 0, -depth / 2);
+    const card = new THREE.Mesh(g, mat('#F4C24A', 0.5));
+    const top = depth / 2 + 0.026;
+    // A five-pointed star, extruded, in the middle of the ticket.
+    const star = new THREE.Shape();
+    const cx = (x0 + split) / 2;
+    for (let i = 0; i < 10; i++) {
+      const a = Math.PI / 2 + (i * Math.PI) / 5;
+      const r = i % 2 ? 0.105 : 0.25;
+      const px = cx + Math.cos(a) * r;
+      const py = Math.sin(a) * r - 0.01;
+      if (i) star.lineTo(px, py);
+      else star.moveTo(px, py);
+    }
+    star.closePath();
+    const sg = new THREE.ExtrudeGeometry(star, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 2 });
+    sg.translate(0, 0, top - 0.012);
+    const starMesh = new THREE.Mesh(sg, mat('#D8483B', 0.45));
     const perfs = new THREE.Group();
-    for (let i = 0; i < 6; i++) perfs.add(at(cyl(0.022, 0.022, 0.02, '#8A6A3A'), split, -H / 2 + 0.16 + (i * (H - 0.32)) / 5, top - 0.006, Math.PI / 2, 0, 0));
-    const hole = at(cyl(0.065, 0.065, 0.02, INK), split + tear / 2, 0.08, top - 0.004, Math.PI / 2, 0, 0);
-    const stubBands = group(rbox(0.2, 0.05, 0.015, 0.012, '#C8453A', split + tear / 2, -0.12, top - 0.006), rbox(0.2, 0.05, 0.015, 0.012, '#C8453A', split + tear / 2, -0.21, top - 0.006));
-    const t = group(card, stub, band, rule, engine, perfs, hole, stubBands);
-    return group(at(t, 0, 0.45, 0, -0.42, 0.28, 0.1));
+    for (let i = 0; i < 4; i++) perfs.add(at(cyl(0.028, 0.028, 0.02, '#B0802E'), split, y0 + bite + 0.09 + (i * (H - 2 * bite - 0.18)) / 3, top - 0.01, Math.PI / 2, 0, 0));
+    const bar = rbox(0.09, 0.42, 0.03, 0.04, '#D8483B', (split + x1) / 2, 0, top - 0.004);
+    const t = group(card, starMesh, perfs, bar);
+    return group(at(t, 0, 0.45, 0, -0.38, 0.22, 0.12));
   },
   shoe: () => {
     const sole = rbox(1.08, 0.08, 0.42, 0.04, '#3A2A22', 0, 0.04, 0);

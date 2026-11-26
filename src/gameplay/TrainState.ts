@@ -9,7 +9,7 @@ import { ClassChips } from '../world/ClassChips';
 import { easeOutBack, easeOutCubic } from '../core/math';
 import { bagPlaces, isBag, type CarriageType, type ItemKind, type Rect, type Vec2 } from '../core/types';
 import { CarriageView, FLOOR_Y, type RoomDoor } from '../world/CarriageView';
-import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, CARRIAGE_PITCH, GANGWAY_LENGTH, LOCOMOTIVE_LENGTH, REAR_DECK_LENGTH, carriageOriginZ, doorTileSpot, getLayout, HALF_WIDTH, layoutKey, PARTITION_X0, ZONE_RADIUS, SERVICE_PROP_HEIGHT, type BathroomLayout, type CabinLayout, type CarriageLayout } from '../world/layout';
+import { BATH_PILE_OFFSET, CARRIAGE_LENGTH, CARRIAGE_PITCH, GANGWAY_LENGTH, LOCOMOTIVE_LENGTH, REAR_DECK_LENGTH, carriageOriginZ, doorTileSpot, getLayout, HALF_WIDTH, layoutKey, PARTITION_X0, SHOE_FROM_PARTITION, ZONE_RADIUS, SERVICE_PROP_HEIGHT, type BathroomLayout, type CabinLayout, type CarriageLayout } from '../world/layout';
 import { VISUALS } from '../config/visuals';
 import { shoesGeometry } from '../world/Shoes';
 import { ExteriorView } from '../world/ExteriorView';
@@ -27,10 +27,8 @@ import type { World } from './World';
 import type { IconName } from '../ui/icons';
 import { Zone } from './Zones';
 
-/** How far into the corridor the shoes stand from the cabin partition (metres). */
-const SHOE_OFFSET = 0.36;
 /** Shoes are drawn a little larger than life so they read at phone size (like the rooms' mess, 1.35×). */
-const SHOE_SCALE = 1.4;
+const SHOE_SCALE = 1.75;
 
 export class Cabin {
   readonly id: string;
@@ -87,7 +85,7 @@ export class Cabin {
     this.pileId = `cabin:${this.id}`;
     this.shoePad = w(doorTileSpot(layout.door));
     // A step out from the knee-high partition, so the camera sees them over it.
-    this.shoeSpot = { x: PARTITION_X0 - SHOE_OFFSET, z: (layout.door[0] + layout.door[1]) / 2 + originZ };
+    this.shoeSpot = { x: PARTITION_X0 - SHOE_FROM_PARTITION, z: (layout.door[0] + layout.door[1]) / 2 + originZ };
   }
 
   get index(): number {

@@ -12,6 +12,10 @@ const BILLS_PER_LAYER = BILLS.perLayer;
 const LAYER_HEIGHT = 0.052;
 export const MAX_BILLS_PER_PILE = BILLS.maxPerPile;
 const DRAIN_MAX_INTERVAL = 0.05;
+/** A bill streamed into a tile: one smooth ease from the conductor's hands, a gentle arc, a slight sway. */
+const STREAM_SECONDS = 0.42;
+const STREAM_ARC = 0.55;
+const STREAM_SWIRL = 0.12;
 
 interface Pile {
   x: number;
@@ -42,6 +46,8 @@ interface Flight {
   spin: number;
   /** Sideways swing, so a stream of bills spirals instead of flying in a straight line. */
   swirl: number;
+  /** One smooth ease from hand to target (a stream into a tile), not the scoop's hang at the top of the arc. */
+  smooth?: boolean;
   /** Pile this bill is landing on (counted as pending there until it lands). */
   pileId?: string;
   onArrive?: () => void;
@@ -174,7 +180,11 @@ export class CashView {
 
   /** Bills fly between two moving points (player → tile). */
   stream(from: () => THREE.Vector3, to: () => THREE.Vector3, count: number, spacing: number, onArrive?: () => void): void {
-    for (let n = 0; n < count; n++) this.launch(from().clone(), to, n * spacing, 0.35, 0.8, onArrive, undefined, 0.15);
+    for (let n = 0; n < count; n++) {
+      this.streamSide = -this.streamSide;
+      this.launch(from().clone(), to, n * spacing, STREAM_SECONDS, STREAM_ARC, onArrive, undefined, this.streamSide * STREAM_SWIRL);
+      this.flights[this.flights.length - 1].smooth = true;
+    }
   }
 
   removePile(id: string): void {
@@ -214,7 +224,7 @@ export class CashView {
       f.t += dt / f.duration;
       const to = f.to();
       const t = Math.min(1, f.t);
-      const k = t < 0.5 ? easeOutQuad(t * 2) * 0.5 : 0.5 + easeInQuad((t - 0.5) * 2) * 0.5;
+      const k = f.smooth ? t * t * (3 - 2 * t) : t < 0.5 ? easeOutQuad(t * 2) * 0.5 : 0.5 + easeInQuad((t - 0.5) * 2) * 0.5;
       tmp.lerpVectors(f.from, to, k);
       tmp.y += Math.sin(t * Math.PI) * f.arc;
       tmp.x += Math.sin(t * Math.PI) * f.swirl;
@@ -240,6 +250,8 @@ export class CashView {
   }
 
   private pendingByPile = new Map<string, number>();
+  /** Bills streamed into a tile swing left and right in turn, a ribbon of money rather than a line. */
+  private streamSide = 1;
 
   private pendingFor(id: string): number {
     return this.pendingByPile.get(id) ?? 0;

@@ -31,8 +31,10 @@ export const PALETTE = {
   ballast: '#BFB6AA',
   ballastDark: '#B5AC9F',
   sleeper: '#8A735F',
-  rail: '#A9AFB8',
-  railTop: '#DADEE3',
+  rail: '#8E8C8A',
+  /** The rail's foot and web: weathered steel, browner and darker than the running head. */
+  railSide: '#5E534C',
+  railTop: '#E6E9EC',
 
   // Livery defaults (the live livery comes from LIVERIES via materials)
   livery: '#5E8A6A',

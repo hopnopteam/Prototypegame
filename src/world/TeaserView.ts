@@ -18,13 +18,16 @@ const BAND_Z = TARP_TIE_Z[0];
 /** Sparkles rise off the front of the canvas, the part in view from the coupling platform (metres from its front). */
 const SPARKLE_REACH = 6;
 /**
- * The "?" medallion: its size, how high it floats over the canvas, and where: over the camera's side of the canvas,
- * a little behind the bow (the camera looks across the train from that side, so over the ridge it sat off screen).
+ * The "?" medallion: its size, how high it floats, and where: straight over the bow's knot (owner: "the question mark
+ * is a little off placed"; it hung beside the bow, over the band). It sways like a hanging coin instead of spinning
+ * edge-on, so the "?" always reads.
  */
-const BADGE_SIZE = 1.15;
-const BADGE_LIFT = 0.95;
-const BADGE_X = 1.25;
-const BADGE_BACK = 0.9;
+const BADGE_SIZE = 1.05;
+const BADGE_LIFT = 0.85;
+const BADGE_X = 0;
+const BADGE_BACK = 0;
+/** How far the medallion turns as it sways (its narrowest, as a share of its width). */
+const BADGE_SWAY = 0.78;
 /** Sparkles a second off the canvas: waiting, and once the coupling is affordable. */
 const SPARKLES_IDLE = 2.2;
 const SPARKLES_READY = 7;
@@ -112,12 +115,13 @@ export class TeaserView {
     if (!this.group.visible) return;
     this.time += dt;
     const t = this.time;
-    // The medallion bobs and turns like a coin; quicker and bigger once the coupling can be bought.
+    // The medallion bobs and sways; quicker and bigger once the coupling can be bought.
     const bob = ready ? 0.16 : 0.1;
     this.badge.position.y = this.top + BADGE_LIFT + Math.sin(t * (ready ? 3.4 : 2.1)) * bob;
-    const turn = Math.cos(t * (ready ? 2.6 : 1.4));
+    const turn = BADGE_SWAY + (1 - BADGE_SWAY) * (0.5 + 0.5 * Math.cos(t * (ready ? 2.6 : 1.4)));
     const pulse = ready ? 1 + 0.08 * Math.sin(t * 6) : 1;
-    this.badge.scale.set(BADGE_SIZE * Math.max(0.12, Math.abs(turn)) * pulse, BADGE_SIZE * pulse, 1);
+    this.badge.scale.set(BADGE_SIZE * turn * pulse, BADGE_SIZE * pulse, 1);
+    (this.badge.material as THREE.SpriteMaterial).rotation = Math.sin(t * (ready ? 2.2 : 1.3)) * 0.12;
     // The light under the hem breathes.
     const breath = 0.5 + 0.5 * Math.sin(t * (ready ? 4 : 2));
     const k = ready ? 0.75 + 0.45 * breath : 0.45 + 0.3 * breath;

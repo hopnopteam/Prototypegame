@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { IconName } from '../ui/icons';
 import { FLOOR_Y } from './CarriageView';
 import { createFillMaterial } from './materials';
-import { bubbleTexture, jobFillTexture, makeSprite, TILE_MARKER_ASPECT, TILE_MARKER_WIDTH, TileFace, TileMarker } from './sprites';
+import { bubbleTexture, jobFillTexture, makeSprite, TILE_MARKER_ASPECT, TILE_MARKER_WIDTH, TileFace, TileMarker, tileFillTextures } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 import { VISUALS } from '../config/visuals';
 import { nearMarker, noteMarker, underPopup } from './screenMask';
@@ -183,6 +183,16 @@ function roundedPad(size: number, height: number): THREE.BufferGeometry {
  * MPH-style unlock tile: a raised, rounded plate on the floor with a bright face showing what it unlocks and
  * what is left to pay. Its lip takes the state colour (green when you can afford it, gold while paying).
  */
+/** How quickly a tile's fill catches up with what has been paid (per second). */
+const FILL_EASE = 9;
+/** The rising edge's height, as a share of the card. */
+const FILL_EDGE = 0.028;
+/** How quickly the plate presses down and springs back up (per second). */
+const PRESS_EASE = 14;
+/** A landing bill's throb: its size and how fast it fades. */
+const THROB = 0.05;
+const THROB_DECAY = 7;
+
 export class TileView {
   readonly group = new THREE.Group();
   readonly face = new TileFace();
@@ -192,28 +202,83 @@ export class TileView {
   private quiet = 0;
   private readonly pad = new THREE.Group();
   private readonly plane: THREE.Mesh;
+  private readonly top: THREE.Mesh;
+  private readonly fill: THREE.Mesh;
+  private readonly edge: THREE.Mesh;
+  private readonly fillMap: THREE.Texture;
+  private readonly edgeMap: THREE.Texture;
   private readonly lip: THREE.Mesh;
   private readonly lipMaterial = new THREE.MeshLambertMaterial({ color: LIP.idle });
   private lipState = '';
   private time = Math.random() * 3;
   private popT = 1;
+  /** The fill as drawn: eased toward what has been paid, so it glides rather than ticking up a bill at a time. */
+  private shownFill = 0;
+  private fillTarget = 0;
+  /** How far the plate is pressed (0 up, 1 down), eased so stepping on and off is a soft press, not a snap. */
+  private press = 0;
+  /** A little throb each time a bill lands. */
+  private throb = 0;
 
-  constructor(size = 1.3, private readonly locked = false) {
-    const material = new THREE.MeshBasicMaterial({ map: this.face.texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  constructor(private readonly size = 1.3, private readonly locked = false) {
+    const layer = (map: THREE.Texture, order: number, offset: number): THREE.Mesh => {
+      const material = new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: offset, polygonOffsetUnits: offset });
+      // Spans z 0 (the card's bottom edge, v = 0) to −size (its top), so scaling z crops it from the bottom up.
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2).translate(0, 0, -size / 2), material);
+      mesh.position.set(0, 0.004 + PAD_HEIGHT + 0.008, size / 2);
+      mesh.renderOrder = order;
+      return mesh;
+    };
+    const [fillMask, edgeMask] = tileFillTextures();
+    this.fillMap = fillMask.clone();
+    this.edgeMap = edgeMask.clone();
     this.lip = new THREE.Mesh(roundedPad(size * 0.97, PAD_HEIGHT), this.lipMaterial);
     this.lip.position.y = 0.004;
     this.lip.receiveShadow = true;
-    this.plane = new THREE.Mesh(new THREE.PlaneGeometry(size, size).rotateX(-Math.PI / 2), material);
-    this.plane.position.y = 0.004 + PAD_HEIGHT + 0.008;
-    this.plane.renderOrder = 3;
+    this.plane = layer(this.face.base, 3, -4);
+    this.fill = layer(this.fillMap, 4, -5);
+    this.edge = layer(this.edgeMap, 5, -6);
+    this.top = layer(this.face.texture, 6, -7);
+    this.fill.visible = false;
+    this.edge.visible = false;
     // The pad pivots on the floor, so pressing it squashes the plate down onto the floor, never through it.
     this.pad.position.y = FLOOR_Y;
-    this.pad.add(this.lip, this.plane);
+    this.pad.add(this.lip, this.plane, this.fill, this.edge, this.top);
     this.group.add(this.pad);
     this.marker.sprite.position.y = FLOOR_Y + MARKER_HEIGHT;
     this.group.add(this.marker.sprite);
     this.popT = 0;
     this.setLip(locked ? 'locked' : 'idle');
+  }
+
+  /** What has been paid, 0–1; the plate eases its fill there. */
+  setFill(share: number): void {
+    this.fillTarget = Math.max(0, Math.min(1, share));
+    if (this.fillTarget < this.shownFill - 0.02) this.shownFill = this.fillTarget;
+  }
+
+  /** A bill has landed: the plate throbs. */
+  bump(): void {
+    this.throb = 1;
+  }
+
+  private drawFill(dt: number): void {
+    this.shownFill += (this.fillTarget - this.shownFill) * Math.min(1, dt * FILL_EASE);
+    if (Math.abs(this.fillTarget - this.shownFill) < 0.0005) this.shownFill = this.fillTarget;
+    const p = this.shownFill;
+    const shown = p > 0.002;
+    this.fill.visible = shown;
+    this.edge.visible = shown && p < 0.995;
+    if (!shown) return;
+    this.fill.scale.z = p;
+    this.fillMap.repeat.y = p;
+    // The bright line rides the level: a thin band of the card's shape centred on it.
+    const lo = Math.max(0, p - FILL_EDGE / 2);
+    const hi = Math.min(1, p + FILL_EDGE / 2);
+    this.edge.position.z = this.size / 2 - lo * this.size;
+    this.edge.scale.z = Math.max(0.0001, hi - lo);
+    this.edgeMap.offset.y = lo;
+    this.edgeMap.repeat.y = hi - lo;
   }
 
   private setLip(state: keyof typeof LIP): void {
@@ -236,9 +301,12 @@ export class TileView {
     this.popT = Math.min(1, this.popT + dt * 3);
     const appear = this.popT < 1 ? 0.4 + 0.6 * Math.sin(this.popT * Math.PI * 0.5) * 1.08 : 1;
     const breathe = affordable && !active ? 1 + Math.sin(this.time * 4) * 0.035 : 1;
-    const s = appear * breathe;
+    this.throb = Math.max(0, this.throb - dt * THROB_DECAY);
+    const s = appear * breathe * (1 + THROB * this.throb * this.throb);
     // Stepping on it presses the plate down a little, like a real button.
-    this.pad.scale.set(s, active ? 0.45 : 1, s);
+    this.press += ((active ? 1 : 0) - this.press) * Math.min(1, dt * PRESS_EASE);
+    this.pad.scale.set(s, 1 - 0.55 * this.press, s);
+    this.drawFill(dt);
     // The marker bobs gently, and steps aside while you stand on the tile (the plate shows the fill) or a pop-up is
     // over it (fix list 6.3).
     const gp = this.group.position;
@@ -256,8 +324,12 @@ export class TileView {
   dispose(): void {
     this.face.dispose();
     this.marker.dispose();
-    (this.plane.material as THREE.Material).dispose();
-    this.plane.geometry.dispose();
+    for (const mesh of [this.plane, this.fill, this.edge, this.top]) {
+      (mesh.material as THREE.Material).dispose();
+      mesh.geometry.dispose();
+    }
+    this.fillMap.dispose();
+    this.edgeMap.dispose();
     this.lip.geometry.dispose();
     this.lipMaterial.dispose();
   }

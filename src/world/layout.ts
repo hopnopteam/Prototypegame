@@ -42,6 +42,12 @@ const out = (x: number): number => (x < 0 ? x - GROW : x + GROW);
 export const PARTITION_X0 = -0.74;
 export const PARTITION_X1 = -0.6;
 /**
+ * How far into the corridor a guest's shoes stand from their cabin's partition (metres). The partition is as tall as
+ * the outer walls, so the floor just behind it is out of the camera's sight: past 0.6 m the pair is in full view
+ * (owner: "I am not able to see shoes at all"; tests/visibility.test.ts).
+ */
+export const SHOE_FROM_PARTITION = 0.68;
+/**
  * Room doorways: wide and in the middle of the room's wall, so you walk straight in onto the room's work spot
  * without threading a needle (bi-parting doors slide into the wall on both sides as you come).
  */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { VISUALS } from '../src/config/visuals';
-import { COVER_BASE, COVER_INSET, COVER_TOP, footprints, type CarriageLayout, type Footprint, type WallBox } from '../src/world/layout';
+import { COVER_BASE, COVER_INSET, COVER_TOP, footprints, PARTITION_X0, SHOE_FROM_PARTITION, type CarriageLayout, type Footprint, type WallBox } from '../src/world/layout';
 import { layoutVariants } from './layoutVariants';
 
 /**
@@ -174,6 +174,23 @@ describe('visibility: tips left in a room are in view', () => {
       for (const f of footprints(layout)) {
         if (f.kind !== 'pile' || !f.id.startsWith('tips_')) continue;
         expect(visibleShare(layout, f, boxes), `${name}.${f.id} at (${f.x.toFixed(2)}, ${f.z.toFixed(2)})`).toBeGreaterThanOrEqual(TIPS_IN_VIEW);
+      }
+    });
+  }
+});
+
+/**
+ * The night shift's shoes stand in the corridor by each cabin's door (owner: "I am not able to see shoes at all"): the
+ * partition is a full-height wall, so they must stand far enough out to clear it in the camera's view.
+ */
+describe('visibility: shoes left by the door are in view', () => {
+  for (const { name, layout } of VARIANTS) {
+    if (!layout.cabins.length) continue;
+    it(`${name}: every cabin's shoes`, () => {
+      for (const c of layout.cabins) {
+        const z = (c.door[0] + c.door[1]) / 2;
+        const f: Footprint = { id: `shoes_${c.index}`, kind: 'pile', x: PARTITION_X0 - SHOE_FROM_PARTITION, z, r: 0.18 };
+        expect(visibleShare(layout, f), `${name}.${f.id}`).toBeGreaterThanOrEqual(0.9);
       }
     });
   }

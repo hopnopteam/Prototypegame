@@ -8,6 +8,13 @@ import { PALETTE } from './palette';
 import { groundHeight, SCENERY_SPREAD, WORLD_TRACK_HALF } from './terrain';
 import { PlanarReflection, REFLECT_LAYER, Water } from './Water';
 
+/** The track: the ballast's height and its top's half width, the rails' half gauge, where the rails stand. */
+const BALLAST_HEIGHT = 0.1;
+const BALLAST_TOP_HALF = 1.75;
+const RAIL_GAUGE_HALF = 0.72;
+/** How far the track runs on past the scenery's span (metres). */
+const TRACK_TAIL = 80;
+const RAIL_BASE = BALLAST_HEIGHT + 0.04;
 /** Billboards stand just beyond the ballast on the land side, where the camera always catches them. */
 const BILLBOARD_X = 4.25 + SCENERY_SPREAD;
 const BILLBOARD_W = 2.3;
@@ -146,19 +153,41 @@ export class Scenery {
     this.group.add(this.water.mesh, this.scrollRoot);
 
     // Track bed and rails. Rails are uniform along z, so they stay put while the sleepers scroll.
+    // Owner: "can we please improve railway track": a raised ballast bed with sloping shoulders (it was a flat dotted
+    // slab), rails with a foot, a dark web and a polished head (they were pale flat bars), timber sleepers with iron
+    // tie plates under each rail, bedded into the stones.
     const bed = new GeoBuilder();
-    bed.box(0, 0.05, (SPAN_MIN + SPAN_MAX) / 2, (WORLD_TRACK_HALF - 0.52) * 2, 0.1, SPAN_MAX - SPAN_MIN + 60, '#7E7B76', 0, { pattern: PATTERN.dots, color2: '#6E6B66', scale: 0.12, shade: 1, surface: 'stone' });
-    for (const x of [-0.72, 0.72]) {
-      bed.box(x, 0.22, (SPAN_MIN + SPAN_MAX) / 2, 0.1, 0.12, SPAN_MAX - SPAN_MIN + 60, PALETTE.rail, 0, { shade: 0.8, surface: 'iron' });
-      bed.box(x, 0.285, (SPAN_MIN + SPAN_MAX) / 2, 0.07, 0.012, SPAN_MAX - SPAN_MIN + 60, PALETTE.railTop, 0, { shade: 1, surface: { roughness: 0.55, metalness: 0.4 } });
+    // Past the scenery's span at the back, so the track runs on behind a full ten-carriage train and its teaser.
+    const length = SPAN_MAX - SPAN_MIN + TRACK_TAIL + 60;
+    const mid = (SPAN_MIN + SPAN_MAX + TRACK_TAIL) / 2;
+    const foot = WORLD_TRACK_HALF - 0.52;
+    const shoulder = new THREE.Shape();
+    shoulder.moveTo(-foot, 0);
+    shoulder.lineTo(-BALLAST_TOP_HALF, BALLAST_HEIGHT);
+    shoulder.lineTo(BALLAST_TOP_HALF, BALLAST_HEIGHT);
+    shoulder.lineTo(foot, 0);
+    shoulder.closePath();
+    const ballast = new THREE.ExtrudeGeometry(shoulder, { depth: length, bevelEnabled: false, curveSegments: 1 });
+    bed.add(ballast, '#8A857D', 0, 0, mid - length / 2, 0, 0, 0, { pattern: PATTERN.dots, color2: '#6F6A63', scale: 0.06, shade: 1, surface: 'stone' });
+    for (const x of [-RAIL_GAUGE_HALF, RAIL_GAUGE_HALF]) {
+      bed.box(x, RAIL_BASE + 0.008, mid, 0.13, 0.016, length, PALETTE.railSide, 0, { shade: 0.75, surface: 'iron' });
+      bed.box(x, RAIL_BASE + 0.055, mid, 0.032, 0.09, length, PALETTE.railSide, 0, { shade: 0.6, surface: 'iron' });
+      bed.box(x, RAIL_BASE + 0.113, mid, 0.072, 0.04, length, PALETTE.rail, 0, { shade: 0.85, surface: 'iron' });
+      bed.box(x, RAIL_BASE + 0.136, mid, 0.056, 0.006, length, PALETTE.railTop, 0, { shade: 1, surface: { roughness: 0.3, metalness: 0.6 } });
     }
     const bedMesh = new THREE.Mesh(bed.build(), MATERIALS.scenery);
     bedMesh.receiveShadow = true;
     bedMesh.userData.object = 'scenery:track';
     this.group.add(bedMesh);
 
-    const sleeperGeo = new GeoBuilder().box(0, 0.12, 0, 2.2, 0.08, 0.26, '#4E3E33', 0, { shade: 0.8, surface: 'wood' }).build();
-    this.sleepers = new THREE.InstancedMesh(sleeperGeo, MATERIALS.scenery, 380);
+    const sleeper = new GeoBuilder().box(0, BALLAST_HEIGHT + 0.005, 0, 2.6, 0.07, 0.24, '#5C4331', 0, { shade: 0.85, surface: 'wood', pattern: PATTERN.stripesZ, color2: '#4E3829', scale: 0.05 });
+    // Tie plates and their spikes under each rail.
+    for (const x of [-RAIL_GAUGE_HALF, RAIL_GAUGE_HALF]) {
+      sleeper.box(x, RAIL_BASE - 0.004, 0, 0.26, 0.012, 0.2, '#3B3633', 0, { shade: 0.8, surface: 'iron' });
+      for (const dx of [-0.1, 0.1]) sleeper.box(x + dx, RAIL_BASE + 0.008, 0, 0.025, 0.02, 0.025, '#2B2725', 0, { shade: 0.8, surface: 'iron' });
+    }
+    const sleeperGeo = sleeper.build();
+    this.sleepers = new THREE.InstancedMesh(sleeperGeo, MATERIALS.scenery, Math.ceil((SPAN_MAX - SPAN_MIN + TRACK_TAIL + 40) / 0.7));
     this.sleepers.frustumCulled = false;
     this.sleepers.receiveShadow = true;
     this.group.add(this.sleepers);
