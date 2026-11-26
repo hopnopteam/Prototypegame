@@ -84,3 +84,41 @@ action (`ART_BIBLE.md` §9 rules 8–9).
 The biggest remaining tells are structural: copy-paste cabins (T08), five marker languages (T13), the camera's
 framing (T03, the owner's playable camera), the characters' sameness (T20, their own pass) and the emoji faces (T14,
 the owner's choice from the playable). They are Stage B or the owner's call, with the costs above.
+
+## After Stage A: the second fresh-eyes check
+
+A new reviewer saw only the after stills (same seed and capture; cards answered after 3 s). Its report is in
+[`SLOP_CHECK2.md`](SLOP_CHECK2.md), unedited. Before and after pairs are in `slop/compare/` (and `naming-card.jpg`).
+
+**Gone from its list** (all flagged by the first reviewer): a card over a live game with world labels peeking round
+it (T01, T02), the stained paving (T04), the grey slab lid (T17), the price shown twice (T18), the saturated umbrella
+stealing the focus (T21), the grey run-down beds (T09), the lavender engine (T11), black holes in the floor (T06:
+now "decals, not holes", a smaller complaint), the spaced capitals (T25).
+
+**Still on its list, as expected for Stage B:** the empty lower half of the frame (T03, the camera), the lobby's bare
+floor, the five marker languages and the emoji face (T13, T14), copy-paste cabins (T08), labels clipped at the screen
+edge (T15), the bottom strip (T28), the lakeside rocks, grass and shore (T22–T24), the motes (T16: smaller and warm
+now, still read as circles), the teaser's ribbon and medallion, the night platform without lamp pools.
+
+**New in its list** (not raised the first time):
+- the broom icon reads as an éclair or a hot dog (P1);
+- unexplained "×2" Rush chips and a stray number on a tile (P1);
+- the locomotive near-black at night: the green paint was too dark, so it was lifted a step (#2F4D3F → #3F6E53) after
+  this check;
+- the name plate standing loose beside the tender;
+- "Lamps" shown with a heart;
+- a dangling separator in the hire label;
+- doors painting over passers-by;
+- the naming card's copy called generic ("Name her" twee).
+
+Each goes on the Stage B list.
+
+**Its verdict:** "a strong systems prototype dressed with mismatched kit parts, not a single-author visual identity".
+The first reviewer's was "competent greybox wearing store-bought assets". Stage A removed the cheapest-looking
+stand-ins. The identity problems are structural:
+- world UI in one language;
+- night lit by lamps rather than by a colour grade;
+- dressed rooms;
+- the camera.
+
+That is Stage B, and a decision on the camera and the faces, which were the owner's choices.

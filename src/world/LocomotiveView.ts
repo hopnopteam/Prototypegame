@@ -16,7 +16,7 @@ import { ACTIVE_ROUTE } from '../config/routes';
  * Session 66 (de-slop T11: "a saturated lavender/indigo box… screams stock kit"): the engine and tender's kit blue-violet
  * repainted a deep railway green, so they belong with the warm carriages (red buffers and gold trim stay as modelled).
  */
-const LOCO_PAINT: Recolor[] = [{ hue: [200, 300], sat: [0.15, 1], ref: '#5A64B4', to: '#2F4D3F' }];
+const LOCO_PAINT: Recolor[] = [{ hue: [200, 300], sat: [0.15, 1], ref: '#5A64B4', to: '#3F6E53' }];
 
 const HEADLIGHT_TILT = -0.09;
 
