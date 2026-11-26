@@ -10,12 +10,26 @@
  *   printed icon still says what it is). Markers are noted each frame and read back the next.
  */
 let popupTest: ((x: number, y: number, z: number) => boolean) | null = null;
+let edgeTest: ((x: number, y: number, z: number, halfWidth: number) => boolean) | null = null;
 let markers: number[] = [];
 let noted: number[] = [];
 
 /** Installed by the game once the camera and the UI exist. */
 export function setPopupTest(test: ((x: number, y: number, z: number) => boolean) | null): void {
   popupTest = test;
+}
+
+/** Installed by the game: whether a label this wide (metres either side) at this point would cross the screen's edge. */
+export function setEdgeTest(test: ((x: number, y: number, z: number, halfWidth: number) => boolean) | null): void {
+  edgeTest = test;
+}
+
+/**
+ * De-Slop B3 ("nothing cut off at the edge"): true when a floating label centred on this world point, `halfWidth`
+ * metres either side, would run past the screen's safe frame. Such a label hides until it is whole on screen.
+ */
+export function offFrame(x: number, y: number, z: number, halfWidth: number): boolean {
+  return edgeTest ? edgeTest(x, y, z, halfWidth) : false;
 }
 
 /** True when this world point is under a pop-up or label on screen. */

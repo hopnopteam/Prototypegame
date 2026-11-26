@@ -82,7 +82,8 @@ export class Stage {
   /** The WebGL context was lost (a phone under memory pressure): nothing renders until it is restored. */
   contextLost = false;
   private particles: Particles | null = null;
-  private width = 1;
+  /** The canvas width in CSS pixels. */
+  width = 1;
   private height = 1;
   private readonly projected = new THREE.Vector3();
   /** Warm-up stand-ins kept alive so their shaders stay compiled (see warmUp). */

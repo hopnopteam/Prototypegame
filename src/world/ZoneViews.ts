@@ -5,7 +5,7 @@ import { createFillMaterial } from './materials';
 import { bubbleTexture, jobFillTexture, makeSprite, TILE_MARKER_ASPECT, TILE_MARKER_WIDTH, TileFace, TileMarker, tileFillTextures } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 import { VISUALS } from '../config/visuals';
-import { nearMarker, noteMarker, underPopup } from './screenMask';
+import { nearMarker, noteMarker, offFrame, underPopup } from './screenMask';
 
 /** Moves an object and everything in it onto the world-UI layer. */
 export function markWorldUi(object: THREE.Object3D): void {
@@ -310,7 +310,8 @@ export class TileView {
     // The marker bobs gently, and steps aside while you stand on the tile (the plate shows the fill) or a pop-up is
     // over it (fix list 6.3).
     const gp = this.group.position;
-    const shown = marker && !active && !underPopup(gp.x, FLOOR_Y + MARKER_HEIGHT, gp.z);
+    // De-Slop B3: never cut off at the screen's edge either.
+    const shown = marker && !active && !underPopup(gp.x, FLOOR_Y + MARKER_HEIGHT, gp.z) && !offFrame(gp.x, FLOOR_Y + MARKER_HEIGHT + 0.3, gp.z, TILE_MARKER_WIDTH * 0.5);
     this.marker.sprite.visible = shown;
     if (shown) noteMarker(gp.x, gp.z);
     this.marker.sprite.position.y = FLOOR_Y + MARKER_HEIGHT + Math.sin(this.time * 2.2) * 0.04;

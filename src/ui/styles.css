@@ -1155,3 +1155,13 @@ body.look-new .trainmap .car { background: linear-gradient(#FFE58A, var(--nl-gol
 body.look-new .trainmap .car.here { box-shadow: 0 3px 0 #9A6A16, inset 0 0 0 2.5px #FFFFFF, inset 0 2px 0 rgba(255, 255, 255, 0.7); }
 body.look-new .trainmap { background: linear-gradient(rgba(29, 47, 82, 0.92), rgba(19, 31, 58, 0.95)); border-color: #0E1730; box-shadow: 0 4px 10px rgba(5, 8, 20, 0.45), inset 0 0 0 1.5px rgba(242, 193, 78, 0.35); }
 body.look-new .sheet h2, body.look-new .celebrate .card .name, body.look-new .banner { font-family: 'Fredoka', 'Jost', sans-serif; }
+
+/* De-Slop B3: the strip is as wide as its tiles (centred, never a long empty bar), the tiles a little bigger, the
+   need badge in the tile's corner clear of the emblem. */
+:root { --strip-h: 58px; }
+.trainmap { left: 0; right: 0; margin: 0 auto; width: fit-content; max-width: calc(100% - 2 * var(--gutter)); }
+.trainmap .cars { flex: 0 1 auto; }
+.trainmap .car { width: 70px; height: 44px; }
+.trainmap .emblem { width: 22px; height: 22px; }
+.trainmap .emblem .ico { width: 21px; height: 21px; }
+.trainmap .name { font-size: 10px; }

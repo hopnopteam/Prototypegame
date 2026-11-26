@@ -4,7 +4,7 @@ import { drawIcon, INK } from '../ui/icons';
 import { FLOOR_Y } from './CarriageView';
 import { WORLD_UI_LAYER } from './CameraRig';
 import { CARRIAGE_LENGTH, HALF_WIDTH } from './layout';
-import { underPopup } from './screenMask';
+import { offFrame, underPopup } from './screenMask';
 import { TILE_FONT } from './sprites';
 
 /** Where a chip floats: over the lake side of its carriage, just above the wall tops. */
@@ -146,7 +146,9 @@ export class ClassChips {
       chip.sprite.scale.set(CHIP_HEIGHT * aspect * bounce, CHIP_HEIGHT * bounce, 1);
       chip.sprite.position.set(CHIP_X, CHIP_Y, originZ(i) + CARRIAGE_LENGTH / 2);
       // Fix list 6.3: it steps aside while a pop-up is over it.
-      chip.sprite.visible = !underPopup(CHIP_X, CHIP_Y, originZ(i) + CARRIAGE_LENGTH / 2);
+      // De-Slop B3: and never shows cut off at the screen's edge.
+      const cz = originZ(i) + CARRIAGE_LENGTH / 2;
+      chip.sprite.visible = !underPopup(CHIP_X, CHIP_Y, cz) && !offFrame(CHIP_X, CHIP_Y + CHIP_HEIGHT * 0.4, cz, (CHIP_HEIGHT * aspect * bounce) / 2);
     }
   }
 }

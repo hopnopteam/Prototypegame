@@ -466,7 +466,9 @@ export class Ui implements GameUi {
     const flags = g.data.profile.flags;
     this.reveal(hud.level, ftue.first_unlock !== undefined || g.progression.level > 1);
     this.reveal(hud.journey, ftue.first_unlock !== undefined || g.journey.phase === 'arriving' || g.journey.phase === 'stationStop' || g.data.route.stopsCompleted > 0);
-    this.reveal(hud.gems, g.wallet.get('gems') > 0 || !!flags.firstStationDone);
+    // De-Slop B3: the gem counter comes with the first gem (it showed 0 for the whole first session).
+    if (g.wallet.get('gems') > 0 && !flags.gems_seen) flags.gems_seen = true;
+    this.reveal(hud.gems, !!flags.gems_seen);
     if (MONETIZATION_ENABLED) this.reveal(hud.shop, !!flags.firstStationDone);
     const upgradesOpen = g.progression.isFeatureUnlocked('conductorUpgrades');
     this.reveal(hud.conductor, upgradesOpen);

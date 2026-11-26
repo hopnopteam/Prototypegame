@@ -49,7 +49,7 @@ import { Wallet } from '../sim/Wallet';
 import { CarriageView, FLOOR_Y } from '../world/CarriageView';
 import { SandPrints } from '../world/SandPrints';
 import { CharacterView } from '../world/CharacterView';
-import { beginMaskFrame, setPopupTest } from '../world/screenMask';
+import { beginMaskFrame, setEdgeTest, setPopupTest } from '../world/screenMask';
 import { CharacterBatch } from '../world/CharacterBatch';
 import { CARRIAGE_LENGTH, CARRIAGE_PITCH, carriageOriginZ, GANGWAY_LENGTH, HALF_WIDTH, INNER, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0, REAR_DECK_LENGTH } from '../world/layout';
 import { VISUALS, type QualityTier, type TierSettings } from '../config/visuals';
@@ -144,6 +144,8 @@ function urlSeed(): number | null {
 /** Session 64: how much further past the train's end the view may reach while the next carriage waits there. */
 const TEASER_VIEW_REACH = 3.2;
 
+/** De-Slop B3: how far in from the screen's edge a floating label must stay whole (CSS pixels). */
+const EDGE_SAFE_PX = 6;
 export class Game implements World {
   readonly econ: Economy;
   readonly events = new EventBus<GameEvents>();
@@ -311,6 +313,18 @@ export class Game implements World {
     setPopupTest((x, y, z) => {
       probe.set(x, y, z).project(this.stage.rig.camera);
       return probe.z < 1 && this.ui.underPopupAt(probe.x, probe.y);
+    });
+    // De-Slop B3: a label whose box would cross the screen's edge hides rather than showing cut in half.
+    const side = new THREE.Vector3();
+    setEdgeTest((x, y, z, halfWidth) => {
+      const camera = this.stage.rig.camera;
+      probe.set(x, y, z).project(camera);
+      if (probe.z >= 1) return true;
+      side.setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(halfWidth).add(probe.set(x, y, z));
+      const cx = probe.set(x, y, z).project(camera).x;
+      const half = Math.abs(side.project(camera).x - cx);
+      const margin = (2 * EDGE_SAFE_PX) / Math.max(1, this.stage.width);
+      return cx - half < -1 + margin || cx + half > 1 - margin || probe.y > 1 || probe.y < -1;
     });
     this.stage.checkShaderErrors = settings.devTools;
     this.stage.onAutoTier = (tier) => {

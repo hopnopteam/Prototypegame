@@ -8,7 +8,7 @@ import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, moodBubbleTexture, type BubbleStyle, type Mood } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
 import { addHead, addTorso, CHEST, ELBOW_Y, HIPS, profileRadius, SKIRTS, TORSO_DEPTH, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, SHOULDER_X, SHOULDER_Y, shinGeometry, thighGeometry, upperArmGeometry, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
-import { underPopup } from './screenMask';
+import { offFrame, underPopup } from './screenMask';
 import type { CharacterBatch } from './CharacterBatch';
 
 export type HatKind = 'conductor' | 'boater' | 'bowler' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'toque' | 'none';
@@ -1043,9 +1043,11 @@ export class CharacterView {
       // gentle bob, and a cross passenger's bubble shakes.
       const pop = Math.min(1, this.bubbleTime * BUBBLE_POP_RATE);
       const p = this.root.position;
-      const masked = underPopup(p.x, p.y + this.bubbleBaseY, p.z);
+      const wide = this.bubbleWide ? MOOD_BUBBLE_SIZE : 0.9;
+      // De-Slop B3: and while it would be cut off at the screen's edge.
+      const masked = underPopup(p.x, p.y + this.bubbleBaseY, p.z) || offFrame(p.x, p.y + this.bubbleBaseY + wide * 0.4, p.z, wide * (this.bubbleWide ? 0.5 : 0.36));
       const spring = pop < 1 ? Math.min(1.25, 1 - Math.cos(pop * Math.PI * 2.6) * Math.exp(-pop * 4.5)) : 1 + Math.sin(this.bubbleTime * 3) * 0.02;
-      const s = masked ? 0.0001 : (this.bubbleWide ? MOOD_BUBBLE_SIZE : 0.9) * spring;
+      const s = masked ? 0.0001 : wide * spring;
       this.bubble.scale.set(s, s, 1);
       this.bubble.position.x = this.bubbleMood === 'angry' ? Math.sin(this.bubbleTime * 38) * 0.015 : 0;
       this.bubble.position.y = this.bubbleBaseY + Math.sin(this.bubbleTime * 2.4) * 0.025;
