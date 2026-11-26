@@ -53,6 +53,21 @@ const CHIMNEY_AT = 0.2;
 const LAMP_Y = 0.62;
 const CAB_ROOF_TOP = 1.66 * LOCO_SCALE;
 /**
+ * De-Slop B5, measured on the model (its own units, before the half turn): the cab's side face on the camera side,
+ * its window (pale blue glass at y 1.0–1.2, z −1.0…−0.5) and the gold lining below it (y 0.7).
+ */
+const CAB_SIDE_X = 0.59;
+const CAB_WINDOW_Z = -0.75;
+/** The cab's back doorway (model units): its frame x −0.39…+0.31 at z −1.3 (outer face) to −1.25 (recess). */
+const CAB_DOOR_X = -0.04;
+const CAB_DOOR_Y = 1.02;
+const CAB_DOOR_Z = -1.275;
+const CAB_DOOR_W = 0.5;
+const CAB_DOOR_H = 0.26;
+/** The nameplate, between the window and the gold line (model units), and its width in metres. */
+const PLATE_Y = 0.86;
+const PLATE_W = 1.15;
+/**
  * Phase 4, the streamliner (the coast's `locomotive`): a shrouded engine and a matching tender painted with the live
  * livery (body and trim materials, so it fades from sun-bleached to fresh blue with the route's liveries), a rounded
  * nose with the headlamp in it, a white band down each side, a dark skirt over the bogies and a raked windscreen.
@@ -154,8 +169,21 @@ export class LocomotiveView {
     this.pennantLine = { from: new THREE.Vector3(-PENNANT_ROW, CAB_ROOF_TOP, cabBack - 0.3), to: new THREE.Vector3(PENNANT_ROW - PENNANT_WIDTH, CAB_ROOF_TOP, cabBack - 0.3) };
     this.group.traverse((o) => o.layers.enable(REFLECT_LAYER));
 
-    this.nameplate = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.3), new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false }));
-    this.nameplate.position.set(0, 0.86, back + 0.03);
+    // De-Slop B5: the cab is lived in at night (its side window glows warm), and the name is a brass plate fixed
+    // to the cab side on two brackets, under the window where the camera sees it (it hung in the air over the gap
+    // between the tender and the first carriage).
+    const cabX = CAB_SIDE_X * s + 0.012;
+    const cabZ = locoMid - CAB_WINDOW_Z * s;
+    // The cab's back (facing the tender and the camera) is an open doorway: its upper half glows with the firebox.
+    const cabGlow = new THREE.Mesh(new THREE.PlaneGeometry(CAB_DOOR_W * s, CAB_DOOR_H * s), new THREE.MeshBasicMaterial({ color: '#FFB866' }));
+    cabGlow.position.set(-CAB_DOOR_X * s, CAB_DOOR_Y * s, locoMid - CAB_DOOR_Z * s);
+    this.group.add(cabGlow);
+    const brackets = new GeoBuilder();
+    for (const dz of [-0.5, 0.5]) brackets.box(cabX + 0.02, PLATE_Y * s, cabZ + dz * (PLATE_W - 0.12), 0.05, 0.08, 0.05, PALETTE.brass, 0, { surface: 'brass' });
+    const bracketMesh = new THREE.Mesh(brackets.build(), MATERIALS.solid);
+    this.group.add(bracketMesh);
+    this.nameplate = new THREE.Mesh(new THREE.PlaneGeometry(PLATE_W, PLATE_W * 0.15).rotateY(Math.PI / 2), new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false }));
+    this.nameplate.position.set(cabX + 0.05, PLATE_Y * s, cabZ);
     this.nameplate.visible = false;
     this.group.add(this.nameplate);
   }

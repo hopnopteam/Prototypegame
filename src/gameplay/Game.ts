@@ -1,5 +1,6 @@
 import { ACTIVE_ROUTE, ROUTES, routeById } from '../config/routes';
 import { LOOK_ROUTE_TIME, NEW_LOOK } from '../config/look';
+import { PlatformView } from '../world/PlatformView';
 import { PLATFORM } from '../world/platformLayout';
 import { INTRO_BEATS } from '../config/coach';
 import * as THREE from 'three';
@@ -1044,6 +1045,7 @@ export class Game implements World {
     // In a rock cutting the moon is hidden and the train's lamps take over.
     this.stage.lighting.darkness = this.scenery.darknessAt(this.stage.rig.focusPoint.z);
     this.stage.lighting.setTime(t);
+    PlatformView.setNight(this.stage.lighting.night);
     return this.stage.lighting.night;
   }
 

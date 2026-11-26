@@ -7,7 +7,7 @@ import { ACTIVE_ROUTE } from '../config/routes';
 /** The new look's night station dressing (wet flags, lamp pools) is for the routes held at night. */
 const NIGHT_STATION = ACTIVE_ROUTE.id !== 'riviera';
 import { BAYS, PLATFORM } from './platformLayout';
-import { MATERIALS, PATTERN } from './materials';
+import { ADD_GLOW, glowTexture, MATERIALS, PATTERN } from './materials';
 import { NEW_LOOK, WET_STONE } from '../config/look';
 import { VISUALS } from '../config/visuals';
 import { PALETTE } from './palette';
@@ -129,6 +129,21 @@ const KIOSK_POS = PLATFORM.kiosk;
  * world coordinates when the train is stopped (z offset 0); the game slides it along z as the train arrives and
  * departs.
  */
+/** De-Slop B5: the warm pool under each platform lamp (radius in metres, colour at full night). */
+const LAMP_POOL_RADIUS = 2.2;
+/** The street lantern model's glass (its own units): centre height, half-width and height. */
+const LANTERN_GLASS_Y = 3.82;
+const LANTERN_GLASS_HALF = 0.29;
+const LANTERN_GLASS_H = 0.26;
+const LAMP_POOL_COLOR = new THREE.Color('#FFB46A').multiplyScalar(0.42);
+const LAMP_POOL_MATERIAL = new THREE.MeshBasicMaterial({
+  map: glowTexture(64, 64, 32, 32, 0, 32, [[0, 1], [0.35, 0.7], [0.7, 0.25], [1, 0]]),
+  color: LAMP_POOL_COLOR.clone(),
+  ...ADD_GLOW,
+  polygonOffset: true,
+  polygonOffsetFactor: -2,
+  polygonOffsetUnits: -2,
+});
 export class PlatformView {
   readonly group = new THREE.Group();
   private readonly signMaterial = new THREE.MeshBasicMaterial({ color: '#ffffff' });
@@ -178,6 +193,7 @@ export class PlatformView {
   z1 = 0;
   /** The platform's lamps for the lamp pools (local coordinates; the game slides them with the platform). */
   readonly lampAnchors: LampAnchor[] = [];
+  private poolMesh: THREE.Mesh | null = null;
   /**
    * Phase 2 (owner: "the elements you can walk through… don't do that anymore"): the footprint of everything standing
    * on the deck (lamp posts, tubs, benches, sign posts, the station master and the townsfolk), platform-local, so the
@@ -576,6 +592,7 @@ export class PlatformView {
     this.deckMesh = solid(deckGeo, false);
     this.lampMesh = new THREE.Mesh(lampGeo, MATERIALS.lamps);
     this.group.add(this.lampMesh);
+    this.buildLampPools();
     // Wet stone and lamp pools are the night station's (ref 1); the Riviera's platforms stand in the sun.
     if (supplyCarIndex !== null) {
       this.vendor = buildVendor(carriageOriginZ(supplyCarIndex));
@@ -586,6 +603,45 @@ export class PlatformView {
     this.perchPigeons(x1);
     this.showBench = showBench;
     this.placeTownsfolk();
+  }
+
+  /**
+   * De-Slop B5 ("night lit by lamps"): a round warm pool on the paving under every lamp post, drawn as one added glow
+   * (it can only add light, so no tier can draw it as a square), brighter as the night deepens (`setNight`). The
+   * baked light map alone left the paving flat at night.
+   */
+  private buildLampPools(): void {
+    if (this.poolMesh) {
+      this.group.remove(this.poolMesh);
+      this.poolMesh.geometry.dispose();
+      this.poolMesh = null;
+    }
+    const pos: number[] = [];
+    const uv: number[] = [];
+    const index: number[] = [];
+    for (const a of this.lampAnchors) {
+      if (a.strength < 0.5) continue;
+      const r = LAMP_POOL_RADIUS;
+      const i = pos.length / 3;
+      pos.push(a.x - r, FLOOR_Y + 0.012, a.z - r, a.x + r, FLOOR_Y + 0.012, a.z - r, a.x + r, FLOOR_Y + 0.012, a.z + r, a.x - r, FLOOR_Y + 0.012, a.z + r);
+      uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+      index.push(i, i + 2, i + 1, i, i + 3, i + 2);
+    }
+    if (!index.length) return;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(index);
+    this.poolMesh = new THREE.Mesh(g, LAMP_POOL_MATERIAL);
+    this.poolMesh.renderOrder = 1;
+    this.poolMesh.userData.object = 'platform:lampPool~glow';
+    this.group.add(this.poolMesh);
+  }
+
+  /** How dark it is (0 day … 1 deep night): the lamp pools on the paving follow it. */
+  static setNight(night: number): void {
+    const n = Math.max(0, Math.min(1, (night - 0.2) / 0.6));
+    LAMP_POOL_MATERIAL.color.copy(LAMP_POOL_COLOR).multiplyScalar(n * n * (3 - 2 * n));
   }
 
   /** The two seeing someone off by the railing; the two on the bench behind the train (hidden if there is none). */
@@ -1339,7 +1395,9 @@ function buildLampPost(b: GeoBuilder, lamps: GeoBuilder, x: number, z: number): 
     b.model('street_lamp', x, y, z, 0, sc, sc, sc, { recolor: [key('ttMid', PALETTE.navy), key('ttLight', shadeNavy)], surface: 'iron' });
     b.endObject();
     lamps.object('platform:lampPost~glow');
-    lamps.box(x, y + 2.52, z, 0.2, 0.22, 0.2, PALETTE.lampShade, 0);
+    // De-Slop B5: the model's glass is solid grey, so the lit glass is a band just proud of it (it read as an
+    // unlit head at night).
+    lamps.box(x, y + LANTERN_GLASS_Y * sc, z, LANTERN_GLASS_HALF * sc * 2 + 0.02, LANTERN_GLASS_H * sc, LANTERN_GLASS_HALF * sc * 2 + 0.02, '#FFE2A6', 0);
     lamps.endObject();
     return;
   }
