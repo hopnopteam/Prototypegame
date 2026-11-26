@@ -67,11 +67,11 @@ export const PALETTE = {
   /** Session 50: the herringbone parquet of Luxurious and First Class floors, a richer honey so its blocks read. */
   parquet: '#B07C4C',
   /** Run-down floorboards: the same boards, weathered grey. */
-  plankWorn: '#CFC4B2',
-  plankWornSeam: '#A2968A',
+  plankWorn: '#A99F8C',
+  plankWornSeam: '#7E7468',
   iron: '#7A8591',
-  wallWorn: '#D9DAC9',
-  wallWornLow: '#B6BCA7',
+  wallWorn: '#C3BFA8',
+  wallWornLow: '#968F79',
   linen: '#FBF7EF',
   porcelain: '#F7F7F4',
   brass: '#E2B653',

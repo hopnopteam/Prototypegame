@@ -275,7 +275,7 @@ export class Guidance {
       if (sheep && stack.isEmpty && w.guests.waitingCount() === 0) return this.because('shoo', sheep);
       // Phase 2: travellers waiting for a tidy room (a broom over them): make one up first.
       if (stack.isEmpty && w.guests.waitingForRoom()) {
-        const room = w.train.cabins.find((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
+        const room = w.train.cabins.find((c) => c.unlocked && c.isDirty && c.vacated && !c.cleaner);
         if (room) return this.because('clean', room.spots[0] ?? room.center);
       }
       // Session 55: the supply cart, then the lobby's supply cupboard (one trip a stop, done).
@@ -365,7 +365,7 @@ export class Guidance {
     if (job) return this.because(job.reason, job.target);
 
     // A used room to tidy: its pad.
-    const dirty = w.train.cabins.find((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
+    const dirty = w.train.cabins.find((c) => c.unlocked && c.isDirty && c.vacated && !c.cleaner);
     if (dirty) return this.because('clean', dirty.spots[0] ?? dirty.center);
 
     // The night shift: shoes by a sleeping guest's door (the attendant takes their own carriage's).

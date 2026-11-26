@@ -1,3 +1,5 @@
+import { drawLinePostcard } from './linePostcard';
+import { linePostcardId } from '../sim/lineTransition';
 import { NEW_LOOK, setLook } from '../config/look';
 import { carryOver } from '../sim/carryOver';
 import { DEBUG_JUMP, setDebugJump } from '../config/debugJump';
@@ -80,6 +82,13 @@ export class Screens {
     if (!button) return top !== undefined;
     button.click();
     return true;
+  }
+
+  /** Closes every sheet (the Debug sheet's line transition starts on a clear screen). */
+  closeAllSheets(): void {
+    for (let i = 0; i < 6 && this.closeTop(); i++) {
+      // Each call closes the top one.
+    }
   }
 
   /** The title screen and the intro keep sheets back (offline earnings, offers, the press) until play. */
@@ -274,7 +283,7 @@ export class Screens {
       g.progression.isFeatureUnlocked('conductorUpgrades') ? row('conductor', 'Conductor', 'Upgrades and outfits', go(() => this.upgrades()), upgrades) : null,
       MONETIZATION_ENABLED ? null : row('paint', 'Paint Shop', 'Liveries for your train', go(() => this.paintSheet())),
       g.meta.questsUnlocked() || g.meta.loginUnlocked() ? row('calendar', 'Daily', 'Calendar and quests', go(() => this.daily()), dailyCount) : null,
-      g.data.meta.postcards.length > 0 ? row('album', 'Postcards', `${g.data.meta.postcards.length} collected`, go(() => this.album())) : null,
+      row('album', 'Postcards', `${g.data.meta.postcards.length} collected`, go(() => this.album())),
       row('gear', 'Settings', 'Sound, vibration, more', go(() => this.settings())),
     ], { className: 'menu-sheet' });
   }
@@ -290,9 +299,12 @@ export class Screens {
     const keep = (iconName: IconName, text: string): HTMLElement => h('li', {}, icon(iconName, 22), text);
     const c = info.conductor;
     let close = (): void => undefined;
-    const board = h('button.btn.primary.big', { onclick: () => { close(); onBoard(); } }, icon('ticket', 24), `Open the ${info.to}`);
-    close = this.sheet(info.to, 'map', [
-      h('p.lead', { text: `The ${info.from} is complete. A new line is waiting along the coast: a new train, new stations, new guests.` }),
+    const board = h('button.btn.primary.big', { onclick: () => { close(); onBoard(); } }, icon('ticket', 24), info.ticket?.button ?? `Open the ${info.to}`);
+    // The Grand Departure, step 3: the offer is a big golden ticket (the same content: what comes along, what stays).
+    close = this.sheet(info.ticket?.title ?? info.to, 'ticket', [
+      h('div.gt-stub', {}, h('span.gt-from', { text: info.from }), h('span.gt-arrow', { text: '→' }), h('span.gt-to', { text: info.to })),
+      h('p.lead', { text: `The ${info.from} is complete. A new line is waiting: a new train, new stations, new guests.` }),
+      info.preview ? h('div.nl-warn', {}, icon('lock', 24), h('span', { text: 'Preview: nothing is carried over.' })) : null,
       h('div.nl-cols', {},
         h('div.nl-col.keep', {}, h('div.section-title', { text: 'Comes along' }), h('ul', {},
           keep('gem', `${formatNumber(info.gems)} gems`),
@@ -308,7 +320,7 @@ export class Screens {
       ),
       info.unbought > 0 ? h('div.nl-warn', { role: 'alert' }, icon('lock', 24), h('span', { text: `${info.unbought} upgrade${info.unbought === 1 ? '' : 's'} on the ${info.from} still unbought. They will be left behind.` })) : h('div.nl-done', {}, icon('check', 24), h('span', { text: 'Every upgrade bought. A perfect run!' })),
       h('div.btn-row.col', {}, board, h('button.btn', { 'data-default': '', onclick: () => close() }, info.unbought > 0 ? 'Not yet, finish here first' : 'Not yet')),
-    ], { className: 'nextline-sheet', center: true });
+    ], { className: 'nextline-sheet.golden-ticket', center: true });
   }
 
   /** Phase 4: the route map, every route of the line: done with its final stats, the one being played, and what is to come. */
@@ -332,9 +344,15 @@ export class Screens {
             h('span', {}, icon('carriage', 18), `${g.train.count} of ${r.maxCarriages} carriages`),
             h('span', {}, icon('star', 18), `Level ${g.progression.level}`))
           : null;
-      cards.push(h(`div.rm-card${active ? '.active' : done ? '.done' : '.locked'}` as 'div', {},
+      // The Grand Departure's tease: the next line glows, with what opens it and how far along the player is.
+      const isNext = !active && !done && ROUTES[i - 1]?.id === ACTIVE_ROUTE.id;
+      const glow = isNext && g.routeLine.teaseUp;
+      const need = isNext
+        ? h('div.rm-need', { text: `${Math.min(g.train.count, ACTIVE_ROUTE.maxCarriages)}/${ACTIVE_ROUTE.maxCarriages} carriages · Level ${g.progression.level}/${g.progression.maxLevel}` })
+        : null;
+      cards.push(h(`div.rm-card${active ? '.active' : done ? '.done' : '.locked'}${glow ? '.glow' : ''}` as 'div', {},
         h('div.rm-num', { text: String(i + 1) }),
-        h('div.rm-body', {}, h('div.rm-name', { text: r.name }), h('div.rm-status', {}, done && !active ? icon('check', 18) : null, status), stats),
+        h('div.rm-body', {}, h('div.rm-name', { text: r.name }), h('div.rm-status', {}, done && !active ? icon('check', 18) : null, status), stats, need),
       ));
     });
     UPCOMING_ROUTES.forEach((r, i) => {
@@ -343,7 +361,11 @@ export class Screens {
         h('div.rm-body', {}, h('div.rm-name.silhouette', { text: r.name }), h('div.rm-status', { text: 'Coming soon' })),
       ));
     });
-    this.sheet('Route map', 'map', [h('div.routemap', {}, ...cards)], { className: 'routemap-sheet' });
+    let close = (): void => undefined;
+    close = this.sheet('Route map', 'map', [
+      h('div.routemap', {}, ...cards),
+      h('button.btn', { onclick: () => { close(); this.album(); } }, icon('album', 22), 'Postcard album'),
+    ], { className: 'routemap-sheet' });
   }
 
   goal(): void {
@@ -733,10 +755,37 @@ export class Screens {
       paintPostcard(canvas, card.art, card.text);
       return h('button.postcard', { 'aria-label': card.text.name, onclick: () => this.postcard(card.art, card.text, card.blurb) }, canvas);
     }));
+    // The Grand Departure: a postcard of every finished train (drawn again from its archive each time), and a
+    // silhouetted slot for the train being built now.
+    const lines: HTMLElement[] = [];
+    for (const r of ROUTES) {
+      const def = r.transition;
+      if (!def) continue;
+      if (have.has(linePostcardId(r.id))) {
+        const canvas = h('canvas', {}) as HTMLCanvasElement;
+        drawLinePostcard(canvas, def, g.data.routes[r.id] ?? null, r.name, 2);
+        lines.push(h('button.line-card', { 'aria-label': r.name, onclick: () => { g.analytics.log('postcard_opened', {}); this.linePostcard(r.id); } }, canvas));
+      } else if (r.id === ACTIVE_ROUTE.id) {
+        lines.push(h('div.line-card.silhouette', {}, h('span', { text: `The ${r.name}: still to finish` })));
+      }
+    }
+    const stationCount = cards.filter((c) => have.has(c.id)).length;
     this.sheet('Postcards', 'album', [
-      h('p', { text: `${have.size} of ${cards.length} collected. Every station has one.` }),
+      lines.length ? h('div.section-title', { text: 'Your trains' }) : null,
+      lines.length ? h('div.line-cards', {}, ...lines) : null,
+      h('div.section-title', { text: 'Stations' }),
+      h('p', { text: `${stationCount} of ${cards.length} collected. Every station has one.` }),
       grid,
     ]);
+  }
+
+  /** A finished train's postcard, large. */
+  private linePostcard(routeId: string): void {
+    const r = ROUTES.find((x) => x.id === routeId);
+    if (!r?.transition) return;
+    const canvas = h('canvas', {}) as HTMLCanvasElement;
+    drawLinePostcard(canvas, r.transition, this.game.data.routes[routeId] ?? null, r.name, 3);
+    this.sheet(r.name, 'album', [h('div.postcard-big.line', {}, canvas), h('p.postcard-blurb', { text: r.transition.postcard.caption })]);
   }
 
   /** One postcard, large, with its station's line. */
@@ -920,6 +969,12 @@ export class Screens {
       h('div.section-title', { text: 'Pacing (Phase 3)' }),
       h('button.btn', { onclick: () => this.economySheet() }, 'Economy values'),
       h('button.btn', { onclick: () => this.carryOverSheet() }, 'Carry-over test'),
+      // The Grand Departure: plays the route-change sequence now (nothing carried over, nothing paid).
+      h('div.section-title', { text: 'Line transition' }),
+      h('div.debug-pick.two', {},
+        h('button.btn', { onclick: () => { this.closeAllSheets(); this.game.routeLine.preview(); } }, 'Play line transition'),
+        h('button.btn', { onclick: () => { this.closeAllSheets(); this.game.routeLine.preview('riviera'); } }, 'Winter City placeholder'),
+      ),
       // Visual overhaul (config/look.ts), last on the sheet (session 64: it sat where the fifth tap's finger was, so a
       // quick tap flipped the game into the classic look): the current look is lit, the other reloads into it.
       h('div.section-title', { text: 'Look' }),

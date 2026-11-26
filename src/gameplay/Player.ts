@@ -200,6 +200,7 @@ export class Player implements Actor {
     this.view.setFacing(this.facing);
     // Character pass 2: what is carried sets the arms, and every item taken or handed over gets its own quick move.
     this.view.setCarrying(this.stack.stacked > 0, this.stack.board, w.station.supplyInHand);
+    if (this.stack.stacked > 0) this.view.setGrip(this.stack.gripHalf);
     this.view.stackCount = this.stack.stacked;
     if (this.stack.count > this.lastCount) this.view.act('pickup');
     else if (this.stack.count < this.lastCount) this.view.act('place');

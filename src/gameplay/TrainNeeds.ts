@@ -33,7 +33,7 @@ export class TrainNeeds {
       if (guest.request && guest.request !== 'bathroom') return { icon: guest.request, point: guest.cabin.center, label: `Wants ${guest.request}` };
     }
     for (const cabin of w.train.cabins) {
-      if (cabin.carriage !== index || !cabin.unlocked || !cabin.isDirty || cabin.guest || cabin.cleaner) continue;
+      if (cabin.carriage !== index || !cabin.unlocked || !cabin.isDirty || !cabin.vacated || cabin.cleaner) continue;
       return { icon: 'broom', point: cabin.spots[0] ?? cabin.center, label: 'Room to tidy' };
     }
     const threshold = w.econ.facilities.bathroomRestockThreshold;

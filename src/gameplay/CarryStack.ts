@@ -7,6 +7,10 @@ import { createItemMesh, createTrayMesh, ITEM_HEIGHT, ON_TRAY, TRAY_TOP } from '
 const tmp = new THREE.Vector3();
 /** A surfboard under the arm is drawn at this size. */
 const BOARD_SCALE = 0.72;
+/** A picked-up item's curve into the stack (metres, in the stack's frame): out to the side, up, and ahead of the chest. */
+const FLY_AROUND = 0.5;
+const FLY_LIFT = 0.45;
+const FLY_AHEAD = 0.25;
 
 /**
  * The visible pile of items an actor carries (player and staff share it). Items fly into the stack from a
@@ -44,6 +48,23 @@ export class CarryStack {
     let n = 0;
     for (const k of this.items) if (k !== 'surfboard' || !this.boardAnchor) n++;
     return n;
+  }
+
+  /**
+   * Half the width of the widest thing carried in front, the tray included (metres, in the stack's own frame): the
+   * carrier's hands take the load by its sides there (CharacterView.setGrip).
+   */
+  get gripHalf(): number {
+    let half = 0;
+    const measure = (mesh: THREE.Mesh): void => {
+      const g = mesh.geometry;
+      if (!g.boundingBox) g.computeBoundingBox();
+      const b = g.boundingBox!;
+      half = Math.max(half, Math.max(-b.min.x, b.max.x) * mesh.scale.x);
+    };
+    for (let i = 0; i < this.meshes.length; i++) if (this.items[i] !== 'surfboard' || !this.boardAnchor) measure(this.meshes[i]);
+    if (this.tray && this.tray.visible) measure(this.tray);
+    return half;
   }
 
   get count(): number {
@@ -91,9 +112,16 @@ export class CarryStack {
       mesh.position.set(sx, sy, sz);
       mesh.scale.setScalar(0.6);
       const boardX = this.boardX(this.meshes.indexOf(mesh));
+      // Owner ("picks up things in a glitched manner… zero clipping"): the item comes round the carrier, never through
+      // them: a curve through a point out to the side it comes from, in front of the chest and over the stack.
+      const side = sx >= 0 ? 1 : -1;
       this.tweens.run(0.28, (t) => {
         const target = this.slotHeight(this.meshes.indexOf(mesh));
-        mesh.position.set(sx + (boardX - sx) * t, sy + (target - sy) * t + Math.sin(t * Math.PI) * 0.5, sz * (1 - t));
+        const cx = sz < 0 ? side * FLY_AROUND : (sx + boardX) / 2;
+        const cy = Math.max(sy, target) + FLY_LIFT;
+        const cz = Math.max(sz, 0) + FLY_AHEAD;
+        const u = 1 - t;
+        mesh.position.set(u * u * sx + 2 * u * t * cx + t * t * boardX, u * u * sy + 2 * u * t * cy + t * t * target, u * u * sz + 2 * u * t * cz);
         mesh.scale.setScalar((0.6 + 0.4 * t) * (boardX !== 0 || (kind === 'surfboard' && this.boardAnchor) ? BOARD_SCALE : 1));
       }, { ease: easeInOutCubic, owner: mesh });
     }

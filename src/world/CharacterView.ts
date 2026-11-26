@@ -50,6 +50,9 @@ export interface CharacterLook {
 
 /** Character pass 2: the stack sits on the forearms, held out level in front (they were straight arms at shoulder height). */
 export const STACK_BASE_Y = 0.665;
+/** How far outside the load's side the carrying hands sit, and the reach the arm turns out over (metres). */
+const GRIP_OUTSIDE = 0.04;
+const GRIP_REACH = 0.3;
 const SHOE = '#2A2433';
 /** Session 38b: the mood bubble's world size (its canvas is square), how fast a bubble pops in, and how much higher it hangs. */
 const MOOD_BUBBLE_SIZE = 1.0;
@@ -628,6 +631,16 @@ export class CharacterView {
     this.carryBoard = board;
     this.carryBox = box;
   }
+
+  /**
+   * How wide what is carried in front is (its half width, metres): the hands take it by its sides, just outside them
+   * (owner: "holds and picks up things in a glitched manner… zero clipping": the hands used to meet in the middle,
+   * inside the tray, the crate or the suitcase).
+   */
+  setGrip(halfWidth: number): void {
+    this.gripHalf = halfWidth;
+  }
+  private gripHalf = 0.12;
   private carryBoard = false;
   private carryBox = false;
   /** How many things are on the stack (a tall one makes the figure lean back to balance it). */
@@ -1032,6 +1045,14 @@ export class CharacterView {
 
   /** `speed` is the current ground speed in m/s; drives walk cycle amplitude and rate. */
   update(dt: number, speed: number): void {
+    // The arms' clearance push (keepClear) is for this frame's drawing only: the animation carries on from the pose it
+    // asked for, so a push never builds up from frame to frame (owner: "hands in the air when idle or after a movement").
+    for (let i = 0; i < 2; i++) {
+      if (!this.armPushed[i]) continue;
+      this.armPushed[i] = false;
+      this.arms[i].rotation.x = this.armIntent[i * 2];
+      this.arms[i].rotation.z = this.armIntent[i * 2 + 1];
+    }
     // Session 64 (owner: "walk only, no running animations until we get the upgrade for movement"): the animation's
     // pace stops at a walk until the conductor has shoes or a speed level (`runGait` 1); the ground speed is unchanged.
     if (this.runGait < 1) speed = Math.min(speed, WALK_ANIM_SPEED);
@@ -1147,7 +1168,9 @@ export class CharacterView {
         if (this.carrying) {
           // Holding the stack out in front: upper arms forward, forearms level under it, hands in toward the middle.
           x = -0.5 + Math.sin(this.phase * 2) * 0.03 * swing;
-          z = -side * 0.22;
+          // The hands at the load's sides, a finger's width outside them: the arm turned out (or in) just so far.
+          const reach = Math.max(-1, Math.min(1, (this.gripHalf + GRIP_OUTSIDE - SHOULDER_X) / GRIP_REACH));
+          z = side * Math.max(-0.22, Math.min(0.6, Math.asin(reach)));
           elbow = -1.1;
         }
         if (this.carryBoard && i === 0) {
@@ -1225,22 +1248,32 @@ export class CharacterView {
       const front = this.clearScratch.z > 0.02;
       const x0 = arm.rotation.x;
       const z0 = arm.rotation.z;
+      this.armIntent[i * 2] = x0;
+      this.armIntent[i * 2 + 1] = z0;
+      this.armPushed[i] = true;
       const apply = (t: number): void => {
         if (front) arm.rotation.x = x0 - t * ARM_CLEAR_MAX;
         else arm.rotation.z = z0 + side * t * ARM_CLEAR_MAX;
       };
+      // The push is found afresh every frame from the pose the animation asked for (it never builds up), so it may
+      // reach a little further than one step used to: up to twice ARM_CLEAR_MAX, the least that clears.
       let lo = 0;
       let hi = 1;
       apply(hi);
-      if (this.armDepth(i) > 0) { lo = 1; }
-      else {
-        for (let k = 0; k < 7; k++) {
+      if (this.armDepth(i) > 0) {
+        hi = 2;
+        apply(hi);
+      }
+      if (this.armDepth(i) > 0) {
+        lo = hi;
+      } else {
+        for (let k = 0; k < 8; k++) {
           const mid = (lo + hi) / 2;
           apply(mid);
           if (this.armDepth(i) > 0) lo = mid; else hi = mid;
         }
       }
-      apply(lo === 1 ? 1 : hi);
+      apply(hi);
     }
     const skirt = this.skirt;
     if (!skirt || this.pose !== 'stand') return;
@@ -1264,6 +1297,9 @@ export class CharacterView {
   }
 
   private readonly clearScratch = new THREE.Vector3();
+  /** The arms' rotation (x, z) as the animation asked for it, before this frame's clearance push. */
+  private readonly armIntent = [0, 0, 0, 0];
+  private readonly armPushed = [false, false];
 
   /** How far (m) the arm's deepest sample sinks into the body below the armpit (≤ 0 when clear); the point is kept. */
   private armDepth(i: number): number {

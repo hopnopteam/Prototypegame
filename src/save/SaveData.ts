@@ -33,6 +33,17 @@ export interface NewsItem {
   at: number;
 }
 
+/** The Grand Departure's arrival, still to finish on the new line (see `SaveData.lineArrival`). */
+export interface LineArrival {
+  /** The route left behind and the one arrived on. */
+  from: string;
+  to: string;
+  /** The line-complete chest has been paid (with the save that set this). */
+  chestPaid: boolean;
+  /** The finished train's postcard has been filed in the album. */
+  postcardFiled: boolean;
+}
+
 export interface SaveData {
   version: number;
   createdAt: number;
@@ -123,6 +134,12 @@ export interface SaveData {
   routes: Record<string, RouteArchive>;
   /** Phase 4: the routes completed, in order. */
   completedRoutes: string[];
+  /**
+   * The Grand Departure: written with the save that moves the player onto the next line, so a relaunch at any moment
+   * after it plays (or skips) the arrival, pays the line-complete chest once and files the postcard once
+   * (sim/lineTransition.ts). Null when no arrival is waiting.
+   */
+  lineArrival: LineArrival | null;
   staff: Record<string, { level: number }>;
   conductor: { speed: number; capacity: number; fareBonus: number };
   facilities: {
@@ -250,6 +267,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     route: { id: ACTIVE_ROUTE.id, stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0, perfectStreak: 0, recentStops: [], reviews: [], floorCash: 0, migrationRefund: 0, playSeconds: 0 },
     routes: {},
     completedRoutes: [],
+    lineArrival: null,
     staff: {},
     conductor: { speed: 0, capacity: 0, fareBonus: 0 },
     facilities: { supplyTowel: -1, supplyRoll: -1, bathrooms: [] },

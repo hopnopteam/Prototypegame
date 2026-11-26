@@ -135,6 +135,7 @@ export class StaffMember implements Actor {
     this.view.setPosition(this.pos.x, FLOOR_Y, this.pos.z);
     this.view.setFacing(this.mover.facing);
     this.view.setCarrying(this.stack.stacked > 0, this.stack.board);
+    if (this.stack.stacked > 0) this.view.setGrip(this.stack.gripHalf);
     this.view.stackCount = this.stack.stacked;
     if (this.stack.count > this.lastCount) this.view.act('pickup');
     else if (this.stack.count < this.lastCount) this.view.act('place');
@@ -391,7 +392,7 @@ export class StaffManager {
       return { label: 'request', icon: item, steps, release: () => { reserved.reservedBy = undefined; m.wantItems = {}; } };
     }
     // 2. Tidy a used room in this carriage: one visit to its pad.
-    const cabin = w.train.cabins.find((c) => inScope(c.carriage) && c.unlocked && c.isDirty && !c.guest && !c.cleaner);
+    const cabin = w.train.cabins.find((c) => inScope(c.carriage) && c.unlocked && c.isDirty && c.vacated && !c.cleaner);
     if (cabin) {
       cabin.cleaner = m;
       const spot = cabin.spots[0] ?? cabin.center;

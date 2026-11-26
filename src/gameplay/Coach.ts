@@ -336,7 +336,7 @@ export class Coach {
         return world(guest?.cabin?.center);
       }
       case 'dirty': {
-        const cabin = w.train.cabins.find((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
+        const cabin = w.train.cabins.find((c) => c.unlocked && c.isDirty && c.vacated && !c.cleaner);
         return world(cabin ? (cabin.spots[0] ?? cabin.center) : null);
       }
       case 'station':
@@ -395,7 +395,7 @@ export class Coach {
       case 'request':
         return w.guests.openRequests().some((g) => g.request && g.request !== 'bathroom' && !w.staff.isHandled(g));
       case 'dirty':
-        return w.train.cabins.some((c) => c.unlocked && c.isDirty && !c.guest && !c.cleaner);
+        return w.train.cabins.some((c) => c.unlocked && c.isDirty && c.vacated && !c.cleaner);
       case 'station':
         return w.journey.phase === 'stationStop' && w.guests.canBoard();
       case 'shoes':

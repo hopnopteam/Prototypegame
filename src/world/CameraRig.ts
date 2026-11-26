@@ -9,6 +9,8 @@ import { damp, dampAngle } from '../core/math';
 export const WORLD_UI_LAYER = 1;
 
 const DEG = Math.PI / 180;
+/** The near plane while a cinematic holds the camera (metres). */
+const DIRECT_NEAR = 0.4;
 
 /**
  * Three-quarter follow camera. The world is laid out in train coordinates (x across the train, +x the land
@@ -215,7 +217,48 @@ export class CameraRig {
     this.initialised = false;
   }
 
+  /**
+   * The Grand Departure: a camera path (world/CameraPath.ts) places the camera itself. While set, `update` puts the
+   * camera there and aims it at `directLook`, with the shake on top; the follow state is left as it was, so play picks up
+   * where it stopped when the path lets go (`release`).
+   */
+  private direct = false;
+  private readonly directPos = new THREE.Vector3();
+  private readonly directLook = new THREE.Vector3();
+  private directFov = 33;
+  private playNear = 8;
+
+  place(position: THREE.Vector3, look: THREE.Vector3, fovDeg: number): void {
+    if (!this.direct) {
+      // The play camera sits far back (near plane 8 m, for depth precision); a cinematic comes close (a lever at arm's
+      // length), so it brings the near plane in while it holds the camera.
+      this.playNear = this.camera.near;
+      this.camera.near = DIRECT_NEAR;
+      this.camera.updateProjectionMatrix();
+    }
+    this.direct = true;
+    this.directPos.copy(position);
+    this.directLook.copy(look);
+    this.directFov = fovDeg;
+  }
+
+  release(): void {
+    if (!this.direct) return;
+    this.direct = false;
+    this.camera.near = this.playNear;
+    this.camera.fov = this.fov;
+    this.camera.updateProjectionMatrix();
+  }
+
+  get placed(): boolean {
+    return this.direct;
+  }
+
   update(dt: number, followX: number, followZ: number): void {
+    if (this.direct) {
+      this.updateDirect(dt);
+      return;
+    }
     const cfg = VISUALS.camera;
     if (cfg.roomView) this.updateRoomView(dt);
     // Slow, even easing so framing changes read as a glide, never a jolt.
@@ -289,6 +332,27 @@ export class CameraRig {
     const fz = this.focus.z + this.right.y * sr;
     cam.position.set(fx - this.forward.x * back, Math.sin(this.pitch) * distance + su, fz - this.forward.y * back);
     cam.lookAt(fx, 0, fz);
+  }
+
+  private updateDirect(dt: number): void {
+    let sr = 0;
+    let su = 0;
+    if (this.shakeTime > 0) {
+      this.shakeTime -= dt;
+      const k = this.shakeStrength * Math.min(1, this.shakeTime * 3);
+      sr = (Math.random() - 0.5) * k;
+      su = (Math.random() - 0.5) * k;
+      if (this.shakeTime <= 0) this.shakeStrength = 0;
+    }
+    const cam = this.camera;
+    cam.position.set(this.directPos.x + sr, this.directPos.y + su, this.directPos.z);
+    cam.lookAt(this.directLook.x + sr, this.directLook.y + su, this.directLook.z);
+    if (cam.fov !== this.directFov) {
+      cam.fov = this.directFov;
+      cam.updateProjectionMatrix();
+    }
+    // The follow's focus rides along under the camera (the scenery and the lighting read it).
+    this.focus.set(this.directLook.x, 0, this.directLook.z);
   }
 
   /** 0 in the corridor, 1 in a room: eases the follow's smoothing between the two (the MPH build). */

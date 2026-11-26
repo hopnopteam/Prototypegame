@@ -343,6 +343,8 @@ function reference(attributes: string[], from: THREE.BufferGeometry | null, inde
 }
 
 export class CharacterBatch {
+  /** The Grand Departure: nobody is drawn while the old train rolls into its shed and the new one runs for the tunnel. */
+  hideEveryone = false;
   /** Add to the scene once: it holds the batched meshes. */
   readonly group = new THREE.Group();
   private readonly lit: Batch;
@@ -462,7 +464,7 @@ export class CharacterBatch {
         this.sphere.radius = CULL_RADIUS * root.scale.x;
         inView = this.frustum.intersectsSphere(this.sphere);
       }
-      this.visit(root, inView && root.visible && visibleChain(parent), frame, true, this.highlighted.has(root));
+      this.visit(root, inView && !this.hideEveryone && root.visible && visibleChain(parent), frame, true, this.highlighted.has(root));
       if (blended) this.poses.restore(root);
     }
     // Parts not seen this frame left their character (a blanket swapped, a prop dropped, a character taken

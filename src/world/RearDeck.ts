@@ -11,12 +11,17 @@ import { ACTIVE_ROUTE } from '../config/routes';
 /** Deck boards' thickness. */
 const PLANK_DEPTH = 0.05;
 
-/** The deck's half width: the carriage's own body (it used to be a narrow 2.8 m platform that read as a separate thing). */
-const DECK_HALF = HALF_WIDTH - 0.04;
 /** The railing's line, inside the deck's edge. */
 /** The finished train's end balcony: shorter and a little narrower than the coupling platform. */
 const END_DECK_HALF = HALF_WIDTH - 0.45;
 const END_DECK_LENGTH = 1.45;
+/**
+ * The coupling platform while carriages are still to come (owner, after De-Slop B: "far too big, does not look like how
+ * and where the train would connect"): an end platform the width of the gangway (the walkable deck is 2.6 m across) on
+ * the carriage's own frame, no bogie of its own, buffers and a screw coupling hooked to the waiting carriage and the
+ * gangway's bellows reaching across the gap to it (cut down to the sill height of every wall facing the camera).
+ */
+const COUPLE_HALF = 1.45;
 /** The soft shadow under the deck: layers stacked from wide and faint to the deck's own size, just over the ballast. */
 const SHADOW_LAYERS = 4;
 const SHADOW_SPREAD = 0.4;
@@ -34,7 +39,7 @@ const SHADOW = new THREE.MeshBasicMaterial({ color: '#0E0B12', transparent: true
 export function buildRearDeck(end = true, gap = 0.6): THREE.Group {
   // Owner: "the end train patio is way too huge": the finished train's end is a short balcony off the last carriage's
   // gangway, a little narrower than the body; the coupling platform keeps its size (it is walked on to buy a carriage).
-  const half = end ? END_DECK_HALF : DECK_HALF;
+  const half = end ? END_DECK_HALF : COUPLE_HALF;
   const len = end ? END_DECK_LENGTH : REAR_DECK_LENGTH;
   const railX = half - 0.08;
   const b = new GeoBuilder();
@@ -58,11 +63,15 @@ export function buildRearDeck(end = true, gap = 0.6): THREE.Group {
   // under the floor in shadow, buffers and a coupling hook at the back.
   under.box(0, 0.3, zc, w - 0.7, 0.16, len - 0.3, PALETTE.undercarriage, 0, { shade: 0.8 });
   for (const x of [-1, 1]) under.box(x * (half - 0.32), 0.33, zc, 0.12, 0.12, len - 0.1, PALETTE.undercarriage, 0, { shade: 0.75 });
-  const bogie = Math.min(1.7, len - 0.1);
-  under.box(0, 0.2, zc, 2.4, 0.16, bogie, PALETTE.wheel, 0, { shade: 0.85 });
-  for (const x of [-1.28, 1.28]) for (const dz of [-1, 1]) under.cylinder(x, 0.24, zc + dz * (bogie / 2 - 0.3), 0.24, 0.24, 0.12, PALETTE.wheel, 14, 'x', { shade: 0.9 });
-  for (const x of [-1.28, 1.28]) under.box(x, 0.24, zc, 0.08, 0.06, bogie - 0.6, PALETTE.chrome, 0, { shade: 0.9, surface: 'iron' });
-  for (const x of [-1.3, 1.3]) {
+  // The finished train's balcony stands on its own bogie; the coupling platform is carried on the carriage's frame.
+  if (end) {
+    const bogie = Math.min(1.7, len - 0.1);
+    under.box(0, 0.2, zc, 2.4, 0.16, bogie, PALETTE.wheel, 0, { shade: 0.85 });
+    for (const x of [-1.28, 1.28]) for (const dz of [-1, 1]) under.cylinder(x, 0.24, zc + dz * (bogie / 2 - 0.3), 0.24, 0.24, 0.12, PALETTE.wheel, 14, 'x', { shade: 0.9 });
+    for (const x of [-1.28, 1.28]) under.box(x, 0.24, zc, 0.08, 0.06, bogie - 0.6, PALETTE.chrome, 0, { shade: 0.9, surface: 'iron' });
+  }
+  const bufferX = end ? 1.3 : 0.92;
+  for (const x of [-bufferX, bufferX]) {
     under.cylinder(x, 0.36, z1 + 0.06, 0.09, 0.09, 0.12, PALETTE.chrome, 12, 'z', { shade: 1, surface: 'iron' });
     under.cylinder(x, 0.36, z1 + 0.135, 0.13, 0.13, 0.03, PALETTE.chrome, 14, 'z', { shade: 1, surface: 'iron' });
   }
@@ -88,14 +97,24 @@ export function buildRearDeck(end = true, gap = 0.6): THREE.Group {
     for (const z of [z1 - 0.06]) b.cylinder(x, y + 0.34, z, 0.035, 0.035, 0.66, PALETTE.brass, 8, 'y', { shade: 1, surface: 'brass' });
   }
   if (!end) {
-    // Session 64: the coupling platform. Its back stays open to the carriage waiting behind (no rail across it, no
-    // tail sign or tail lamps: this is not the end of the train yet), and a coupling chain hangs across the gap to it.
-    for (let i = 0, n = 7; i < n; i++) {
+    // The screw coupling: the hook on the buffer beam, a turnbuckle across the gap and its link over the waiting
+    // carriage's hook, sagging a little.
+    const span = gap - 0.17;
+    for (let i = 0, n = 5; i < n; i++) {
       const t = (i + 0.5) / n;
-      const z = z1 + 0.17 + t * (gap - 0.17);
-      const sag = 0.06 * Math.sin(t * Math.PI);
-      under.add(new THREE.TorusGeometry(0.035, 0.012, 6, 10), PALETTE.wheel, 0, 0.34 - sag, z, 0, i % 2 ? Math.PI / 2 : 0, 0, { shade: 0.9, surface: 'iron' });
+      const z = z1 + 0.17 + t * span;
+      const sag = 0.03 * Math.sin(t * Math.PI);
+      if (i === 2) under.cylinder(0, 0.34 - sag, z, 0.03, 0.03, span / n + 0.02, PALETTE.chrome, 10, 'z', { shade: 1, surface: 'iron' });
+      else under.add(new THREE.TorusGeometry(0.035, 0.012, 6, 10), PALETTE.wheel, 0, 0.34 - sag, z, 0, i % 2 ? Math.PI / 2 : 0, 0, { shade: 0.9, surface: 'iron' });
     }
+    // The gangway's bellows across the gap to the next carriage: dark ribbed rubber, cut down like the end walls.
+    const bellowsW = 1.7;
+    const bellowsH = 0.5;
+    for (let k = 0, n = 6; k < n; k++) {
+      const z = z1 + 0.02 + (k / (n - 1)) * (gap - 0.04);
+      b.box(0, y + bellowsH / 2, z, bellowsW + (k % 2) * 0.06, bellowsH, 0.035, '#2B2724', 0, { shade: 0.85 });
+    }
+    for (const side of [-1, 1]) b.box(side * (bellowsW / 2 + 0.02), y + bellowsH / 2, z1 + gap / 2, 0.04, bellowsH, gap, '#34302C', 0, { shade: 0.8 });
     return finish(b, under, liv, y, z1, zc, w, false, half, len);
   }
   b.box(0, y + 0.62, z1 - 0.06, railX * 2, 0.05, 0.05, PALETTE.brass, 0, { shade: 1, surface: 'brass' });

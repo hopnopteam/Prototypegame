@@ -253,6 +253,13 @@ export class Scenery {
       if (board.position.z > SPAN_MAX) board.position.z -= span;
       board.visible = !this.isHidden(board.position.x, board.position.z) && !this.isHidden(board.position.x, board.position.z - 1.5);
     }
+    const tease = this.tease;
+    if (tease) {
+      this.teaseZ += dz;
+      if (this.teaseZ > SPAN_MAX) this.teaseZ -= span * this.teaseLaps;
+      tease.position.z = this.teaseZ;
+      tease.visible = this.teaseZ > SPAN_MIN && !this.isHidden(4, this.teaseZ) && !this.isHidden(4, this.teaseZ - 6) && !this.isHidden(4, this.teaseZ + 6);
+    }
     // Lighthouse beams sweep round; windmill sails turn.
     this.time += dt;
     for (const chunk of this.chunks) {
@@ -299,6 +306,7 @@ export class Scenery {
     this.scrollRoot.position.z -= back;
     this.sleepers.position.z -= back;
     for (const board of this.billboards) board.position.z -= back;
+    if (this.tease) this.tease.position.z -= back;
   }
 
   uninterpolate(): void {
@@ -308,11 +316,37 @@ export class Scenery {
     this.scrollRoot.position.z += back;
     this.sleepers.position.z += back;
     for (const board of this.billboards) board.position.z += back;
+    if (this.tease) this.tease.position.z += back;
   }
 
   /** No more rock cuttings (they hid the train): the moon always shines. Kept for the lighting hook. */
   darknessAt(_z: number): number {
     return 0;
+  }
+
+  /**
+   * The Grand Departure's tease: a set piece (the next line's tunnel portal) that scrolls past with the countryside, once
+   * every `laps` laps of the scenery's span (a surprise, not a fixture). Null takes it away. Visual only: no game
+   * randomness, nothing walkable.
+   */
+  private tease: THREE.Group | null = null;
+  private teaseZ = 0;
+  private teaseLaps = 3;
+  setTease(group: THREE.Group | null, laps = 3): void {
+    if (this.tease === group) return;
+    if (this.tease) this.group.remove(this.tease);
+    this.tease = group;
+    this.teaseLaps = Math.max(1, laps);
+    if (!group) return;
+    // First seen a little after it is put up: it comes round from ahead of the train.
+    this.teaseZ = SPAN_MIN - 20;
+    group.position.z = this.teaseZ;
+    group.visible = false;
+    this.group.add(group);
+  }
+
+  get teaseShown(): THREE.Group | null {
+    return this.tease;
   }
 
   /** Shows `count` billboards with this poster (null removes them), on the land side. */

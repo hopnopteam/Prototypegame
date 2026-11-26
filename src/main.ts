@@ -26,6 +26,8 @@ const AUDIO_WAIT_MS = 4000;
  * lockstep (`Game.lockstep`): it moves only when the simulator calls `simulate`, so a seed replays the same game.
  */
 const SIM_DRIVEN = new URLSearchParams(location.search).get('sim') === '1';
+/** `?capture=1`: a frame-by-frame recording (scripts/transition-walkthrough.mjs) steps the game itself from the first frame. */
+const CAPTURE = new URLSearchParams(location.search).get('capture') === '1';
 
 /**
  * Boots the game behind the loading screen (session 26, owner: "right as the game starts it glitches quite a lot in
@@ -113,9 +115,13 @@ async function boot(): Promise<void> {
   // No title screen and no story intro (session 32, owner: "loading and then gameplay"): everyone starts playing the
   // moment the loading screen goes. `Game.playIntro` stays for a future trailer but is not called.
   game.paused = SIM_DRIVEN;
-  game.lockstep = SIM_DRIVEN;
+  game.lockstep = SIM_DRIVEN || CAPTURE;
   ui.screens.holdForTitle(false);
-  if (tunnel) ui.tunnelOut(ACTIVE_ROUTE.name, (seconds) => game.analytics.log('route_transition_skipped', { route: ACTIVE_ROUTE.id, seconds: Math.round(seconds * 10) / 10 }));
+  // The Grand Departure: an arrival the save says is waiting (or a Debug preview) plays out of the tunnel's dark;
+  // otherwise the old tunnel exit, and `?transition=…` starts a preview.
+  const arriving = !SIM_DRIVEN && game.routeLine.arriveOnBoot();
+  if (!arriving && tunnel) ui.tunnelOut(ACTIVE_ROUTE.name, (seconds) => game.analytics.log('route_transition_skipped', { route: ACTIVE_ROUTE.id, seconds: Math.round(seconds * 10) / 10 }));
+  if (!arriving && !SIM_DRIVEN) game.routeLine.startFromParam();
   game.booted = true;
 }
 

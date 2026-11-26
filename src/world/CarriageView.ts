@@ -174,7 +174,7 @@ const PICTURE_Y = INTERIOR_WALL_HEIGHT - 0.14;
 /** De-Slop B4: the skirting board's height, and the run-down tier's grimy board. */
 const SKIRT_H = 0.07;
 const SKIRT_WORN_H = 0.12;
-const SKIRT_WORN = '#54483D';
+const SKIRT_WORN = '#43392F';
 const RADIO_SHELF_Y = INTERIOR_WALL_HEIGHT - 0.32;
 
 /** How a carriage looks at a refurbishment tier: the whole rags-to-riches story in one table. */
@@ -423,6 +423,11 @@ const CRACK_PROUD = 0.012;
 /** De-Slop B6: the cracked pane's rays (angle, length in metres, the turn at its kink). */
 const CRACK_RAYS: readonly [number, number, number][] = [[0.3, 0.26, 0.22], [1.25, 0.2, -0.3], [2.2, 0.24, 0.25], [3.3, 0.18, -0.2], [4.3, 0.25, 0.3], [5.4, 0.16, -0.25]];
 const PEEL_DEPTH = 0.006;
+/** The Broken tier's grime: water streaks stand this far proud of the wall; the dirt band along the wall's foot. */
+const STREAK_DEPTH = 0.004;
+const GRIME_DEPTH = 0.36;
+const GRIME_THICK = 0.004;
+const GRIME_LIFT = 0.008;
 
 export class CarriageView {
   readonly group = new THREE.Group();
@@ -508,7 +513,7 @@ export class CarriageView {
     this.theme = cls && cls.id !== 'basic' && layout.type !== 'familySleeper' ? CLASS_THEMES[cls.id] : CARRIAGE_THEMES[layout.type];
     this.finish = finishFor(layout.type, tier, this.theme);
     // De-Slop B4: the kicked-down duvet is the made bed's own blanket (the bed model's cover is the class's deep colour).
-    this.blanketColor = tier <= 0 ? '#8A5A4A' : tier >= 4 ? this.theme.blanket : this.theme.deep;
+    this.blanketColor = tier <= 0 ? '#6C6152' : tier >= 4 ? this.theme.blanket : this.theme.deep;
     this.liveryBody = cls ? litMaterial(`livery:${cls.id}`, { vertexColors: true, color: cls.livery.body }, { surface: SURFACES.paint, light: true }) : MATERIALS.livery;
     this.liveryTrim = cls ? litMaterial(`trim:${cls.id}`, { vertexColors: true, color: cls.livery.trim }, { surface: tier >= 4 ? SURFACES.brass : SURFACES.paint, light: true }) : MATERIALS.liveryTrim;
     if (sliced) return;
@@ -1762,6 +1767,53 @@ export class CarriageView {
       f.add(new THREE.CircleGeometry(0.03, 10).rotateY(win.inward > 0 ? Math.PI / 2 : -Math.PI / 2), '#EEF4F7', px, cy, cz, 0, 0, 0, { shade: 1 });
       f.endObject();
     });
+    // Owner (after De-Slop B: "the Broken look is still far too clean… genuinely super bad and dusty… not glitched"):
+    // rust-brown water streaks run down from every window sill; along the foot of the wall between the windows lies a
+    // band of ground-in dirt with rubble on it (plaster crumbs, brick bits, a splinter of board, glass under a cracked
+    // pane). All of it on the wall's face or the floor's edge strip, where the holes and the furniture never are.
+    windows.forEach((win, i) => {
+      if (blocked(win.x, win.inward, win.z0, win.z1)) return;
+      f.object('decor:waterStreaks');
+      for (let k = 0; k < 3; k++) {
+        const z = win.z0 + ((k + 1) / 4) * (win.z1 - win.z0) + (((i * 7 + k * 5) % 3) - 1) * 0.04;
+        const len = 0.18 + ((i * 7 + k * 3 + this.index) % 5) * 0.07;
+        const yTop = bottom - 0.015;
+        if (yTop - len < FLOOR_Y + SKIRT_WORN_H + 0.04) continue;
+        f.add(new THREE.BoxGeometry(STREAK_DEPTH, len, 0.03 + (k % 2) * 0.015), k === 1 ? '#6E5A40' : '#857158', win.x + win.inward * STREAK_DEPTH / 2, yTop - len / 2, z, 0, 0, 0, { shade: 0.9 });
+      }
+      f.endObject();
+    });
+    const gaps: { x: number; inward: number; z0: number; z1: number; i: number }[] = [];
+    windows.forEach((win, i) => {
+      const next = windows[i + 1];
+      const z0 = win.z1 + 0.15;
+      const z1 = (next ? next.z0 : L - 0.6) - 0.15;
+      if (z1 - z0 > 0.45 && !blocked(win.x, win.inward, z0, z1)) gaps.push({ x: win.x, inward: win.inward, z0, z1, i });
+    });
+    for (const gap of gaps) {
+      const { x, inward, z0, z1, i } = gap;
+      const zc = (z0 + z1) / 2;
+      const span = z1 - z0;
+      // Ground-in dirt along the wall's foot (just over the boards, so it never shares their plane).
+      f.object('decor:grime');
+      f.add(new THREE.BoxGeometry(GRIME_DEPTH, GRIME_THICK, span), '#463C31', x + inward * (0.06 + GRIME_DEPTH / 2), FLOOR_Y + GRIME_LIFT, zc, 0, 0, 0, { shade: 0.8 });
+      f.add(new THREE.BoxGeometry(GRIME_DEPTH * 0.55, GRIME_THICK, span * 0.6), '#3A3129', x + inward * (0.06 + GRIME_DEPTH * 0.3), FLOOR_Y + GRIME_LIFT + 0.002, zc + span * 0.12, 0, 0, 0, { shade: 0.8 });
+      f.endObject();
+      // Rubble on it.
+      f.object('decor:rubble');
+      const n = 5 + ((i + this.index) % 3);
+      for (let k = 0; k < n; k++) {
+        const u = (k + 0.5) / n;
+        const sz = 0.035 + ((k * 13 + i * 7) % 5) * 0.012;
+        const px = x + inward * (0.12 + ((k * 11 + i) % 4) * 0.045);
+        const pz = z0 + span * (0.15 + u * 0.7) + (((k * 5 + i) % 3) - 1) * 0.05;
+        const colour = k % 4 === 0 ? '#9A5A44' : k % 4 === 1 ? '#8A7860' : '#CFC6B4';
+        f.add(new THREE.BoxGeometry(sz, sz * 0.6, sz * 1.2), colour, px, FLOOR_Y + GRIME_LIFT + GRIME_THICK + sz * 0.3, pz, 0, ((k * 37 + i * 11) % 7) * 0.4, 0, { shade: 0.9 });
+      }
+      // A splinter of board, lying along the wall.
+      f.add(new THREE.BoxGeometry(0.05, 0.018, 0.42), '#6E6252', x + inward * 0.3, FLOOR_Y + GRIME_LIFT + GRIME_THICK + 0.009, zc - span * 0.25, 0, 0.35, 0, { shade: 0.85, detail: 'woodWorn' });
+      f.endObject();
+    }
     // Peeling paint between the windows, low on the wall where the camera sees it.
     windows.forEach((win, i) => {
       const next = windows[i + 1];
@@ -2687,13 +2739,14 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
         for (const px of [r.x0 + 0.04, r.x1 - 0.04]) for (const pz of [r.z0 + 0.04, r.z1 - 0.04]) b.box(px, y + 0.14, pz, 0.04, 0.28, 0.04, PALETTE.iron, 0, FLAT);
         b.slab(r, y + 0.26, y + 0.3, PALETTE.iron, 0, 0, FLAT);
         // Session 51: a stained, sagging ticking mattress and a yellowed pillow (it was clean and white).
-        b.slab(r, y + 0.3, y + BED_TOP - 0.02, '#BFB49C', 0, 0.04, { shade: 0.92, detail: 'wool' });
+        b.slab(r, y + 0.3, y + BED_TOP - 0.02, '#A89A7E', 0, 0.04, { shade: 0.92, detail: 'wool' });
         b.cylinder(cx + w * 0.18, y + BED_TOP - 0.018, r.z0 + d * 0.4, Math.min(0.14, w * 0.22), Math.min(0.14, w * 0.22), 0.003, '#9C8B6E', 12, 'y', { shade: 1 });
-        b.rounded(cx, y + BED_TOP + 0.02, r.z0 + 0.25, w - 0.3, 0.06, 0.26, 0.05, '#D3C8B0', { shade: 0.9 });
+        b.rounded(cx, y + BED_TOP + 0.02, r.z0 + 0.25, w - 0.3, 0.06, 0.26, 0.05, '#C4B48C', { shade: 0.9 });
         // Session 66 (de-slop T09: "a flat pale-grey mattress… no blanket, pillow shape or fabric folds"): a faded russet
         // wool blanket with soft edges and a turned-down fold at the head end (it was a grey box on a grey mattress).
-        b.rounded(cx, y + BED_TOP, r.z0 + d * 0.64, w - 0.06, 0.05, d * 0.64, 0.022, '#8A5A4A', { shade: 0.95, surface: 'fabric', detail: 'wool' });
-        b.rounded(cx, y + BED_TOP + 0.03, r.z0 + d * 0.34, w - 0.08, 0.028, 0.09, 0.012, '#A9776A', { shade: 0.95, surface: 'fabric', detail: 'wool' });
+        // Owner (after De-Slop B: "far too clean"): a moth-eaten, grimy army-surplus blanket, its fold a touch paler.
+        b.rounded(cx, y + BED_TOP, r.z0 + d * 0.64, w - 0.06, 0.05, d * 0.64, 0.022, '#6C6152', { shade: 0.95, surface: 'fabric', detail: 'wool' });
+        b.rounded(cx, y + BED_TOP + 0.03, r.z0 + d * 0.34, w - 0.08, 0.028, 0.09, 0.012, '#827563', { shade: 0.95, surface: 'fabric', detail: 'wool' });
         b.box(cx, y + 0.5, r.z0 + 0.02, w, 0.04, 0.04, PALETTE.iron, 0, FLAT);
         for (const px of [r.x0 + 0.04, r.x1 - 0.04]) b.box(px, y + 0.38, r.z0 + 0.02, 0.04, 0.3, 0.04, PALETTE.iron, 0, FLAT);
         break;
@@ -3285,6 +3338,10 @@ export function tarpProfile(): { x: number; y: number }[] {
  * windows and flaps down over both ends. `deformTarp` billows it, snaps the ropes and slides it off for the reveal.
  * Each vertex keeps its rest position and where it lies on the sheet, so the animation is one pass over them.
  */
+/** How far over the roof the gathered canvas rides (m), and how far toward the lake it is pulled off. */
+const TARP_CLEAR = 0.22;
+const TARP_PULL = 9;
+
 export function buildCarriageRoof(): THREE.Mesh {
   const profile = tarpProfile();
   // Resample the profile evenly, so the sheet's folds are even across it.
@@ -3391,24 +3448,38 @@ export function deformTarp(mesh: THREE.Mesh, progress: number, ropesGone: number
   const pos = mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
   const out = pos.array as Float32Array;
   const p = Math.min(1, Math.max(0, progress));
-  const billow = Math.min(1, p / 0.3) * (1 - Math.max(0, (p - 0.75) / 0.25));
-  const slide = Math.max(0, (p - 0.32) / 0.68);
-  const ease = slide * slide;
-  const ye = FLOOR_Y + EXTERIOR_WALL_HEIGHT;
+  const smooth = (u: number): number => { const c = Math.min(1, Math.max(0, u)); return c * c * (3 - 2 * c); };
+  // Owner (after De-Slop B: "the cover release… glitchy and clips… cleaner"): it never passes through the carriage.
+  // It billows while the ropes snap, then its hems gather up onto the roof (nothing of it left below the roof line),
+  // then the whole sheet slides off toward the lake, lifting at its middle, and only what is already past the
+  // carriage's side drapes down; last it drops to the verge outside, and is taken away.
+  const billow = Math.min(1, p / 0.3) * (1 - smooth((p - 0.3) / 0.15));
+  const gather = smooth((p - 0.3) / 0.22);
+  const slide = smooth((p - 0.5) / 0.42);
+  const drop = smooth((p - 0.9) / 0.1);
+  const roofTop = FLOOR_Y + EXTERIOR_WALL_HEIGHT + TARP_CLEAR;
   for (let v = 0; v < tarp.clothVerts; v++) {
     const u = tarp.params[v * 2];
     const along = tarp.params[v * 2 + 1];
-    const rx = tarp.rest[v * 3];
-    const ry = tarp.rest[v * 3 + 1];
-    const rz = tarp.rest[v * 3 + 2];
-    // Waves run along the sheet and lift its middle most; the side being pulled leads the slide.
+    let x = tarp.rest[v * 3];
+    let y = tarp.rest[v * 3 + 1];
+    let z = tarp.rest[v * 3 + 2];
     const wave = Math.sin(along * 14 - p * 22) * 0.5 + 0.5;
     const middle = Math.sin(u * Math.PI);
-    const lift = billow * (0.1 + 0.22 * wave) * middle;
-    const lead = 1 + (1 - u) * 0.35;
-    out[v * 3] = rx - ease * (5.5 * lead) - slide * 0.4 * Math.sin(along * Math.PI);
-    out[v * 3 + 1] = ry + lift + Math.sin(slide * Math.PI) * 0.9 * middle - ease * Math.max(0, ry - ye + 2.2) * 0.9;
-    out[v * 3 + 2] = rz + slide * 0.25 * Math.sin(u * Math.PI * 2 + along * 3);
+    y += billow * (0.1 + 0.22 * wave) * middle;
+    // Gathered: the hanging sides and end flaps drawn up to the roof, the sheet pulled in a little.
+    y += Math.max(0, roofTop - y) * gather;
+    x *= 1 - 0.14 * gather;
+    z = z + (CARRIAGE_LENGTH / 2 - z) * 0.03 * gather;
+    // Pulled off toward the lake, the side being pulled leading.
+    x -= slide * slide * TARP_PULL * (1 + (1 - u) * 0.25);
+    y += Math.sin(slide * Math.PI) * 0.45 * middle;
+    const past = Math.max(0, -HALF_WIDTH - 0.2 - x);
+    y -= past * 0.7 * slide + drop * 2.2;
+    z += slide * 0.2 * Math.sin(u * Math.PI * 2 + along * 3);
+    out[v * 3] = x;
+    out[v * 3 + 1] = y;
+    out[v * 3 + 2] = z;
   }
   // Ropes follow the sheet until they snap, then they are gone.
   for (let v = tarp.clothVerts; v < pos.count; v++) {
@@ -3423,8 +3494,6 @@ export function deformTarp(mesh: THREE.Mesh, progress: number, ropesGone: number
   }
   pos.needsUpdate = true;
   mesh.geometry.computeVertexNormals();
-  const fade = Math.max(0, (p - 0.8) / 0.2);
-  mesh.scale.setScalar(Math.max(0.001, 1 - fade * fade));
 }
 
 /** Where each rope tie crosses the carriage (local z), for the little puffs as they snap. */

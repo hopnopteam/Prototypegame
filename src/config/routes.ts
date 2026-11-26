@@ -1,6 +1,7 @@
 import type { CarriageType, ItemKind } from '../core/types';
 import type { ClassId } from './classes';
 import { ROUTE_PARAM, savedRouteId } from './saveKey';
+import { COUNTRYSIDE_TO_RIVIERA, RIVIERA_TO_WINTER, type LineTransitionDef } from './lineTransition';
 
 /**
  * Routes (Phase 1, owner: "a route config object… the train, unlocks and progression read from the active route").
@@ -127,6 +128,8 @@ export interface RouteDef {
   mess?: string[];
   /** Phase 4: the stamp's line along the top of every postcard ("COUNTRYSIDE LINE"). */
   postcardLine?: string;
+  /** The Grand Departure: how the player leaves this route for the next line (config/lineTransition.ts). */
+  transition?: LineTransitionDef;
   /**
    * Phase 4: the liveries the train earns on this route by level (in place of the countryside's grey → green → navy →
    * royal blue), and the engine at its head (Kenney's steam locomotive, or a shrouded streamliner in the livery).
@@ -353,6 +356,7 @@ export const COUNTRYSIDE_EXPRESS: RouteDef = {
   duskSeconds: 150,
   scenery: { wheat: true, stoneBridges: true },
   music: 'countryside_theme',
+  transition: COUNTRYSIDE_TO_RIVIERA,
   // Phase 3: Route 1's pacing, tuned with the pacing simulator (scripts/pacing.mjs) to the bot targets.
   economy: {
     priceMultiplier: 1,
@@ -471,6 +475,7 @@ export const RIVIERA_COAST: RouteDef = {
     boats: 'sails',
   },
   music: 'riviera_theme',
+  transition: RIVIERA_TO_WINTER,
   postcardLine: 'RIVIERA COAST LINE',
   dress: {
     lobby: { name: 'Beach Lobby & Cabanas', pitch: 'Desk, 4 cabanas', inside: 'A beach desk, welcome drinks, 4 cabanas, a surfboard rack',

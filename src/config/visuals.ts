@@ -169,7 +169,7 @@ export const VISUALS = {
       interior: { color: '#FFB978', intensity: 0.8 },
       lamp: { color: '#FFB066', intensity: 1.7, radius: 2.6 },
       /** Bare bulbs in a run-down carriage are colder and dimmer (session 51: dimmer still, 0.85 → 0.72); luxury is warmer and brighter. */
-      tierLamp: [0.72, 0.93, 1.0, 1.06, 1.14, 1.24],
+      tierLamp: [0.58, 0.93, 1.0, 1.06, 1.14, 1.24],
       spill: { color: '#FFB46E', intensity: 0.42, reach: 2.4 },
       /**
        * Fix list 5.4: a venue's own light from its first refit. The café bright and daytime (a fuller, creamier fill),

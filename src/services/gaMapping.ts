@@ -142,6 +142,17 @@ export function translate(event: string, p: AnalyticsParams = {}): GaCall[] {
       return [{ kind: 'design', id: `Route:Leave:${part(p.route)}:${num(p.unbought) === 0 ? 'Complete' : 'Partial'}`, value: num(p.unbought) }];
     case 'route_transition_skipped':
       return [{ kind: 'design', id: 'Route:TransitionSkipped', value: num(p.seconds) }];
+    // The Grand Departure: each beat with seconds since the sequence started, the lever's pull, skips, the end.
+    case 'transition_beat':
+      return [{ kind: 'design', id: `Transition:Beat:${part(p.beat)}`, value: num(p.seconds) }];
+    case 'transition_lever':
+      return [{ kind: 'design', id: `Transition:Lever:${Math.min(60, Math.round(num(p.seconds)))}`, value: num(p.seconds) }];
+    case 'transition_skipped':
+      return [{ kind: 'design', id: `Transition:Skipped:${part(p.beat)}`, value: num(p.seconds) }];
+    case 'transition_complete':
+      return [{ kind: 'design', id: 'Transition:Complete', value: num(p.seconds) }];
+    case 'postcard_opened':
+      return [{ kind: 'design', id: 'Postcard:Opened' }];
     case 'route_map_opened':
       return [{ kind: 'design', id: 'RouteMap:Opened' }];
     case 'kids_noise':

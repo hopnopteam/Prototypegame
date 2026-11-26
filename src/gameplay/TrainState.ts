@@ -96,6 +96,16 @@ export class Cabin {
     return this.dirty.some(Boolean);
   }
 
+  /**
+   * Nobody is staying in the room any more: empty, or its guest has got up to leave at their stop. A used room can be
+   * tidied from then on (owner: "as soon as the guest leaves we should be able to clean, not when the next customer
+   * asks for the room"); it is free for the next guest only once they are off the train (`isFree`).
+   */
+  get vacated(): boolean {
+    const g = this.guest;
+    return !g || g.state === 'alighting' || g.state === 'leaving' || g.state === 'gone';
+  }
+
   get isFree(): boolean {
     return this.unlocked && !this.guest && !this.isDirty;
   }
@@ -1552,7 +1562,7 @@ export class TrainState {
       // the broom badge over the bed (session 23: one visit, the session 22 bedding swap was too much to follow).
       icon: 'broom',
       area: (x, z) => inRoom(cabin.room, x, z),
-      active: () => cabin.unlocked && cabin.dirty[i] && !cabin.guest,
+      active: () => cabin.unlocked && cabin.dirty[i] && cabin.vacated,
       // Session 30 (owner: "the tidy sign sometimes disappears and is confusing, should hover always when needs
       // cleaning"): the broom shows over every room waiting to be tidied, whoever is near.
       stay: (zone, actor, dt) => this.cleanStay(cabin, i, zone, actor, dt),

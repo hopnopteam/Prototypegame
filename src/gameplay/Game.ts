@@ -77,6 +77,7 @@ import { Monetization } from './Monetization';
 import { Player } from './Player';
 import { Press } from './Press';
 import { RouteLine } from './RouteLine';
+import { LineTransition } from './LineTransition';
 import { Rush } from './Rush';
 import { HandWork } from './HandWork';
 import { Objectives } from './Objectives';
@@ -200,6 +201,8 @@ export class Game implements World {
   readonly press: Press;
   /** Phase 4: moving along the line (the route completed, the next one opened). */
   readonly routeLine: RouteLine;
+  /** The Grand Departure's director (the route-change sequence). */
+  readonly lineTransition: LineTransition;
   readonly rush: Rush;
   readonly handWork: HandWork;
   readonly objectives: Objectives;
@@ -412,6 +415,7 @@ export class Game implements World {
     this.meta = new Meta(this);
     this.press = new Press(this, ui);
     this.routeLine = new RouteLine(this);
+    this.lineTransition = new LineTransition(this);
     this.rush = new Rush(this);
     this.handWork = new HandWork(this);
     this.objectives = new Objectives(this);
@@ -809,6 +813,7 @@ export class Game implements World {
     this.monetization.update(dt);
     this.press.update(dt);
     this.routeLine.update(dt);
+    this.lineTransition.update(dt);
     this.rush.update(dt);
     this.objectives.update(dt);
     this.feedback.update(dt);
@@ -870,7 +875,7 @@ export class Game implements World {
   private present(realDt: number, draw = true, alpha = 1): void {
     // Session 66 (de-slop T02): world UI (pins, bubbles, chips, tile markers) steps out while a sheet is up, so nothing
     // of the game peeks out round a card at the same weight as it; the intro hides it too (a cinematic is running).
-    this.stage.rig.showWorldUi(!this.cinematic && !this.ui.sheetOpen);
+    this.stage.rig.showWorldUi(!this.cinematic && !this.ui.sheetOpen && !this.lineTransition.running);
     // Drawn in between steps: the countryside, the platform, the carriages (the characters in `characters.sync`).
     const blend = draw && alpha < 1;
     const blended: THREE.Object3D[] = [];
@@ -1405,6 +1410,11 @@ export class Game implements World {
    * Runs the simulation without rendering (pacing tests). Rewarded offers and modals are auto-dismissed by
    * the caller. Returns the simulated seconds actually run.
    */
+  /** Recording tools (the walkthrough capture): one frame of `dt` seconds, stepped and drawn, with the page in lockstep. */
+  captureFrame(dt: number): void {
+    this.frame(dt);
+  }
+
   simulate(seconds: number, dt = SIM_STEP): number {
     const steps = Math.round(seconds / dt);
     for (let i = 0; i < steps; i++) {

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Rng } from '../core/Rng';
 
-export type ParticleKind = 'dust' | 'sparkle' | 'confetti' | 'smoke' | 'steam' | 'star' | 'cash' | 'heart' | 'chimney' | 'mote' | 'sand';
+export type ParticleKind = 'dust' | 'sparkle' | 'confetti' | 'smoke' | 'steam' | 'star' | 'cash' | 'heart' | 'chimney' | 'mote' | 'sand' | 'firework' | 'spark';
 
 interface KindSpec {
   colors: string[];
@@ -34,6 +34,9 @@ const SPECS: Record<ParticleKind, KindSpec> = {
   // Session 66 (de-slop T16: "flat grey circles… read as a placeholder or dirt on the lens"): dust in the lamplight,
   // small, warm and faint.
   mote: { colors: ['#FFE7B8', '#F6D9A0', '#FFF1D2'], size: [0.022, 0.04], life: [3.0, 5.0], speed: [0.02, 0.07], up: [0.02, 0.08], gravity: -0.015, drag: 0.4, grow: 0, shape: 3, alpha: 0.32 },
+  // The Grand Departure: a firework's burst over the lake (colours from the route's farewell), and sparks off the wheels in the tunnel.
+  firework: { colors: ['#FFD27A', '#FF7A8A', '#8FE3FF', '#B9FF9E', '#FFFFFF'], size: [1.3, 2.2], life: [1.2, 1.9], speed: [7, 11], up: [-2, 5], gravity: 3.2, drag: 1.6, grow: -0.35, shape: 1, alpha: 1 },
+  spark: { colors: ['#FFC35C', '#FF8A3C', '#FFF0B8'], size: [0.08, 0.16], life: [0.25, 0.5], speed: [2, 5], up: [0.5, 2.5], gravity: 9, drag: 1.2, grow: -0.6, shape: 1, alpha: 1 },
   chimney: { colors: ['#D9D6CF', '#C9C6C0', '#E6E3DC'], size: [0.35, 0.55], life: [2.6, 3.6], speed: [0.04, 0.12], up: [0.45, 0.7], gravity: -0.04, drag: 0.4, grow: 1.8, shape: 3, alpha: 0.3, rides: true },
 };
 

@@ -151,7 +151,7 @@ export const FIGURE_RIM = { lift: 0.18, strength: 0.2, power: 3.2 };
 export const LOOK_DETAIL_SWAP = { wood: 'plank', woodWorn: 'plankWorn', woodPolished: 'plank', wool: 'fabric' } as const;
 /** Board tones in the new look: five per tier, a wider spread than the classic three (darker and lighter boards side by side). */
 export const LOOK_BOARD_TONES = {
-  old: ['#7E7464', '#8F8574', '#857A69', '#968B79', '#7A705F'],
+  old: ['#6C6456', '#5C554A', '#787062', '#545049', '#665E51'],
   repaired: ['#B88E5E', '#C9A274', '#A97F52', '#D1AE80', '#BF955F'],
 };
 

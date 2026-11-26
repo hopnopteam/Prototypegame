@@ -14,6 +14,10 @@ export interface NextLineInfo {
   conductor: { speed: number; capacity: number; fareBonus: number };
   gems: number;
   railMiles: number;
+  /** The Grand Departure: the golden ticket's title and button (the route's transition). */
+  ticket?: { title: string; button: string };
+  /** A Debug-sheet preview (nothing is carried over). */
+  preview?: boolean;
 }
 
 /** Everything the game needs from the UI layer: world feedback, presenters for mocks, and modals. */

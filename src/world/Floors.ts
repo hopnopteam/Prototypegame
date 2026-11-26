@@ -236,7 +236,16 @@ function boardField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () 
       const a = Math.max(r.z0, z) + (z > r.z0 ? seam / 2 : 0);
       const b = Math.min(r.z1, z + len) - (z + len < r.z1 ? seam / 2 : 0);
       z += len;
-      const board = tones[NEW_LOOK ? (s * 3 + k * 2 + (s * k) % 3) % tones.length : (s * 2 + k) % tones.length];
+      let board = tones[NEW_LOOK ? (s * 3 + k * 2 + (s * k) % 3) % tones.length : (s * 2 + k) % tones.length];
+      if (tier <= 0) {
+        // Owner (after De-Slop B: "far too clean and tidy… genuinely super bad and dusty"): run down, boards are
+        // water-stained and grimed, darkest along the walls where the dirt has been trodden in. A fixed pattern (the
+        // random sequence that places the holes is untouched).
+        const stain = (s * 5 + k * 11 + Math.round(r.x0 * 7) + Math.round(r.z0 * 3)) % 7;
+        if (stain === 0) board = shadeHex(board, -30);
+        else if (stain === 3) board = shadeHex(board, -16);
+        if (s === 0 || s === strips - 1) board = shadeHex(board, -14);
+      }
       // Session 51b (owner: "broken… cracks… not placed properly, but not glitched"): run down, now and then a board is
       // split along its length (a real gap down to the subfloor) or has worked loose (lifted and knocked a little
       // askew). A fixed pattern, so the random sequence that places the holes is untouched.
@@ -792,7 +801,7 @@ export function buildCobwebs(windows: readonly WindowCorner[], seed: number): TH
 }
 
 /** One window in this many has a web (session 51: every other one, the old carriage is properly neglected). */
-const WEB_EVERY = 2;
+const WEB_EVERY = 1;
 /** A web's legs (metres): small, a corner of a window, not a sheet. */
 const WEB_SIZE = 0.27;
 /** How far in front of the wall's face a web hangs, and how far inside the frame's corner it starts. */

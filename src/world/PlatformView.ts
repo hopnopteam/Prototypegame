@@ -158,6 +158,40 @@ export class PlatformView {
   private lampMesh: THREE.Mesh | null = null;
   private vendor: THREE.Group | null = null;
   private posters: THREE.Group | null = null;
+  /** The Grand Departure's tease: a "Coming soon" poster board by the station house. */
+  private comingSoon: THREE.Group | null = null;
+
+  /** Puts up (or, with null, takes down) the next line's "Coming soon" poster on the platform. */
+  setComingSoon(text: string | null): void {
+    if (this.comingSoon) {
+      this.group.remove(this.comingSoon);
+      this.comingSoon.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        m.geometry.dispose();
+        const mat = m.material as THREE.MeshBasicMaterial;
+        mat.map?.dispose();
+        mat.dispose();
+      });
+      this.comingSoon = null;
+    }
+    if (!text) return;
+    const g = new THREE.Group();
+    g.userData.object = 'platform:comingSoon';
+    const post = new THREE.MeshLambertMaterial({ color: '#2C3A4E' });
+    for (const dz of [-0.62, 0.62]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.7, 0.08), post);
+      leg.position.set(0, 0.85, dz);
+      g.add(leg);
+    }
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.0), new THREE.MeshBasicMaterial({ map: signTexture(text, '#1E5E7A', '#FFE7B0', 384, 256) }));
+    face.rotation.y = Math.PI / 2;
+    face.position.set(0.05, 1.3, 0);
+    g.add(face);
+    g.position.set(PLATFORM.sign.x - 1.6, 0, PLATFORM.sign.z + 1.2);
+    this.comingSoon = g;
+    this.group.add(g);
+  }
   private readonly posterMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
   private posterKey = '';
   private readonly band: CharacterView[] = [];

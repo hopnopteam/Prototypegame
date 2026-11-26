@@ -1165,3 +1165,73 @@ body.look-new .sheet h2, body.look-new .celebrate .card .name, body.look-new .ba
 .trainmap .emblem { width: 22px; height: 22px; }
 .trainmap .emblem .ico { width: 21px; height: 21px; }
 .trainmap .name { font-size: 10px; }
+
+/* ─── The Grand Departure (gameplay/LineTransition.ts, ui/TransitionUi.ts) ─────────────────────────────────── */
+.gd-cine .hud-top, .gd-cine .side, .gd-cine .trainmap, .gd-cine .objective, .gd-cine .offers, .gd-cine .guide, .gd-cine .wire,
+.gd-cine .toasts, .gd-cine .floats, .gd-cine .ticket, .gd-cine .rush, .gd-cine .tile-tag, .gd-cine .coach, .gd-cine .pointer,
+.gd-cine .gesture, .gd-cine .banner, .gd-cine .speech, .gd-cine .joystick, .gd-cine .rivalbar { visibility: hidden !important; }
+.gd { position: fixed; inset: 0; z-index: 180; pointer-events: none; }
+.gd-bar { position: absolute; left: 0; right: 0; height: 11vh; background: #000; transform: scaleY(0); transition: transform 700ms cubic-bezier(.3,.7,.2,1); }
+.gd-top { top: 0; transform-origin: top; }
+.gd-bottom { bottom: 0; transform-origin: bottom; }
+.gd.on .gd-bar { transform: scaleY(1); }
+.gd-caption { position: absolute; left: 16px; right: 16px; bottom: calc(11vh + 18px); text-align: center; font: 800 24px/1.15 var(--font);
+  color: #FFF4D8; text-shadow: 0 2px 0 #0008, 0 0 14px #0009; opacity: 0; transform: translateY(8px); transition: opacity 400ms ease, transform 400ms ease; }
+.gd-caption.shown { opacity: 1; transform: none; }
+.gd-skip { position: absolute; right: 14px; bottom: calc(11vh - 46px); pointer-events: auto; font: 700 15px var(--font); color: #F2E6C9;
+  background: #FFFFFF22; border: 1px solid #FFFFFF55; border-radius: 18px; padding: 7px 14px; opacity: 0; visibility: hidden; transition: opacity 300ms; }
+.gd-skip.shown { opacity: 1; visibility: visible; }
+.gd-corner { position: absolute; left: 10px; top: calc(11vh - 30px); font: 700 12px var(--font); color: #F2E6C9; background: #0007; padding: 4px 8px; border-radius: 8px; }
+.gd-lever { position: absolute; left: 0; right: 0; top: 11vh; bottom: 11vh; pointer-events: none; opacity: 0; transition: opacity 300ms; touch-action: none; }
+.gd-lever.shown { pointer-events: auto; opacity: 1; }
+.gd-lever-word { position: absolute; left: 0; right: 0; top: 18px; text-align: center; font: 800 20px var(--font); color: #FFF4D8; text-shadow: 0 2px 0 #0008; }
+.gd-hand { position: absolute; left: 58%; top: 34%; width: 54px; height: 54px; border-radius: 50%; background: radial-gradient(circle at 40% 40%, #FFFFFF, #E9DDC2);
+  box-shadow: 0 0 0 6px #FFFFFF44, 0 4px 10px #0006; opacity: 0; }
+.gd-hand::after { content: ''; position: absolute; left: 22px; top: 60px; width: 10px; height: 70px; border-radius: 5px; background: linear-gradient(#FFFFFFAA, #FFFFFF00); }
+.gd-hand.shown { animation: gdHand 1.4s ease-in-out infinite; }
+@keyframes gdHand { 0% { opacity: 0; transform: translateY(-10px) scale(1.1); } 15% { opacity: 1; transform: translateY(0) scale(1); } 70% { opacity: 1; transform: translateY(130px); } 100% { opacity: 0; transform: translateY(150px); } }
+.gd-dawn { position: absolute; inset: 0; opacity: 0; background: linear-gradient(180deg, #FFB98A 0%, #F2B78C55 35%, transparent 70%); mix-blend-mode: screen; }
+.gd-dark { position: absolute; inset: 0; background: #050404; opacity: 0; transition: opacity 380ms ease-in; overflow: hidden; --hole: 0%;
+  -webkit-mask-image: radial-gradient(circle at 50% 46%, transparent var(--hole), #000 calc(var(--hole) + 6%));
+  mask-image: radial-gradient(circle at 50% 46%, transparent var(--hole), #000 calc(var(--hole) + 6%)); }
+.gd-dark.on { opacity: 1; }
+.gd-dark .tunnel-lamps { opacity: 0; }
+.gd-dark.lamps .tunnel-lamps { opacity: 1; }
+.gd-flash { position: absolute; inset: 0; background: #FFF6DE; opacity: 0; }
+.gd-flash.go { animation: gdFlash 900ms ease-out both; }
+@keyframes gdFlash { 0% { opacity: 0.92; } 100% { opacity: 0; } }
+.gd-chest { position: absolute; left: 50%; top: 50%; width: min(320px, calc(100vw - 32px)); transform: translate(-50%, -50%); pointer-events: auto;
+  background: linear-gradient(#FFF7E2, #F3E2BA); border: 3px solid #1E2A3A; border-radius: 18px; padding: 18px 16px 14px; text-align: center;
+  box-shadow: 0 6px 0 #1E2A3A, 0 14px 30px #0007; animation: gdPop 420ms cubic-bezier(.3,1.6,.5,1) both; }
+.gd-chest.gone { opacity: 0; transform: translate(-50%, -46%) scale(0.96); transition: opacity 300ms, transform 300ms; }
+@keyframes gdPop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+.gd-chest-lid { width: 76px; height: 54px; margin: -46px auto 8px; border-radius: 12px 12px 6px 6px; background: linear-gradient(#C8873A, #8A5424);
+  border: 3px solid #1E2A3A; box-shadow: inset 0 -12px 0 #6A3E1A, 0 0 26px #FFD27A; }
+.gd-chest-title { font: 800 24px var(--font); color: #1E2A3A; }
+.gd-chest-gains { display: flex; justify-content: center; gap: 12px; margin: 10px 0; font: 800 18px var(--font); }
+.gd-chest-gains .gem { color: #2E7DB8; }
+.gd-chest-gains .miles { color: #3F6E53; }
+.gd-brought-title { font: 700 13px var(--font); color: #6B5A3A; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 6px; }
+.gd-brought { list-style: none; margin: 6px 0 12px; padding: 0; font: 600 14px/1.5 var(--font); color: #2A2A2E; }
+.gd-preview { font: 700 12px var(--font); color: #B8322B; margin-bottom: 8px; }
+.gd-postcard { position: fixed; left: 50%; bottom: 96px; z-index: 185; transform: translateX(-50%) rotate(-3deg); pointer-events: auto;
+  animation: gdSlide 700ms cubic-bezier(.2,1.3,.4,1) both; filter: drop-shadow(0 8px 14px #0006); text-align: center; }
+.gd-postcard canvas { display: block; }
+.gd-postcard-word { font: 800 14px var(--font); color: #FFF4D8; text-shadow: 0 2px 0 #0009; margin-top: 6px; }
+.gd-postcard.gone { opacity: 0; transform: translate(-50%, 40px) rotate(-3deg); transition: opacity 400ms, transform 400ms; }
+@keyframes gdSlide { 0% { opacity: 0; transform: translate(-50%, 160px) rotate(8deg); } 100% { opacity: 1; transform: translateX(-50%) rotate(-3deg); } }
+/* Step 3: the offer as a big golden ticket. */
+.sheet.golden-ticket { position: relative; background: linear-gradient(160deg, #FFE9A8 0%, #F6C95A 45%, #E9AE3A 100%); border-color: #7A4E12; }
+.sheet.golden-ticket::before { content: ''; position: absolute; left: -12px; right: -12px; top: 92px; height: 0; border-top: 3px dashed #7A4E1288; }
+.gt-stub { display: flex; justify-content: center; align-items: center; gap: 10px; font: 800 16px var(--font); color: #5A360A; margin: 2px 0 8px; }
+.gt-arrow { font-size: 22px; }
+/* Step 1: the route map's next line glows while the tease is up. */
+.rm-card.glow { box-shadow: 0 0 0 3px #FFD27A, 0 0 22px #FFC35C; animation: rmGlow 2.4s ease-in-out infinite; }
+@keyframes rmGlow { 50% { box-shadow: 0 0 0 3px #FFE7B0, 0 0 34px #FFC35C; } }
+.rm-need { font: 700 13px var(--font); color: #7A4E12; margin-top: 4px; }
+.line-cards { display: flex; flex: none; gap: 12px; overflow-x: auto; overflow-y: hidden; padding: 6px 4px 12px; min-height: 175px; }
+.line-card { flex: none; border: 0; padding: 0; margin: 0; background: none; transform: rotate(-2deg); height: auto; min-height: 0; line-height: 0; }
+.line-card canvas { width: 240px !important; height: auto !important; display: block; }
+.line-card.silhouette { width: 240px; height: 157px; line-height: 1.3; border-radius: 6px; background: repeating-linear-gradient(45deg, #2B2B33, #2B2B33 8px, #33333C 8px, #33333C 16px);
+  display: grid; place-items: center; color: #CFC6B4; font: 700 13px var(--font); padding: 12px; text-align: center; }
+.postcard-big.line canvas { width: 100%; height: auto; }
