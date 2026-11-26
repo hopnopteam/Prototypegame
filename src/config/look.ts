@@ -77,8 +77,10 @@ export const NEW_LOOK_NIGHT = {
   // 40% of the classic night's and the lamps at nearly 3× (so the scene was black between blown-out pools). It is a
   // moonlit night that reads again, still blue-violet, with warm lamps that add a glow rather than carry the scene.
   exposure: 1.08,
-  moon: { color: '#A9AEE0', intensity: 1.7 },
-  hemi: { sky: '#5A5486', ground: '#30243A', intensity: 1.3 },
+  // Session 66 (de-slop T12: "the whole palette drops to desaturated lilac… night reads as a colour filter"): the moon
+  // and the sky's fill a moonlit blue rather than violet, the ground's bounce a neutral dark, same strengths.
+  moon: { color: '#B2C0E4', intensity: 1.7 },
+  hemi: { sky: '#4C5E8E', ground: '#2A2B33', intensity: 1.3 },
   fill: 0.8,
   sky: { zenith: '#121A3E', horizon: '#45508E', ground: '#16132A' },
   environment: 0.5,

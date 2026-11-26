@@ -2655,7 +2655,10 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
         b.slab(r, y + 0.3, y + BED_TOP - 0.02, '#BFB49C', 0, 0.04, { shade: 0.92, detail: 'wool' });
         b.cylinder(cx + w * 0.18, y + BED_TOP - 0.018, r.z0 + d * 0.4, Math.min(0.14, w * 0.22), Math.min(0.14, w * 0.22), 0.003, '#9C8B6E', 12, 'y', { shade: 1 });
         b.rounded(cx, y + BED_TOP + 0.02, r.z0 + 0.25, w - 0.3, 0.06, 0.26, 0.05, '#D3C8B0', { shade: 0.9 });
-        b.box(cx, y + BED_TOP, r.z0 + d * 0.64, w - 0.06, 0.05, d * 0.64, PALETTE.greyWool, 0, { shade: 0.95 });
+        // Session 66 (de-slop T09: "a flat pale-grey mattress… no blanket, pillow shape or fabric folds"): a faded russet
+        // wool blanket with soft edges and a turned-down fold at the head end (it was a grey box on a grey mattress).
+        b.rounded(cx, y + BED_TOP, r.z0 + d * 0.64, w - 0.06, 0.05, d * 0.64, 0.022, '#8A5A4A', { shade: 0.95, surface: 'fabric', detail: 'wool' });
+        b.rounded(cx, y + BED_TOP + 0.03, r.z0 + d * 0.34, w - 0.08, 0.028, 0.09, 0.012, '#A9776A', { shade: 0.95, surface: 'fabric', detail: 'wool' });
         b.box(cx, y + 0.5, r.z0 + 0.02, w, 0.04, 0.04, PALETTE.iron, 0, FLAT);
         for (const px of [r.x0 + 0.04, r.x1 - 0.04]) b.box(px, y + 0.38, r.z0 + 0.02, 0.04, 0.3, 0.04, PALETTE.iron, 0, FLAT);
         break;
@@ -3188,10 +3191,13 @@ function buildCover(room: Rect): THREE.Group {
   shell.computeVertexNormals();
   const b = new GeoBuilder();
   b.object('cover');
-  b.add(shell, '#5E6B78', 0, 0, 0, 0, 0, 0, { pattern: PATTERN.stripesX, color2: '#56626E', scale: 0.12, shade: 0.92 });
-  // A cream band round the top's edge, standing proud of it.
-  b.box(0, 0.008, tz0 + 0.02 - cz, tx1 - tx0, 0.016, 0.04, '#EFE6D2', 0, FLAT);
-  b.box(0, 0.008, tz1 - 0.02 - cz, tx1 - tx0, 0.016, 0.04, '#EFE6D2', 0, FLAT);
+  // Session 66 (de-slop T17: "a flat grey slab… reads as an untextured box"): a canvas dust sheet in a warm oatmeal,
+  // woven, tied down by two ropes running over the top and down the sides (it was slate with two white stripes).
+  b.add(shell, '#BFA77F', 0, 0, 0, 0, 0, 0, { shade: 0.96, surface: 'fabric', detail: 'carpet' });
+  for (const f of [0.3, 0.7]) {
+    const rz = tz0 + (tz1 - tz0) * f - cz;
+    b.box(0, 0.012, rz, tx1 - tx0 + 0.02, 0.024, 0.035, '#7A5A3A', 0, { shade: 0.9, surface: 'fabric' });
+  }
   const group = new THREE.Group();
   group.position.set(cx, yt, cz);
   group.userData.room = true;
@@ -3206,6 +3212,8 @@ function buildCover(room: Rect): THREE.Group {
   body.object('cover:padlock');
   body.rounded(0, 0.13, 0, 0.1, 0.24, 0.28, 0.04, PALETTE.brass, { shade: 1, surface: 'brass' });
   body.box(0.052, 0.12, 0, 0.004, 0.06, 0.03, PALETTE.ink, 0, FLAT);
+  // Session 66: a bigger lock, readable at phone size.
+  lock.scale.setScalar(1.35);
   lock.add(new THREE.Mesh(body.build(), MATERIALS.solid));
   const shackle = new GeoBuilder();
   shackle.object('cover:shackle');

@@ -73,8 +73,10 @@ const PATCH_TONE = '#D0B489';
  * What shows through a hole and the open seams: a dark timber subfloor and lighter joists (session 17: was near
  * black, so a missing board read as a black square cut out of the picture rather than a hole with depth).
  */
-const SUBFLOOR = '#3B2F27';
-const JOIST = '#76604C';
+// Session 66 (de-slop T06: the holes "read as rendering bugs… black rectangles"): a mid timber under the boards and
+// pale joists across it, so a hole reads as a gap in the floor with wood below, never as a void.
+const SUBFLOOR = '#5C4636';
+const JOIST = '#9A7D5E';
 const TILE_OLD = ['#CFC8B9', '#CBC4B5', '#D2CBBD'];
 const TILE_REPAIRED = ['#ECE9E2', '#E9E6DE'];
 const TILE_NEW = '#F2F0EA';
@@ -385,7 +387,7 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
   }
   if (tier <= 1) {
     // Subfloor and joists: only ever seen through seams and holes.
-    f.box(0, FLOOR_Y - PLANK_T - JOIST_H - 0.02, L / 2, HALF_WIDTH * 2 - 0.04, 0.04, L - 0.04, SUBFLOOR, 0, { shade: 0.75 });
+    f.box(0, FLOOR_Y - PLANK_T - JOIST_H - 0.02, L / 2, HALF_WIDTH * 2 - 0.04, 0.04, L - 0.04, SUBFLOOR, 0, { shade: 0.9 });
     for (let z = 0.3; z < L - 0.1; z += JOIST_SPACING) f.box(0, FLOOR_Y - PLANK_T - JOIST_H / 2, z, HALF_WIDTH * 2 - 0.1, JOIST_H, 0.07, JOIST, 0, FLAT);
     for (const region of regions(layout)) {
       const top = FLOOR_Y + (region.room ? ROOM_LIFT : 0);

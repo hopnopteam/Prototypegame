@@ -848,6 +848,9 @@ export class Game implements World {
   }
 
   private present(realDt: number, draw = true, alpha = 1): void {
+    // Session 66 (de-slop T02): world UI (pins, bubbles, chips, tile markers) steps out while a sheet is up, so nothing
+    // of the game peeks out round a card at the same weight as it; the intro hides it too (a cinematic is running).
+    this.stage.rig.showWorldUi(!this.cinematic && !this.ui.sheetOpen);
     // Drawn in between steps: the countryside, the platform, the carriages (the characters in `characters.sync`).
     const blend = draw && alpha < 1;
     const blended: THREE.Object3D[] = [];

@@ -416,7 +416,7 @@ button:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
 @keyframes needPulse { 50% { transform: scale(1.06); } }
 
 /* ── Sheets (modals) ──────────────────────────────────── */
-.scrim { position: absolute; z-index: 50; inset: 0; background: #1F355180; pointer-events: auto; animation: fade 200ms ease-out; display: flex; align-items: flex-end; justify-content: center; padding: 0 12px calc(var(--safe-bottom) + 12px); }
+.scrim { position: absolute; z-index: 50; inset: 0; background: #1F35519E; pointer-events: auto; animation: fade 200ms ease-out; display: flex; align-items: flex-end; justify-content: center; padding: 0 12px calc(var(--safe-bottom) + 12px); }
 .scrim.center { align-items: center; }
 @keyframes fade { from { opacity: 0; } }
 .sheet {
@@ -1148,3 +1148,11 @@ body.look-new .trainmap .car { background: linear-gradient(#FFE58A, var(--nl-gol
 body.look-new .trainmap .car.here { box-shadow: 0 3px 0 #9A6A16, inset 0 0 0 2.5px #FFFFFF, inset 0 2px 0 rgba(255, 255, 255, 0.7); }
 body.look-new .trainmap { background: linear-gradient(rgba(29, 47, 82, 0.92), rgba(19, 31, 58, 0.95)); border-color: #0E1730; box-shadow: 0 4px 10px rgba(5, 8, 20, 0.45), inset 0 0 0 1.5px rgba(242, 193, 78, 0.35); }
 body.look-new .sheet h2, body.look-new .celebrate .card .name, body.look-new .banner { font-family: 'Fredoka', 'Jost', sans-serif; }
+
+/* ── Session 66, de-slop (ART_BIBLE §9 rule 8): sentence case, a quiet voice. Card titles, buttons, labels and floats
+   were all set in spaced capitals, which shouts; they now read in the words' own case with ordinary spacing. Only the
+   station banner (a sign) and the brand marks on the loading screen keep their capitals. */
+.sheet header h2, .btn, .tile-tag b, .celebrate .big, .celebrate .small, .ticket h3, .ticket .where, .float.info,
+.float.miss, .lvup-title, .lvup-sub, .loader-hint, .section-title, .gem-card small, .ticket.result .res-label {
+  text-transform: none; letter-spacing: 0.01em; text-indent: 0;
+}

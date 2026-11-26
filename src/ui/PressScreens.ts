@@ -36,10 +36,10 @@ export class PressScreens {
       if (e.key === 'Enter') done();
     });
     close = this.screens.sheet('Name your train', 'news', [
-      h('p.lead', { text: 'The Rail Gazette wants to write about you. What is she called?' }),
+      h('p.lead', { text: 'Every great train has a name. What will yours be called?' }),
       input,
       chips,
-      h('button.btn.primary', { 'data-default': '', onclick: done }, 'Paint it on'),
+      h('button.btn.primary', { 'data-default': '', onclick: done }, 'Name her'),
     ], { closable: false, center: true, className: 'naming' });
   }
 

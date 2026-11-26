@@ -78,9 +78,10 @@ def flagstone():
     speck = rng.random((SIZE, SIZE))
     v *= 0.93 + 0.1 * speck * (edge >= gap / 2)
     v *= 0.9 + 0.2 * smooth_noise(10, 3)
-    # wet patches (ref 1): dark, soft-edged puddles where the rain lies
+    # Session 66 (de-slop T04): the wet patches of ref 1 are gone; on a dry platform they read as stains. The noise is
+    # still drawn so the random sequence (and so every layer after this one) is unchanged.
     wet = smooth_noise(3, 2)
-    v *= 1 - 0.3 * np.clip((wet - 0.56) / 0.08, 0, 1)
+    v *= 1 - 0.0 * np.clip((wet - 0.56) / 0.08, 0, 1)
     return v
 
 

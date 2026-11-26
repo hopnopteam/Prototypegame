@@ -6,12 +6,18 @@ import { GeoBuilder } from './geo';
 import { GANGWAY_LENGTH, LOCOMOTIVE_LENGTH } from './layout';
 import { ADD_GLOW, glowTexture, MATERIALS } from './materials';
 import { PALETTE } from './palette';
-import { modelEntry } from './models/library';
+import { type Recolor, modelEntry } from './models/library';
 import { signTexture } from './sprites';
 import { REFLECT_LAYER } from './Water';
 import { ACTIVE_ROUTE } from '../config/routes';
 
 /** How far the headlight's beam dips toward the track (radians). */
+/**
+ * Session 66 (de-slop T11: "a saturated lavender/indigo box… screams stock kit"): the engine and tender's kit blue-violet
+ * repainted a deep railway green, so they belong with the warm carriages (red buffers and gold trim stay as modelled).
+ */
+const LOCO_PAINT: Recolor[] = [{ hue: [200, 300], sat: [0.15, 1], ref: '#5A64B4', to: '#2F4D3F' }];
+
 const HEADLIGHT_TILT = -0.09;
 
 /** A cone of light 10 m long along -z from its apex, fading toward the far end. */
@@ -119,11 +125,11 @@ export class LocomotiveView {
     const locoLength = (loco.max[2] - loco.min[2]) * s;
     const locoMid = front + locoLength / 2;
     b.object('locomotive');
-    b.model('locomotive', 0, 0, locoMid, LOCO_TURN, s, s, s, { surface: 'varnish', shade: 0.95 });
+    b.model('locomotive', 0, 0, locoMid, LOCO_TURN, s, s, s, { surface: 'varnish', shade: 0.95, recolor: LOCO_PAINT });
     const tender = modelEntry('tender');
     const tenderLength = back - (front + locoLength) - TENDER_GAP;
     const tz = tenderLength / (tender.max[2] - tender.min[2]);
-    b.model('tender', 0, 0, back - tenderLength / 2, 0, s * 0.95, s * 0.82, tz, { surface: 'varnish', shade: 0.95 });
+    b.model('tender', 0, 0, back - tenderLength / 2, 0, s * 0.95, s * 0.82, tz, { surface: 'varnish', shade: 0.95, recolor: LOCO_PAINT });
     b.endObject();
     // Where the parts stand on the model (fractions of its length from the front, of its height): chimney, lamp, cab.
     const chimneyZ = front + CHIMNEY_AT * locoLength;

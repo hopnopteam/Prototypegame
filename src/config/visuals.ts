@@ -247,7 +247,7 @@ export const VISUALS = {
     /** Session 51b: the station platform's stone flags (Poly Haven "patio tiles"), about 0.45 m a flag. */
     paving: { tile: 2.7, strength: 0.85 },
     /** Visual overhaul (art/textures/build_stylized.py): stylized flags with bevelled joints, a painted panel, soft carpet. */
-    flagstone: { tile: 2.7, strength: 1.0 },
+    flagstone: { tile: 1.8, strength: 1.0 },
     panel: { tile: 1.2, strength: 0.8 },
     carpet: { tile: 0.8, strength: 0.7 },
     /** Visual overhaul: drawn wood grain along the boards (new look), worn, and a plush runner. */

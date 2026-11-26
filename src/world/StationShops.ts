@@ -32,6 +32,12 @@ function panelPaint(to: string): Recolor[] {
 const ROOF_PAINT = (to: string): Recolor[] => [{ hue: [0, 360], sat: [0, 1], val: [0, 1], ref: '#B8774F', to }];
 
 /** Fits a model to a height (uniform scale), standing on y. */
+/**
+ * Session 66 (de-slop T21: a big saturated umbrella was the largest, brightest thing on screen at the start): the market
+ * umbrellas are a little smaller and in muted canvas colours (cream, sage, dusty rose), so the eye goes to the stand.
+ */
+const UMBRELLA_H = 1.6;
+
 function fit(b: GeoBuilder, id: ModelId, x: number, y: number, z: number, height: number, rotY = 0, recolor: Recolor[] = [], shade = 0.9): void {
   const e = modelEntry(id);
   const s = height / (e.max[1] - e.min[1]);
@@ -175,7 +181,7 @@ export function buildFruitBarrow(b: GeoBuilder, p: { x: number; z: number }): vo
   for (const dz of [-0.28, 0.28]) fit(b, 'fruit_stand', p.x, bed, p.z + dz, 0.42, dz > 0 ? Math.PI / 2 : 0);
   b.endObject();
   b.object('platform:fruitUmbrella');
-  fit(b, 'umbrella_green', UMBRELLA_X, y, p.z, 1.95);
+  fit(b, 'umbrella_green', UMBRELLA_X, y, p.z, UMBRELLA_H, 0, [{ hue: [80, 170], sat: [0.2, 1], ref: '#4FA85A', to: '#9DB08C' }], 0.85);
   b.endObject();
 }
 
@@ -217,7 +223,7 @@ export function buildShops(b: GeoBuilder, zMax: number, block: (r: Rect) => void
     fit(b, 'espresso', GOODS_X + 0.05, top, z - 0.18, 0.36, -Math.PI / 2);
     fit(b, 'takeaway_stack', GOODS_X - 0.1, top, z + 0.2, 0.22);
     fit(b, 'kettle', GOODS_X + 0.12, top, z + 0.26, 0.17, -Math.PI / 2);
-    fit(b, 'umbrella_yellow', UMBRELLA_X, y, z - 0.35, 1.95);
+    fit(b, 'umbrella_yellow', UMBRELLA_X, y, z - 0.35, UMBRELLA_H, 0, [{ hue: [25, 75], sat: [0.2, 1], ref: '#F2C14A', to: '#DCCDA6' }], 0.85);
     b.endObject();
     solid(z - 0.55, z + 0.55);
     shops.push({ id: 'coffee', z0: BAYS.coffee[0], z1: BAYS.coffee[1], keeper: { look: BARISTA, x: KEEPER_X, z: z + 0.15, idles: ['look', 'watch'] } });
@@ -250,7 +256,9 @@ export function buildShops(b: GeoBuilder, zMax: number, block: (r: Rect) => void
     fit(b, 'ice_cream', GOODS_X - 0.12, top, z - 0.32, 0.2);
     fit(b, 'sundae', GOODS_X - 0.1, top, z + 0.02, 0.18);
     fit(b, 'lolly', GOODS_X - 0.12, top, z + 0.3, 0.16, 0.6);
-    fit(b, 'parasol', UMBRELLA_X, y, z - 0.2, 1.9);
+    // Session 66 (de-slop T21: "the largest, brightest object on screen… steals the focus"): a smaller parasol in a
+    // muted canvas cream, so the eye goes to the ticket stand, not to a bay at the back of the platform.
+    fit(b, 'parasol', UMBRELLA_X, y, z - 0.2, 1.5, 0, [{ hue: [10, 70], sat: [0.25, 1], ref: '#F2A83A', to: '#D6C7A2' }], 0.82);
     b.endObject();
     solid(z - 0.65, z + 0.65);
     shops.push({ id: 'icecream', z0: BAYS.icecream[0], z1: BAYS.icecream[1], keeper: { look: ICE_CREAM, x: KEEPER_X, z: z + 0.1, idles: ['look', 'wave'] } });
@@ -272,7 +280,7 @@ export function buildShops(b: GeoBuilder, zMax: number, block: (r: Rect) => void
       b.model('baguette', GOODS_X - 0.55, y + 0.08, z + dz, 0.2, s, s, s, { surface: 'matte', shade: 0.95 });
     }
     fit(b, 'bread', GOODS_X - 0.55, y, z + 0.45, 0.14, 0.4);
-    fit(b, 'umbrella_pink', UMBRELLA_X - 0.15, y, z + 0.1, 1.95);
+    fit(b, 'umbrella_pink', UMBRELLA_X - 0.15, y, z + 0.1, UMBRELLA_H, 0, [{ hue: [300, 360], sat: [0.2, 1], ref: '#E86A9A', to: '#D6A8A2' }], 0.85);
     b.endObject();
     solid(z - 0.75, z + 0.75, X + 6.05);
     shops.push({ id: 'bakery', z0: BAYS.bakery[0], z1: BAYS.bakery[1], keeper: { look: BAKER, x: KEEPER_X, z: z - 0.1, idles: ['look', 'watch'] } });
