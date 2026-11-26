@@ -1,4 +1,6 @@
 import { welded } from './weld';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { sculptedBody, type BodyPaint } from './Body';
 import * as THREE from 'three';
 import type { ItemKind, StaffRole } from '../core/types';
 import { Clearance, gripOf, layoutStack, solveArm, type ArmChain, type ArmSolution, type StackItem } from './CarryPose';
@@ -8,7 +10,7 @@ import { LIGHT_UNIFORMS, MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, moodBubbleTexture, type BubbleStyle, type Mood } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
-import { FIGURE_SHAPE, headPoint, narrowBody, GRIP, TORSO_DEPTH, torsoRadius, addApron, pantsCloth, topCloth, wearing, addHat, addHead, addStrap, addTorso, apronFlapGeometry, coatHalfGeometry, COAT_PIVOT_Y, hairPieceGeometry, HAIR_PIVOT, skirtGeometry, WAIST_Y, warmSkin, type FeltHat, ELBOW_Y, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, hipX, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, occludeBody, occludeHead, shinGeometry, shoulderX, SHOULDER_Y, thighGeometry, upperArmGeometry, type Build, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
+import { CLOTH_FLOOR, FIGURE_SHAPE, headPoint, narrowBody, GRIP, torsoDistance, backDepth, addApron, pantsCloth, topCloth, wearing, addHat, addHead, addStrap, addTorso, apronFlapGeometry, coatHalfGeometry, COAT_PIVOT_Y, hairPieceGeometry, HAIR_PIVOT, skirtGeometry, WAIST_Y, warmSkin, type FeltHat, ELBOW_Y, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, hipX, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, occludeBody, occludeHead, shinGeometry, shoulderX, SHOULDER_Y, type Build, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
 import { underPopup } from './screenMask';
 import { ON_TRAY } from './ItemMeshes';
 import { BONE_GEOMETRY, type CharacterBatch } from './CharacterBatch';
@@ -130,6 +132,25 @@ function figureOf(look: CharacterLook): FigureSpec & { long: boolean } {
   };
 }
 
+/** Session 66: what the sculpted body is painted with for a look (world/Body.ts). */
+function paintOf(look: CharacterLook): BodyPaint {
+  const f = figureOf(look);
+  return {
+    build: f.build ?? 'regular',
+    outfit: f.outfit,
+    skin: f.skin,
+    top: f.top,
+    trim: f.trim,
+    stripes: f.stripes,
+    cuff: f.outfit === 'jacket' && look.accent !== look.body ? look.accent : undefined,
+    pants: f.pants,
+    sock: look.sock ?? '#F4F1EA',
+    long: f.long,
+    topCloth: topCloth(f),
+    pantsCloth: pantsCloth(f),
+  };
+}
+
 /** Merged body: torso, head with a face and hair, a hat, and the accessory that tells you who they are. */
 const headCache = new Map<string, THREE.BufferGeometry>();
 
@@ -207,7 +228,7 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
   const flat = { shade: 1 };
   const front = (y: number): number => faceDepth(y, f.build);
   /** How much deeper the clay torso is at the back than the old one (backpacks, boards sit out on it). */
-  const back = faceDepth(0.6, f.build) - 0.124;
+  const back = backDepth(0.6, f.build) - 0.124;
   switch (look.accessory) {
     case 'backpack':
       b.rounded(0, 0.6, -0.2 - back, 0.3, 0.36, 0.15, 0.06, look.accent, { shade: 0.82, surface: 'fabric', detail: 'oxford' });
@@ -267,8 +288,10 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
     default:
       break;
   }
-  // Session 65: the body and everything worn on it narrowed (FIGURE_SHAPE.body); heights as built.
-  const geometry = welded(narrowBody(occludeBody(b.build(), f.build)));
+  // Session 66: the sculpted torso (painted for the outfit) with everything worn on it, which is built as before and
+  // narrowed to the body (session 65).
+  const worn = narrowBody(occludeBody(b.build(), f.build));
+  const geometry = welded(mergeGeometries([sculptedBody(paintOf(look)).torso, worn]));
   bodyCache.set(key, geometry);
   return geometry;
 }
@@ -423,15 +446,18 @@ function clothShape(g: THREE.BufferGeometry): ClothShape {
 }
 /** A part's surface thinned to one point per cell (what a skirt must keep inside it), cached per geometry. */
 const SURFACE_CELL = 0.022;
+const skinCW: [number, number] = [0, 0];
 const surfaceCache = new WeakMap<THREE.BufferGeometry, Float32Array>();
 function surfacePoints(g: THREE.BufferGeometry): Float32Array {
+  // Five numbers a point: its position and its skin (code, weight), one point per cell.
   let pts = surfaceCache.get(g);
   if (!pts) {
     const p = g.getAttribute('position');
+    const sk = g.getAttribute('aSkin');
     const seen = new Map<string, number[]>();
     for (let i = 0; i < p.count; i++) {
       const key = `${Math.round(p.getX(i) / SURFACE_CELL)},${Math.round(p.getY(i) / SURFACE_CELL)},${Math.round(p.getZ(i) / SURFACE_CELL)}`;
-      if (!seen.has(key)) seen.set(key, [p.getX(i), p.getY(i), p.getZ(i)]);
+      if (!seen.has(key)) seen.set(key, [p.getX(i), p.getY(i), p.getZ(i), sk ? sk.getX(i) : 0, sk ? sk.getY(i) : 0]);
     }
     pts = new Float32Array([...seen.values()].flat());
     surfaceCache.set(g, pts);
@@ -451,8 +477,8 @@ const DRESS_STRIDE = { walk: 0.82, run: 0.58, kick: 0.45 };
 const COAT_STRIDE = { walk: 0.9, run: 0.62, kick: 0.5 };
 const APRON_STRIDE = { walk: 0.95, run: 0.82, kick: 0.65 };
 const MAX_FLARE = 1.3;
-/** Session 65: hanging cloth narrows no further than this (the legs narrow by about the limbs' factor). */
-const CLOTH_FLOOR = 0.8;
+/** How much of the head's turn on the body long hair takes back (it hangs from the back of the head). */
+const HAIR_COUNTER_TURN = 0.85;
 const cv = new THREE.Vector3();
 /** What `containLegs` found this frame. */
 const contain = { scale: 1, swing: 0 };
@@ -475,10 +501,8 @@ function smartShoes(f: FigureSpec): boolean {
 }
 
 function thighGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
-  const f = figureOf(look);
-  const bare = f.outfit === 'dress' || f.outfit === 'gown';
-  const cloth = pantsCloth(f);
-  return limb(`thigh:${f.pants}:${bare}:${f.skin}:${f.build}:${side}:${cloth}`, () => wearing(cloth, () => thighGeometry(f.pants, bare, f.skin, f.build, side)));
+  const p = paintOf(look);
+  return limb(`leg:${JSON.stringify(p)}:${side}`, () => sculptedBody(p).legs[side < 0 ? 0 : 1]);
 }
 
 function shinGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
@@ -490,9 +514,8 @@ function shinGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometr
 }
 
 function upperArmGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
-  const f = figureOf(look);
-  const cloth = topCloth(f);
-  return limb(`upper:${look.body}:${f.skin}:${f.long}:${f.build}:${side}:${cloth}`, () => wearing(cloth, () => upperArmGeometry(look.body, f.skin, f.long, f.build, side)));
+  const p = paintOf(look);
+  return limb(`arm:${JSON.stringify(p)}:${side}`, () => sculptedBody(p).arms[side < 0 ? 0 : 1]);
 }
 
 function forearmGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
@@ -1098,7 +1121,9 @@ export class CharacterView {
       c.wx = px + lx;
       c.wz = pz + lz;
       c.wy = pyaw + ly;
-      c.pivot.rotation.set(lx, onHead ? 0 : ly * 0.7, lz);
+      // Session 66: long hair keeps hanging the way the body faces when only the head turns (turned with the head, its
+      // edge swept round into the shoulder): it counters most of the head's own turn on the body.
+      c.pivot.rotation.set(lx, onHead ? -this.head.rotation.y * HAIR_COUNTER_TURN : ly * 0.7, lz);
       const f = Math.max(-0.06, Math.min(0.1, c.flare));
       if (!onHead) {
         // Session 63: a leg never goes through it. A skirt flares (both legs are inside it); an apron or a coat's half
@@ -1131,9 +1156,13 @@ export class CharacterView {
         // The trouser leg runs down past the knee, bending with the shin (world/Skin.ts): sampled where it is drawn.
         const def = mesh.userData.skin as SkinDef | undefined;
         const pts = surfacePoints(mesh.geometry);
-        for (let k = 0; k < pts.length; k += 3) {
+        for (let k = 0; k < pts.length; k += 5) {
+          // Session 66: the torso's own surface carried in the thigh's piece (the seat, the hip) is the body's, not a leg's.
+          if (pts[k + 3] === 1 && pts[k + 4] >= 0.97) continue;
           if (!out[n]) out[n] = { p: new THREE.Vector3(), r: 0 };
-          skinPoint(def, pts[k], pts[k + 1], pts[k + 2], m, (code) => (code === 1 ? IDENTITY : shinM), out[n].p);
+          skinCW[0] = pts[k + 3];
+          skinCW[1] = pts[k + 4];
+          skinPoint(def, pts[k], pts[k + 1], pts[k + 2], m, (code) => (code === 1 ? IDENTITY : shinM), out[n].p, skinCW);
           out[n].r = 0;
           n++;
         }
@@ -1648,7 +1677,7 @@ export class CharacterView {
     gripOf(chain, sol.shoulder, sol.bend, 0, GRIP_V, armTip);
     const clear = this.clearKey >= 0 ? this.clearRest : null;
     const check = (x: number, y: number, z: number, r: number): boolean => {
-      if (torsoRadius(build, y) + r + ARM_ROOM > Math.hypot(x, z / TORSO_DEPTH)) return true;
+      if (torsoDistance(build, x, y, z) + r + ARM_ROOM > 0) return true;
       // The head (and its hair and hat), from the figure's own measured outline at that height.
       if (clear && y > NECK_Y - 0.05) {
         const wide = clear.widest(y - 0.02, y + 0.02);

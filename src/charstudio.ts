@@ -128,6 +128,8 @@ const fov = Number(params.get('fov') ?? '20');
 const yaw = (Number(params.get('yaw') ?? '0') * Math.PI) / 180;
 const width = who.length * gap + 0.6;
 const zoom = Number(params.get('zoom') ?? '1');
+/** `?ty=1.0`: the height the camera looks at (default 0.62, the chest). */
+const lookY = Number(params.get('ty') ?? '0.62');
 let last = performance.now();
 let clock = 0;
 const walk = params.get('walk') === '1';
@@ -210,8 +212,8 @@ function frame(now: number): void {
   cam.updateProjectionMatrix();
   const span = Math.max(width / cam.aspect, 1.9);
   const dist = (span / (2 * Math.tan((fov * Math.PI) / 360))) / zoom;
-  cam.position.set(Math.sin(yaw) * Math.cos(pitch) * dist, 0.62 + Math.sin(pitch) * dist, Math.cos(yaw) * Math.cos(pitch) * dist);
-  cam.lookAt(0, 0.62, 0);
+  cam.position.set(Math.sin(yaw) * Math.cos(pitch) * dist, lookY + Math.sin(pitch) * dist, Math.cos(yaw) * Math.cos(pitch) * dist);
+  cam.lookAt(0, lookY, 0);
   mockProportions();
   batch?.recordPoses();
   batch?.sync(cam, 1);

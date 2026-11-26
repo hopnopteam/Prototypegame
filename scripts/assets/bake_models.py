@@ -301,6 +301,8 @@ MODELS = {
     **{k: {'src': 'char-kit/' + k + '.glb', 'paint': CH} for k in (
         'ch_hat_conductor', 'ch_hat_bowler', 'ch_hat_boater', 'ch_hat_pillbox', 'ch_hat_beanie', 'ch_hat_tophat',
         'ch_hat_toque', 'ch_hat_cap', 'ch_hair_long', 'ch_hair_tail')},
+    # Session 66: the sculpted bodies (art/blender/characters/body_kit.py): torso, neck, arms and legs as one surface.
+    **{k: {'src': 'char-kit/' + k + '.glb', 'paint': CH} for k in ('ch_body_slim', 'ch_body_regular', 'ch_body_stout')},
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}

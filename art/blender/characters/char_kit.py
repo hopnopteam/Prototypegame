@@ -20,6 +20,7 @@ import os
 
 import bpy
 import bmesh  # after bpy: the module registers it
+import mathutils
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 OUT = os.path.join(ROOT, 'assets', 'models', 'src', 'char-kit')
@@ -65,6 +66,18 @@ def skull_radius(ux, uy, uz):
     """Distance to the skull along a unit direction (game axes: y up, z forward). Fuller at the cheeks and jaw."""
     a = HEAD_A * (1 + 0.05 * smoothstep(0.3, -0.5, uy))
     k = abs(ux / a) ** HEAD_N + abs(uy / HEAD_B) ** HEAD_N + abs(uz / HEAD_C) ** HEAD_N
+    return k ** (-1 / HEAD_N) if k > 0 else 0
+
+
+def sculpt_radius(ux, uy, uz):
+    """Session 66: the skull as sculpted for the skin: `skull_radius` with a jaw that narrows under the cheeks to a soft
+    chin (the face's middle, where the eyes, nose and mouth sit, is untouched, so world/CharacterParts.ts still finds
+    it) and a little less depth low at the back (the nape)."""
+    jaw = 1 - 0.14 * smoothstep(-0.5, -0.95, uy) * smoothstep(0.05, 0.6, abs(ux))
+    nape = 1 - 0.08 * smoothstep(-0.35, -0.85, uy) * smoothstep(-0.1, -0.7, uz)
+    a = HEAD_A * (1 + 0.05 * smoothstep(0.3, -0.5, uy)) * jaw
+    c = HEAD_C * nape
+    k = abs(ux / a) ** HEAD_N + abs(uy / HEAD_B) ** HEAD_N + abs(uz / c) ** HEAD_N
     return k ** (-1 / HEAD_N) if k > 0 else 0
 
 
@@ -129,11 +142,32 @@ def deformed_sphere(name, mat_name, segs, rings, radius_fn):
 
 
 def ear(side):
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=10, ring_count=6, radius=0.047, location=(side * HEAD_A * 0.98, 0.012, -0.012))
+    """Session 66: a sculpted ear (was a squashed ball stuck on the side): an outer rim (the helix) round a hollow bowl,
+    a lobe below, set back and tilted like a person's; fused into the skull by the head's remesh, so it grows out of
+    it with a soft join."""
+    cx, cy, cz = side * (HEAD_A + 0.012), 0.018, -0.016
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=16, radius=1, location=(0, 0, 0))
     o = active()
-    o.scale = (0.6, 0.85, 1.0)
-    bpy.ops.object.transform_apply(scale=True)
-    # The ear's inside: a soft dimple facing forward and out.
+    rx, ry, rz = 0.017, 0.03, 0.043
+    for v in o.data.vertices:
+        x, y, z = v.co
+        # Thin outward (x); the outer face is dished into a bowl inside the rim.
+        bowl = max(0.0, x) * 0.55 * max(0.0, 1 - (y * y + (z * 0.9) ** 2) * 1.35)
+        lobe = 0.18 * smoothstep(-0.3, -0.95, z) * (1 - abs(y))
+        v.co.x = (x - bowl) * rx
+        v.co.y = y * ry * (1 - 0.25 * smoothstep(0.0, -1.0, z))
+        v.co.z = z * rz + lobe * 0.006
+    if side < 0:
+        for v in o.data.vertices:
+            v.co.x = -v.co.x
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.flip_normals()
+        bpy.ops.object.mode_set(mode='OBJECT')
+    o.location = (cx, cy, cz)
+    # Tilted back a little at the top and turned to face a touch forward.
+    o.rotation_euler = (0.0, side * -0.12, side * -0.28)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     return smooth(tag(o, 'skin'))
 
 
@@ -164,46 +198,111 @@ def export(o, name):
     print('wrote', path, tris, 'tris')
 
 
-def hair_shell(style, target=620):
-    target = 900 if style == 'curly' else 980 if style in ('bob', 'long') else target
-    """The helmet: a shell over the covered skull, cut on a fine mesh along the hairline and the cut relaxed (a clean
-    curve, never a sawtooth), solidified inward so its rim is a rounded roll, subdivided, then reduced to `target`
-    triangles."""
+def hair_grid(style):
+    """Session 66: the helmet laid out along its own hairline. For each direction round the head, the stretch of the
+    meridian the hair covers (from the crown, or from under a hat's crown, down to the hairline) is found and divided
+    evenly, so the rim is the hairline itself: an exact, smooth curve with a vertex every few degrees, never a cut
+    through a finer mesh that a decimation then steps into a staircase. Returns the shell as a bmesh-ready grid."""
     lift = lambda ux, uy, uz: skull_radius(ux, uy, uz) * (1 + hair_lift(style, ux, uy, uz))
-    o = deformed_sphere('hair', 'hair', 96, 64, lift)
+    cols = 44 if style in ('curly', 'bob', 'long') else 36
+    rows = 9 if style == 'curly' else 7
+    samples = 240
+
+    def unit(phi, pol):
+        # phi round the head (0 the face, game +z), pol from the top (0) to the bottom (pi); game axes.
+        return math.sin(pol) * math.sin(phi), math.cos(pol), math.sin(pol) * math.cos(phi)
+
+    spans = []
+    for i in range(cols):
+        phi = 2 * math.pi * i / cols
+        best = (0, 0)
+        start = None
+        for k in range(samples + 1):
+            pol = math.pi * 0.97 * k / samples
+            on = hair_cover(style, *unit(phi, pol)) >= 0.5
+            if on and start is None:
+                start = pol
+            if (not on or k == samples) and start is not None:
+                end = pol
+                if end - start > best[1] - best[0]:
+                    best = (start, end)
+                start = None
+        # Refine the lower edge (the hairline) by bisection.
+        lo, hi = best[1] - math.pi / samples, best[1]
+        for _ in range(20):
+            mid = (lo + hi) / 2
+            if hair_cover(style, *unit(phi, mid)) >= 0.5:
+                lo = mid
+            else:
+                hi = mid
+        spans.append((best[0], lo))
+    # Ease each edge round the head a little (the cover's own steps between samples), keeping a crown at the top.
+    for _ in range(3):
+        spans = [(spans[i][0] if spans[i][0] < 0.02 else (spans[i - 1][0] + 2 * spans[i][0] + spans[(i + 1) % cols][0]) / 4,
+                  (spans[i - 1][1] + 2 * spans[i][1] + spans[(i + 1) % cols][1]) / 4) for i in range(cols)]
     bm = bmesh.new()
-    bm.from_mesh(o.data)
-    drop = [f for f in bm.faces if hair_cover(style, *game_dir(f.calc_center_median())) < 0.5]
-    bmesh.ops.delete(bm, geom=drop, context='FACES')
-    # Relax the cut: slide each boundary vertex toward its boundary neighbours' middle, then back onto the shell.
-    for _ in range(12):
-        edge = [v for v in bm.verts if v.is_boundary]
-        moved = {}
-        for v in edge:
-            nb = [e.other_vert(v) for e in v.link_edges if e.is_boundary]
-            if len(nb) == 2:
-                moved[v] = (nb[0].co + nb[1].co) * 0.5 * 0.6 + v.co * 0.4
-        for v, co in moved.items():
-            ux, uy, uz = game_dir(co)
-            v.co = co.normalized() * lift(ux, uy, uz)
-    # Drop slivers the relaxing folded over.
-    bmesh.ops.dissolve_degenerate(bm, dist=1e-4, edges=bm.edges)
-    bm.to_mesh(o.data)
+    crown = all(a < 0.02 for a, _ in spans)
+    grid = []
+    for i in range(cols):
+        phi = 2 * math.pi * i / cols
+        a, b = spans[i]
+        if crown:
+            a = 0.0
+        col = []
+        for j in range(rows + 1):
+            if crown and j == 0:
+                col.append(None)
+                continue
+            # Rows closer together toward the rim, where the hair turns over.
+            t = j / rows
+            pol = a + (b - a) * (1 - (1 - t) ** 1.25)
+            ux, uy, uz = unit(phi, pol)
+            r = lift(ux, uy, uz)
+            # Blender axes: x, y = −z(game), z = y(game).
+            col.append(bm.verts.new((ux * r, -uz * r, uy * r)))
+        grid.append(col)
+    pole = None
+    if crown:
+        r = lift(0, 1, 0)
+        pole = bm.verts.new((0, 0, r))
+    for i in range(cols):
+        c0, c1 = grid[i], grid[(i + 1) % cols]
+        for j in range(rows):
+            if crown and j == 0:
+                bm.faces.new((pole, c1[1], c0[1]))
+                continue
+            bm.faces.new((c0[j], c1[j], c1[j + 1], c0[j + 1]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me = bpy.data.meshes.new('hair')
+    bm.to_mesh(me)
     bm.free()
-    dec = o.modifiers.new('dec0', 'DECIMATE')
-    dec.ratio = 0.12
-    apply_all(o)
+    o = bpy.data.objects.new('hair', me)
+    bpy.context.collection.objects.link(o)
+    bpy.context.view_layer.objects.active = o
+    o.select_set(True)
+    # Normals outward (recalc may pick either side of an open shell).
+    c = sum((v.co for v in me.vertices), mathutils.Vector()) / len(me.vertices)
+    out = sum(((me.vertices[p.vertices[0]].co - c).dot(p.normal) for p in me.polygons))
+    if out < 0:
+        for p in me.polygons:
+            p.flip()
+    return tag(o, 'hair')
+
+
+def hair_shell(style, target=620):
+    """The helmet (session 66): laid out along the hairline (`hair_grid`), solidified inward so its rim is a roll you
+    can see the thickness of, the rim's edges bevelled round."""
+    o = hair_grid(style)
     sol = o.modifiers.new('solid', 'SOLIDIFY')
     sol.thickness = 0.026
     sol.offset = -1
     sol.use_rim = True
     sol.use_even_offset = True
-    sub = o.modifiers.new('sub', 'SUBSURF')
-    sub.levels = 1
-    apply_all(o)
-    tris = sum(len(p.vertices) - 2 for p in o.data.polygons)
-    dec = o.modifiers.new('dec', 'DECIMATE')
-    dec.ratio = min(1.0, target / max(1, tris))
+    bev = o.modifiers.new('bev', 'BEVEL')
+    bev.width = 0.007
+    bev.segments = 2
+    bev.limit_method = 'ANGLE'
+    bev.angle_limit = math.radians(50)
     apply_all(o)
     return smooth(o)
 
@@ -227,25 +326,50 @@ def extra_hair(style):
     return parts
 
 
-def head(style):
-    clear()
-    skull = deformed_sphere('skull', 'skin', 24, 16, skull_radius)
-    hair = hair_shell(style)
-    # Drop the skull's faces the hair hides completely (well inside the cover, so no gap opens at the hairline).
-    bm = bmesh.new()
-    bm.from_mesh(skull.data)
-    hidden = []
-    for f in bm.faces:
-        ux, uy, uz = game_dir(f.calc_center_median())
-        if hair_cover(style, ux, uy, uz) > 0.97 and style != 'bald':
-            hidden.append(f)
-    bmesh.ops.delete(bm, geom=hidden, context='FACES')
-    bm.to_mesh(skull.data)
-    bm.free()
-    parts = [skull, hair] + extra_hair(style)
+def skull_mesh(style):
+    """Session 66 (owner: "new hand-sculpted heads… made in Blender"): the skull and both ears as one surface: a fine
+    ball on the head's own shape, the ears joined to it by a voxel remesh and the joins relaxed, then reduced where it is
+    flat and kept where it curves (the ears), symmetric. (It was a 24×16 ball, faceted at the jaw, the ears stuck on.)"""
+    skull = deformed_sphere('skull', 'skin', 64, 44, sculpt_radius)
+    parts = [skull]
     if style not in ('bob', 'long'):
         parts += [ear(-1), ear(1)]
     o = join(parts)
+    rm = o.modifiers.new('fuse', 'REMESH')
+    rm.mode = 'VOXEL'
+    rm.voxel_size = 0.0025
+    apply_all(o)
+    sm = o.modifiers.new('relax', 'CORRECTIVE_SMOOTH')
+    sm.factor = 0.5
+    sm.iterations = 5
+    sm.use_only_smooth = True
+    sm.smooth_type = 'LENGTH_WEIGHTED'
+    apply_all(o)
+    # Reduced by curvature (the ears keep their triangles, the broad skull gives them up). Not with the decimator's
+    # symmetry: it left pinched slivers that shaded as dark notches on the cheeks and chin.
+    tris = sum(len(p.vertices) - 2 for p in o.data.polygons)
+    dec = o.modifiers.new('dec', 'DECIMATE')
+    dec.ratio = 1400 / max(1, tris)
+    apply_all(o)
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(o.data)
+    bm.free()
+    o.data.materials.clear()
+    o.data.materials.append(mat('skin'))
+    return smooth(o)
+
+
+def head(style):
+    clear()
+    skull = skull_mesh(style)
+    hair = hair_shell(style)
+    # Session 66: the skull is kept whole under the hair (cutting it away left holes at the hairline you could see the
+    # inside of the hair through; decimated by curvature, what the hair hides costs few triangles).
+    o = join([skull, hair] + extra_hair(style))
+    tri = o.modifiers.new('tri', 'TRIANGULATE')
+    apply_all(o)
     export(o, 'ch_head_' + style)
 
 

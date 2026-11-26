@@ -5,7 +5,7 @@ import { Tweens } from '../src/core/Tween';
 import { CarryStack } from '../src/gameplay/CarryStack';
 import { guestLook } from '../src/gameplay/guestLook';
 import { CharacterView, CONDUCTOR_LOOK, STAFF_LOOKS, type CharacterLook } from '../src/world/CharacterView';
-import { torsoRadius, TORSO_DEPTH, type Build } from '../src/world/CharacterParts';
+import { torsoDistance, type Build } from '../src/world/CharacterParts';
 import { skinnedWorld, type SkinDef } from '../src/world/Skin';
 
 /** A skinned limb's partner bones must be current before its vertices are read where they are drawn. */
@@ -133,13 +133,17 @@ function clipOf(part: Part, vol: Volume): number {
   inv.copy(vol.object.matrixWorld).invert();
   updateSkin(part.mesh);
   const p = part.mesh.geometry.getAttribute('position');
+  const sk = part.mesh.geometry.getAttribute('aSkin');
   let worst = 0;
   for (let i = 0; i < p.count; i++) {
     if (part.maxY !== undefined && p.getY(i) > part.maxY) continue;
+    // Session 66: a vertex following the body (the trapezius and armpit surface a sculpted arm's piece carries so its
+    // seam stays closed) is the body's own surface, where the neck meets the head by design.
+    if (sk && sk.getX(i) === 1 && sk.getY(i) >= 0.97) continue;
     skinnedWorld(part.mesh, i, v).applyMatrix4(inv);
     if (vol.skipNear && v.length() < vol.skipNear) continue;
     let d = 0;
-    if (vol.torso) d = torsoRadius(vol.torso, v.y) - Math.hypot(v.x, v.z / TORSO_DEPTH);
+    if (vol.torso) d = torsoDistance(vol.torso, v.x, v.y, v.z);
     else if (vol.radial) d = vol.radial.depth(v.x, v.y, v.z);
     else if (vol.box) {
       const b = vol.box;
@@ -299,7 +303,7 @@ function clipNearPivot(part: Part, vol: Volume, near: number): number {
     v.fromBufferAttribute(p, i);
     if (v.y > -near) continue;
     skinnedWorld(part.mesh, i, w).applyMatrix4(inv);
-    const d = (vol.torso ? torsoRadius(vol.torso, w.y) - Math.hypot(w.x, w.z / TORSO_DEPTH) : vol.radial!.depth(w.x, w.y, w.z)) - vol.tol;
+    const d = (vol.torso ? torsoDistance(vol.torso, w.x, w.y, w.z) : vol.radial!.depth(w.x, w.y, w.z)) - vol.tol;
     if (d > worst) worst = d;
   }
   return worst;
@@ -313,8 +317,12 @@ function legThroughCloth(leg: THREE.Mesh, cloth: THREE.Mesh): number {
   inv.copy(cloth.matrixWorld).invert();
   updateSkin(leg);
   const p = leg.geometry.getAttribute('position');
+  const sk = leg.geometry.getAttribute('aSkin');
   let worst = 0;
   for (let i = 0; i < p.count; i++) {
+    // Session 66: a corner that follows the body (code 1, weight from 0.97) is the torso's own surface (the seat, the
+    // hip), carried in the leg's piece only so the seam stays closed: the cloth hangs on the body by design.
+    if (sk && sk.getX(i) === 1 && sk.getY(i) >= 0.97) continue;
     skinnedWorld(leg, i, v).applyMatrix4(inv);
     const d = r.depth(v.x, v.y, v.z);
     // Inside the cloth's reach is fine; up to 3 cm beyond it (above its hem) means the leg pokes through it.

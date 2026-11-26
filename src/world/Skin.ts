@@ -26,7 +26,8 @@ export interface SkinPartner {
 
 /** What a skinned limb mesh carries in `userData.skin`. */
 export interface SkinDef {
-  weight: SkinWeight;
+  /** The blend by height along the limb (session 64's tubes); the sculpted body (session 66) carries it per vertex. */
+  weight?: SkinWeight;
   /** Partners for codes 1 and 2. */
   partners: [SkinPartner | null, SkinPartner | null];
 }
@@ -79,10 +80,10 @@ const tM = new THREE.Matrix4();
  * A point of a limb (its own frame) where it is drawn: `own` is the limb's matrix and `partner(code)` the matrix of the
  * partner bone, in the same space (world, or the body's). Without a skin, or with no partner, the point is rigid.
  */
-export function skinPoint(def: SkinDef | undefined, x: number, y: number, z: number, own: THREE.Matrix4, partner: (code: 1 | 2) => THREE.Matrix4 | null, out: THREE.Vector3): THREE.Vector3 {
+export function skinPoint(def: SkinDef | undefined, x: number, y: number, z: number, own: THREE.Matrix4, partner: (code: 1 | 2) => THREE.Matrix4 | null, out: THREE.Vector3, codeW?: readonly [number, number]): THREE.Vector3 {
   out.set(x, y, z).applyMatrix4(own);
   if (!def) return out;
-  const [code, w] = def.weight(y);
+  const [code, w] = codeW ?? def.weight?.(y) ?? [0, 0];
   if (w <= 0 || code === 0) return out;
   const m = partner(code as 1 | 2);
   const p = def.partners[code - 1];
@@ -91,14 +92,21 @@ export function skinPoint(def: SkinDef | undefined, x: number, y: number, z: num
   return out.lerp(tB, w);
 }
 
+const tCW: [number, number] = [0, 0];
+
 /** The world position of vertex `i` of a mesh, skinned when it carries a skin (the clip test). */
 export function skinnedWorld(mesh: THREE.Mesh, i: number, out: THREE.Vector3): THREE.Vector3 {
   const pos = mesh.geometry.getAttribute('position');
   const def = mesh.userData.skin as SkinDef | undefined;
+  const a = mesh.geometry.getAttribute('aSkin');
+  if (a) {
+    tCW[0] = a.getX(i);
+    tCW[1] = a.getY(i);
+  }
   return skinPoint(def, pos.getX(i), pos.getY(i), pos.getZ(i), mesh.matrixWorld, (code) => {
     const p = def?.partners[code - 1];
     if (!p) return null;
     return tM.copy(p.object.matrixWorld);
-  }, out);
+  }, out, a ? tCW : undefined);
 }
 

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GeoBuilder, type PartStyle } from './geo';
-import { addSkin, armWeight, legWeight } from './Skin';
 import { modelEntry, type ModelId, type Recolor } from './models/library';
+import { bodyKit, bodyOutline } from './Body';
 
 /**
  * The people, as soft clay toys (owner, 26 Nov, with a reference sheet: "match the style 1:1"). Every number below is
@@ -100,25 +100,21 @@ export type { Build, HairStyle, Outfit };
 const TORSO_R: Record<Build, number> = { slim: 0.172, regular: 0.2, stout: 0.235 };
 /** The shoulder pivots stand just inside the torso's side, the hips under its round. */
 export function shoulderX(build: Build = 'regular'): number {
-  // Session 63 ("zero clip ins"): far enough out that a hanging sleeve clears the torso (it sat inside its edge, so
-  // an arm hanging down went into the body); the shoulder ball still meets the torso's top as a rounded shoulder.
-  return TORSO_R[build] * FIGURE_SHAPE.shoulders + 0.036 * FIGURE_SHAPE.limb;
+  // Session 66: the sculpted body's shoulder pivot (art/blender/characters/body_kit.py): the arm hangs straight down
+  // clear of the chest at its widest.
+  return bodyKit(build).shoulderX;
 }
 export const SHOULDER_X = shoulderX();
 export function hipX(build: Build = 'regular'): number {
-  return (build === 'slim' ? 0.088 : build === 'stout' ? 0.11 : 0.098) * FIGURE_SHAPE.waist;
+  return bodyKit(build).hipX;
 }
 
 /** Limb tube radii (§2). */
 const L = FIGURE_SHAPE.limb;
 const SLEEVE_R = 0.058 * L;
 const FORE_SLEEVE_R = 0.054 * L;
-const ARM_R = 0.046 * L;
 const TROUSER_R = 0.088 * L;
 const SHIN_R = 0.082 * L;
-const BARE_LEG_R = 0.043 * L;
-/** The sock's radius under a trouser hem. */
-const SOCK_R = 0.045 * L;
 /** The mitten hand's scale over the figure kit's model, and where the wrist sits below the elbow. */
 const HAND_SCALE = 1.45 * FIGURE_SHAPE.hand;
 const WRIST_Y = -0.1;
@@ -206,25 +202,6 @@ export function faceZ(x: number, y: number): number {
   const k = 1 - Math.abs(x / a) ** n - Math.abs(y / b) ** n;
   return k > 0 ? c * k ** (1 / n) : 0;
 }
-
-/** A lathe round the y axis from [radius, height] pairs, its seam at the back, squashed front to back. */
-function lathe(profile: [number, number][], segments = 18, depth = TORSO_DEPTH): THREE.BufferGeometry {
-  const g = new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), segments, Math.PI, Math.PI * 2);
-  g.scale(1, 1, depth);
-  g.deleteAttribute('uv');
-  return g;
-}
-
-/** A soft roll round a tube (a cuff, a hem, a turned-up trouser leg): a torus of the given tube radius. */
-function roll(b: GeoBuilder, y: number, r: number, tube: number, color: string, depth = 1, z = 0): void {
-  b.add(new THREE.TorusGeometry(r, tube, 6, 20).scale(1, depth, 1), color, 0, y, z, Math.PI / 2, 0, 0, SOFT);
-}
-
-/** A tube down the y axis from `y0` to `y1` (y1 < y0), open-ended (caps are the joints' spheres). */
-function tube(b: GeoBuilder, y0: number, y1: number, r0: number, r1: number, color: string, style: PartStyle = SOFT, segments = 16): void {
-  b.add(new THREE.CylinderGeometry(r0, r1, y0 - y1, segments, 1, true), color, 0, (y0 + y1) / 2, 0, 0, 0, 0, style);
-}
-
 
 export interface FigureSpec {
   skin: string;
@@ -314,8 +291,6 @@ function occlude(g: THREE.BufferGeometry, build: Build, at: [number, number, num
   return g;
 }
 
-/** Figure-space centres of the parts, for picking out a part's own proxy. */
-const near = (p: Proxy, x: number, y: number): boolean => Math.abs(p.x - x) < 0.02 && Math.abs(p.y - y) < 0.2;
 
 // ── The head ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -412,30 +387,58 @@ export function occludeHead(g: THREE.BufferGeometry, build: Build = 'regular'): 
 
 // ── The torso ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-/** The torso's outline by build: a round belly, round high shoulders, a dome the head sits on (no neck). */
-function chestProfile(build: Build): [number, number][] {
-  const R = TORSO_R[build];
-  const belly = build === 'stout' ? 1.05 : 1;
-  return [[0, 0.37], [R * 0.84, 0.37], [R * 0.97, 0.41], [R * belly, 0.48], [R * 1.02 * belly, 0.56], [R, 0.65], [R * 0.95, 0.72], [R * 0.84, 0.78], [R * 0.64, 0.826], [R * 0.34, 0.852], [0, 0.858]];
-}
-
-/** Session 63: the torso's own radius (its chest and its hips, before anything worn on them) at a height, by build. */
+/**
+ * Session 66: the torso as sculpted (its measured outline, world/Body.ts): its half-width at a height (figure space), 0
+ * below the crotch and above the neck.
+ */
 export function torsoRadius(build: Build, y: number): number {
-  const R = TORSO_R[build];
-  const hips: [number, number][] = [[0, 0.3], [R * 0.72, 0.3], [R * 0.86, 0.34], [R * 0.92, 0.4], [R * 0.9, 0.44], [0, 0.45]];
-  return Math.max(profileAt(chestProfile(build), y), profileAt(hips, y)) * bodyWidth(y);
+  if (y < 0.295 || y > 0.86) return 0;
+  return bodyOutline(build, y)[0];
 }
 export { TORSO_DEPTH };
 
-/** How far the torso's front stands out at a height (for buttons and badges). */
+/** How far inside the sculpted torso a point is (negative outside), by its outline's ellipse at that height. */
+export function torsoDistance(build: Build, x: number, y: number, z: number): number {
+  if (y < 0.295 || y > 0.86) return -1;
+  const [h, f, bk] = bodyOutline(build, y);
+  return h - Math.hypot(x, (z * h) / Math.max(0.01, z >= 0 ? f : bk));
+}
+
+/**
+ * Where the torso's front (or back) surface is at (x, y), in the space things worn on it are built in (they are
+ * narrowed by `narrowBody` afterwards, so this is the sculpted surface divided by the narrowing).
+ */
+function surfaceZ(build: Build, x: number, y: number, back = false): number {
+  const [h, f, bk] = bodyOutline(build, y);
+  const bw = bodyWidth(y);
+  const xf = x * bw;
+  return ((back ? bk : f) / bw) * Math.sqrt(Math.max(0, 1 - (xf / h) ** 2));
+}
+
+/** How far the torso's front stands out at a height (for buttons and badges), in build space. */
 export function faceDepth(y: number, build: Build = 'regular'): number {
-  const p = chestProfile(build);
-  for (let i = 1; i < p.length; i++) {
-    const [r0, a] = p[i - 1];
-    const [r1, c] = p[i];
-    if (y >= a && y <= c) return (r0 + ((y - a) / (c - a)) * (r1 - r0)) * TORSO_DEPTH;
+  return surfaceZ(build, 0, y);
+}
+
+/** How far the torso's back stands out at a height, in build space. */
+export function backDepth(y: number, build: Build = 'regular'): number {
+  return surfaceZ(build, 0, y, true);
+}
+
+/**
+ * A band round the torso at a height `out` proud of it (a belt, a sash, a waistband), following the sculpted outline,
+ * in build space.
+ */
+function girdle(b: GeoBuilder, build: Build, y: number, out: number, tube: number, color: string, style: PartStyle): void {
+  const pts: THREE.Vector3[] = [];
+  const [h, f, bk] = bodyOutline(build, y);
+  const bw = bodyWidth(y);
+  for (let i = 0; i < 40; i++) {
+    const a = (i / 40) * Math.PI * 2;
+    const s = Math.sin(a);
+    pts.push(new THREE.Vector3(((h + out) * Math.cos(a)) / bw, y, (((s >= 0 ? f : bk) + out) * s) / bw));
   }
-  return TORSO_R[build] * TORSO_DEPTH;
+  b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 60, tube, 6, true).scale(1, 0.6, 1).translate(0, y * 0.4, 0), color, 0, 0, 0, 0, 0, 0, style);
 }
 
 /**
@@ -443,22 +446,14 @@ export function faceDepth(y: number, build: Build = 'regular'): number {
  * a slim tube along the torso's own surface, a hair proud of it.
  */
 export function addStrap(b: GeoBuilder, x: number, color: string, build: Build = 'regular', from = 0.52, to = 0.6): void {
-  const prof = chestProfile(build);
-  const radius = (y: number): number => {
-    for (let i = 1; i < prof.length; i++) {
-      const [r0, a] = prof[i - 1];
-      const [r1, c] = prof[i];
-      if (y >= a && y <= c) return r0 + ((y - a) / (c - a)) * (r1 - r0);
-    }
-    return 0;
-  };
+  // Session 66: along the sculpted torso's own surface (its front, over the trapezius, its back).
   const pts: THREE.Vector3[] = [];
-  const surfaceZ = (y: number): number => TORSO_DEPTH * Math.sqrt(Math.max(0, radius(y) ** 2 - x * x)) + 0.012;
-  for (let y = from; y < 0.8; y += 0.05) pts.push(new THREE.Vector3(x, y, surfaceZ(y)));
-  // Over the shoulder's round top.
-  const top = 0.83;
-  pts.push(new THREE.Vector3(x, 0.8, surfaceZ(0.8) * 0.9), new THREE.Vector3(x, top + 0.012, 0), new THREE.Vector3(x, 0.8, -surfaceZ(0.8) * 0.9));
-  for (let y = 0.75; y >= to; y -= 0.05) pts.push(new THREE.Vector3(x, y, -surfaceZ(y)));
+  const front = (y: number): number => surfaceZ(build, x, y) + 0.012;
+  const back = (y: number): number => surfaceZ(build, x, y, true) + 0.012;
+  for (let y = from; y < 0.78; y += 0.04) pts.push(new THREE.Vector3(x, y, front(y)));
+  const top = 0.815;
+  pts.push(new THREE.Vector3(x, 0.79, front(0.79) * 0.85), new THREE.Vector3(x, top + 0.012, 0), new THREE.Vector3(x, 0.79, -back(0.79) * 0.85));
+  for (let y = 0.76; y >= to; y -= 0.04) pts.push(new THREE.Vector3(x, y, -back(y)));
   const curve = new THREE.CatmullRomCurve3(pts);
   b.add(new THREE.TubeGeometry(curve, 28, 0.013, 6, false).scale(1.25, 1, 1), color, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'leather' });
 }
@@ -470,22 +465,16 @@ export function addTorso(b: GeoBuilder, f: FigureSpec): void {
 
 function torso(b: GeoBuilder, f: FigureSpec): void {
   const build = f.build ?? 'regular';
-  const R = TORSO_R[build];
-  const chest = chestProfile(build);
-  if (f.stripes && f.trim) {
-    const bands: [number, number][] = [[0.37, 0.47], [0.47, 0.52], [0.52, 0.57], [0.57, 0.62], [0.62, 0.67], [0.67, 0.86]];
-    bands.forEach(([y0, y1], i) => b.add(lathe(slice(chest, y0, y1)), i % 2 === 1 ? f.trim! : f.top, 0, 0, 0, 0, 0, 0, SOFT));
-  } else {
-    b.add(lathe(chest), f.top, 0, 0, 0, 0, 0, 0, SOFT);
-  }
+  // Session 66: the torso itself is the sculpted body (world/Body.ts paints the garment on it); here, what stands proud
+  // of it.
 
   switch (f.outfit) {
     case 'dress':
     case 'gown': {
       // Session 62: the bell is its own piece that swings from the waist (`skirtGeometry`). Here: a sash at the waist
       // with a bow at the back, and a soft round collar at the neck.
-      b.add(lathe([[R * 1.0, 0.448], [R * 1.035, 0.468], [R * 1.0, 0.49]], 22), shade(f.trim ?? f.pants, 0.95), 0, 0, 0, 0, 0, 0, SOFT);
-      const bz = -faceDepth(0.47, build) - 0.012;
+      girdle(b, build, 0.468, 0.006, 0.014, shade(f.trim ?? f.pants, 0.95), SOFT);
+      const bz = -backDepth(0.47, build) - 0.016;
       for (const s2 of [-1, 1]) b.add(new THREE.SphereGeometry(0.045, 12, 8).scale(1.2, 0.62, 0.42), shade(f.trim ?? f.pants, 0.95), s2 * 0.045, 0.475, bz, 0, 0, s2 * 0.35, SOFT);
       b.sphere(0, 0.47, bz - 0.006, 0.022, shade(f.trim ?? f.pants, 0.85), 1, 1, SOFT);
       roundCollar(b, f.outfit === 'gown' ? shade(f.top, 1.12) : '#F6F1E6', build);
@@ -495,10 +484,10 @@ function torso(b: GeoBuilder, f: FigureSpec): void {
       // A long coat: its skirts are two pieces that swing with the legs (`coatHalfGeometry`), open at the front with a
       // vent at the back. Here: a self belt with a buckle, lapels, a collar (or a fur stole), two rows of buttons.
       hips(b, f);
-      b.add(lathe([[R * 1.02, 0.455], [R * 1.045, 0.475], [R * 1.02, 0.495]], 22), shade(f.top, 0.85), 0, 0, 0, 0, 0, 0, SOFT);
-      b.rounded(0, 0.475, faceDepth(0.475, build) + 0.02, 0.05, 0.036, 0.012, 0.006, shade(f.trim ?? f.top, 1), { shade: 1, surface: 'steel' });
+      girdle(b, build, 0.475, 0.006, 0.014, shade(f.top, 0.85), SOFT);
+      b.rounded(0, 0.475, faceDepth(0.475, build) + 0.016, 0.05, 0.036, 0.012, 0.006, shade(f.trim ?? f.top, 1), { shade: 1, surface: 'steel' });
       const trim = f.fur ?? f.trim ?? f.top;
-      if (f.fur) b.add(new THREE.TorusGeometry(R * 0.62, 0.055, 10, 22).scale(1, 0.84, 1), f.fur, 0, 0.8, 0, Math.PI / 2, 0, 0, { shade: 0.92, surface: 'fabric' });
+      if (f.fur) b.add(new THREE.TorusGeometry(0.098, 0.05, 10, 22).scale(1, 0.84, 1), f.fur, 0, 0.8, 0, Math.PI / 2, 0, 0, { shade: 0.92, surface: 'fabric' });
       else {
         collar(b, trim, build);
         lapels(b, shade(f.top, 0.9), build);
@@ -509,7 +498,7 @@ function torso(b: GeoBuilder, f: FigureSpec): void {
     case 'jacket': {
       // A uniform jacket: a hem band just over the hips, a placket with a row of buttons, lapels under a soft collar,
       // two pocket flaps at the hips (session 62: the details that keep a uniform from reading as a flat tube).
-      roll(b, 0.39, R * 0.98, 0.02, shade(f.top, 0.9), TORSO_DEPTH);
+      girdle(b, build, 0.395, 0.003, 0.011, shade(f.top, 0.88), SOFT);
       hips(b, f);
       placket(b, shade(f.top, 0.86), build, 0.41, 0.76);
       if (f.trim) for (const y of [0.7, 0.61, 0.52]) b.sphere(0, y, faceDepth(y, build) + 0.008, 0.019, f.trim, 1, 1, FLAT);
@@ -519,7 +508,7 @@ function torso(b: GeoBuilder, f: FigureSpec): void {
       break;
     }
     case 'shirt':
-      roll(b, 0.39, R * 0.97, 0.018, shade(f.top, 0.92), TORSO_DEPTH);
+      girdle(b, build, 0.395, 0.002, 0.009, shade(f.top, 0.9), SOFT);
       hips(b, f);
       collar(b, f.trim && f.trim !== f.top ? f.trim : shade(f.top, 0.95), build);
       // A button placket and a breast pocket.
@@ -528,9 +517,8 @@ function torso(b: GeoBuilder, f: FigureSpec): void {
       pocketFlap(b, 0.095, 0.66, shade(f.top, 0.9), build, undefined, true);
       break;
     default:
-      // A tee: its hem band over the trousers' waist and a ribbed neckline.
-      roll(b, 0.385, R * 0.95, 0.018, shade(f.top, 0.9), TORSO_DEPTH);
-      roll(b, 0.815, R * 0.6, 0.016, shade(f.trim && f.stripes ? f.trim : f.top, 0.88), TORSO_DEPTH);
+      // A tee: its hem lip over the trousers' waist (the neckline is where the paint changes).
+      girdle(b, build, 0.394, 0.002, 0.009, shade(f.top, 0.9), SOFT);
       hips(b, f);
       break;
   }
@@ -542,27 +530,37 @@ function torso(b: GeoBuilder, f: FigureSpec): void {
  */
 export function addApron(b: GeoBuilder, color: string, build: Build = 'regular', dress = false, part: 'bib' | 'skirt' | 'all' = 'all'): void {
   const R = TORSO_R[build];
-  const chest = chestProfile(build);
-  const at = (p: [number, number][], y: number): number => {
-    for (let i = 1; i < p.length; i++) {
-      const [r0, a] = p[i - 1];
-      const [r1, c] = p[i];
-      if (y >= Math.min(a, c) && y <= Math.max(a, c)) return c === a ? r1 : r0 + ((y - a) / (c - a)) * (r1 - r0);
-    }
-    return R;
-  };
   const panel = (profile: [number, number][], half: number): THREE.BufferGeometry => {
     const g = new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), 14, -half, half * 2);
     g.scale(1, 1, TORSO_DEPTH);
     g.deleteAttribute('uv');
     return g;
   };
-  const bib: [number, number][] = [];
-  for (let y = 0.5; y <= 0.721; y += 0.044) bib.push([at(chest, y) + 0.008, y]);
   if (part !== 'skirt') {
-    b.add(panel(bib, 0.6), color, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric', detail: 'oxford' });
+    // Session 66: the bib laid on the sculpted chest, a few millimetres proud of it, across its middle half.
+    const rows = 6;
+    const cols = 10;
+    const pos: number[] = [];
+    const idx: number[] = [];
+    for (let r = 0; r <= rows; r++) {
+      const y = 0.5 + (0.222 * r) / rows;
+      const half = (bodyOutline(build, y)[0] / bodyWidth(y)) * 0.56;
+      for (let c = 0; c <= cols; c++) {
+        const x = -half + (2 * half * c) / cols;
+        pos.push(x, y, surfaceZ(build, x, y) + 0.007);
+      }
+    }
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const a = r * (cols + 1) + c;
+      idx.push(a, a + 1, a + cols + 2, a, a + cols + 2, a + cols + 1);
+    }
+    const bibG = new THREE.BufferGeometry();
+    bibG.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    bibG.setIndex(idx);
+    bibG.computeVertexNormals();
+    b.add(bibG, color, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric', detail: 'oxford' });
     // Its waistband ties round outside whatever the waist wears (a dress's sash, a belt).
-    roll(b, 0.475, R * (dress ? 1.06 : 0.98), 0.012, shade(color, 0.92), TORSO_DEPTH);
+    girdle(b, build, 0.475, dress ? 0.022 : 0.008, 0.012, shade(color, 0.92), SOFT);
   }
   if (part === 'bib') return;
   const skirt: [number, number][] = dress
@@ -580,22 +578,11 @@ export function addApron(b: GeoBuilder, color: string, build: Build = 'regular',
   b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.01, 5, false), shade(color, 0.92), 0, 0, 0, 0, 0, 0, SOFT);
 }
 
-/** The chest's radius at a height (the lathe's profile), for things laid on its surface. */
-function chestRadius(build: Build, y: number): number {
-  const prof = chestProfile(build);
-  for (let i = 1; i < prof.length; i++) {
-    const [r0, a] = prof[i - 1];
-    const [r1, c] = prof[i];
-    if (y >= a && y <= c) return r0 + ((y - a) / (c - a)) * (r1 - r0);
-  }
-  return TORSO_R[build];
-}
-
 /** Lays something on the chest's front at (x, y): the surface's depth there and the turn that follows its curve. */
 function onFront(b: GeoBuilder, x: number, y: number, build: Build, place: (z: number, rotY: number) => void): void {
-  const r = chestRadius(build, y);
-  const z = TORSO_DEPTH * Math.sqrt(Math.max(0, r * r - x * x));
-  place(z, Math.atan2(x / Math.max(1e-3, r), z / Math.max(1e-3, r * TORSO_DEPTH)) * 0.9);
+  const z = surfaceZ(build, x, y);
+  const dz = surfaceZ(build, x + 0.01, y) - z;
+  place(z, -Math.atan2(dz, 0.01) * 0.9);
   void b;
 }
 
@@ -608,13 +595,9 @@ function lapels(b: GeoBuilder, color: string, build: Build): void {
       const t = i / 6;
       const y = 0.79 - t * 0.17;
       const x = s * (0.085 - t * 0.065);
-      const r = chestRadius(build, y);
-      pts.push(new THREE.Vector3(x, y, TORSO_DEPTH * Math.sqrt(Math.max(0, r * r - x * x)) + 0.004));
+      pts.push(new THREE.Vector3(x, y, surfaceZ(build, x, y) + 0.004));
     }
-    const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.016, 5, false);
-    // Flatten it against the chest: thinner toward the body than across.
-    g.scale(1, 1, 1);
-    b.add(g, color, 0, 0, 0, 0, 0, 0, SOFT);
+    b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.016, 5, false), color, 0, 0, 0, 0, 0, 0, SOFT);
   }
 }
 
@@ -652,33 +635,15 @@ function collar(b: GeoBuilder, color: string, build: Build): void {
 /** The trousers' seat (the legs hang from the hip pivots under it) and, if worn, a belt with a buckle. */
 function hips(b: GeoBuilder, f: FigureSpec): void {
   const build = f.build ?? 'regular';
-  const R = TORSO_R[build];
-  b.add(lathe([[0, 0.3], [R * 0.72, 0.3], [R * 0.86, 0.34], [R * 0.92, 0.4], [R * 0.9, 0.44], [0, 0.45]], 20), f.pants, 0, 0, 0, 0, 0, 0, { ...SOFT, detail: pantsCloth(f) });
   if (f.belt) {
-    b.add(lathe([[R * 0.95, 0.405], [R * 0.975, 0.42], [R * 0.95, 0.435]], 22), BELT, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'leather', detail: 'leather' });
-    b.rounded(0, 0.42, faceDepth(0.42, build) + 0.016, 0.045, 0.034, 0.012, 0.006, BUCKLE, { shade: 1, surface: 'steel' });
+    girdle(b, build, 0.418, 0.004, 0.016, BELT, { shade: 1, surface: 'leather', detail: 'leather' });
+    b.rounded(0, 0.418, faceDepth(0.418, build) + 0.008, 0.045, 0.034, 0.012, 0.006, BUCKLE, { shade: 1, surface: 'steel' });
   }
 }
 
 /** The torso's crease shading (the head over the shoulders, the arms at the sides), in figure space. */
 export function occludeBody(g: THREE.BufferGeometry, build: Build = 'regular'): THREE.BufferGeometry {
   return occlude(g, build, [0, 0, 0], (p) => p.x === 0 && p.y !== HEAD_Y);
-}
-
-/** The part of a lathe profile between two heights (for stripes), interpolated at the cuts. */
-function slice(profile: [number, number][], y0: number, y1: number): [number, number][] {
-  const at = (y: number): number => {
-    for (let i = 1; i < profile.length; i++) {
-      const [r0, a] = profile[i - 1];
-      const [r1, c] = profile[i];
-      if ((y >= a && y <= c) || (y <= a && y >= c)) return c === a ? r1 : r0 + ((y - a) / (c - a)) * (r1 - r0);
-    }
-    return 0;
-  };
-  const out: [number, number][] = [[at(y0), y0]];
-  for (const p of profile) if (p[1] > y0 && p[1] < y1 && p[0] > 0) out.push(p);
-  out.push([at(y1), y1]);
-  return out;
 }
 
 // ── The limbs ────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -704,77 +669,16 @@ function kitAt(b: GeoBuilder, id: ModelId, x: number, top: number, z: number, sc
 }
 
 /**
- * Session 64: a limb's outline as one smooth lathe profile, bottom to top: the radius eased between `stations`
- * ([y, r], top first), a row every `LIMB_ROW` (dense enough to bend smoothly at the joint), and a rounded top (a
- * quarter circle of the top radius, so the shoulder or hip is round where it meets the body, with no ball).
- */
-const LIMB_ROW = 0.012;
-const LIMB_SIDES = 16;
-/** Session 65: the sleeve's top is a low dome (half its radius), so it reads as a shoulder, not a cap on the body. */
-const SHOULDER_DOME = 0.5;
-function limbProfile(stations: [number, number][], domeRows = 6, domeHeight = 1): [number, number][] {
-  const out: [number, number][] = [];
-  const bottom = stations[stations.length - 1][0];
-  const top = stations[0][0];
-  const radiusAt = (y: number): number => {
-    for (let i = 1; i < stations.length; i++) {
-      const [y0, r0] = stations[i - 1];
-      const [y1, r1] = stations[i];
-      if (y <= y0 && y >= y1) {
-        const t = (y0 - y) / Math.max(1e-6, y0 - y1);
-        return r0 + (r1 - r0) * (t * t * (3 - 2 * t));
-      }
-    }
-    return stations[0][1];
-  };
-  const rows = Math.max(2, Math.ceil((top - bottom) / LIMB_ROW));
-  for (let i = 0; i <= rows; i++) {
-    const y = bottom + ((top - bottom) * i) / rows;
-    out.push([radiusAt(y), y]);
-  }
-  const rTop = stations[0][1];
-  for (let k = 1; k <= domeRows; k++) {
-    const a = (k / domeRows) * (Math.PI / 2);
-    out.push([k === domeRows ? 0 : rTop * Math.cos(a), top + rTop * Math.sin(a) * domeHeight]);
-  }
-  return out;
-}
-
-/**
- * The arm's sleeve or bare skin, from the shoulder to the wrist, as one surface (session 64): it bends at the elbow by
- * skinning (`armWeight`), its top rounds into the shoulder. A short sleeve is puffed, ends in a soft rolled hem, and
- * the bare arm runs on from inside it. The cuff and the hand ride on the forearm (`forearmGeometry`).
- */
-export function upperArmGeometry(sleeve: string, skin: string, long: boolean, build: Build = 'regular', side: 1 | -1 = 1): THREE.BufferGeometry {
-  const b = new GeoBuilder();
-  const wrist = ELBOW_Y + WRIST_Y;
-  if (long) {
-    b.add(lathe(limbProfile([[0, SLEEVE_R], [ELBOW_Y + 0.05, FORE_SLEEVE_R * 1.01], [ELBOW_Y, FORE_SLEEVE_R], [wrist + 0.02, FORE_SLEEVE_R * 0.96]], 6, SHOULDER_DOME), LIMB_SIDES, 1), sleeve, 0, 0, 0, 0, 0, 0, SOFT);
-  } else {
-    // The sleeve: round over the shoulder, a little fuller to its hem, a slim rolled hem with its dark inside.
-    const hem = -0.105;
-    b.add(lathe(limbProfile([[0, SLEEVE_R], [hem, SLEEVE_R * 1.04]], 6, SHOULDER_DOME), LIMB_SIDES, 1), sleeve, 0, 0, 0, 0, 0, 0, SOFT);
-    roll(b, hem, SLEEVE_R * 0.98, 0.011 * L, shade(sleeve, 0.92));
-    b.add(new THREE.CircleGeometry(SLEEVE_R * 0.98, 16), shade(sleeve, 0.6), 0, hem - 0.001, 0, Math.PI / 2, 0, 0, FLAT);
-    // The bare arm, from inside the sleeve down to the wrist, tapering gently (no elbow knob).
-    const arm = lathe(limbProfile([[hem + 0.03, ARM_R], [ELBOW_Y, ARM_R * 0.97], [wrist + 0.01, ARM_R * 0.88]], 0), LIMB_SIDES, 1);
-    b.add(arm, skin, 0, 0, 0, 0, 0, 0, SKIN);
-  }
-  const g = occlude(b.build(), build, [side * shoulderX(build), SHOULDER_Y, 0], (p) => p.x * side > 0 && Math.abs(p.x) > 0.1);
-  return addSkin(g, armWeight(ELBOW_Y));
-}
-
-/**
- * The cuff and the hand, from the elbow pivot (the forearm's sleeve is the arm's own surface, `upperArmGeometry`): a
- * rolled cuff on a sleeve, and the sculpted mitten hand (figure kit) with its thumb toward the body's middle. It turns
+ * The hand, from the elbow pivot (session 66: the sleeve and its cuff are the sculpted arm's own surface, world/Body.ts):
+ * the sculpted mitten hand (figure kit) with its thumb toward the body's middle. It turns
  * with the palm (the wrist's twist); the sleeve bends with the elbow and does not twist.
  */
 export function forearmGeometry(sleeve: string, skin: string, long: boolean, side: 1 | -1, carry: 'briefcase' | 'handbag' | 'surfboard' | null, cuff?: string, build: Build = 'regular'): THREE.BufferGeometry {
   const b = new GeoBuilder();
-  if (long) {
-    roll(b, WRIST_Y + 0.025, FORE_SLEEVE_R * 0.93, 0.013 * L, cuff ?? shade(sleeve, 0.92));
-    b.add(new THREE.CircleGeometry(FORE_SLEEVE_R * 0.95, 16), shade(sleeve, 0.55), 0, WRIST_Y + 0.012, 0, Math.PI / 2, 0, 0, FLAT);
-  }
+  // Session 66: the sleeve and its cuff are painted on the sculpted arm (world/Body.ts); here, the hand.
+  void long;
+  void cuff;
+  void sleeve;
   // Side −1 is the figure's right (x < 0): its thumb points toward +x; the kit's right hand has its thumb toward −x.
   kitAt(b, side === 1 ? 'ch_hand_r' : 'ch_hand_l', 0, WRIST_Y + 0.035, 0.004, HAND_SCALE, figKeys(skin, skin, skin, skin));
   if (carry === 'briefcase' && side === 1) {
@@ -795,51 +699,19 @@ export function forearmGeometry(sleeve: string, skin: string, long: boolean, sid
 }
 
 
-/** A seam laid along a limb's side, following its outline (many points, so it bends with the skin). */
-function limbSeam(b: GeoBuilder, side: 1 | -1, profile: [number, number][], y0: number, y1: number, color: string): void {
-  const pts = profile.filter(([, y]) => y <= y0 && y >= y1).map(([r, y]) => new THREE.Vector3(side * (r + 0.001), y, 0));
-  if (pts.length < 2) return;
-  b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 2, 0.0045, 4, false), shade(color, 0.8), 0, 0, 0, 0, 0, 0, FLAT);
-}
-
 /**
- * The leg, from the hip to the ankle, as one surface (session 64): the trouser leg down to its turned-up hem (or a
- * bare leg under a skirt, down to the sock), bending at the knee by skinning (`legWeight`), its top rounded under the
- * hips. The hem, the sock and the shoe ride on the shin (`shinGeometry`).
- */
-export function thighGeometry(color: string, bare: boolean, skin: string, build: Build = 'regular', side: 1 | -1 = 1): THREE.BufferGeometry {
-  const b = new GeoBuilder();
-  const foot = -(LEG_LENGTH + KNEE_Y);
-  const shoeTop = foot + SHOE_TOP;
-  if (bare) {
-    b.add(lathe(limbProfile([[-0.04, BARE_LEG_R], [KNEE_Y, BARE_LEG_R * 0.96], [KNEE_Y + shoeTop + 0.03, BARE_LEG_R * 0.86]]), LIMB_SIDES, 1), skin, 0, 0, 0, 0, 0, 0, SKIN);
-  } else {
-    const cuff = KNEE_Y + shoeTop + 0.045;
-    const prof = limbProfile([[-0.03, TROUSER_R], [KNEE_Y, SHIN_R], [cuff, SHIN_R * 0.97]]);
-    b.add(lathe(prof, LIMB_SIDES, 1), color, 0, 0, 0, 0, 0, 0, SOFT);
-    limbSeam(b, side, prof, -0.04, cuff + 0.02, color);
-  }
-  const g = occlude(b.build(), build, [side * hipX(build), HIP_Y, 0], (p) => near(p, side * hipX(build), 0.2) || p.y < 0.3);
-  return addSkin(g, legWeight(KNEE_Y));
-}
-
-/**
- * The ankle, from the knee pivot (the shin's trouser or skin is the leg's own surface, `thighGeometry`): the turned-up
- * hem over a sock band (or the sock on a bare leg), and the chunky clay shoe on its paler sole, or a sneaker under a tee.
+ * The shoe, from the knee pivot (session 66: the trouser, its hem and the sock are the sculpted leg's own surface,
+ * world/Body.ts): the chunky clay shoe on its paler sole, or a sneaker under a tee.
  */
 export function shinGeometry(color: string, shoe: string, bare: boolean, skin: string, sock: string, smart: boolean, build: Build = 'regular', side: 1 | -1 = 1): THREE.BufferGeometry {
   const b = new GeoBuilder();
   const foot = -(LEG_LENGTH + KNEE_Y);
   const shoeTop = foot + SHOE_TOP;
-  if (bare) {
-    tube(b, shoeTop + 0.04, shoeTop - 0.005, BARE_LEG_R * 1.06, BARE_LEG_R * 1.06, sock, { ...SOFT, detail: 'knit' });
-  } else {
-    const cuff = shoeTop + 0.045;
-    // The turned-up hem: a slim roll a touch wider than the leg, its inside dark, the sock band showing under it.
-    roll(b, cuff, SHIN_R * 0.95, 0.018 * L, shade(color, 1.08));
-    b.add(new THREE.CircleGeometry(SHIN_R * 0.95, 16), shade(color, 0.5), 0, cuff - 0.02, 0, Math.PI / 2, 0, 0, FLAT);
-    tube(b, cuff - 0.01, shoeTop - 0.005, SOCK_R, SOCK_R, sock, { ...SOFT, detail: 'knit' }, 16);
-  }
+  // Session 66: the trouser hem and the sock are painted on the sculpted leg (world/Body.ts); here, the shoe.
+  void shoeTop;
+  void bare;
+  void sock;
+  void color;
   // The clay shoe (CHARACTER_SPEC §2): a domed bean on a paler sole; dark leather on a mid sole for uniforms, coats
   // and gowns, the look's own colour on a pale sole for everyone else.
   const s = (smart ? 1.08 : 1.1) * FIGURE_SHAPE.shoe;
@@ -864,6 +736,8 @@ export function shinGeometry(color: string, shoe: string, bare: boolean, skin: s
 // figure space with soft folds and a lining, then moved so its pivot is its origin.
 
 /** Where a skirt or a coat's tails hang from (figure space). */
+/** Session 65: hanging cloth narrows no further than this (the legs narrow by about the limbs' factor). */
+export const CLOTH_FLOOR = 0.8;
 export const WAIST_Y = 0.47;
 export const COAT_PIVOT_Y = 0.5;
 
@@ -916,6 +790,40 @@ function hemArc(b: GeoBuilder, y: number, r: number, a0: number, a1: number, col
   b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, tube, 5, a1 - a0 >= Math.PI * 2 - 1e-3), color, 0, 0, 0, 0, 0, 0, SOFT);
 }
 
+/**
+ * Session 66: hangs a piece of cloth on the sculpted torso. A lathe is round, the torso is not (wider than it is deep,
+ * its back fuller than its front), so a round waistband stood off the body at the front and back and dug in at the
+ * sides. Between `low` and the top, each point is moved onto the torso's own outline at its height plus `pad` (the
+ * cloth's thickness) at the front and back, blending back to the lathe's own shape below `low`; only ever drawn in.
+ * Built in build space: `floor` is the narrowing `narrowBody` will apply to this piece (so the fitted points land on
+ * the body once it is narrowed).
+ */
+function fitToBody(g: THREE.BufferGeometry, build: Build, low: number, top: number, pad: number, floor: number): THREE.BufferGeometry {
+  const p = g.getAttribute('position');
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i);
+    if (y <= low) continue;
+    const t = smoothstep(low, top, y);
+    const x = p.getX(i);
+    const z = p.getZ(i);
+    const r = Math.hypot(x, z);
+    if (r < 1e-6) continue;
+    const k = Math.max(floor, bodyWidth(y));
+    const [h, f, bk] = bodyOutline(build, Math.min(0.85, Math.max(0.3, y)));
+    // Past the body's width (a skirt's side) the ellipse is widened, so the side never pinches flat.
+    const a = Math.max(h / k + pad, Math.abs(x) * 1.25);
+    const c = (z >= 0 ? f : bk) / k + pad;
+    // Only the front and back are drawn in onto the body (the round lathe stood off it there): the sides keep the
+    // lathe's width, which the hanging arms (and a bag in the hand) are measured clear of.
+    const zt = c * Math.sqrt(Math.max(0, 1 - Math.min(1, (x / a) ** 2)));
+    if (Math.abs(z) <= zt) continue;
+    p.setXYZ(i, x, y, z + (Math.sign(z) * zt - z) * t);
+  }
+  p.needsUpdate = true;
+  g.computeVertexNormals();
+  return g;
+}
+
 /** A dress's or a gown's bell (and an apron's skirt over it), hung from the waist. */
 export function skirtGeometry(f: FigureSpec, apron: string | null): THREE.BufferGeometry {
   return wearing(topCloth(f), () => skirt(f, apron));
@@ -929,7 +837,7 @@ function skirt(f: FigureSpec, apron: string | null): THREE.BufferGeometry {
   // Session 63: a gown is a full skirt (a walking stride stays inside its hem).
   const flare = f.outfit === 'dress' ? 1.32 : 1.52;
   const prof: [number, number][] = [[R * flare, hem + 0.012], [R * flare * 0.98, hem + 0.05], [R * 1.2, 0.3], [R * 1.05, 0.4], [R * 0.97, WAIST_Y + 0.005]];
-  const bell = foldedLathe(prof, 9, 0.045, WAIST_Y, hem);
+  const bell = fitToBody(foldedLathe(prof, 9, 0.045, WAIST_Y, hem), build, 0.41, WAIST_Y - 0.008, 0.009, CLOTH_FLOOR);
   b.add(bell, f.pants, 0, 0, 0, 0, 0, 0, SOFT);
   b.add(inside(bell), shade(f.pants, 0.62), 0, 0, 0, 0, 0, 0, SOFT);
   hemArc(b, hem + 0.012, R * flare * 0.995, 0, Math.PI * 2, shade(f.pants, 0.92));
@@ -950,7 +858,7 @@ function skirt(f: FigureSpec, apron: string | null): THREE.BufferGeometry {
       const y = low + ((top - low) * i) / 5;
       ap.push([radiusAt(y) + 0.012, y]);
     }
-    b.add(foldedLathe(ap, 9, 0.045, WAIST_Y, hem, -0.75, 1.5, 14), apron, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric', detail: 'oxford' });
+    b.add(fitToBody(foldedLathe(ap, 9, 0.045, WAIST_Y, hem, -0.75, 1.5, 14), build, 0.41, WAIST_Y - 0.008, 0.02, CLOTH_FLOOR), apron, 0, 0, 0, 0, 0, 0, { shade: 1, surface: 'fabric', detail: 'oxford' });
     hemArc(b, low + 0.004, radiusAt(low) + 0.012, -0.75, 0.75, shade(apron, 0.92), 0.01);
   }
   const g = occlude(b.build(), build, [0, 0, 0], (p) => p.x === 0 && p.y !== HEAD_Y);
@@ -973,7 +881,7 @@ function coatHalf(f: FigureSpec, side: 1 | -1, lining: string): THREE.BufferGeom
   // Session 63: the hem just above the knee (a running heel swept through the lowest few centimetres of a longer one).
   const hem = 0.27;
   const prof: [number, number][] = [[R * 1.2, hem], [R * 1.15, 0.31], [R * 1.06, 0.4], [R * 1.01, 0.47], [R * 0.99, COAT_PIVOT_Y + 0.01]];
-  const shell = foldedLathe(prof, 7, 0.035, COAT_PIVOT_Y, hem, phi0, len, 16);
+  const shell = fitToBody(foldedLathe(prof, 7, 0.035, COAT_PIVOT_Y, hem, phi0, len, 16), build, 0.485, COAT_PIVOT_Y + 0.005, 0.012, CLOTH_FLOOR);
   b.add(shell, f.top, 0, 0, 0, 0, 0, 0, SOFT);
   b.add(inside(shell), lining, 0, 0, 0, 0, 0, 0, SOFT);
   hemArc(b, hem + 0.004, R * 1.215, phi0, phi0 + len, shade(f.top, 0.9));
@@ -1010,16 +918,21 @@ export function hairPieceGeometry(f: FigureSpec): THREE.BufferGeometry | null {
   const g = b.build();
   // Session 63 ("zero clip ins"): where the hair falls past the collar it lies on the back and shoulders, never in them:
   // any part of it inside the torso (plus a finger's breadth) is lifted straight out from the body's axis.
-  const chest = chestProfile(f.build ?? 'regular');
+  // Session 66: against the sculpted torso, where the hair will be once the head is scaled about the neck.
+  const build = f.build ?? 'regular';
+  const k = FIGURE_SHAPE.head;
   const pos = g.getAttribute('position');
   for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i) + HEAD_Y;
-    if (y > chest[chest.length - 1][1]) continue;
-    const r = profileAt(chest, y) + HAIR_LIE;
-    const x = pos.getX(i);
-    const z = pos.getZ(i);
-    const e = Math.hypot(x, z / TORSO_DEPTH);
-    if (e < r && e > 1e-4) pos.setXYZ(i, (x * r) / e, pos.getY(i), (z * r) / e);
+    const yHead = pos.getY(i) + HEAD_Y;
+    const y = NECK_Y + (yHead - NECK_Y) * k;
+    if (y > 0.86 || y < 0.3) continue;
+    const [h, fr, bk] = bodyOutline(build, y);
+    const x = pos.getX(i) * k;
+    const z = pos.getZ(i) * k;
+    const depth = z >= 0 ? fr : bk;
+    const e = Math.hypot(x, (z * h) / depth);
+    const r = h + HAIR_LIE;
+    if (e < r && e > 1e-4) pos.setXYZ(i, (x * r) / e / k, pos.getY(i), (z * r) / e / k);
   }
   pos.needsUpdate = true;
   g.computeVertexNormals();
@@ -1029,17 +942,7 @@ export function hairPieceGeometry(f: FigureSpec): THREE.BufferGeometry | null {
 }
 
 /** How far clear of the torso long hair lies (it swings out from there, never in: CharacterView's hair spring). */
-const HAIR_LIE = 0.022;
-
-/** A lathe profile's radius at a height (straight lines between its points). */
-function profileAt(p: [number, number][], y: number): number {
-  for (let i = 1; i < p.length; i++) {
-    const [r0, a] = p[i - 1];
-    const [r1, c] = p[i];
-    if (y >= a && y <= c) return c === a ? Math.max(r0, r1) : r0 + ((y - a) / (c - a)) * (r1 - r0);
-  }
-  return 0;
-}
+const HAIR_LIE = 0.03;
 
 /** The soft felt hats (art/blender/characters/char_kit.py), placed on the head (head-centre at HEAD_Y). */
 export type FeltHat = 'conductor' | 'bowler' | 'boater' | 'pillbox' | 'beanie' | 'tophat' | 'toque' | 'cap';

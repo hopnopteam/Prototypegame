@@ -318,3 +318,42 @@ reshaped (`FIGURE_SHAPE` in `CharacterParts.ts`):
 - Asleep, a skirt, coat tail or apron is not drawn under the blanket (it poked through it).
 
 The clip test passes with zero clips (quick and full). Visual only: the pacing simulator is byte-identical.
+
+## 16. Session 66: sculpted bodies and heads
+
+Owner: "the way character limbs are and some clothing fold is happening, it's all clipping… I don't like the stick
+nature… the bodies are still smooth, simple shapes… the next step is new hand-sculpted heads and bodies made in
+Blender. Scaling the existing parts can't fix that on its own."
+
+**The body is one sculpted surface** (`art/blender/characters/body_kit.py`, `ch_body_slim|regular|stout`): a torso
+with a seat, hips, a waist, ribs widening to the chest and the chest falling to the shoulders, deeper in front at the
+chest and behind at the seat; a neck; trapezius and deltoids; arms with a biceps, an elbow and a forearm swell; legs
+with a thigh, a knee and a calf. The primitives are fused by a fine voxel remesh, every join relaxed round, laid out
+in even quads that follow the form, and mirrored exactly. The script writes the bones' positions and the torso's
+measured outline (half-width, front, back every centimetre) into `src/world/models/bodyKit.ts`.
+
+**The game cuts it at its bones** (`src/world/Body.ts`, `sculptedBody`): the torso stays with the body, each arm with
+its shoulder, each leg with its hip, and every vertex is weighted to its limb, the body (near the shoulder or the hip)
+or the limb's lower bone (past the elbow or the knee). A triangle touching a limb is the limb's, and its corners that
+are pure body follow the body exactly, so no seam can open when a shoulder rolls or a hip swings. The clothes are
+painted on by region (sleeve to its hem or cuff, neckline, waistband, trouser hem, sock, stripes), each boundary cut
+through the mesh (`splitBy`), so every hem is a clean line. Cycles' baked occlusion (armpits, between the legs, under
+the chin) shades every colour. The old tube limbs and their rolls are gone (`upperArmGeometry`, `thighGeometry`).
+
+**Garments on the sculpted torso:** details (lapels, plackets, pockets, belts, sashes, apron bibs, straps) are placed
+on its measured outline (`surfaceZ`, `girdle`, `torsoDistance`). A skirt's, an apron's or a coat's waist is drawn in
+onto the torso's front and back (`fitToBody`): a round lathe stood off the elliptical torso there. Its sides keep the
+lathe's width (a hanging arm and a bag in the hand are measured clear of them).
+
+**The heads** (`char_kit.py`): the skull is a fine ball on the head's shape with a jaw narrowing under the cheeks to a
+soft chin and a little less depth at the nape (`sculpt_radius`; the face's middle is unchanged, so the eyes, nose and
+mouth still sit on it). The ears are sculpted (a rim round a hollow bowl, a lobe, set back and tilted), fused into the
+skull by a voxel remesh, and the result reduced by curvature (the ears keep their triangles). The hair is laid out
+along its own hairline (`hair_grid`): for each direction round the head, the stretch of the meridian it covers is found
+and divided evenly, so the rim is the hairline itself, an exact smooth curve, solidified to a roll and bevelled. The
+cut-and-decimate it replaces stepped the rim into a staircase at the temples and left holes in the skull you could see
+the inside of the hair through. The skull is kept whole under the hair.
+
+**Clip test:** zero (quick and full). Two rules were made explicit: a leg vertex that follows the body (the seat and
+hip surface the leg piece carries to keep its seam closed) is body, not leg, both for the test and for `containLegs`.
+Visual only: the pacing simulator is byte-identical.
