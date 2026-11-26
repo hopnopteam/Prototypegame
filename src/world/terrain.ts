@@ -149,7 +149,9 @@ export function groundColor(x: number, s: number, lane: number | null = null, fi
     const pebble = 1 - smooth(0.15, 0.7, d);
     const n = noise2(x * 2.3, s * 2.3);
     const g = mix(GROUND.grass, GROUND.grassLight, n * 0.6);
-    return mix(mix(g, GROUND.sand, smooth(0.9, 0.3, d) * 0.85), GROUND.bank, pebble);
+    const bank = mix(mix(g, GROUND.sand, smooth(0.9, 0.3, d) * 0.85), GROUND.bank, pebble);
+    // De-Slop B6: a darker wet band where the water laps the bank (the bank met the water as a dry edge).
+    return mix(bank, GROUND.bed, (1 - smooth(0, 0.32, d)) * 0.55);
   }
   const n = noise2(x * 0.7, s * 0.7);
   const fine = noise2(x * 3.1, s * 3.1);

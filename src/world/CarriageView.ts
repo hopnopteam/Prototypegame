@@ -420,6 +420,8 @@ const RACK_CASES_LONG = 5;
 
 /** Phase 1, the Broken state: how far a crack stands proud of the pane, and the thickness of a flake of paint. */
 const CRACK_PROUD = 0.012;
+/** De-Slop B6: the cracked pane's rays (angle, length in metres, the turn at its kink). */
+const CRACK_RAYS: readonly [number, number, number][] = [[0.3, 0.26, 0.22], [1.25, 0.2, -0.3], [2.2, 0.24, 0.25], [3.3, 0.18, -0.2], [4.3, 0.25, 0.3], [5.4, 0.16, -0.25]];
 const PEEL_DEPTH = 0.006;
 
 export class CarriageView {
@@ -1733,13 +1735,31 @@ export class CarriageView {
       const cy = bottom + (win.top - bottom) * 0.62;
       const cz = win.z0 + (win.z1 - win.z0) * 0.36;
       f.object('decor:crackedWindow');
-      for (const [angle, len] of [[0.3, 0.26], [1.4, 0.18], [2.3, 0.22], [3.5, 0.15], [4.6, 0.24], [5.5, 0.12]] as [number, number][]) {
-        const dy = Math.sin(angle) * len;
-        const dz = Math.cos(angle) * len;
-        const y = Math.max(bottom + 0.02, Math.min(win.top - 0.02, cy + dy / 2));
-        const z = Math.max(win.z0 + 0.02, Math.min(win.z1 - 0.02, cz + dz / 2));
-        f.add(new THREE.BoxGeometry(0.004, 0.007, len), '#DCE6EC', px, y, z, -angle, 0, 0, { shade: 1 });
+      // De-Slop B6 ("a proper cracked pane"): a spider-web break. Kinked radial cracks from the point of impact, a
+      // ring of short cracks joining them, and a crazed white spot where it was struck (six straight sticks read
+      // as scratches on the paint).
+      const ylo = bottom + 0.02;
+      const yhi = win.top - 0.02;
+      const inPane = (y: number, z: number): boolean => y > ylo && y < yhi && z > win.z0 + 0.02 && z < win.z1 - 0.02;
+      const crack = (y0: number, z0: number, y1: number, z1: number, w: number): void => {
+        if (!inPane(y0, z0) || !inPane(y1, z1)) return;
+        const len = Math.hypot(y1 - y0, z1 - z0);
+        if (len < 0.01) return;
+        f.add(new THREE.BoxGeometry(0.004, w, len), '#EEF4F7', px, (y0 + y1) / 2, (z0 + z1) / 2, -Math.atan2(y1 - y0, z1 - z0), 0, 0, { shade: 1 });
+      };
+      const ring: [number, number][] = [];
+      for (const [angle, len, kink] of CRACK_RAYS) {
+        const ky = cy + Math.sin(angle) * len * 0.5;
+        const kz = cz + Math.cos(angle) * len * 0.5;
+        crack(cy, cz, ky, kz, 0.009);
+        crack(ky, kz, cy + Math.sin(angle + kink) * len, cz + Math.cos(angle + kink) * len, 0.006);
+        ring.push([cy + Math.sin(angle) * len * 0.32, cz + Math.cos(angle) * len * 0.32]);
       }
+      ring.forEach(([y, z], k) => {
+        const [ny, nz] = ring[(k + 1) % ring.length];
+        crack(y, z, ny, nz, 0.005);
+      });
+      f.add(new THREE.CircleGeometry(0.03, 10).rotateY(win.inward > 0 ? Math.PI / 2 : -Math.PI / 2), '#EEF4F7', px, cy, cz, 0, 0, 0, { shade: 1 });
       f.endObject();
     });
     // Peeling paint between the windows, low on the wall where the camera sees it.

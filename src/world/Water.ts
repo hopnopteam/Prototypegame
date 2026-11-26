@@ -129,8 +129,9 @@ void main() {
 
   // A soft line of foam where the water meets the bank.
   float lap = 0.5 + 0.5 * sin(uTime * 1.4 + p.y * NX_KZ(344.0));
-  float foam = (1.0 - smoothstep(0.0, 0.32 + lap * 0.12, depth)) * (0.45 + 0.55 * valueNoise(p * 5.0 + vec2(uTime * 0.6, 0.0), ${(WORLD_PERIOD * 5).toFixed(1)}));
-  color = mix(color, uFoam, foam * 0.55);
+  // De-Slop B6: a thin, brighter line rather than a broad wash.
+  float foam = (1.0 - smoothstep(0.0, 0.16 + lap * 0.08, depth)) * (0.45 + 0.55 * valueNoise(p * 5.0 + vec2(uTime * 0.6, 0.0), ${(WORLD_PERIOD * 5).toFixed(1)}));
+  color = mix(color, uFoam, foam * 0.8);
 
   // Far out, the lake softens into the night haze (it goes on beyond what the camera can see).
   color = mix(color, uHaze, smoothstep(9.0, 26.0, depth) * 0.55);

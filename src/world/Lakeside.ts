@@ -1,6 +1,7 @@
 import { ACTIVE_ROUTE } from '../config/routes';
 import { LUSH, NEW_LOOK } from '../config/look';
 import * as THREE from 'three';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../core/Rng';
 import { GeoBuilder, type PartStyle } from './geo';
 import { PATTERN } from './materials';
@@ -968,6 +969,36 @@ export function runSteps<T>(steps: Generator<void, T>): T {
 }
 
 /** Smooth-shaded geometry (soft, diorama-like) from an indexed primitive. */
+/** De-Slop B6: one boulder and two stones at its foot (radius, x, z, colour), in the fill's unit space. */
+const ROCK_GROUP: readonly [number, number, number, string][] = [
+  [0.3, 0, 0, '#9097A3'],
+  [0.15, 0.3, 0.14, '#8A8F98'],
+  [0.1, -0.2, 0.24, '#9EA3AC'],
+];
+
+/**
+ * A smooth, lumpy stone of about this radius: a subdivided sphere pushed in and out by a fixed hash (never game
+ * randomness), flattened, with its lower third below the ground.
+ */
+function pebble(radius: number, seed: number): THREE.BufferGeometry {
+  const base = new THREE.IcosahedronGeometry(radius, 2);
+  base.deleteAttribute('normal');
+  base.deleteAttribute('uv');
+  const g = mergeVertices(base, 1e-4);
+  base.dispose();
+  const p = g.getAttribute('position');
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i);
+    const y = p.getY(i);
+    const z = p.getZ(i);
+    const n = Math.sin(x * 12.9 + y * 78.2 + z * 37.7 + seed) * 43758.5;
+    const bump = 0.9 + 0.2 * (n - Math.floor(n));
+    p.setXYZ(i, x * bump, y * bump * 0.62 - radius * 0.2, z * bump * 1.05);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
 function soft(g: THREE.BufferGeometry): THREE.BufferGeometry {
   g.computeVertexNormals();
   return g;
@@ -1005,10 +1036,10 @@ export function fillGeometries(): Record<FillKind, THREE.BufferGeometry> {
     reed.add(new THREE.CylinderGeometry(0.012, 0.022, h, 4), '#86965C', dx, h / 2, dz, rr.range(-0.15, 0.15), 0, rr.range(-0.15, 0.15), { shade: 0.7, surface: 'foliage' });
     if (i % 2 === 0) reed.add(new THREE.CylinderGeometry(0.03, 0.03, 0.14, 5), '#A0845A', dx, h + 0.02, dz, 0, 0, 0, FLAT);
   }
+  // De-Slop B6 ("rocks rounded, grouped and sunk"): a weathered boulder with two smaller stones at its foot, smooth and
+  // lumpy, a third of each sunk into the ground (the faceted kit rock sat on the grass like a dropped die).
   const rock = new GeoBuilder();
-  const stone = modelEntry('rock_round');
-  const rockScale = 0.62 / (stone.max[0] - stone.min[0]);
-  rock.model('rock_round', 0, -0.04, 0, 0, rockScale, rockScale * 0.7, rockScale, { recolor: [{ hue: [0, 360], sat: [0, 1], ref: '#6b7378', to: '#9097A3' }], shade: 0.75, surface: 'stone' });
+  for (const [r, x, z, tone] of ROCK_GROUP) rock.add(pebble(r, x * 7 + z * 13), tone, x, 0, z, 0, x * 3, 0, { shade: 0.78, surface: 'stone' });
   const lily = new GeoBuilder();
   lily.add(new THREE.CylinderGeometry(0.2, 0.2, 0.012, 10, 1, false, 0.4, Math.PI * 1.8), '#4E7E58', 0, 0, 0, 0, 0, 0, FLAT);
   lily.add(new THREE.CylinderGeometry(0.13, 0.13, 0.012, 9, 1, false, 1.0, Math.PI * 1.8), '#5A8C62', 0.22, 0, 0.12, 0, 0, 0, FLAT);
