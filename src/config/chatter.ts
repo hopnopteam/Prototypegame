@@ -50,37 +50,41 @@ export const REACTIONS: Record<ChatterSituation, Reaction> = {
  * float over them. Each pool is used in turn (no game randomness, so the simulation is unchanged); staff work stays
  * quiet. `item` names the thing brought, so the words fit it ("So cosy!" for a blanket).
  */
+/**
+ * Session 66 (de-slop, ART_BIBLE §9 rule 8): a word or two, no exclamation marks (several guests thanking the
+ * conductor at once had the screen shouting).
+ */
 export const PRAISE = {
   /** Brought within `service.speedySeconds`. */
-  speedy: ['Speedy!', 'Super fast!', 'Lightning!', 'Wow, quick!'],
+  speedy: ['Speedy', 'Super fast', 'Lightning', 'So quick'],
   /** Brought within `service.quickSeconds`: the item's own word, or one of these. */
-  quick: ['Lovely!', 'Perfect!', 'Wonderful!', 'Brilliant!', 'Marvellous!'],
+  quick: ['Lovely', 'Perfect', 'Wonderful', 'Brilliant', 'Marvellous'],
   /** Brought in good time (before it was late). */
-  onTime: ['Thank you!', 'Cheers!', 'Ta!'],
+  onTime: ['Thank you', 'Cheers', 'Ta'],
   item: {
-    tea: ['Perfect cuppa!', 'Just right!'],
-    coffee: ['Ahh, coffee!', 'Just right!'],
-    champagne: ['Cheers!', 'Bubbly!'],
-    blanket: ['So cosy!', 'Toasty!'],
-    pillow: ['So soft!', 'Comfy!'],
-    towel: ['So fluffy!', 'Lovely!'],
-    newspaper: ['Splendid!', 'Thank you!'],
-    breakfast: ['Delicious!', 'Yum!'],
-    sandwich: ['Delicious!', 'Just what I needed!'],
-    turndown: ['Chocolate!', 'How lovely!'],
+    tea: ['Perfect cuppa', 'Just right'],
+    coffee: ['Ahh, coffee', 'Just right'],
+    champagne: ['Cheers', 'Bubbly'],
+    blanket: ['So cosy', 'Toasty'],
+    pillow: ['So soft', 'Comfy'],
+    towel: ['So fluffy', 'Lovely'],
+    newspaper: ['Splendid', 'Thank you'],
+    breakfast: ['Delicious', 'Yum'],
+    sandwich: ['Delicious', 'Just what I needed'],
+    turndown: ['Chocolate', 'How lovely'],
   } as Record<string, string[]>,
   /** A cabin key handed over at the desk. */
-  key: ['Thank you!', 'Lovely!', 'Wonderful!'],
+  key: ['Thank you', 'Lovely', 'Wonderful'],
   /** A room tidied by the conductor. */
-  tidy: ['Spotless!', 'Sparkling!', 'Gleaming!'],
+  tidy: ['Spotless', 'Sparkling', 'Gleaming'],
   /** Shoes polished on the night shift. */
-  shoes: ['Shiny!', 'Gleaming!'],
+  shoes: ['Shiny', 'Gleaming'],
   /** A venue order served by the conductor, by venue. */
   venue: {
-    cafe: ['Yum!', 'Delicious!', 'Perfect brew!'],
-    dining: ['Delicious!', 'Magnificent!', 'Divine!'],
-    bar: ['Cheers!', 'Perfect mix!'],
-    dome: ['What a view!', 'Gorgeous!'],
-    cinema: ['Bravo!', 'Popcorn time!'],
+    cafe: ['Yum', 'Delicious', 'Perfect brew'],
+    dining: ['Delicious', 'Magnificent', 'Divine'],
+    bar: ['Cheers', 'Perfect mix'],
+    dome: ['What a view', 'Gorgeous'],
+    cinema: ['Bravo', 'Popcorn time'],
   } as Record<string, string[]>,
 };

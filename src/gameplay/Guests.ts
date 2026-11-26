@@ -1712,7 +1712,7 @@ export class Guests {
     const say = (text: string, kind: FloatKind): void => w.ui.floatText(text, guest.pos.x, FLOOR_Y + 2.6, guest.pos.z, kind);
     if (noTip) {
       guest.lateServed++;
-      say('Too slow!', 'miss');
+      say('Too slow', 'miss');
       w.ui.floatIcon('angry', guest.pos.x, FLOOR_Y + 2.2, guest.pos.z, 'miss');
       w.audio.play('grumble', { volume: 0.7 });
       guest.view.act('stomp', 0.8);
@@ -1734,9 +1734,9 @@ export class Guests {
         w.feedback.praise(PRAISE.onTime, guest.pos.x, guest.pos.z);
       }
     } else if (speed >= service.speedyTipMultiplier) {
-      say('Speedy!', 'star');
+      say('Speedy', 'star');
     } else if (speed > 1) {
-      say('Thanks!', 'info');
+      say('Thanks', 'info');
     }
     w.addStars(w.econ.stars.requestFulfilled * CLASS_BY_ID[guest.cls].stars, 'request', byPlayer ? guest.pos : undefined);
     if (!late) w.particles.emit('heart', guest.pos.x, FLOOR_Y + 1.6, guest.pos.z, 5, 0.2);

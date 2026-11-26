@@ -105,3 +105,35 @@ band `#C8453A`.
   still reads its contents (judged on the comparison shots in `docs/art/compare/`; an automatic contrast check of
   pins against the scene behind them is on the gap list).
 - World UI is unlit and bloom's threshold sits above its brightest white, so pins never smear.
+
+## 9. De-slop rules (session 66)
+What makes a frame read as "generated" rather than made: everything equally loud, everything the same size, the same
+shape repeated, text that shouts, decoration that means nothing. Every new piece of art, UI or copy is checked against
+these twelve rules; `docs/art/SLOP_AUDIT.md` lists where the game breaks them and in what order they are fixed.
+
+1. **One focal point per screen.** The player's next job is the brightest, most saturated thing in view; everything
+   else steps back. No two badges, labels or pop-ups compete at the same weight.
+2. **Hierarchy by size, not by colour alone.** Three type sizes on the play screen (number, label, small print), no
+   more; world labels use two.
+3. **No uniform repetition.** A thing seen more than three times at once (bills, planks, lamps, tiles, people) varies
+   in at least one of size, angle, tone or wear, from data, never from fresh randomness (the simulation stays the same).
+4. **Things rest on things.** Nothing floats, hovers or sinks without a reason: props sit on a surface with a contact
+   shadow; world UI is drawn as UI (flat, unlit, a pointer to what it is about).
+5. **Wear tells a story.** Dirt, scuffs and age gather where hands, feet and weather would put them (door edges,
+   floor centres, steps), never as an even noise over everything.
+6. **Fewer, better outlines.** A dark outline is for UI only (pills, buttons, bubbles); world objects are separated by
+   light and value, never by a drawn line.
+7. **Restrained palette per scene.** Each scene has one dominant hue family, one accent, and neutrals; the UI's gold
+   and navy are the only colours allowed to appear everywhere.
+8. **Sentence case, quiet voice.** Player-facing words are in sentence case; at most one exclamation mark on screen at
+   a time; praise is a word or two ("Lovely", "Spotless"), never a shout. Proper names (stations, carriages) keep
+   their capitals; nothing is in all caps except the station banner.
+9. **Say what it is, not what it does to you.** Labels name the thing or the action ("Issue ticket", "Open carriage"),
+   never hype ("Amazing!", "Epic").
+10. **No placeholder geometry in view.** A plain box, cylinder or sphere standing in for a made object is replaced by
+    a model or dressed with at least two details that say what it is.
+11. **Motion has weight.** Things ease in and out and settle; nothing pops at full scale in one frame, nothing bounces
+    more than once, nothing loops without a pause.
+12. **The first three minutes are the shop window.** Every rule above is enforced first on what a new player sees in
+    their first three minutes (the opening platform, the lobby, the sleeper, the café at its early tiers, the first
+    ride's scenery, the HUD, bubbles, arrows and the first pop-ups).
