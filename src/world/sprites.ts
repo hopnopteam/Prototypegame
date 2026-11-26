@@ -7,7 +7,7 @@ import { shadeHex } from './palette';
 const bubbleCache = new Map<string, THREE.CanvasTexture>();
 
 /** Request styles, plus one per carriage class (a ticket held up on the platform in its class's colour). */
-export type BubbleStyle = 'request' | 'intent' | 'alert' | 'plain' | 'job' | 'cash' | ClassId;
+export type BubbleStyle = 'request' | 'intent' | 'alert' | 'plain' | 'job' | 'cash' | 'sleep' | ClassId;
 
 
 function canvas(size: number, resolution = 1): [HTMLCanvasElement, CanvasRenderingContext2D] {
@@ -104,6 +104,8 @@ const PIN_RIM: Record<BubbleStyle, string | null> = {
   plain: null,
   job: '#3E9BE0',
   cash: '#E7B23A',
+  // De-Slop B7: a sleeper's Zzz in the same pin, a dusk-blue rim (it floated bare, in a style of its own).
+  sleep: '#7B86B8',
   basic: CLASS_BY_ID.basic.color,
   comfort: CLASS_BY_ID.comfort.color,
   business: CLASS_BY_ID.business.color,
@@ -555,11 +557,12 @@ export function signTexture(text: string, background: string, foreground: string
   ctx.strokeRect(20, 20, width - 40, height - 40);
   ctx.fillStyle = foreground;
   const label = text.toUpperCase();
-  let size = Math.floor(height * 0.4);
+  // De-Slop B7: bigger lettering (it read small on the station's name board), as wide as the frame allows.
+  let size = Math.floor(height * 0.5);
   const spacing = (): number => size * 0.16;
   ctx.font = `700 ${size}px ${TILE_FONT}`;
   const measure = (): number => [...label].reduce((sum, ch) => sum + ctx.measureText(ch).width, 0) + spacing() * (label.length - 1);
-  while (measure() > width - 70 && size > 18) {
+  while (measure() > width - 56 && size > 18) {
     size -= 2;
     ctx.font = `700 ${size}px ${TILE_FONT}`;
   }

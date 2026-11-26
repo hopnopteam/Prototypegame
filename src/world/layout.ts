@@ -69,7 +69,7 @@ export const INTERIOR_WALL_HEIGHT = EXTERIOR_WALL_HEIGHT;
  * leaves meet with `meetGap` between them, an open door swings `swing` radians, a leaf is `thickness` thick.
  * `tests/doors.test.ts` sweeps every leaf through its swing in every floor plan.
  */
-export const ROOM_DOOR = { hingeInset: 0.04, meetGap: 0.01, swing: Math.PI * 0.47, thickness: 0.035 };
+export const ROOM_DOOR = { hingeInset: 0.04, meetGap: 0.01, swing: Math.PI * 0.49, thickness: 0.035 };
 /**
  * The rear end wall faces the camera (it looks down the train from the back): cut down to a low sill so the
  * end of every carriage, where its improvement and staff tiles stand, is in full view.

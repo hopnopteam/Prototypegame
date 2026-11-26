@@ -19,6 +19,8 @@ const HEAD_TURN_MAX = 1.1;
  * lifts its head to watch the conductor go by. Three small meshes on the shared solid material; it only
  * rests on the desk (the clipping audit holds it there), so it never gets in anyone's way.
  */
+/** De-Slop B7: how much bigger than life-size the lobby cat is drawn. */
+const CAT_SCALE = 1.3;
 export class TrainCat {
   readonly group = new THREE.Group();
   private readonly body: THREE.Mesh;
@@ -46,7 +48,7 @@ export class TrainCat {
     head.add(new THREE.SphereGeometry(0.075, 10, 8).scale(1.1, 0.95, 1), GINGER, 0, 0, 0, 0, 0, 0, { shade: 0.9, surface: 'fabric' });
     head.add(new THREE.SphereGeometry(0.035, 6, 5).scale(1.3, 0.8, 0.9), CREAM, 0, -0.025, -0.06, 0, 0, 0, { shade: 1 });
     for (const x of [-0.045, 0.045]) {
-      head.add(new THREE.ConeGeometry(0.03, 0.06, 4).rotateY(Math.PI / 4), GINGER, x, 0.07, 0.005, 0, 0, x > 0 ? -0.25 : 0.25, { shade: 0.9 });
+      head.add(new THREE.ConeGeometry(0.036, 0.075, 4).rotateY(Math.PI / 4), GINGER, x, 0.078, 0.005, 0, 0, x > 0 ? -0.25 : 0.25, { shade: 0.9 });
       head.add(new THREE.BoxGeometry(0.022, 0.008, 0.006), INK, x * 0.72, 0.012, -0.072, 0, 0, x > 0 ? 0.25 : -0.25, { shade: 1 });
     }
     head.add(new THREE.SphereGeometry(0.009, 5, 4), '#D07A86', 0, -0.012, -0.083, 0, 0, 0, { shade: 1 });
@@ -60,8 +62,8 @@ export class TrainCat {
     const tail = new GeoBuilder();
     tail.object('cat');
     // The tail curls round the cat's side toward its paws.
-    tail.add(new THREE.TorusGeometry(0.15, 0.022, 5, 14, Math.PI * 0.85).rotateX(Math.PI / 2), GINGER, 0, 0, 0, 0, 0, 0, { shade: 0.85, surface: 'fabric' });
-    tail.add(new THREE.SphereGeometry(0.026, 6, 5), GINGER_DARK, 0.15, 0, 0, 0, 0, 0, { shade: 1 });
+    tail.add(new THREE.TorusGeometry(0.15, 0.03, 6, 16, Math.PI * 0.85).rotateX(Math.PI / 2), GINGER, 0, 0, 0, 0, 0, 0, { shade: 0.85, surface: 'fabric' });
+    tail.add(new THREE.SphereGeometry(0.034, 6, 5), GINGER_DARK, 0.15, 0, 0, 0, 0, 0, { shade: 1 });
     tail.endObject();
     this.tail = new THREE.Mesh(tail.build(), MATERIALS.solid);
     this.tail.position.set(0, 0.025, 0.02);
@@ -75,6 +77,8 @@ export class TrainCat {
   place(desk: Rect, top: number): void {
     const cx = (desk.x0 + desk.x1) / 2;
     this.group.position.set(cx - 0.02, top, desk.z0 + 0.62);
+    // De-Slop B7: a cat you can read at play distance (ears and tail included).
+    this.group.scale.setScalar(CAT_SCALE);
     this.group.rotation.y = Math.PI / 2;
   }
 

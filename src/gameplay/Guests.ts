@@ -1362,7 +1362,7 @@ export class Guests {
           this.startAlighting(guest);
           break;
         }
-        guest.view.showBubble('zzz', 'plain', 1.3);
+        guest.view.showBubble('zzz', 'sleep', 1.3);
         guest.sleptFor += dt;
         this.advanceTrip(guest, false);
         break;

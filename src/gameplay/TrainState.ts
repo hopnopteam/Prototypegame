@@ -140,8 +140,9 @@ const SLEEPER_HEAD = 1.02;
  * before they get there even at a stride, and stay open until everyone is a little further off (`ROOM_DOOR_KEEP`)
  * so they never flap at the edge. Rates are per second: a quick swing open, a gentler one shut.
  */
-const ROOM_DOOR_REACH = 2.0;
-const ROOM_DOOR_KEEP = 2.4;
+// De-Slop B7: they open earlier, so they are fully open before anyone reaches them.
+const ROOM_DOOR_REACH = 2.8;
+const ROOM_DOOR_KEEP = 3.2;
 /** The approach to a doorway reaches this far past its posts along the corridor. */
 const ROOM_DOOR_SIDE = 0.5;
 /** Walking within this angle of straight at the doorway counts as heading in (cosine): passing by does not. */
@@ -150,7 +151,7 @@ const ROOM_DOOR_HEADING = 0.55;
 const CAT_HEART_RADIUS = 1.4;
 const CAT_HEART_AFTER = 1.2;
 const CAT_HEART_GAP = 30;
-const ROOM_DOOR_OPEN_RATE = 4.5;
+const ROOM_DOOR_OPEN_RATE = 6;
 const ROOM_DOOR_CLOSE_RATE = 2.2;
 /** A cabin's mess clears away in this many visible steps while it is tidied. */
 const CLEAN_STEPS = 7;
