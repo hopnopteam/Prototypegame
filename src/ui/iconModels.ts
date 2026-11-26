@@ -52,4 +52,7 @@ export const ICON_MODELS: readonly { name: IconName; parts: IconPart[]; build?: 
   { name: 'bath', parts: [], build: true },
   { name: 'chest', parts: [], build: true },
   { name: 'gem', parts: [], build: true },
+  // De-Slop B1: the Lamps and TV upgrades' own icons (they showed a heart).
+  { name: 'lamp', parts: [], build: true },
+  { name: 'tv', parts: [], build: true },
 ];

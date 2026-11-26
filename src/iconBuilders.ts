@@ -68,6 +68,7 @@ export const ICON_BUILDERS: Record<string, Builder> = {
   coffee: () => cupOnSaucer('#4A2A1C'),
   latte: () => cupOnSaucer('#C8925E', '#FFF6E6'),
   broom: () => {
+    // De-Slop B1 (the reviewer read the lone broom as an éclair): a broom leaning on a dustpan, so it reads as tidying.
     const fan = new THREE.Shape();
     fan.moveTo(-0.16, 0.5); fan.lineTo(0.16, 0.5); fan.lineTo(0.42, 0); fan.lineTo(-0.42, 0); fan.closePath();
     const bristles = new THREE.Mesh(new THREE.ExtrudeGeometry(fan, { depth: 0.16, bevelEnabled: true, bevelSize: 0.04, bevelThickness: 0.04, bevelSegments: 3 }), mat('#E8C35A', 0.85));
@@ -78,8 +79,21 @@ export const ICON_BUILDERS: Record<string, Builder> = {
       ...[-0.22, -0.08, 0.08, 0.22].map((dx) => at(rbox(0.035, 0.4, 0.04, 0.015, '#C9A23A'), dx, 0.22, 0.13, 0, 0, -dx * 0.9)),
       cyl(0.045, 0.045, 1.0, '#B8834F', 0, 1.1, 0),
     );
-    return group(at(head, 0, 0.05, 0, 0, 0, -0.28));
+    // The dustpan: a shallow tray with raised sides and back, a short handle, in painted tin.
+    const tin = '#3E8DCB';
+    const pan = group(
+      rbox(0.62, 0.04, 0.5, 0.02, tin, 0, 0.02, 0),
+      rbox(0.62, 0.2, 0.05, 0.02, tin, 0, 0.1, -0.23),
+      rbox(0.05, 0.16, 0.5, 0.02, tin, -0.29, 0.08, 0),
+      rbox(0.05, 0.16, 0.5, 0.02, tin, 0.29, 0.08, 0),
+      at(cyl(0.035, 0.035, 0.34, '#2B2230'), 0, 0.2, -0.38, Math.PI / 2 - 0.5, 0, 0),
+      // A little dust in it.
+      sphere(0.09, '#B9AE9C', -0.08, 0.06, 0.05, 0.4),
+      sphere(0.06, '#A89C88', 0.1, 0.05, 0.1, 0.4),
+    );
+    return group(at(head, -0.22, 0.05, 0, 0, 0, -0.32), at(pan, 0.36, 0, 0.1, 0.25, -0.5, 0));
   },
+
   key: () => {
     const bow = at(torus(0.24, 0.08, GOLD, Math.PI * 2, 0.3, 0.6), -0.45, 0.5, 0, 0, 0, 0);
     const shaft = at(cyl(0.06, 0.06, 0.9, GOLD, 0, 0, 0, 0.3, 0.6), 0.2, 0.5, 0, 0, 0, Math.PI / 2);
@@ -87,6 +101,34 @@ export const ICON_BUILDERS: Record<string, Builder> = {
     const bit2 = rbox(0.1, 0.16, 0.1, 0.03, GOLD, 0.32, 0.41, 0, 0.3);
     const tag = at(rbox(0.3, 0.42, 0.06, 0.06, '#D44A4A'), -0.72, 0.18, 0.05, 0, 0, 0.35);
     return group(bow, shaft, bit1, bit2, tag);
+  },
+  lamp: () => {
+    // The Lamps upgrade (it showed a heart): a brass table lamp with a lit cream drum shade.
+    const shadeGeo = new THREE.CylinderGeometry(0.32, 0.44, 0.48, 40, 1, true);
+    const shade = new THREE.Mesh(shadeGeo, new THREE.MeshStandardMaterial({ color: '#FFF1CF', emissive: '#FFC86A', emissiveIntensity: 0.55, roughness: 0.7, side: THREE.DoubleSide }));
+    shade.position.y = 1.02;
+    return group(
+      cyl(0.3, 0.36, 0.08, '#C9962E', 0, 0.04, 0, 0.35, 0.6),
+      cyl(0.05, 0.05, 0.62, '#D8A93C', 0, 0.38, 0, 0.35, 0.6),
+      sphere(0.12, '#D8A93C', 0, 0.2, 0, 0.8),
+      sphere(0.13, '#FFE9A8', 0, 0.86, 0),
+      shade,
+      at(torus(0.44, 0.022, '#C9962E'), 0, 0.78, 0, Math.PI / 2, 0, 0),
+    );
+  },
+  tv: () => {
+    // The TV upgrade: a little wooden set with a pale blue screen, a dial and rabbit-ear aerials.
+    return group(
+      rbox(1.0, 0.72, 0.5, 0.08, '#8A5A36', 0, 0.42, 0),
+      rbox(0.66, 0.52, 0.04, 0.08, '#9FD3E8', -0.1, 0.44, 0.25),
+      sphere(0.06, '#E2B653', 0.36, 0.56, 0.26),
+      sphere(0.06, '#E2B653', 0.36, 0.36, 0.26),
+      cyl(0.08, 0.1, 0.06, '#3A2418', 0, 0.8, 0),
+      at(cyl(0.018, 0.018, 0.6, '#3A3A3A'), -0.16, 1.05, 0, 0, 0, 0.5),
+      at(cyl(0.018, 0.018, 0.6, '#3A3A3A'), 0.16, 1.05, 0, 0, 0, -0.5),
+      rbox(0.12, 0.08, 0.3, 0.03, '#3A2418', -0.36, 0.04, 0),
+      rbox(0.12, 0.08, 0.3, 0.03, '#3A2418', 0.36, 0.04, 0),
+    );
   },
   ticket: () => {
     // Owner (twice: "the train ticket logo is a little weird"): one plain, bold shape that reads at a glance. A golden
@@ -142,17 +184,25 @@ export const ICON_BUILDERS: Record<string, Builder> = {
     return group(at(t, 0, 0.45, 0, -0.38, 0.22, 0.12));
   },
   shoe: () => {
-    const sole = rbox(1.08, 0.08, 0.42, 0.04, '#3A2A22', 0, 0.04, 0);
-    const toe = sphere(0.24, '#8A4A2A', 0.3, 0.2, 0, 0.75);
-    toe.scale.set(1.5, 0.75, 0.85);
-    const body = rbox(0.62, 0.34, 0.38, 0.14, '#8A4A2A', -0.18, 0.24, 0);
-    const opening = sphere(0.14, '#3A2218', -0.18, 0.4, 0, 0.25);
-    opening.scale.set(1.5, 0.25, 0.95);
-    const heel = rbox(0.24, 0.14, 0.36, 0.04, '#3A2A22', -0.38, 0.07, 0);
-    const lace = rbox(0.18, 0.05, 0.22, 0.02, CREAM, 0.12, 0.34, 0);
-    const shine = sphere(0.05, '#FFFFFF', 0.36, 0.33, 0.12, 0.6);
-    return group(sole, toe, body, opening, heel, lace, shine);
+    // De-Slop B1 (one shoe on its side read as a pastry): a pair of oxfords, toes to the viewer at three quarters, each
+    // with a pale sole, a raised heel, a toe cap seam, laces over the tongue and the dark opening.
+    const one = (): THREE.Group => {
+      const leather = '#7A3E22';
+      const sole = rbox(0.4, 0.07, 0.96, 0.05, '#2E1C12', 0, 0.035, 0);
+      const heel = rbox(0.38, 0.13, 0.24, 0.04, '#1E120C', 0, 0.065, -0.36);
+      const toe = sphere(0.21, leather, 0, 0.17, 0.26, 1);
+      toe.scale.set(0.95, 0.62, 1.15);
+      const body = rbox(0.4, 0.3, 0.62, 0.15, leather, 0, 0.24, -0.12);
+      const cap = rbox(0.41, 0.02, 0.02, 0.01, '#4E2414', 0, 0.27, 0.18);
+      const opening = sphere(0.13, '#24140C', 0, 0.39, -0.2, 0.3);
+      opening.scale.set(1.1, 0.3, 1.5);
+      const tongue = rbox(0.18, 0.06, 0.22, 0.03, '#8E4A28', 0, 0.37, 0.0);
+      const laces = group(...[0, 0.08].map((dz) => at(rbox(0.2, 0.025, 0.03, 0.01, '#F4EAD2'), 0, 0.405, -0.04 + dz, 0, 0.5 - dz * 8, 0)));
+      return group(sole, heel, toe, body, cap, opening, tongue, laces);
+    };
+    return group(at(one(), -0.27, 0, -0.05, 0, 0.18, 0), at(one(), 0.27, 0, 0.1, 0, -0.12, 0));
   },
+
   film: () => {
     const reel = at(cyl(0.5, 0.5, 0.18, '#3D4552', 0, 0, 0, 0.35, 0.4), 0, 0.55, 0, Math.PI / 2, 0, 0);
     const g = group(reel);

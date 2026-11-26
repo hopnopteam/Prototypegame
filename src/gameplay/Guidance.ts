@@ -36,6 +36,9 @@ const REACHED = 0.9;
 const ARROW_SIZE = 0.62;
 const ARROW_HEIGHT = 1.75;
 const ARROW_BOB = 0.28;
+/** The bob's speed (radians a second) and how much the arrow squashes at the bottom of it. */
+const ARROW_BOB_RATE = 5.2;
+const ARROW_SQUASH = 0.12;
 /** Over a job's badge the arrow's tip clears the badge's top by this much (metres; session 27). */
 const ARROW_OVER_BADGE = 0.55;
 /**
@@ -58,6 +61,7 @@ export class Guidance {
   private target: Vec2 | null = null;
   /** Where the arrow hangs for the target: over the job's badge if the target is a job (session 27). */
   private readonly arrowAt = { x: 0, z: 0, y: ARROW_HEIGHT };
+  private squash = 0;
   private readonly ring: THREE.Sprite;
   private readonly ringMaterial: THREE.SpriteMaterial;
   /** The badge the target's job floats (the halo's place), or none. */
@@ -119,11 +123,15 @@ export class Guidance {
     this.arrow.visible = this.grow > 0.01;
     if (target) {
       // A soft bounce, its tip just above head height over the spot (or over the job's badge).
+      // De-Slop B1: an eased bob (no hard kink at the bottom) with a little squash as it lands and stretch as it lifts.
       const a = this.arrowAt;
-      this.arrow.position.set(a.x, FLOOR_Y + a.y + Math.abs(Math.sin(this.time * 4)) * ARROW_BOB, a.z);
+      const phase = this.time * ARROW_BOB_RATE;
+      const lift = 0.5 - 0.5 * Math.cos(phase);
+      this.arrow.position.set(a.x, FLOOR_Y + a.y + lift * ARROW_BOB, a.z);
+      this.squash = (1 - lift) ** 4 * ARROW_SQUASH;
     }
-    const g = this.grow * this.grow * (3 - 2 * this.grow);
-    this.arrow.scale.setScalar(Math.max(0.001, g));
+    const g = Math.max(0.001, this.grow * this.grow * (3 - 2 * this.grow));
+    this.arrow.scale.set(g * (1 + this.squash), g * (1 - this.squash), g);
     this.updatePointer(target && !near ? target : null);
     // The tutorial's halo stays round the job's badge until the job is done (the arrow folds away once you arrive).
     const b = this.badgeAt;

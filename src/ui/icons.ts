@@ -36,7 +36,9 @@ export type IconName =
   // lemonade, a pot of aloe, a surfboard; the new carriages' emblems (a kite, a lotus, a pool ladder); the play car's
   // noise, a do-not-disturb hanger, the pool skimmer's net and the puppet show.
   | 'smoothie' | 'icecream' | 'seafood' | 'robe' | 'lemonade' | 'aloe' | 'surfboard' | 'kite' | 'lotus' | 'pool' | 'noise'
-  | 'dnd' | 'net' | 'puppet';
+  | 'dnd' | 'net' | 'puppet'
+  // De-Slop B1: the Lamps and TV upgrades.
+  | 'lamp' | 'tv';
 
 export const INK = '#2B2230';
 const CREAM = '#FFF6E4';
@@ -1701,6 +1703,27 @@ const ICONS: Record<IconName, Draw> = {
       c.arc(x, y, r, 0, Math.PI * 2);
       fillStroke(c, '#FFE9A8', 4);
     }
+  },
+  lamp: (c) => {
+    // A table lamp: a cream drum shade over a brass stem and foot (the 3D icon replaces it once loaded).
+    c.beginPath();
+    c.moveTo(30, 18); c.lineTo(70, 18); c.lineTo(80, 50); c.lineTo(20, 50); c.closePath();
+    fillStroke(c, '#FFF1CF');
+    rr(c, 46, 50, 8, 26, 3);
+    fillStroke(c, '#D8A93C', 5);
+    rr(c, 30, 76, 40, 10, 5);
+    fillStroke(c, '#C9962E');
+  },
+  tv: (c) => {
+    // A little wooden television with a blue screen and aerials.
+    c.lineWidth = 4;
+    c.strokeStyle = INK;
+    c.beginPath(); c.moveTo(50, 30); c.lineTo(34, 10); c.moveTo(50, 30); c.lineTo(66, 10); c.stroke();
+    rr(c, 14, 30, 72, 52, 8);
+    fillStroke(c, '#8A5A36');
+    rr(c, 22, 38, 44, 36, 6);
+    fillStroke(c, '#9FD3E8', 4);
+    c.beginPath(); c.arc(76, 48, 4, 0, Math.PI * 2); fillStroke(c, '#E2B653', 3);
   },
   bell: (c) => {
     // A brass hand bell with a wooden handle: the station's "all aboard" bell.

@@ -1322,9 +1322,9 @@ export class Guests {
         if (w.time >= guest.loungeUntil) this.nextOuting(guest);
         break;
       case 'queue':
-        // Waiting at the desk for a key: the first in line shows it once a room of their class is made up.
-        if (guest.queueSlot !== 0 || !guest.arrivedInQueue) guest.view.showBubble(null);
-        else if (this.roomForGuest(guest)) guest.view.showBubble('key', guest.cls);
+        // Waiting at the desk for a key. De-Slop B1: never two signs for one action: the desk's own badge shows the key,
+        // so the guest shows nothing while a room is ready, and the "no room" face while none is.
+        if (guest.queueSlot !== 0 || !guest.arrivedInQueue || this.roomForGuest(guest)) guest.view.showBubble(null);
         else guest.view.showMood('wait', 'noroom');
         break;
       case 'settling': {

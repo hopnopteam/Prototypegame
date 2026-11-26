@@ -1,6 +1,5 @@
 import { CLASS_BY_ID, type ClassId } from '../config/classes';
 import * as THREE from 'three';
-import { NEW_LOOK } from '../config/look';
 import { formatNumber } from '../core/math';
 import { drawIcon, INK, type IconName } from '../ui/icons';
 import { shadeHex } from './palette';
@@ -10,20 +9,6 @@ const bubbleCache = new Map<string, THREE.CanvasTexture>();
 /** Request styles, plus one per carriage class (a ticket held up on the platform in its class's colour). */
 export type BubbleStyle = 'request' | 'intent' | 'alert' | 'plain' | 'job' | 'cash' | ClassId;
 
-const BUBBLE_FILL: Record<BubbleStyle, string> = {
-  request: '#FFFDF7',
-  intent: '#DDEBF4',
-  alert: '#FFE3A1',
-  plain: 'rgba(0,0,0,0)',
-  job: '#3E9BE0',
-  /** Session 64: a room's tips waiting (the green of the bills). */
-  cash: '#3FAE5A',
-  basic: CLASS_BY_ID.basic.color,
-  comfort: CLASS_BY_ID.comfort.color,
-  business: CLASS_BY_ID.business.color,
-  first: CLASS_BY_ID.first.color,
-  royal: CLASS_BY_ID.royal.color,
-};
 
 function canvas(size: number, resolution = 1): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement('canvas');
@@ -104,73 +89,89 @@ function pinGloss(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: numb
   ctx.restore();
 }
 
+/**
+ * De-Slop Stage B (B1): one sign over the world. Every badge and bubble is the same pin: an ink-outlined disc on a
+ * pointer, a coloured rim, a white face, the icon on the face and the enamel gloss. The rim's colour says what kind of
+ * sign it is, and means one thing only: blue a job for you, white (no rim) a guest asking, gold money, the class colour a
+ * passenger's ticket or key, slate a helper's intent. Tile markers (green, an upgrade) and the guide arrow share the
+ * outline weight and pointer.
+ */
+const PIN = { cx: 64, cy: 56, r: 44, rim: 9, tipY: 120, tipHalf: 13, ink: 6, icon: 62 };
+const PIN_RIM: Record<BubbleStyle, string | null> = {
+  request: null,
+  intent: '#8FA4B6',
+  alert: '#E9A23B',
+  plain: null,
+  job: '#3E9BE0',
+  cash: '#E7B23A',
+  basic: CLASS_BY_ID.basic.color,
+  comfort: CLASS_BY_ID.comfort.color,
+  business: CLASS_BY_ID.business.color,
+  first: CLASS_BY_ID.first.color,
+  royal: CLASS_BY_ID.royal.color,
+};
+
+/** The pin's outline: the disc and its pointer as one shape. */
+function pinPath(ctx: CanvasRenderingContext2D, r: number): void {
+  const { cx, cy, tipY, tipHalf } = PIN;
+  const a = Math.asin(tipHalf / r);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, Math.PI / 2 + a, Math.PI / 2 - a + Math.PI * 2);
+  ctx.lineTo(cx + tipHalf * 0.35, tipY - 3);
+  ctx.quadraticCurveTo(cx, tipY + 2, cx - tipHalf * 0.35, tipY - 3);
+  ctx.closePath();
+}
+
+function drawPin(ctx: CanvasRenderingContext2D, rim: string | null, icon: IconName): void {
+  const { cx, cy, r } = PIN;
+  ctx.lineJoin = 'round';
+  pinPath(ctx, r);
+  ctx.fillStyle = rim ?? '#FFFDF7';
+  ctx.fill();
+  ctx.lineWidth = PIN.ink;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  const face = rim ? r - PIN.rim : r - 1;
+  ctx.fillStyle = '#FFFDF7';
+  ctx.beginPath();
+  ctx.arc(cx, cy, face, 0, Math.PI * 2);
+  ctx.fill();
+  if (rim) {
+    // A fine dark line where the rim meets the face, so a pale rim still reads as a ring.
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(43, 34, 48, 0.35)';
+    ctx.stroke();
+  }
+  pinGloss(ctx, cx, cy, r - 2);
+  const size = rim ? PIN.icon : PIN.icon + 6;
+  drawIcon(ctx, icon, cx - size / 2, cy - size / 2 - 1, size);
+}
+
 export function bubbleTexture(icon: IconName, style: BubbleStyle = 'request', ring = -1): THREE.CanvasTexture {
   const key = `${icon}:${style}:${ring}`;
   const cached = bubbleCache.get(key);
   if (cached) return cached;
   const size = 128;
   const [c, ctx] = canvas(size, WORLD_UI_RES);
-  if (style === 'job' || style === 'cash') {
-    // Session 26, My Perfect Hotel's job marker: a blue badge with a white face and the job's icon, pointing down at
-    // the furniture it belongs to (a guest's own wishes keep the white speech bubble).
-    const cx = JOB_BADGE_CX;
-    const cy = JOB_BADGE_CY;
-    ctx.fillStyle = BUBBLE_FILL[style];
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 44, 0, Math.PI * 2);
-    ctx.moveTo(52, 96);
-    ctx.lineTo(64, 120);
-    ctx.lineTo(76, 96);
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy, 41, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#FFFDF7';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 32, 0, Math.PI * 2);
-    ctx.fill();
-    if (NEW_LOOK) pinGloss(ctx, cx, cy, 41);
-    // Session 35 (owner: "the quality of logos… quite clear"): the icon fills the badge's face.
-    drawIcon(ctx, icon, cx - 30, cy - 31, 60);
-  } else if (style !== 'plain') {
-    const cx = 64;
-    const cy = 58;
-    ctx.fillStyle = BUBBLE_FILL[style];
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 42, 0, Math.PI * 2);
-    ctx.moveTo(53, 97);
-    ctx.lineTo(64, 120);
-    ctx.lineTo(75, 97);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = BUBBLE_FILL[style];
-    ctx.beginPath();
-    ctx.arc(cx, cy, 39, 0, Math.PI * 2);
-    ctx.fill();
-    if (NEW_LOOK) pinGloss(ctx, cx, cy, 39);
-    drawIcon(ctx, icon, cx - 35, cy - 36, 70);
+  if (style === 'plain') {
+    drawIcon(ctx, icon, 8, 8, 112);
+  } else {
+    drawPin(ctx, PIN_RIM[style], icon);
     if (ring >= 0) {
       const fraction = Math.min(1, ring / RING_STEPS);
       ctx.lineCap = 'round';
-      ctx.lineWidth = 8;
+      ctx.lineWidth = 7;
       ctx.strokeStyle = 'rgba(43, 34, 48, 0.25)';
       ctx.beginPath();
-      ctx.arc(cx, cy, 51, 0, Math.PI * 2);
+      ctx.arc(PIN.cx, PIN.cy, PIN.r + 8, 0, Math.PI * 2);
       ctx.stroke();
       if (fraction > 0) {
         ctx.strokeStyle = fraction > 0.5 ? '#F2B233' : '#F6D27A';
         ctx.beginPath();
-        ctx.arc(cx, cy, 51, -Math.PI / 2, -Math.PI / 2 + fraction * Math.PI * 2);
+        ctx.arc(PIN.cx, PIN.cy, PIN.r + 8, -Math.PI / 2, -Math.PI / 2 + fraction * Math.PI * 2);
         ctx.stroke();
       }
     }
-  } else {
-    drawIcon(ctx, icon, 8, 8, 112);
   }
   const texture = finishTexture(c);
   bubbleCache.set(key, texture);
@@ -301,8 +302,8 @@ export function moodBubbleTexture(mood: Mood, icon: IconName | null): THREE.Canv
 }
 
 /** Where the job badge's disc sits on its 128-pixel canvas (its pointer hangs below it). */
-const JOB_BADGE_CX = 64;
-const JOB_BADGE_CY = 56;
+const JOB_BADGE_CX = PIN.cx;
+const JOB_BADGE_CY = PIN.cy;
 
 /**
  * The ring round a job's badge that fills as the job is done (session 27): a white annulus just outside the badge's
@@ -315,7 +316,7 @@ export function jobFillTexture(): THREE.CanvasTexture {
   ctx.strokeStyle = '#FFFFFF';
   ctx.lineWidth = 10;
   ctx.beginPath();
-  ctx.arc(JOB_BADGE_CX, JOB_BADGE_CY, 53, 0, Math.PI * 2);
+  ctx.arc(JOB_BADGE_CX, JOB_BADGE_CY, PIN.r + 9, 0, Math.PI * 2);
   ctx.stroke();
   jobFill = finishTexture(c);
   return jobFill;
@@ -357,13 +358,27 @@ export function guideArrowTexture(): THREE.CanvasTexture {
   path();
   ctx.fillStyle = fill;
   ctx.fill();
+  // De-Slop B1: a bevel like the pins' enamel: inside the outline, the edge lit at the top left and shaded at the
+  // bottom right (the outline drawn shifted, clipped to the arrow), so it reads as a raised piece, not a flat shape.
+  ctx.save();
+  path();
+  ctx.clip();
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 9;
+  ctx.translate(3.5, 3.5);
+  path();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.stroke();
+  ctx.translate(-7, -7);
+  path();
+  ctx.strokeStyle = 'rgba(176, 104, 18, 0.55)';
+  ctx.stroke();
+  ctx.restore();
+  path();
   ctx.lineJoin = 'round';
   ctx.lineWidth = 7;
   ctx.strokeStyle = INK;
   ctx.stroke();
-  // A highlight down the left of the shaft: the HUD's bevel.
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-  ctx.fillRect(shaft.x0 + 7, shaft.y0 + 9, 7, head.y0 - shaft.y0 - 12);
   guideArrow = finishTexture(c);
   return guideArrow;
 }
@@ -998,6 +1013,28 @@ export function headlineTexture(text: string): THREE.CanvasTexture {
  * pointer down to the plate. Drawn over walls and furniture, so a tile in a narrow room is never hidden and
  * never a mystery (session 14, owner: "the upgrade boxes are hidden and I have no idea what they are").
  */
+/** The green of an upgrade's sign (B1), and the softer green of one not yet affordable. */
+const UPGRADE_GREEN = '#4FAE5F';
+const UPGRADE_GREEN_SOFT = '#9FCB9A';
+
+/** A tile marker's icon face: the pin's rim and white face at the marker's scale. */
+function markerFace(ctx: CanvasRenderingContext2D, rim: string): void {
+  ctx.beginPath();
+  ctx.arc(54, 52, 36, 0, Math.PI * 2);
+  ctx.fillStyle = rim;
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(54, 52, 29, 0, Math.PI * 2);
+  ctx.fillStyle = '#FFFDF7';
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(43, 34, 48, 0.35)';
+  ctx.stroke();
+}
+
 export class TileMarker {
   readonly sprite: THREE.Sprite;
   private readonly ctx: CanvasRenderingContext2D;
@@ -1058,13 +1095,9 @@ export class TileMarker {
     ctx.strokeStyle = INK;
     ctx.stroke();
     // The icon on a white disc.
-    ctx.beginPath();
-    ctx.arc(54, 52, 34, 0, Math.PI * 2);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fill();
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = affordable && !locked ? '#3E9A56' : '#B98D5C';
-    ctx.stroke();
+    // B1: the icon sits on the same white face with a coloured rim as every pin; green means an upgrade (paler while
+    // it is out of reach, grey while locked).
+    markerFace(ctx, locked ? '#A79E90' : affordable ? UPGRADE_GREEN : UPGRADE_GREEN_SOFT);
     drawIcon(ctx, locked ? 'lock' : icon, 26, 24, 56);
     // The name (short caps) over the price.
     ctx.fillStyle = '#6B5B4B';
@@ -1114,13 +1147,7 @@ export class TileMarker {
     ctx.lineWidth = 6;
     ctx.strokeStyle = INK;
     ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(54, 52, 34, 0, Math.PI * 2);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fill();
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = '#B98D5C';
-    ctx.stroke();
+    markerFace(ctx, UPGRADE_GREEN_SOFT);
     drawIcon(ctx, icon, 26, 24, 56);
     ctx.fillStyle = '#6B5B4B';
     ctx.textBaseline = 'alphabetic';

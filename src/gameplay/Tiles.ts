@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WORK_VERB, type UnlockDef } from '../config/content';
+import { WORK_VERB, type ComfortKey, type UnlockDef } from '../config/content';
 import type { Vec2 } from '../core/types';
 import { EVENTS } from '../services/analytics';
 import type { IconName } from '../ui/icons';
@@ -68,8 +68,17 @@ const ICON_BY_KIND: Record<UnlockDef['kind'], IconName> = {
   station: 'gear',
   open: 'carriage',
   rack: 'luggage',
-  shoes: 'skate',
+  shoes: 'shoe',
   platform: 'gear',
+};
+
+const COMFORT_ICON: Record<ComfortKey, IconName> = {
+  lamp: 'lamp',
+  flowers: 'heart',
+  minibar: 'snack',
+  soap: 'bath',
+  rail: 'towel',
+  tv: 'tv',
 };
 
 /** A tile's icon: its kind's, or for a venue's seats and menus the venue's own (a cup, a cloche, a glass). */
@@ -83,6 +92,8 @@ function iconOf(def: UnlockDef, type: string | undefined): IconName {
     if (type === 'dome') return 'binoculars';
     if (type === 'cinema') return def.id.endsWith('menu_snacks') ? 'popcorn' : 'film';
   }
+  // De-Slop B1: a comfort shows what it adds (a lamp, a minibar, a television…), not a heart.
+  if (def.kind === 'comfort' && def.comfort) return COMFORT_ICON[def.comfort];
   if (def.id.startsWith('st.')) {
     const icon = STATION_ICON[def.id.slice(3)];
     if (icon) return icon;
