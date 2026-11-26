@@ -66,7 +66,7 @@ const CAB_DOOR_W = 0.5;
 const CAB_DOOR_H = 0.26;
 /** The nameplate, between the window and the gold line (model units), and its width in metres. */
 const PLATE_Y = 0.86;
-const PLATE_W = 1.15;
+const PLATE_W = 1.75;
 /**
  * Phase 4, the streamliner (the coast's `locomotive`): a shrouded engine and a matching tender painted with the live
  * livery (body and trim materials, so it fades from sun-bleached to fresh blue with the route's liveries), a rounded
