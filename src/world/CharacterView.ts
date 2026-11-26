@@ -1,23 +1,15 @@
 import { welded } from './weld';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { sculptedBody, type BodyPaint } from './Body';
 import * as THREE from 'three';
-import type { ItemKind, StaffRole } from '../core/types';
-import { Clearance, gripOf, layoutStack, solveArm, type ArmChain, type ArmSolution, type StackItem } from './CarryPose';
+import type { StaffRole } from '../core/types';
 import type { IconName } from '../ui/icons';
 import { GeoBuilder } from './geo';
-import { LIGHT_UNIFORMS, MATERIALS, SHADOW_GEOMETRY } from './materials';
+import { MATERIALS, SHADOW_GEOMETRY } from './materials';
 import { PALETTE } from './palette';
 import { bubbleTexture, makeSprite, moodBubbleTexture, type BubbleStyle, type Mood } from './sprites';
 import { WORLD_UI_LAYER } from './CameraRig';
-import { CLOTH_FLOOR, FIGURE_SHAPE, headPoint, narrowBody, GRIP, torsoDistance, backDepth, addApron, pantsCloth, topCloth, wearing, addHat, addHead, addStrap, addTorso, apronFlapGeometry, coatHalfGeometry, COAT_PIVOT_Y, hairPieceGeometry, HAIR_PIVOT, skirtGeometry, WAIST_Y, warmSkin, type FeltHat, ELBOW_Y, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, hipX, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, occludeBody, occludeHead, shinGeometry, shoulderX, SHOULDER_Y, type Build, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
+import { addHead, addTorso, CHEST, ELBOW_Y, HIPS, profileRadius, SKIRTS, TORSO_DEPTH, eyelidGeometry, faceDepth, forearmGeometry, HAND_Y, HEAD_TOP, HEAD_Y, HIP_Y, KNEE_Y, LEG_LENGTH, NECK_Y, SHOULDER_X, SHOULDER_Y, shinGeometry, thighGeometry, upperArmGeometry, type FigureSpec, type HairStyle, type Outfit } from './CharacterParts';
 import { underPopup } from './screenMask';
-import { ON_TRAY } from './ItemMeshes';
-import { BONE_GEOMETRY, type CharacterBatch } from './CharacterBatch';
-import { armWeight, legWeight, skinPoint, type SkinDef } from './Skin';
-
-const skinShin = new THREE.Matrix4();
-const IDENTITY = new THREE.Matrix4();
+import type { CharacterBatch } from './CharacterBatch';
 
 export type HatKind = 'conductor' | 'boater' | 'bowler' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'toque' | 'none';
 export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'sash' | 'basket' | 'hymnbook' | 'cane' | 'surfboard' | 'partner' | 'whistle' | 'none';
@@ -54,8 +46,6 @@ export interface CharacterLook {
   sleeves?: 'short' | 'long';
   belt?: boolean;
   sock?: string;
-  /** The clay figures' build (CHARACTER_SPEC §2): torso width against the head's. */
-  build?: Build;
 }
 
 /** Character pass 2: the stack sits on the forearms, held out level in front (they were straight arms at shoulder height). */
@@ -77,44 +67,16 @@ const RIDE_PUSH = 0.45;
 /** The arms' reach forward to the scooter's handlebar. */
 const RIDE_ARM = -1.05;
 
-/**
- * The toy walk and run (CHARACTER_SPEC §8): thigh swing each way, the passing knee's fold, the arm swing and the
- * elbow's bend, the bob, the roll over the stance foot, the hip twist and the forward lean.
- */
-// Session 65 (owner: "too cute… more highly polished"): an adult's calm walk, not a toy's bounce: a shorter arm swing,
-// a small bob without a kink, less roll and twist.
-const WALK = { stride: 0.42, knee: 0.56, arm: 0.6, elbow: 0.32, bob: 0.02, sway: 0.032, twist: 0.07, lean: 0.045 };
-const RUN = { stride: 0.76, knee: 1.05, arm: 0.82, elbow: 1.15, bob: 0.05, sway: 0.03, twist: 0.11, lean: 0.14 };
-/** Session 64: the quickest walking cadence (phase radians a second) when the figure may not run. */
-const WALK_MAX_PACE = 11.5;
-/** How quickly a turn eases round (rad/s of the remaining angle): quick, never a snap. */
-const TURN_RATE = 16;
-function smooth01(x: number): number {
-  const t = Math.max(0, Math.min(1, x));
-  return t * t * (3 - 2 * t);
-}
-
 const bodyCache = new Map<string, THREE.BufferGeometry>();
 const limbCache = new Map<string, THREE.BufferGeometry>();
 
 /** The look's figure: the outfit, sleeves and hairdo it implies when it does not say. */
-const skinCache = new Map<string, string>();
-/** The look's skin, warmed toward the reference's peach (CharacterParts `warmSkin`), cached per colour. */
-function skinOf(look: CharacterLook): string {
-  let k = skinCache.get(look.skin);
-  if (!k) {
-    k = warmSkin(look.skin);
-    skinCache.set(look.skin, k);
-  }
-  return k;
-}
-
-function figureOf(look: CharacterLook): FigureSpec & { long: boolean } {
+export function figureOf(look: CharacterLook): FigureSpec & { long: boolean } {
   const fur = look.accessory === 'furcoat';
   const outfit: Outfit = fur ? 'coat' : look.outfit ?? (look.arms ? 'jacket' : 'tee');
   const hairStyle: HairStyle = look.hairStyle ?? (look.longHair ? 'long' : look.hat === 'bun' ? 'bun' : 'short');
   return {
-    skin: skinOf(look),
+    skin: look.skin,
     hair: look.hair,
     hairStyle,
     outfit,
@@ -126,28 +88,8 @@ function figureOf(look: CharacterLook): FigureSpec & { long: boolean } {
     fur: fur ? look.accent : undefined,
     moustache: look.moustache,
     glasses: look.glasses,
-    hatted: look.hat !== undefined && look.hat !== 'none' && look.hat !== 'bun' && look.hat !== 'pillbox' && look.hat !== 'crown',
-    build: look.build ?? 'regular',
+    hatted: look.hat !== undefined && look.hat !== 'none' && look.hat !== 'bun',
     long: look.sleeves ? look.sleeves === 'long' : outfit === 'jacket' || outfit === 'coat' || outfit === 'shirt' || outfit === 'gown',
-  };
-}
-
-/** Session 66: what the sculpted body is painted with for a look (world/Body.ts). */
-function paintOf(look: CharacterLook): BodyPaint {
-  const f = figureOf(look);
-  return {
-    build: f.build ?? 'regular',
-    outfit: f.outfit,
-    skin: f.skin,
-    top: f.top,
-    trim: f.trim,
-    stripes: f.stripes,
-    cuff: f.outfit === 'jacket' && look.accent !== look.body ? look.accent : undefined,
-    pants: f.pants,
-    sock: look.sock ?? '#F4F1EA',
-    long: f.long,
-    topCloth: topCloth(f),
-    pantsCloth: pantsCloth(f),
   };
 }
 
@@ -159,42 +101,47 @@ const headCache = new Map<string, THREE.BufferGeometry>();
  * to look, nod as it pays and tilt its head as it waits).
  */
 function headGeometry(look: CharacterLook): THREE.BufferGeometry {
-  const key = JSON.stringify([look.skin, look.hair, look.hairStyle, look.longHair, look.hat, look.hatColor, look.bandColor, look.accent, look.body, look.moustache, look.glasses, look.accessory === 'furcoat', look.outfit, look.arms, look.build]);
+  const key = JSON.stringify([look.skin, look.hair, look.hairStyle, look.longHair, look.hat, look.hatColor, look.bandColor, look.accent, look.body, look.moustache, look.glasses, look.accessory === 'furcoat', look.outfit, look.arms]);
   const cached = headCache.get(key);
   if (cached) return cached;
   const b = new GeoBuilder();
   const f = figureOf(look);
   addHead(b, f);
   const T = HEAD_TOP;
-  // Session 62 ("flat hat crowns"): every hat but the crown is a soft felt model (art/blender/characters/char_kit.py),
-  // its crown, band, peak and badge in the look's colours.
-  const felt = (kind: FeltHat, crown: string, band: string, peak = crown, trim = PALETTE.gold): void => addHat(b, kind, { crown, band, peak, trim });
+  const flat = { shade: 1 };
   switch (look.hat) {
     case 'conductor': {
       const crown = look.hatColor ?? PALETTE.navy;
-      felt('conductor', crown, look.bandColor ?? PALETTE.locoRed, shadeOf(crown), PALETTE.gold);
+      b.cylinder(0, T + 0.02, -0.01, 0.235, 0.215, 0.13, crown, 20, 'y', { shade: 0.86 });
+      b.cylinder(0, T - 0.03, -0.01, 0.22, 0.22, 0.05, look.bandColor ?? PALETTE.locoRed, 20, 'y', flat);
+      b.add(new THREE.CylinderGeometry(0.17, 0.17, 0.022, 16, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 0.72), shadeOf(crown), 0, T - 0.055, 0.12, 0.25, 0, 0, flat);
+      b.sphere(0, T + 0.01, 0.215, 0.032, PALETTE.gold, 1, 1, flat);
       break;
     }
     case 'boater':
-      felt('boater', look.hatColor ?? '#E8D29A', look.bandColor ?? PALETTE.raspberry);
+      b.cylinder(0, T - 0.02, -0.01, 0.34, 0.34, 0.026, look.hatColor ?? '#E8D29A', 22, 'y', { shade: 0.95 });
+      b.cylinder(0, T + 0.05, -0.01, 0.19, 0.2, 0.13, look.hatColor ?? '#E8D29A', 20, 'y', { shade: 0.9 });
+      b.cylinder(0, T + 0.015, -0.01, 0.204, 0.204, 0.05, look.bandColor ?? PALETTE.raspberry, 20, 'y', flat);
       break;
     case 'bowler':
-      felt('bowler', look.hatColor ?? '#2B2A30', look.bandColor ?? '#4A3A36');
+      b.cylinder(0, T - 0.03, -0.01, 0.29, 0.29, 0.024, look.hatColor ?? '#2B2A30', 22, 'y', { shade: 0.95 });
+      b.sphere(0, T - 0.02, -0.01, 0.215, look.hatColor ?? '#2B2A30', 2, 0.82, { shade: 0.86 });
+      b.cylinder(0, T - 0.005, -0.01, 0.214, 0.214, 0.04, look.bandColor ?? '#4A3A36', 20, 'y', flat);
       break;
     case 'pillbox':
-      felt('pillbox', look.hatColor ?? look.body, look.hatColor ?? look.body, look.hatColor ?? look.body, PALETTE.gold);
+      b.cylinder(0, T + 0.04, 0, 0.14, 0.14, 0.12, look.hatColor ?? look.body, 18, 'y', { shade: 0.9 });
+      b.cylinder(0, T - 0.01, 0, 0.144, 0.144, 0.026, PALETTE.gold, 18, 'y', flat);
       break;
     case 'cap':
-      felt('cap', look.hatColor ?? look.accent, look.hatColor ?? look.accent, shadeOf(look.hatColor ?? look.accent), shadeOf(look.hatColor ?? look.accent));
+      // A baseball cap: a soft crown over the hair and a peak forward.
+      b.add(dome(0.236, 0.74, 0.56), look.hatColor ?? look.accent, 0, HEAD_Y + 0.045, -0.005, 0, 0, 0, { shade: 0.9 });
+      b.add(new THREE.CylinderGeometry(0.15, 0.15, 0.022, 16, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 1.15), shadeOf(look.hatColor ?? look.accent), 0, HEAD_Y + 0.085, 0.17, 0.12, 0, 0, flat);
+      b.sphere(0, HEAD_Y + 0.215, -0.005, 0.022, shadeOf(look.hatColor ?? look.accent), 0, 1, flat);
       break;
     case 'beanie':
-      felt('beanie', look.hatColor ?? look.accent, shadeOf(look.hatColor ?? look.accent), look.hatColor ?? look.accent, PALETTE.linen);
-      break;
-    case 'tophat':
-      felt('tophat', look.hatColor ?? '#1E1B24', look.bandColor ?? PALETTE.gold);
-      break;
-    case 'toque':
-      felt('toque', PALETTE.linen, PALETTE.linen);
+      b.add(dome(0.234, 0.85, 0.52), look.accent, 0, HEAD_Y + 0.06, -0.01, 0, 0, 0, { shade: 0.9 });
+      b.cylinder(0, HEAD_Y + 0.07, -0.01, 0.238, 0.238, 0.06, shadeOf(look.accent), 20, 'y', flat);
+      b.sphere(0, HEAD_Y + 0.27, -0.02, 0.055, PALETTE.linen, 1, 1, flat);
       break;
     case 'crown': {
       b.cylinder(0, T + 0.06, -0.02, 0.14, 0.13, 0.07, PALETTE.gold, 16, 'y', { shade: 0.9, surface: 'brass' });
@@ -205,44 +152,53 @@ function headGeometry(look: CharacterLook): THREE.BufferGeometry {
       b.sphere(0, T + 0.06, 0.115, 0.022, PALETTE.raspberry, 0, 1, { shade: 1, surface: 'crystal' });
       break;
     }
+    case 'tophat':
+      b.cylinder(0, T - 0.02, -0.01, 0.28, 0.28, 0.026, look.hatColor ?? '#1E1B24', 22, 'y', { shade: 0.95, surface: 'leather' });
+      b.cylinder(0, T + 0.13, -0.01, 0.17, 0.18, 0.29, look.hatColor ?? '#1E1B24', 20, 'y', { shade: 0.9, surface: 'leather' });
+      b.cylinder(0, T + 0.03, -0.01, 0.182, 0.182, 0.05, look.bandColor ?? PALETTE.gold, 20, 'y', flat);
+      break;
+    case 'toque':
+      b.cylinder(0, T + 0.02, -0.01, 0.2, 0.2, 0.1, PALETTE.linen, 18, 'y', { shade: 0.95 });
+      b.sphere(0, T + 0.16, -0.01, 0.23, PALETTE.linen, 2, 0.72, { shade: 0.9 });
+      break;
     default:
       break;
   }
   const head = b.build();
   head.translate(0, -NECK_Y, 0);
-  // Session 65: the head smaller about the neck (FIGURE_SHAPE.head), the figure about 3.5 heads tall.
-  head.scale(FIGURE_SHAPE.head, FIGURE_SHAPE.head, FIGURE_SHAPE.head);
-  const welds = welded(occludeHead(head, figureOf(look).build));
+  const welds = welded(head);
   headCache.set(key, welds);
   return welds;
 }
 
 /** The body: the torso and what is worn on it (the head is its own part, `headGeometry`). */
-function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
-  const key = JSON.stringify(look);
+function bodyGeometry(look: CharacterLook, seated = false): THREE.BufferGeometry {
+  // Only a skirt, a gown or a coat changes when seated (session 67): the rest share the standing body.
+  const f = figureOf(look);
+  if (seated && !(f.outfit in SKIRTS)) seated = false;
+  const key = JSON.stringify(look) + (seated ? ':seated' : '');
   const cached = bodyCache.get(key);
   if (cached) return cached;
   const b = new GeoBuilder();
-  const f = figureOf(look);
-  addTorso(b, f);
+  addTorso(b, f, seated);
   const flat = { shade: 1 };
-  const front = (y: number): number => faceDepth(y, f.build);
-  /** How much deeper the clay torso is at the back than the old one (backpacks, boards sit out on it). */
-  const back = backDepth(0.6, f.build) - 0.124;
+  const front = (y: number): number => faceDepth(y);
   switch (look.accessory) {
     case 'backpack':
-      b.rounded(0, 0.6, -0.2 - back, 0.3, 0.36, 0.15, 0.06, look.accent, { shade: 0.82, surface: 'fabric', detail: 'oxford' });
-      b.rounded(0, 0.53, -0.285 - back, 0.22, 0.12, 0.04, 0.02, shadeOf(look.accent), flat);
-      // Straps that hug the round chest from the belly up over each shoulder to the pack.
-      for (const sx of [-1, 1]) addStrap(b, sx * 0.1, '#5A3A26', f.build);
+      b.rounded(0, 0.6, -0.2, 0.28, 0.34, 0.15, 0.06, look.accent, { shade: 0.82 });
+      b.rounded(0, 0.53, -0.285, 0.2, 0.12, 0.04, 0.02, shadeOf(look.accent), flat);
+      // Session 32: straps that run from the front up over each shoulder to the pack (they were flat bars on the chest).
+      for (const s of [-1, 1]) {
+        b.add(new THREE.TorusGeometry(0.1, 0.014, 6, 12, Math.PI).scale(1, 0.75, 1.35), '#5A3A26', s * 0.088, 0.72, -0.02, 0, Math.PI / 2, 0, flat);
+        b.box(s * 0.088, 0.62, front(0.62) + 0.004, 0.032, 0.2, 0.012, '#5A3A26', 0, flat);
+      }
       break;
     case 'flower':
       b.sphere(0.08, 0.68, front(0.68) + 0.01, 0.038, look.accent, 1);
       b.sphere(0.08, 0.68, front(0.68) + 0.035, 0.018, PALETTE.mustard, 1);
       break;
     case 'apron':
-      // Session 62: the apron's skirt swings with the legs (a piece of its own, or part of the dress's bell).
-      addApron(b, PALETTE.linen, f.build, f.outfit === 'dress' || f.outfit === 'gown', 'bib');
+      b.add(apronGeometry(), PALETTE.linen, 0, 0, 0, 0, 0, 0, { shade: 1 });
       break;
     case 'camera':
       b.rounded(0, 0.6, front(0.6) + 0.04, 0.14, 0.09, 0.06, 0.02, '#2B2B33', flat);
@@ -259,7 +215,7 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
       const bx = 0.2;
       const by = 0.46;
       const bz = front(0.46) - 0.02;
-      b.rounded(bx, by, bz, 0.16, 0.1, 0.13, 0.03, '#B98A4E', { shade: 0.85, surface: 'fabric', detail: 'straw' });
+      b.rounded(bx, by, bz, 0.16, 0.1, 0.13, 0.03, '#B98A4E', { shade: 0.85, surface: 'fabric' });
       b.add(new THREE.TorusGeometry(0.065, 0.01, 6, 12, Math.PI), '#8C6438', bx, by + 0.05, bz, 0, Math.PI / 2, 0, flat);
       b.sphere(bx - 0.035, by + 0.06, bz + 0.02, 0.032, '#C0392B', 1);
       b.sphere(bx + 0.03, by + 0.065, bz - 0.01, 0.038, '#7FA34E', 1);
@@ -279,7 +235,15 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
     case 'handbag':
       for (let i = 0; i < 5; i++) b.sphere(-0.08 + i * 0.04, 0.79 - Math.abs(i - 2) * 0.012, front(0.79) + 0.01, 0.018, PALETTE.linen, 0, 1, flat);
       break;
-    // Phase 4, the Riviera: a surfer's board is held in the hand (forearmGeometry, session 63).
+    // Phase 4, the Riviera. A surfer's board stood on its tail at their side, under the arm: blue with a white stripe.
+    case 'surfboard': {
+      const sx = 0.3;
+      const board = new THREE.SphereGeometry(0.5, 16, 10).scale(0.26, 1, 0.05);
+      b.add(board, '#4FA8E0', sx, 0.55, -0.04, 0, 0, 0.08, { shade: 0.95, surface: 'varnish' });
+      b.box(sx - 0.002, 0.55, -0.012, 0.03, 0.86, 0.006, '#FFFFFF', 0.08, flat);
+      b.box(sx, 0.62, -0.012, 0.12, 0.03, 0.006, '#F28C2E', 0.08, flat);
+      break;
+    }
     // The lifeguard's whistle on a red cord.
     case 'whistle':
       b.add(new THREE.TorusGeometry(0.1, 0.008, 5, 14, Math.PI).scale(1, 1.4, 1), '#C0283A', 0, 0.72, front(0.68) - 0.02, Math.PI, 0, 0, flat);
@@ -288,204 +252,27 @@ function bodyGeometry(look: CharacterLook): THREE.BufferGeometry {
     default:
       break;
   }
-  // Session 66: the sculpted torso (painted for the outfit) with everything worn on it, which is built as before and
-  // narrowed to the body (session 65).
-  const worn = narrowBody(occludeBody(b.build(), f.build));
-  const geometry = welded(mergeGeometries([sculptedBody(paintOf(look)).torso, worn]));
+  const geometry = welded(b.build());
   bodyCache.set(key, geometry);
   return geometry;
 }
 
 /** The crown of a soft hat: the top `frac` of a sphere of `radius`, squashed to `sy`, open underneath. */
+function dome(radius: number, sy: number, frac: number): THREE.BufferGeometry {
+  const g = new THREE.SphereGeometry(radius, 22, 12, 0, Math.PI * 2, 0, Math.PI * frac);
+  g.scale(1, sy, 1);
+  return g;
+}
+
+/** An apron's bib and skirt over the front of the torso. */
+function apronGeometry(): THREE.BufferGeometry {
+  const g = new GeoBuilder();
+  g.rounded(0, 0.56, faceDepth(0.56) + 0.006, 0.18, 0.26, 0.012, 0.02, PALETTE.linen, { shade: 1 });
+  g.rounded(0, 0.37, faceDepth(0.44) + 0.012, 0.26, 0.2, 0.012, 0.02, PALETTE.linen, { shade: 1 });
+  return g.build();
+}
+
 /** A limb part, built once per look and kept (welded, so the batch draws fewer vertices). */
-/**
- * Session 62 (owner: "make sure their clothing actually genuinely behaves somewhat like clothing… everything is way too
- * stiff"): the pieces that hang and swing. Each is a mesh on its own pivot, swung by a damped spring (`Cloth`).
- */
-type ClothKind = 'skirt' | 'coat' | 'apron' | 'hair';
-interface ClothSpec {
-  kind: ClothKind;
-  /** Pivot in body space (hair: head space). */
-  at: [number, number, number];
-  side: 1 | -1 | 0;
-  geometry: THREE.BufferGeometry;
-}
-const clothCache = new Map<string, THREE.BufferGeometry>();
-function clothPieces(look: CharacterLook): ClothSpec[] {
-  const f = figureOf(look);
-  const out: ClothSpec[] = [];
-  const cached = (key: string, make: () => THREE.BufferGeometry): THREE.BufferGeometry => {
-    let g = clothCache.get(key);
-    if (!g) {
-      g = welded(make());
-      // Session 65: the pieces hung from the waist narrowed like the body, the hair made smaller like the head.
-      if (key.startsWith('hair:')) g.scale(FIGURE_SHAPE.head, FIGURE_SHAPE.head, FIGURE_SHAPE.head);
-      else narrowBody(g, key.startsWith('coat:') ? COAT_PIVOT_Y : WAIST_Y, CLOTH_FLOOR);
-      clothCache.set(key, g);
-    }
-    return g;
-  };
-  const apron = look.accessory === 'apron' ? PALETTE.linen : null;
-  if (f.outfit === 'dress' || f.outfit === 'gown') {
-    out.push({ kind: 'skirt', at: [0, WAIST_Y, 0], side: 0, geometry: cached(`skirt:${f.outfit}:${f.pants}:${f.build}:${apron}`, () => skirtGeometry(f, apron)) });
-  } else if (apron) {
-    out.push({ kind: 'apron', at: [0, WAIST_Y, 0], side: 0, geometry: cached(`apron:${apron}:${f.build}`, () => apronFlapGeometry(apron, f.build)) });
-  }
-  if (f.outfit === 'coat') {
-    const lining = f.fur ?? (look.trim && look.trim !== look.body ? look.trim : shadeOf(look.body));
-    for (const side of [-1, 1] as const) out.push({ kind: 'coat', at: [0, COAT_PIVOT_Y, 0], side, geometry: cached(`coat:${f.top}:${lining}:${f.build}:${side}`, () => coatHalfGeometry(f, side, lining)) });
-  }
-  const hair = f.hairStyle === 'long' ? 'long' : f.hairStyle === 'ponytail' && !f.hatted ? 'ponytail' : null;
-  if (hair) {
-    const g = cached(`hair:${hair}:${f.hair}:${f.skin}:${f.top}`, () => hairPieceGeometry(f)!);
-    const p = HAIR_PIVOT[hair];
-    // Head space is the neck pivot's: the head's centre sits HEAD_Y − NECK_Y above it.
-    const k = FIGURE_SHAPE.head;
-    out.push({ kind: 'hair', at: [p[0] * k, (p[1] + HEAD_Y - NECK_Y) * k, p[2] * k], side: 0, geometry: g });
-  }
-  return out;
-}
-
-/** How each kind of piece swings: stiffness, damping (per second²/second), how far it may swing (radians). */
-const CLOTH_SPRING: Record<ClothKind, { k: number; c: number; max: number; drag: number; accel: number }> = {
-  skirt: { k: 95, c: 6.5, max: 0.5, drag: 0.035, accel: 0.03 },
-  coat: { k: 120, c: 7.5, max: 0.6, drag: 0.045, accel: 0.035 },
-  apron: { k: 140, c: 8, max: 0.6, drag: 0.05, accel: 0.04 },
-  hair: { k: 70, c: 5, max: 0.7, drag: 0.06, accel: 0.04 },
-};
-
-interface Cloth {
-  spec: ClothSpec;
-  pivot: THREE.Object3D;
-  mesh: THREE.Mesh;
-  /** Swing about x (forward-back), z (side to side) and y (twist), in the parent's frame plus the parent's own motion. */
-  wx: number;
-  vx: number;
-  wz: number;
-  vz: number;
-  wy: number;
-  vy: number;
-  /** The hem's flare (a scale of its spread), bouncing with the steps. */
-  flare: number;
-  vf: number;
-  /** Session 63: the flare and swing that keep the legs inside it (eased out, never in). */
-  keepFlare: number;
-  keepSwing: number;
-}
-
-/**
- * Session 63 ("zero clip ins"): a swinging piece's outline round its own axis (its pivot's y), the furthest its surface
- * reaches in each direction at each height, measured from its mesh. A leg inside it must stay inside it: where a stride
- * would take a knee or a shoe through it, the piece flares out just enough (`containLegs`).
- */
-class ClothShape {
-  static readonly DY = 0.02;
-  static readonly AB = 24;
-  readonly y0: number;
-  readonly rows: number;
-  readonly r: Float32Array;
-  constructor(g: THREE.BufferGeometry) {
-    const p = g.getAttribute('position');
-    let lo = Infinity;
-    let hi = -Infinity;
-    for (let i = 0; i < p.count; i++) {
-      lo = Math.min(lo, p.getY(i));
-      hi = Math.max(hi, p.getY(i));
-    }
-    this.y0 = lo;
-    this.rows = Math.max(1, Math.ceil((hi - lo) / ClothShape.DY) + 1);
-    const r = new Float32Array(this.rows * ClothShape.AB).fill(-1);
-    for (let i = 0; i < p.count; i++) {
-      const row = Math.floor((p.getY(i) - lo) / ClothShape.DY);
-      const a = ClothShape.bin(p.getX(i), p.getZ(i));
-      const k = row * ClothShape.AB + a;
-      r[k] = Math.max(r[k], Math.hypot(p.getX(i), p.getZ(i)));
-    }
-    // A lathe has vertices only on its profile's rings: between two rings the surface runs straight, so fill the rows
-    // between them (in each direction it covers) by interpolation.
-    for (let a = 0; a < ClothShape.AB; a++) {
-      let last = -1;
-      for (let row = 0; row < this.rows; row++) {
-        if (r[row * ClothShape.AB + a] < 0) continue;
-        if (last >= 0 && row - last > 1) {
-          const r0 = r[last * ClothShape.AB + a];
-          const r1 = r[row * ClothShape.AB + a];
-          for (let k = last + 1; k < row; k++) r[k * ClothShape.AB + a] = r0 + ((r1 - r0) * (k - last)) / (row - last);
-        }
-        last = row;
-      }
-    }
-    this.r = r;
-  }
-  static bin(x: number, z: number): number {
-    return Math.floor(((Math.atan2(z, x) + Math.PI) / (Math.PI * 2)) * ClothShape.AB) % ClothShape.AB;
-  }
-  /** The piece's reach at a height and direction (−1 where it does not hang: a coat's open front). */
-  at(y: number, x: number, z: number): number {
-    const row = Math.floor((y - this.y0) / ClothShape.DY);
-    if (row < 1 || row >= this.rows - 1) return -1;
-    const a = ClothShape.bin(x, z);
-    let best = -1;
-    // The smallest of its own bin and its neighbours (the surface between a lathe's segments, never beyond its edge).
-    for (const dr of [0, -1, 1]) {
-      const v = this.r[(row + dr) * ClothShape.AB + a];
-      if (v < 0) return -1;
-      best = best < 0 ? v : Math.min(best, v);
-    }
-    return best;
-  }
-}
-const clothShapes = new WeakMap<THREE.BufferGeometry, ClothShape>();
-function clothShape(g: THREE.BufferGeometry): ClothShape {
-  let s = clothShapes.get(g);
-  if (!s) {
-    s = new ClothShape(g);
-    clothShapes.set(g, s);
-  }
-  return s;
-}
-/** A part's surface thinned to one point per cell (what a skirt must keep inside it), cached per geometry. */
-const SURFACE_CELL = 0.022;
-const skinCW: [number, number] = [0, 0];
-const surfaceCache = new WeakMap<THREE.BufferGeometry, Float32Array>();
-function surfacePoints(g: THREE.BufferGeometry): Float32Array {
-  // Five numbers a point: its position and its skin (code, weight), one point per cell.
-  let pts = surfaceCache.get(g);
-  if (!pts) {
-    const p = g.getAttribute('position');
-    const sk = g.getAttribute('aSkin');
-    const seen = new Map<string, number[]>();
-    for (let i = 0; i < p.count; i++) {
-      const key = `${Math.round(p.getX(i) / SURFACE_CELL)},${Math.round(p.getY(i) / SURFACE_CELL)},${Math.round(p.getZ(i) / SURFACE_CELL)}`;
-      if (!seen.has(key)) seen.set(key, [p.getX(i), p.getY(i), p.getZ(i), sk ? sk.getX(i) : 0, sk ? sk.getY(i) : 0]);
-    }
-    pts = new Float32Array([...seen.values()].flat());
-    surfaceCache.set(g, pts);
-  }
-  return pts;
-}
-
-/** How far clear of a leg a skirt or coat stays, and how far out it may flare to keep it in. */
-const LEG_ROOM = 0.032;
-/** How far a skirt or coat may swing sideways (radians): a bag beside it or a hanging hand keeps clear of it. */
-const SIDE_SWING = 0.07;
-/** Session 63: how far out (radians) an arm raised overhead goes: clear of the wide clay head, a cheer's Y. */
-const ARMS_UP_OUT = 0.78;
-const FREE_STRIDE = { walk: 1, run: 1, kick: 1 };
-const GOWN_STRIDE = { walk: 0.58, run: 0.4, kick: 0.33 };
-const DRESS_STRIDE = { walk: 0.82, run: 0.58, kick: 0.45 };
-const COAT_STRIDE = { walk: 0.9, run: 0.62, kick: 0.5 };
-const APRON_STRIDE = { walk: 0.95, run: 0.82, kick: 0.65 };
-const MAX_FLARE = 1.3;
-/** How much of the head's turn on the body long hair takes back (it hangs from the back of the head). */
-const HAIR_COUNTER_TURN = 0.85;
-const cv = new THREE.Vector3();
-/** What `containLegs` found this frame. */
-const contain = { scale: 1, swing: 0 };
-/** The swings a skirt or coat tries (radians about its pivot's x, forward negative) to keep the legs inside it. */
-const SWING_TRIES = [0, 0, -0.12, 0.12, -0.25, 0.25, -0.4, 0.4, -0.55, 0.55, -0.7, 0.7];
-const cq = new THREE.Quaternion();
-
 function limb(key: string, build: () => THREE.BufferGeometry): THREE.BufferGeometry {
   let g = limbCache.get(key);
   if (!g) {
@@ -500,30 +287,29 @@ function smartShoes(f: FigureSpec): boolean {
   return f.outfit === 'jacket' || f.outfit === 'coat' || f.outfit === 'gown';
 }
 
-function thighGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
-  const p = paintOf(look);
-  return limb(`leg:${JSON.stringify(p)}:${side}`, () => sculptedBody(p).legs[side < 0 ? 0 : 1]);
+function thighGeometryFor(look: CharacterLook): THREE.BufferGeometry {
+  const f = figureOf(look);
+  const bare = f.outfit === 'dress' || f.outfit === 'gown';
+  return limb(`thigh:${f.pants}:${bare}:${look.skin}`, () => thighGeometry(f.pants, bare, look.skin));
 }
 
-function shinGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
+function shinGeometryFor(look: CharacterLook): THREE.BufferGeometry {
   const f = figureOf(look);
   const bare = f.outfit === 'dress' || f.outfit === 'gown';
   const smart = smartShoes(f);
-  const cloth = pantsCloth(f);
-  return limb(`shin:${f.pants}:${look.shoe}:${bare}:${f.skin}:${look.sock}:${smart}:${f.build}:${side}:${cloth}`, () => wearing(cloth, () => shinGeometry(f.pants, look.shoe ?? SHOE, bare, f.skin, look.sock ?? '#F4F1EA', smart, f.build, side)));
+  return limb(`shin:${f.pants}:${look.shoe}:${bare}:${look.skin}:${look.sock}:${smart}`, () => shinGeometry(f.pants, look.shoe ?? SHOE, bare, look.skin, look.sock ?? '#F4F1EA', smart));
 }
 
-function upperArmGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
-  const p = paintOf(look);
-  return limb(`arm:${JSON.stringify(p)}:${side}`, () => sculptedBody(p).arms[side < 0 ? 0 : 1]);
+function upperArmGeometryFor(look: CharacterLook): THREE.BufferGeometry {
+  const f = figureOf(look);
+  return limb(`upper:${look.body}:${look.skin}:${f.long}`, () => upperArmGeometry(look.body, look.skin, f.long));
 }
 
 function forearmGeometryFor(look: CharacterLook, side: 1 | -1): THREE.BufferGeometry {
   const f = figureOf(look);
-  const carried = look.accessory === 'briefcase' || look.accessory === 'handbag' || look.accessory === 'surfboard' ? look.accessory : null;
+  const carried = look.accessory === 'briefcase' || look.accessory === 'handbag' ? look.accessory : null;
   const cuff = f.outfit === 'jacket' && look.accent !== look.body ? look.accent : undefined;
-  const cloth = topCloth(f);
-  return limb(`fore:${look.body}:${f.skin}:${f.long}:${carried}:${side}:${cuff}:${f.build}:${cloth}`, () => wearing(cloth, () => forearmGeometry(look.body, f.skin, f.long, side, carried, cuff, f.build)));
+  return limb(`fore:${look.body}:${look.skin}:${f.long}:${carried}:${side}:${cuff}`, () => forearmGeometry(look.body, look.skin, f.long, side, carried, cuff));
 }
 
 function shadeOf(hex: string): string {
@@ -531,51 +317,6 @@ function shadeOf(hex: string): string {
   const c = (v: number): number => Math.max(0, Math.min(255, v - 28));
   return `#${((c((n >> 16) & 255) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0')}`;
 }
-
-/**
- * Session 62 ("no long cast shadow"): the reference's figures throw a long soft shadow away from the key light. Shadow
- * maps are off on every tier, so each figure lays a soft stretched blob from its feet away from the light (the moon at
- * night, the low sun at golden hour), as long as the light is low. One more quad fan per person, in the shadows' batch.
- */
-const CAST_GEOMETRY = ((): THREE.BufferGeometry => {
-  const rings = [0, 0.25, 0.5, 0.75, 1];
-  const alpha = [0.7, 0.62, 0.42, 0.18, 0];
-  const seg = 18;
-  const pos: number[] = [];
-  const col: number[] = [];
-  const idx: number[] = [];
-  for (let r = 0; r < rings.length; r++) {
-    for (let i = 0; i < seg; i++) {
-      const a = (i / seg) * Math.PI * 2;
-      // An egg from the feet outward: centred half a length out, narrow near the feet, fuller at the far end.
-      const z = 0.5 + Math.sin(a) * 0.5 * rings[r];
-      const w = 0.24 + 0.08 * Math.max(0, Math.sin(a));
-      pos.push(Math.cos(a) * w * rings[r], 0, z);
-      col.push(1, 1, 1, alpha[r]);
-    }
-  }
-  for (let r = 0; r < rings.length - 1; r++) {
-    for (let i = 0; i < seg; i++) {
-      const a = r * seg + i;
-      const b = r * seg + ((i + 1) % seg);
-      const c = (r + 1) * seg + i;
-      const d = (r + 1) * seg + ((i + 1) % seg);
-      idx.push(a, b, c, b, d, c);
-    }
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(pos.length).fill(0).map((_, k) => (k % 3 === 1 ? 1 : 0)), 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
-  g.setIndex(idx);
-  return g;
-})();
-/** The cast shadow's length for a light this high (metres for a 1.2 m figure), and its limits. */
-const CAST_MIN = 0.35;
-const CAST_MAX = 1.5;
-/** Children (a figure drawn at under this scale) have a bigger head for their body: 2.4 heads tall (CHARACTER_SPEC §2). */
-const CHILD_SCALE = 0.8;
-const CHILD_HEAD = 1.25;
 
 /** Sleepers lie on their back: the body's back rests this far above the root (on the mattress). */
 const SLEEP_LIFT = 0.2;
@@ -614,94 +355,6 @@ export type CharacterAction = 'none' | 'sweep' | 'read' | 'sip' | 'watch' | 'was
  * Character pass 2: the quick moves that answer what a figure just did. They restart each time they are asked for (a
  * pickup per item taken, a reach per thing handed over), so picking up three towels reads as three quick dips.
  */
-
-/**
- * Session 63 (owner: "individual detailed animation… picking up the bags, holding the bags, and picking up everything
- * else… zero clip ins"): what a figure carries and how. Every load has its own hold, solved by IK so the hands are
- * really on it (`CarryPose`):
- *  - a tray (food and drink): palms up under its back corners, elbows tucked;
- *  - linen (towels, blankets, pillows, rolls, robes): an armful on the forearms, hands under it;
- *  - a crate: low and close, the body leaning back against its weight;
- *  - luggage: one or two bags by their handles, hanging at the sides clear of the legs (more go in front, stacked);
- * and its own take and hand-over moves (`MOTION`): a tray offered forward to receive and to serve, an armful reached
- * for and hugged in, a crate squatted for, a bag picked up with a bend toward its side and set down the same way.
- * A stack in front is placed clear of the figure at every height (its belly, its collar, its nose, its hat), measured
- * from its own meshes (`Clearance`); a tall one steps out where the face is and the head turns to peek round it.
- */
-export type CarryKind = 'tray' | 'linen' | 'crate' | 'luggage';
-export interface CarryLoad {
-  /** The stack in front, bottom first (a tray, when there is one, is its bottom item), at its carried size. */
-  front: readonly StackItem[];
-  frontKind: CarryKind;
-  /** A bag in each hand (index as the arms: 0 is −x), its footprint as carried, turned so its depth is across x. */
-  hands: readonly (StackItem | null)[];
-}
-export const EMPTY_LOAD: CarryLoad = { front: [], frontKind: 'linen', hands: [null, null] };
-type Motion = 'none' | CarryKind | 'bag' | 'board';
-/** How long each take and hand-over move lasts (seconds). */
-const MOTION_SECONDS: Record<Motion, { pickup: number; place: number }> = {
-  none: { pickup: 0.34, place: 0.32 },
-  tray: { pickup: 0.42, place: 0.44 },
-  linen: { pickup: 0.44, place: 0.42 },
-  crate: { pickup: 0.62, place: 0.56 },
-  luggage: { pickup: 0.54, place: 0.5 },
-  bag: { pickup: 0.52, place: 0.46 },
-  board: { pickup: 0.45, place: 0.4 },
-};
-/** The front stack's bottom (body space) and how clear of the figure it stands. */
-const HOLD_Y = 0.66;
-const STACK_GAP = 0.014;
-/** The grip below the stack's bottom (a palm-up mitten's half-thickness) and in from its back edge. */
-const PALM_UNDER = 0.05;
-const GRIP_IN = 0.028;
-const GRIP_SPREAD = 0.15;
-/** Beyond this from the shoulder the stack is lifted closer (an arm a little short of straight). */
-/** Session 65: the arm's full reach from the shoulder pivot to the grip (shorter with the smaller hand). */
-const ARM_REACH = -ELBOW_Y + Math.hypot(GRIP[1], GRIP[2]);
-/** The old figure's reach (0.298), against which the heights below were tuned. */
-const REACH_SHORTER = 0.298 - ARM_REACH;
-const REACH = ARM_REACH - 0.013;
-/** A stack whose top rises past here is in front of the face: it steps out and the head peeks round it. */
-const PEEK_Y = 0.84;
-const PEEK_YAW = 0.52;
-/** A bag hangs from the hand at this height, this clear of whatever is beside it (legs, a skirt, a coat). */
-const BAG_GRIP_Y = 0.47 + REACH_SHORTER;
-const BAG_GAP = 0.016;
-const BAG_MIN_X = 0.29;
-/** The hand on a box on the shoulder (Station's SUPPLY_BOX_AT): against its front face. */
-const BOX_HAND = new THREE.Vector3(0.34, 0.86, 0.16);
-const POLE_FRONT = [new THREE.Vector3(-0.75, -0.5, -0.45), new THREE.Vector3(0.75, -0.5, -0.45)];
-const POLE_BAG = [new THREE.Vector3(-0.25, 0.1, -1), new THREE.Vector3(0.25, 0.1, -1)];
-const POLE_BOX = new THREE.Vector3(0.6, -0.8, -0.2);
-/** Where a cup is drunk from and a phone is held (body space): the mouth's and the ear's height, how far out of them. */
-const MOUTH_Y = headPoint(HEAD_Y - 0.11);
-const EAR_Y = headPoint(HEAD_Y - 0.01);
-const CUP_OUT = 0.075;
-const PHONE_OUT = 0.05;
-const SIP_POLE = new THREE.Vector3(0.7, -0.7, -0.1);
-const PHONE_POLE = new THREE.Vector3(0.8, -0.5, -0.2);
-const UP = new THREE.Vector3(0, 1, 0);
-const BACK = new THREE.Vector3(0, 0, -1);
-const IN = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0)];
-const GRIP_V = new THREE.Vector3(...GRIP);
-const hv = new THREE.Vector3();
-const hv2 = new THREE.Vector3();
-const hq = new THREE.Quaternion();
-const hE = new THREE.Euler();
-const hM = new THREE.Matrix4();
-const hTargets = [new THREE.Vector3(), new THREE.Vector3()];
-const armTip = new THREE.Vector3();
-/** How clear of the torso an arm reaching round it keeps (metres). */
-const ARM_ROOM = 0.004;
-const hPalm: (THREE.Vector3 | null)[] = [null, null];
-const hPole: THREE.Vector3[] = [POLE_FRONT[0], POLE_FRONT[1]];
-
-/** A smooth rise to 1 at `peak` and back to 0 at 1. */
-function envelope(p: number, peak: number): number {
-  if (p <= 0 || p >= 1) return 0;
-  return p < peak ? smooth01(p / peak) : smooth01((1 - p) / (1 - peak));
-}
-
 const SNAP_ACTIONS: ReadonlySet<CharacterAction> = new Set(['pickup', 'place', 'cheer']);
 /** How long each of them lasts (s). */
 const SNAP_SECONDS: Partial<Record<CharacterAction, number>> = { pickup: 0.34, place: 0.32, cheer: 0.95 };
@@ -777,66 +430,29 @@ const ACTION_PROPS: Partial<Record<CharacterAction, { kind: PropKind; pos: [numb
  * A chibi character: merged body + separate legs (and arms for staff), a blob shadow, an optional speech
  * bubble, and an anchor where carried items stack.
  */
+/** Session 67: how far an arm may be eased clear of the body at most (rad). */
+const ARM_CLEAR_MAX = 1.1;
+/** The sleeve's top, this far along the arm from the shoulder pivot, is tucked into the round shoulder by design. */
+const SHOULDER_JOINT = 0.11;
+/** Points along the arm's centre line: [on the forearm, height below its pivot, the limb's radius there]. */
+const ARM_SAMPLES: [boolean, number, number][] = [[false, -0.12, 0.048], [false, -0.14, 0.048], [false, ELBOW_Y + 0.02, 0.046], [false, ELBOW_Y, 0.046], [true, -0.03, 0.043], [true, -0.06, 0.043], [true, -0.09, 0.042], [true, -0.12, 0.042], [true, HAND_Y - ELBOW_Y + 0.03, 0.045], [true, HAND_Y - ELBOW_Y, 0.048], [true, HAND_Y - ELBOW_Y - 0.035, 0.045]];
+/** Points along the leg: [on the shin, height below its pivot, forward] (the shoe's toe and heel too); the leg's radius is the look's. */
+const LEG_SAMPLES: [boolean, number, number, number][] = [[false, -0.06, 0, 0], [false, -0.1, 0, 0], [false, -0.14, 0, 0], [false, -0.18, 0, 0], [false, KNEE_Y, 0, 0], [true, -0.04, 0, 0], [true, -0.08, 0, 0], [true, -0.12, 0, 0], [true, -0.16, 0, 0.06], [true, -0.13, 0.07, 0.035], [true, -0.15, 0.115, 0.03], [true, -0.17, 0.13, 0.03], [true, -0.15, -0.045, 0.03], [true, -0.2, -0.05, 0.03], [true, -0.19, 0.06, 0.05], [true, -0.02, 0, 0], [false, -0.2, 0, 0]];
+
+/** The ground speed (m/s) the walk cycle is drawn at, at most, while `runGait` is 0. */
+const WALK_ANIM_SPEED = 2.6;
+
 export class CharacterView {
+  /** 0 keeps the walk cycle at a walk whatever the pace (the conductor before any speed upgrade), 1 lets it run. */
+  runGait = 1;
   readonly root = new THREE.Group();
   readonly body = new THREE.Group();
   readonly stackAnchor = new THREE.Object3D();
   /** Where a carried surfboard rides: on its edge under the left arm, pointing the way they walk. */
   readonly boardAnchor = new THREE.Object3D();
-  /**
-   * Session 63: a bag hangs from each of these (body space, placed on the hand's grip point every frame, swinging
-   * with the walk), index as the arms (0 is −x).
-   */
-  readonly handAnchors: readonly THREE.Object3D[] = [new THREE.Object3D(), new THREE.Object3D()];
-  /** Each stacked item's centre z relative to the stack anchor (clear of the figure), bottom first. */
-  readonly stackZ: number[] = [];
-  private load: CarryLoad = EMPTY_LOAD;
-  /** What was last held in front (the hands finish handing it over after it has gone). */
-  private ghost: StackItem[] = [];
-  private ghostKind: CarryKind = 'linen';
-  private readonly clearRest = new Clearance();
-  private readonly clearPeek = new Clearance();
-  private clearKey = -1;
-  private readonly chains: ArmChain[] = [];
-  /** How much each arm follows its IK hold (eased, so taking hold and letting go never snap). */
-  private readonly ikWeight = [0, 0];
-  private readonly ikSolved: ArmSolution[] = [{ shoulder: new THREE.Quaternion(), bend: 0, reached: true }, { shoulder: new THREE.Quaternion(), bend: 0, reached: true }];
-  /** The kind of take or hand-over move under way, which hand it is for, and how long it lasts. */
-  private motion: Motion = 'none';
-  private motionHand = 1;
-  private motionPlace = false;
-  private motionLength = 0.34;
-  private motionArmed = false;
-  /** The take or hand-over's reach this frame (set by the move, read by the hold). */
-  private reachDy = 0;
-  private reachDz = 0;
-  private bagDy = 0;
-  private bagDz = 0;
-  private bagDx = 0;
-  private walkS = 0;
-  private lookStamp = 0;
-  /** A carried bag's swing (radians about x) and its rate, and the hand's last body-space z (for its velocity). */
-  private readonly bagSwing = [0, 0];
-  private readonly bagRate = [0, 0];
-  private readonly lastHandZ = [0, 0];
-  /** The front stack's bottom-centre z and base height, eased (the hands and the items follow it together). */
-  private stackBaseZ = 0.3;
   private readonly legs: THREE.Object3D[] = [];
   private readonly arms: THREE.Object3D[] = [];
   private readonly shadow: THREE.Mesh;
-  /** The long soft shadow away from the key light (session 62). */
-  private readonly cast: THREE.Mesh;
-  /** The swinging pieces (skirts, coat tails, an apron, long hair) and their springs. */
-  private readonly cloth: Cloth[] = [];
-  /** Where the root was last frame and how fast it moved (world, per second), for the cloth's inertia. */
-  private lastPos = new THREE.Vector3(Number.NaN, 0, 0);
-  private velX = 0;
-  private velZ = 0;
-  private accX = 0;
-  private accZ = 0;
-  private lastYawSeen = 0;
-  private lastBodyY = 0;
-  private bodyVy = 0;
   private bubble: THREE.Sprite | null = null;
   private bubbleKey = '';
   private phase = Math.random() * 10;
@@ -858,11 +474,6 @@ export class CharacterView {
     return this.pose === 'sleep' || !this.leans ? 0 : CharacterView.lean;
   }
   private leanNow = 0;
-  /** The walk's roll over the stance foot and the hips' twist (CHARACTER_SPEC §8). */
-  private swayZ = 0;
-  private twistY = 0;
-  /** Eased turns: the way the figure is asked to face, and the way it faces now (radians about y). */
-  private yawTarget = 0;
   private blanket: THREE.Mesh | null = null;
   private eyelids: THREE.Mesh | null = null;
   /** The current action and how much longer it lasts (callers refresh it while it goes on). */
@@ -884,8 +495,6 @@ export class CharacterView {
   private readonly head = new THREE.Object3D();
   private readonly knees: THREE.Object3D[] = [];
   private readonly elbows: THREE.Object3D[] = [];
-  /** Session 64: under each elbow, the wrist: the palm's twist (the sleeve does not twist with it). */
-  private readonly wrists: THREE.Object3D[] = [];
   private readonly thighMeshes: THREE.Mesh[] = [];
   private readonly shinMeshes: THREE.Mesh[] = [];
   private readonly upperMeshes: THREE.Mesh[] = [];
@@ -895,12 +504,12 @@ export class CharacterView {
     this.root.add(this.body);
     for (const side of [-1, 1] as const) {
       const pivot = new THREE.Object3D();
-      pivot.position.set(side * hipX(figureOf(look).build), HIP_Y, 0);
-      const thigh = castsShadow(new THREE.Mesh(thighGeometryFor(look, side), MATERIALS.character));
+      pivot.position.set(side * 0.078, HIP_Y, 0);
+      const thigh = castsShadow(new THREE.Mesh(thighGeometryFor(look), MATERIALS.character));
       pivot.add(thigh);
       const knee = new THREE.Object3D();
       knee.position.y = KNEE_Y;
-      const shin = castsShadow(new THREE.Mesh(shinGeometryFor(look, side), MATERIALS.character));
+      const shin = castsShadow(new THREE.Mesh(shinGeometryFor(look), MATERIALS.character));
       knee.add(shin);
       pivot.add(knee);
       this.body.add(pivot);
@@ -909,13 +518,10 @@ export class CharacterView {
       this.thighMeshes.push(thigh);
       this.shinMeshes.push(shin);
     }
+    this.skirt = (SKIRTS as Record<string, [number, number][]>)[figureOf(look).outfit] ?? null;
+    this.legRadius = figureOf(look).outfit === 'coat' ? 0.068 : 0.04;
     this.bodyMesh = castsShadow(new THREE.Mesh(bodyGeometry(look), MATERIALS.character));
     this.body.add(this.bodyMesh);
-    // Session 64: each trouser leg (or bare leg) is one surface from the hip to the ankle, bending with the shin and
-    // easing into the hips at its top (world/Skin.ts).
-    for (let i = 0; i < 2; i++) {
-      this.thighMeshes[i].userData.skin = { weight: legWeight(KNEE_Y), partners: [{ object: this.bodyMesh, offset: this.legs[i].position }, { object: this.shinMeshes[i], offset: new THREE.Vector3(0, -KNEE_Y, 0) }] } satisfies SkinDef;
-    }
     this.head.position.y = NECK_Y;
     this.headMesh = castsShadow(new THREE.Mesh(headGeometry(look), MATERIALS.character));
     this.head.add(this.headMesh);
@@ -923,23 +529,14 @@ export class CharacterView {
 
     for (const side of [-1, 1] as const) {
       const pivot = new THREE.Object3D();
-      pivot.position.set(side * shoulderX(figureOf(look).build), SHOULDER_Y, 0);
-      const upper = castsShadow(new THREE.Mesh(upperArmGeometryFor(look, side), MATERIALS.character));
+      pivot.position.set(side * SHOULDER_X, SHOULDER_Y, 0);
+      const upper = castsShadow(new THREE.Mesh(upperArmGeometryFor(look), MATERIALS.character));
       pivot.add(upper);
       const elbow = new THREE.Object3D();
       elbow.position.y = ELBOW_Y;
-      // Session 64: the hand and the cuff turn with the palm (the wrist's twist); the sleeve bends with the elbow's
-      // bone and blends into the shoulder (world/Skin.ts), one surface from the shoulder to the cuff.
-      const wrist = new THREE.Object3D();
       const fore = castsShadow(new THREE.Mesh(forearmGeometryFor(look, side), MATERIALS.character));
-      wrist.add(fore);
-      elbow.add(wrist);
-      const bone = new THREE.Mesh(BONE_GEOMETRY, MATERIALS.character);
-      bone.userData.noAudit = true;
-      elbow.add(bone);
+      elbow.add(fore);
       pivot.add(elbow);
-      upper.userData.skin = { weight: armWeight(ELBOW_Y), partners: [{ object: this.bodyMesh, offset: pivot.position }, { object: bone, offset: new THREE.Vector3(0, -ELBOW_Y, 0) }] } satisfies SkinDef;
-      this.wrists.push(wrist);
       pivot.rotation.z = side * 0.1;
       this.body.add(pivot);
       this.arms.push(pivot);
@@ -952,282 +549,25 @@ export class CharacterView {
     this.body.add(this.stackAnchor);
     this.boardAnchor.position.set(-0.27, 0.43, 0.04);
     this.body.add(this.boardAnchor);
-    for (const a of this.handAnchors) this.body.add(a);
-    for (let i = 0; i < 2; i++) this.chains.push({ shoulder: new THREE.Vector3(), upper: -ELBOW_Y, fore: Math.hypot(GRIP[1], GRIP[2]), side: i === 0 ? -1 : 1 });
 
     this.shadow = new THREE.Mesh(SHADOW_GEOMETRY, MATERIALS.shadow);
     this.shadow.position.y = 0.012;
     this.root.add(this.shadow);
-    this.cast = new THREE.Mesh(CAST_GEOMETRY, MATERIALS.shadow);
-    this.cast.position.y = 0.01;
-    this.root.add(this.cast);
-    // Shadows on the floor are not solid (the clipping audit leaves them out).
-    this.shadow.userData.noAudit = true;
-    this.cast.userData.noAudit = true;
-    this.buildCloth();
-    this.measureRestArm();
-    this.arms.forEach((arm, i) => (arm.rotation.z = (i === 0 ? -1 : 1) * this.restAbduct));
     this.root.scale.setScalar(scale);
-    this.head.scale.setScalar(scale < CHILD_SCALE ? CHILD_HEAD : 1);
     CharacterView.batch?.register(this.root);
-  }
-
-  /** The look's swinging pieces, made again when the look changes (meshes reused where they can be). */
-  private buildCloth(): void {
-    const specs = clothPieces(this.look);
-    while (this.cloth.length > specs.length) {
-      const c = this.cloth.pop()!;
-      c.pivot.removeFromParent();
-    }
-    specs.forEach((spec, i) => {
-      let c = this.cloth[i];
-      if (!c) {
-        const pivot = new THREE.Object3D();
-        const mesh = castsShadow(new THREE.Mesh(spec.geometry, MATERIALS.character));
-        pivot.add(mesh);
-        c = { spec, pivot, mesh, wx: 0, vx: 0, wz: 0, vz: 0, wy: 0, vy: 0, flare: 0, vf: 0, keepFlare: 1, keepSwing: 0 };
-        this.cloth.push(c);
-      }
-      c.spec = spec;
-      c.mesh.geometry = spec.geometry;
-      c.mesh.visible = spec.kind === 'hair' || this.pose !== 'sleep';
-      c.pivot.position.set(...spec.at);
-      (spec.kind === 'hair' ? this.head : this.body).add(c.pivot);
-    });
-    this.settleCloth();
-  }
-
-  /** Puts every piece at rest (a teleport, a pose change, a new look). */
-  private settleCloth(): void {
-    for (const c of this.cloth) {
-      c.wx = c.vx = c.wz = c.vz = c.wy = c.vy = c.flare = c.vf = 0;
-      c.keepFlare = 1;
-      c.keepSwing = 0;
-      c.pivot.rotation.set(0, 0, 0);
-      c.pivot.scale.set(1, 1, 1);
-    }
-    this.lastPos.x = Number.NaN;
-    this.velX = this.velZ = this.accX = this.accZ = 0;
-    this.bodyVy = 0;
-  }
-
-  /**
-   * The cloth's springs (session 62). Each piece's angle is simulated in the world's frame and shown relative to its
-   * parent, so when the body leans, sways or twists the cloth lags behind and catches up; on top of that it trails as
-   * the figure sets off (inertia) and with speed (air), swings out on a turn, bounces at each footfall, the coat's
-   * halves and the apron are pushed by the legs, and a skirt drapes over the lap when its wearer sits.
-   */
-  private lastDt = 1 / 60;
-
-  private stepCloth(dt: number, footfall: boolean, stepSide: boolean): void {
-    this.lastDt = dt;
-    if (!this.cloth.length) return;
-    // The root's motion: velocity and acceleration in the world, turned into the figure's frame (z forward, x side).
-    const p = this.root.position;
-    if (Number.isNaN(this.lastPos.x) || dt <= 0) {
-      this.lastPos.copy(p);
-      this.lastYawSeen = this.yaw;
-      this.lastBodyY = this.body.position.y;
-    }
-    const inv = 1 / Math.max(dt, 1e-3);
-    let vx = (p.x - this.lastPos.x) * inv;
-    let vz = (p.z - this.lastPos.z) * inv;
-    // A jump (a teleport, a seat, a lift into bed) is not motion: start again from rest.
-    if (vx * vx + vz * vz > 100) {
-      vx = vz = 0;
-      this.velX = this.velZ = 0;
-    }
-    const ax = (vx - this.velX) * inv;
-    const az = (vz - this.velZ) * inv;
-    this.accX += (ax - this.accX) * Math.min(1, dt * 14);
-    this.accZ += (az - this.accZ) * Math.min(1, dt * 14);
-    this.velX = vx;
-    this.velZ = vz;
-    this.lastPos.copy(p);
-    const sy = Math.sin(this.yaw);
-    const cy = Math.cos(this.yaw);
-    const fwdV = vx * sy + vz * cy;
-    const fwdA = this.accX * sy + this.accZ * cy;
-    const sideA = this.accX * cy - this.accZ * sy;
-    let yawRate = this.yaw - this.lastYawSeen;
-    yawRate = Math.atan2(Math.sin(yawRate), Math.cos(yawRate)) * inv;
-    this.lastYawSeen = this.yaw;
-    const by = this.body.position.y;
-    this.bodyVy += ((by - this.lastBodyY) * inv - this.bodyVy) * Math.min(1, dt * 20);
-    this.lastBodyY = by;
-    const seated = this.pose === 'sit' || this.pose === 'lounge';
-    const steps = Math.max(1, Math.ceil(dt / (1 / 60)));
-    const h = dt / steps;
-    for (const c of this.cloth) {
-      const k = CLOTH_SPRING[c.spec.kind];
-      const onHead = c.spec.kind === 'hair';
-      // The parent's own angles (the body's lean, sway and twist; for hair, the head's on top).
-      const px = this.body.rotation.x + (onHead ? this.head.rotation.x : 0);
-      const pz = this.body.rotation.z;
-      const pyaw = this.yaw + this.body.rotation.y + (onHead ? this.head.rotation.y : 0);
-      // What the piece wants relative to its parent.
-      const air = Math.min(0.32, Math.max(-0.1, fwdV * k.drag));
-      let tx = air + fwdA * k.accel;
-      let tz = -sideA * k.accel * 0.8 - yawRate * Math.max(0, fwdV) * 0.03;
-      const l0 = this.legs[0].rotation.x;
-      const l1 = this.legs[1].rotation.x;
-      if (c.spec.kind === 'coat') {
-        const leg = c.spec.side < 0 ? l0 : l1;
-        tx += seated ? leg * 0.85 : leg * 0.9;
-        tz += c.spec.side * Math.max(0, -leg) * 0.12;
-      } else if (c.spec.kind === 'apron') {
-        tx += Math.min(0, l0, l1) * (seated ? 0.9 : 0.7);
-      } else if (c.spec.kind === 'skirt') {
-        tx += seated ? -0.62 : Math.min(0, l0, l1) * 0.22;
-        tz += (l0 - l1) * 0.05;
-      } else if (onHead && this.pose === 'sleep') {
-        tx = 0;
-        tz = 0;
-      }
-      // Seated, a coat's tails lie forward over the lap (as far as the thighs go).
-      const kmax = seated && c.spec.kind === 'coat' ? 1.45 : k.max;
-      tx = Math.max(-kmax, Math.min(kmax, tx));
-      tz = Math.max(onHead ? -0.18 : -SIDE_SWING, Math.min(onHead ? 0.18 : SIDE_SWING, tz));
-      if (footfall && !seated) {
-        // Each step: a little bounce back and a sway toward the foot that landed.
-        c.vx += onHead ? 0.9 : 0.35;
-        c.vz += (stepSide ? 1 : -1) * (onHead ? 0.5 : 0.7);
-        c.vf += c.spec.kind === 'skirt' ? 0.45 : 0.2;
-      }
-      for (let i = 0; i < steps; i++) {
-        c.vx += (k.k * (px + tx - c.wx) - k.c * c.vx) * h;
-        c.wx += c.vx * h;
-        c.vz += (k.k * (pz + tz - c.wz) - k.c * c.vz) * h;
-        c.wz += c.vz * h;
-        let dy = pyaw - c.wy;
-        dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-        c.vy += (k.k * 0.8 * dy - k.c * c.vy) * h;
-        c.wy += c.vy * h;
-        c.vf += (-160 * c.flare - 9 * c.vf - this.bodyVy * 6) * h;
-        c.flare += c.vf * h;
-      }
-      // Never more than the piece's reach from its parent (so a fast spin or a teleport cannot fling it).
-      // Long hair swings out behind and a little to the sides, never forward into the back or the shoulders.
-      // Hair never swings forward of hanging straight down behind the head, wherever the head tips (a yawn throws it
-      // back toward the shoulders).
-      const lx = Math.max(onHead ? -0.03 - Math.min(0, this.head.rotation.x) * 1.15 : -kmax, Math.min(kmax, c.wx - px));
-      // A skirt or coat swings fore and aft freely but only a little to the sides (a hand or a bag hangs there).
-      const side = onHead ? 0.18 : SIDE_SWING;
-      const lz = Math.max(-side, Math.min(side, c.wz - pz));
-      let ly = c.wy - pyaw;
-      // A coat's tails lag a turn only a little (twisted further, a leg comes through its side).
-      const twist = c.spec.kind === 'coat' ? 0.2 : 0.5;
-      ly = Math.max(-twist, Math.min(twist, Math.atan2(Math.sin(ly), Math.cos(ly))));
-      c.wx = px + lx;
-      c.wz = pz + lz;
-      c.wy = pyaw + ly;
-      // Session 66: long hair keeps hanging the way the body faces when only the head turns (turned with the head, its
-      // edge swept round into the shoulder): it counters most of the head's own turn on the body.
-      c.pivot.rotation.set(lx, onHead ? -this.head.rotation.y * HAIR_COUNTER_TURN : ly * 0.7, lz);
-      const f = Math.max(-0.06, Math.min(0.1, c.flare));
-      if (!onHead) {
-        // Session 63: a leg never goes through it. A skirt flares (both legs are inside it); an apron or a coat's half
-        // swings out of the leg's way (forward for a knee coming through, back for a heel); either eases back after.
-        this.containLegs(c);
-        const up = Math.min(1, dt * 40);
-        const down = Math.min(1, dt * 6);
-        c.keepFlare += (contain.scale - c.keepFlare) * (contain.scale > c.keepFlare ? 1 : down);
-        // Exactly the swing that was found to keep the legs in (its own easing back was the first one tried).
-        c.keepSwing = contain.swing;
-        void up;
-        c.pivot.rotation.x += c.keepSwing;
-        c.pivot.scale.set(Math.max(1 + f, c.keepFlare), 1 - f * 0.4, Math.max(1 + f, c.keepFlare));
-      }
-    }
-  }
-
-  /** Leg surface points (body space), refreshed each frame for `containLegs`. */
-  private readonly legSamples: { p: THREE.Vector3; r: number }[] = [];
-
-  private sampleLegs(): void {
-    const out = this.legSamples;
-    let n = 0;
-    for (let i = 0; i < 2; i++) {
-      const leg = this.legs[i];
-      leg.updateMatrix();
-      this.knees[i].updateMatrix();
-      const shinM = skinShin.copy(leg.matrix).multiply(this.knees[i].matrix);
-      for (const [mesh, m] of [[this.thighMeshes[i], leg.matrix], [this.shinMeshes[i], shinM]] as [THREE.Mesh, THREE.Matrix4][]) {
-        // The trouser leg runs down past the knee, bending with the shin (world/Skin.ts): sampled where it is drawn.
-        const def = mesh.userData.skin as SkinDef | undefined;
-        const pts = surfacePoints(mesh.geometry);
-        for (let k = 0; k < pts.length; k += 5) {
-          // Session 66: the torso's own surface carried in the thigh's piece (the seat, the hip) is the body's, not a leg's.
-          if (pts[k + 3] === 1 && pts[k + 4] >= 0.97) continue;
-          if (!out[n]) out[n] = { p: new THREE.Vector3(), r: 0 };
-          skinCW[0] = pts[k + 3];
-          skinCW[1] = pts[k + 4];
-          skinPoint(def, pts[k], pts[k + 1], pts[k + 2], m, (code) => (code === 1 ? IDENTITY : shinM), out[n].p, skinCW);
-          out[n].r = 0;
-          n++;
-        }
-      }
-    }
-    out.length = n;
-  }
-
-  /**
-   * What a skirt, coat half or apron must do this frame to keep both legs inside it (`contain`): flare (a scale of its
-   * spread; a skirt, closed all round) or swing (radians about its pivot's x: an apron or a coat half, open pieces).
-   */
-  private containLegs(c: Cloth): void {
-    contain.scale = 1;
-    // Its last push eases off (the legs at rest are inside it wherever it settles from there).
-    contain.swing = c.keepSwing * (1 - Math.min(1, this.lastDt * 6));
-    if (c.spec.kind === 'hair' || this.pose === 'sleep') return;
-    // Standing still (legs at rest, no take or hand-over) nothing moves the legs through it, so nothing is measured.
-    if (this.pose === 'stand' && this.swingNow < 0.02 && this.kneeNow[0] < 0.12 && this.kneeNow[1] < 0.12) return;
-    if (c === this.cloth.find((x) => x.spec.kind !== 'hair')) this.sampleLegs();
-    const shape = clothShape(c.mesh.geometry);
-    // Each candidate swing (nearest to how the spring hangs it first): the flare it would still need; the first that
-    // needs none is taken, otherwise the one needing least, flared by the rest.
-    const rx = c.pivot.rotation.x;
-    let bestSwing = 0;
-    let bestNeed = Infinity;
-    // First where it is heading anyway (its last push easing off), so it settles smoothly whenever that fits.
-    SWING_TRIES[0] = c.keepSwing * (1 - Math.min(1, this.lastDt * 6));
-    for (const sw of SWING_TRIES) {
-      cq.setFromEuler(hE.set(rx + sw, c.pivot.rotation.y, c.pivot.rotation.z)).invert();
-      let need = 1;
-      for (const s of this.legSamples) {
-        cv.copy(s.p).sub(c.pivot.position).applyQuaternion(cq);
-        if (cv.y > -0.02) continue;
-        const reach = shape.at(cv.y, cv.x, cv.z);
-        if (reach <= 0) continue;
-        const out = Math.hypot(cv.x, cv.z) + s.r + LEG_ROOM;
-        if (out > reach * need) need = out / reach;
-        if (need >= bestNeed) break;
-      }
-      if (need < bestNeed) {
-        bestNeed = need;
-        bestSwing = sw;
-      }
-      if (need <= 1) break;
-    }
-    contain.swing = bestSwing;
-    contain.scale = Math.min(MAX_FLARE, bestNeed);
   }
 
   /** Changes outfit in place (geometry is cached per look, so this is cheap after the first time). */
   setLook(look: CharacterLook): void {
     this.look = look;
-    this.lookStamp++;
-    this.bodyMesh.geometry = bodyGeometry(look);
+    this.skirt = (SKIRTS as Record<string, [number, number][]>)[figureOf(look).outfit] ?? null;
+    this.legRadius = figureOf(look).outfit === 'coat' ? 0.068 : 0.04;
+    this.bodyMesh.geometry = bodyGeometry(look, this.pose === 'sit' || this.pose === 'lounge');
     this.headMesh.geometry = headGeometry(look);
-    const build = figureOf(look).build;
-    this.thighMeshes.forEach((m, i) => (m.geometry = thighGeometryFor(look, i === 0 ? -1 : 1)));
-    this.shinMeshes.forEach((m, i) => (m.geometry = shinGeometryFor(look, i === 0 ? -1 : 1)));
-    this.upperMeshes.forEach((m, i) => (m.geometry = upperArmGeometryFor(look, i === 0 ? -1 : 1)));
-    this.legs.forEach((p, i) => (p.position.x = (i === 0 ? -1 : 1) * hipX(build)));
-    this.arms.forEach((p, i) => (p.position.x = (i === 0 ? -1 : 1) * shoulderX(build)));
+    this.thighMeshes.forEach((m) => (m.geometry = thighGeometryFor(look)));
+    this.shinMeshes.forEach((m) => (m.geometry = shinGeometryFor(look)));
+    this.upperMeshes.forEach((m) => (m.geometry = upperArmGeometryFor(look)));
     this.foreMeshes.forEach((m, i) => (m.geometry = forearmGeometryFor(look, i === 0 ? -1 : 1)));
-    this.buildCloth();
-    this.measureRestArm();
   }
 
   /** Leg pivots (for footwear attachments) and the body group (for chest and shoulder gear). */
@@ -1265,7 +605,7 @@ export class CharacterView {
   /** Puts something in the right hand (a flag, a balloon); it follows the arm, waving included. */
   holdInRightHand(object: THREE.Object3D): void {
     object.position.y += HAND_Y - ELBOW_Y;
-    this.wrists[1].add(object);
+    this.elbows[1].add(object);
   }
 
   setPosition(x: number, y: number, z: number): void {
@@ -1275,15 +615,6 @@ export class CharacterView {
   setFacing(angle: number): void {
     // The whole rotation, never one angle of it: an Euler read back from a quaternion (render interpolation puts poses
     // back that way) may hold a turn as (π, π − y, π), and writing y alone into that turns the figure upside down.
-    // The clay toys turn with an ease (CHARACTER_SPEC §8): the figure is asked to face `angle` and swings round to it in
-    // `update` (visual only: nothing in play reads the figure's yaw).
-    this.yawTarget = angle;
-    this.root.rotation.set(this.tilt(), this.yaw, 0);
-  }
-
-  /** Faces `angle` at once (a figure placed, not walking: pooled guests, poses). */
-  snapFacing(angle: number): void {
-    this.yawTarget = angle;
     this.yaw = angle;
     this.root.rotation.set(this.tilt(), angle, 0);
   }
@@ -1297,461 +628,10 @@ export class CharacterView {
     this.carryBoard = board;
     this.carryBox = box;
   }
-
-  /** Session 63: what the figure carries now (CarryStack tells it on every change). */
-  setLoad(load: CarryLoad): void {
-    if (this.load.front.length > 0 && load.front.length === 0) {
-      this.ghost = this.load.front.slice();
-      this.ghostKind = this.load.frontKind;
-    }
-    this.load = load;
-  }
-
-  /** Whether a hand is free to carry a bag (the surfboard takes the left arm, the box on the shoulder the right). */
-  handFree(i: number): boolean {
-    return !(i === 0 && this.carryBoard) && !(i === 1 && this.carryBox);
-  }
-
-  /**
-   * The take (or the hand-over) of one thing: `kind` the item, `hand` the hand a bag goes into or comes from (null for
-   * the stack in front). Each kind has its own move (`MOTION_SECONDS`, `motionPose`).
-   */
-  startMotion(kind: ItemKind | 'box', place: boolean, hand: number | null): void {
-    const m: Motion = hand !== null ? 'bag' : kind === 'surfboard' ? 'board' : kind === 'box' || kind === 'crate' ? 'crate' : kind === 'luggage' ? 'luggage' : ON_TRAY.has(kind) ? 'tray' : 'linen';
-    this.motion = m;
-    this.motionHand = hand ?? 1;
-    this.motionPlace = place;
-    this.motionLength = MOTION_SECONDS[m][place ? 'place' : 'pickup'];
-    this.motionArmed = true;
-    this.act(place ? 'place' : 'pickup');
-  }
-
-  /** The take or hand-over move's body, knees and head, and how far it reaches (the hold follows the reach). */
-  private motionPose(t: number): boolean {
-    const m = this.motion;
-    this.reachDy = this.reachDz = this.bagDy = this.bagDz = this.bagDx = 0;
-    if (m === 'none') return false;
-    const p = Math.min(1, t / this.motionLength);
-    const place = this.motionPlace;
-    const still = this.swingNow < 0.2 ? 1 : 0.5;
-    let knee = 0;
-    let thigh = 0;
-    let dip = 0;
-    let tilt = 0;
-    let nod = 0;
-    let lean = 0;
-    switch (m) {
-      case 'tray': {
-        // Taking: the tray offered forward and a touch lower to meet the cup; serving: carried out and up to them
-        // with a small bow, then back in to the chest.
-        const k = envelope(p, place ? 0.5 : 0.42);
-        this.reachDz = (place ? 0.09 : 0.06) * k;
-        this.reachDy = (place ? 0.025 : -0.03) * k;
-        tilt = (place ? 0.11 : 0.06) * k;
-        nod = (place ? 0.14 : 0.2) * k;
-        knee = 0.14 * k;
-        break;
-      }
-      case 'linen': {
-        // Reaching out for the folded pile, then hugging it in (a little squeeze at the end); handing it over, held out
-        // and a touch lower.
-        const k = envelope(p, place ? 0.5 : 0.38);
-        const hug = place ? 0 : envelope(p, 0.82) * 0.4;
-        this.reachDz = (place ? 0.08 : 0.07) * k - 0.012 * hug;
-        this.reachDy = (place ? -0.03 : 0.04) * k;
-        tilt = (place ? 0.14 : 0.1) * k;
-        nod = 0.2 * k;
-        knee = 0.2 * k;
-        break;
-      }
-      case 'luggage':
-      case 'crate': {
-        // A weight from low down: a real squat (knees and hips), the back tipping forward, the load brought up close;
-        // set down the same way. A crate goes lower and slower than a bag.
-        const heavy = m === 'crate' ? 1 : 0.65;
-        const k = envelope(p, place ? 0.55 : 0.42);
-        this.reachDy = -0.17 * heavy * k;
-        this.reachDz = 0.03 * k;
-        knee = 0.95 * heavy * k;
-        thigh = 0.5 * heavy * k;
-        dip = 0.1 * heavy * k;
-        tilt = 0.3 * heavy * k;
-        nod = 0.3 * k;
-        break;
-      }
-      case 'bag': {
-        // One bag by its handle: a bend at the knees toward its side, the hand reaching down and out for the handle,
-        // then up straight with it hanging; set down, the hand swings it forward and down.
-        const k = envelope(p, place ? 0.5 : 0.4);
-        this.bagDy = -0.19 * k;
-        this.bagDz = (place ? 0.14 : 0.09) * k;
-        this.bagDx = 0.035 * k;
-        knee = 0.62 * k;
-        thigh = 0.32 * k;
-        dip = 0.065 * k;
-        tilt = 0.2 * k;
-        nod = 0.22 * k;
-        lean = (this.motionHand === 0 ? 1 : -1) * 0.12 * k;
-        break;
-      }
-      case 'board': {
-        const k = envelope(p, 0.45);
-        knee = 0.25 * k;
-        dip = 0.025 * k;
-        nod = 0.15 * k;
-        break;
-      }
-    }
-    this.kneeAim[0] = Math.max(this.kneeAim[0], knee * still);
-    this.kneeAim[1] = Math.max(this.kneeAim[1], knee * still);
-    this.legs[0].rotation.x -= thigh * still;
-    this.legs[1].rotation.x -= thigh * still;
-    this.body.position.y -= dip * still;
-    this.body.rotation.x += tilt;
-    this.body.rotation.z += lean;
-    this.headPitch = Math.max(this.headPitch, nod);
-    return true;
-  }
-
-  /** How far forward and how wide the figure is at each height (from its own meshes; again when they change). */
-  private ensureClearance(): void {
-    let key = this.lookStamp * 7919 + (this.cloth.length + 1) * 31;
-    this.body.children.forEach((c, i) => {
-      if (c.visible && (c as THREE.Mesh).isMesh && !c.userData.carried && !c.userData.prop) key += (i + 1) * 131;
-    });
-    if (key === this.clearKey) return;
-    this.clearKey = key;
-    const rest = this.clearRest.clear();
-    const peek = this.clearPeek.clear();
-    const add = (g: THREE.BufferGeometry, m: THREE.Matrix4, front = true): void => {
-      rest.add(g, m, front);
-      peek.add(g, m, front);
-    };
-    for (const c of this.body.children) {
-      if (!(c as THREE.Mesh).isMesh || !c.visible || c.userData.carried || c.userData.prop) continue;
-      c.updateMatrix();
-      add((c as THREE.Mesh).geometry, c.matrix);
-    }
-    // The head turns and nods: everywhere it can be while carrying (and, peeking, turned round the stack).
-    const hs = this.head.scale.x;
-    const headAt = (yaw: number, pitch: number, into: Clearance): void => {
-      hM.compose(hv.set(0, NECK_Y, 0), hq.setFromEuler(hE.set(pitch, yaw, 0)), hv2.setScalar(hs));
-      into.add(this.headMesh.geometry, hM, true, true);
-    };
-    for (const yaw of [-0.34, 0, 0.34]) for (const pitch of [-0.24, 0, 0.32]) headAt(yaw, pitch, rest);
-    for (const yaw of [PEEK_YAW - 0.08, PEEK_YAW + 0.08]) for (const pitch of [-0.12, 0.14]) headAt(yaw, pitch, peek);
-    // The legs and what hangs at the waist, standing (for a bag beside them; the stack in front is far above them).
-    for (let i = 0; i < 2; i++) {
-      hM.makeTranslation(this.legs[i].position.x, this.legs[i].position.y, this.legs[i].position.z);
-      add(this.thighMeshes[i].geometry, hM, false);
-      hM.makeTranslation(this.legs[i].position.x, this.legs[i].position.y + KNEE_Y, this.legs[i].position.z);
-      add(this.shinMeshes[i].geometry, hM, false);
-    }
-    for (const c of this.cloth) {
-      hM.makeTranslation(c.pivot.position.x, c.pivot.position.y, c.pivot.position.z);
-      // Hair hangs from the head (its pivot is in head space): it only matters for the width beside the shoulders.
-      if (c.spec.kind === 'hair') hM.premultiply(new THREE.Matrix4().makeTranslation(0, NECK_Y, 0));
-      add(c.mesh.geometry, hM, c.spec.kind !== 'hair');
-    }
-  }
-
-  /**
-   * Session 63: the hands on what is carried. Solves each arm that holds something (IK onto its grip), blends it with
-   * the walk's own swing as a hold begins or ends, and places the stack and the bags so they meet the hands.
-   */
-  private applyHold(dt: number): void {
-    const L = this.load;
-    const placing = this.action === 'place' && this.actionTime > 0;
-    // Handing over the last of a stack, the hands finish the move as if it were still there (not while bags hang from them).
-    const front = L.front.length > 0 ? L.front : placing && this.motion !== 'bag' && this.ghost.length > 0 && !L.hands[0] && !L.hands[1] ? this.ghost : null;
-    const kind = L.front.length > 0 ? L.frontKind : this.ghostKind;
-    const anyBag = !!(L.hands[0] || L.hands[1]) || (placing && this.motion === 'bag');
-    const want = [false, false];
-    hPalm[0] = hPalm[1] = null;
-    if (front || anyBag || this.carryBox) this.ensureClearance();
-    for (let i = 0; i < 2; i++) this.chains[i].shoulder.copy(this.arms[i].position);
-
-    let peekTarget = 0;
-    if (front) {
-      let top = 0;
-      for (const it of front) top += it.h;
-      const peeking = HOLD_Y + top > PEEK_Y;
-      const clear = peeking ? this.clearPeek : this.clearRest;
-      peekTarget = peeking ? PEEK_YAW : 0;
-      const kindY = kind === 'tray' ? 0.03 : kind === 'crate' ? -0.03 : 0;
-      let baseY = HOLD_Y + kindY + this.reachDy;
-      const hands = [0, 1].filter((i) => this.handFree(i));
-      let z0 = 0;
-      let gx = 0;
-      let gz = 0;
-      // Lift the stack closer to the shoulders until the hands reach it (a deep stack, or one stepped out round a face).
-      for (let lift = 0; lift <= 0.12; lift += 0.02) {
-        z0 = layoutStack(front, baseY + lift, clear, STACK_GAP, this.stackZ);
-        const b = front[0];
-        gz = z0 - b.d / 2 + Math.min(GRIP_IN, b.d * 0.4);
-        // One hand free (the other on a box or a board): it holds the stack from under its own side.
-        gx = hands.length === 2 ? Math.min(GRIP_SPREAD, b.w / 2 - 0.03) : Math.min(0.1, b.w / 2 - 0.02);
-        const sx = shoulderX(figureOf(this.look).build);
-        const reach = Math.hypot(sx - gx, SHOULDER_Y - (baseY + lift - PALM_UNDER), gz);
-        if (reach <= REACH || lift >= 0.12) {
-          baseY += lift;
-          break;
-        }
-      }
-      this.stackBaseZ = z0 + this.reachDz;
-      const shift = hands.length === 1 ? (hands[0] === 0 ? -1 : 1) * 0.03 : 0;
-      this.stackAnchor.position.set(shift, baseY, this.stackBaseZ);
-      for (let i = 0; i < this.stackZ.length; i++) this.stackZ[i] -= z0;
-      for (const i of hands) {
-        const side = i === 0 ? -1 : 1;
-        hTargets[i].set(side * gx + shift, baseY - PALM_UNDER - (hands.length === 1 ? 0.03 : 0), gz + this.reachDz);
-        hPole[i] = POLE_FRONT[i];
-        hPalm[i] = UP;
-        want[i] = true;
-      }
-    }
-    for (let i = 0; i < 2; i++) {
-      const bag = L.hands[i] ?? (placing && this.motion === 'bag' && this.motionHand === i ? { w: 0.19, d: 0.19, h: 0.18 } : null);
-      if (!bag || want[i]) continue;
-      const side = i === 0 ? -1 : 1;
-      const mine = this.motionHand === i ? 1 : 0;
-      const gy = BAG_GRIP_Y + this.bagDy * mine;
-      // Clear of the legs and anything at the waist beside the bag's whole height (it hangs below the hand).
-      const swinging = this.cloth.some((c) => c.spec.kind !== 'hair') ? 0.06 : 0;
-      const x = Math.max(BAG_MIN_X, this.clearRest.widest(gy - bag.h - 0.02, gy) + bag.w / 2 + BAG_GAP + swinging) + this.bagDx * mine;
-      // The hand swings a little against the leg on its side as they walk.
-      const swing = (i === 0 ? -this.walkS : this.walkS) * this.swingNow * 0.12;
-      hTargets[i].set(side * x, gy, 0.02 + swing + this.bagDz * mine);
-      hPole[i] = POLE_BAG[i];
-      hPalm[i] = IN[i];
-      want[i] = true;
-    }
-    if (this.gestureHand >= 0 && !want[this.gestureHand]) {
-      const i = this.gestureHand;
-      hTargets[i].copy(this.gestureTarget);
-      hPole[i] = this.gesturePole;
-      hPalm[i] = this.gesturePalm;
-      want[i] = true;
-    }
-    if (this.carryBox && !want[1]) {
-      hTargets[1].copy(BOX_HAND);
-      hPole[1] = POLE_BOX;
-      hPalm[1] = BACK;
-      want[1] = true;
-    }
-
-    // The head peeks round a tall stack.
-    if (peekTarget !== 0 || this.peekNow !== 0) {
-      this.peekNow += (peekTarget - this.peekNow) * Math.min(1, dt * 7);
-      if (Math.abs(this.peekNow) < 1e-3 && peekTarget === 0) this.peekNow = 0;
-      this.head.rotation.y = this.peekNow + (this.head.rotation.y - this.peekNow) * (1 - Math.min(1, Math.abs(this.peekNow) / PEEK_YAW));
-    }
-    if (front || anyBag) {
-      // Held: the head keeps to where the clearance was measured.
-      this.head.rotation.x = Math.max(-0.22, Math.min(0.3, this.head.rotation.x));
-      if (this.peekNow === 0) this.head.rotation.y = Math.max(-0.32, Math.min(0.32, this.head.rotation.y));
-    }
-
-    for (let i = 0; i < 2; i++) {
-      const arm = this.arms[i];
-      const elbow = this.elbows[i];
-      const target = want[i] ? 1 : 0;
-      this.ikWeight[i] += (target - this.ikWeight[i]) * Math.min(1, dt * (target ? 14 : this.lastGesture === i ? 24 : 9));
-      // A gesture's own timing (the cup lifted and lowered) sets how far the hand is on its point.
-      if (i === this.gestureHand && want[i]) this.ikWeight[i] = Math.min(this.ikWeight[i], this.gestureBlend);
-      if (i === this.gestureHand) this.lastGesture = i;
-      else if (this.lastGesture === i && this.ikWeight[i] === 0) this.lastGesture = -1;
-      if (!want[i] && this.ikWeight[i] < 0.002) this.ikWeight[i] = 0;
-      const w = this.ikWeight[i];
-      if (w <= 0) {
-        // No hold: the forearm's roll and the arm's twist come back to rest.
-        arm.rotation.y += (0 - arm.rotation.y) * Math.min(1, dt * 12);
-        this.wrists[i].rotation.y += (0 - this.wrists[i].rotation.y) * Math.min(1, dt * 12);
-        continue;
-      }
-      const chain = this.chains[i];
-      let sol = solveArm(chain, hTargets[i], hPole[i], this.ikSolved[i]);
-      // The arm itself must not pass through the body on its way to the grip (reaching under a narrow pile, or round a
-      // stack held close): swing the elbow wider, then, if it still would, bring the hand a little out to its side.
-      const build = figureOf(this.look).build ?? 'regular';
-      for (let tries = 0; tries < 8 && this.armHitsTorso(chain, sol, build); tries++) {
-        if (tries < 4) {
-          hv.copy(hPole[i]);
-          hv.x += chain.side * 0.6 * (tries + 1);
-          hv.y -= 0.15 * (tries + 1);
-          sol = solveArm(chain, hTargets[i], hv.normalize(), this.ikSolved[i]);
-        } else {
-          hTargets[i].x += chain.side * 0.025;
-          sol = solveArm(chain, hTargets[i], hv, this.ikSolved[i]);
-        }
-      }
-      // The forearm rolls so the palm faces where it should (up under a tray, in round a handle, back against a box).
-      let twist = 0;
-      const palm = hPalm[i];
-      if (palm) {
-        const sd = chain.side;
-        hq.setFromEuler(hE.set(sol.bend, 0, 0, 'XYZ')).premultiply(sol.shoulder);
-        const ad = hv.set(1, 0, 0).applyQuaternion(hq).dot(palm);
-        const cd = hv2.set(0, 0, 1).applyQuaternion(hq).dot(palm);
-        twist = Math.max(-2, Math.min(2, Math.atan2(sd * cd, -sd * ad)));
-      }
-      if (w >= 0.999) {
-        arm.quaternion.copy(sol.shoulder);
-        elbow.rotation.set(sol.bend, 0, 0);
-        this.wrists[i].rotation.set(0, twist, 0);
-      } else {
-        arm.quaternion.slerp(sol.shoulder, w);
-        elbow.rotation.set(elbow.rotation.x + (sol.bend - elbow.rotation.x) * w, 0, 0);
-        this.wrists[i].rotation.set(0, twist * w, 0);
-      }
-      this.elbowNow[i] = elbow.rotation.x;
-      // The bag hangs from the hand: its anchor on the grip, swinging a little behind the hand's motion.
-      const a = this.handAnchors[i];
-      gripOf(chain, arm.quaternion, elbow.rotation.x, this.wrists[i].rotation.y, GRIP_V, a.position);
-      const vz = (a.position.z - this.lastHandZ[i]) / Math.max(dt, 1e-3);
-      this.lastHandZ[i] = a.position.z;
-      const aim = Math.max(-0.35, Math.min(0.35, vz * 0.35 - this.body.rotation.x));
-      this.bagRate[i] += ((aim - this.bagSwing[i]) * 60 - this.bagRate[i] * 7) * Math.min(dt, 0.05);
-      this.bagSwing[i] += this.bagRate[i] * Math.min(dt, 0.05);
-      a.rotation.set(this.bagSwing[i], 0, 0);
-    }
-  }
-  private peekNow = 0;
-
-  /** How much further out the hands must hang while a skirt or coat flares (radians). */
-  private clothSpread(): number {
-    let f = 0;
-    for (const c of this.cloth) if (c.spec.kind !== 'hair') f = Math.max(f, c.pivot.scale.x - 1);
-    return f * 1.1;
-  }
-  /** A gesture's hand on a point (the cup at the lips, the phone at the ear): which hand, how far there, where. */
-  private gestureHand = -1;
-  private lastGesture = -1;
-  private gestureBlend = 0;
-  private readonly gestureTarget = new THREE.Vector3();
-  private gesturePole = SIP_POLE;
-  private gesturePalm = IN[1];
-
-  /** Whether a hand holds something that is part of the figure (a briefcase, a handbag, a surfboard). */
-  private heldIn(i: number): boolean {
-    const a = this.look.accessory;
-    return i === 1 ? a === 'briefcase' || a === 'surfboard' : a === 'handbag';
-  }
-
-  private gestureAt(i: number, blend: number, x: number, y: number, z: number, pole: THREE.Vector3, palm: THREE.Vector3): void {
-    // The free hand does it when this one holds something.
-    if (this.heldIn(i) && !this.heldIn(1 - i)) {
-      i = 1 - i;
-      pole = new THREE.Vector3(-pole.x, pole.y, pole.z);
-      palm = IN[i];
-    }
-    this.gestureHand = i;
-    this.gestureBlend = blend;
-    const t = this.gestureTarget.set((i === 0 ? -1 : 1) * x, y, z);
-    // Short clay arms: within reach of the shoulder (a cup comes up to the chin and the head bows to it), and never
-    // inside the face on the way (lower until it is clear of it).
-    const sh = this.arms[i].position;
-    hv.subVectors(t, sh);
-    if (hv.length() > REACH) t.copy(sh).addScaledVector(hv.normalize(), REACH);
-    for (let k = 0; k < 8 && Math.abs(t.x) < this.clearRest.widest(t.y - 0.03, t.y + 0.03) && t.z < this.clearRest.between(t.y - 0.03, t.y + 0.03) + 0.05; k++) t.y -= 0.025;
-    this.gesturePole = pole;
-    this.gesturePalm = palm;
-  }
-
-  /** How much of the usual stride (walking, running) and of the running back-kick long clothes allow. */
-  private strideScale(): { walk: number; run: number; kick: number } {
-    const o = figureOf(this.look).outfit;
-    if (o === 'gown') return GOWN_STRIDE;
-    if (o === 'dress') return DRESS_STRIDE;
-    if (this.cloth.some((c) => c.spec.kind === 'coat')) return COAT_STRIDE;
-    if (this.cloth.some((c) => c.spec.kind === 'apron')) return APRON_STRIDE;
-    return FREE_STRIDE;
-  }
-
-  /** Whether an arm pose passes through the torso (its lathe, by build), below the shoulder ball. */
-  private armHitsTorso(chain: ArmChain, sol: ArmSolution, build: Build): boolean {
-    const e = hv2.set(0, -chain.upper, 0).applyQuaternion(sol.shoulder).add(chain.shoulder);
-    const ex = e.x;
-    const ey = e.y;
-    const ez = e.z;
-    gripOf(chain, sol.shoulder, sol.bend, 0, GRIP_V, armTip);
-    const clear = this.clearKey >= 0 ? this.clearRest : null;
-    const check = (x: number, y: number, z: number, r: number): boolean => {
-      if (torsoDistance(build, x, y, z) + r + ARM_ROOM > 0) return true;
-      // The head (and its hair and hat), from the figure's own measured outline at that height.
-      if (clear && y > NECK_Y - 0.05) {
-        const wide = clear.widest(y - 0.02, y + 0.02);
-        const front = clear.between(y - 0.02, y + 0.02);
-        if (wide > 0 && Math.abs(x) - r < wide - 0.01 && z - r < front && z + r > -wide) return true;
-      }
-      return false;
-    };
-    for (let k = 1; k <= 6; k++) {
-      const t = k / 6;
-      // The upper arm below the shoulder ball (its top two thirds sit at the shoulder by design).
-      if (t > 0.55 && check(chain.shoulder.x + (ex - chain.shoulder.x) * t, chain.shoulder.y + (ey - chain.shoulder.y) * t, chain.shoulder.z + (ez - chain.shoulder.z) * t, this.upperR)) return true;
-      if (check(ex + (armTip.x - ex) * t, ey + (armTip.y - ey) * t, ez + (armTip.z - ez) * t, t > 0.8 ? 0.045 : 0.054)) return true;
-    }
-    return false;
-  }
-  /**
-   * Session 63 ("zero clip ins"): how far out each arm hangs at rest (radians from straight down), measured for this
-   * figure from what it wears: just clear of its torso, belt, sash, apron, skirt or coat tails and hips, so a hanging
-   * hand never sinks into its clothes (it was 0.12 for everyone: a dress's bell or a coat's tails took the hand).
-   */
-  private restAbduct = 0.14;
-  /** The sleeve's radius below the shoulder ball (measured: a puffed short sleeve is thicker). */
-  private upperR = 0.058;
-
-  private measureRestArm(): void {
-    const c = new Clearance();
-    this.bodyMesh.updateMatrix();
-    c.add(this.bodyMesh.geometry, this.bodyMesh.matrix, false);
-    for (let i = 0; i < 2; i++) {
-      hM.makeTranslation(this.legs[i].position.x, this.legs[i].position.y, 0);
-      c.add(this.thighMeshes[i].geometry, hM, false);
-    }
-    for (const cl of this.cloth) {
-      if (cl.spec.kind === 'hair') continue;
-      hM.makeTranslation(cl.pivot.position.x, cl.pivot.position.y, cl.pivot.position.z);
-      c.add(cl.mesh.geometry, hM, false);
-    }
-    const sx = this.arms[1].position.x;
-    const swinging = this.cloth.some((cl) => cl.spec.kind !== 'hair');
-    // How thick the sleeve is below the shoulder ball (a puffed short sleeve and its roll are thicker than a long one).
-    let upperR = 0.058 * FIGURE_SHAPE.limb;
-    const up = this.upperMeshes[1].geometry.getAttribute('position');
-    for (let i = 0; i < up.count; i++) if (up.getY(i) < -0.07) upperR = Math.max(upperR, Math.hypot(up.getX(i), up.getZ(i)));
-    this.upperR = upperR;
-    // The arm down from the shoulder: the sleeve, the forearm, then the mitten (its thumb toward the body).
-    const L = FIGURE_SHAPE.limb;
-    const parts: [number, number, number][] = [[0.11, 0.165, upperR], [0.165, 0.23, 0.054 * L], [0.23, -HAND_Y, 0.061 * FIGURE_SHAPE.hand]];
-    for (let a = 0.08; a <= 0.6; a += 0.01) {
-      let ok = true;
-      for (const [l0, l1, r] of parts) {
-        for (let l = l0; l <= l1 && ok; l += 0.01) {
-          const x = sx + l * Math.sin(a) - r;
-          const y = SHOULDER_Y - l * Math.cos(a);
-          if (x < c.widest(y - r, y + r) + (swinging ? 0.025 : 0.012)) ok = false;
-        }
-      }
-      if (ok) {
-        this.restAbduct = a;
-        return;
-      }
-    }
-    this.restAbduct = 0.6;
-  }
-
   private carryBoard = false;
   private carryBox = false;
   /** How many things are on the stack (a tall one makes the figure lean back to balance it). */
   stackCount = 0;
-  /**
-   * Session 64: how much of the run this figure may show at pace (1 for everyone; 0 for the conductor until a movement
-   * upgrade): 0 keeps a walk however fast they go, the cadence capped at a brisk walk.
-   */
-  runGait = 1;
   /** Eased joint targets (knees and elbows), so every pose change is quick but never a snap. */
   private readonly kneeNow = [0, 0];
   private readonly elbowNow = [-0.12, -0.12];
@@ -1766,15 +646,9 @@ export class CharacterView {
    */
   act(action: CharacterAction, seconds = 0.25): void {
     const same = action === this.action;
-    if ((action === 'pickup' || action === 'place') && !this.motionArmed) {
-      // Called directly (not through `startMotion`): the plain dip.
-      this.motion = 'none';
-      this.motionLength = MOTION_SECONDS.none[action];
-    }
-    this.motionArmed = false;
     if (SNAP_ACTIONS.has(action)) {
       // A snap move starts over each time (a dip per item), unless it has only just begun.
-      const length = action === 'pickup' || action === 'place' ? this.motionLength : SNAP_SECONDS[action] ?? seconds;
+      const length = SNAP_SECONDS[action] ?? seconds;
       if (!same || this.actionClock > length * 0.45) this.actionClock = 0;
       this.action = action;
       this.actionTime = length - this.actionClock;
@@ -1801,21 +675,17 @@ export class CharacterView {
     mesh.castShadow = true;
     mesh.position.set(...spec.pos);
     mesh.rotation.set(...spec.rot);
-    mesh.userData.prop = true;
     this.body.add(mesh);
     this.props.set(kind, mesh);
   }
 
   /** The tea cup and the phone ride in the right hand (they follow the arm up to the mouth or the ear). */
   private showInHand(kind: PropKind | null): void {
-    // In the free hand (the other one may hold a briefcase or a handbag of its own).
-    const hand = this.heldIn(1) && !this.heldIn(0) ? 0 : 1;
-    for (const mesh of this.inHand.values()) if (mesh.parent !== this.wrists[hand]) this.wrists[hand].add(mesh);
     if (kind && !this.inHand.has(kind)) {
       const mesh = new THREE.Mesh(propGeometry(kind), MATERIALS.character);
       mesh.userData.shared = true;
       mesh.position.set(0, HAND_Y - ELBOW_Y + (kind === 'phone' ? -0.03 : kind === 'ticket' ? -0.08 : -0.03), kind === 'phone' ? 0.03 : 0.06);
-      this.wrists[hand].add(mesh);
+      this.elbows[1].add(mesh);
       this.inHand.set(kind, mesh);
     }
     for (const [k, mesh] of this.inHand) mesh.visible = k === kind;
@@ -1832,30 +702,16 @@ export class CharacterView {
     const spec = ACTION_PROPS[a];
     this.showProp(spec ? spec.kind : null);
     this.showInHand(a === 'sip' ? 'cup' : a === 'phone' ? 'phone' : a === 'waveTicket' ? 'ticket' : null);
-    this.gestureHand = -1;
-    if (a !== 'pickup' && a !== 'place') this.reachDy = this.reachDz = this.bagDy = this.bagDz = this.bagDx = 0;
     if (a === 'none') return;
     const t = this.actionClock;
     const ease = Math.min(1, dt * 16);
     const aim = (i: number, x: number, z: number, elbow = -0.35): void => {
-      // Session 63 ("zero clip ins"): an arm never swings in toward the body further than the figure's own clearance
-      // (its torso, skirt, coat or apron): a hand on the hip, hands behind the back or pumping fists used to go into it.
-      const side = i === 0 ? -1 : 1;
-      if (x > -1.6 && z * side < this.restAbduct + this.clothSpread()) z = side * (this.restAbduct + this.clothSpread());
-      // A hand holding something of its own (a briefcase, a handbag, a surfboard) stays low: lifted, it would swing it
-      // up over the head.
-      if (this.heldIn(i)) {
-        x = Math.max(x, -0.45);
-        elbow = Math.max(elbow, -0.5);
-      }
       this.arms[i].rotation.x += (x - this.arms[i].rotation.x) * ease;
       this.arms[i].rotation.z += (z - this.arms[i].rotation.z) * ease;
       this.elbowAim[i] = elbow;
     };
     switch (a) {
       case 'pickup': {
-        // Session 63: each kind of thing has its own take (`motionPose`); the plain dip is for anyone holding nothing.
-        if (this.motionPose(t)) break;
         // A quick dip to take something: knees bend, the body tips forward, both hands reach down and in, then up again.
         const k = Math.sin(Math.min(1, t / (SNAP_SECONDS.pickup ?? 0.34)) * Math.PI);
         const still = this.swingNow < 0.2 ? 1 : 0.45;
@@ -1871,7 +727,6 @@ export class CharacterView {
         break;
       }
       case 'place': {
-        if (this.motionPose(t)) break;
         // Handing over or setting down: a step of the body forward and both hands out, palms up, then back.
         const k = Math.sin(Math.min(1, t / (SNAP_SECONDS.place ?? 0.32)) * Math.PI);
         aim(0, -1.25 * k, 0.15 * k, -0.25 - 0.2 * (1 - k));
@@ -1885,8 +740,8 @@ export class CharacterView {
         // A little celebration: arms flung up and a hop or two.
         const d = SNAP_SECONDS.cheer ?? 0.95;
         const up = Math.min(1, t / 0.12) * Math.min(1, (d - t) / 0.18 + 0.2);
-        aim(0, -2.6 * up, -ARMS_UP_OUT * up, -0.25);
-        aim(1, -2.6 * up, ARMS_UP_OUT * up, -0.25);
+        aim(0, -2.85 * up, 0.42 * up, -0.25);
+        aim(1, -2.85 * up, -0.42 * up, -0.25);
         const hop = Math.max(0, Math.sin(t * 13)) * Math.max(0, 1 - t / d);
         this.body.position.y += hop * 0.07;
         this.kneeAim[0] = Math.max(this.kneeAim[0], (1 - hop) * 0.25 * up);
@@ -1933,11 +788,8 @@ export class CharacterView {
         // Lift, sip, lower, on a slow loop.
         const cycle = t % 2.2;
         const up = cycle < 0.35 ? cycle / 0.35 : cycle < 1.1 ? 1 : cycle < 1.45 ? 1 - (cycle - 1.1) / 0.35 : 0;
-        aim(1, -0.5, 0, -0.6);
-        // Session 63: the cup to the lips (IK onto a point just in front of this figure's own mouth, never into it).
-        this.ensureClearance();
-        this.gestureAt(1, smooth01(up), 0.06, MOUTH_Y, this.clearRest.between(MOUTH_Y - 0.05, MOUTH_Y + 0.08) + CUP_OUT, SIP_POLE, IN[1]);
-        this.headPitch = 0.16 * up;
+        aim(1, -0.5 - up * 0.55, -0.3 * up, -0.6 - up * 1.55);
+        this.headPitch = -0.12 * up;
         break;
       }
       case 'watch': {
@@ -1967,7 +819,7 @@ export class CharacterView {
         this.body.rotation.z = Math.sin(t * 2.5) * 0.06;
         break;
       case 'wave':
-        aim(1, -2.6, ARMS_UP_OUT + 0.1 + Math.sin(t * 9) * 0.22, -0.35 + Math.sin(t * 9) * 0.35);
+        aim(1, -2.75, 0.25 + Math.sin(t * 9) * 0.25, -0.35 + Math.sin(t * 9) * 0.35);
         break;
       case 'stomp': {
         // Fix list 4.1: missed the train and storming off: fists low and pumping, leaning into each heavy step.
@@ -1982,7 +834,7 @@ export class CharacterView {
       }
       case 'waveTicket':
         // Waving the ticket overhead, a little hop now and then: "wait for me!"
-        aim(1, -2.6, ARMS_UP_OUT + 0.1 + Math.sin(t * 10) * 0.22, -0.3 + Math.sin(t * 10) * 0.3);
+        aim(1, -2.85, 0.2 + Math.sin(t * 10) * 0.3, -0.3 + Math.sin(t * 10) * 0.3);
         this.body.position.y += Math.max(0, Math.sin(t * 5)) * 0.04;
         break;
       case 'look': {
@@ -1997,11 +849,8 @@ export class CharacterView {
       }
       case 'phone':
         // On the phone: the hand at the ear, the other on the hip, a nod now and then.
-        aim(1, -0.35, 0, -1.6);
-        aim(0, 0.05, 0, -0.25);
-        // Session 63: the phone at the ear, outside this figure's own hair (IK); the other hand hangs.
-        this.ensureClearance();
-        this.gestureAt(1, 1, this.clearRest.widest(EAR_Y - 0.04, EAR_Y + 0.04) + PHONE_OUT, EAR_Y, 0.01, PHONE_POLE, IN[1]);
+        aim(1, -0.35, -0.4, -2.35);
+        aim(0, 0.15, 0.4, -1.2);
         this.headYaw = -0.15;
         this.body.rotation.x += Math.max(0, Math.sin(t * 2.2)) * 0.06;
         break;
@@ -2017,9 +866,8 @@ export class CharacterView {
       case 'yawn': {
         // A big stretch: both arms up overhead, leaning back, then down again.
         const k = Math.min(1, t / 0.5) * (t > 1.6 ? Math.max(0, 1 - (t - 1.6) / 0.5) : 1);
-        // Session 63: up and out in a wide Y (the clay head is as wide as the shoulders: straight up went through it).
-        aim(0, -2.85 * k, -ARMS_UP_OUT * k, -0.3 * k);
-        aim(1, -2.85 * k, ARMS_UP_OUT * k, -0.3 * k);
+        aim(0, -2.9 * k, 0.35 * k, -0.3 * k);
+        aim(1, -2.9 * k, -0.35 * k, -0.3 * k);
         this.headPitch = -0.3 * k;
         this.body.rotation.x -= 0.12 * k;
         break;
@@ -2077,12 +925,11 @@ export class CharacterView {
   setPose(pose: 'stand' | 'sleep' | 'sit' | 'lounge', blanketColor = PALETTE.greyWool): void {
     if (pose === this.pose && (pose !== 'sleep' || this.blanket?.userData.color === blanketColor)) return;
     this.pose = pose;
+    this.bodyMesh.geometry = bodyGeometry(this.look, pose === 'sit' || pose === 'lounge');
     this.body.rotation.set(0, 0, 0);
     this.body.position.set(0, 0, 0);
     this.body.scale.set(1, 1, 1);
     this.shadow.visible = pose === 'stand';
-    this.cast.visible = pose === 'stand';
-    this.settleCloth();
     this.bubbleZ = 0;
     if (pose === 'sleep') {
       this.body.rotation.x = -Math.PI / 2;
@@ -2098,10 +945,9 @@ export class CharacterView {
         this.root.add(this.blanket);
       }
       if (!this.eyelids) {
-        this.eyelids = new THREE.Mesh(eyelidGeometryFor(skinOf(this.look)), MATERIALS.character);
+        this.eyelids = new THREE.Mesh(eyelidGeometryFor(this.look.skin), MATERIALS.character);
         this.eyelids.userData.shared = true;
-        this.eyelids.position.y = -NECK_Y * FIGURE_SHAPE.head;
-        this.eyelids.scale.setScalar(FIGURE_SHAPE.head);
+        this.eyelids.position.y = -NECK_Y;
         this.head.add(this.eyelids);
       }
     } else if (pose === 'sit') {
@@ -2113,8 +959,6 @@ export class CharacterView {
       this.body.position.set(0, LOUNGE_HIP - HIP_Y * Math.cos(a), HIP_Y * Math.sin(a));
     }
     if (this.blanket) this.blanket.visible = pose === 'sleep';
-    // Under the blanket a skirt, coat tail or apron would poke through it: it is not drawn there.
-    for (const c of this.cloth) if (c.spec.kind !== 'hair') c.mesh.visible = pose !== 'sleep';
     if (this.eyelids) this.eyelids.visible = pose === 'sleep';
     if (this.bubble) this.bubble.position.z = this.bubbleZ;
   }
@@ -2188,23 +1032,9 @@ export class CharacterView {
 
   /** `speed` is the current ground speed in m/s; drives walk cycle amplitude and rate. */
   update(dt: number, speed: number): void {
-    this.updatePose(dt, speed);
-    this.stepCloth(dt, this.clothStep, this.lastStrideSide);
-    this.clothStep = false;
-    if (this.cast.visible) {
-      // The long shadow lies away from the key light (the moon, or the low sun), longer the lower the light.
-      const d = LIGHT_UNIFORMS.uNxMoonDir.value;
-      const flat = Math.hypot(d.x, d.z);
-      const len = Math.max(CAST_MIN, Math.min(CAST_MAX, (0.9 * flat) / Math.max(0.05, d.y)));
-      this.cast.rotation.set(0, Math.atan2(-d.x, -d.z) - this.yaw, 0);
-      this.cast.scale.set(1, 1, len);
-    }
-  }
-
-  /** A footfall since the cloth last stepped (each step bounces the hems and the hair). */
-  private clothStep = false;
-
-  private updatePose(dt: number, speed: number): void {
+    // Session 64 (owner: "walk only, no running animations until we get the upgrade for movement"): the animation's
+    // pace stops at a walk until the conductor has shoes or a speed level (`runGait` 1); the ground speed is unchanged.
+    if (this.runGait < 1) speed = Math.min(speed, WALK_ANIM_SPEED);
     this.bubbleTime += dt;
     if (this.bubble?.visible) {
       // Pop in with a small overshoot, then bob gently so requests catch the eye. Fix list 6.3: shrunk away while a
@@ -2219,11 +1049,6 @@ export class CharacterView {
       this.bubble.scale.set(s, s, 1);
       this.bubble.position.x = this.bubbleMood === 'angry' ? Math.sin(this.bubbleTime * 38) * 0.015 : 0;
       this.bubble.position.y = this.bubbleBaseY + Math.sin(this.bubbleTime * 2.4) * 0.025;
-    }
-    {
-      let d = this.yawTarget - this.yaw;
-      d = Math.atan2(Math.sin(d), Math.cos(d));
-      this.yaw += d * Math.min(1, dt * TURN_RATE);
     }
     this.root.rotation.set(this.tilt(), this.yaw, 0);
     this.kneeAim[0] = this.kneeAim[1] = 0.03;
@@ -2275,72 +1100,48 @@ export class CharacterView {
       this.applyAction(dt);
       this.body.scale.set(1, 1, 1);
       this.applyJoints(dt, 18);
-      this.applyHold(dt);
       return;
     }
     for (const leg of this.legs) leg.scale.y = 1;
     const moving = speed > 0.2;
-    // The clay toy's walk (CHARACTER_SPEC §8): quick bouncy steps, the body rolling over the stance foot, the hips
-    // twisting with the stride and the shoulders countering; a run is a longer, bouncier stride with a deeper lean and
-    // pumping arms. `run` blends the walk into the run with the pace.
-    const run = smooth01((speed - 2.4) / 2) * this.runGait;
-    const pace = 3.4 + speed * 2.3;
-    this.phase += dt * (moving ? (this.runGait >= 1 ? pace : Math.min(pace, WALK_MAX_PACE)) : 1.6);
+    this.phase += dt * (moving ? 3 + speed * 2.2 : 1.6);
     // Session 38b (after the ad playable): the swing and the forward lean ease in and out, so starting and stopping
     // never snap the legs.
-    // Session 63: long clothes shorten the step (a gown most, then a dress, a coat, an apron), as they do: a stride never
-    // takes a knee or a heel through the hem.
-    const hobble = this.strideScale();
-    const swingTarget = moving ? (WALK.stride * hobble.walk + (RUN.stride * hobble.run - WALK.stride * hobble.walk) * run) * Math.min(1, 0.45 + speed * 0.35) : 0;
-    this.swingNow += (swingTarget - this.swingNow) * Math.min(1, dt * (moving ? 12 : 9));
+    const swingTarget = moving ? Math.min(0.75, 0.25 + speed * 0.12) : 0;
+    this.swingNow += (swingTarget - this.swingNow) * Math.min(1, dt * (moving ? 14 : 10));
     const swing = this.swingNow;
-    const amount = Math.min(1, swing / WALK.stride);
     const s = Math.sin(this.phase);
     // A foot lands at each end of the stride (the swing turns), twice a cycle.
     const side = Math.cos(this.phase) >= 0;
-    if (moving && side !== this.lastStrideSide) {
-      this.footfall = true;
-      this.clothStep = true;
-    }
+    if (moving && side !== this.lastStrideSide) this.footfall = true;
     this.lastStrideSide = side;
     const c = Math.cos(this.phase);
-    this.walkS = s;
     this.legs[0].rotation.x = s * swing;
     this.legs[1].rotation.x = -s * swing;
-    // The passing leg folds at the knee (the foot clears the floor) and straightens to land.
-    // In a long skirt, a coat or an apron the run is shorter-stepped and the back foot kicks up less (as people do).
-    const fold = (WALK.knee + (RUN.knee - WALK.knee) * run) * (hobble.walk + (hobble.kick - hobble.walk) * run);
-    this.kneeAim[0] = 0.05 + Math.max(0, -c) * fold * amount + Math.max(0, s) * swing * 0.3;
-    this.kneeAim[1] = 0.05 + Math.max(0, c) * fold * amount + Math.max(0, -s) * swing * 0.3;
-    // The bounce: up as the legs pass (twice a cycle), a slow breath while standing. A tall stack makes the walker
-    // lean back to balance it.
-    const bob = (WALK.bob + (RUN.bob - WALK.bob) * run) * amount;
-    this.body.position.y = c * c * bob + (1 - Math.min(1, swing / 0.2)) * Math.sin(this.phase) * 0.006;
+    // Pass 2: the knee folds as its leg swings through (the foot clears the floor) and straightens to land.
+    this.kneeAim[0] = 0.04 + Math.max(0, -c) * swing * 1.3 + Math.max(0, s) * swing * 0.25;
+    this.kneeAim[1] = 0.04 + Math.max(0, c) * swing * 1.3 + Math.max(0, -s) * swing * 0.25;
+    // A step's bob while walking, a slow breath while standing; the forward lean eases with the pace. A tall stack
+    // makes the walker lean back to balance it.
+    const walkBob = Math.abs(c) * 0.06 * (swing / 0.75);
+    this.body.position.y = walkBob + (1 - Math.min(1, swing / 0.3)) * Math.sin(this.phase) * 0.008;
     const balance = this.carrying ? -Math.min(0.09, Math.max(0, this.stackCount - 2) * 0.02) : 0;
-    const lean = moving ? WALK.lean + (RUN.lean - WALK.lean) * run : 0;
-    this.leanNow += (lean + balance - this.leanNow) * Math.min(1, dt * 8);
+    this.leanNow += ((moving ? 0.08 : 0) + balance - this.leanNow) * Math.min(1, dt * 10);
     this.body.rotation.x = this.leanNow;
     // Standing still, the weight shifts from one foot to the other now and then, and the head looks about.
     const idle = 1 - Math.min(1, swing / 0.2);
     this.body.position.x = Math.sin(this.phase * 0.55) * 0.012 * idle;
-    // Rolling over the stance foot and twisting with the stride; the head counters the twist so the face stays on.
-    const sway = (WALK.sway + (RUN.sway - WALK.sway) * run) * amount;
-    const twist = (WALK.twist + (RUN.twist - WALK.twist) * run) * amount;
-    this.swayZ = -s * sway + Math.sin(this.phase * 0.55) * 0.02 * idle;
-    this.twistY = s * twist;
-    this.headYaw = Math.sin(this.phase * 0.42) * 0.22 * idle - s * twist * 0.8;
+    this.headYaw = Math.sin(this.phase * 0.42) * 0.22 * idle - s * 0.06 * (1 - idle);
 
     // An action owns the arms while it runs; otherwise they swing with the walk (or carry, or wave).
     if (this.action === 'none') {
       for (let i = 0; i < 2; i++) {
         const arm = this.arms[i];
         const side = i === 0 ? -1 : 1;
-        let x = (i === 0 ? -s : s) * swing * (WALK.arm + (RUN.arm - WALK.arm) * run);
-        // A skirt or coat flaring round the legs takes the hanging hands out with it.
-        let z = side * (this.restAbduct + this.clothSpread());
-        // The elbow bends more as the arm swings forward, and a little all the time (a relaxed arm is never straight);
-        // running, the arms pump bent.
-        let elbow = -(WALK.elbow + (RUN.elbow - WALK.elbow) * run) * (0.5 + 0.5 * amount) - Math.max(0, -x) * 0.6;
+        let x = (i === 0 ? -s : s) * swing * 0.85;
+        let z = side * 0.1;
+        // The elbow bends more as the arm swings forward, and a little all the time (a relaxed arm is never straight).
+        let elbow = -0.18 - Math.max(0, -x) * 0.75;
         if (this.carrying) {
           // Holding the stack out in front: upper arms forward, forearms level under it, hands in toward the middle.
           x = -0.5 + Math.sin(this.phase * 2) * 0.03 * swing;
@@ -2360,7 +1161,7 @@ export class CharacterView {
           elbow = -1.25;
         }
         if (this.waving && i === 1) {
-          x = -2.6;
+          x = -2.75;
           elbow = -0.35;
         }
         arm.rotation.x += (x - arm.rotation.x) * Math.min(1, dt * 16);
@@ -2369,16 +1170,15 @@ export class CharacterView {
       }
       if (this.waving) {
         this.waveTime += dt;
-        this.arms[1].rotation.z = ARMS_UP_OUT + 0.1 + Math.sin(this.waveTime * 9) * 0.22;
+        this.arms[1].rotation.z = 0.25 + Math.sin(this.waveTime * 9) * 0.4;
         this.elbowAim[1] = -0.35 + Math.sin(this.waveTime * 9) * 0.3;
       }
     }
 
-    this.body.rotation.y = this.twistY;
-    this.body.rotation.z = this.swayZ;
+    this.body.rotation.y = 0;
+    this.body.rotation.z = 0;
     this.applyAction(dt);
     this.applyJoints(dt, 20);
-    this.applyHold(dt);
 
     if (this.squash > 0) {
       this.squash = Math.max(0, this.squash - dt * 4);
@@ -2386,9 +1186,8 @@ export class CharacterView {
       this.body.scale.set(1 + k, 1 - k, 1 + k);
     } else {
       // Standing still, a slow breath (barely there: it only keeps a waiting figure from looking frozen).
-      // Standing still, a slow breath (about 0.25 Hz): the chest swells a touch, so a waiting figure never looks frozen.
-      const breath = moving ? 0 : Math.sin(this.phase * 1.0) * 0.015;
-      this.body.scale.set(1 + breath * 0.4, 1 + breath, 1 + breath * 0.4);
+      const breath = moving ? 0 : Math.sin(this.phase * 1.3) * 0.012;
+      this.body.scale.set(1, 1 + breath, 1);
     }
   }
 
@@ -2404,7 +1203,131 @@ export class CharacterView {
     const h = Math.min(1, dt * 8);
     this.head.rotation.y += (this.headYaw - this.head.rotation.y) * h;
     this.head.rotation.x += (this.headPitch - this.head.rotation.x) * h;
+    this.keepClear();
   }
+
+  /**
+   * Session 67 (owner: "no clipping in their clothing or anything they interact with"): whatever pose the animation
+   * asked for, the arms stand clear of the body and the legs stay inside a skirt, a gown or a coat's tails. After the
+   * joints are set, each arm is eased just far enough forward (when it crosses the front) or out (at the side) to
+   * clear the torso, and a skirted figure's stride is shortened just enough to keep the knees and shins under the
+   * cloth: each found by bisection, so the pose changes no more than it must. tests/classicClip.test.ts measures it.
+   */
+  private keepClear(): void {
+    if (this.pose === 'sleep') return;
+    for (let i = 0; i < 2; i++) {
+      const arm = this.arms[i];
+      if (this.armDepth(i) <= 0) continue;
+      const side = i === 0 ? -1 : 1;
+      // Which way out: forward when the arm crosses the front of the body, sideways otherwise.
+      const front = this.clearScratch.z > 0.02;
+      const x0 = arm.rotation.x;
+      const z0 = arm.rotation.z;
+      const apply = (t: number): void => {
+        if (front) arm.rotation.x = x0 - t * ARM_CLEAR_MAX;
+        else arm.rotation.z = z0 + side * t * ARM_CLEAR_MAX;
+      };
+      let lo = 0;
+      let hi = 1;
+      apply(hi);
+      if (this.armDepth(i) > 0) { lo = 1; }
+      else {
+        for (let k = 0; k < 7; k++) {
+          const mid = (lo + hi) / 2;
+          apply(mid);
+          if (this.armDepth(i) > 0) lo = mid; else hi = mid;
+        }
+      }
+      apply(lo === 1 ? 1 : hi);
+    }
+    const skirt = this.skirt;
+    if (!skirt || this.pose !== 'stand') return;
+    for (let i = 0; i < 2; i++) {
+      const leg = this.legs[i];
+      const knee = this.knees[i];
+      if (!this.legOutside(i, skirt)) continue;
+      const lx = leg.rotation.x;
+      const kx = knee.rotation.x;
+      let lo = 0;
+      let hi = 1;
+      for (let k = 0; k < 7; k++) {
+        const mid = (lo + hi) / 2;
+        leg.rotation.x = lx * mid;
+        knee.rotation.x = kx * mid;
+        if (this.legOutside(i, skirt)) hi = mid; else lo = mid;
+      }
+      leg.rotation.x = lx * lo;
+      knee.rotation.x = kx * lo;
+    }
+  }
+
+  private readonly clearScratch = new THREE.Vector3();
+
+  /** How far (m) the arm's deepest sample sinks into the body below the armpit (≤ 0 when clear); the point is kept. */
+  private armDepth(i: number): number {
+    const arm = this.arms[i];
+    const elbow = this.elbows[i];
+    arm.updateMatrix();
+    elbow.updateMatrix();
+    let worst = -1;
+    const p = this.clearScratch;
+    let wx = 0;
+    let wy = 0;
+    let wz = 0;
+    for (const [onFore, y, r] of ARM_SAMPLES) {
+      p.set(0, y, 0);
+      if (onFore) p.applyMatrix4(elbow.matrix);
+      p.applyMatrix4(arm.matrix);
+      // The top of the sleeve meets the shoulder by design; everything further along the arm stands clear.
+      if (-y < SHOULDER_JOINT && !onFore) continue;
+      if (p.y < 0.05) continue;
+      const R = this.solidRadius(p.y);
+      if (R <= 0) continue;
+      // Inflate the body by the limb's own radius (the sample is on the limb's centre line).
+      const e = Math.hypot(p.x / (R + r), p.z / (R * TORSO_DEPTH + r));
+      const depth = (1 - e) * (R + r);
+      if (depth > worst) { worst = depth; wx = p.x; wy = p.y; wz = p.z; }
+    }
+    p.set(wx, wy, wz);
+    return worst;
+  }
+
+  /** Whether a leg's thigh, knee or shin pokes out of the skirt above its hem. */
+  private legOutside(i: number, skirt: [number, number][]): boolean {
+    const leg = this.legs[i];
+    const knee = this.knees[i];
+    leg.updateMatrix();
+    knee.updateMatrix();
+    const hem = skirt[skirt.length - 1][1];
+    const waist = skirt[0][1];
+    const p = this.clearScratch;
+    // Bare legs under a skirt or gown, or a coat's trousers (and the shoe's toe reaches a little further).
+    const legR = this.legRadius;
+    for (const [onShin, y, z, own] of LEG_SAMPLES) {
+      p.set(0, y, z);
+      const r = own || legR;
+      if (onShin) p.applyMatrix4(knee.matrix);
+      p.applyMatrix4(leg.matrix);
+      // A little below the hem too, so the cloth keeps a margin over the leg as it passes the edge.
+      if (p.y <= hem - 0.015 || p.y >= waist) continue;
+      const R = profileRadius(skirt, p.y);
+      if (R <= r) return true;
+      if (Math.hypot(p.x / (R - r), p.z / (R * TORSO_DEPTH - r)) > 1) return true;
+    }
+    return false;
+  }
+
+  /** The body's solid at a height: the chest, then the skirt (or the trousers' seat) below it. */
+  private solidRadius(y: number): number {
+    const r = profileRadius(CHEST, y);
+    const skirt = this.skirt;
+    return Math.max(r, profileRadius(skirt ?? HIPS, y));
+  }
+
+  /** What hangs below the waist for this look (null for trousers), for keeping the legs inside it. */
+  private skirt: [number, number][] | null = null;
+  /** The leg's radius under it: bare legs under a dress or gown, trousers under a coat. */
+  private legRadius = 0.066;
 
   /**
    * The scooter ride: a kick cycle while moving (the back leg reaches down and back to the floor, stretching a
@@ -2435,7 +1358,7 @@ export class CharacterView {
       for (let i = 0; i < 2; i++) {
         const arm = this.arms[i];
         arm.rotation.x += (RIDE_ARM - lean - arm.rotation.x) * Math.min(1, dt * 14);
-        const rest = (i === 0 ? -1 : 1) * this.restAbduct;
+        const rest = i === 0 ? -0.06 : 0.06;
         arm.rotation.z += (rest - arm.rotation.z) * Math.min(1, dt * 14);
       }
     }
@@ -2448,7 +1371,7 @@ export class CharacterView {
    */
   reset(look: CharacterLook, scale: number): void {
     this.setLook(look);
-    if (this.eyelids) this.eyelids.geometry = eyelidGeometryFor(skinOf(look));
+    if (this.eyelids) this.eyelids.geometry = eyelidGeometryFor(look.skin);
     this.setPose('stand');
     this.showBubble(null);
     this.bubbleTime = 0;
@@ -2478,13 +1401,12 @@ export class CharacterView {
       leg.rotation.set(0, 0, 0);
       leg.scale.set(1, 1, 1);
     }
-    this.arms.forEach((arm, i) => arm.rotation.set(0, 0, (i === 0 ? -1 : 1) * this.restAbduct));
+    this.arms.forEach((arm, i) => arm.rotation.set(0, 0, (i === 0 ? -1 : 1) * 0.1));
     for (let i = 0; i < 2; i++) {
       this.kneeNow[i] = this.kneeAim[i] = 0;
       this.elbowNow[i] = this.elbowAim[i] = -0.12;
       this.knees[i].rotation.set(0, 0, 0);
       this.elbows[i].rotation.set(0, 0, 0);
-      this.wrists[i].rotation.set(0, 0, 0);
     }
     this.head.rotation.set(0, 0, 0);
     this.carryBoard = false;
@@ -2493,15 +1415,9 @@ export class CharacterView {
     this.root.position.set(0, 0, 0);
     this.root.rotation.set(0, 0, 0);
     this.yaw = 0;
-    this.yawTarget = 0;
-    this.swayZ = 0;
-    this.twistY = 0;
     this.root.scale.setScalar(scale);
-    this.head.scale.setScalar(scale < CHILD_SCALE ? CHILD_HEAD : 1);
     this.root.visible = true;
     this.shadow.visible = true;
-    this.cast.visible = true;
-    this.settleCloth();
     CharacterView.batch?.register(this.root);
   }
 

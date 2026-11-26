@@ -3191,13 +3191,10 @@ function buildCover(room: Rect): THREE.Group {
   shell.computeVertexNormals();
   const b = new GeoBuilder();
   b.object('cover');
-  // Session 66 (de-slop T17: "a flat grey slab… reads as an untextured box"): a canvas dust sheet in a warm oatmeal,
-  // woven, tied down by two ropes running over the top and down the sides (it was slate with two white stripes).
-  b.add(shell, '#BFA77F', 0, 0, 0, 0, 0, 0, { shade: 0.96, surface: 'fabric', detail: 'carpet' });
-  for (const f of [0.3, 0.7]) {
-    const rz = tz0 + (tz1 - tz0) * f - cz;
-    b.box(0, 0.012, rz, tx1 - tx0 + 0.02, 0.024, 0.035, '#7A5A3A', 0, { shade: 0.9, surface: 'fabric' });
-  }
+  b.add(shell, '#5E6B78', 0, 0, 0, 0, 0, 0, { pattern: PATTERN.stripesX, color2: '#56626E', scale: 0.12, shade: 0.92 });
+  // A cream band round the top's edge, standing proud of it.
+  b.box(0, 0.008, tz0 + 0.02 - cz, tx1 - tx0, 0.016, 0.04, '#EFE6D2', 0, FLAT);
+  b.box(0, 0.008, tz1 - 0.02 - cz, tx1 - tx0, 0.016, 0.04, '#EFE6D2', 0, FLAT);
   const group = new THREE.Group();
   group.position.set(cx, yt, cz);
   group.userData.room = true;
@@ -3212,8 +3209,6 @@ function buildCover(room: Rect): THREE.Group {
   body.object('cover:padlock');
   body.rounded(0, 0.13, 0, 0.1, 0.24, 0.28, 0.04, PALETTE.brass, { shade: 1, surface: 'brass' });
   body.box(0.052, 0.12, 0, 0.004, 0.06, 0.03, PALETTE.ink, 0, FLAT);
-  // Session 66: a bigger lock, readable at phone size.
-  lock.scale.setScalar(1.35);
   lock.add(new THREE.Mesh(body.build(), MATERIALS.solid));
   const shackle = new GeoBuilder();
   shackle.object('cover:shackle');

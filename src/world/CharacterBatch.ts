@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { PoseHistory } from './Interpolation';
 import { MATERIALS, pullMaterial, pullTexture } from './materials';
 import { welded } from './weld';
-import type { SkinDef } from './Skin';
 
 export { welded };
 
@@ -21,10 +20,9 @@ export { welded };
  */
 
 /** The vertex attributes the batched character material reads (GeoBuilder also writes pattern data). */
-// Session 63: the people's parts carry a detail layer (cloth, leather, felt, hair) in aPattern.
-const LIT_ATTRIBUTES = ['position', 'normal', 'color', 'aSurface', 'aColor2', 'aPattern'];
+const LIT_ATTRIBUTES = ['position', 'normal', 'color', 'aSurface'];
 /** Carried items (towels, trays, luggage) use the patterned material. */
-const SOLID_ATTRIBUTES = LIT_ATTRIBUTES;
+const SOLID_ATTRIBUTES = [...LIT_ATTRIBUTES, 'aColor2', 'aPattern'];
 const INITIAL_VERTICES = 60_000;
 /** A character whose bounding sphere (this radius round a point this high, metres) is off screen is not drawn. */
 const CULL_RADIUS = 1.4;
@@ -44,8 +42,6 @@ interface Part {
   seen: number;
   /** Drawn with the rim light (the conductor). */
   highlight: boolean;
-  /** Session 64: a skinned limb's partners as last bound (their slots and offsets), to rebind when they change. */
-  bound?: number[];
 }
 
 /** Instance 0 is never handed out: freed vertices point at it, and its matrix hides them. */
@@ -107,13 +103,8 @@ class Batch {
   private texture!: THREE.DataTexture;
   private dirtyVertex: [number, number] = [Infinity, -1];
   private matricesDirty = true;
-  /** Session 64: skinned limbs' partner slots, offsets and weights (the lit batch only). */
-  private inst2: Float32Array | null = null;
-  private skin: Float32Array | null = null;
-  /** Each skinned part's own (code, weight) per vertex, kept to rebind it. */
-  private readonly skins = new Map<number, Float32Array>();
 
-  constructor(base: THREE.Material, reference: THREE.BufferGeometry, castShadow: boolean, vertexCapacity: number, readonly colours = false, private readonly skinned = false) {
+  constructor(base: THREE.Material, reference: THREE.BufferGeometry, castShadow: boolean, vertexCapacity: number, readonly colours = false) {
     this.material = pullMaterial(base);
     this.names = Object.keys(reference.attributes);
     this.sizes = this.names.map((n) => reference.getAttribute(n).itemSize);
@@ -181,18 +172,6 @@ class Batch {
       }
     }
     this.inst.fill(id, vStart, vStart + vCount);
-    if (this.skin) {
-      this.skin.fill(0, vStart * 4, (vStart + vCount) * 4);
-      const a = geometry.getAttribute('aSkin');
-      if (a) {
-        const codes = new Float32Array(vCount * 2);
-        for (let v = 0; v < vCount; v++) {
-          codes[v * 2] = a.getX(v);
-          codes[v * 2 + 1] = a.getY(v);
-        }
-        this.skins.set(id, codes);
-      }
-    }
     if (src && this.index) for (let i = 0; i < iCount; i++) this.index[iStart + i] = src.getX(i) + vStart;
     this.markVertices(vStart, vCount);
     this.slots.set(id, { vStart, vCount, iStart, iCount, visible: false });
@@ -207,8 +186,6 @@ class Batch {
     this.slots.delete(id);
     // Freed vertices point at the hidden instance and freed triangles collapse, so stale data can never draw.
     this.inst.fill(HIDDEN_SLOT, slot.vStart, slot.vStart + slot.vCount);
-    this.skin?.fill(0, slot.vStart * 4, (slot.vStart + slot.vCount) * 4);
-    this.skins.delete(id);
     this.markVertices(slot.vStart, slot.vCount);
     this.freeVertices.push({ start: slot.vStart, count: slot.vCount });
     if (this.index && slot.iCount > 0) {
@@ -230,33 +207,6 @@ class Batch {
     }
   }
 
-  /**
-   * Session 64: points a skinned part's blended vertices at their partner bones (slots for codes 1 and 2, null when
-   * the partner is not drawn: those vertices then follow their own bone only), with the part's offset in each.
-   */
-  bindSkin(id: number, partners: (number | null)[], offsets: (THREE.Vector3 | null)[]): void {
-    const slot = this.slots.get(id);
-    const codes = this.skins.get(id);
-    if (!slot || !codes || !this.skin || !this.inst2) return;
-    for (let v = 0; v < slot.vCount; v++) {
-      const code = codes[v * 2];
-      const w = codes[v * 2 + 1];
-      const k = slot.vStart + v;
-      const partner = code > 0 ? partners[code - 1] : null;
-      const off = code > 0 ? offsets[code - 1] : null;
-      if (partner === null || partner === undefined || !off || w <= 0) {
-        this.skin[k * 4 + 3] = 0;
-        continue;
-      }
-      this.inst2[k] = partner;
-      this.skin[k * 4] = off.x;
-      this.skin[k * 4 + 1] = off.y;
-      this.skin[k * 4 + 2] = off.z;
-      this.skin[k * 4 + 3] = w;
-    }
-    this.markVertices(slot.vStart, slot.vCount);
-  }
-
   /** True when this instance number is in use (the debug checks). */
   has(id: number): boolean {
     return this.slots.has(id);
@@ -272,13 +222,10 @@ class Batch {
         attr.addUpdateRange(lo * this.sizes[a], (hi - lo) * this.sizes[a]);
         attr.needsUpdate = true;
       }
-      for (const [name, size] of [['aNxInst', 1], ['aNxInst2', 1], ['aNxSkin', 4]] as [string, number][]) {
-        const attr = this.geometry.getAttribute(name) as THREE.BufferAttribute | undefined;
-        if (!attr) continue;
-        attr.clearUpdateRanges();
-        attr.addUpdateRange(lo * size, (hi - lo) * size);
-        attr.needsUpdate = true;
-      }
+      const inst = this.geometry.getAttribute('aNxInst') as THREE.BufferAttribute;
+      inst.clearUpdateRanges();
+      inst.addUpdateRange(lo, hi - lo);
+      inst.needsUpdate = true;
       this.dirtyVertex = [Infinity, -1];
     }
     // Only the triangles of parts on screen are drawn: the list is rebuilt when someone comes into or goes out of
@@ -338,16 +285,6 @@ class Batch {
     if (this.inst) inst.set(this.inst.subarray(0, Math.min(this.inst.length, inst.length)));
     this.inst = inst;
     g.setAttribute('aNxInst', new THREE.BufferAttribute(inst, 1).setUsage(THREE.DynamicDrawUsage));
-    if (this.skinned) {
-      const inst2 = new Float32Array(this.vertexCapacity);
-      if (this.inst2) inst2.set(this.inst2.subarray(0, Math.min(this.inst2.length, inst2.length)));
-      this.inst2 = inst2;
-      const skin = new Float32Array(this.vertexCapacity * 4);
-      if (this.skin) skin.set(this.skin.subarray(0, Math.min(this.skin.length, skin.length)));
-      this.skin = skin;
-      g.setAttribute('aNxInst2', new THREE.BufferAttribute(inst2, 1).setUsage(THREE.DynamicDrawUsage));
-      g.setAttribute('aNxSkin', new THREE.BufferAttribute(skin, 4).setUsage(THREE.DynamicDrawUsage));
-    }
     if (this.indexed) {
       const index = new Uint32Array(this.indexCapacity);
       if (this.index) index.set(this.index.subarray(0, Math.min(this.index.length, index.length)));
@@ -405,13 +342,6 @@ function reference(attributes: string[], from: THREE.BufferGeometry | null, inde
   return g;
 }
 
-/**
- * Session 64: a bone for skinning (the elbow, which bends but does not take the wrist's twist): a mesh of one
- * degenerate triangle in the lit batch, so its matrix is in the texture for the sleeve to blend toward; it draws
- * nothing.
- */
-export const BONE_GEOMETRY = reference(LIT_ATTRIBUTES, null, false);
-
 export class CharacterBatch {
   /** Add to the scene once: it holds the batched meshes. */
   readonly group = new THREE.Group();
@@ -432,7 +362,7 @@ export class CharacterBatch {
     // Session 26 ("random shadow issues"): people and what they carry throw no moon shadow on any tier. On High and
     // Ultra they used to cast one as well as their soft blob, two shadows under everyone (and on the phone tiers only
     // the blob): now every tier shows the one blob, My Perfect Hotel's look.
-    this.lit = new Batch(MATERIALS.character, reference(LIT_ATTRIBUTES, null, true), false, INITIAL_VERTICES, true, true);
+    this.lit = new Batch(MATERIALS.character, reference(LIT_ATTRIBUTES, null, true), false, INITIAL_VERTICES, true);
     this.solid = new Batch(MATERIALS.solid, reference(SOLID_ATTRIBUTES, null, true), false, 16_384);
     this.shadow = new Batch(MATERIALS.shadow, reference(Object.keys(shadowGeometry.attributes), shadowGeometry), false, 4_096);
     this.group.add(this.lit.mesh, this.solid.mesh, this.shadow.mesh);
@@ -533,7 +463,6 @@ export class CharacterBatch {
         inView = this.frustum.intersectsSphere(this.sphere);
       }
       this.visit(root, inView && root.visible && visibleChain(parent), frame, true, this.highlighted.has(root));
-      this.bindSkins();
       if (blended) this.poses.restore(root);
     }
     // Parts not seen this frame left their character (a blanket swapped, a prop dropped, a character taken
@@ -563,7 +492,6 @@ export class CharacterBatch {
         part.seen = frame;
         part.highlight = highlight;
         part.batch.set(part.id, visible, mesh.matrixWorld, highlight);
-        if (mesh.userData.skin) this.skinParts.push(part);
       }
     }
     const children = object.children;
@@ -572,38 +500,6 @@ export class CharacterBatch {
       // Every child gets its matrix here (bubbles and carried items too: the renderer skips the whole root).
       this.visit(child, visible && child.visible, frame, false, highlight);
     }
-  }
-
-  /** Session 64: skinned limbs met while visiting the current character, bound once all its parts are in. */
-  private readonly skinParts: Part[] = [];
-  private readonly bindIds: (number | null)[] = [null, null];
-  private readonly bindOffsets: (THREE.Vector3 | null)[] = [null, null];
-
-  private bindSkins(): void {
-    for (const part of this.skinParts) {
-      const def = part.mesh.userData.skin as SkinDef;
-      let changed = !part.bound;
-      for (let k = 0; k < 2; k++) {
-        const p = def.partners[k];
-        const other = p ? this.parts.get(p.object as THREE.Mesh) : undefined;
-        const id = other && other.batch === part.batch ? other.id : null;
-        this.bindIds[k] = id;
-        this.bindOffsets[k] = p ? p.offset : null;
-        const b = part.bound;
-        if (b && (b[k * 4] !== (id ?? -1) || (p && (b[k * 4 + 1] !== p.offset.x || b[k * 4 + 2] !== p.offset.y || b[k * 4 + 3] !== p.offset.z)))) changed = true;
-      }
-      if (!changed) continue;
-      part.batch.bindSkin(part.id, this.bindIds, this.bindOffsets);
-      const b = (part.bound ??= [0, 0, 0, 0, 0, 0, 0, 0]);
-      for (let k = 0; k < 2; k++) {
-        const o = this.bindOffsets[k];
-        b[k * 4] = this.bindIds[k] ?? -1;
-        b[k * 4 + 1] = o ? o.x : 0;
-        b[k * 4 + 2] = o ? o.y : 0;
-        b[k * 4 + 3] = o ? o.z : 0;
-      }
-    }
-    this.skinParts.length = 0;
   }
 
   private adopt(mesh: THREE.Mesh): Part | null {

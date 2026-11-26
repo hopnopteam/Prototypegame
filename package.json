@@ -18,8 +18,7 @@
     "app:sync": "npm run build && cap sync",
     "app:ios": "npm run app:sync && cap open ios",
     "app:android": "npm run app:sync && cap open android",
-    "app:assets": "python3 scripts/native/assets.py",
-    "audit:clip": "CLIP_FULL=1 vitest run tests/clip.test.ts"
+    "app:assets": "python3 scripts/native/assets.py"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

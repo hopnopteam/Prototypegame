@@ -56,12 +56,8 @@ const DAY_RIDER_START = 2.5;
  * for a clean stop. Nothing here can fail: guests who miss the train simply wait for the next one.
  */
 /** Session 56: the supplies box on the conductor's shoulder (body space) and its size. */
-/**
- * Session 63 ("zero clip ins"): the box sits on the shoulder beside the head (the clay head is as wide as the shoulders,
- * so a box over the shoulder pivot went through it), the hand steadying it on its front face (CharacterView BOX_HAND).
- */
-const SUPPLY_BOX_AT = { x: 0.36, y: 0.815, z: -0.03 };
-const SUPPLY_BOX_SCALE = 0.5;
+const SUPPLY_BOX_AT = { x: 0.2, y: 0.93, z: -0.04 };
+const SUPPLY_BOX_SCALE = 0.75;
 
 export class Station {
   readonly view = new PlatformView();
@@ -1027,10 +1023,8 @@ export class Station {
     }
     // On the shoulder, so the tray in front stays free (and both read at a glance).
     this.supplyBox.position.set(SUPPLY_BOX_AT.x, SUPPLY_BOX_AT.y, SUPPLY_BOX_AT.z);
-    this.supplyBox.rotation.set(0, 0, -0.08);
-    this.supplyBox.userData.carried = true;
+    this.supplyBox.rotation.set(0, 0, -0.18);
     this.w.player.view.body.add(this.supplyBox);
-    this.w.player.view.startMotion('crate', false, null);
   }
 
   /** The box goes in the cupboard: flown there from the hand. */
@@ -1040,7 +1034,6 @@ export class Station {
     if (!box) return;
     const from = box.getWorldPosition(new THREE.Vector3());
     box.parent?.remove(box);
-    this.w.player.view.startMotion('crate', true, null);
     const fly = createItemMesh('crate');
     fly.scale.setScalar(SUPPLY_BOX_SCALE);
     fly.position.copy(from);

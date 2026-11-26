@@ -453,25 +453,18 @@ export class TileFace {
     ctx.strokeStyle = rim;
     ctx.stroke();
     ctx.globalAlpha = locked ? 0.5 : 1;
-    // Session 66 (de-slop T18): the marker over the tile already says its price, so at rest the plate shows only what
-    // it buys (its icon, large and centred); the price counts down on the plate only while it is being paid into, when
-    // the marker steps aside. Either way the price is on screen once.
-    if (progress > 0) {
-      drawIcon(ctx, icon, 72, 30, 112);
-      const price = formatNumber(Math.ceil(remaining));
-      ctx.font = `800 60px ${TILE_FONT}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineJoin = 'round';
-      ctx.lineWidth = 12;
-      ctx.strokeStyle = INK;
-      ctx.strokeText(price, 148, 192);
-      ctx.fillStyle = '#FFFDF7';
-      ctx.fillText(price, 148, 192);
-      drawIcon(ctx, 'cash', 26, 166, 48);
-    } else {
-      drawIcon(ctx, icon, 48, 48, 160);
-    }
+    drawIcon(ctx, icon, 72, 30, 112);
+    const price = formatNumber(Math.ceil(remaining));
+    ctx.font = `800 60px ${TILE_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = INK;
+    ctx.strokeText(price, 148, 192);
+    ctx.fillStyle = '#FFFDF7';
+    ctx.fillText(price, 148, 192);
+    drawIcon(ctx, 'cash', 26, 166, 48);
     ctx.globalAlpha = 1;
     if (locked) drawIcon(ctx, 'lock', 156, 18, 78);
     this.texture.needsUpdate = true;
@@ -488,14 +481,6 @@ export class TileFace {
 }
 
 /** Station name board: a navy enamel sign with a double cream border and widely spaced capitals. */
-/**
- * Session 66 (de-slop, ART_BIBLE §9 rule 8): UI labels in sentence case ("New carriage", "Comfy shoes"), not spaced
- * capitals: the first word keeps its capital, later Title-case words are lowered (numbers and all-caps words stay).
- */
-export function sentenceCase(text: string): string {
-  return text.split(' ').map((w, i) => (i > 0 && /^[A-Z][a-zà-ÿ']+$/.test(w) ? w.toLowerCase() : w)).join(' ');
-}
-
 export function signTexture(text: string, background: string, foreground: string, width = 512, height = 128): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = width;
@@ -1041,12 +1026,12 @@ export class TileMarker {
     ctx.fillStyle = '#6B5B4B';
     ctx.textBaseline = 'alphabetic';
     // The name shrinks to fit before it would ever be cut short.
-    let label = sentenceCase(name);
+    let label = name.toUpperCase();
     let size = 25;
     ctx.font = `700 ${size}px ${TILE_FONT}`;
     while (size > 17 && ctx.measureText(label).width > 196) ctx.font = `700 ${--size}px ${TILE_FONT}`;
     while (label.length > 3 && ctx.measureText(`${label}…`).width > 196 && ctx.measureText(label).width > 196) label = label.slice(0, -1);
-    if (label !== sentenceCase(name)) label = `${label.trimEnd()}…`;
+    if (label !== name.toUpperCase()) label = `${label.trimEnd()}…`;
     ctx.fillText(label, 100, 44);
     drawIcon(ctx, 'cash', 98, 52, 34);
     ctx.fillStyle = INK;
@@ -1096,7 +1081,7 @@ export class TileMarker {
     ctx.fillStyle = '#6B5B4B';
     ctx.textBaseline = 'alphabetic';
     let size = 25;
-    const label = sentenceCase(name);
+    const label = name.toUpperCase();
     ctx.font = `700 ${size}px ${TILE_FONT}`;
     while (size > 17 && ctx.measureText(label).width > 196) ctx.font = `700 ${--size}px ${TILE_FONT}`;
     ctx.fillText(label, 100, 44);
@@ -1129,7 +1114,7 @@ export class TileMarker {
     ctx.stroke();
     ctx.fillStyle = INK;
     // Phase 3: the count reads as a phrase ("TIDY ROOMS 3/4"), shrunk to fit the bar.
-    const count = `${sentenceCase(verb)} ${done}/${need}`;
+    const count = `${verb} ${done}/${need}`.toUpperCase();
     let countSize = 22;
     ctx.font = `800 ${countSize}px ${TILE_FONT}`;
     while (countSize > 14 && ctx.measureText(count).width > x1 - x0 - 18) ctx.font = `800 ${--countSize}px ${TILE_FONT}`;

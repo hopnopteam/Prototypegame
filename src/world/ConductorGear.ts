@@ -3,7 +3,7 @@ import type { OutfitDef } from '../config/wardrobe';
 import { KNEE_Y } from './CharacterParts';
 import { SHOES_BY_SPEED } from '../config/wardrobe';
 import { CharacterView, type CharacterLook } from './CharacterView';
-import { faceDepth, FIGURE_SHAPE, narrowBody, LEG_LENGTH, SHOULDER_X, SHOULDER_Y } from './CharacterParts';
+import { faceDepth, LEG_LENGTH, SHOULDER_X, SHOULDER_Y } from './CharacterParts';
 import { GeoBuilder } from './geo';
 import { LIGHT_UNIFORMS, MATERIALS } from './materials';
 import { PALETTE } from './palette';
@@ -72,11 +72,10 @@ export class ConductorGear {
       .add(new THREE.TorusGeometry(0.07, 0.007, 6, 16, Math.PI), PALETTE.gold, -0.02, 0.52, faceDepth(0.52) + 0.008, 0, 0, Math.PI, { shade: 1 })
       .sphere(-0.09, 0.52, faceDepth(0.52) + 0.01, 0.022, PALETTE.gold, 1)
       .build(), MATERIALS.character);
-    narrowBody(this.chest.geometry);
     view.body.add(this.chest);
     this.epaulettes = new THREE.Mesh(new GeoBuilder()
-      .rounded(-SHOULDER_X, SHOULDER_Y + 0.045, 0, 0.12 * FIGURE_SHAPE.limb, 0.035, 0.12 * FIGURE_SHAPE.limb, 0.02, PALETTE.gold, { shade: 1 })
-      .rounded(SHOULDER_X, SHOULDER_Y + 0.045, 0, 0.12 * FIGURE_SHAPE.limb, 0.035, 0.12 * FIGURE_SHAPE.limb, 0.02, PALETTE.gold, { shade: 1 })
+      .rounded(-SHOULDER_X, SHOULDER_Y + 0.045, 0, 0.12, 0.035, 0.12, 0.02, PALETTE.gold, { shade: 1 })
+      .rounded(SHOULDER_X, SHOULDER_Y + 0.045, 0, 0.12, 0.035, 0.12, 0.02, PALETTE.gold, { shade: 1 })
       .build(), MATERIALS.character);
     view.body.add(this.epaulettes);
 
@@ -85,8 +84,7 @@ export class ConductorGear {
       .rounded(0, -LEG_LENGTH + 0.06, 0.03, 0.13, 0.08, 0.24, 0.03, '#E26D8C', { shade: 0.95 })
       .box(0, -LEG_LENGTH + 0.01, 0.03, 0.1, 0.02, 0.22, PALETTE.ink, 0, { shade: 1 });
     for (const z of [-0.06, 0.12]) skate.cylinder(0, -LEG_LENGTH - 0.015, z, 0.035, 0.035, 0.1, '#FFD35C', 10, 'x', { shade: 1 });
-    // Session 65: the shoes are smaller (FIGURE_SHAPE.shoe); the skates with them, about the sole.
-    const skateGeo = skate.build().translate(0, LEG_LENGTH, 0).scale(FIGURE_SHAPE.shoe, FIGURE_SHAPE.shoe, FIGURE_SHAPE.shoe).translate(0, -LEG_LENGTH, 0);
+    const skateGeo = skate.build();
     // On the shin (character pass 2: the knee bends), so the skate stays on the foot.
     for (const pivot of view.kneePivots) {
       const mesh = new THREE.Mesh(skateGeo, MATERIALS.character);

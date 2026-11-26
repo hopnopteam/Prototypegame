@@ -104,11 +104,9 @@ function build(kind: ItemKind): THREE.BufferGeometry {
       b.cylinder(0.09, 0.07, 0, 0.072, 0.072, 0.03, PALETTE.mint, 14, 'x', { shade: 1 });
       break;
     case 'luggage':
-      b.rounded(0, 0.14, 0, 0.5, 0.28, 0.34, 0.06, PALETTE.suitcase, { shade: 0.8, detail: 'leather' });
+      b.rounded(0, 0.14, 0, 0.5, 0.28, 0.34, 0.06, PALETTE.suitcase, { shade: 0.8 });
       for (const x of [-0.14, 0.14]) b.box(x, 0.14, 0, 0.04, 0.285, 0.345, PALETTE.creamBand, 0, { shade: 1 });
-      // Session 63: an arched carry handle on two little feet (a hand closes round its top, clear of the case).
-      b.add(new THREE.TorusGeometry(0.07, 0.017, 8, 16, Math.PI), PALETTE.ink, 0, 0.29, 0, 0, 0, 0, { shade: 0.9, surface: 'leather', detail: 'leather' });
-      for (const x of [-0.07, 0.07]) b.box(x, 0.285, 0, 0.05, 0.016, 0.05, PALETTE.brass, 0, { shade: 1, surface: 'brass' });
+      b.cylinder(0, 0.3, 0, 0.02, 0.02, 0.16, PALETTE.ink, 6, 'x');
       b.box(0.18, 0.22, 0.172, 0.08, 0.06, 0.004, PALETTE.linen, 0, { shade: 1 });
       break;
     case 'latte':
@@ -214,11 +212,5 @@ export function createItemMesh(kind: ItemKind): THREE.Mesh {
   const mesh = new THREE.Mesh(geometry, MATERIALS.solid);
   mesh.castShadow = true;
   mesh.userData.kind = kind;
-  // Session 63: where the solid case ends under a handle a hand closes round (the clipping test's box stops there).
-  if (kind === 'luggage') mesh.userData.solidTop = LUGGAGE_BODY_TOP;
   return mesh;
 }
-
-/** The top of the suitcase's case and of its handle's arch (model units). */
-export const LUGGAGE_BODY_TOP = 0.28;
-export const LUGGAGE_HANDLE_TOP = 0.29 + 0.07 + 0.017;

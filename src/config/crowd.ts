@@ -6,10 +6,8 @@
  */
 
 /** Session 30: the hairdos and outfits of the new figures (world/CharacterParts.ts builds them). */
-export type HairStyle = 'short' | 'side' | 'quiff' | 'curly' | 'bob' | 'long' | 'bun' | 'bald' | 'ponytail';
+export type HairStyle = 'short' | 'side' | 'quiff' | 'curly' | 'bob' | 'long' | 'bun' | 'bald';
 export type Outfit = 'tee' | 'shirt' | 'jacket' | 'coat' | 'dress' | 'gown';
-/** The clay figures' builds (docs/art/CHARACTER_SPEC.md §2): torso width against the head's, 0.82, 0.95, 1.12. */
-export type Build = 'slim' | 'regular' | 'stout';
 
 /** What a guest type wears beyond its colours: the clothes, the hair, stripes, shoes. */
 export interface Figure {
@@ -24,7 +22,6 @@ export interface Figure {
   shoe?: string;
   moustache?: boolean;
   glasses?: boolean;
-  build?: Build;
 }
 
 /** What someone standing about does (CharacterView actions). */
@@ -35,7 +32,7 @@ export const CROWD = {
   variants: 4,
   skinTones: ['#F6D3B8', '#EDBE9A', '#D9A07A', '#C98E68', '#A86E4E', '#7E5038'],
   /** Hairdos the other looks of a type pick from (look 0 keeps the type's own). */
-  hairStyles: ['short', 'bob', 'side', 'long', 'quiff', 'ponytail', 'curly', 'bald'] as HairStyle[],
+  hairStyles: ['short', 'bob', 'side', 'long', 'quiff', 'curly', 'bald'] as HairStyle[],
   hairColours: ['#1D1616', '#3A2418', '#5B3A29', '#8C5A32', '#C9A15A', '#B5543A'],
   /** Heights (root scale), shortest and tallest. */
   height: [0.93, 1.06] as [number, number],

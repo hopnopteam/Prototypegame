@@ -57,12 +57,13 @@ export class StaffMember implements Actor {
   /** Where they wait between jobs: their own idle spot if the floor plan has one (out of the walkways), else home. */
   readonly rest: Vec2;
   /** What was carried last frame (a change plays a pickup or a hand-over). */
+  private lastCount = 0;
 
   constructor(readonly w: World, readonly role: StaffRole, readonly carriage: number, readonly home: Vec2) {
     this.pos = { x: home.x, z: home.z };
     this.rest = w.map.hasAnchor(carriage, `idle_${role}`) ? w.map.anchor(carriage, `idle_${role}`) : home;
     this.view = new CharacterView(STAFF_LOOKS[role]);
-    this.stack = new CarryStack(this.view.stackAnchor, w.scene, w.tweens, this.baseCapacity(), this.view.boardAnchor, this.view);
+    this.stack = new CarryStack(this.view.stackAnchor, w.scene, w.tweens, this.baseCapacity(), this.view.boardAnchor);
     this.mover = new Mover(this.pos, this.baseSpeed());
     w.scene.add(this.view.root);
   }
@@ -135,7 +136,9 @@ export class StaffMember implements Actor {
     this.view.setFacing(this.mover.facing);
     this.view.setCarrying(this.stack.stacked > 0, this.stack.board);
     this.view.stackCount = this.stack.stacked;
-    // Session 63: each take and hand-over plays its own move, started by the stack itself (CarryStack → startMotion).
+    if (this.stack.count > this.lastCount) this.view.act('pickup');
+    else if (this.stack.count < this.lastCount) this.view.act('place');
+    this.lastCount = this.stack.count;
     this.view.update(dt, this.mover.speedNow);
     this.stack.update(dt, this.mover.isMoving, this.w.time);
   }
