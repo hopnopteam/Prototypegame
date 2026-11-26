@@ -333,6 +333,8 @@ const DRAPED = new Set(['roof']);
 
 /** Containers and what they are built to hold (their stock sits inside their box on purpose). */
 const HOLDS: Record<string, string[]> = {
+  // De-Slop B4: the room's own bedside thing stands on the stool.
+  'class:stool': ['room:book', 'room:clock', 'room:paper', 'room:mug'],
   // Phase 2: the restock cart's load lies in it; the booth's canopy stands on the ticket counter; the fruit stall holds its goods.
   'platform:restockCart': ['platform:restockGoods', 'platform:cartLoad'],
   'platform:restockGoods': ['platform:cartLoad'],

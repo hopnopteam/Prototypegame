@@ -171,6 +171,10 @@ const BELLOWS_HEIGHT = 0.4;
 const CLOCK_X = -1.03;
 /** A cabin's picture and wireless shelf sit on the knee-high partition (their tops stay under its cap). */
 const PICTURE_Y = INTERIOR_WALL_HEIGHT - 0.14;
+/** De-Slop B4: the skirting board's height, and the run-down tier's grimy board. */
+const SKIRT_H = 0.07;
+const SKIRT_WORN_H = 0.12;
+const SKIRT_WORN = '#54483D';
 const RADIO_SHELF_Y = INTERIOR_WALL_HEIGHT - 0.32;
 
 /** How a carriage looks at a refurbishment tier: the whole rags-to-riches story in one table. */
@@ -501,7 +505,8 @@ export class CarriageView {
     // Phase 1: the Family Sleeper keeps its own warm colours through its refits (its class shows in the finish).
     this.theme = cls && cls.id !== 'basic' && layout.type !== 'familySleeper' ? CLASS_THEMES[cls.id] : CARRIAGE_THEMES[layout.type];
     this.finish = finishFor(layout.type, tier, this.theme);
-    this.blanketColor = tier <= 0 ? PALETTE.greyWool : tier >= 3 ? (tier >= 4 ? this.theme.blanket : this.theme.deep) : this.theme.blanket;
+    // De-Slop B4: the kicked-down duvet is the made bed's own blanket (the bed model's cover is the class's deep colour).
+    this.blanketColor = tier <= 0 ? '#8A5A4A' : tier >= 4 ? this.theme.blanket : this.theme.deep;
     this.liveryBody = cls ? litMaterial(`livery:${cls.id}`, { vertexColors: true, color: cls.livery.body }, { surface: SURFACES.paint, light: true }) : MATERIALS.livery;
     this.liveryTrim = cls ? litMaterial(`trim:${cls.id}`, { vertexColors: true, color: cls.livery.trim }, { surface: tier >= 4 ? SURFACES.brass : SURFACES.paint, light: true }) : MATERIALS.liveryTrim;
     if (sliced) return;
@@ -1631,7 +1636,8 @@ export class CarriageView {
     const cx = (r.x0 + r.x1) / 2;
     const cz = (r.z0 + r.z1) / 2 + 0.1;
     const top = FLOOR_Y + BED_TOP + 0.03;
-    const parts = bedMessParts(w, d, this.blanketColor, shadeHex(this.blanketColor, -26));
+    const blanket = roomBedding(this.blanketColor, cabin.index);
+    const parts = bedMessParts(w, d, blanket, shadeHex(blanket, -26));
     add('sheet', 0, parts.sheet.build, cx + parts.sheet.x, top, cz + parts.sheet.z, 0, 1, 'bed-sheet');
     const duvet = add('duvet', 0, parts.duvet.build, cx + parts.duvet.x, top, cz + parts.duvet.z, 0, 1, 'bed-duvet');
     // How far up the bed it travels as it is pulled up (to cover where they lay).
@@ -1931,6 +1937,15 @@ export class CarriageView {
     if (low > y0) s.slab(r, y0, low, fin.panelled ? fin.panel : fin.wallLow, 0, 0, { shade: 0.82, surface: fin.panelled ? 'varnish' : 'matte', ...(NEW_LOOK ? { detail: 'panel' as const } : {}) });
     if (y1 > low) s.slab(r, Math.max(y0, low), y1, fin.wall, 0, 0, { shade: NEW_LOOK ? 0.8 : 0.96 });
     if (fin.panelled && y0 <= FLOOR_Y + WAINSCOT && y1 >= FLOOR_Y + WAINSCOT) s.slab(shortenEnds(rail, END_INSET), FLOOR_Y + WAINSCOT - 0.012, FLOOR_Y + WAINSCOT + 0.018, PALETTE.brass, 0, 0, FLAT);
+    // De-Slop B4: a skirting board along the floor and a wooden dado rail on every painted wall (the walls read as
+    // flat cards without them); the run-down tier's skirting is a battered, grimy board, taller where dirt collects.
+    if (y0 <= FLOOR_Y + 0.001) {
+      const worn = this.tier <= 0;
+      s.slab(shortenEnds(rail, END_INSET), y0, y0 + (worn ? SKIRT_WORN_H : SKIRT_H), worn ? SKIRT_WORN : shadeHex(fin.cap, -14), 0, 0, { shade: worn ? 0.7 : 0.88, surface: worn ? 'matte' : 'varnish' });
+    }
+    if (!fin.panelled && y0 <= FLOOR_Y + WAINSCOT && y1 >= FLOOR_Y + WAINSCOT) {
+      s.slab(shortenEnds(rail, END_INSET), FLOOR_Y + WAINSCOT - 0.01, FLOOR_Y + WAINSCOT + 0.014, this.tier <= 0 ? '#7B6A57' : fin.cap, 0, 0, { shade: 0.95, surface: this.tier <= 0 ? 'matte' : 'varnish' });
+    }
   }
 
   /** Interior wall: the finish on both faces and a clean wooden cap. */
@@ -2128,7 +2143,7 @@ export class CarriageView {
       const bedLamps = new GeoBuilder();
       bed.object('bed');
       // Phase 1: the Family Sleeper's beds are bunks.
-      buildProp(bed, bedLamps, { kind: 'bed', rect: cabin.bed, variant: this.layout.type === 'familySleeper' ? 'bunk' : undefined }, this.theme, this.tier, this.layout.type);
+      buildProp(bed, bedLamps, { kind: 'bed', rect: cabin.bed, variant: this.layout.type === 'familySleeper' ? 'bunk' : undefined }, this.theme, this.tier, this.layout.type, cabin.index);
       const bedGroup = new THREE.Group();
       const centerX = (cabin.bed.x0 + cabin.bed.x1) / 2;
       const centerZ = (cabin.bed.z0 + cabin.bed.z1) / 2;
@@ -2630,7 +2645,7 @@ const MODEL_FURNITURE = true;
  * A KayKit seat (couch or armchair) fitted to a prop's footprint: its back to the wall it faces away from (our props
  * face 'right' with the back at x0, 'left' with it at x1), `height` tall, the upholstery and the cushions recoloured.
  */
-export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme: CarriageTheme = CARRIAGE_THEMES.lobby, tier = 1, propCarriage = ''): void {
+export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme: CarriageTheme = CARRIAGE_THEMES.lobby, tier = 1, propCarriage = '', roomIndex?: number): void {
   const r = prop.rect;
   const cx = (r.x0 + r.x1) / 2;
   const cz = (r.z0 + r.z1) / 2;
@@ -2680,8 +2695,8 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
           recolor: [
             // Session 50–51: a blanket deep enough to read against the floor, the turned-down top in the class's
             // lighter colour, and a dark frame round it (Quaternius's bed since session 51).
-            key('blanket', theme.deep),
-            key('cushion', theme.blanket),
+            key('blanket', roomBedding(theme.deep, roomIndex ?? 0)),
+            key('cushion', roomBedding(theme.blanket, roomIndex ?? 0)),
             key('wood', tier >= 3 ? PALETTE.walnutDark : tier === 2 ? PALETTE.walnut : '#3E3A38'),
           ],
           surface: 'fabric',
@@ -3580,10 +3595,69 @@ function buildPiano(b: GeoBuilder, lamps: GeoBuilder, r: Rect, tier: number, rea
  * bed a stool with a hurricane lantern (Basic), a luggage bench (Comfort), a minibar (Business), a velvet ottoman
  * and champagne on ice (First) or a slipper bath (Royal).
  */
+/**
+ * De-Slop B4 ("rooms that each feel lived in"): each room's own fixed set, chosen by its index (data, never game
+ * randomness): a shade of the class's bedding, a rag rug or none on the repaired boards, and something by the bed
+ * (a book, an alarm clock, a folded paper, a tin mug). Nothing stands in a walkway: the rug is flat, the bedside
+ * thing sits on the stool or nightstand.
+ */
+const ROOM_SETS: readonly { shade: number; rug: string | null; bedside: BedsideThing }[] = [
+  { shade: 0, rug: '#B5553F', bedside: 'book' },
+  { shade: 24, rug: null, bedside: 'clock' },
+  { shade: -18, rug: '#4F7A8C', bedside: 'paper' },
+  { shade: 8, rug: null, bedside: 'mug' },
+  { shade: -6, rug: '#8C7A3E', bedside: 'book' },
+  { shade: 30, rug: null, bedside: 'clock' },
+];
+type BedsideThing = 'book' | 'clock' | 'paper' | 'mug';
+const roomSet = (index: number): (typeof ROOM_SETS)[number] => ROOM_SETS[((index % ROOM_SETS.length) + ROOM_SETS.length) % ROOM_SETS.length];
+
+/** A small thing set down beside the bed at (x, top, z): stands on whatever surface is there. */
+function bedsideThing(b: GeoBuilder, kind: BedsideThing, x: number, top: number, z: number): void {
+  b.object(`room:${kind}`);
+  if (kind === 'book') {
+    b.box(x, top + 0.012, z, 0.11, 0.024, 0.08, '#7A2E2A', 0, { shade: 0.95, surface: 'fabric' });
+    b.box(x + 0.005, top + 0.034, z - 0.004, 0.1, 0.02, 0.072, '#2F5A6E', 0, { shade: 0.95, surface: 'fabric' });
+  } else if (kind === 'clock') {
+    b.cylinder(x, top + 0.045, z, 0.042, 0.042, 0.03, PALETTE.brass, 14, 'x', { surface: 'brass' });
+    b.cylinder(x + 0.016, top + 0.045, z, 0.034, 0.034, 0.004, '#FBF6EA', 14, 'x', FLAT);
+    for (const dz of [-0.026, 0.026]) b.sphere(x, top + 0.094, z + dz, 0.014, PALETTE.brass, 0);
+    for (const dz of [-0.024, 0.024]) b.box(x, top + 0.008, z + dz, 0.02, 0.016, 0.01, PALETTE.iron, 0, FLAT);
+  } else if (kind === 'paper') {
+    // A folded paper: two leaves, the top one a little turned (the masthead's grey on its edge).
+    b.box(x, top + 0.006, z, 0.13, 0.012, 0.09, '#EFE9DA', 0, FLAT);
+    b.add(new THREE.BoxGeometry(0.12, 0.01, 0.085), '#D9D3C4', x + 0.01, top + 0.017, z - 0.006, 0, 0.18, 0, FLAT);
+  } else {
+    b.cylinder(x, top + 0.035, z, 0.03, 0.028, 0.07, '#E7E3DA', 12, 'y', { shade: 0.95 });
+    b.cylinder(x, top + 0.0705, z, 0.024, 0.024, 0.002, '#6B4A2E', 12, 'y', FLAT);
+    b.add(new THREE.TorusGeometry(0.018, 0.006, 6, 10, Math.PI).rotateZ(-Math.PI / 2), '#E7E3DA', x, top + 0.04, z + 0.03, 0, Math.PI / 2, 0, { shade: 0.95 });
+  }
+  b.endObject();
+}
+
+/** The room's shade of the class's bedding (De-Slop B4): no two rooms side by side look stamped out. */
+export function roomBedding(color: string, index: number): string {
+  return shadeHex(color, roomSet(index).shade);
+}
+
 function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout, tier: number, theme: CarriageTheme): void {
   const y = FLOOR_Y;
   const room = cabin.room;
   const bed = cabin.bed;
+  const set = roomSet(cabin.index);
+  // A rag rug beside the bed on the repaired boards, in every other room (the fitted carpets of Comfort and up
+  // already dress the floor; the run-down tier has none).
+  if (tier === 1 && set.rug && cabin.style === 'berth') {
+    const rx1 = bed.x0 - 0.12;
+    const rx0 = Math.max(PARTITION_X1 + 0.14, rx1 - 0.62);
+    const rz0 = bed.z0 + 0.38;
+    const rz1 = Math.min(bed.z1 - 0.06, rz0 + 0.9);
+    if (rx1 - rx0 > 0.3 && rz1 - rz0 > 0.4) {
+      b.object('room:rug');
+      b.slab(rect(rx0, rz0, rx1, rz1), y, y + 0.012, set.rug, 0, -0.008, { pattern: PATTERN.stripesX, color2: shadeHex(set.rug, 34), scale: 0.09, shade: 0.95, surface: 'fabric', detail: 'wool' });
+      b.endObject();
+    }
+  }
   // Session 17: no hanging lights. The roof is cut away, so a lamp on a wire hung from nothing above the walls
   // (and threw a dark disc onto the floor). Each class's light stands on its furniture instead: a lantern on the
   // stool, a reading lamp on the desk, a lamp on the lounge table, a candelabra on the dinner table.
@@ -3633,6 +3707,8 @@ function buildClassDressing(b: GeoBuilder, lamps: GeoBuilder, cabin: CabinLayout
     b.cylinder(lx, y + 0.6, fzc, 0.006, 0.006, 0.05, metal, 4);
     b.endObject();
     lamps.endObject();
+    // De-Slop B4: the room's own thing on the stool beside the lantern (a repaired room is someone's).
+    if (tier >= 1) bedsideThing(b, set.bedside, sx + 0.075, y + 0.42, fzc + 0.02);
     return;
   }
   if (tier === 2) {
