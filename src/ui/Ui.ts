@@ -941,9 +941,30 @@ export class Ui implements GameUi {
     }
     const half = size.w / 2;
     const x = Math.min(Math.max(this.screen.x, r.left + half), r.right - half);
-    this.tileTagBox = { x0: x - half, x1: x + half, y0: bottom - size.h, y1: tip };
+    // De-Slop B (fresh-eyes T02): never over the conductor. If the label would cover them, it rises above their cap.
+    let lift = 0;
+    const tx = this.screen.x;
+    const ty = this.screen.y;
+    const pp = g.player.pos;
+    this.tmp.set(pp.x, RUSH_HEAD_HEIGHT, pp.z);
+    if (g.stage.project(this.tmp, this.screen)) {
+      const headY = this.screen.y;
+      this.tmp.set(pp.x, 0, pp.z);
+      const feetY = g.stage.project(this.tmp, this.screen) ? this.screen.y : headY + 60;
+      const px = this.screen.x;
+      if (px > x - half - 12 && px < x + half + 12 && headY < bottom && feetY > bottom - size.h) lift = Math.max(0, bottom - (headY - 8));
+    }
+    this.screen.x = tx;
+    this.screen.y = ty;
+    if (lift > 0 && bottom - lift - size.h < r.top) {
+      // No room above the conductor: the marker's place is theirs for now.
+      t.el.style.opacity = '0';
+      return;
+    }
+    const top = bottom - lift;
+    this.tileTagBox = { x0: x - half, x1: x + half, y0: top - size.h, y1: tip - lift };
     t.el.style.opacity = '1';
-    t.el.style.transform = `translate(${x}px, ${bottom}px) translate(-50%, -100%)`;
+    t.el.style.transform = `translate(${x}px, ${top}px) translate(-50%, -100%)`;
   }
 
   /**

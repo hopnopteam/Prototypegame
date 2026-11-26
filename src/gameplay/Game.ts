@@ -147,6 +147,9 @@ const TEASER_VIEW_REACH = 3.2;
 
 /** De-Slop B3: how far in from the screen's edge a floating label must stay whole (CSS pixels). */
 const EDGE_SAFE_PX = 6;
+/** …and how far below the top bar and above the bottom strip (CSS pixels from the canvas's edges). */
+const EDGE_TOP_PX = 118;
+const EDGE_BOTTOM_PX = 86;
 export class Game implements World {
   readonly econ: Economy;
   readonly events = new EventBus<GameEvents>();
@@ -325,7 +328,9 @@ export class Game implements World {
       const cx = probe.set(x, y, z).project(camera).x;
       const half = Math.abs(side.project(camera).x - cx);
       const margin = (2 * EDGE_SAFE_PX) / Math.max(1, this.stage.width);
-      return cx - half < -1 + margin || cx + half > 1 - margin || probe.y > 1 || probe.y < -1;
+      // …and clear of the HUD's top bar and the bottom strip (a class chip sat over the cash counter).
+      const h = Math.max(1, this.stage.height);
+      return cx - half < -1 + margin || cx + half > 1 - margin || probe.y > 1 - (2 * EDGE_TOP_PX) / h || probe.y < -1 + (2 * EDGE_BOTTOM_PX) / h;
     });
     this.stage.checkShaderErrors = settings.devTools;
     this.stage.onAutoTier = (tier) => {

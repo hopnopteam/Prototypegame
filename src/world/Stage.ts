@@ -84,7 +84,8 @@ export class Stage {
   private particles: Particles | null = null;
   /** The canvas width in CSS pixels. */
   width = 1;
-  private height = 1;
+  /** The canvas height in CSS pixels. */
+  height = 1;
   private readonly projected = new THREE.Vector3();
   /** Warm-up stand-ins kept alive so their shaders stay compiled (see warmUp). */
   private readonly warmMaterials: THREE.Material[] = [];
