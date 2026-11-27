@@ -265,9 +265,13 @@ export class Lighting {
     this.sun.target.updateMatrixWorld();
   }
 
+  /** Where in the day cycle the light was last set (the Grand Departure eases from it). */
+  time = 0;
+
   /** `t` in [0,1): position in the day cycle. */
   setTime(t: number): void {
     const time = ((t % 1) + 1) % 1;
+    this.time = time;
     let i = 0;
     while (i < KEYS.length - 2 && KEYS[i + 1].t <= time) i++;
     const k0 = KEYS[i];

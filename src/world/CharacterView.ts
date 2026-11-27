@@ -12,7 +12,7 @@ import { offFrame, underPopup } from './screenMask';
 import type { CharacterBatch } from './CharacterBatch';
 
 export type HatKind = 'conductor' | 'boater' | 'bowler' | 'pillbox' | 'cap' | 'beanie' | 'bun' | 'crown' | 'tophat' | 'toque' | 'none';
-export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'sash' | 'basket' | 'hymnbook' | 'cane' | 'surfboard' | 'partner' | 'whistle' | 'none';
+export type AccessoryKind = 'briefcase' | 'backpack' | 'handbag' | 'flower' | 'furcoat' | 'apron' | 'child' | 'camera' | 'sash' | 'basket' | 'hymnbook' | 'cane' | 'surfboard' | 'partner' | 'whistle' | 'lei' | 'none';
 
 export interface CharacterLook {
   body: string;
@@ -223,6 +223,17 @@ function bodyGeometry(look: CharacterLook, seated = false): THREE.BufferGeometry
       b.sphere(bx - 0.035, by + 0.06, bz + 0.02, 0.032, '#C0392B', 1);
       b.sphere(bx + 0.03, by + 0.065, bz - 0.01, 0.038, '#7FA34E', 1);
       b.sphere(bx + 0.01, by + 0.06, bz + 0.04, 0.028, '#D9542A', 1);
+      break;
+    }
+    case 'lei': {
+      // The Grand Departure's welcome: a garland of flowers round the neck, hanging in a loop across the chest.
+      const colors = [look.accent, '#F7C443', '#FBF5EE', '#F27BAA'];
+      for (let i = 0; i < 9; i++) {
+        const t = i / 8;
+        const x = -0.12 + 0.24 * t;
+        const y = 0.76 - 0.09 * Math.sin(t * Math.PI);
+        b.sphere(x, y, front(y) + 0.012, 0.03, colors[i % colors.length], 1, 1, { shade: 1, surface: 'fabric' });
+      }
       break;
     }
     case 'hymnbook':

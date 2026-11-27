@@ -475,12 +475,15 @@ export const CARRIAGE_CATALOGUE: Record<CarriageType, CarriageDef> = {
     ],
   },
   bathroom: {
-    type: 'bathroom', name: 'Washroom Car', pitch: '+2 toilets, a shower', max: 1, cabins: 0, inside: '2 toilets, a shower room, a linen closet',
+    type: 'bathroom', name: 'Washroom Car', pitch: '+3 toilets, 2 showers', max: 1, cabins: 0, inside: '3 toilets, 2 shower rooms, a linen closet',
     unlocks: [
       { key: 'refurb_1', kind: 'refurb', label: 'Repair', price: 35, stars: 3, tier: 1, requires: ['couple', '@couple_2'], effect: 'Tips +50%' },
       { key: 'bath_1', kind: 'bathroom', label: 'Toilet 2', price: 45, stars: 2, bathroom: 1, requires: ['couple', '@couple_2'], effect: '+1 washroom' },
       // Session 53: the third room is the shower.
       { key: 'bath_2', kind: 'bathroom', label: 'Shower', price: 70, stars: 2, bathroom: 2, requires: ['bath_1'], effect: '+1 washroom' },
+      // Owner (after Grand Departure A): the empty linen store became a second shower and a third toilet.
+      { key: 'bath_3', kind: 'bathroom', label: 'Shower 2', price: 95, stars: 2, bathroom: 3, requires: ['bath_2'], effect: '+1 washroom' },
+      { key: 'bath_4', kind: 'bathroom', label: 'Toilet 3', price: 110, stars: 2, bathroom: 4, requires: ['bath_3'], effect: '+1 washroom' },
       { key: 'comfort_soap', kind: 'comfort', label: 'Soaps', price: 55, stars: 2, comfort: 'soap', requires: ['refurb_1'], effect: 'Tips +25%' },
       { key: 'refurb_2', kind: 'refurb', label: 'Makeover', price: 130, stars: 4, tier: 2, requires: ['refurb_1', '@couple_3'], effect: 'Tips +50%' },
       { key: 'comfort_rail', kind: 'comfort', label: 'Towel Rails', price: 120, stars: 2, comfort: 'rail', requires: ['comfort_soap', '@couple_3'], effect: 'Tips +25%' },

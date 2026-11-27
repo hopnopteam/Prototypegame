@@ -49,6 +49,11 @@ export interface LineTransitionDef {
     fireworks: string[];
     /** The music sting under the hero shot (an audio cue id). */
     sting: string;
+    /**
+     * Stage B: where in the day cycle the old line is held from the hero shot to the tunnel (a readable dusk the
+     * fireworks still show against, rather than the route's deep night). Omitted: the route's own light.
+     */
+    timeOfDay?: number;
   };
 
   /** Step 3, the offer: the golden ticket's words. */
@@ -124,10 +129,10 @@ export const COUNTRYSIDE_TO_RIVIERA: LineTransitionDef = {
   toName: 'Riviera Coast Line',
   toShort: 'the Riviera',
   tease: { fromLevel: 7, fromCarriages: 7, sign: 'Riviera Coast Line →', poster: 'Coming soon: the Riviera', style: 'stone', everyLaps: 3 },
-  farewell: { seconds: 6, fireworks: ['#FFD27A', '#FF7A8A', '#8FE3FF', '#B9FF9E'], sting: 'ceremony' },
+  farewell: { seconds: 6, fireworks: ['#FFD27A', '#FF7A8A', '#8FE3FF', '#B9FF9E'], sting: 'farewell', timeOfDay: 0.71 },
   ticket: { title: 'A ticket to the Riviera', button: 'Open the Riviera Coast Line' },
   lever: { hintAfter: 4, resist: 0.62 },
-  depot: { name: 'Old Mill Junction Engine Shed', plaque: 'Countryside Express: preserved', tarpColor: '#E8D3A2', seconds: 9 },
+  depot: { name: 'Old Mill Junction Engine Shed', plaque: 'Countryside Express: preserved', tarpColor: '#E8D3A2', seconds: 8 },
   tunnel: { entrance: 'stone', exit: 'cliff', dawn: '#F2B78C', exitLight: '#FFF1C9', seconds: 5 },
   arrival: {
     station: 'Porto Sole',
@@ -136,8 +141,8 @@ export const COUNTRYSIDE_TO_RIVIERA: LineTransitionDef = {
     crowd: 8,
     livery: { body: '#3E8FC9', trim: '#F4EBD6' },
     plate: 'Riviera Coast Line',
-    sting: 'perfect',
-    seconds: 7,
+    sting: 'steelband',
+    seconds: 6,
   },
   chest: { gems: 30, railMiles: 10 },
   postcard: { frame: '#C9A35E', ink: '#2F5F4F', stamp: 'COUNTRYSIDE LINE', caption: 'The Countryside Express, restored' },
@@ -163,10 +168,10 @@ export const RIVIERA_TO_WINTER: LineTransitionDef = {
   toName: 'Winter City Express',
   toShort: 'Winter City',
   tease: { fromLevel: 7, fromCarriages: 8, sign: 'Winter City Express →', poster: 'Coming soon: Winter City', style: 'cliff', everyLaps: 3 },
-  farewell: { seconds: 6, fireworks: ['#FFE1A8', '#7FD8FF', '#FF9EC4', '#FFFFFF'], sting: 'ceremony' },
+  farewell: { seconds: 6, fireworks: ['#FFE1A8', '#7FD8FF', '#FF9EC4', '#FFFFFF'], sting: 'farewell', timeOfDay: 0.64 },
   ticket: { title: 'A ticket to Winter City', button: 'Open the Winter City Express' },
   lever: { hintAfter: 4, resist: 0.62 },
-  depot: { name: 'Coral Beach Engine Shed', plaque: 'Riviera Coast Line: preserved', tarpColor: '#DDE6EE', seconds: 9 },
+  depot: { name: 'Coral Beach Engine Shed', plaque: 'Riviera Coast Line: preserved', tarpColor: '#DDE6EE', seconds: 8 },
   tunnel: { entrance: 'cliff', exit: 'snow', dawn: '#6C7FB8', exitLight: '#DDEBFF', seconds: 5 },
   arrival: {
     station: 'Frostgate',
@@ -175,8 +180,8 @@ export const RIVIERA_TO_WINTER: LineTransitionDef = {
     crowd: 8,
     livery: { body: '#7A1F2B', trim: '#E9D9B5' },
     plate: 'Winter City Express',
-    sting: 'perfect',
-    seconds: 7,
+    sting: 'steelband',
+    seconds: 6,
   },
   chest: { gems: 40, railMiles: 14 },
   postcard: { frame: '#3E8FC9', ink: '#1F4F7A', stamp: 'RIVIERA COAST LINE', caption: 'The Riviera Coast Line, complete' },

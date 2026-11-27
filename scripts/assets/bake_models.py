@@ -49,6 +49,21 @@ TROP = {
 FIG = {'skin': '#FF2A2A', 'shoe': '#2AFF2A', 'sole': '#2A2AFF', 'lace': '#FFFF2A'}
 # The clay figures' heads and shoes (art/blender/characters/char_kit.py): the same role keys, hair in the lace key.
 CH = {'skin': '#FF2A2A', 'hair': '#FFFF2A', 'shoe': '#2AFF2A', 'sole': '#2A2AFF', 'trim': '#FF2AFF'}
+# The Grand Departure's set (art/blender/transition_kit.py): fixed colours by role, and pure-hue keys the game recolours
+# per route (keyA/keyA2 red, keyB green, keyC blue; world/TransitionSet.ts `GD_KEYS`).
+GD = {
+    'keyA': '#FF2A2A', 'keyA2': '#D42222', 'keyB': '#2AFF2A', 'keyC': '#2A2AFF',
+    'soot': '#2A2420', 'brick': '#8E4B37', 'brickDark': '#6E3A2C', 'stoneDressed': '#C9BBA2', 'glassDark': '#1E2A30',
+    'iron': '#33363B', 'ironDark': '#23252A', 'slate': '#3E434B', 'slateLight': '#565C66', 'woodDark': '#5A3E2A',
+    'lampGlass': '#FFD98A', 'doorGreen': '#3F5A3A', 'doorGreen2': '#34503A', 'brass': '#C9A35E', 'brassDark': '#9C7A3E',
+    'enamel': '#F2EEE2', 'leverRed': '#B8322B', 'steel': '#C9CED3', 'paintBlack': '#1C1D20', 'glassWarm': '#F7D79A',
+    'trimGold': '#D9B25E', 'roofGrey': '#5A5E66', 'underframe': '#2A2B2E', 'wheel': '#3A3B3F', 'bufferRed': '#A8302A',
+    'rope': '#C9A877', 'bamboo': '#C9A65E', 'bambooNode': '#9C7A3E', 'straw': '#D9B46A', 'strawDark': '#B8904A',
+    'weave': '#E8D6A8', 'petal': '#E2304F', 'petalPink': '#F27BAA', 'petalYellow': '#F7C443', 'petalWhite': '#FBF5EE',
+    'pistil': '#F7D24A', 'leaf': '#3E9A4A', 'trunk': '#8A6A44', 'trunkDark': '#6E5234', 'frond': '#3E8A4A',
+    'frondDark': '#2E6E3A', 'coconut': '#6B4A2E', 'chrome': '#D8DDE2', 'chromeDark': '#9AA0A6', 'panRed': '#C8243A',
+    'gullWhite': '#F4F4F0', 'gullGrey': '#AEB4BC', 'gullBlack': '#26282C', 'beak': '#F2B533', 'eye': '#141414',
+}
 MODELS = {
     # KayKit Forest Nature Pack 1.0 (Kay Lousberg, CC0)
     'tree_round': 'kaykit-forest/Tree_1_A_Color1.gltf',
@@ -303,6 +318,10 @@ MODELS = {
         'ch_hat_toque', 'ch_hat_cap', 'ch_hair_long', 'ch_hair_tail')},
     # Session 66: the sculpted bodies (art/blender/characters/body_kit.py): torso, neck, arms and legs as one surface.
     **{k: {'src': 'char-kit/' + k + '.glb', 'paint': CH} for k in ('ch_body_slim', 'ch_body_regular', 'ch_body_stout')},
+    # The Grand Departure, Stage B (art/blender/transition_kit.py).
+    **{k: {'src': 'transition-kit/' + k + '.glb', 'paint': GD} for k in (
+        'gd_portal', 'gd_hill', 'gd_shed', 'gd_shed_door', 'gd_lever_frame', 'gd_lever_handle', 'gd_signal', 'gd_coach',
+        'gd_tarp', 'gd_arch', 'gd_palm', 'gd_steel_drum', 'gd_plate', 'gd_gull', 'gd_gull_wing')},
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}

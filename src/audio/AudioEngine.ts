@@ -17,7 +17,9 @@ export type Sfx =
   // The train and the journey.
   | 'whistle' | 'depart' | 'bell' | 'clunk'
   // Reveals and the big moments.
-  | 'reveal' | 'perfect' | 'miss' | 'levelup' | 'ceremony';
+  | 'reveal' | 'perfect' | 'miss' | 'levelup' | 'ceremony'
+  // The Grand Departure (CLAUDE.md §8c): the farewell, the points, the tunnel, the coast and its steel band.
+  | 'farewell' | 'points' | 'tunnel' | 'surf' | 'steelband';
 
 /** Every cue, so the bank renders them all (a Record, so a new cue cannot be forgotten). */
 const CUES: Record<Sfx, true> = {
@@ -26,6 +28,7 @@ const CUES: Record<Sfx, true> = {
   unlock: true, sparkle: true, staff: true, ready: true, chest: true, cash: true, chime: true,
   whistle: true, depart: true, bell: true, clunk: true,
   reveal: true, perfect: true, miss: true, levelup: true, ceremony: true,
+  farewell: true, points: true, tunnel: true, surf: true, steelband: true,
 };
 const BANK_CUES: (Sfx | 'clack')[] = [...(Object.keys(CUES) as Sfx[]), ...(AUDIO.clack.enabled ? ['clack' as const] : [])];
 
@@ -359,8 +362,15 @@ export class AudioEngine {
    * once (anything more is skipped, never cutting a sound), a little random pitch and level on repeated cues, and cash
    * in a row climbing as one soft rising tick. Big rewards never overlap (they queue or are skipped).
    */
-  play(name: Sfx, options: { pitch?: number; volume?: number } = {}): void {
+  /**
+   * Hushed while a cinematic plays (the Grand Departure): the world goes on under it (a porter selling tickets, the
+   * conductor's cash magnet, the station's whistle), and only the sequence's own cues (`through`) are heard.
+   */
+  hushed = false;
+
+  play(name: Sfx, options: { pitch?: number; volume?: number; through?: boolean } = {}): void {
     const ctx = this.ctx;
+    if (this.hushed && !options.through) return;
     if (!ctx || !this.soundOn || ctx.state !== 'running' || this.paused) return;
     const rule = AUDIO.cues[name] ?? AUDIO.defaultCue;
     const now = ctx.currentTime;

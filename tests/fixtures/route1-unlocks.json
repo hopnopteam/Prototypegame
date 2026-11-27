@@ -454,6 +454,22 @@
   "work": null
  },
  {
+  "id": "c3.bath_3",
+  "price": 180,
+  "requires": [
+   "c3.bath_2"
+  ],
+  "work": null
+ },
+ {
+  "id": "c3.bath_4",
+  "price": 210,
+  "requires": [
+   "c3.bath_3"
+  ],
+  "work": null
+ },
+ {
   "id": "c3.comfort_soap",
   "price": 105,
   "requires": [

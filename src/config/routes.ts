@@ -489,7 +489,7 @@ export const RIVIERA_COAST: RouteDef = {
       ] },
     sleeper: { name: 'Sea-View Sleeper', pitch: '+6 sea-view berths', inside: '6 berths facing the sea',
       theme: { wall: '#D6EAF0', wallLow: '#8CC3D6', carpet: '#EEF2EE', deep: '#2E6F9A', blanket: '#5FA8D3', curtain: '#F7F4EE' } },
-    bathroom: { name: 'Washroom & Showers', pitch: '3 showers', inside: 'Three showers and a linen closet',
+    bathroom: { name: 'Washroom & Showers', pitch: '5 showers', inside: 'Five showers and a linen closet',
       theme: { wall: '#DDF0EE', wallLow: '#9ED6DC', carpet: '#F2F4F0', deep: '#3E9AA8', blanket: '#F2A6A0', curtain: '#FFFDF8' } },
     dining: { name: 'Seafood Diner', pitch: 'Grilled seafood', inside: 'A grill, the pass, 10 window tables',
       theme: { wall: '#E6EEF2', wallLow: '#6E9AB8', carpet: '#F1EDE4', deep: '#1E4E79', blanket: '#F7F4EE', curtain: '#E2B653' },
@@ -504,7 +504,7 @@ export const RIVIERA_COAST: RouteDef = {
       theme: { wall: '#F6E7C8', wallLow: '#E9C98E', carpet: '#EFD9AE', deep: '#2E9AA8', blanket: '#F28C6B', curtain: '#F7F4EE' } },
   },
   menu: { latte: 'smoothie', pastry: 'icecream', meal: 'seafood' },
-  layout: { lobbyRooms: 4, washrooms: ['shower', 'shower', 'shower'], diningRows: 5, surfboards: true, keepRooms: true, beachLounge: true },
+  layout: { lobbyRooms: 4, washrooms: ['shower', 'shower', 'shower', 'shower', 'shower'], diningRows: 5, surfboards: true, keepRooms: true, beachLounge: true },
   // Cold drinks and aloe on the coast: a welcome lemonade in the evening, aloe for the sunburnt in the morning; the
   // Sea-View Sleeper's guests have their beds turned down from Comfort up.
   requests: {

@@ -220,6 +220,54 @@ export class Synth {
         [2093, 2637, 3136].forEach((f, i) => this.bellNote(t + 0.42 + i * 0.05, f, 0.025 * v, 0.3));
         break;
       }
+      // ─── The Grand Departure ───
+      case 'farewell': {
+        // The hero shot over the finished train: a warm chord swelling under a slow bell phrase that rises and settles,
+        // a soft low mallet on each bar, and the crowd's applause far off.
+        this.pad(t, [196, 247, 294, 392], 0.032 * v, 1.0, 1.2, 1.4);
+        [392, 494, 587, 784, 659, 587, 659, 784].forEach((f, i) => this.bellNote(t + 0.35 + i * 0.28, f, 0.055 * v, 1.0));
+        [98, 131, 98].forEach((f, i) => this.mallet(t + 0.3 + i * 0.9, f * 2, 0.09 * v, 0.9, true));
+        this.applause(t + 1.4, 1.9, 0.02 * v);
+        break;
+      }
+      case 'points':
+        // The points throw over: a heavy iron clack and the rodding's rattle.
+        this.noise(t, 0.08, 'highpass', 2400, 0.18 * v);
+        this.tone(t, 140, 90, 0.18, 'sine', 0.32 * v, 0.003);
+        this.noise(t + 0.05, 0.22, 'bandpass', 900, 0.06 * v);
+        this.tone(t + 0.09, 2200, 2100, 0.12, 'sine', 0.04 * v, 0.002, this.dry, true);
+        break;
+      case 'tunnel':
+        // Into the tunnel: the train's roar swelling as the walls close in, cut off by the dark.
+        this.sweep(t, 2.0, 180, 900, 0.16 * v);
+        this.noise(t + 0.6, 1.4, 'lowpass', 420, 0.11 * v);
+        this.tone(t, 70, 92, 2.0, 'sine', 0.1 * v, 0.6);
+        break;
+      case 'surf': {
+        // Out onto the coast: two waves breaking and gulls crying over them.
+        this.sweep(t, 1.4, 300, 1400, 0.1 * v);
+        this.sweep(t + 1.0, 1.5, 260, 1200, 0.08 * v);
+        [[0.3, 1320, 980], [0.62, 1480, 1060], [1.4, 1250, 920]].forEach(([at, f0, f1]) => {
+          this.tone(t + at, f0, f1, 0.26, 'sine', 0.045 * v, 0.02, this.dry, true);
+          this.tone(t + at, f0 * 2.01, f1 * 2.01, 0.2, 'sine', 0.012 * v, 0.02);
+        });
+        break;
+      }
+      case 'steelband': {
+        // The welcome band: a bright calypso phrase on steel pans over a soft bass, ending on a ringing chord.
+        const pan = (at: number, f: number, g: number): void => {
+          this.tone(t + at, f, f, 0.5, 'sine', g * v, 0.004, this.dry, true);
+          this.tone(t + at, f * 2, f * 2, 0.3, 'sine', g * 0.45 * v, 0.003);
+          this.tone(t + at, f * 3.01, f * 3.01, 0.14, 'sine', g * 0.2 * v, 0.002);
+          this.noise(t + at, 0.02, 'highpass', 4000, g * 0.15 * v);
+        };
+        const phrase = [523, 659, 784, 880, 784, 659, 698, 587, 659, 784, 1046];
+        const beat = [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2, 1.35, 1.55];
+        phrase.forEach((f, i) => pan(beat[i], f, i === phrase.length - 1 ? 0.12 : 0.09));
+        [523, 659, 784].forEach((f) => pan(1.55, f, 0.06));
+        [131, 196, 175, 131].forEach((f, i) => this.mallet(t + i * 0.45, f, 0.1 * v, 0.45));
+        break;
+      }
       case 'ceremony': {
         // The Golden Whistle, the one big moment: a warm swelling chord, a bell arpeggio over it and soft applause.
         this.pad(t, [262, 330, 392, 523], 0.035 * v, 0.9, 0.7, 1.3);

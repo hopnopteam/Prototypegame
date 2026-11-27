@@ -795,8 +795,14 @@ function buildBathroom(): CarriageLayout {
   // cubicle round the loo with a basin outside it, then a shower room. The check-in desk moved to the Family Sleeper.
   const front = WASHROOM_FRONT;
   // Phase 4: a route may choose the rooms (the Riviera's Washroom & Showers: three showers).
-  const kinds = OPTIONS.washrooms ?? ['toilet', 'toilet', 'shower'];
-  const lengths = kinds.map((k) => (k === 'shower' ? SHOWER_LENGTH : TOILET_LENGTH));
+  // Owner (after Grand Departure A: "why does the Washroom car have such huge empty waste space? a room where you
+  // cannot do anything. Just replace it with another washroom"): the walled-off linen store at the back is gone; a
+  // second shower and a third toilet take its 5.4 m at their own sizes, and the rooms are evened out to end at the
+  // rear vestibule, so every metre is a room you use. The lounge's closet still holds the towels and rolls.
+  const kinds = OPTIONS.washrooms ?? ['toilet', 'toilet', 'shower', 'shower', 'toilet'];
+  const natural = kinds.map((k) => (k === 'shower' ? SHOWER_LENGTH : TOILET_LENGTH));
+  const fill = (BACK_ROOM_Z1 - front) / natural.reduce((sum, l) => sum + l, 0);
+  const lengths = natural.map((l) => l * fill);
   const end = front + lengths.reduce((sum, l) => sum + l, 0);
   b.shell({ frontGangway: true, doors: false });
   b.vestibules(front);
@@ -860,8 +866,6 @@ function buildBathroom(): CarriageLayout {
     z0 = z1;
   });
   b.wallAlongZ(PARTITION_X0, PARTITION_X1, front, end, gaps, 'interior');
-  // The linen store: clean towels and rolls on shelves, laundry baskets, a folding table.
-  backRoom(b, 'linen', 'right', PARTITION_X1, end + 0.06);
   b.node('corr_end', (-INNER + PARTITION_X0) / 2, CARRIAGE_LENGTH - REAR_VESTIBULE + 0.35);
   b.chain(previous, 'corr_end', 'vest_rear');
   b.anchor('tile_refurb', REAR_TILE_X, REAR_TILE_Z);

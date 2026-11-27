@@ -82,6 +82,12 @@ export const AUDIO = {
     miss: { level: 'normal', voices: 1, vary: false },
     levelup: { level: 'important', voices: 1, vary: false },
     ceremony: { level: 'rare', voices: 1, vary: false },
+    // The Grand Departure: each plays once in the sequence.
+    farewell: { level: 'rare', voices: 1, vary: false },
+    points: { level: 'important', voices: 1, vary: false },
+    tunnel: { level: 'normal', voices: 1, vary: false },
+    surf: { level: 'normal', voices: 1, vary: false },
+    steelband: { level: 'rare', voices: 1, vary: false },
   } as Record<string, CueRule>,
   defaultCue: { level: 'normal', cooldown: 0.05, voices: 2 } as CueRule,
   /** Repeated cues vary by up to this share in pitch and level, so they never sound robotic (partner: 3–5%). */
@@ -111,7 +117,7 @@ export const AUDIO = {
    * small cues in `quiet` for `holdOff` seconds after a big one starts.
    */
   celebration: {
-    cues: ['reveal', 'levelup', 'perfect', 'ceremony'],
+    cues: ['reveal', 'levelup', 'perfect', 'ceremony', 'farewell', 'steelband'],
     rewards: ['unlock', 'chest', 'staff', 'ready'],
     holdOff: 1.2,
     duck: 0.4,

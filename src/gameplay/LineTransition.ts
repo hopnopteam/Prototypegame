@@ -5,34 +5,47 @@ import { CameraPath, type CameraKey } from '../world/CameraPath';
 import { FLOOR_Y } from '../world/CarriageView';
 import { CARRIAGE_LENGTH, GANGWAY_LENGTH, LOCOMOTIVE_LENGTH, PLATFORM_X0 } from '../world/layout';
 import {
-  branchX, buildPortal, buildShed, buildTarpCarriage, buildWelcome, buildYard, disposeSet, setLever, setPoints, setShedDoors, setSignal,
+  branchX, buildGull, buildPortal, buildShed, buildTarpCarriage, buildWelcome, buildYard, disposeSet, setLever, setPoints, setShedDoors, setSignal,
   type Shed, type Welcome, type Yard,
 } from '../world/TransitionSet';
 import { canSkip, filePostcard, finishArrival } from '../sim/lineTransition';
 import { log } from '../core/log';
 import { TransitionUi } from '../ui/TransitionUi';
 import type { Game } from './Game';
+import type { Sfx } from '../audio/AudioEngine';
 
 /** Where a Debug-sheet preview remembers, across the reload in the tunnel, which transition it is playing. */
 export const PREVIEW_KEY = 'nightexpress.transitionPreview';
 
 type Phase = 'idle' | 'hero' | 'lever' | 'depot' | 'tunnel' | 'dark' | 'burst' | 'arrival' | 'chest' | 'postcard';
 
-/** Seconds of each timed beat (the hero shot's and the depot's come from the route's settings). */
+/**
+ * Seconds of each timed beat (the hero shot's and the arrival's come from the route's settings). Stage B tightened them
+ * to the brief's 25–35 s for the hero shot and the lever through the arrival (Stage A ran about 40 s).
+ */
 const LEVER_IN = 1.3;
-const LEVER_HOLD = 1.4;
-const TUNNEL_DARK = 0.9;
-const BURST_LIGHT = 1.3;
-const BURST_SLOW = [1.3, 2.3] as const;
+const LEVER_HOLD = 1.1;
+const TUNNEL_DARK = 0.8;
+const BURST_LIGHT = 1.0;
+const BURST_SLOW = [1.0, 1.7] as const;
 const BURST_SLOW_RATE = 0.35;
-const APPROACH = 7.2;
+const APPROACH = 6.0;
+/** How fast the engine and its new carriage pull away into the tunnel (metres = rate × seconds²). */
+const TUNNEL_PULL = 3.0;
+/** How fast the old carriages roll back into the shed (metres = rate × seconds²). */
+const ROLL_BACK = 1.6;
+/** How long the light takes to ease to the farewell's dusk. */
+const DUSK_EASE = 1.4;
+/** The welcome band's tempo (beats a second) and how many gulls wheel over the coast. */
+const BAND_BEATS = 2.2;
+const GULLS = 6;
 /** How far behind its stop the train starts, inside the coast's tunnel (metres). */
 const EXIT_OFFSET = 58;
 const EXIT_MOUTH = 40;
-/** The depot's shots. */
-const DEPOT_A = 2.6;
-const DEPOT_B = 7.0;
-const DEPOT_END = 10.6;
+/** The depot's shots: the uncoupling, the shed's doors shutting, the new carriage coupling on. */
+const DEPOT_A = 2.0;
+const DEPOT_B = 5.3;
+const DEPOT_END = 8.0;
 
 const v = (x: number, y: number, z: number): [number, number, number] => [x, y, z];
 const smooth = (u: number): number => { const c = Math.min(1, Math.max(0, u)); return c * c * (3 - 2 * c); };
@@ -143,8 +156,9 @@ export class LineTransition {
       { t: s * 0.68, pos: v(19, 17, rear * 0.34 + 6), look: v(-7, 2, rear * 0.24), fov: 42 },
       { t: s, pos: v(13, 10, 4), look: v(-4, 2.4, -8), fov: 40 },
     ]);
+    this.duskFrom = this.w.stage.lighting.time;
     this.enter('hero');
-    this.w.audio.play(def.farewell.sting as Parameters<Game['audio']['play']>[0]);
+    this.sound(def.farewell.sting as Sfx);
     this.w.haptics.success();
     this.fireworkTimer = 0;
   }
@@ -164,6 +178,7 @@ export class LineTransition {
       this.beatsLogged.clear();
     }
     this.begin();
+    this.holdDusk(false);
     const locoFront = -GANGWAY_LENGTH - LOCOMOTIVE_LENGTH;
     this.yard = buildYard(def, locoFront);
     this.addSet(this.yard.group);
@@ -203,7 +218,8 @@ export class LineTransition {
     this.thrownAt = this.t;
     this.ui.leverHint(false);
     this.ui.lever(false);
-    this.w.audio.play('clunk');
+    this.sound('clunk');
+    this.sound('points');
     this.w.haptics.heavy();
     this.w.stage.rig.shake(0.38, 0.55);
     const seconds = Math.max(0, this.t - LEVER_IN);
@@ -228,12 +244,13 @@ export class LineTransition {
     this.exitPortal.rotation.y = Math.PI;
     this.exitPortal.position.set(0, 0, EXIT_MOUTH);
     this.addSet(this.exitPortal);
-    this.gulls = buildGulls();
+    this.gulls = new THREE.Group();
+    for (let i = 0; i < GULLS; i++) this.gulls.add(buildGull());
     this.addSet(this.gulls);
     this.w.characters.hideEveryone = true;
     this.approach = 0;
     this.enter('burst');
-    this.w.audio.play('depart');
+    this.sound('depart');
   }
 
   // ─── The clock ──────────────────────────────────────────────────────────────
@@ -260,8 +277,20 @@ export class LineTransition {
     }
   }
 
+  /** Where the light was when the farewell began (it eases from there to the farewell's dusk). */
+  private duskFrom = 0;
+
+  /** Holds the old line at the farewell's dusk (eased in over `DUSK_EASE` when `ease`). */
+  private holdDusk(ease: boolean): void {
+    const target = this.def?.farewell.timeOfDay;
+    if (target === undefined) return;
+    const k = ease ? smooth(this.t / DUSK_EASE) : 1;
+    this.w.setTimeOfDay(this.duskFrom + (target - this.duskFrom) * k);
+  }
+
   private updateHero(dt: number): void {
     const def = this.def!;
+    this.holdDusk(true);
     this.fireworkTimer -= dt;
     if (this.fireworkTimer <= 0 && this.t > 0.6) {
       this.fireworkTimer = 0.42;
@@ -316,10 +345,10 @@ export class LineTransition {
     this.locoBase = this.w.train.loco.group.position.z;
     this.w.characters.hideEveryone = true;
     this.enter('depot');
+    // A cut, not a glide (a glide from the lever passed through the engine): side on at the coupling, the tender on one
+    // side, the first carriage on the other, the gap opening between them.
     this.path = new CameraPath([
-      { t: 0, pos: [this.camPos.x, this.camPos.y, this.camPos.z], look: [this.camLook.x, this.camLook.y, this.camLook.z], fov: this.fov },
-      // Side on at the coupling: the tender on one side, the first carriage on the other, the gap opening between.
-      { t: 0.8, pos: v(13, 4.2, -0.8), look: v(0, 1.3, -0.4), fov: 38 },
+      { t: 0, pos: v(12.6, 4.1, -1.4), look: v(0, 1.3, -0.6), fov: 38 },
       { t: DEPOT_A, pos: v(13.5, 4.4, 0.6), look: v(0, 1.3, 0.8), fov: 38 },
     ]);
   }
@@ -329,11 +358,11 @@ export class LineTransition {
     const train = this.w.train;
     const shed = this.shed!;
     // The carriages uncouple and roll back into the shed; the engine stays where it is.
-    if (t > 0.7 && t - 0.7 < 1 / 30 + 0.001) {
-      this.w.audio.play('clunk');
+    if (t > 0.7 && this.once('uncouple')) {
+      this.sound('clunk');
       this.w.stage.rig.shake(0.12, 0.3);
     }
-    const offset = t < 0.8 ? 0 : 0.9 * (t - 0.8) * (t - 0.8);
+    const offset = t < 0.8 ? 0 : ROLL_BACK * (t - 0.8) * (t - 0.8);
     if (t < DEPOT_B) {
       train.group.position.z = offset;
       train.loco.group.position.z = this.locoBase - offset;
@@ -341,18 +370,19 @@ export class LineTransition {
     if (t >= DEPOT_A && this.pathAt('depotB')) {
       const m = shed.mouthZ;
       this.path = new CameraPath([
-        { t: 0, pos: v(9.4, 3.4, m - 17), look: v(0, 2.0, m + 1), fov: 38 },
-        { t: DEPOT_B - DEPOT_A, pos: v(8.6, 3.0, m - 13), look: v(0, 2.2, m + 1), fov: 36 },
+        // The whole front of the shed, the train backing in, then holding as the doors close and the plaque shows.
+        { t: 0, pos: v(10.5, 3.6, m - 20), look: v(0, 2.4, m + 1), fov: 40 },
+        { t: DEPOT_B - DEPOT_A, pos: v(9.0, 3.0, m - 16.5), look: v(0, 2.8, m), fov: 38 },
       ], false);
     }
-    if (t >= 5.7 && this.once('dust')) for (let i = 0; i < 5; i++) this.w.particles.emit('dust', -2 + i, 1.2, shed.mouthZ - 1, 18, 0.8);
-    setShedDoors(shed, smooth((t - 5.8) / 1.0));
-    if (t >= 6.2 && this.once('hideOld')) this.hideOldTrain();
-    if (t >= 6.8 && this.once('shut')) {
-      this.w.audio.play('clunk');
+    if (t >= 4.0 && this.once('dust')) for (let i = 0; i < 5; i++) this.w.particles.emit('dust', -2 + i, 1.2, shed.mouthZ - 1, 18, 0.8);
+    setShedDoors(shed, smooth((t - 4.1) / 0.9));
+    if (t >= 4.5 && this.once('hideOld')) this.hideOldTrain();
+    if (t >= 5.0 && this.once('shut')) {
+      this.sound('clunk');
       this.w.stage.rig.shake(0.1, 0.25);
     }
-    (shed.plaque.material as THREE.MeshBasicMaterial).opacity = clamp01((t - 6.9) / 0.5);
+    (shed.plaque.material as THREE.MeshBasicMaterial).opacity = clamp01((t - 5.0) / 0.4);
     // The next line's first carriage rolls up behind the engine, couples, and its tarp blows off.
     if (t >= DEPOT_B && this.pathAt('depotC')) {
       train.group.position.z = 0;
@@ -365,23 +395,26 @@ export class LineTransition {
       ], false);
     }
     if (t >= DEPOT_B) {
-      const u = clamp01((t - DEPOT_B) / 1.6);
+      const u = clamp01((t - DEPOT_B) / 1.4);
       this.tarp!.position.z = 40 * (1 - (1 - (1 - u) * (1 - u)));
       if (u >= 1 && this.once('coupled')) {
-        this.w.audio.play('clunk');
+        this.sound('clunk');
         this.w.haptics.medium();
         this.w.stage.rig.shake(0.22, 0.35);
         this.w.particles.emit('dust', 0, 0.6, 0, 26, 1.2);
       }
-      const cover = this.tarp!.getObjectByName('tarp') as THREE.Mesh;
-      const k = clamp01((t - DEPOT_B - 2.0) / 1.2);
-      cover.position.y = 0.3 + 1.7 + k * 6;
-      cover.position.x = -k * 7;
-      cover.rotation.z = k * 0.9;
-      cover.rotation.x = k * 0.3;
+      // The tarp lifts off the coach, billows and is carried away over the lake side.
+      const cover = this.tarp!.getObjectByName('tarp')!;
+      const k = clamp01((t - DEPOT_B - 1.5) / 1.1);
+      const e = k * k;
+      cover.position.y = e * 5.5 + Math.sin(k * Math.PI) * 0.6;
+      cover.position.x = -e * 9;
+      cover.rotation.z = e * 0.85;
+      cover.rotation.x = Math.sin(k * Math.PI * 2) * 0.08;
+      cover.scale.set(1 + Math.sin(k * Math.PI) * 0.06, 1 - Math.sin(k * Math.PI) * 0.1, 1);
       cover.visible = k < 1;
       if (k > 0 && this.once('tarpOff')) {
-        this.w.audio.play('whoosh');
+        this.sound('whoosh');
         this.w.particles.emit('dust', 0, 2.5, CARRIAGE_LENGTH / 2, 40, 3);
       }
     }
@@ -409,7 +442,8 @@ export class LineTransition {
     runner.add(this.tarp!);
     this.runner = runner;
     this.sets.push(runner);
-    this.w.audio.play('whistle');
+    this.sound('whistle');
+    this.tunnelCue = false;
     this.ui.dawn(0);
     this.enter('tunnel');
     this.path = null;
@@ -419,7 +453,7 @@ export class LineTransition {
     const y = this.yard!;
     const r = this.runner!;
     const t = this.t;
-    const s = 2.3 * t * t;
+    const s = TUNNEL_PULL * t * t;
     const locoMid = -GANGWAY_LENGTH - LOCOMOTIVE_LENGTH / 2;
     const z = locoMid - s;
     r.position.z = z;
@@ -435,12 +469,18 @@ export class LineTransition {
     this.camPos.set(camX, 5.2, camZ);
     this.camLook.set(r.position.x, 1.6, Math.max(y.portalZ - 2, z - 7));
     this.w.stage.rig.place(this.camPos, this.camLook, 42);
+    if (!this.tunnelCue && z - LOCOMOTIVE_LENGTH / 2 <= y.portalZ + 22) {
+      this.tunnelCue = true;
+      this.sound('tunnel');
+    }
     if (z - LOCOMOTIVE_LENGTH / 2 <= y.portalZ + 0.5) {
       this.ui.dark(true, false);
-      this.w.audio.play('depart');
+      this.sound('depart');
       this.enter('dark');
     }
   }
+
+  private tunnelCue = false;
 
   private updateDark(): void {
     if (this.t < TUNNEL_DARK) return;
@@ -465,17 +505,18 @@ export class LineTransition {
     if (t >= BURST_LIGHT && this.once('flash')) {
       this.ui.dark(false, false);
       this.ui.flash();
-      this.w.audio.play('sparkle');
+      this.sound('sparkle');
+      this.sound('surf');
       this.w.haptics.medium();
       this.w.characters.hideEveryone = false;
     }
     // Inside the tunnel looking out, then swinging round to follow the train down the coast.
-    const swing = smooth((t - BURST_LIGHT + 0.2) / 3.6);
+    const swing = smooth((t - BURST_LIGHT + 0.2) / 3.0);
     const inside = new THREE.Vector3(2.0, 3.0, EXIT_MOUTH + 3);
     const angle = 0.2 + swing * 1.1;
     const radius = 8 + swing * 9;
     const follow = new THREE.Vector3(Math.sin(angle) * radius + 1, 4 + swing * 5, front + 2 + Math.cos(angle) * radius);
-    this.camPos.copy(inside).lerp(follow, smooth((t - 0.4) / 1.6));
+    this.camPos.copy(inside).lerp(follow, smooth((t - 0.3) / 1.4));
     this.camLook.set(0, 2, front - 2 - (1 - swing) * 10);
     this.w.stage.rig.place(this.camPos, this.camLook, 40 + swing * 2);
     animateGulls(this.gulls, this.clock, front);
@@ -493,8 +534,9 @@ export class LineTransition {
     this.bandPlayed = false;
     this.path = new CameraPath([
       { t: 0, pos: [this.camPos.x, this.camPos.y, this.camPos.z], look: [this.camLook.x, this.camLook.y, this.camLook.z], fov: this.fov },
-      { t: 2.6, pos: v(PLATFORM_X0 + 14, 9, -17), look: v(PLATFORM_X0 + 1.2, 2.0, -4), fov: 44 },
-      { t: def.arrival.seconds, pos: v(PLATFORM_X0 + 13, 11, 9), look: v(PLATFORM_X0 + 0.6, 1.2, -3), fov: 44 },
+      // Along the platform behind the welcome as the engine pulls in beside it, toward the arch, then up and wider.
+      { t: 2.2, pos: v(PLATFORM_X0 + 6.0, 4.6, 6), look: v(PLATFORM_X0 + 0.2, 1.6, -10), fov: 42 },
+      { t: def.arrival.seconds, pos: v(PLATFORM_X0 + 5.6, 7.8, 11), look: v(PLATFORM_X0 - 0.2, 1.3, -9.5), fov: 44 },
     ]);
   }
 
@@ -507,29 +549,47 @@ export class LineTransition {
     const p = clamp01(this.approach / APPROACH);
     train.group.position.z = EXIT_OFFSET * (1 - (1 - (1 - p) * (1 - p) * (1 - p)));
     const wel = this.welcome!;
-    for (let i = 0; i < wel.locals.length; i++) wel.locals[i].position.y = Math.abs(Math.sin(this.clock * 6 + i * 1.3)) * (i < 3 ? 0.06 : 0.22);
+    this.animateWelcome(dt);
     for (let i = 0; i < wel.torches.length; i++) wel.torches[i].scale.setScalar(0.85 + 0.2 * Math.abs(Math.sin(this.clock * 9 + i * 2.1)));
-    if (t > 1.0 && !this.bandPlayed) {
+    animateGulls(this.gulls, this.clock, train.group.position.z - GANGWAY_LENGTH - LOCOMOTIVE_LENGTH);
+    if (t > 0.7 && !this.bandPlayed) {
       this.bandPlayed = true;
-      this.w.audio.play(def.arrival.sting as Parameters<Game['audio']['play']>[0]);
+      this.sound(def.arrival.sting as Sfx);
       this.w.particles.emit('confetti', PLATFORM_X0 + 2.5, 3.5, -2, 80, 1.4);
     }
     // The livery sweep: sparkles run down the engine as its new colours go on.
-    const sweep = clamp01((t - 1.6) / 1.6);
+    const sweep = clamp01((t - 1.2) / 1.4);
     if (sweep > 0 && sweep < 1) this.w.particles.emit('sparkle', 1.4, 1.2 + ((this.clock * 13.7) % 1) * 2.4, -GANGWAY_LENGTH - LOCOMOTIVE_LENGTH + sweep * (LOCOMOTIVE_LENGTH + CARRIAGE_LENGTH), 3, 0.3);
     if (sweep >= 1 && !this.sweepDone) {
       this.sweepDone = true;
-      this.w.audio.play('chime');
+      this.sound('chime');
     }
     // The new name plate drops onto the cab side.
-    const drop = clamp01((t - 3.4) / 0.45);
+    const drop = clamp01((t - 2.9) / 0.45);
     wel.plate.position.y = 5.1 - 3 * drop * drop;
     if (drop >= 1 && !this.plateLanded) {
       this.plateLanded = true;
-      this.w.audio.play('clunk');
+      this.sound('clunk');
       this.w.stage.rig.shake(0.08, 0.2);
     }
     if (t >= def.arrival.seconds + 0.3) this.startChest();
+  }
+
+  /** The steel band plays on its pans and the locals wave the train in, then cheer as it stops. */
+  private animateWelcome(dt: number): void {
+    const wel = this.welcome;
+    if (!wel) return;
+    const beat = this.t * BAND_BEATS;
+    wel.people.forEach((view, i) => {
+      view.update(dt, 0);
+      if (i < 3) {
+        view.playInstrument('drum', beat + i * 0.13);
+        return;
+      }
+      // Each local waves in turn, every couple of seconds, and all of them cheer as the plate goes on.
+      if (this.t > 2.9 && this.t < 3.0) view.act('cheer', 1.2);
+      else if (Math.floor((this.t + i * 0.37) / 1.6) !== Math.floor((this.t + i * 0.37 - dt) / 1.6)) view.act('wave', 1.1);
+    });
   }
 
   private startChest(): void {
@@ -538,7 +598,7 @@ export class LineTransition {
     this.w.train.group.position.z = 0;
     this.enter('chest');
     this.path = null;
-    w.audio.play('chest');
+    this.sound('chest');
     const c = w.data.conductor;
     this.ui.chest(def, { gems: w.wallet.get('gems'), railMiles: w.wallet.get('railMiles'), conductor: `speed ${c.speed}, carry ${c.capacity}, fares ${c.fareBonus}` }, this.preview, () => this.collectChest());
   }
@@ -611,8 +671,14 @@ export class LineTransition {
 
   private autopilotWas = false;
 
+  /** One of the sequence's own sounds (heard while the world's are hushed). */
+  private sound(name: Sfx): void {
+    this.w.audio.play(name, { through: true });
+  }
+
   private begin(): void {
     const w = this.w;
+    w.audio.hushed = true;
     // The autopilot (tests, the pacing tools) steers through the stick: it waits until the sequence lets go.
     if (w.autopilot.enabled) {
       this.autopilotWas = true;
@@ -634,6 +700,8 @@ export class LineTransition {
       w.autopilot.enabled = true;
     }
     w.characters.hideEveryone = false;
+    w.audio.hushed = false;
+    w.setTimeOfDay(null);
     this.ui.cinematic(false);
     this.ui.lever(false);
     this.ui.leverHint(false);
@@ -703,34 +771,18 @@ function archiveId(w: Game, def: LineTransitionDef): string {
   return from ?? w.data.completedRoutes[w.data.completedRoutes.length - 1] ?? '';
 }
 
-/** Three gulls (stand-ins: a body and two wings that flap) wheeling over the coast. */
-function buildGulls(): THREE.Group {
-  const g = new THREE.Group();
-  const white = new THREE.MeshLambertMaterial({ color: '#F4F4F0' });
-  for (let i = 0; i < 4; i++) {
-    const bird = new THREE.Group();
-    bird.add(new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.55), white));
-    for (const side of [-1, 1]) {
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.03, 0.26), white);
-      wing.position.x = side * 0.42;
-      wing.name = side < 0 ? 'l' : 'r';
-      bird.add(wing);
-    }
-    g.add(bird);
-  }
-  return g;
-}
-
+/** The gulls wheeling over the coast as the train comes out (each a body and two wings that flap). */
 function animateGulls(g: THREE.Group | null, time: number, aroundZ: number): void {
   if (!g) return;
   g.children.forEach((bird, i) => {
-    const a = time * (0.5 + i * 0.07) + i * 1.7;
-    bird.position.set(-6 + Math.cos(a) * (6 + i), 7 + i * 0.8 + Math.sin(a * 2) * 0.6, aroundZ - 6 + Math.sin(a) * (8 + i * 2));
-    bird.rotation.y = -a;
-    const flap = Math.sin(time * 9 + i) * 0.5;
+    const a = time * (0.45 + i * 0.06) + i * 1.7;
+    bird.position.set(-6 + Math.cos(a) * (6 + i), 7 + i * 0.7 + Math.sin(a * 2) * 0.6, aroundZ - 6 + Math.sin(a) * (8 + i * 1.6));
+    // Heading along their circle (their beaks point -z at rest), banking into the turn.
+    bird.rotation.set(0, -a, 0.35);
+    const flap = Math.sin(time * 7 + i * 1.3) * 0.55;
     const l = bird.getObjectByName('l');
     const r = bird.getObjectByName('r');
-    if (l) l.rotation.z = flap;
-    if (r) r.rotation.z = -flap;
+    if (l) l.rotation.z = -flap;
+    if (r) r.rotation.z = flap;
   });
 }
