@@ -2,7 +2,7 @@
 """The Grand Departure film's encoder (Stage B): the frames from scripts/transition-film.mjs, the game's own sounds
 mixed onto a track at the frames they played, then the whole film and two ad cuts (30 s and 15 s) as H.264 MP4s.
 
-Usage: python3 scripts/transition-film.py <outdir> [--crf=18]
+Usage: python3 scripts/transition-film.py <outdir> [--crf=18] [--cuts-only]
 
 The sound: every cue the game asked for is in film.json with its frame, its volume and pitch; each is mixed from the
 game's own pre-rendered buffer (dumped by the recorder) at its step on the volume ladder, behind the game's master
@@ -17,7 +17,7 @@ import sys
 import numpy as np
 
 out = os.path.abspath(sys.argv[1])
-opts = dict(a[2:].split('=') for a in sys.argv[2:] if a.startswith('--'))
+opts = dict((a[2:].split('=') + [''])[:2] for a in sys.argv[2:] if a.startswith('--'))
 CRF = opts.get('crf', '18')
 film = json.load(open(os.path.join(out, 'film.json')))
 FPS = film['fps']
@@ -84,13 +84,16 @@ def run(cmd):
     subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-track = mix_track()
+# --cuts-only: the ad cuts again from the film already encoded (an end card changed), nothing else.
+CUTS_ONLY = 'cuts-only' in opts
+track = None if CUTS_ONLY else mix_track()
 frames_in = ['-framerate', str(FPS), '-i', os.path.join(out, 'frames', 'f%05d.jpg')]
 video = ['-c:v', 'libx264', '-preset', 'slow', '-crf', CRF, '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
 # The cuts and the film's parts for the web page: the same quality, capped so each file stays under 15 MB.
 web = ['-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-maxrate', '3.6M', '-bufsize', '7M', '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
 audio = ['-c:a', 'aac', '-b:a', '160k']
-run(['ffmpeg', '-y', *frames_in, '-i', track, *video, *audio, '-shortest', os.path.join(out, 'film.mp4')])
+if not CUTS_ONLY:
+    run(['ffmpeg', '-y', *frames_in, '-i', track, *video, *audio, '-shortest', os.path.join(out, 'film.mp4')])
 
 
 def beat_spans():
@@ -188,4 +191,5 @@ def chapters():
         print(f'film-part{n}.mp4', round(a, 2), round(b, 2))
 
 
-chapters()
+if not CUTS_ONLY:
+    chapters()
