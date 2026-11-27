@@ -108,8 +108,11 @@ export interface LineTransitionDef {
   };
 
   /**
-   * The line-complete chest, the sequence's one reward. Kept modest; the owner approves the amounts. Paid once, with
-   * the save that marks it paid (sim/lineTransition.ts), so a relaunch never pays it twice.
+   * The line-complete chest, the sequence's one reward, paid once with the save that marks it paid
+   * (sim/lineTransition.ts), so a relaunch never pays it twice. Sized to be spent on the new line straight away (owner:
+   * "go with what's best for retention"): the gems are the price of a Paint Shop livery (the cheapest is 120), so the
+   * new train can be painted the moment it arrives, and the Rail Miles buy a conductor upgrade (3/6/10), so the
+   * player starts the new line a step faster than they left the old one.
    */
   chest: { gems: number; railMiles: number };
 
@@ -144,7 +147,7 @@ export const COUNTRYSIDE_TO_RIVIERA: LineTransitionDef = {
     sting: 'steelband',
     seconds: 6,
   },
-  chest: { gems: 30, railMiles: 10 },
+  chest: { gems: 120, railMiles: 10 },
   postcard: { frame: '#C9A35E', ink: '#2F5F4F', stamp: 'COUNTRYSIDE LINE', caption: 'The Countryside Express, restored' },
   captions: {
     hero: 'Look what you built',
@@ -183,7 +186,7 @@ export const RIVIERA_TO_WINTER: LineTransitionDef = {
     sting: 'steelband',
     seconds: 6,
   },
-  chest: { gems: 40, railMiles: 14 },
+  chest: { gems: 150, railMiles: 14 },
   postcard: { frame: '#3E8FC9', ink: '#1F4F7A', stamp: 'RIVIERA COAST LINE', caption: 'The Riviera Coast Line, complete' },
   captions: {
     hero: 'Look what you built',

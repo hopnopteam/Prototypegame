@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LIVERIES } from '../src/world/palette';
 import { AFTER_RELOAD, BEFORE_RELOAD, COUNTRYSIDE_TO_RIVIERA, RIVIERA_TO_WINTER, TRANSITIONS, type TransitionBeat } from '../src/config/lineTransition';
 import { ROUTES } from '../src/config/routes';
 import { createDefaultSave, mergeDefaults, type SaveData } from '../src/save/SaveData';
@@ -42,7 +43,11 @@ describe('The Grand Departure: the template', () => {
     for (const t of Object.values(TRANSITIONS)) {
       for (const beat of ['hero', 'lever', 'depot', 'tunnel', 'burst', 'arrival', 'chest', 'postcard'] as TransitionBeat[]) expect(t.captions[beat], `${t.to} ${beat}`).toBeTruthy();
       expect(t.chest.gems).toBeGreaterThan(0);
-      expect(t.chest.gems).toBeLessThanOrEqual(60);
+      // Owner ("go with what's best for retention"): enough to paint the new train in the Paint Shop straight away (the
+      // cheapest premium livery), never a pile that makes gems meaningless.
+      const cheapest = Math.min(...LIVERIES.filter((l) => l.gems).map((l) => l.gems!));
+      expect(t.chest.gems).toBeGreaterThanOrEqual(cheapest);
+      expect(t.chest.gems).toBeLessThanOrEqual(200);
     }
   });
 

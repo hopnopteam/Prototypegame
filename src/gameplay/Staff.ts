@@ -63,7 +63,7 @@ export class StaffMember implements Actor {
     this.pos = { x: home.x, z: home.z };
     this.rest = w.map.hasAnchor(carriage, `idle_${role}`) ? w.map.anchor(carriage, `idle_${role}`) : home;
     this.view = new CharacterView(STAFF_LOOKS[role]);
-    this.stack = new CarryStack(this.view.stackAnchor, w.scene, w.tweens, this.baseCapacity(), this.view.boardAnchor);
+    this.stack = new CarryStack(this.view.stackAnchor, w.scene, w.tweens, this.baseCapacity(), this.view.boardAnchor, this.view);
     this.mover = new Mover(this.pos, this.baseSpeed());
     w.scene.add(this.view.root);
   }
@@ -137,6 +137,8 @@ export class StaffMember implements Actor {
     this.view.setCarrying(this.stack.stacked > 0, this.stack.board);
     if (this.stack.stacked > 0) this.view.setGrip(this.stack.gripHalf);
     this.view.stackCount = this.stack.stacked;
+    this.view.setHandBags(this.stack.handBags(0), this.stack.handBags(1));
+    this.view.stackReach = this.stack.reach;
     if (this.stack.count > this.lastCount) this.view.act('pickup');
     else if (this.stack.count < this.lastCount) this.view.act('place');
     this.lastCount = this.stack.count;

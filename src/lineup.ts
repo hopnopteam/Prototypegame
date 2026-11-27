@@ -7,6 +7,9 @@ import { GeoBuilder } from './world/geo';
 import { MATERIALS } from './world/materials';
 import { Stage } from './world/Stage';
 import { guestLook } from './gameplay/guestLook';
+import { CarryStack } from './gameplay/CarryStack';
+import { Tweens } from './core/Tween';
+import type { ItemKind } from './core/types';
 
 document.getElementById('loader')?.remove();
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
@@ -30,6 +33,10 @@ looks.splice(0, from);
 looks.splice(count);
 const cols = Number(params.get('cols') ?? '4');
 const views: CharacterView[] = [];
+const tweens = new Tweens();
+const stacks: [CarryStack, CharacterView][] = [];
+// ?items=luggage,luggage,towel: what each figure carries (bags go into the hands, the rest on the stack).
+const items = (params.get('items') ?? '').split(',').filter(Boolean) as ItemKind[];
 const walk = params.get('walk') === '1';
 looks.forEach((l, i) => {
   const c = new CharacterView(l.look, l.scale ?? 1);
@@ -44,6 +51,11 @@ looks.forEach((l, i) => {
   if (params.get('act')) c.act(params.get('act') as never, 99);
   stage.scene.add(c.root);
   views.push(c);
+  if (items.length) {
+    const st = new CarryStack(c.stackAnchor, stage.scene, tweens, 12, c.boardAnchor, c);
+    for (const k of items) st.add(k);
+    stacks.push([st, c]);
+  }
 });
 stage.rig.clampZ = [-40, 400];
 const camX = Number(params.get('x') ?? '0');
@@ -55,6 +67,15 @@ function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   const again = params.get('act');
+  tweens.update(dt);
+  for (const [st, c] of stacks) {
+    c.setCarrying(st.stacked > 0, st.board);
+    if (st.stacked > 0) c.setGrip(st.gripHalf);
+    c.stackCount = st.stacked;
+    c.setHandBags(st.handBags(0), st.handBags(1));
+    c.stackReach = st.reach;
+    st.update(dt, walk, now / 1000);
+  }
   for (const v of views) {
     if (again && params.get('loop') === '1' && v.currentAction === 'none') v.act(again as never, 99);
     v.update(dt, walk ? Number(params.get('speed') ?? '1.6') : 0);
@@ -69,7 +90,8 @@ function frame(now: number): void {
   cam.position.set(0.15 * dist, 0.75 * dist, cz + 0.75 * dist);
   cam.lookAt(0, 0.5, cz);
   stage.render(dt);
-  requestAnimationFrame(frame);
+  if (params.get('manual') !== '1') requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
+if (params.get('manual') !== '1') requestAnimationFrame(frame);
+(window as unknown as { __frame: (n: number) => void }).__frame = (n: number) => { for (let i = 0; i < n; i++) frame(last + 1000 / 60); };
 (window as unknown as { __ready: boolean }).__ready = true;

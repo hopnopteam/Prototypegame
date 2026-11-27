@@ -1211,6 +1211,7 @@ body.look-new .sheet h2, body.look-new .celebrate .card .name, body.look-new .ba
 .gd-chest-gains { display: flex; justify-content: center; gap: 12px; margin: 10px 0; font: 800 18px var(--font); }
 .gd-chest-gains .gem { color: #2E7DB8; }
 .gd-chest-gains .miles { color: #3F6E53; }
+.gd-chest-hint { margin: -4px 0 8px; font: 600 12px var(--font); color: #6B5A44; }
 .gd-brought-title { font: 700 13px var(--font); color: #6B5A3A; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 6px; }
 .gd-brought { list-style: none; margin: 6px 0 12px; padding: 0; font: 600 14px/1.5 var(--font); color: #2A2A2E; }
 .gd-preview { font: 700 12px var(--font); color: #B8322B; margin-bottom: 8px; }

@@ -128,13 +128,35 @@ def cut(name, pieces):
         filt.append(f'[0:v]trim={a:.3f}:{b:.3f},setpts=PTS-STARTPTS[v{i}];[0:a]atrim={a:.3f}:{b:.3f},asetpts=PTS-STARTPTS,afade=t=in:d=0.04,afade=t=out:st={max(0, b - a - 0.06):.3f}:d=0.06[a{i}]')
     concat = ''.join(f'[v{i}][a{i}]' for i in range(len(parts)))
     filt.append(f'{concat}concat=n={len(parts)}:v=1:a=1[v][a]')
-    path = os.path.join(out, name)
-    run(['ffmpeg', '-y', '-i', os.path.join(out, 'film.mp4'), '-filter_complex', ';'.join(filt), '-map', '[v]', '-map', '[a]', *web, *audio, path])
+    body = os.path.join(out, 'body-' + name)
+    run(['ffmpeg', '-y', '-i', os.path.join(out, 'film.mp4'), '-filter_complex', ';'.join(filt), '-map', '[v]', '-map', '[a]', *web, *audio, body])
     total = sum(b - a for a, b in parts)
-    print(name, f'{total:.1f} s', [(round(a, 2), round(b, 2)) for a, b in parts])
+    end_card(body, total, os.path.join(out, name))
+    print(name, f'{total + END_CARD - END_FADE:.1f} s', [(round(a, 2), round(b, 2)) for a, b in parts])
 
 
-# The 30 s cut: the farewell, the lever, the coupling and the tarp, the tunnel, out onto the coast, the welcome, the chest.
+# The end card: the game's name and a call to play over a blur of the cut's last frame (scripts/film-endcard.mjs),
+# crossfaded in as the sound fades.
+END_CARD = 1.6
+END_FADE = 0.3
+
+
+def end_card(body, total, path):
+    last = os.path.join(out, 'last.jpg')
+    card = os.path.join(out, 'endcard.png')
+    run(['ffmpeg', '-y', '-sseof', '-0.05', '-i', body, '-frames:v', '1', '-q:v', '2', last])
+    w, h = 390 * film['scale'], 844 * film['scale']
+    subprocess.run(['node', 'scripts/film-endcard.mjs', last, card, str(w), str(h)], check=True)
+    off = total - END_FADE
+    filt = (f'[0:v]setsar=1,fps={FPS},format=yuv420p[a0];[1:v]scale={w}:{h},setsar=1,fps={FPS},format=yuv420p[b0];'
+            f'[a0][b0]xfade=transition=fade:duration={END_FADE}:offset={off:.3f}[v];'
+            f'[0:a]afade=t=out:st={off:.3f}:d={END_FADE},apad=whole_dur={total + END_CARD - END_FADE:.3f}[a]')
+    run(['ffmpeg', '-y', '-i', body, '-loop', '1', '-t', str(END_CARD), '-i', card, '-filter_complex', filt, '-map', '[v]', '-map', '[a]', *web, *audio, '-t', f'{total + END_CARD - END_FADE:.3f}', path])
+    os.remove(body)
+
+
+# The 30 s cut: the farewell, the lever, the coupling and the tarp, the tunnel, out onto the coast, the welcome, the
+# chest opening, the end card.
 cut('cut-30s.mp4', [
     ('hero', 0.0, 4.5),
     ('lever', -2.2, 0),
@@ -144,15 +166,15 @@ cut('cut-30s.mp4', [
     ('dark', 0, 0.4),
     ('burst', 0, 0),
     ('arrival', 0, 5.8),
-    ('chest', 0, 2.6),
+    ('chest', 0, 1.3),
 ])
-# The 15 s cut: the hero shot, the throw, the tarp off, into the tunnel and out onto the coast.
+# The 15 s cut: the hero shot, the throw, the tarp off, into the tunnel and out onto the coast, the end card.
 cut('cut-15s.mp4', [
     ('hero', 0.6, 3.1),
     ('lever', -1.0, 0),
     ('depot', 6.0, 8.0),
     ('tunnel', -1.6, 0),
-    ('burst', 0.7, 4.7),
+    ('burst', 0.7, 3.4),
     ('arrival', 1.0, 4.9),
 ])
 

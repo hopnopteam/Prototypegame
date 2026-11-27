@@ -453,6 +453,27 @@ const ARM_SAMPLES: [boolean, number, number][] = [[false, -0.12, 0.048], [false,
 /** Points along the leg: [on the shin, height below its pivot, forward] (the shoe's toe and heel too); the leg's radius is the look's. */
 const LEG_SAMPLES: [boolean, number, number, number][] = [[false, -0.06, 0, 0], [false, -0.1, 0, 0], [false, -0.14, 0, 0], [false, -0.18, 0, 0], [false, KNEE_Y, 0, 0], [true, -0.04, 0, 0], [true, -0.08, 0, 0], [true, -0.12, 0, 0], [true, -0.16, 0, 0.06], [true, -0.13, 0.07, 0.035], [true, -0.15, 0.115, 0.03], [true, -0.17, 0.13, 0.03], [true, -0.15, -0.045, 0.03], [true, -0.2, -0.05, 0.03], [true, -0.19, 0.06, 0.05], [true, -0.02, 0, 0], [false, -0.2, 0, 0]];
 
+/**
+ * Bags in the hands (owner: "I liked before how he had two bags in each hand"): a suitcase hangs from each hand by its
+ * handle, at this size, and a second one in the same hand hangs beside it on the outside. The arm is held out just far
+ * enough that the inner case clears the hips, the legs and whatever hangs below the waist (BAG_CLEAR).
+ */
+export const BAG_SCALE = 0.55;
+/** The case's depth across the body (the suitcase model is 0.34 m deep; it hangs turned along the body). */
+export const BAG_DEPTH = 0.34 * BAG_SCALE;
+/** How far below the middle of the mitten the top of the case's handle sits (the bar through the closed hand). */
+export const BAG_HANDLE_IN = 0.024;
+/** The gap left between the inner case and the body below the waist. */
+const BAG_CLEAR = 0.035;
+/** The arm's length to the middle of the hand, for working out how far out to hold it. */
+const ARM_TO_HAND = 0.32;
+/** The stack anchor's depth in front of the body (m), and where the carrying hands take its bottom item: this far up
+ * its side and this far in from its back (the solve gets as close as the arm reaches). */
+const STACK_Z = 0.29;
+const HOLD_UNDER = 0.04;
+const HOLD_BEHIND = -0.02;
+/** The hand anchor: the middle of the mitten, below the elbow. */
+const HAND_AT = HAND_Y - ELBOW_Y + 0.025;
 /** The ground speed (m/s) the walk cycle is drawn at, at most, while `runGait` is 0. */
 const WALK_ANIM_SPEED = 2.6;
 
@@ -462,6 +483,8 @@ export class CharacterView {
   readonly root = new THREE.Group();
   readonly body = new THREE.Group();
   readonly stackAnchor = new THREE.Object3D();
+  /** Where a bag in each hand hangs from (children of the elbows, turned each frame so what hangs from them hangs straight). */
+  readonly handAnchors: THREE.Object3D[] = [];
   /** Where a carried surfboard rides: on its edge under the left arm, pointing the way they walk. */
   readonly boardAnchor = new THREE.Object3D();
   private readonly legs: THREE.Object3D[] = [];
@@ -551,6 +574,10 @@ export class CharacterView {
       const fore = castsShadow(new THREE.Mesh(forearmGeometryFor(look, side), MATERIALS.character));
       elbow.add(fore);
       pivot.add(elbow);
+      const hand = new THREE.Object3D();
+      hand.position.y = HAND_AT;
+      elbow.add(hand);
+      this.handAnchors.push(hand);
       pivot.rotation.z = side * 0.1;
       this.body.add(pivot);
       this.arms.push(pivot);
@@ -559,8 +586,9 @@ export class CharacterView {
       this.foreMeshes.push(fore);
     }
 
-    this.stackAnchor.position.set(0, STACK_BASE_Y, 0.29);
+    this.stackAnchor.position.set(0, STACK_BASE_Y, STACK_Z);
     this.body.add(this.stackAnchor);
+    this.measureFigure();
     this.boardAnchor.position.set(-0.27, 0.43, 0.04);
     this.body.add(this.boardAnchor);
 
@@ -582,7 +610,141 @@ export class CharacterView {
     this.shinMeshes.forEach((m) => (m.geometry = shinGeometryFor(look)));
     this.upperMeshes.forEach((m) => (m.geometry = upperArmGeometryFor(look)));
     this.foreMeshes.forEach((m, i) => (m.geometry = forearmGeometryFor(look, i === 0 ? -1 : 1)));
+    this.measureFigure();
   }
+
+  /**
+   * Owner ("the player animation looks stiff when walking, it glitches"): measured, the hands jumped up to 24 cm in a
+   * single frame while walking. The arms hung at 0.1 rad, inside the chest by design, so the clearance push (keepClear)
+   * ran on every frame, and the way it pushed (forward or out) flipped as the arm swung through. Each figure now finds
+   * the angle its arm rests at clear of its own body (bisection), so a walking arm swings free and the push is left for
+   * the poses that need it; also where its face is (a tall stack in front is kept clear of it) and how far out a bag
+   * in the hand must hang to clear what is below the waist.
+   */
+  private measureFigure(): void {
+    const arm = this.arms[1];
+    const elbow = this.elbows[1];
+    const x = arm.rotation.x;
+    const z = arm.rotation.z;
+    const e = elbow.rotation.x;
+    arm.rotation.x = 0;
+    elbow.rotation.x = -0.18;
+    let lo = 0;
+    let hi = 0.9;
+    for (let k = 0; k < 14; k++) {
+      const mid = (lo + hi) / 2;
+      arm.rotation.z = mid;
+      if (this.armDepth(1) > 0) lo = mid; else hi = mid;
+    }
+    this.restZ = hi + 0.015;
+    arm.rotation.set(x, 0, z);
+    elbow.rotation.x = e;
+    // The widest the body gets where a bag hangs (from the hand down to a case's height below it).
+    let r = 0;
+    for (let y = 0.18; y <= 0.5; y += 0.01) r = Math.max(r, this.solidRadius(y), 0.078 + this.legRadius + 0.03);
+    this.bagR = r;
+    // The longest stride the cloth below the waist allows, over a whole walk cycle (the knee as the walk bends it).
+    this.strideCap = 9;
+    const skirt = this.skirt;
+    if (skirt) {
+      const lx = [this.legs[0].rotation.x, this.legs[1].rotation.x];
+      const kx = [this.knees[0].rotation.x, this.knees[1].rotation.x];
+      const fits = (cap: number): boolean => {
+        for (let k = 0; k < 32; k++) {
+          const ph = (k / 32) * Math.PI * 2;
+          const sn = Math.sin(ph);
+          const cs = Math.cos(ph);
+          this.legs[0].rotation.x = sn * cap;
+          this.legs[1].rotation.x = -sn * cap;
+          this.knees[0].rotation.x = 0.04 + Math.max(0, -cs) * cap * 1.3 + Math.max(0, sn) * cap * 0.25;
+          this.knees[1].rotation.x = 0.04 + Math.max(0, cs) * cap * 1.3 + Math.max(0, -sn) * cap * 0.25;
+          if (this.legOutside(0, skirt) || this.legOutside(1, skirt)) return false;
+        }
+        return true;
+      };
+      let lo = 0;
+      let hi = 0.8;
+      for (let k = 0; k < 12; k++) {
+        const mid = (lo + hi) / 2;
+        if (fits(mid)) lo = mid; else hi = mid;
+      }
+      this.strideCap = lo;
+      for (let i = 0; i < 2; i++) { this.legs[i].rotation.x = lx[i]; this.knees[i].rotation.x = kx[i]; }
+    }
+    const g = this.headMesh.geometry;
+    if (!g.boundingBox) g.computeBoundingBox();
+    this.faceFront = g.boundingBox!.max.z;
+    this.faceLow = NECK_Y + g.boundingBox!.min.y;
+  }
+  /** The longest stride (leg swing, rad) the cloth below the waist allows (measured per figure). */
+  private strideCap = 9;
+  /** The arm's resting angle out from the body, clear of it (rad; measured per figure). */
+  private restZ = 0.3;
+  /** The body's widest radius where a bag hangs (m). */
+  private bagR = 0.16;
+  /** How far forward the face (and a hat's brim) reaches in the body's frame, and the height its lowest point is at. */
+  faceFront = 0.24;
+  faceLow = 0.8;
+  /** Bags in each hand (0, 1 or 2). */
+  private readonly handBags = [0, 0];
+
+  /** Bags hanging from the hands: how many in the left (0) and the right (1). */
+  setHandBags(left: number, right: number): void {
+    this.handBags[0] = left;
+    this.handBags[1] = right;
+  }
+
+  /** The arm angle out from the body that holds `n` bags clear of it. */
+  private bagAbduct(n: number): number {
+    const handX = this.bagR + BAG_CLEAR + (n >= 2 ? BAG_DEPTH : BAG_DEPTH / 2);
+    return Math.max(this.restZ, Math.asin(Math.min(0.95, (handX - SHOULDER_X) / ARM_TO_HAND)));
+  }
+  /** The arm's carrying pose (pitch, out-angle, elbow) for the current grip, solved once per grip. */
+  private holdKey = '';
+  private readonly hold = [-0.5, 0.3, -1.1];
+  private holdPose(): number[] {
+    const tx = this.gripHalf + GRIP_OUTSIDE - SHOULDER_X;
+    const ty = STACK_BASE_Y + HOLD_UNDER - SHOULDER_Y;
+    const tz = STACK_Z + this.stackReach - HOLD_BEHIND;
+    const key = `${tx.toFixed(3)} ${tz.toFixed(3)}`;
+    if (key === this.holdKey) return this.hold;
+    this.holdKey = key;
+    // The hand anchor's place for a pose, relative to the shoulder (the right arm; the left mirrors it): the arm is
+    // turned out by z, then pitched by x, the forearm bent by e at the elbow (three's XYZ order).
+    const err = (x: number, z: number, e: number): number => {
+      const sy = ELBOW_Y + HAND_AT * Math.cos(e);
+      const sz = HAND_AT * Math.sin(e);
+      const px = -sy * Math.sin(z);
+      const py0 = sy * Math.cos(z);
+      const py = py0 * Math.cos(x) - sz * Math.sin(x);
+      const pz = py0 * Math.sin(x) + sz * Math.cos(x);
+      // Sideways counts most: a hand short of the side is a hand inside the load.
+      return 12 * Math.max(0, tx - px) ** 2 + (px - tx) ** 2 + (py - ty) ** 2 + (pz - tz) ** 2 + 0.002 * (e + 1.1) ** 2;
+    };
+    const q = this.hold;
+    q[0] = -0.5; q[1] = Math.asin(Math.max(-1, Math.min(1, tx / GRIP_REACH))); q[2] = -1.1;
+    const lo = [-1.9, -0.25, -2.3];
+    const hi = [0.2, 0.9, -0.05];
+    let step = 0.4;
+    let best = err(q[0], q[1], q[2]);
+    for (let it = 0; it < 60 && step > 0.002; it++) {
+      let moved = false;
+      for (let k = 0; k < 3; k++) {
+        for (const d of [step, -step]) {
+          const old = q[k];
+          q[k] = Math.max(lo[k], Math.min(hi[k], old + d));
+          const e = err(q[0], q[1], q[2]);
+          if (e < best) { best = e; moved = true; } else q[k] = old;
+        }
+      }
+      if (!moved) step /= 2;
+    }
+    return q;
+  }
+  /** Which way each arm was last pushed clear (forward or out), held so it never flips back and forth. */
+  private readonly armFront = [false, false];
+  /** How much a tall stack in front has been moved forward to clear the face (m); the arms reach for it. */
+  stackReach = 0;
 
   /** Leg pivots (for footwear attachments) and the body group (for chest and shoulder gear). */
   get legPivots(): readonly THREE.Object3D[] {
@@ -1138,7 +1300,9 @@ export class CharacterView {
     }
     for (const leg of this.legs) leg.scale.y = 1;
     const moving = speed > 0.2;
-    this.phase += dt * (moving ? 3 + speed * 2.2 : 1.6);
+    // Small quick steps where the cloth shortens the stride (a gown), so the feet keep up with the ground.
+    const quick = moving && this.swingNow > this.strideCap ? Math.min(1.6, Math.sqrt(this.swingNow / this.strideCap)) : 1;
+    this.phase += dt * (moving ? (3 + speed * 2.2) * quick : 1.6);
     // Session 38b (after the ad playable): the swing and the forward lean ease in and out, so starting and stopping
     // never snap the legs.
     const swingTarget = moving ? Math.min(0.75, 0.25 + speed * 0.12) : 0;
@@ -1150,14 +1314,18 @@ export class CharacterView {
     if (moving && side !== this.lastStrideSide) this.footfall = true;
     this.lastStrideSide = side;
     const c = Math.cos(this.phase);
-    this.legs[0].rotation.x = s * swing;
-    this.legs[1].rotation.x = -s * swing;
+    // Under a skirt, a gown or a coat's tails the stride is never longer than the cloth allows (measured once per
+    // figure, strideCap): shortening it frame by frame made the feet jump.
+    const stride = Math.min(swing, this.strideCap);
+    this.legs[0].rotation.x = s * stride;
+    this.legs[1].rotation.x = -s * stride;
     // Pass 2: the knee folds as its leg swings through (the foot clears the floor) and straightens to land.
-    this.kneeAim[0] = 0.04 + Math.max(0, -c) * swing * 1.3 + Math.max(0, s) * swing * 0.25;
-    this.kneeAim[1] = 0.04 + Math.max(0, c) * swing * 1.3 + Math.max(0, -s) * swing * 0.25;
+    this.kneeAim[0] = 0.04 + Math.max(0, -c) * stride * 1.3 + Math.max(0, s) * stride * 0.25;
+    this.kneeAim[1] = 0.04 + Math.max(0, c) * stride * 1.3 + Math.max(0, -s) * stride * 0.25;
     // A step's bob while walking, a slow breath while standing; the forward lean eases with the pace. A tall stack
     // makes the walker lean back to balance it.
-    const walkBob = Math.abs(c) * 0.06 * (swing / 0.75);
+    // A smooth bob (it used to follow |cos|, which turns sharply at every footfall: a jolt each step).
+    const walkBob = c * c * 0.05 * (swing / 0.75);
     this.body.position.y = walkBob + (1 - Math.min(1, swing / 0.3)) * Math.sin(this.phase) * 0.008;
     const balance = this.carrying ? -Math.min(0.09, Math.max(0, this.stackCount - 2) * 0.02) : 0;
     this.leanNow += ((moving ? 0.08 : 0) + balance - this.leanNow) * Math.min(1, dt * 10);
@@ -1166,23 +1334,43 @@ export class CharacterView {
     const idle = 1 - Math.min(1, swing / 0.2);
     this.body.position.x = Math.sin(this.phase * 0.55) * 0.012 * idle;
     this.headYaw = Math.sin(this.phase * 0.42) * 0.22 * idle - s * 0.06 * (1 - idle);
+    // Owner ("looks stiff"): the hips turn with the stride and the weight rolls onto the foot that is down, the head
+    // keeping level against both, so the walk is not a stiff post with swinging limbs. A tall stack or bags keep the
+    // turn smaller (the load steadies it), and a stack held in front of the face keeps the head still.
+    const loaded = this.carrying || this.handBags[0] + this.handBags[1] > 0 ? 0.5 : 1;
+    const walkShare = Math.min(1, swing / 0.5);
+    this.walkTwist = s * 0.07 * walkShare * loaded;
+    this.walkRoll = -s * c * 0.05 * walkShare;
+    if (this.stackReach > 0 || (this.carrying && this.stackCount > 2)) this.headYaw *= 0.2;
 
     // An action owns the arms while it runs; otherwise they swing with the walk (or carry, or wave).
     if (this.action === 'none') {
       for (let i = 0; i < 2; i++) {
         const arm = this.arms[i];
         const side = i === 0 ? -1 : 1;
-        let x = (i === 0 ? -s : s) * swing * 0.85;
-        let z = side * 0.1;
+        // The arm swings a moment behind the leg (it is carried along by the turning body), from its rest angle clear
+        // of the body.
+        let x = (i === 0 ? -1 : 1) * Math.sin(this.phase - 0.25) * swing * 0.8;
+        let z = side * this.restZ;
         // The elbow bends more as the arm swings forward, and a little all the time (a relaxed arm is never straight).
         let elbow = -0.18 - Math.max(0, -x) * 0.75;
+        const bags = this.handBags[i];
+        if (bags > 0) {
+          // A suitcase in the hand: the arm hangs nearly straight, held out just clear of the body by the case's
+          // weight, and swings a little with the stride.
+          x = (i === 0 ? -1 : 1) * Math.sin(this.phase - 0.25) * swing * 0.16;
+          z = side * this.bagAbduct(bags);
+          elbow = -0.06;
+        }
         if (this.carrying) {
-          // Holding the stack out in front: upper arms forward, forearms level under it, hands in toward the middle.
-          x = -0.5 + Math.sin(this.phase * 2) * 0.03 * swing;
-          // The hands at the load's sides, a finger's width outside them: the arm turned out (or in) just so far.
-          const reach = Math.max(-1, Math.min(1, (this.gripHalf + GRIP_OUTSIDE - SHOULDER_X) / GRIP_REACH));
-          z = side * Math.max(-0.22, Math.min(0.6, Math.asin(reach)));
-          elbow = -1.1;
+          // Holding the stack out in front: upper arms forward, forearms level under it, hands at its sides. A stack
+          // moved out to clear the face is reached for (the arms further forward, the elbows opened).
+          // Each hand is put at the side of the bottom item, a finger's width outside it, by a small two-bone solve
+          // (holdPose): as far out in front as the stack sits, reaching straighter for one moved out to clear the face.
+          const hold = this.holdPose();
+          x = hold[0] + Math.sin(this.phase * 2) * 0.03 * swing;
+          z = side * hold[1];
+          elbow = hold[2];
         }
         if (this.carryBoard && i === 0) {
           // A surfboard under the left arm: the arm out round it, the forearm along it, the hand under its rail.
@@ -1211,8 +1399,9 @@ export class CharacterView {
       }
     }
 
-    this.body.rotation.y = 0;
-    this.body.rotation.z = 0;
+    this.body.rotation.y = this.walkTwist;
+    this.body.rotation.z = this.walkRoll;
+    this.head.rotation.z = -this.walkRoll;
     this.applyAction(dt);
     this.applyJoints(dt, 20);
 
@@ -1240,6 +1429,21 @@ export class CharacterView {
     this.head.rotation.y += (this.headYaw - this.head.rotation.y) * h;
     this.head.rotation.x += (this.headPitch - this.head.rotation.x) * h;
     this.keepClear();
+    this.straightenHands();
+  }
+
+  private readonly handQ = new THREE.Quaternion();
+  private readonly handQ2 = new THREE.Quaternion();
+  /** What hangs from a hand hangs straight down (in the body's frame), whatever angle the arm is at. */
+  private straightenHands(): void {
+    for (let i = 0; i < 2; i++) {
+      if (this.handBags[i] === 0) continue;
+      const a = this.handAnchors[i];
+      this.handQ.setFromEuler(this.arms[i].rotation);
+      this.handQ2.setFromEuler(this.elbows[i].rotation);
+      this.handQ.multiply(this.handQ2).invert();
+      a.quaternion.copy(this.handQ);
+    }
   }
 
   /**
@@ -1256,7 +1460,15 @@ export class CharacterView {
       if (this.armDepth(i) <= 0) continue;
       const side = i === 0 ? -1 : 1;
       // Which way out: forward when the arm crosses the front of the body, sideways otherwise.
-      const front = this.clearScratch.z > 0.02;
+      // Walking or standing empty-handed the arm is only ever eased out to the side (it swings forward and back, so
+      // a forward push would chase it). Otherwise the way out is kept once chosen, and changes only when the deepest
+      // point is well to the other side, so it never flips from one frame to the next.
+      const deep = this.clearScratch.z;
+      let front = this.armFront[i];
+      if (this.action === 'none' && !this.carrying) front = false;
+      else if (deep > 0.06) front = true;
+      else if (deep < -0.02) front = false;
+      this.armFront[i] = front;
       const x0 = arm.rotation.x;
       const z0 = arm.rotation.z;
       this.armIntent[i * 2] = x0;
@@ -1310,6 +1522,8 @@ export class CharacterView {
   private readonly clearScratch = new THREE.Vector3();
   /** The arms' rotation (x, z) as the animation asked for it, before this frame's clearance push. */
   private readonly armIntent = [0, 0, 0, 0];
+  private walkTwist = 0;
+  private walkRoll = 0;
   private readonly armPushed = [false, false];
 
   /** How far (m) the arm's deepest sample sinks into the body below the armpit (≤ 0 when clear); the point is kept. */
@@ -1359,7 +1573,8 @@ export class CharacterView {
       p.applyMatrix4(leg.matrix);
       // A little below the hem too, so the cloth keeps a margin over the leg as it passes the edge.
       if (p.y <= hem - 0.015 || p.y >= waist) continue;
-      const R = profileRadius(skirt, p.y);
+      // Just under the hem the cloth's own edge is the limit (the profile has no radius below it).
+      const R = profileRadius(skirt, Math.max(p.y, hem));
       if (R <= r) return true;
       if (Math.hypot(p.x / (R - r), p.z / (R * TORSO_DEPTH - r)) > 1) return true;
     }
@@ -1460,6 +1675,11 @@ export class CharacterView {
     this.head.rotation.set(0, 0, 0);
     this.carryBoard = false;
     this.carryBox = false;
+    this.handBags[0] = 0;
+    this.handBags[1] = 0;
+    this.stackReach = 0;
+    this.walkTwist = 0;
+    this.walkRoll = 0;
     this.stackCount = 0;
     this.root.position.set(0, 0, 0);
     this.root.rotation.set(0, 0, 0);

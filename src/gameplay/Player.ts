@@ -54,7 +54,7 @@ export class Player implements Actor {
 
   constructor(private readonly w: World, private readonly input: Input, spawn: Vec2) {
     this.pos = { x: spawn.x, z: spawn.z };
-    this.stack = new CarryStack(this.view.stackAnchor, w.scene, w.tweens, this.capacity(), this.view.boardAnchor);
+    this.stack = new CarryStack(this.view.stackAnchor, w.scene, w.tweens, this.capacity(), this.view.boardAnchor, this.view);
     this.travel = new PathFollower(w);
     this.gear = new ConductorGear(this.view, CONDUCTOR_LOOK);
     w.scene.add(this.view.root);
@@ -199,9 +199,12 @@ export class Player implements Actor {
     this.view.setPosition(this.pos.x, FLOOR_Y, this.pos.z);
     this.view.setFacing(this.facing);
     // Character pass 2: what is carried sets the arms, and every item taken or handed over gets its own quick move.
+    this.stack.setRightBusy(w.station.supplyInHand);
     this.view.setCarrying(this.stack.stacked > 0, this.stack.board, w.station.supplyInHand);
     if (this.stack.stacked > 0) this.view.setGrip(this.stack.gripHalf);
     this.view.stackCount = this.stack.stacked;
+    this.view.setHandBags(this.stack.handBags(0), this.stack.handBags(1));
+    this.view.stackReach = this.stack.reach;
     if (this.stack.count > this.lastCount) this.view.act('pickup');
     else if (this.stack.count < this.lastCount) this.view.act('place');
     this.lastCount = this.stack.count;

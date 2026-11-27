@@ -119,7 +119,7 @@ export class TransitionUi {
     card.append(el('div', 'gd-chest-lid'), el('div', 'gd-chest-title', def.captions.chest ?? 'Line complete'));
     const gains = el('div', 'gd-chest-gains');
     gains.append(el('span', 'gem', `+${def.chest.gems} gems`), el('span', 'miles', `+${def.chest.railMiles} Rail Miles`));
-    card.append(gains);
+    card.append(gains, el('div', 'gd-chest-hint', 'Enough for a new livery and a conductor upgrade'));
     const list = el('ul', 'gd-brought');
     list.append(el('li', '', `Gems: ${brought.gems}`), el('li', '', `Rail Miles: ${brought.railMiles}`), el('li', '', `Conductor upgrades: ${brought.conductor}`));
     card.append(el('div', 'gd-brought-title', 'What you brought along'), list);
