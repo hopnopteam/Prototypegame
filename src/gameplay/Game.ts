@@ -380,7 +380,7 @@ export class Game implements World {
         this.station.onLastCall();
         this.events.emit('journey.lastCall', {});
       },
-    }, route.stationIndex, route.legsCompleted, route.stopsCompleted, route.stopsCompleted > 0 || route.legsCompleted > 0 ? this.econ.journey.resumeSeconds : undefined,
+    }, route.stationIndex, route.legsCompleted, route.stopsCompleted, DEBUG_JUMP?.end ? END_LEG_SECONDS : route.stopsCompleted > 0 || route.legsCompleted > 0 ? this.econ.journey.resumeSeconds : undefined,
     // A brand-new game opens standing at Millbrook, its first passengers boarding (Station.startPrologue).
     route.stopsCompleted === 0 && route.legsCompleted === 0 ? 'stationStop' : 'onTheMove');
 
@@ -1558,4 +1558,33 @@ function applyDebugJump(data: SaveData, jump: DebugJump): void {
   data.profile.lifetimePlaySeconds = Math.max(data.profile.lifetimePlaySeconds, 900);
   data.profile.flags.openingSeen = true;
   data.profile.gaSent = {};
+  if (jump.end) endOfTheLine(data);
+}
+
+/**
+ * The end of the line: the ride to the grand station is this long, and the last level this many stars away, so it
+ * comes on the way (a level reached at a stop waits a whole leg for the next station: 4:52 to the switch, measured).
+ */
+const END_LEG_SECONDS = 90;
+const END_STARS_SHORT = 10;
+
+/**
+ * The end-of-the-line jump (`?jump=end`, config/debugJump.ts): one level short of the route's last, a few stars below
+ * it, the tease up, and the Grand Departure not yet seen, so the player plays into it as a player who got there would:
+ * the last level, the grand station at the next stop, the hero shot, the ticket, the lever, the tunnel and the next line.
+ */
+function endOfTheLine(data: SaveData): void {
+  const thresholds = ECONOMY.progression.levelThresholds;
+  const last = thresholds.length;
+  const route = data.route;
+  route.level = last - 1;
+  route.stars = thresholds[last - 1] - END_STARS_SHORT;
+  route.stopsCompleted = Math.max(route.stopsCompleted, 12);
+  route.legsCompleted = Math.max(route.legsCompleted, 12);
+  data.wallet.cash = Math.max(data.wallet.cash, 6400);
+  data.wallet.gems = Math.max(data.wallet.gems, 40);
+  data.wallet.railMiles = Math.max(data.wallet.railMiles, 18);
+  const flags = data.profile.flags;
+  flags.coach_done = true;
+  for (const key of [`grand_${ACTIVE_ROUTE.id}`, `route_done_${ACTIVE_ROUTE.id}`, 'transition_seen']) delete flags[key];
 }

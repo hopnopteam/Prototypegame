@@ -80,6 +80,9 @@ export class RouteLine {
     if (this.grandIn < 0) return;
     // A Debug preview of the line transition may be on screen: the grand station waits for it.
     if (this.w.lineTransition.running) return;
+    // Nor does it start under a card (the last level's card can still be up as the train pulls in). Not on the fast
+    // path, so the pacing simulator stays byte-identical.
+    if (!FAST_PATH && this.w.ui.sheetOpen) return;
     this.grandIn -= dt;
     if (this.grandIn <= 0) {
       this.grandIn = -1;

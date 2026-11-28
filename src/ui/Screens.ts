@@ -971,6 +971,8 @@ export class Screens {
       h('button.btn', { onclick: () => this.carryOverSheet() }, 'Carry-over test'),
       // The Grand Departure: plays the route-change sequence now (nothing carried over, nothing paid).
       h('div.section-title', { text: 'Line transition' }),
+      // Session 70: the end of Route 1, played into (the last level a minute away, then the grand station and the switch).
+      h('button.btn.primary', { onclick: () => setDebugJump({ carriages: CARRIAGE_ORDER.length, tier: 3, staffed: true, end: true }) }, 'Play from the end of the line'),
       h('div.debug-pick.two', {},
         h('button.btn', { onclick: () => { this.closeAllSheets(); this.game.routeLine.preview(); } }, 'Play line transition'),
         h('button.btn', { onclick: () => { this.closeAllSheets(); this.game.routeLine.preview('riviera'); } }, 'Winter City placeholder'),
