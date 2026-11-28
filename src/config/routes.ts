@@ -569,10 +569,14 @@ export const RIVIERA_COAST: RouteDef = {
     fareMultiplier: 2,
     // The seventh coupling 6,000 → 5,100 (15,000 → 12,750 in play): two seeds saved 10–12 minutes for it (Phase 4c).
     // The second coupling 360 → 290 (900 → 725 in play, Phase 4d): at 900 the third carriage came at 9 or 17–22 minutes by seed.
-    couplePrices: [60, 290, 220, 800, 2100, 3500, 5100, 12500],
-    // The longer route's last hour: the dearest tiles grow a little more, and First Class and the Royal Suites cost more.
+    // Session 69, re-measured after the revamp (the coast's own carriage order and Tiki Suites that keep every room):
+    // five average seeds took 246–266 minutes to the ninth carriage and only one finished the route (266), each
+    // waiting 10 minutes for the last coupling and each Tiki Suites refit. The last two couplings 5,100 → 4,400 and
+    // 12,500 → 8,800 (12,750 → 11,000 and 31,250 → 22,000 in play), the Tiki Suites at ×1.0 (was ×1.2).
+    couplePrices: [60, 290, 220, 800, 2100, 3500, 4400, 8800],
+    // The longer route's last hour: the dearest tiles grow a little more.
     priceCurve: { from: 600, to: 6000, max: 1.25 },
-    classRefit: { fromTier: 4, multiplier: 1.2 },
+    classRefit: { fromTier: 4, multiplier: 1.0 },
     slotPrice: [0.85, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2],
     // Its own level thresholds: with Route 1's, level 8 came at about 130 minutes of a 216-minute route; stretched so the
     // last levels keep coming until near the end.
