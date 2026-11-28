@@ -221,15 +221,15 @@ async function run(profile, seed) {
     // Session 69, a debugging aid: DUMP_FROM=<seconds> prints what the bot is doing every chunk from then on (where it
     // stands, what it is guided to, its path), and DUMP_UNTIL ends the run there.
     if (process.env.DUMP_FROM && now >= Number(process.env.DUMP_FROM)) {
-      const d = await page.evaluate(() => {
+      const d = await page.evaluate((deep) => {
         const g = window.nightExpress;
         const p = g.player.pos;
         const f = g.guidance.focus;
         const near = (g.map.walk.blocked ?? []).filter((r) => r.x0 < p.x + 0.8 && r.x1 > p.x - 0.8 && r.z0 < p.z + 0.8 && r.z1 > p.z - 0.8).map((r) => `[${r.x0.toFixed(2)},${r.z0.toFixed(2)}..${r.x1.toFixed(2)},${r.z1.toFixed(2)}]`).join(' ');
         const path = (g.autopilot.path ?? []).slice(0, 4).map((q) => `${q.x.toFixed(2)},${q.z.toFixed(2)}`).join(' > ');
-        if (process.env.DUMP_DEEP) return `pos ${p.x.toFixed(3)},${p.z.toFixed(3)} path ${path} near ${near}`;
+        if (deep) return `pos ${p.x.toFixed(3)},${p.z.toFixed(3)} path ${path} near ${near}`;
         return `pos ${p.x.toFixed(2)},${p.z.toFixed(2)} walk ${g.map.walk.isWalkable(p.x, p.z)} reason ${g.guidance.reason} focus ${f ? `${f.x?.toFixed?.(2)},${f.z?.toFixed?.(2)}` : '-'} carry [${g.player.stack.items.join(',')}] box ${g.station.supplyInHand} cupboard ${g.station.cupboardNeed?.() ?? '?'} cart ${g.station.cartWanted?.()} phase ${g.journey.phase} doors ${g.journey.doorsOpen} stick ${JSON.stringify(g.input.override)}`;
-      });
+      }, !!process.env.DUMP_DEEP);
       process.stderr.write(`[dump s${seed}] ${fmt(now)} ${d}\n`);
       if (process.env.DUMP_UNTIL && now >= Number(process.env.DUMP_UNTIL)) break;
     }
