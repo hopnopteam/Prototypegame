@@ -89,6 +89,28 @@ function escapeRoute(w: World, from: Vec2): Vec2[] | null {
 const NEIGHBOURS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
 /**
+ * Session 69 (found by the pacing simulator on the Riviera): furniture can seal off a sliver of open floor (behind the
+ * Smoothie Bar's lakeside tables, a strip 15 cm wide boxed in by four tables and chairs) with no way out at all, and
+ * a walker who ends up in it is stuck for good. Where they stand is such a pocket when no nav node is in sight and no
+ * route on open floor leads to one; the open floor nearest them that does connect, or null.
+ */
+export function pocketExit(w: World, from: Vec2): Vec2 | null {
+  if (seenNode(w, from) || escapeRoute(w, from)) return null;
+  const walk = w.map.walk;
+  for (let r = POCKET_STEP; r <= POCKET_REACH; r += POCKET_STEP) {
+    for (let k = 0; k < POCKET_DIRECTIONS; k++) {
+      const a = (k / POCKET_DIRECTIONS) * Math.PI * 2;
+      const p = { x: from.x + Math.cos(a) * r, z: from.z + Math.sin(a) * r };
+      if (walk.isWalkable(p.x, p.z) && seenNode(w, p, ESCAPE_SIGHT)) return p;
+    }
+  }
+  return null;
+}
+const POCKET_STEP = 0.1;
+const POCKET_REACH = 3;
+const POCKET_DIRECTIONS = 16;
+
+/**
  * A walkable route for the player from `from` to `target` over the nav graph, string-pulled so it never
  * zigzags or walks backwards. Shared by the autopilot and quick travel.
  */

@@ -11,13 +11,16 @@ const DASH_CORNER_SPEED = 1.2;
 const TURN_SHARPNESS = 22;
 import type { Vec2 } from '../core/types';
 import { FLOOR_Y } from '../world/CarriageView';
+
+/** Session 69: pushing this long without moving checks for a sealed pocket of floor. */
+const POCKET_CHECK_SECONDS = 1.5;
 import { CharacterView, CONDUCTOR_LOOK } from '../world/CharacterView';
 import type { Actor } from './Actor';
 import { CarryStack } from './CarryStack';
 import { OUTFITS, type OutfitDef } from '../config/wardrobe';
 import { ConductorGear } from '../world/ConductorGear';
 import type { Input } from './Input';
-import { PathFollower } from './PathPlanner';
+import { PathFollower, pocketExit } from './PathPlanner';
 import type { World } from './World';
 
 const PLAYER_SCALE = 1.1;
@@ -36,6 +39,8 @@ export class Player implements Actor {
   private facing = Math.PI;
   idleSeconds = 0;
   speedNow = 0;
+  /** How long the conductor has pushed without moving (a sealed pocket is checked for after `POCKET_CHECK_SECONDS`). */
+  private pushedFor = 0;
   /** Current velocity (m/s), for the camera's lead. */
   get velocity(): { x: number; z: number } {
     return { x: this.vx, z: this.vz };
@@ -181,6 +186,19 @@ export class Player implements Actor {
       this.pos.x = free.x;
       this.pos.z = free.z;
     }
+    // Session 69: pushing for a while without moving at all may mean a sealed pocket of floor (furniture all round, no
+    // way out); then step onto the nearest open floor that connects, as when a door shuts on the conductor.
+    if (Math.hypot(tx, tz) > 0.3 && this.speedNow < 0.02) {
+      this.pushedFor += dt;
+      if (this.pushedFor > POCKET_CHECK_SECONDS) {
+        this.pushedFor = 0;
+        const out = pocketExit(w, this.pos);
+        if (out) {
+          this.pos.x = out.x;
+          this.pos.z = out.z;
+        }
+      }
+    } else this.pushedFor = 0;
     const moving = Math.hypot(this.vx, this.vz) > 0.05;
     if (moving) {
       const before = { x: this.pos.x, z: this.pos.z };
