@@ -577,8 +577,9 @@ export const RIVIERA_COAST: RouteDef = {
     // Session 69: the bot buys something every one to three minutes to the end, so the route's length is everything's
     // price over the income: with the revamp's carriages it finished at 265 minutes (target 210–240). The dearest
     // tiles no longer grow faster than the rest (the curve's top ×1.25 → ×1.0), the last carriages' surcharge is
-    // flattened (×1.1–1.2 → ×1.05) and the Tiki Suites cost ×0.85.
-    priceCurve: { from: 600, to: 6000, max: 1.0 },
+    // flattened (×1.1–1.2 → ×1.05) and the Tiki Suites cost ×0.85: 249 minutes (242–269), so the dearest tiles a little
+    // under the rest (the curve's top ×0.88).
+    priceCurve: { from: 600, to: 6000, max: 0.88 },
     classRefit: { fromTier: 4, multiplier: 0.85 },
     slotPrice: [0.85, 0.85, 0.9, 0.95, 1.0, 1.05, 1.05, 1.05, 1.05],
     // Its own level thresholds: with Route 1's, level 8 came at about 130 minutes of a 216-minute route; stretched so the

@@ -227,9 +227,10 @@ async function run(profile, seed) {
         const f = g.guidance.focus;
         const near = (g.map.walk.blocked ?? []).filter((r) => r.x0 < p.x + 0.8 && r.x1 > p.x - 0.8 && r.z0 < p.z + 0.8 && r.z1 > p.z - 0.8).map((r) => `[${r.x0.toFixed(2)},${r.z0.toFixed(2)}..${r.x1.toFixed(2)},${r.z1.toFixed(2)}]`).join(' ');
         const path = (g.autopilot.path ?? []).slice(0, 4).map((q) => `${q.x.toFixed(2)},${q.z.toFixed(2)}`).join(' > ');
+        if (deep === 'staff') return `staff ${g.staff.members.filter((m) => m.role === 'porter').map((m) => `${m.role}@${m.carriage} ${m.pos.x.toFixed(1)},${m.pos.z.toFixed(1)} task ${m.task ? `${m.task.kind ?? m.task.label ?? '?'}/${m.task.role ?? ''}` : '-'} stack [${m.stack.items.join(',')}]`).join(' | ')} canBoard ${g.guests.canBoard()} window ${g.guests.windowReady()} queue ${g.guests.list.filter((x) => x.state === 'platform' && !x.paid).map((x) => `${x.spot}:${x.ready ? 'r' : '-'}${x.atSpot ? 'a' : ''}`).join(',')}`;
         if (deep) return `pos ${p.x.toFixed(3)},${p.z.toFixed(3)} path ${path} near ${near}`;
         return `pos ${p.x.toFixed(2)},${p.z.toFixed(2)} walk ${g.map.walk.isWalkable(p.x, p.z)} reason ${g.guidance.reason} focus ${f ? `${f.x?.toFixed?.(2)},${f.z?.toFixed?.(2)}` : '-'} carry [${g.player.stack.items.join(',')}] box ${g.station.supplyInHand} cupboard ${g.station.cupboardNeed?.() ?? '?'} cart ${g.station.cartWanted?.()} phase ${g.journey.phase} doors ${g.journey.doorsOpen} stick ${JSON.stringify(g.input.override)}`;
-      }, !!process.env.DUMP_DEEP);
+      }, process.env.DUMP_DEEP ?? '');
       process.stderr.write(`[dump s${seed}] ${fmt(now)} ${d}\n`);
       if (process.env.DUMP_UNTIL && now >= Number(process.env.DUMP_UNTIL)) break;
     }
