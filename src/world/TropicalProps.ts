@@ -43,6 +43,9 @@ const C = {
 /** The look a carriage's tier gives: passenger carriages climb 1 Repair, 2 Comfort, 4 First (the coast's Tiki Paradise). */
 function lookOf(type: string, tier: number): number {
   if (tier <= 0) return 0;
+  // Session 69: the Honeymoon Suites' last refit is their third (Ocean Suites), so it brings the Tiki look (canopy beds,
+  // drapes, lanterns, petals); a sleeper's third look comes with its fourth tier.
+  if (type === 'honeymoon') return Math.min(3, tier);
   if (isPassengerType(type as never)) return tier >= 4 ? 3 : tier >= 2 ? 2 : 1;
   return Math.min(3, tier);
 }
@@ -239,6 +242,21 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
         // between the camera and the floor).
         place(b, 'lantern_post', front - out * 0.08, floor, r.z0 + 0.08, 0.6, 1.25, Math.PI);
       }
+      // Session 69 (the play car's second pass toward its reference's density): toys left out on the mats in front of
+      // each corner's big piece, and from Tiki a garland of flowers along the wall above it.
+      switch (prop.variant) {
+        case 'ballpit': place(b, 'toy_train', front - out * 0.36, floor, cz + 0.05, 0.66, 0.2, Math.PI / 2); break;
+        case 'ship': place(b, 'toy_blocks', front - out * 0.3, floor, r.z0 + 0.4, 0.46, 0.3); break;
+        case 'sandpit': place(b, 'toy_blocks', front - out * 0.32, floor, r.z0 + 0.3, 0.42, 0.28); break;
+        case 'swings': place(b, 'toy_blocks', front - out * 0.32, floor, r.z0 + 0.34, 0.44, 0.3); break;
+        default: break;
+      }
+      if (rich && out > 0) {
+        const e = modelEntry('flower_garland');
+        const span = Math.min(1.15, d - 0.2);
+        const sc = span / (e.max[0] - e.min[0]);
+        b.model('flower_garland', back + out * 0.05, Y + 1.0, cz, Math.PI / 2, sc, sc, sc, { shade: 1, surface: 'fabric' });
+      }
       return true;
     }
     case 'beachDecor': {
@@ -306,8 +324,21 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
       b.model('puppet_hut', cx, Y, cz, out > 0 ? 0 : Math.PI, (w - 0.02) / (e.max[0] - e.min[0]), 1, (d - 0.02) / (e.max[2] - e.min[2]), { shade: 0.95, surface: 'wood' });
       return true;
     }
+    case 'massageTable': {
+      // Session 69 (the spa reference): from Bamboo the spa's tables are the third kit's teak massage table (a teal
+      // runner, a folded towel with a frangipani, rolled towels on its shelf), its head at the front like the classic one.
+      if (look < 2) return false;
+      const e = modelEntry('spa_table');
+      b.model('spa_table', cx, Y, cz, Math.PI, (w - 0.04) / (e.max[0] - e.min[0]), 1, (d - 0.04) / (e.max[2] - e.min[2]), { shade: 0.95, surface: 'wood' });
+      return true;
+    }
     case 'plant':
     case 'planter': {
+      // Session 69: the spa's planters flower at Tiki Luxury (hibiscus and fern in a woven box).
+      if (type === 'spa' && look >= 3) {
+        place(b, 'spa_planter', cx, Y, cz, Math.min(w, d) + 0.12, 0.8);
+        return true;
+      }
       // A monstera in a woven pot (a palm-leaf plant at Driftwood: the same model, smaller).
       const size = Math.min(w, d);
       place(b, 'monstera', cx, Y, cz, size, look === 1 ? 0.7 : 0.95);
@@ -434,6 +465,8 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
           }
           if (look >= 3) {
             place(b, 'palm_pot', wallX + out * 0.28, Y, r.z1 - 0.26, 0.6, 1.6);
+            // Session 69: a foot bath of warm water and petals beside the basin (the spa reference).
+            place(b, 'foot_bath', cx - out * 0.18, Y, r.z1 - 0.62, 0.44, 0.26);
             lamps.sphere(cx + out * 0.15, Y + 0.24, r.z1 - 0.35, 0.03, C.flame, 0, 1.4);
           }
           return true;
@@ -461,6 +494,14 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
           return true;
         }
         case 'lights':
+          // Session 69: at Tiki Luxury flower garlands swag along under the lights (the spa reference's leis).
+          if (look >= 3) {
+            const e = modelEntry('flower_garland');
+            const span = 1.15;
+            const n = Math.floor(d / span);
+            const sc = (span - 0.05) / (e.max[0] - e.min[0]);
+            for (let k = 0; k < n; k++) b.model('flower_garland', r.x0 + 0.06, Y + 1.0, r.z0 + (k + 0.5) * (d / n), Math.PI / 2, sc, sc, sc, { shade: 1, surface: 'fabric' });
+          }
           // String lights along the window tops, as on the beach.
           b.box(r.x0 + 0.02, Y + 1.08, cz, 0.012, 0.012, d, '#3A2A22', 0, { shade: 1 });
           for (let z = r.z0 + 0.15; z < r.z1; z += 0.5) {
@@ -558,15 +599,21 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
           b.cylinder(px, top - 0.2, r.z1 - 0.05, 0.004, 0.004, 0.14, '#3A2A22', 4, 'y', { shade: 1 });
           lamps.sphere(px, top - 0.31, r.z1 - 0.05, 0.06, '#FFD9A0', 0, 1.4);
         }
-        b.box(cx, Y + BED_TOP + 0.02, r.z0 + d * 0.66, w - 0.05, 0.006, d * 0.56, C.hibiscus, 0, { shade: 1, pattern: PATTERN.stripesX, color2: '#F4D58A', scale: 0.16, surface: 'fabric' });
+        // Session 69: a honeymoon couple's throw is blush and ivory (the hibiscus-and-gold stripe shouted in a suite).
+        const honey = type === 'honeymoon';
+        b.box(cx, Y + BED_TOP + 0.02, r.z0 + d * 0.66, w - 0.05, 0.006, d * 0.56, honey ? '#F3D3DC' : C.hibiscus, 0, { shade: 1, pattern: PATTERN.stripesX, color2: honey ? '#FBF3EE' : '#F4D58A', scale: honey ? 0.1 : 0.16, surface: 'fabric' });
         const sz = r.z0 + d * 0.72;
         for (const side of [-1, 1]) {
           b.rounded(cx + side * 0.07, Y + BED_TOP + 0.07, sz, 0.12, 0.08, 0.2, 0.04, '#FFFFFF', { shade: 1, surface: 'fabric' });
           b.add(new THREE.TorusGeometry(0.06, 0.016, 6, 10, Math.PI).rotateY(Math.PI / 2), '#FFFFFF', cx + side * 0.035, Y + BED_TOP + 0.14, sz - 0.06, 0, 0, 0, { shade: 1, surface: 'fabric' });
         }
-        for (let i = 0; i < 10; i++) {
-          const a = (i / 10) * Math.PI * 2;
-          b.sphere(cx + Math.cos(a) * 0.2, Y + BED_TOP + 0.03, sz + Math.sin(a) * 0.24, 0.022, i % 2 ? C.hibiscus : '#F27BAA', 0, 0.35, { shade: 1 });
+        // The petals round the swans: a ring, and for the honeymoon couples a heart.
+        const petals = honey ? 16 : 10;
+        for (let i = 0; i < petals; i++) {
+          const a = (i / petals) * Math.PI * 2;
+          const px = honey ? (16 * Math.sin(a) ** 3) / 16 * 0.24 : Math.cos(a) * 0.2;
+          const pz = honey ? -(13 * Math.cos(a) - 5 * Math.cos(2 * a) - 2 * Math.cos(3 * a) - Math.cos(4 * a)) / 16 * 0.24 : Math.sin(a) * 0.24;
+          b.sphere(cx + px, Y + BED_TOP + 0.03, sz + pz, 0.022, i % 2 ? C.hibiscus : '#F27BAA', 0, 0.35, { shade: 1 });
         }
         for (let i = 0; i < 5; i++) b.sphere(r.x0 + 0.1 + (w - 0.2) * (i / 4), Y + 0.25, r.z1 - 0.02, 0.035, i % 2 ? C.hibiscus : '#F27BAA', 0, 0.8, { shade: 1 });
       }

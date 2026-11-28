@@ -67,6 +67,16 @@ function tropicalRug(look: number): { color: string; inset: number; pattern?: Pa
       { color: '#CBB083', inset: 0.1, pattern: WOOL },
     ];
 }
+/**
+ * Session 69: the Smoothie Bar's Tiki floor, after the owner's reference ("teal and wood"): pale oiled deck boards framed
+ * in a teal border with a cream line, the colours of the pebbled stream down its middle.
+ */
+const TEAL_DECK: { color: string; inset: number; pattern?: PartStyle }[] = [
+  { color: '#23898F', inset: 0 },
+  { color: '#EFE6CF', inset: 0.06 },
+  { color: '#2FA3A6', inset: 0.085 },
+  { color: '#D8BC8C', inset: 0.13, pattern: { pattern: PATTERN.boards, color2: '#B4925F', scale: 0.3, shade: 1, surface: 'varnish', detail: 'woodPolished' } },
+];
 /** The board laid where a hole was: a shade lighter than its neighbours, so the repair reads without shouting. */
 const PATCH_TONE = '#D0B489';
 /**
@@ -276,6 +286,33 @@ function boardField(f: GeoBuilder, r: Rect, top: number, tier: number, rand: () 
       }
     }
   }
+  if (tier <= 0) for (const h of holes) holeDepth(f, h, top);
+}
+
+/** How dark the gloom under a hole is: its edges, and the deep middle (session 69). */
+const HOLE_SHADOW = '#33251B';
+const HOLE_DEEP = '#1E1610';
+const HOLE_INSET = 0.3;
+
+/**
+ * Session 69 (de-slop T10: "floor holes read as flat brown oblongs, not holes"): seen from above, the subfloor under a
+ * hole was lit like the boards round it, so the hole read as a brown patch painted on the floor. Under every hole the
+ * floor now falls away into gloom (darker toward the middle, where the boards' own shade would fall) with a pale joist
+ * crossing it, so the eye reads depth: boards, a gap, a beam below, darkness under that.
+ */
+function holeDepth(f: GeoBuilder, h: Hole, top: number): void {
+  const base = top - PLANK_T - JOIST_H;
+  const w = h.x1 - h.x0;
+  const d = h.z1 - h.z0;
+  const cx = (h.x0 + h.x1) / 2;
+  const cz = (h.z0 + h.z1) / 2;
+  // Layered a centimetre apart (any closer and they would flicker against each other and the subfloor).
+  f.box(cx, base + 0.006, cz, w + 0.04, 0.008, d + 0.04, HOLE_SHADOW, 0, FLAT);
+  f.box(cx, base + 0.016, cz, w * (1 - HOLE_INSET), 0.008, d * (1 - HOLE_INSET), HOLE_DEEP, 0, FLAT);
+  // A beam across the gap: the carriage's own joists where one runs under it, else a short noggin between them.
+  const first = Math.ceil((h.z0 - 0.3) / JOIST_SPACING);
+  const crossed = 0.3 + first * JOIST_SPACING < h.z1 - 0.035;
+  if (!crossed) f.box(cx, top - PLANK_T - JOIST_H / 2, cz + d * 0.12, w + 0.12, JOIST_H * 0.9, 0.06, JOIST, 0, FLAT);
 }
 
 function plank(f: GeoBuilder, cx: number, y: number, z0: number, z1: number, width: number, color: string, grain: DetailName): void {
@@ -479,7 +516,14 @@ export function* floorSteps(f: GeoBuilder, layout: CarriageLayout, tier: number,
         { color: '#F4EBDA', inset: 0.12 },
         { color: theme.deep, inset: 0.16, pattern: { pattern: PATTERN.diamond, color2: shadeHex(theme.deep, 22), scale: 0.18, shade: 1 } },
       ])
-      : rug(f, area, FLOOR_Y, [{ color: theme.deep, inset: 0 }, { color: '#EFE5D2', inset: 0.06 }]);
+      // Session 69 (de-slop T13: "a bare lobby"): the Cosy waiting rug is woven, a cream line inside its border and a
+      // fine trellis in the carriage's own colour over the field, not a plain cream sheet.
+      : rug(f, area, FLOOR_Y, [
+        { color: theme.deep, inset: 0 },
+        { color: '#EFE5D2', inset: 0.05 },
+        { color: shadeHex(theme.deep, 8), inset: 0.075 },
+        { color: '#E6D8BE', inset: 0.1, pattern: { pattern: PATTERN.trellis, color2: shadeHex(theme.deep, 36), scale: 0.32, shade: 1, surface: 'fabric', detail: 'wool' } },
+      ]);
   }
   venueCarpets(f, layout, theme, tier);
   return { queueBase };
@@ -498,7 +542,9 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
     // first covering (the others would stack one over another).
     if (tier >= 2 && venue.carpets.length && (layout.type === 'cafe' || layout.type === 'dining')) {
       const c = venue.carpets.reduce((a, x) => ((x.rect.x1 - x.rect.x0) * (x.rect.z1 - x.rect.z0) > (a.rect.x1 - a.rect.x0) * (a.rect.z1 - a.rect.z0) ? x : a));
-      rug(f, c.rect, FLOOR_Y + ROOM_LIFT + 0.001, tropicalRug(tier));
+      // Session 69 (the owner's Smoothie Bar reference: "teal and wood"): at Tiki Luxury the bar lays pale deck boards in
+      // a teal border, not the palm-leaf rug the other venues get.
+      rug(f, c.rect, FLOOR_Y + ROOM_LIFT + 0.001, layout.type === 'cafe' && tier >= 3 ? TEAL_DECK : tropicalRug(tier));
     }
     // The Riviera, second pass: the play car lays its own beach (sand, a boardwalk, foam tiles: layout.ts buildKids).
     // The spa too: pale stone wall to wall from Bamboo (owner: "lighten up the mood").
@@ -646,6 +692,13 @@ function venueCarpets(f: GeoBuilder, layout: CarriageLayout, theme: CarriageThem
       case 'foamCool':
         // Mint and sky.
         lay([{ color: '#7FD3B6', inset: 0, pattern: { pattern: PATTERN.checker, color2: '#6FB7E8', scale: 0.5, shade: 1, surface: 'fabric' } }]);
+        break;
+      case 'deckPale':
+        // Session 69, the spa at Tiki Luxury: pale oiled deck boards in a teak border (the reference's light deck).
+        lay([
+          { color: '#9C7448', inset: 0 },
+          { color: '#E3CFAA', inset: 0.06, pattern: { pattern: PATTERN.boards, color2: '#C8AE84', scale: 0.16, shade: 1, surface: 'varnish', detail: 'woodPolished' } },
+        ]);
         break;
       case 'deck':
         // The pool deck: teak boards with their dark seams.

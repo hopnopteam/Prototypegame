@@ -72,6 +72,8 @@ interface Pending {
 }
 
 const dummy = new THREE.Object3D();
+/** Session 69: the low plants whose proportions vary most (`writeFill`). */
+const SMALL_FILL: ReadonlySet<FillKind> = new Set<FillKind>(['reed', 'lily', 'flower', 'tuft', 'bush']);
 const EMPTY = new THREE.BufferGeometry();
 const built = (b: GeoBuilder): THREE.BufferGeometry | null => (b.isEmpty ? null : b.build());
 
@@ -579,7 +581,16 @@ export class Scenery {
         if (spot.land && this.isHidden(x, chunk.z + spot.z + this.scroll)) continue;
         dummy.position.set(x, spot.y, spot.z);
         dummy.rotation.set(0, spot.rot, 0);
-        dummy.scale.set(spot.scale, spot.scale, spot.scale);
+        // Session 69 (de-slop T18: "reeds, grass and lilies stamped at one scale"): each one its own proportions, from
+        // a hash of where it stands (no randomness): the small plants taller or squatter and wider or slimmer, trees
+        // a little narrower or broader and never taller than placed (the land side's height rule holds).
+        const hash = Math.sin(spot.x * 12.9898 + spot.z * 78.233) * 43758.5453;
+        const u = hash - Math.floor(hash);
+        const w = (hash * 7.13) - Math.floor(hash * 7.13);
+        const small = SMALL_FILL.has(spot.kind);
+        const tall = small ? 0.72 + u * 0.66 : 0.88 + u * 0.12;
+        const wide = small ? 0.85 + w * 0.35 : 0.9 + w * 0.2;
+        dummy.scale.set(spot.scale * wide, spot.scale * tall, spot.scale * (small ? wide * (0.9 + u * 0.2) : wide));
         dummy.updateMatrix();
         chunk.fill[spot.kind].setMatrixAt(slot, dummy.matrix);
         used[spot.kind] = slot + 1;

@@ -53,6 +53,7 @@ looks.forEach((l, i) => {
   views.push(c);
   if (items.length) {
     const st = new CarryStack(c.stackAnchor, stage.scene, tweens, 12, c.boardAnchor, c);
+    st.trolley = params.get('trolley') === '1';
     for (const k of items) st.add(k);
     stacks.push([st, c]);
   }
@@ -73,6 +74,7 @@ function frame(now: number): void {
     if (st.stacked > 0) c.setGrip(st.gripHalf);
     c.stackCount = st.stacked;
     c.setHandBags(st.handBags(0), st.handBags(1));
+    c.setTrolley(st.onTrolley);
     c.stackReach = st.reach;
     st.update(dt, walk, now / 1000);
   }

@@ -781,6 +781,17 @@ export class Guests {
   }
 
   /**
+   * Session 69: a Millbrook traveller who had bought their ticket before a relaunch comes back holding it: no fare is
+   * taken again, they go straight to the door (or aboard once the carriage is open).
+   */
+  holdTicket(guest: Guest): void {
+    guest.paid = true;
+    guest.spot = null;
+    this.boardPaid(guest);
+    this.arrangePlatform(false);
+  }
+
+  /**
    * A paid traveller boards: in through the door to the reception desk's line, where they are handed the key to a
    * room of their class (session 24: the ticket stand sells the fare, the desk checks them in). While the opening's
    * carriage is still covered they wait by its door.

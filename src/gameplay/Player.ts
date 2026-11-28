@@ -134,7 +134,7 @@ export class Player implements Actor {
         this.dashTrail -= dt;
         if (this.dashTrail <= 0 && this.speedNow > 1) {
           this.dashTrail = 0.06;
-          w.particles.emit('dust', this.pos.x, FLOOR_Y + 0.05, this.pos.z, 1, 0.15);
+          if (w.station.outsideTrain(this.pos)) w.particles.emit('scuff', this.pos.x, FLOOR_Y + 0.03, this.pos.z, 1, 0.1);
         }
       }
     }
@@ -162,7 +162,7 @@ export class Player implements Actor {
       this.dashTrail -= dt;
       if (this.dashTrail <= 0 && this.speedNow > 1) {
         this.dashTrail = 0.09;
-        w.particles.emit('dust', this.pos.x, FLOOR_Y + 0.05, this.pos.z, 1, 0.12);
+        if (w.station.outsideTrain(this.pos)) w.particles.emit('scuff', this.pos.x, FLOOR_Y + 0.03, this.pos.z, 1, 0.1);
       }
     }
     // `stick` is now a walking direction in train coordinates (x across, y along the train).

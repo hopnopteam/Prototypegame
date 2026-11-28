@@ -304,7 +304,7 @@ export interface VenueLayout {
  */
 export type CarpetStyle = 'jute' | 'runner' | 'persian' | 'theatre' | 'checker' | 'kitchen' | 'wine' | 'claret' | 'terracotta' | 'forest' | 'moss' | 'tobacco' | 'dove'
   // Phase 4: the Kids' Play Car's soft play mat, the spa's pale stone, the pool deck's teak.
-  | 'playmat' | 'stone' | 'deck'
+  | 'playmat' | 'stone' | 'deck' | 'deckPale'
   // The Riviera, second pass: the play car's sand floor, its boardwalk and soft foam tiles (and the beach's own sand).
   | 'sandfloor' | 'boardwalk' | 'foam' | 'foamCool';
 
@@ -1665,7 +1665,8 @@ function buildSpa(tier: number): CarriageLayout {
   backRoom(b, 'spastore', 'left', -0.5, 15.0);
   // A jute runner once repaired, then pale stone wall to wall.
   if (tier === 1) v.carpets.push({ rect: rect(-0.7, 4.9, 0.7, 14.6), style: 'jute' });
-  if (tier >= 2) v.carpets.push({ rect: rect(-INNER + 0.08, 0.3, INNER - 0.08, 14.85), style: 'stone' });
+  // Session 69 (the spa reference): pale oiled deck boards at Tiki Luxury, still light.
+  if (tier >= 2) v.carpets.push({ rect: rect(-INNER + 0.08, 0.3, INNER - 0.08, 14.85), style: tier >= 3 ? 'deckPale' : 'stone' });
   return b.layout;
 }
 

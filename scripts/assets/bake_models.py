@@ -322,6 +322,8 @@ MODELS = {
     **{k: {'src': 'transition-kit/' + k + '.glb', 'paint': GD} for k in (
         'gd_portal', 'gd_hill', 'gd_shed', 'gd_shed_door', 'gd_lever_frame', 'gd_lever_handle', 'gd_signal', 'gd_coach',
         'gd_tarp', 'gd_arch', 'gd_palm', 'gd_steel_drum', 'gd_plate', 'gd_gull', 'gd_gull_wing')},
+    # Session 69, the third Riviera kit (art/blender/riviera_kit3.py): the spa's furniture after its reference.
+    **{k: {'src': 'tropical-kit/' + k + '.glb', 'paint': TROP} for k in ('spa_table', 'foot_bath', 'spa_planter', 'flower_garland')},
 }
 
 COMPONENT = {5120: ('b', 1), 5121: ('B', 1), 5122: ('h', 2), 5123: ('H', 2), 5125: ('I', 4), 5126: ('f', 4)}

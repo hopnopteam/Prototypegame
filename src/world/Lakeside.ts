@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../core/Rng';
 import { GeoBuilder, type PartStyle } from './geo';
+import { buildLampPost } from './LampPost';
 import { PATTERN } from './materials';
 import { packPattern } from './detail';
 import { key, modelEntry, type Recolor } from './models/library';
@@ -228,11 +229,8 @@ class Stretch {
 
 function lampPost(b: GeoBuilder, glow: GeoBuilder, st: Stretch, x: number, z: number, land: boolean): void {
   const y = st.ground(x, z);
-  b.object('scenery:lamp');
-  b.cylinder(x, y + 1.05, z, 0.045, 0.065, 2.1, C.iron, 8, 'y', { shade: 0.8, surface: 'iron' });
-  b.box(x, y + 2.2, z, 0.22, 0.05, 0.22, C.iron, 0, { surface: 'iron' });
-  b.endObject();
-  glow.box(x, y + 2.05, z, 0.15, 0.22, 0.15, C.glow, 0, FLAT);
+  // Session 69: the one lamp-post family (world/LampPost.ts), its short lantern (was a bare pole topped by a box).
+  buildLampPost(b, glow, x, y, z, 'short', 'scenery:lamp');
   st.pools.push({ x, z, r: 1.7, land });
   st.claim(x - 0.2, z - 0.2, x + 0.2, z + 0.2);
 }

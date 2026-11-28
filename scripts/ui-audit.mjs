@@ -82,8 +82,13 @@ const auditPage = () => {
   });
   document.querySelectorAll('.sheet').forEach((sheet) => {
     if (!visible(sheet)) return;
+    // Session 69: a sheet still sliding in (`sheetIn`, 40 px up from below) is measured where it comes to rest. On a
+    // busy machine the audit could land mid-slide and report the slide's start as a sheet leaving the screen, at a
+    // different phone size from run to run. Its layout is what is checked, not a frame of its entrance.
+    for (const a of sheet.getAnimations({ subtree: true })) if (a.effect?.getTiming().iterations !== Infinity) a.finish();
     const r = sheet.getBoundingClientRect();
-    if (r.left < rootRect.left - pad || r.right > rootRect.right + pad || r.top < rootRect.top - pad || r.bottom > rootRect.bottom + pad) issues.push('sheet leaves the screen');
+    const title = sheet.getAttribute('aria-label') ?? sheet.querySelector('h2')?.textContent ?? '';
+    if (r.left < rootRect.left - pad || r.right > rootRect.right + pad || r.top < rootRect.top - pad || r.bottom > rootRect.bottom + pad) issues.push(`sheet "${title}" leaves the screen (${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}×${Math.round(r.height)})`);
     sheet.querySelectorAll('.content > *').forEach((child) => {
       if (!visible(child)) return;
       const c = child.getBoundingClientRect();

@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import { STATIC_CASTER_LAYER } from './Lighting';
 import { CarriageView } from './CarriageView';
 import { RIVALS } from '../config/press';
-import { GeoBuilder } from './geo';
+import { GeoBuilder, type PartStyle } from './geo';
 import { GANGWAY_LENGTH, LOCOMOTIVE_LENGTH } from './layout';
 import { ADD_GLOW, glowTexture, MATERIALS } from './materials';
 import { PALETTE } from './palette';
-import { type Recolor, modelEntry } from './models/library';
+import { type Recolor, modelEntry, modelGeometry } from './models/library';
 import { signTexture } from './sprites';
 import { REFLECT_LAYER } from './Water';
 import { ACTIVE_ROUTE } from '../config/routes';
@@ -19,6 +19,43 @@ import { ACTIVE_ROUTE } from '../config/routes';
 const LOCO_PAINT: Recolor[] = [{ hue: [200, 300], sat: [0.15, 1], ref: '#5A64B4', to: '#3F6E53' }];
 
 const HEADLIGHT_TILT = -0.09;
+
+/**
+ * Session 69: where along the kit engine (model units, its front at z +1.4) the brass bands are strapped round the
+ * boiler: behind the dome, between the dome and the chimney, and round the smokebox. Each band's shape is the engine's
+ * own outline there (`boilerOutline`), sliced from the model.
+ */
+const BOILER_AXIS: [number, number] = [-0.04, 0.9];
+const BOILER_BANDS = [0.2, 0.58, 1.04];
+/**
+ * The band goes over the barrel's top and shoulders (the part the camera sees; lower down the side tanks and steps
+ * would kink it), sampled in this many directions and smoothed.
+ */
+const BAND_FROM = 0.42;
+const BAND_TO = Math.PI - 0.42;
+const BAND_STEPS = 18;
+/** Above this (model units) is a dome or the chimney, not the barrel the band goes round. */
+const BAND_TOP = 1.4;
+const BAND_WIDTH = 0.07;
+const BAND_THICK = 0.025;
+const BAND_PROUD = 0.012;
+/** The tender (model units: its sides at x ±0.6, the rim on top at y 1.3; its lined panel between y 0.6 and 1.15). */
+const TENDER_HALF_X = 0.6;
+const TENDER_RIM_Y = 1.3;
+const TENDER_COAL_Y = 1.5;
+const PANEL_Y0 = 0.62;
+const PANEL_Y1 = 1.12;
+const PANEL_END = 0.45;
+const LINE_W = 0.035;
+const LINE_PROUD = 0.01;
+const RIVET = 0.05;
+const RIVET_STEP = 0.36;
+const RIVET_TONE = '#2E4A3A';
+/** The coal: how high the heap rises over the rim, how far it keeps from the sides and ends, and its tones. */
+const COAL_HEAP = 0.34;
+const COAL_MARGIN = 0.26;
+const COAL_END = 0.35;
+const COAL_TONES = ['#26262A', '#2F2F34', '#1D1D21', '#36363B'];
 
 /** A cone of light 10 m long along -z from its apex, fading toward the far end. */
 const BEAM_GEOMETRY = (() => {
@@ -35,6 +72,64 @@ const BEAM_GEOMETRY = (() => {
   return g;
 })();
 const POOL_GEOMETRY = new THREE.PlaneGeometry(2.8, 7.5).rotateX(-Math.PI / 2);
+
+/**
+ * Session 69: the kit engine's outline across it at model z `zm`, as a polyline from one side over the top to the
+ * other (model units), pushed out by `BAND_PROUD` so a band laid along it sits on the paint. The model's triangles
+ * are cut by the plane, and for each direction out from the boiler's axis the farthest cut point is kept.
+ */
+function boilerOutline(zm: number): [number, number][] {
+  const geo = modelGeometry('locomotive');
+  const pos = geo.getAttribute('position');
+  const index = geo.index;
+  const triangles = index ? index.count : pos.count;
+  const far = new Float32Array(BAND_STEPS + 1);
+  const [ax, ay] = BOILER_AXIS;
+  const step = (BAND_TO - BAND_FROM) / BAND_STEPS;
+  const note = (x: number, y: number): void => {
+    if (y > BAND_TOP) return;
+    const a = Math.atan2(y - ay, x - ax);
+    const t = (a < -Math.PI / 2 ? a + Math.PI * 2 : a);
+    // Angles run from the +x side (0) over the top (π/2) to the -x side (π).
+    const i = Math.round((t - BAND_FROM) / step);
+    if (i < 0 || i > BAND_STEPS) return;
+    const r = Math.hypot(x - ax, y - ay);
+    if (r > far[i]) far[i] = r;
+  };
+  const p = [0, 0, 0].map(() => new THREE.Vector3());
+  const cut = [0, 0, 0, 0];
+  for (let t = 0; t + 2 < triangles; t += 3) {
+    for (let k = 0; k < 3; k++) p[k].fromBufferAttribute(pos, index ? index.getX(t + k) : t + k);
+    let n = 0;
+    for (let k = 0; k < 3; k++) {
+      const a = p[k];
+      const c = p[(k + 1) % 3];
+      if ((a.z - zm) * (c.z - zm) > 0 || a.z === c.z) continue;
+      const u = (zm - a.z) / (c.z - a.z);
+      cut[n * 2] = a.x + (c.x - a.x) * u;
+      cut[n * 2 + 1] = a.y + (c.y - a.y) * u;
+      if (++n === 2) break;
+    }
+    // The plane cuts the triangle along a segment: every point of it is part of the outline.
+    if (n === 2) for (let j = 0; j <= 12; j++) note(cut[0] + (cut[2] - cut[0]) * (j / 12), cut[1] + (cut[3] - cut[1]) * (j / 12));
+  }
+  // Fill any direction no cut reached from its neighbours, smooth out the kinks (a median of three), then push out.
+  for (let i = 0; i <= BAND_STEPS; i++) if (far[i] === 0) far[i] = far[i - 1] || far[i + 1] || 0;
+  const smooth = Float32Array.from(far, (v, i) => {
+    const a = far[Math.max(0, i - 1)];
+    const c = far[Math.min(BAND_STEPS, i + 1)];
+    return Math.max(Math.min(a, v), Math.min(Math.max(a, v), c));
+  });
+  const out: [number, number][] = [];
+  for (let i = 0; i <= BAND_STEPS; i++) {
+    if (smooth[i] === 0) continue;
+    const a = BAND_FROM + i * step;
+    // (Where something stands proud of the barrel, a pipe or a step, the band passes under it, as a real one does.)
+    const r = smooth[i] + BAND_PROUD;
+    out.push([ax + Math.cos(a) * r, ay + Math.sin(a) * r]);
+  }
+  return out;
+}
 
 /** A soft oval of warm light for the track ahead of the headlamp. */
 /** The headlamp's pool on the track ahead (session 24: opaque and added; see glowTexture). */
@@ -146,6 +241,8 @@ export class LocomotiveView {
     const tz = tenderLength / (tender.max[2] - tender.min[2]);
     b.model('tender', 0, 0, back - tenderLength / 2, 0, s * 0.95, s * 0.82, tz, { surface: 'varnish', shade: 0.95, recolor: LOCO_PAINT });
     b.endObject();
+    this.dressEngine(b, locoMid, s);
+    this.dressTender(b, back - tenderLength, back, s);
     // Where the parts stand on the model (fractions of its length from the front, of its height): chimney, lamp, cab.
     const chimneyZ = front + CHIMNEY_AT * locoLength;
     const cabBack = front + locoLength;
@@ -186,6 +283,77 @@ export class LocomotiveView {
     this.nameplate.position.set(cabX + 0.05, PLATE_Y * s, cabZ);
     this.nameplate.visible = false;
     this.group.add(this.nameplate);
+  }
+
+  /**
+   * Session 69 (de-slop T17: "the tender and locomotive are big featureless boxes"; the Stage B list's brass bands):
+   * polished brass bands round the boiler, where a real engine's lagging is strapped, hugging the kit's own boiler
+   * section (measured from its vertices, model units: the octagonal barrel's flat top, its shoulders and its sides down
+   * to the running board), between the cab, the dome and the chimney.
+   */
+  private dressEngine(b: GeoBuilder, locoMid: number, s: number): void {
+    const brass: PartStyle = { surface: 'brass', shade: 1 };
+    const e = modelEntry('locomotive');
+    const cx = (e.min[0] + e.max[0]) / 2;
+    for (const zm of BOILER_BANDS) {
+      const ring = boilerOutline(zm);
+      const wz = locoMid - zm * s;
+      for (let i = 0; i < ring.length - 1; i++) {
+        const [x0, y0] = ring[i];
+        const [x1, y1] = ring[i + 1];
+        const len = Math.hypot(x1 - x0, y1 - y0) * s;
+        if (len < 0.01) continue;
+        const ang = Math.atan2(y1 - y0, x1 - x0);
+        // The engine is turned half round: its x runs the other way in the world.
+        // (the model is placed about its footprint's centre, `cx`).
+        b.add(new THREE.BoxGeometry(len + BAND_THICK, BAND_THICK, BAND_WIDTH), PALETTE.brass, -((x0 + x1) / 2 - cx) * s, ((y0 + y1) / 2) * s, wz, 0, 0, -ang, brass);
+      }
+    }
+  }
+
+  /**
+   * Session 69 (T17): the tender's coal is a heap of dark lumps (the kit's hexagon blocks read as cream coins from
+   * above), and its sides carry a lined panel and a row of rivets along the top, in the engine's gold.
+   */
+  private dressTender(b: GeoBuilder, z0: number, z1: number, s: number): void {
+    const halfX = TENDER_HALF_X * s * 0.95;
+    const top = TENDER_RIM_Y * s * 0.82;
+    // The kit's coal blocks stand this high; the heap is piled over them.
+    const coal = TENDER_COAL_Y * s * 0.82;
+    const len = z1 - z0;
+    // The heap: lumps on a fixed lattice (no randomness), highest along the middle, tapering to the rim.
+    const lump = new THREE.DodecahedronGeometry(1, 0);
+    const lx = 6;
+    const lz = Math.max(6, Math.round(len / 0.3));
+    for (let i = 0; i < lx; i++) {
+      for (let k = 0; k < lz; k++) {
+        const u = (i + 0.5) / lx * 2 - 1;
+        const v = (k + 0.5) / lz * 2 - 1;
+        const h = (1 - u * u * 0.7) * (1 - v * v * 0.55);
+        const j = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453;
+        const f = j - Math.floor(j);
+        const r = (0.15 + f * 0.07) * (0.8 + h * 0.35);
+        const x = u * (halfX - COAL_MARGIN) + (f - 0.5) * 0.08;
+        const z = z0 + COAL_END + (k + 0.5) / lz * (len - COAL_END * 2);
+        const y = coal + h * COAL_HEAP;
+        b.add(lump.clone().scale(r * 1.25, r * 0.8, r * 1.15), COAL_TONES[(i + k * 2) % COAL_TONES.length], x, y, z, f * 3, f * 5, f * 2, { surface: 'stone', shade: 0.85 });
+      }
+    }
+    lump.dispose();
+    // The lined panel on each side, and the rivets along its top.
+    const gold: PartStyle = { surface: 'brass', shade: 1 };
+    const pz0 = z0 + PANEL_END;
+    const pz1 = z1 - PANEL_END;
+    const py0 = PANEL_Y0 * s * 0.82;
+    const py1 = PANEL_Y1 * s * 0.82;
+    for (const side of [-1, 1]) {
+      const x = side * (halfX + LINE_PROUD);
+      b.box(x, py0, (pz0 + pz1) / 2, LINE_W, LINE_W, pz1 - pz0, PALETTE.brass, 0, gold);
+      b.box(x, py1, (pz0 + pz1) / 2, LINE_W, LINE_W, pz1 - pz0, PALETTE.brass, 0, gold);
+      for (const z of [pz0, pz1]) b.box(x, (py0 + py1) / 2, z, LINE_W, py1 - py0 + LINE_W, LINE_W, PALETTE.brass, 0, gold);
+      const n = Math.round((z1 - z0) / RIVET_STEP);
+      for (let k = 1; k < n; k++) b.box(x, top - 0.09, z0 + (k / n) * (z1 - z0), RIVET, RIVET, RIVET, RIVET_TONE, 0, { shade: 1 });
+    }
   }
 
   /**

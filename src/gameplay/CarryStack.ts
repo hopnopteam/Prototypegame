@@ -28,10 +28,22 @@ export interface CarryHolder {
   readonly stackAnchor: THREE.Object3D;
   readonly faceFront: number;
   readonly faceLow: number;
+  /** Session 69: the luggage trolley's deck (a porter's), where bags ride once there are more than two. */
+  readonly trolleyAnchor?: THREE.Object3D;
 }
 
-/** Where a carried thing rides: the stack in front, a hand (0 left, 1 right, slot 0 inner, 1 outer), under the arm. */
-type Place = { at: 'front' | 'board' } | { at: 'hand'; hand: number; slot: number; of: number };
+/**
+ * Where a carried thing rides: the stack in front, a hand (0 left, 1 right, slot 0 inner, 1 outer), under the arm, or
+ * on the trolley (a porter's: two bags along the deck, then a layer above).
+ */
+type Place = { at: 'front' | 'board' } | { at: 'hand'; hand: number; slot: number; of: number } | { at: 'trolley'; slot: number };
+
+/** Session 69, the porter's trolley: from this many bags they go on it; their size there; the deck's top and its two places. */
+export const TROLLEY_FROM = 3;
+const TROLLEY_BAG = 0.8;
+const TROLLEY_DECK_TOP = 0.165;
+const TROLLEY_SLOT_Z = [0.47, 0.77];
+const TROLLEY_LAYER = 0.235;
 
 /**
  * The visible pile of items an actor carries (player and staff share it). Items fly into the stack from a
@@ -86,8 +98,20 @@ export class CarryStack {
    * in each, the second hanging outside the first), anything else (and a fifth bag) on the stack in front, a surfboard
    * under the arm.
    */
+  /** Session 69: this carrier pushes a luggage trolley (a porter): three bags or more ride on it. */
+  trolley = false;
+
+  /** Bags on the trolley now (it is drawn while there are any). */
+  get onTrolley(): boolean {
+    return this.places.some((p) => p.at === 'trolley');
+  }
+
   private plan(): Place[] {
     const loose = this.items.filter((k) => !(k === 'surfboard' && this.boardAnchor));
+    if (this.trolley && this.holder?.trolleyAnchor && loose.length >= TROLLEY_FROM && loose.every((k) => k === 'luggage')) {
+      let slot = 0;
+      return this.items.map((k) => (k === 'surfboard' && this.boardAnchor ? { at: 'board' } : { at: 'trolley', slot: slot++ }) as Place);
+    }
     const hands = this.holder ? (this.rightBusy ? 1 : 2) : 0;
     const inHands = loose.length > 0 && loose.length <= hands * 2 && loose.length <= BAGS_IN_HANDS && loose.every((k) => k === 'luggage');
     const perHand = [0, 0];
@@ -106,6 +130,7 @@ export class CarryStack {
   private anchorOf(place: Place): THREE.Object3D {
     if (place.at === 'hand' && this.holder) return this.holder.handAnchors[place.hand];
     if (place.at === 'board' && this.boardAnchor) return this.boardAnchor;
+    if (place.at === 'trolley' && this.holder?.trolleyAnchor) return this.holder.trolleyAnchor;
     return this.anchor;
   }
 
@@ -120,6 +145,9 @@ export class CarryStack {
       return { x, y: -BAG_HANDLE_TOP * BAG_SCALE - BAG_HANDLE_IN, z: 0, rotY: Math.PI / 2, scale: BAG_SCALE };
     }
     if (place.at === 'board') return { x: this.boardX(index), y: 0, z: 0, rotY: 0, scale: BOARD_SCALE };
+    if (place.at === 'trolley') {
+      return { x: 0, y: TROLLEY_DECK_TOP + Math.floor(place.slot / 2) * TROLLEY_LAYER, z: TROLLEY_SLOT_Z[place.slot % 2], rotY: 0, scale: TROLLEY_BAG };
+    }
     return { x: 0, y: this.slotHeight(index), z: this.frontDz, rotY: 0, scale: 1 };
   }
 

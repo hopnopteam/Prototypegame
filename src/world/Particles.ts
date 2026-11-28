@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Rng } from '../core/Rng';
 
-export type ParticleKind = 'dust' | 'sparkle' | 'confetti' | 'smoke' | 'steam' | 'star' | 'cash' | 'heart' | 'chimney' | 'mote' | 'sand' | 'firework' | 'spark';
+export type ParticleKind = 'dust' | 'sparkle' | 'confetti' | 'smoke' | 'steam' | 'star' | 'cash' | 'heart' | 'chimney' | 'mote' | 'sand' | 'scuff' | 'firework' | 'spark';
 
 interface KindSpec {
   colors: string[];
@@ -21,6 +21,9 @@ interface KindSpec {
 
 const SPECS: Record<ParticleKind, KindSpec> = {
   dust: { colors: ['#E3D3B0', '#CDB88E', '#F2E6C9'], size: [0.5, 0.9], life: [0.6, 1.0], speed: [1.5, 3.5], up: [0.5, 1.5], gravity: -0.5, drag: 3, grow: 0.8, shape: 3, alpha: 0.7 },
+  // Session 69 (de-slop T08: "grey ball dust trailing the conductor and drifting indoors"): a striding conductor's
+  // trail is a few low specks of the platform's own grit, short-lived, and only outdoors (Player).
+  scuff: { colors: ['#B9AE9A', '#A79C88', '#C8BEAA'], size: [0.07, 0.12], life: [0.25, 0.4], speed: [0.3, 0.7], up: [0.2, 0.5], gravity: 3, drag: 3, grow: 0.2, shape: 3, alpha: 0.45 },
   // The Riviera revamp: a little sand kicked up by a footstep, falling straight back.
   sand: { colors: ['#E8D2A2', '#D9BF8C', '#F2E2BC'], size: [0.1, 0.2], life: [0.3, 0.5], speed: [0.4, 1.0], up: [0.7, 1.2], gravity: 7, drag: 2, grow: 0, shape: 3, alpha: 0.8 },
   sparkle: { colors: ['#FFE08A', '#FFFFFF', '#FFD35C'], size: [0.22, 0.4], life: [0.5, 0.8], speed: [0.6, 1.6], up: [1.2, 2.4], gravity: 1.5, drag: 1.5, grow: -0.2, shape: 1, alpha: 1 },

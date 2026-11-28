@@ -56,6 +56,16 @@ import type { IconName } from '../ui/icons';
 /** How far boards nailed over a run-down window stand off the wall's inside face (clear of the frame). */
 const BOARD_PROUD = 0.06;
 const LAMP_SPACING = 3.2;
+/**
+ * Session 69, light from the lamps you see: parts of one lamp lie within this of each other; a lamp in the room's
+ * walls counts for it (sconces stand on the wall's face, just outside the room's floor); a pool lies at most this far
+ * in front of its lamp; the room's light shared between its lamps; and what a room with no lamp of its own keeps.
+ */
+const GLOW_MERGE = 0.3;
+const GLOW_IN_ROOM = 0.15;
+const POOL_OUT = 0.45;
+const LAMP_SHARE = 1.15;
+const UNLIT_FILL = 0.4;
 
 /** Height of every walkable floor (train and platform); the ground is at y = 0. */
 export const FLOOR_Y = 0.55;
@@ -167,6 +177,15 @@ const LEAF_HEIGHT = PARTITION_HEIGHT - 0.04;
 const { hingeInset: HINGE_INSET, meetGap: LEAF_MEET_GAP, swing: DOOR_SWING, thickness: LEAF_THICKNESS } = ROOM_DOOR;
 /** The gangway's concertina sides. */
 const BELLOWS_HEIGHT = 0.4;
+/** Session 69: the lobby's folded linen (one layer's thickness) and the ribbon round each pile. */
+const LINEN_LAYER = 0.075;
+const LINEN_RIBBON = 0.035;
+/** Session 69: the gangway's chequer plate (steel and its raised tread), the lips at its ends and the bellows' folds. */
+const GANGWAY_STEEL = '#7E7B78';
+const GANGWAY_TREAD = '#9A9792';
+const GANGWAY_EDGE = '#5E5B58';
+const GANGWAY_LIP = 0.08;
+const BELLOWS_FOLD = 0.1;
 /** The lobby clock hangs on the front wall between the tea urn and the linen cupboard. */
 const CLOCK_X = -1.03;
 /** A cabin's picture and wireless shelf sit on the knee-high partition (their tops stay under its cap). */
@@ -1383,6 +1402,11 @@ export class CarriageView {
         out.push({ x: (p.rect.x0 + p.rect.x1) / 2, y: FLOOR_Y + 0.95, z: originZ + (p.rect.z0 + p.rect.z1) / 2, strength: table.strength, radius: table.radius });
       }
     }
+    // Session 69 (the Stage B list: "every interior lamp pool tied to a visible lamp"): a room's light comes from the
+    // lamps you can see in it (the sconces on its walls, the lantern on the stool, the desk lamp), each pool on the
+    // floor in front of its lamp. A room with no lamp of its own keeps only a faint fill (what spills in from the
+    // corridor and the windows), so no bright pool lies where nothing shines.
+    const glows = this.glowSpots();
     for (const room of this.layout.rooms) {
       const w = room.x1 - room.x0;
       const d = room.z1 - room.z0;
@@ -1391,17 +1415,60 @@ export class CarriageView {
       const length = alongZ ? d : w;
       const count = Math.max(1, Math.round(length / LAMP_SPACING));
       const strength = Math.min(1, 0.55 + (w * d) / 10);
+      const own = glows.filter((g) => g.x >= room.x0 - GLOW_IN_ROOM && g.x <= room.x1 + GLOW_IN_ROOM && g.z >= room.z0 && g.z <= room.z1);
+      if (own.length > 0) {
+        const cx = (room.x0 + room.x1) / 2;
+        const cz = (room.z0 + room.z1) / 2;
+        // The same light shared between however many lamps the room has.
+        const each = strength * Math.min(1, LAMP_SHARE / Math.sqrt(own.length));
+        for (const g of own) {
+          // The pool falls in front of the lamp, toward the middle of the room.
+          const x = g.x + Math.sign(cx - g.x) * Math.min(Math.abs(cx - g.x), POOL_OUT);
+          const z = g.z + Math.sign(cz - g.z) * Math.min(Math.abs(cz - g.z), POOL_OUT);
+          out.push({ x, y, z: originZ + z, strength: each });
+        }
+        continue;
+      }
       for (let k = 0; k < count; k++) {
         const t = (k + 0.5) / count;
         out.push({
           x: alongZ ? (room.x0 + room.x1) / 2 : room.x0 + w * t,
           y,
           z: originZ + (alongZ ? room.z0 + d * t : (room.z0 + room.z1) / 2),
-          strength,
+          strength: strength * UNLIT_FILL,
         });
       }
     }
     return out;
+  }
+
+  /**
+   * Session 69: where this carriage's lamps glow (in its own coordinates): every part drawn in the lamp material (wall
+   * sconces, bare bulbs, lamp shades, lanterns, candles), gathered into one spot per lamp.
+   */
+  private glowSpots(): { x: number; z: number }[] {
+    const spots: { x: number; z: number; n: number }[] = [];
+    this.group.updateWorldMatrix(true, true);
+    const toLocal = new THREE.Matrix4().copy(this.group.matrixWorld).invert();
+    const m = new THREE.Matrix4();
+    const v = new THREE.Vector3();
+    this.group.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || mesh.material !== MATERIALS.lamps || !mesh.visible || mesh === this.barBulbs) return;
+      m.multiplyMatrices(toLocal, mesh.matrixWorld);
+      const pos = mesh.geometry.getAttribute('position');
+      if (!pos) return;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(m);
+        const spot = spots.find((sp) => Math.abs(sp.x / sp.n - v.x) < GLOW_MERGE && Math.abs(sp.z / sp.n - v.z) < GLOW_MERGE);
+        if (spot) {
+          spot.x += v.x;
+          spot.z += v.z;
+          spot.n++;
+        } else spots.push({ x: v.x, z: v.z, n: 1 });
+      }
+    });
+    return spots.map((sp) => ({ x: sp.x / sp.n, z: sp.z / sp.n }));
   }
 
   dispose(): void {
@@ -1497,10 +1564,20 @@ export class CarriageView {
       f.slab(rect(-hw + 0.05, 3.05, hw - 0.05, L - REAR_VESTIBULE - 0.35), FLOOR_Y + LIFT, FLOOR_Y + LIFT * 2, fin.runner.body, 0, 0, FLAT);
     }
 
-    // Gangway to the next car: a steel plate between concertina bellows.
-    f.box(0, FLOOR_Y - 0.02, L + GANGWAY_LENGTH / 2, 1.36, 0.04, GANGWAY_LENGTH - 0.02, '#8F8B87', 0, FLAT);
+    // Gangway to the next car: a steel plate between concertina bellows. Session 69 (de-slop T19: "the rear of the
+    // train reads as blockout"): the plate is chequer plate with a worn steel lip at each end where it bridges the
+    // buffers, and the bellows are real folds (alternating ribs) rather than one striped block.
+    f.box(0, FLOOR_Y - 0.02, L + GANGWAY_LENGTH / 2, 1.36, 0.04, GANGWAY_LENGTH - 0.02, GANGWAY_STEEL, 0, { pattern: PATTERN.diamond, color2: GANGWAY_TREAD, scale: 0.07, shade: 1, surface: 'iron' });
+    for (const z of [L + GANGWAY_LIP / 2 + 0.02, L + GANGWAY_LENGTH - GANGWAY_LIP / 2 - 0.02]) f.box(0, FLOOR_Y, z, 1.32, 0.02, GANGWAY_LIP, GANGWAY_EDGE, 0, { shade: 1, surface: 'iron' });
     // Low bellows (session 15): the camera looks into the next carriage over them.
-    for (const x of [-0.74, 0.74]) s.box(x, FLOOR_Y + BELLOWS_HEIGHT / 2, L + GANGWAY_LENGTH / 2, 0.1, BELLOWS_HEIGHT, GANGWAY_LENGTH - 0.02, '#46444D', 0, { pattern: PATTERN.stripesZ, color2: '#3A3840', scale: 0.08, shade: 0.8 });
+    const folds = Math.round((GANGWAY_LENGTH - 0.02) / BELLOWS_FOLD);
+    const fold = (GANGWAY_LENGTH - 0.02) / folds;
+    for (const x of [-0.74, 0.74]) {
+      for (let k = 0; k < folds; k++) {
+        const out = k % 2 === 0;
+        s.box(x + Math.sign(x) * (out ? 0.015 : -0.01), FLOOR_Y + BELLOWS_HEIGHT / 2, L + 0.01 + (k + 0.5) * fold, out ? 0.12 : 0.08, BELLOWS_HEIGHT - (out ? 0 : 0.03), fold - 0.004, out ? '#4A4851' : '#34323A', 0, { shade: 0.8 });
+      }
+    }
 
     yield;
     let n = 0;
@@ -1737,8 +1814,16 @@ export class CarriageView {
       if ((i + this.index) % 4 !== 1 || blocked(win.x, win.inward, win.z0, win.z1)) return;
       // The crack: a star of thin pale lines from a point a third of the way across the pane.
       const px = win.x + win.inward * CRACK_PROUD;
-      const cy = bottom + (win.top - bottom) * 0.62;
-      const cz = win.z0 + (win.z1 - win.z0) * 0.36;
+      // Session 69 (de-slop T11: "the same crack on window after window"): each pane breaks its own way: where it was
+      // struck, how the star is turned, mirrored or not, how long and how many its rays (a fixed pattern by window
+      // and carriage, no randomness).
+      const v = (i * 7 + this.index * 3) % 5;
+      const cy = bottom + (win.top - bottom) * (0.48 + ((i * 3 + this.index) % 4) * 0.08);
+      const cz = win.z0 + (win.z1 - win.z0) * (0.28 + ((i * 5 + this.index * 2) % 5) * 0.11);
+      const turn = v * 1.13;
+      const flip = (i + this.index) % 2 === 0 ? 1 : -1;
+      const rays = CRACK_RAYS.filter((_, k) => (k + v) % 6 !== 5 || v % 2 === 0);
+      const size = 0.75 + ((i * 11 + this.index) % 4) * 0.13;
       f.object('decor:crackedWindow');
       // De-Slop B6 ("a proper cracked pane"): a spider-web break. Kinked radial cracks from the point of impact, a
       // ring of short cracks joining them, and a crazed white spot where it was struck (six straight sticks read
@@ -1753,7 +1838,10 @@ export class CarriageView {
         f.add(new THREE.BoxGeometry(0.004, w, len), '#EEF4F7', px, (y0 + y1) / 2, (z0 + z1) / 2, -Math.atan2(y1 - y0, z1 - z0), 0, 0, { shade: 1 });
       };
       const ring: [number, number][] = [];
-      for (const [angle, len, kink] of CRACK_RAYS) {
+      for (const [a0, l0, k0] of rays) {
+        const angle = flip * a0 + turn;
+        const len = l0 * size;
+        const kink = flip * k0;
         const ky = cy + Math.sin(angle) * len * 0.5;
         const kz = cz + Math.cos(angle) * len * 0.5;
         crack(cy, cz, ky, kz, 0.009);
@@ -2831,9 +2919,20 @@ export function buildProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDef, theme
       }
       b.slab(r, y, y + 0.9, wood, 0, 0, { shade: 0.7 });
       const half = w / 2;
-      for (let i = 0; i < 3; i++) {
-        b.rounded(r.x0 + half * 0.5, y + 0.96 + i * 0.1, cz, half - 0.12, 0.09, d - 0.14, 0.03, theme.blanket, { shade: 0.88 });
-        b.rounded(r.x0 + half * 1.5, y + 0.95 + i * 0.09, cz, half - 0.16, 0.08, d - 0.18, 0.04, PALETTE.pillow, { shade: 0.9 });
+      // Session 69 (de-slop T13: "the linen on the cabinet reads as blank slabs"): folded linen, layer on layer in
+      // close shades with a fold line down each, a little askew, and each pile tied with a ribbon (the linen icon).
+      for (const [pile, px, pw, pd, colors] of [
+        [0, r.x0 + half * 0.5, half - 0.12, d - 0.14, [theme.blanket, shadeHex(theme.blanket, 10), theme.blanket, shadeHex(theme.blanket, -8)]],
+        [1, r.x0 + half * 1.5, half - 0.16, d - 0.18, [PALETTE.pillow, '#F3EEE4', PALETTE.pillow, '#E9E2D4']],
+      ] as const) {
+        const layer = LINEN_LAYER;
+        let top = y + 0.9;
+        for (let i = 0; i < colors.length; i++) {
+          const dx = ((i * 7 + pile * 3) % 5 - 2) * 0.006;
+          b.rounded(px + dx, top + layer / 2, cz, pw - (i % 2) * 0.012, layer - 0.004, pd - (i % 2) * 0.01, 0.025, colors[i], { shade: 0.9, pattern: PATTERN.stripesX, color2: shadeHex(colors[i], -14), scale: pw / 2 });
+          top += layer;
+        }
+        b.box(px, (y + 0.9 + top) / 2 + 0.003, cz, LINEN_RIBBON, top - y - 0.9 + 0.01, pd + 0.008, pile === 0 ? PALETTE.brass : theme.deep, 0, { shade: 1 });
       }
       break;
     }

@@ -122,6 +122,12 @@ export interface SaveData {
      * with every save, so a relaunch puts it back in the lobby's pile instead of losing it.
      */
     floorCash: number;
+    /**
+     * Session 69: how many of the Millbrook opening's travellers have bought their tickets, while the opening lasts. A
+     * relaunch in the middle of it brings them back as ticket holders (their fares are already in the wallet or on the
+     * floor) instead of selling the same tickets again.
+     */
+    prologueSold: number;
     /** Phase 1: cash handed back by the v5 migration (carriages that left the route), shown once on the next start. */
     migrationRefund: number;
     /** Phase 4: seconds of active play on this route (the route's analytics values and its final stats). */
@@ -264,7 +270,7 @@ export function createDefaultSave(now: number, installId: string): SaveData {
     settings: { sound: true, music: true, haptics: true, devTools: false, quality: 'auto', qualityAuto: null, renderScale: {}, qualityPolicy: 0, hapticsPolicy: 0, sfxVolume: 0.8 },
     wallet: { cash: 0, gems: 0, railMiles: 0 },
     station: { owned: {}, sinceEvent: 0, eventGap: 0, lastEvent: null, eventsSeen: 0, boosts: [], critic: {} },
-    route: { id: ACTIVE_ROUTE.id, stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0, perfectStreak: 0, recentStops: [], reviews: [], floorCash: 0, migrationRefund: 0, playSeconds: 0 },
+    route: { id: ACTIVE_ROUTE.id, stars: 0, level: 1, carriages: ['lobby'], unlocked: [], partial: {}, stationIndex: 0, legsCompleted: 0, stopsCompleted: 0, perfectStreak: 0, recentStops: [], reviews: [], floorCash: 0, prologueSold: 0, migrationRefund: 0, playSeconds: 0 },
     routes: {},
     completedRoutes: [],
     lineArrival: null,

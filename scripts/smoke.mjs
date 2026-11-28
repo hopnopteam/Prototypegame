@@ -18,7 +18,7 @@ if (!existsSync(file)) { console.error('dist/index.html missing: run npm run bui
 // the first half-minute, the departure at about a minute (so the first station at about 1:45).
 // Session 29: the attendant is earned by hand (6 rooms, 15 requests: about 8 minutes on the autopilot) and the second
 // carriage waits for it (about 10 minutes).
-// first_hire: the earned attendant lands 12:30–15:30 with the clock-seeded autopilot (session 39 measured 12:30, 12:51, 15:20, 15:26);
+// first_hire: the earned attendant lands 12:30–15:30 with the autopilot (before session 69 it varied with the clock; (session 39 measured 12:30, 12:51, 15:20, 15:26);
 // session 55: 16:11–16:19 (the autopilot buys the posters and the Waiting Benches first, and those no longer add travellers).
 const DEADLINES = { first_checkin: 15, first_cash: 20, first_unlock: 30, first_station: 125, first_hire: 1020, first_carriage: 390, second_carriage: 1020, route_level_2: 780 };
 
@@ -34,9 +34,32 @@ page.on('console', (m) => { if (m.type() === 'log' && m.text().startsWith('[Trip
 const failures = [];
 const check = (ok, message) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${message}`); if (!ok) failures.push(message); };
 
-await page.goto(`file://${file}${process.env.SMOKE_QUERY ?? ""}`);
-await page.waitForFunction(() => !!window.nightExpress?.data, null, { timeout: 15000 }).catch(() => undefined);
-await page.waitForTimeout(300);
+// Session 69: repeatable, like the pacing simulator (scripts/pacing.mjs). The autopilot used to play on the page's
+// own clock and Math.random, so which tiles it bought first moved from run to run (some runs bought carriages and
+// no station upgrade by the end: a check that failed at random). Now the page runs seeded (`?seed=`, Math.random
+// too) on Playwright's fake clock, paused once loaded and advanced by exactly what is simulated, in lockstep
+// (`?sim=1`) on the Low tier: the same build and seed play the same game. SMOKE_SEED picks another seed.
+const SEED = Number(process.env.SMOKE_SEED ?? 1);
+const CLOCK_START = new Date('2026-06-01T09:00:00Z').getTime();
+await page.clock.install({ time: CLOCK_START });
+await page.addInitScript((s0) => {
+  let st = s0 >>> 0;
+  window.__nxReseed = () => { st = s0 >>> 0; };
+  Math.random = () => {
+    st = (st + 0x6d2b79f5) >>> 0;
+    let t = st;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}, SEED * 7919 + 13);
+await page.goto(`file://${file}?seed=${SEED}&sim=1&quality=low${process.env.SMOKE_QUERY ? `&${process.env.SMOKE_QUERY.replace(/^[?&]/, '')}` : ''}`);
+await page.waitForFunction(() => !!window.nightExpress?.booted, null, { timeout: 120000 }).catch(() => undefined);
+{
+  const loaded = await page.evaluate(() => Date.now());
+  await page.clock.pauseAt(CLOCK_START + Math.ceil((loaded - CLOCK_START + 1000) / 10000) * 10000);
+  await page.evaluate(() => window.__nxReseed?.());
+}
 // No title screen (session 12): a new player boots straight into the intro over the train.
 check(await page.evaluate(() => !!window.nightExpress && !document.querySelector('.splash')), 'boots straight into the game (no title screen)');
 // Tests drive the game themselves: skip the intro so it cannot unpause the game halfway through.
@@ -109,6 +132,8 @@ for (let t = 0; t < total; t += 5) {
       positionsFinite: finite(g.player.pos) && g.guests.list.every((x) => finite(x.pos)) && g.staff.members.every((x) => finite(x.pos)),
     };
   });
+  // The page's clock follows the game (cards closing, toasts, the news strip run for the same time).
+  await page.clock.runFor(5000);
   if (snap.chooser) chooserSeen = true;
   if (!snap.positionsFinite || !Number.isFinite(snap.cash)) break;
 }
@@ -187,7 +212,9 @@ check(door.walkable && door.moved > 0.5, `a doorway shutting never traps the con
 // The save must survive a reload with progress intact.
 // Counted at the moment of saving: the doorway test above runs more of the sim, and a tile can finish in it.
 const before = await page.evaluate(() => { const g = window.nightExpress; g.setAutopilot(false); g.save.saveNow(); return g.data.route.unlocked.length; });
-await page.reload();
+// The reload is an ordinary launch (real time, not held in lockstep), so the draw-call check below sees play.
+await page.clock.resume();
+await page.goto(`file://${file}`);
 await page.waitForFunction(() => !!window.nightExpress?.data, null, { timeout: 15000 });
 await page.waitForTimeout(300);
 const after = await page.evaluate(() => ({ unlocked: window.nightExpress.data.route.unlocked.length, cabins: window.nightExpress.train.openCabinCount() }));

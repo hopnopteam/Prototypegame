@@ -474,6 +474,44 @@ const HOLD_UNDER = 0.04;
 const HOLD_BEHIND = -0.02;
 /** The hand anchor: the middle of the mitten, below the elbow. */
 const HAND_AT = HAND_Y - ELBOW_Y + 0.025;
+
+/**
+ * Session 69, the porter's trolley: the arm's pose on its handle (pitch, out-angle, elbow) and where that puts the hand
+ * (the same arm geometry as `holdPose`), so the handle bar is made to meet the hands.
+ */
+const TROLLEY_ARM = [-0.6, 0.1, -0.5] as const;
+const TROLLEY_HAND = ((): { x: number; y: number; z: number } => {
+  const [x, z, e] = TROLLEY_ARM;
+  const sy = ELBOW_Y + HAND_AT * Math.cos(e);
+  const sz = HAND_AT * Math.sin(e);
+  const py0 = sy * Math.cos(z);
+  return { x: SHOULDER_X - sy * Math.sin(z), y: SHOULDER_Y + py0 * Math.cos(x) - sz * Math.sin(x), z: py0 * Math.sin(x) + sz * Math.cos(x) };
+})();
+let trolleyGeo: THREE.BufferGeometry | null = null;
+/** The porter's platform trolley: a walnut deck on four small wheels, brass side rails and a handle bar at the hands. */
+function trolleyGeometry(): THREE.BufferGeometry {
+  if (trolleyGeo) return trolleyGeo;
+  const b = new GeoBuilder();
+  const brass = { surface: 'brass' as const, shade: 1 };
+  const h = TROLLEY_HAND;
+  const deckZ0 = h.z + 0.08;
+  const deckZ1 = deckZ0 + 0.62;
+  const half = 0.27;
+  b.box(0, 0.13, (deckZ0 + deckZ1) / 2, half * 2, 0.04, deckZ1 - deckZ0, PALETTE.walnut, 0, { shade: 0.9, surface: 'wood' });
+  for (const x of [-half + 0.06, half - 0.06]) for (const z of [deckZ0 + 0.08, deckZ1 - 0.08]) b.cylinder(x, 0.055, z, 0.055, 0.055, 0.04, PALETTE.ink, 10, 'x', { shade: 0.8 });
+  // The side rails and the front post at each corner.
+  for (const x of [-half, half]) {
+    b.box(x, 0.3, (deckZ0 + deckZ1) / 2, 0.022, 0.022, deckZ1 - deckZ0, PALETTE.brass, 0, brass);
+    b.box(x, 0.22, deckZ1 - 0.012, 0.022, 0.18, 0.022, PALETTE.brass, 0, brass);
+    // The back upright, leaning from the deck up to the handle.
+    const dy = h.y - 0.15;
+    const dz = h.z + 0.01 - (deckZ0 + 0.01);
+    b.add(new THREE.BoxGeometry(0.024, Math.hypot(dy, dz), 0.024), PALETTE.brass, x, (h.y + 0.15) / 2, (h.z + deckZ0) / 2 + 0.01, Math.atan2(dz, dy), 0, 0, brass);
+  }
+  b.cylinder(0, h.y, h.z + 0.01, 0.019, 0.019, half * 2 + 0.06, PALETTE.brass, 10, 'x', brass);
+  trolleyGeo = b.build();
+  return trolleyGeo;
+}
 /** The ground speed (m/s) the walk cycle is drawn at, at most, while `runGait` is 0. */
 const WALK_ANIM_SPEED = 2.6;
 
@@ -487,6 +525,10 @@ export class CharacterView {
   readonly handAnchors: THREE.Object3D[] = [];
   /** Where a carried surfboard rides: on its edge under the left arm, pointing the way they walk. */
   readonly boardAnchor = new THREE.Object3D();
+  /** Session 69: the porter's luggage trolley, on the floor in front of them (bags ride on its deck). */
+  readonly trolleyAnchor = new THREE.Object3D();
+  private trolleyMesh: THREE.Mesh | null = null;
+  private pushing = false;
   private readonly legs: THREE.Object3D[] = [];
   private readonly arms: THREE.Object3D[] = [];
   private readonly shadow: THREE.Mesh;
@@ -591,6 +633,7 @@ export class CharacterView {
     this.measureFigure();
     this.boardAnchor.position.set(-0.27, 0.43, 0.04);
     this.body.add(this.boardAnchor);
+    this.root.add(this.trolleyAnchor);
 
     this.shadow = new THREE.Mesh(SHADOW_GEOMETRY, MATERIALS.shadow);
     this.shadow.position.y = 0.012;
@@ -803,6 +846,20 @@ export class CharacterView {
     this.carrying = carrying;
     this.carryBoard = board;
     this.carryBox = box;
+  }
+
+  /**
+   * Session 69 (the Stage B list: "the porter's trolley"): pushing the luggage trolley, both hands on its brass handle,
+   * the bags on its deck. The trolley is there only while it carries something.
+   */
+  setTrolley(on: boolean): void {
+    if (on === this.pushing) return;
+    this.pushing = on;
+    if (on) {
+      this.trolleyMesh ??= new THREE.Mesh(trolleyGeometry(), MATERIALS.solid);
+      this.trolleyMesh.userData.shared = true;
+      this.trolleyAnchor.add(this.trolleyMesh);
+    } else if (this.trolleyMesh) this.trolleyAnchor.remove(this.trolleyMesh);
   }
 
   /**
@@ -1372,6 +1429,12 @@ export class CharacterView {
           z = side * hold[1];
           elbow = hold[2];
         }
+        if (this.pushing) {
+          // Both hands on the trolley's handle bar, arms forward, elbows a little bent.
+          x = TROLLEY_ARM[0] + Math.sin(this.phase * 2) * 0.015 * swing;
+          z = side * TROLLEY_ARM[1];
+          elbow = TROLLEY_ARM[2];
+        }
         if (this.carryBoard && i === 0) {
           // A surfboard under the left arm: the arm out round it, the forearm along it, the hand under its rail.
           x = -0.15;
@@ -1648,6 +1711,7 @@ export class CharacterView {
     for (const mesh of this.props.values()) mesh.visible = false;
     for (const mesh of this.inHand.values()) mesh.visible = false;
     this.carrying = false;
+    this.setTrolley(false);
     this.riding = false;
     this.rideLift = 0;
     this.kick = 0;

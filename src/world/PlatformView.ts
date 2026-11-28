@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { FLOOR_Y } from './CarriageView';
+import { buildLampPost } from './LampPost';
 import { GeoBuilder, mergePlanes } from './geo';
 import { carriageOriginZ, DOOR_Z0, DOOR_Z1, LOCOMOTIVE_LENGTH, PLATFORM_WIDTH, PLATFORM_X0 } from './layout';
 import { STATION_UPGRADES } from '../config/content';
@@ -131,10 +132,6 @@ const KIOSK_POS = PLATFORM.kiosk;
  */
 /** De-Slop B5: the warm pool under each platform lamp (radius in metres, colour at full night). */
 const LAMP_POOL_RADIUS = 2.2;
-/** The street lantern model's glass (its own units): centre height, half-width and height. */
-const LANTERN_GLASS_Y = 3.82;
-const LANTERN_GLASS_HALF = 0.29;
-const LANTERN_GLASS_H = 0.26;
 const LAMP_POOL_COLOR = new THREE.Color('#FFB46A').multiplyScalar(0.42);
 const LAMP_POOL_MATERIAL = new THREE.MeshBasicMaterial({
   map: glowTexture(64, 64, 32, 32, 0, 32, [[0, 1], [0.35, 0.7], [0.7, 0.25], [1, 0]]),
@@ -527,7 +524,7 @@ export class PlatformView {
     for (let z = z0 + 3; z < z1 - 2; z += LAMP_STEP) {
       if (blockedZ(z, 0.6)) continue;
       lampZs.push(z);
-      buildLampPost(props, lamps, lampX, z);
+      platformLamp(props, lamps, lampX, z);
       block(lampX, z, LAMP_FOOT);
       anchors.push({ x: lampX - 0.7, y: FLOOR_Y + 2.1, z, strength: 1 });
       const tubZ = z + LAMP_STEP / 2;
@@ -541,7 +538,7 @@ export class PlatformView {
     // The ticket stand's own lamp, and one over the luggage barrow, so both read at night.
     // Session 57: a step further out and ahead, clear of the booking office's roof.
     const standLamp = { x: PLATFORM.counter.x1 + 0.5, z: PLATFORM.counter.z0 - 0.55 };
-    buildLampPost(props, lamps, standLamp.x, standLamp.z);
+    platformLamp(props, lamps, standLamp.x, standLamp.z);
     block(standLamp.x, standLamp.z, LAMP_FOOT);
     anchors.push({ x: standLamp.x - 0.6, y: FLOOR_Y + 2.1, z: standLamp.z + 0.6, strength: 1 });
     // The desk lamp on the counter (new look): its own small pool round the stand.
@@ -1404,15 +1401,14 @@ function buildBellPost(b: GeoBuilder): void {
   b.endObject();
 }
 
-/** The lamp post's lighter iron (its cap and trims). */
-const shadeNavy = '#3C4A70';
-
-/** A Victorian lamp post: a fluted base, a slim column and two lanterns on a crossbar along the platform. */
-function buildLampPost(b: GeoBuilder, lamps: GeoBuilder, x: number, z: number): void {
+/**
+ * A platform lamp post: the one lamp-post family's tall lantern (world/LampPost.ts, session 69); on the coast (new
+ * look) a tall tiki torch with a lit flame instead.
+ */
+function platformLamp(b: GeoBuilder, lamps: GeoBuilder, x: number, z: number): void {
   const y = FLOOR_Y;
-  b.object('platform:lampPost');
-  // The Riviera revamp (new look): a tall tiki torch with a lit flame instead of the iron lantern.
   if (NEW_LOOK && ACTIVE_ROUTE.id === 'riviera') {
+    b.object('platform:lampPost');
     const e = modelEntry('tiki_torch');
     const sc = 2.3 / (e.max[1] - e.min[1]);
     b.model('tiki_torch', x, y, z, 0, sc * 1.3, sc, sc * 1.3, { shade: 0.95, surface: 'wood' });
@@ -1422,34 +1418,7 @@ function buildLampPost(b: GeoBuilder, lamps: GeoBuilder, x: number, z: number): 
     lamps.endObject();
     return;
   }
-  {
-    // Session 51: Tiny Treats' street lantern in the station's navy iron, its glass lit.
-    const e = modelEntry('street_lamp');
-    const sc = 2.75 / (e.max[1] - e.min[1]);
-    b.model('street_lamp', x, y, z, 0, sc, sc, sc, { recolor: [key('ttMid', PALETTE.navy), key('ttLight', shadeNavy)], surface: 'iron' });
-    b.endObject();
-    lamps.object('platform:lampPost~glow');
-    // De-Slop B5: the model's glass is solid grey, so the lit glass is a band just proud of it (it read as an
-    // unlit head at night).
-    lamps.box(x, y + LANTERN_GLASS_Y * sc, z, LANTERN_GLASS_HALF * sc * 2 + 0.02, LANTERN_GLASS_H * sc, LANTERN_GLASS_HALF * sc * 2 + 0.02, '#FFE2A6', 0);
-    lamps.endObject();
-    return;
-  }
-  b.cylinder(x, y + 0.1, z, 0.13, 0.17, 0.2, PALETTE.navy, 12, 'y', { shade: 0.8, surface: 'iron' });
-  b.cylinder(x, y + 0.26, z, 0.08, 0.11, 0.14, PALETTE.navy, 12, 'y', { shade: 0.85, surface: 'iron' });
-  b.cylinder(x, y + 1.35, z, 0.04, 0.055, 2.05, PALETTE.navy, 10, 'y', { shade: 0.88, surface: 'iron' });
-  b.box(x, y + 2.3, z, 0.05, 0.05, 0.62, PALETTE.navy, 0, { shade: 1, surface: 'iron' });
-  b.sphere(x, y + 2.45, z, 0.045, PALETTE.brass, 0, 1, { shade: 1, surface: 'brass' });
-  for (const dz of [-0.26, 0.26]) {
-    b.box(x, y + 2.31, z + dz, 0.16, 0.025, 0.16, PALETTE.navy, 0, { shade: 1, surface: 'iron' });
-    b.cone(x, y + 2.6, z + dz, 0.12, 0.1, PALETTE.navy, 4, { shade: 1, surface: 'iron' });
-  }
-  b.endObject();
-  for (const dz of [-0.26, 0.26]) {
-    lamps.object('platform:lampPost~glow');
-    lamps.box(x, y + 2.43, z + dz, 0.13, 0.2, 0.13, PALETTE.lampShade, 0);
-  }
-  lamps.endObject();
+  buildLampPost(b, lamps, x, y, z, 'tall', 'platform:lampPost');
 }
 
 /**
@@ -1545,15 +1514,8 @@ function buildForecourt(flat: GeoBuilder, b: GeoBuilder, lamps: GeoBuilder, x1: 
   for (let z = z0 + 3; z < z1 - 2; z += 9) {
     if (inHouse(z, 1)) continue;
     const lx = laneX1 + 0.32;
-    b.object('forecourt:lamp');
-    const e = modelEntry('street_lamp');
-    const sc = 2.75 / (e.max[1] - e.min[1]);
-    b.model('street_lamp', lx, top, z, 0, sc, sc, sc, { recolor: [key('ttMid', '#2B3046'), key('ttLight', '#3A4060')], surface: 'iron' });
-    lamps.object('forecourt:lamp~glow');
-    lamps.box(lx, top + 2.52, z, 0.2, 0.22, 0.2, PALETTE.lampShade, 0);
+    buildLampPost(b, lamps, lx, top, z, 'tall', 'forecourt:lamp');
   }
-  b.endObject();
-  lamps.endObject();
 
   // Across the lane: the village's front gardens behind a white picket fence, a gate in it every garden.
   const fenceX = laneX1 + 1.0;

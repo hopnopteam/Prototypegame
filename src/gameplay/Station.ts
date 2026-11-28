@@ -114,6 +114,10 @@ export class Station {
     w.events.on('guest.checkedIn', ({ fare }) => { this.faresThisStop += fare; });
     w.events.on('guest.boarded', ({ byPlayer }) => {
       this.boardedThisStop++;
+      if (this.prologue) {
+        w.data.route.prologueSold++;
+        w.save.markDirty();
+      }
       if (this.prologue && byPlayer && !this.prologueTicketsDone) {
         this.prologueTicketsDone = true;
         w.ftue('first_ticket');
@@ -310,8 +314,16 @@ export class Station {
     const arrivals = rules.arrivals.slice(0, rules.travellers);
     const together = Math.max(1, arrivals.filter((at) => at <= 0).length);
     const spots = Array.from({ length: together }, (_, i) => (i === 0 ? PLATFORM.window : queueSpot(i)));
-    w.guests.spawnPlatformGuests(spots, spots.map(() => 'basic' as const), rules.archetypes.slice(0, together));
+    const spawned = w.guests.spawnPlatformGuests(spots, spots.map(() => 'basic' as const), rules.archetypes.slice(0, together));
     this.prologueArrivals = arrivals.slice(together).map((at, i) => ({ at, archetype: rules.archetypes[together + i] }));
+    // Session 69: a relaunch in the middle of the opening. Whoever had already bought a ticket comes back holding it
+    // (their fare is in the wallet or on the floor): they walk to the door, or aboard once the carriage is open.
+    const sold = Math.min(w.data.route.prologueSold, rules.travellers);
+    for (let i = 0; i < sold; i++) {
+      const guest = spawned[i] ?? (this.prologueArrivals.shift(), w.guests.spawnLatecomer('basic', rules.archetypes[i]));
+      if (guest) w.guests.holdTicket(guest);
+    }
+    if (sold > 0) this.prologueTicketsDone = true;
     w.audio.setStationAmbience(true);
     this.prologueClock = 0;
   }
@@ -366,6 +378,7 @@ export class Station {
     if (phase === 'departing' && previous === 'stationStop' && this.prologue) {
       // Leaving Millbrook: the doors close and the flag goes up, but it was not a stop of the ride (no ticket).
       this.prologue = false;
+      w.data.route.prologueSold = 0;
       this.view.setFlag(true);
       this.closeDoors();
       return;
