@@ -93,7 +93,7 @@ export const CLASSES: ClassDef[] = [
   },
 ];
 
-// The revamp: the route's own class names (the Riviera's Driftwood, Bamboo, Tiki Paradise).
+// The revamp: the route's own class names (the Riviera's Beach Hut, Sea View, Ocean Suite, Tiki Suite; session 69).
 for (const c of CLASSES) {
   const n = ACTIVE_ROUTE.tiers?.classes[c.id];
   if (n) Object.assign(c, n);

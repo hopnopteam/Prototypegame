@@ -1,6 +1,6 @@
 import { ACTIVE_ROUTE } from '../config/routes';
 import { CARRIAGE_CATALOGUE, CARRIAGE_ORDER, COUPLE_SLOTS, LEGACY_TRAIN, MAX_CARRIAGES, SLOT_PRICE_STEP, STATION_UPGRADES, type UnlockDef, type UnlockTemplate } from '../config/content';
-import { CLASS_BY_ID, isPassengerType, type ClassId } from '../config/classes';
+import { CLASS_BY_ID, classStartingAt, isPassengerType, type ClassId } from '../config/classes';
 import type { CarriageType } from '../core/types';
 import { ECONOMY } from '../config/economy';
 import { roomsAt } from '../world/layout';
@@ -80,11 +80,12 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
       if (t.kind === 'cabin' && t.cabin !== undefined && t.cabin >= rooms) continue;
       // The revamp: a route may stop its passenger carriages below the Royal Suite (the Riviera's Tiki Paradise).
       if (tiers && t.kind === 'refurb' && isPassengerType(type) && (t.tier ?? 0) > tiers.maxPassengerTier) continue;
-      const routeLabel = tiers && t.kind === 'refurb' && t.tier ? (isPassengerType(type) ? tiers.passenger[t.tier as 1 | 2 | 3 | 4 | 5] : tiers.refit[t.tier - 1]) : undefined;
+      const routeLabel = tiers && t.kind === 'refurb' && t.tier ? (isPassengerType(type) ? tiers.passenger[t.tier as 1 | 2 | 3 | 4 | 5] : tiers.refitTiles[t.tier - 1]) : undefined;
+      const routeTile = ACTIVE_ROUTE.tiles?.[`${type}.${t.key}`];
       defs.push({
         id: tileId(index, t.key),
         kind: t.kind,
-        label: routeLabel ?? t.label.replace('{n}', String(cabinsBefore + (t.cabin ?? 0) + 1)),
+        label: routeTile?.label ?? routeLabel ?? t.label.replace('{n}', String(cabinsBefore + (t.cabin ?? 0) + 1)),
         price: tilePrice(t, type, index),
         stars: t.stars,
         carriage: index,
@@ -98,7 +99,7 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
         tier: t.tier,
         comfort: t.comfort,
         group: t.group,
-        effect: t.effect,
+        effect: routeTile?.effect ?? (tiers ? routeRefitEffect(t, type) : t.effect),
       });
     }
     cabinsBefore += rooms;
@@ -114,6 +115,20 @@ export function buildUnlocks(carriages: readonly CarriageType[]): UnlockDef[] {
     defs.push({ id: `couple_${n}`, kind: 'couple', label: 'New Carriage', price: couplePrice(n), stars: slot.stars, carriage: n, requires, effect: 'A surprise joins the train' });
   });
   return defs;
+}
+
+/**
+ * Session 69: a passenger refit's line on a route with its own classes reads that route's fares (the Riviera's Tiki
+ * Suites take ×4.2 a room, not First Class's ×14) and, where every class keeps the rooms (`layout.keepRooms`), says
+ * nothing about fewer, bigger rooms.
+ */
+function routeRefitEffect(t: UnlockTemplate, type: CarriageType): string {
+  if (t.kind !== 'refurb' || !t.tier || !isPassengerType(type)) return t.effect;
+  const cls = classStartingAt(t.tier);
+  let effect = t.effect;
+  if (ACTIVE_ROUTE.layout?.keepRooms) effect = effect.replace(/^\d+ suites? · /, '');
+  if (cls && cls.id !== 'basic') effect = effect.replace(/Fares ×[\d.]+/, `Fares ×${cls.fare}`);
+  return effect;
 }
 
 /**

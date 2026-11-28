@@ -150,14 +150,25 @@ export interface RouteDef {
    * the route's couplings).
    */
   couplingShift?: Partial<Record<CarriageType, number>>;
+  /**
+   * Session 69: a shared tile's label and line on this route, keyed `<type>.<tile key>` (the Riviera's café sells gelato
+   * where Route 1's sells pastries: "Gelato Menu", "Sells gelato"). Left out, the catalogue's own.
+   */
+  tiles?: Partial<Record<string, { label?: string; effect?: string }>>;
 }
 
 /** A route's names for the refit tiers (1, 2, 3 on every carriage) and its classes. */
 export interface RouteTiers {
-  /** Refit names by tier on service cars and venues: [tier 1, tier 2, tier 3], and the name of tier 0. */
+  /** Service cars' and venues' state names by tier (the cards, the train map): [tier 1, tier 2, tier 3], and tier 0's. */
   refit: [string, string, string];
   broken: string;
-  /** Passenger carriages: the refit tile's name by tier (1 Repair, 2 Comfort, 4 First Class, 5 Royal Suite). */
+  /**
+   * Session 69 (owner: "better more recognisable upgrade names… these are too abstract and do not indicate upgrades"):
+   * the refit tiles' own labels on service cars and venues, [tier 1, tier 2, tier 3], read as things to buy ("Bamboo
+   * Makeover"), apart from the state names above ("Bamboo Style").
+   */
+  refitTiles: [string, string, string];
+  /** Passenger carriages: the refit tile's label by tier (1 Repair, 2 Comfort, 3 Business, 4 First Class, 5 Royal Suite). */
   passenger: Partial<Record<1 | 2 | 3 | 4 | 5, string>>;
   /** The classes' names and chips on this route. */
   classes: Partial<Record<ClassId, { name: string; chip: string; fare?: number; tip?: number; stars?: number }>>;
@@ -434,14 +445,36 @@ export const RIVIERA_COAST: RouteDef = {
   maxCarriages: 9,
   // Their upgrades wait on couplings counted from where the catalogue's order had them (docs/art/RIVIERA_REVAMP.md).
   couplingShift: { pool: -6, dome: -2, sleeper: 2, dining: 1, kids: 2, honeymoon: 1 },
-  // Owner, 24 Nov: "Driftwood → Bamboo → Tiki Paradise" on every carriage.
+  // Session 69: the shared tiles in the coast's words (what the bar blends and scoops, what the diner grills, the
+  // lounge's loungers, the couples' suites).
+  tiles: {
+    'cafe.menu_pastry': { label: 'Gelato Menu', effect: 'Sells gelato' },
+    'cafe.station_machine': { label: 'Second Blender', effect: 'Blends faster' },
+    'dining.station_range': { label: 'Second Grill', effect: 'Grills faster' },
+    'dome.row_1': { label: 'Sun Loungers', effect: '+2 loungers' },
+    'dome.row_2': { label: 'Sun Loungers', effect: '+2 loungers' },
+    'dome.row_3': { label: 'Sun Loungers', effect: '+2 loungers' },
+    'dome.row_4': { label: 'Sun Loungers', effect: '+2 loungers' },
+    'dome.row_5': { label: 'Sun Loungers', effect: '+2 loungers' },
+    'honeymoon.refurb_2': { label: 'Sea View Suites' },
+  },
+  // Owner, 24 Nov: driftwood → bamboo → tiki on every carriage. Session 69 (owner: "too abstract… do not indicate
+  // upgrades"): the tiles say what is bought ("Repair", "Bamboo Makeover", "Tiki Luxury"; "Sea View Rooms", "Tiki
+  // Suites") and the classes say what is sold (a Beach Hut, a Sea View room, a Tiki Suite).
   tiers: {
     broken: 'Shipwrecked',
-    refit: ['Driftwood', 'Bamboo', 'Tiki Paradise'],
-    passenger: { 1: 'Driftwood', 2: 'Bamboo', 4: 'Tiki Paradise' },
-    // Tiki Paradise keeps every room (`layout.keepRooms`), so it is paid per room: about First Class's two suites'
-    // takings spread over a sleeper's six rooms (a Bamboo sleeper takes 10.8 fares a ride, Tiki Paradise 25).
-    classes: { basic: { name: 'Driftwood', chip: 'DRIFTWOOD' }, comfort: { name: 'Bamboo', chip: 'BAMBOO' }, first: { name: 'Tiki Paradise', chip: 'TIKI PARADISE', fare: 4.2, tip: 3, stars: 3 } },
+    refit: ['Repaired', 'Bamboo Style', 'Tiki Luxury'],
+    refitTiles: ['Repair', 'Bamboo Makeover', 'Tiki Luxury'],
+    passenger: { 1: 'Repair', 2: 'Sea View Rooms', 3: 'Ocean Suites', 4: 'Tiki Suites' },
+    // The Tiki Suites keep every room (`layout.keepRooms`), so they are paid per room: about First Class's two suites'
+    // takings spread over a sleeper's six rooms (a Sea View sleeper takes 10.8 fares a ride, the Tiki Suites 25).
+    // Business is reached only by the Honeymoon Suites' third refit (its Ocean Suites).
+    classes: {
+      basic: { name: 'Beach Hut', chip: 'BEACH HUT' },
+      comfort: { name: 'Sea View', chip: 'SEA VIEW' },
+      business: { name: 'Ocean Suite', chip: 'OCEAN SUITE' },
+      first: { name: 'Tiki Suite', chip: 'TIKI SUITE', fare: 4.2, tip: 3, stars: 3 },
+    },
     maxPassengerTier: 4,
   },
   stations: [
@@ -572,16 +605,16 @@ export const RIVIERA_COAST: RouteDef = {
     dress: {
       posters: { label: 'Beach Posters' },
       booth: { label: 'Ticket Kiosk' },
-      benches: { label: 'Deckchairs' },
-      windowboxes: { label: 'Bougainvillea' },
-      kiosk: { label: 'Lemon Stall' },
+      benches: { label: 'Waiting Chairs' },
+      windowboxes: { label: 'Flower Boxes' },
+      kiosk: { label: 'Lemonade Stall' },
       billboard: { label: 'Billboards' },
       helper: { label: 'Supply Porter' },
-      lamps: { label: 'Lanterns' },
-      lining: { label: 'Blue Trim' },
+      lamps: { label: 'Carriage Lamps' },
+      lining: { label: 'Blue Paintwork' },
       band: { label: 'Mandolin Band' },
       nameboards: { label: 'Name Signs' },
-      redcarpet: { label: 'Blue Carpet' },
+      redcarpet: { label: 'Welcome Carpet' },
     },
     events: [
       ...COUNTRYSIDE_EXPRESS.station.events.filter((e) => e.kind !== 'harvest' && e.kind !== 'sheep'),

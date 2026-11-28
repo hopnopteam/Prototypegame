@@ -14,6 +14,10 @@ byte-identical in the pacing simulator; Route 2 gets a fresh pacing pass.
 - **Upgrade line on every carriage:** Broken → **Driftwood** → **Bamboo** → **Tiki Paradise** (replacing Repair /
   Makeover / Luxury and Comfort / First Class / Royal Suite on this route). Names, emblems, liveries and every
   furnishing per tier follow it; nothing luxurious carries over (no velvet, gilt, marble, four-posters, pianos).
+  Session 69 (owner: "too abstract, does not indicate upgrades"): the looks keep those names, but the tiles read as
+  things to buy (Repair → Bamboo Makeover → Tiki Luxury on venues; Repair → Sea View Rooms → Tiki Suites on passenger
+  carriages, the Honeymoon Suites' Sea View Suites → Ocean Suites) and the classes as what is sold (Beach Hut, Sea
+  View, Ocean Suite, Tiki Suite).
 
 ## Visual language (vs the Countryside)
 | | Countryside | Riviera |
