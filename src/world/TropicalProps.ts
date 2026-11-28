@@ -336,7 +336,7 @@ export function buildTropicalProp(b: GeoBuilder, lamps: GeoBuilder, prop: PropDe
     case 'planter': {
       // Session 69: the spa's planters flower at Tiki Luxury (hibiscus and fern in a woven box).
       if (type === 'spa' && look >= 3) {
-        place(b, 'spa_planter', cx, Y, cz, Math.min(w, d) + 0.12, 0.8);
+        place(b, 'spa_planter', cx, Y, cz, Math.min(w, d) - 0.02, 0.8);
         return true;
       }
       // A monstera in a woven pot (a palm-leaf plant at Driftwood: the same model, smaller).
