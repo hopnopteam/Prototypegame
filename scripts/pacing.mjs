@@ -218,6 +218,18 @@ async function run(profile, seed) {
     // The page's clock follows the game: its timers (cards closing, toasts, the news strip) run for the same time.
     await page.clock.runFor(chunk * 1000);
     const now = snap.t;
+    // Session 69, a debugging aid: DUMP_FROM=<seconds> prints what the bot is doing every chunk from then on (where it
+    // stands, what it is guided to, its path), and DUMP_UNTIL ends the run there.
+    if (process.env.DUMP_FROM && now >= Number(process.env.DUMP_FROM)) {
+      const d = await page.evaluate(() => {
+        const g = window.nightExpress;
+        const p = g.player.pos;
+        const f = g.guidance.focus;
+        return `pos ${p.x.toFixed(2)},${p.z.toFixed(2)} walk ${g.map.walk.isWalkable(p.x, p.z)} reason ${g.guidance.reason} focus ${f ? `${f.x?.toFixed?.(2)},${f.z?.toFixed?.(2)}` : '-'} carry [${g.player.stack.items.join(',')}] box ${g.station.supplyInHand} cupboard ${g.station.cupboardNeed?.() ?? '?'} cart ${g.station.cartWanted?.()} phase ${g.journey.phase} doors ${g.journey.doorsOpen} stick ${JSON.stringify(g.input.override)}`;
+      });
+      process.stderr.write(`[dump s${seed}] ${fmt(now)} ${d}\n`);
+      if (process.env.DUMP_UNTIL && now >= Number(process.env.DUMP_UNTIL)) break;
+    }
     const defs = Object.fromEntries(snap.defs.map((d) => [d.id, d]));
     for (const id of snap.unlocked) if (!seen.has(id)) {
       seen.add(id);
