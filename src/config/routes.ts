@@ -574,10 +574,13 @@ export const RIVIERA_COAST: RouteDef = {
     // waiting 10 minutes for the last coupling and each Tiki Suites refit. The last two couplings 5,100 → 4,400 and
     // 12,500 → 8,800 (12,750 → 11,000 and 31,250 → 22,000 in play), the Tiki Suites at ×1.0 (was ×1.2).
     couplePrices: [60, 290, 220, 800, 2100, 3500, 4400, 8800],
-    // The longer route's last hour: the dearest tiles grow a little more.
-    priceCurve: { from: 600, to: 6000, max: 1.25 },
-    classRefit: { fromTier: 4, multiplier: 1.0 },
-    slotPrice: [0.85, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2],
+    // Session 69: the bot buys something every one to three minutes to the end, so the route's length is everything's
+    // price over the income: with the revamp's carriages it finished at 265 minutes (target 210–240). The dearest
+    // tiles no longer grow faster than the rest (the curve's top ×1.25 → ×1.0), the last carriages' surcharge is
+    // flattened (×1.1–1.2 → ×1.05) and the Tiki Suites cost ×0.85.
+    priceCurve: { from: 600, to: 6000, max: 1.0 },
+    classRefit: { fromTier: 4, multiplier: 0.85 },
+    slotPrice: [0.85, 0.85, 0.9, 0.95, 1.0, 1.05, 1.05, 1.05, 1.05],
     // Its own level thresholds: with Route 1's, level 8 came at about 130 minutes of a 216-minute route; stretched so the
     // last levels keep coming until near the end.
     levels: { ...COUNTRYSIDE_EXPRESS.economy.levels, thresholds: [0, 40, 120, 290, 580, 1300, 2800, 6500], cash: COUNTRYSIDE_EXPRESS.economy.levels.cash.map((c) => c * 2.5) },
