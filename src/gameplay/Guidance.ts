@@ -268,7 +268,10 @@ export class Guidance {
 
     if (w.journey.doorsOpen) {
       const boarding = w.guests.canBoard() && w.staff.count('porter') === 0;
-      if (boarding && stack.isEmpty) return this.because('board', w.station.boardingPoint());
+      // Session 69 (found by the Riviera pacing run: two travellers stood at the window for over two minutes while the
+      // conductor held something nobody wanted): the stand sells with anything in hand, so it is pointed at whenever
+      // nothing carried is wanted elsewhere, as the bell is.
+      if (boarding && (stack.isEmpty || !this.whereNeeded(stack.items))) return this.because('board', w.station.boardingPoint());
       if (!stack.isFull && w.demand.playerWants(w.station.topBag()) > 0 && !stack.has('luggage') && !stack.has('surfboard')) return this.because('luggage', w.station.luggagePoint());
       // Phase 2's special stops: sheep on the platform to shoo before the bell.
       const sheep = w.stationEvents.nearestSheep(player.pos);
